@@ -9,6 +9,9 @@ const LoginPage = lazy(() => import("@/pages/auth/login").then(m => ({ default: 
 const RegisterPage = lazy(() => import("@/pages/auth/register").then(m => ({ default: m.RegisterPage })))
 const ForgotPasswordPage = lazy(() => import("@/pages/auth/forgot-password").then(m => ({ default: m.ForgotPasswordPage })))
 
+const TwoFASetupPage = lazy(() => import("@/pages/2fa/setup").then(m => ({ default: m.TwoFASetupPage })))
+const TwoFAVerifyPage = lazy(() => import("@/pages/2fa/verify").then(m => ({ default: m.TwoFAVerifyPage })))
+
 const KycPage = lazy(() => import("@/pages/kyc/kyc-page").then(m => ({ default: m.KycPage })))
 const ProfilePage = lazy(() => import("@/pages/profile/profile-page").then(m => ({ default: m.ProfilePage })))
 
@@ -45,6 +48,10 @@ export const router = createBrowserRouter([
 
       // AI
       { path: "assistant", element: <AssistantPage /> },
+
+      // 2FA
+      { path: "2fa/setup", element: <TwoFASetupPage /> },
+      { path: "2fa/verify", element: <TwoFAVerifyPage /> },
 
       // Профиль
       { path: "profile", element: <ProfilePage /> },
