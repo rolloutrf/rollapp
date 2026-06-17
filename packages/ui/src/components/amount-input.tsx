@@ -25,12 +25,7 @@ const AmountInput = React.forwardRef<HTMLInputElement, AmountInputProps>(
     return (
       <div className={cn("relative", className)}>
         <IMaskInput
-          mask={Number}
-          scale={2}
-          signed={false}
-          thousandsSeparator=" "
-          lazy={false}
-          unmask={false}
+          mask={/^\d[\d\s]*(,\d{0,2})?$/}
           inputRef={ref}
           value={value || ""}
           onAccept={handleAccept}
