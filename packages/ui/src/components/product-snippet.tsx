@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { cn } from "@rollapp/ui/lib/utils"
 import { Badge } from "@rollapp/ui/components/badge"
 import { Button } from "@rollapp/ui/components/button"
