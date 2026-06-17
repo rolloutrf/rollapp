@@ -18,11 +18,18 @@ cd rollapp
 pnpm install
 
 # Запуск dev-сервера
-pnpm --filter @rollapp/web dev
+pnpm dev
 
 # Добавление shadcn-компонента
 cd apps/web
 npx shadcn@latest add button
+```
+
+## Использование компонентов
+
+```tsx
+import { Button } from "@rollapp/ui/components/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@rollapp/ui/components/card"
 ```
 
 ## Документация
@@ -44,3 +51,11 @@ npx shadcn@latest add button
 | База данных | PostgreSQL + Redis + ClickHouse |
 | Монорепо | Turborepo + pnpm workspaces |
 | CI/CD | GitHub Actions |
+
+## shadcn/ui компоненты (уже установлены)
+
+accordion, avatar, badge, breadcrumb, button, calendar, card, carousel, chart,
+checkbox, command, dialog, dropdown-menu, input-group, input, label,
+navigation-menu, pagination, popover, progress, radio-group, scroll-area,
+select, separator, sheet, sidebar, skeleton, sonner, switch, table, tabs,
+textarea, tooltip
