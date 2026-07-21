@@ -33,6 +33,17 @@ async function post(path, body, cookie = "") {
   });
 }
 
+async function patch(path, body, cookie = "") {
+  return fetch(`${baseUrl}${path}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 async function login(email) {
   const response = await post("/auth/login", { email, password: "demo1234" });
   assert.equal(response.status, 200);
@@ -66,6 +77,65 @@ test("private lists stay private while link lists remain reservable", async (t) 
   assert.equal(dashboardResponse.status, 200);
   const dashboard = await dashboardResponse.json();
   assert.deepEqual(dashboard.games, []);
+
+  const legacyWish = dashboard.wishes.find((wish) => wish.id === "demo-wish-camera");
+  assert.ok(legacyWish);
+  assert.equal(legacyWish.imageUrl, "/art/camera.svg");
+  const sourceList = dashboard.lists.find((list) => legacyWish.listIds.includes(list.id));
+  const targetList = dashboard.lists.find((list) => !legacyWish.listIds.includes(list.id));
+  assert.ok(sourceList);
+  assert.ok(targetList);
+
+  const protocolRelativeImageResponse = await post("/wishes", {
+    title: "Unsafe protocol-relative image",
+    imageUrl: "//cdn.example/image.jpg",
+    listIds: [sourceList.id],
+  }, ownerCookie);
+  assert.equal(protocolRelativeImageResponse.status, 400);
+  await protocolRelativeImageResponse.json();
+
+  const backslashImageResponse = await post("/wishes", {
+    title: "Unsafe backslash image",
+    imageUrl: "/art\\camera.svg",
+    listIds: [sourceList.id],
+  }, ownerCookie);
+  assert.equal(backslashImageResponse.status, 400);
+  await backslashImageResponse.json();
+
+  const moveWishResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [targetList.id] }, ownerCookie);
+  assert.equal(moveWishResponse.status, 200);
+  const movedWish = (await moveWishResponse.json()).wish;
+  assert.deepEqual(movedWish.listIds, [targetList.id]);
+
+  const movedDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
+  assert.equal(movedDashboardResponse.status, 200);
+  const movedDashboard = await movedDashboardResponse.json();
+  assert.deepEqual(movedDashboard.wishes.find((wish) => wish.id === legacyWish.id).listIds, [targetList.id]);
+  assert.equal(movedDashboard.lists.find((list) => list.id === sourceList.id).wishCount, sourceList.wishCount - 1);
+  assert.equal(movedDashboard.lists.find((list) => list.id === targetList.id).wishCount, targetList.wishCount + 1);
+
+  const emptyListsResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [] }, ownerCookie);
+  assert.equal(emptyListsResponse.status, 400);
+  await emptyListsResponse.json();
+
+  const duplicateListsResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [targetList.id, targetList.id] }, ownerCookie);
+  assert.equal(duplicateListsResponse.status, 400);
+  await duplicateListsResponse.json();
+
+  const viewerDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: viewerCookie } });
+  assert.equal(viewerDashboardResponse.status, 200);
+  const viewerDashboard = await viewerDashboardResponse.json();
+  const foreignListId = viewerDashboard.lists[0].id;
+  const foreignListResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [foreignListId] }, ownerCookie);
+  assert.equal(foreignListResponse.status, 403);
+  await foreignListResponse.json();
+
+  const unchangedDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
+  assert.equal(unchangedDashboardResponse.status, 200);
+  const unchangedDashboard = await unchangedDashboardResponse.json();
+  assert.deepEqual(unchangedDashboard.wishes.find((wish) => wish.id === legacyWish.id).listIds, [targetList.id]);
+  assert.equal(unchangedDashboard.lists.find((list) => list.id === sourceList.id).wishCount, sourceList.wishCount - 1);
+  assert.equal(unchangedDashboard.lists.find((list) => list.id === targetList.id).wishCount, targetList.wishCount + 1);
 
   const removedApiResponse = await fetch(`${baseUrl}/santa`, { headers: { Cookie: ownerCookie } });
   assert.equal(removedApiResponse.status, 404);
