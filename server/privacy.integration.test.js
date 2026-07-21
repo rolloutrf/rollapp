@@ -48,8 +48,8 @@ test("private lists stay private while link lists remain reservable", async (t) 
   t.after(() => child.kill("SIGTERM"));
   await waitForServer(child);
 
-  const ownerCookie = await login("demo@rollwish.ru");
-  const viewerCookie = await login("max@rollwish.ru");
+  const ownerCookie = await login("demo@rollapp.test");
+  const viewerCookie = await login("max@rollapp.test");
 
   const privateListResponse = await post("/lists", { title: "Private", privacy: "private" }, ownerCookie);
   assert.equal(privateListResponse.status, 201);

@@ -161,15 +161,15 @@ async function insertIdeas(client) {
 }
 
 async function seedDemo(client) {
-  const existing = await client.query("SELECT id FROM users WHERE email = $1", ["demo@rollwish.ru"]);
+  const existing = await client.query("SELECT id FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (existing.rowCount) return;
 
   const passwordHash = await hashPassword("demo1234");
   const people = [
-    { id: randomUUID(), email: "demo@rollwish.ru", username: "alisa", name: "Алиса Морозова", bio: "Собираю поводы радоваться и красивые вещи с историей.", birthday: "1996-08-14", avatar: "" },
-    { id: randomUUID(), email: "max@rollwish.ru", username: "max", name: "Макс Ветров", bio: "Музыка, горы и хороший кофе.", birthday: "1994-09-03", avatar: "" },
-    { id: randomUUID(), email: "sonya@rollwish.ru", username: "sonya", name: "Соня Левина", bio: "Делаю дом уютнее, а выходные — длиннее.", birthday: "1997-11-21", avatar: "" },
-    { id: randomUUID(), email: "lev@rollwish.ru", username: "lev", name: "Лев Орлов", bio: "Не дарите носки. Если только очень красивые.", birthday: "1993-12-07", avatar: "" }
+    { id: randomUUID(), email: "demo@rollapp.test", username: "alisa", name: "Алиса Морозова", bio: "Собираю поводы радоваться и красивые вещи с историей.", birthday: "1996-08-14", avatar: "" },
+    { id: randomUUID(), email: "max@rollapp.test", username: "max", name: "Макс Ветров", bio: "Музыка, горы и хороший кофе.", birthday: "1994-09-03", avatar: "" },
+    { id: randomUUID(), email: "sonya@rollapp.test", username: "sonya", name: "Соня Левина", bio: "Делаю дом уютнее, а выходные — длиннее.", birthday: "1997-11-21", avatar: "" },
+    { id: randomUUID(), email: "lev@rollapp.test", username: "lev", name: "Лев Орлов", bio: "Не дарите носки. Если только очень красивые.", birthday: "1993-12-07", avatar: "" }
   ];
 
   for (const person of people) {

@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: rollwish-production
+  group: rollapp-production
   cancel-in-progress: true
 
 env:
@@ -18,7 +18,7 @@ env:
   YC_DEPLOY_SA_ID: ajea75b2e3r8kiigmice
   YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
   YC_VM_ID: epd40l0koqqqietvpd18
-  IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollwish
+  IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
   PUBLIC_URL: https://51-250-110-17.sslip.io
 
 jobs:
@@ -99,7 +99,7 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" \
               | jq -e --arg expected "$GITHUB_SHA" '.ok == true and .version == $expected' >/dev/null; then
-              echo "Rollwish is healthy at ${PUBLIC_URL}"
+              echo "Rollapp is healthy at ${PUBLIC_URL}"
               exit 0
             fi
             echo "Waiting for production (${attempt}/30)..."
