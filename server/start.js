@@ -28,40 +28,7 @@ async function loadLockboxSecret() {
   console.log("Runtime database credential loaded from Yandex Lockbox");
 }
 
-async function migrateDatabaseIfRequested() {
-  if (!process.env.MIGRATE_FROM_PGDATABASE) return;
-  const { initializeDatabase } = await import("./schema.js");
-  await initializeDatabase();
-  const { pool } = await import("./db.js");
-  await pool.query(`CREATE TABLE IF NOT EXISTS app_migrations (
-    key TEXT PRIMARY KEY,
-    completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  )`);
-  const migrationKey = process.env.MIGRATION_KEY || "database-copy";
-  const completed = await pool.query("SELECT 1 FROM app_migrations WHERE key=$1", [migrationKey]);
-  if (completed.rowCount) {
-    console.log("Database migration already completed");
-    return;
-  }
-  const sourcePassword = await loadLockboxValue(
-    process.env.MIGRATE_FROM_LOCKBOX_SECRET_ID,
-    process.env.MIGRATE_FROM_LOCKBOX_SECRET_KEY || "postgresql_password",
-  );
-  const { migrateDatabase } = await import("./database-migration.js");
-  await migrateDatabase({
-    migrationKey,
-    source: {
-      host: process.env.MIGRATE_FROM_PGHOST,
-      port: Number(process.env.MIGRATE_FROM_PGPORT || 6432),
-      database: process.env.MIGRATE_FROM_PGDATABASE,
-      user: process.env.MIGRATE_FROM_PGUSER,
-      password: sourcePassword,
-    },
-  });
-}
-
 await loadLockboxSecret();
-await migrateDatabaseIfRequested();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });
