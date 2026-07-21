@@ -290,56 +290,64 @@ export async function fetchPublicHtml(input, {
   request = requestOnce,
 } = {}) {
   let url = parsePublicHttpUrl(input);
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const timeoutController = new AbortController();
+  const timeoutError = new Error("Metadata request timed out");
+  timeoutError.name = "TimeoutError";
+  const timeout = setTimeout(() => timeoutController.abort(timeoutError), timeoutMs);
+  const timeoutSignal = timeoutController.signal;
 
-  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-    let addresses;
-    let response;
-    try {
-      addresses = await waitWithSignal(resolvePublicHost(url, lookup), timeoutSignal);
-      response = await waitWithSignal(
-        request(url, { addresses, signal: timeoutSignal, maxBytes }),
-        timeoutSignal,
-      );
-    } catch (error) {
-      throw asRequestError(error, timeoutSignal);
-    }
-
-    const location = response.headers.location;
-    if ([301, 302, 303, 307, 308].includes(response.statusCode) && location) {
-      if (redirectCount === maxRedirects) {
-        throw new MetadataFetchError("Слишком много перенаправлений", {
-          code: "too_many_redirects",
-        });
-      }
+  try {
+    for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+      let addresses;
+      let response;
       try {
-        url = parsePublicHttpUrl(new URL(location, url));
+        addresses = await waitWithSignal(resolvePublicHost(url, lookup), timeoutSignal);
+        response = await waitWithSignal(
+          request(url, { addresses, signal: timeoutSignal, maxBytes }),
+          timeoutSignal,
+        );
       } catch (error) {
-        if (error instanceof MetadataFetchError) throw error;
-        throw new MetadataFetchError("Магазин вернул некорректное перенаправление", {
-          code: "invalid_redirect",
-          cause: error,
+        throw asRequestError(error, timeoutSignal);
+      }
+
+      const location = response.headers.location;
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && location) {
+        if (redirectCount === maxRedirects) {
+          throw new MetadataFetchError("Слишком много перенаправлений", {
+            code: "too_many_redirects",
+          });
+        }
+        try {
+          url = parsePublicHttpUrl(new URL(location, url));
+        } catch (error) {
+          if (error instanceof MetadataFetchError) throw error;
+          throw new MetadataFetchError("Магазин вернул некорректное перенаправление", {
+            code: "invalid_redirect",
+            cause: error,
+          });
+        }
+        continue;
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw new MetadataFetchError("Магазин не отдал данные, заполните карточку вручную", {
+          code: "upstream_status",
         });
       }
-      continue;
+
+      const contentType = String(response.headers["content-type"] || "").toLowerCase();
+      const looksLikeHtml = /^\s*(?:<!doctype\s+html|<html|<head|<meta|<script)/i.test(response.body.subarray(0, 4_096).toString("latin1"));
+      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !(contentType === "" && looksLikeHtml)) {
+        throw new MetadataFetchError("По ссылке нет страницы товара", {
+          code: "not_html",
+        });
+      }
+
+      return { html: decodeHtmlBody(response.body, contentType), url, truncated: Boolean(response.truncated) };
     }
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw new MetadataFetchError("Магазин не отдал данные, заполните карточку вручную", {
-        code: "upstream_status",
-      });
-    }
-
-    const contentType = String(response.headers["content-type"] || "").toLowerCase();
-    const looksLikeHtml = /^\s*(?:<!doctype\s+html|<html|<head|<meta|<script)/i.test(response.body.subarray(0, 4_096).toString("latin1"));
-    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !(contentType === "" && looksLikeHtml)) {
-      throw new MetadataFetchError("По ссылке нет страницы товара", {
-        code: "not_html",
-      });
-    }
-
-    return { html: decodeHtmlBody(response.body, contentType), url, truncated: Boolean(response.truncated) };
+    throw new MetadataFetchError("Слишком много перенаправлений", { code: "too_many_redirects" });
+  } finally {
+    clearTimeout(timeout);
   }
-
-  throw new MetadataFetchError("Слишком много перенаправлений", { code: "too_many_redirects" });
 }
