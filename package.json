@@ -1,0 +1,40 @@
+{
+  "name": "rollwish",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"node --watch server/index.js\" \"vite --host 0.0.0.0\"",
+    "dev:server": "node --watch server/index.js",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "test": "node --test",
+    "check": "npm run test && npm run build",
+    "test:visual": "node scripts/visual-smoke.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/fraunces": "latest",
+    "@fontsource-variable/manrope": "latest",
+    "@vitejs/plugin-react": "latest",
+    "compression": "latest",
+    "cookie-parser": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "helmet": "latest",
+    "lucide-react": "latest",
+    "pg": "latest",
+    "pg-mem": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4",
+    "playwright-core": "^1.61.1",
+    "vite": "latest"
+  }
+}
