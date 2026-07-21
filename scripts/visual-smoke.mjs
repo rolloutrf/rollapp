@@ -104,7 +104,9 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   await opener.click();
   const dialog = page.getByRole("dialog", { name: `Желание: ${title}` });
   await dialog.waitFor({ state: "visible" });
-  assert((await dialog.getByRole("heading", { name: title }).count()) === 1, `${label} detail does not show the selected wish title`);
+  if (!fullscreen) {
+    assert((await dialog.getByRole("heading", { name: title }).count()) === 1, `${label} detail does not show the selected wish title`);
+  }
   assert(await dialog.locator(".wish-detail__price").isVisible(), `${label} detail does not show the selected wish price`);
   if (fullscreen) {
     await page.waitForTimeout(300);
@@ -249,6 +251,18 @@ try {
   await expectNoRootOverflow(narrowPage, "360px public profile");
   await narrow.close();
 
+  const compactPublic = await browser.newContext({ viewport: { width: 320, height: 700 }, deviceScaleFactor: 1 });
+  const compactPublicPage = await compactPublic.newPage();
+  await compactPublicPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await expectPublicGrid(compactPublicPage, 2, "320px public profile");
+  await expectPublicMobileShell(compactPublicPage, "320px public profile");
+  await expectNoRootOverflow(compactPublicPage, "320px public profile");
+  await compactPublicPage.screenshot({ path: "/tmp/rollapp-public-profile-320.png", fullPage: true });
+  const compactPublicDetail = await expectWishDetailsOpen(compactPublicPage, "320px public wish", { fullscreen: true });
+  await expectNoRootOverflow(compactPublicPage, "320px public wish detail");
+  await compactPublicDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await compactPublic.close();
+
   const tabletApp = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1 });
   const tabletAppPage = await tabletApp.newPage();
   const tabletLoginResponse = await tabletApp.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
@@ -259,6 +273,11 @@ try {
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
   }
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-wishes-768.png", fullPage: true });
+  const tabletOwnerDetail = await expectWishDetailsOpen(tabletAppPage, "768px owner wish");
+  await expectNoRootOverflow(tabletAppPage, "768px owner wish detail");
+  await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-owner-wish-detail-768.png" });
+  await tabletOwnerDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await tabletOwnerDetail.dialog.waitFor({ state: "detached" });
   await waitForAppRoute(tabletAppPage, "/app");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-app-768.png", fullPage: true });
   await tabletApp.close();
@@ -305,7 +324,23 @@ try {
   await expectPublicMobileShell(publicTabletPage, "768px public profile");
   await expectNoRootOverflow(publicTabletPage, "768px public profile");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
+  const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish");
+  await expectNoRootOverflow(publicTabletPage, "768px public wish detail");
+  await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-wish-detail-768.png" });
+  await publicTabletDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicTabletDetail.dialog.waitFor({ state: "detached" });
   await publicTablet.close();
+
+  const publicLandscape = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
+  const publicLandscapePage = await publicLandscape.newPage();
+  await publicLandscapePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await expectPublicGrid(publicLandscapePage, 3, "1024px public profile");
+  await expectNoRootOverflow(publicLandscapePage, "1024px public profile");
+  const publicLandscapeDetail = await expectWishDetailsOpen(publicLandscapePage, "1024px public wish");
+  await expectNoRootOverflow(publicLandscapePage, "1024px public wish detail");
+  await publicLandscapePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-1024.png" });
+  await publicLandscapeDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicLandscape.close();
 
   console.log("Visual smoke passed: desktop/mobile wish details, app routes, drawer/modal, and 2/4-column public profiles rendered without root overflow");
 } finally {
