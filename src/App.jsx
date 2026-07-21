@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, Gift, Heart, Home, Image, Link2, ListPlus, LoaderCircle,
+  CircleUserRound, ExternalLink, Eye, Gift, Hand, Heart, Home, Image, Link2, ListPlus, LoaderCircle,
   LockKeyhole, LogOut, Menu, MoreHorizontal, PackageCheck, Pencil, Plus, Search, Settings, Share2,
-  ShoppingBag, Sparkles, Star, Trash2, UserPlus, Users, WandSparkles, X,
+  ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus, Users, WandSparkles, X,
 } from "lucide-react";
 import { api } from "./api.js";
 
@@ -342,11 +342,12 @@ function WishesPage({ onAdd, version }) {
   if (loading) return <LoadingScreen compact />;
   const wishes = selected === "all" ? data.wishes : data.wishes.filter((wish) => wish.listIds.includes(selected));
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
+  const selectedListTitle = selected === "all" ? "Все желания" : data.lists.find((list) => list.id === selected)?.title || "Все желания";
   const share = async () => { const url = selected === "all" ? `${window.location.origin}/u/${user.username}` : `${window.location.origin}/s/${data.lists.find((list) => list.id === selected)?.shareToken}`; await navigator.clipboard.writeText(url); toast("Ссылка на список скопирована"); };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${data.wishes.filter((wish) => wish.status === "active").length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions"><Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Все <span>{data.wishes.length}</span></button>{data.lists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal(true)}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} onChanged={reload} onClose={() => setSelectedWishId(null)} />}{listModal && <ListModal onClose={() => setListModal(false)} onSaved={() => { setListModal(false); reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${data.wishes.filter((wish) => wish.status === "active").length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions"><Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Все <span>{data.wishes.length}</span></button>{data.lists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal(true)}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} listTitle={selectedListTitle} onChanged={reload} onClose={() => setSelectedWishId(null)} />}{listModal && <ListModal onClose={() => setListModal(false)} onSaved={() => { setListModal(false); reload(); }} />}</div>;
 }
 
-function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = false }) {
+function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = false, backdropClassName = "" }) {
   const dialogRef = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -380,44 +381,45 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
-  const modal = <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
+  const modal = <div className={`modal-backdrop ${backdropClassName}`} onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
   return portal ? createPortal(modal, document.body) : modal;
 }
 
-function WishDetailsModal({ wish, owner = false, profile, shareToken = "", onChanged, onClose }) {
+function WishDetailsModal({ wish, owner = false, profile, shareToken = "", listTitle = "Все желания", onChanged, onClose }) {
   const { busy, reserve, fulfilled, share } = useWishActions({ wish, profile, shareToken, onChanged });
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
-  let source = "Ссылка на товар";
-  if (wish.url) {
-    try { source = new URL(wish.url).hostname.replace(/^www\./, ""); } catch { /* Keep the generic label. */ }
-  }
   return (
-    <Modal portal onClose={onClose} className="modal--wish-detail" ariaLabel={`Желание: ${wish.title}`}>
+    <Modal portal onClose={onClose} className="modal--wish-detail" backdropClassName="modal-backdrop--wish-detail" ariaLabel={`Желание: ${wish.title}`}>
       <article className="wish-detail">
         <div className="wish-detail__media">
           {wish.imageUrl ? <img src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} /> : <span className="wish-detail__placeholder"><Gift /></span>}
           <Priority value={wish.priority} />
           {wish.status === "fulfilled" && <span className="wish-detail__fulfilled"><Check /> Исполнено</span>}
         </div>
-        <div className="wish-detail__content">
-          <div className="wish-detail__heading">
-            <span className="wish-detail__eyebrow"><Heart size={14} fill="currentColor" /> Желание</span>
-            <h2>{wish.title}</h2>
-            <strong className="wish-detail__price">{formatMoney(wish.price, wish.currency)}</strong>
+        <div className="wish-detail__side">
+          <div className="wish-detail__toolbar">
+            <span>{listTitle} <ChevronDown /></span>
+            <button type="button" aria-label="Поделиться желанием" title="Поделиться" onClick={share}><MoreHorizontal /></button>
           </div>
-          <p className={`wish-detail__description ${wish.description ? "" : "is-muted"}`}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</p>
-          <div className="wish-detail__meta">
-            <span><CalendarDays /> Добавлено {formatDate(wish.createdAt)}</span>
-            {owner && (wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Видно друзьям</span>)}
-            {wish.allowMultiple && <span><Gift /> Можно подарить несколько</span>}
-            {owner && wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}
-          </div>
-          {wish.url && <a className="wish-detail__source" href={wish.url} target="_blank" rel="noreferrer"><span><small>Источник</small><strong>{source}</strong></span><ExternalLink /></a>}
-          <div className="wish-detail__actions">
-            {!owner && <Button icon={wish.reservedByMe ? Check : Gift} variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать подарок"}</Button>}
-            {wish.url && <a className="button button--outline" href={wish.url} target="_blank" rel="noreferrer"><ExternalLink size={18} /><span>Открыть в магазине</span></a>}
-            <Button type="button" variant="soft" icon={Share2} onClick={share}>Поделиться</Button>
-            {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
+          {!owner && <div className="wish-detail__notice"><Hand /><p>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</p></div>}
+          <div className="wish-detail__content">
+            <Link className="wish-detail__owner" to={profile?.username ? `/u/${profile.username}` : "#"}><Avatar user={profile} size="sm" /><strong>{profile?.name || "Автор желания"}</strong></Link>
+            <div className="wish-detail__heading"><h2>{wish.title}</h2></div>
+            <p className={`wish-detail__description ${wish.description ? "" : "is-muted"}`}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</p>
+            <div className="wish-detail__price-bar">
+              <strong className="wish-detail__price">{formatMoney(wish.price, wish.currency)}</strong>
+              {wish.url && <a href={wish.url} target="_blank" rel="noreferrer">Где купить <ExternalLink /></a>}
+            </div>
+            <div className="wish-detail__actions">
+              {!owner && <Button icon={wish.reservedByMe ? Check : Gift} variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
+              {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
+            </div>
+            {owner && <div className="wish-detail__meta">
+              <span><CalendarDays /> Добавлено {formatDate(wish.createdAt)}</span>
+              {wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Видно друзьям</span>}
+              {wish.allowMultiple && <span><Gift /> Можно подарить несколько</span>}
+              {wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}
+            </div>}
           </div>
         </div>
       </article>
@@ -581,9 +583,10 @@ function PublicProfile({ shared = false }) {
           <Link to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Sparkles /></Link>
           <Link to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart /></Link>
           <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users /></Link>
+          <Link className="profile-header__search" to={friendsTarget} aria-label="Поиск" title="Поиск"><Search /></Link>
         </nav>
         <div className="profile-header__actions">
-          {user ? <Link className="button button--soft" to="/app"><span>Мой вишлист</span></Link> : <><Link className="text-link" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать свой</span></Link></>}
+          {user ? <Link className="button button--soft" to="/app"><span>Мой вишлист</span></Link> : <Link className="button button--primary" to="/login"><span>Вход</span></Link>}
         </div>
         {!data.isOwner && !shared && <button className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</button>}
         <button className="profile-mobile-menu" type="button" aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={mobileMenuOpen} aria-controls="profile-mobile-navigation" onClick={() => setMobileMenuOpen((value) => !value)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
@@ -601,7 +604,7 @@ function PublicProfile({ shared = false }) {
         <aside className="profile-rail">
           <div className="profile-rail__intro">
             <span className="eyebrow">Rollapp</span>
-            <p>Списки желаний, которые приятно исполнять.</p>
+            <p>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</p>
             <Link className="button button--primary" to={appTarget}><Heart />{user ? "Открыть мой список" : "Создать вишлист"}</Link>
           </div>
           <nav aria-label="Разделы Rollapp">
@@ -624,11 +627,10 @@ function PublicProfile({ shared = false }) {
               <h1>{data.profile.name}</h1>
               <p>{data.profile.bio || "Здесь живут желания, которым пора сбыться."}</p>
             </div>
-            {!data.isOwner && !shared && <div className="profile-cover__actions"><Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button></div>}
-            <div className="profile-stats">
-              {data.profile.birthday && <span><CalendarDays /> {formatDate(data.profile.birthday)}</span>}
-              {!shared && <><span><Users /> {data.followersCount} подписчиков</span><span><Heart /> {data.wishes.length} желаний</span></>}
-              {shared && <span><Heart /> {data.wishes.length} желаний</span>}
+            <div className="profile-cover__controls">
+              {!data.isOwner && !shared && <Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>}
+              <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followersCount} подписчиков`}</span>
+              <button type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></button>
             </div>
           </section>
 
@@ -641,11 +643,11 @@ function PublicProfile({ shared = false }) {
 
           <div className="public-wishes-head">
             <h2>{sectionTitle} <span>{wishes.length}</span></h2>
-            <Button variant="soft" icon={Share2} onClick={share}>Поделиться</Button>
+            <Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>
           </div>
 
           {wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} shareToken={shared ? params.token : ""} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
-          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} shareToken={shared ? params.token : ""} onChanged={reload} onClose={() => setSelectedWishId(null)} />}
+          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} listTitle={sectionTitle} shareToken={shared ? params.token : ""} onChanged={reload} onClose={() => setSelectedWishId(null)} />}
         </main>
       </div>
 

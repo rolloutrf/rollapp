@@ -16,8 +16,7 @@
     "test:visual": "node scripts/visual-smoke.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/fraunces": "latest",
-    "@fontsource-variable/manrope": "latest",
+    "@fontsource-variable/nunito": "^5.3.0",
     "@vitejs/plugin-react": "latest",
     "compression": "latest",
     "cookie-parser": "latest",
