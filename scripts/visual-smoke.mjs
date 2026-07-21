@@ -11,6 +11,14 @@ function assert(condition, message) {
 async function waitForStableLayout(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
+    await Promise.all([...document.images].map(async (image) => {
+      if (!image.complete) await new Promise((resolve) => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+      if (image.decode) await image.decode().catch(() => {});
+    }));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
   await page.waitForTimeout(150);
 }
@@ -66,15 +74,46 @@ async function waitForAppRoute(page, pathname) {
   await page.waitForURL((url) => url.pathname === pathname);
 }
 
-async function expectPublicGrid(page, columns, label) {
+async function expectPublicGrid(page, columns, label, { requireCards = true } = {}) {
   const grid = page.locator(".public-profile .wish-grid").first();
   await grid.waitFor({ state: "visible" });
-  assert(await grid.locator(".wish-card").count() >= columns, `${label} does not have enough cards to verify ${columns} columns`);
+  if (requireCards) assert(await grid.locator(".wish-card").count() >= columns, `${label} does not have enough cards to verify ${columns} columns`);
   await waitForStableLayout(page);
   const actualColumns = await grid.evaluate((element) => (
     getComputedStyle(element).gridTemplateColumns.split(/\s+/).filter(Boolean).length
   ));
   assert(actualColumns === columns, `${label} should render ${columns} wish columns, rendered ${actualColumns}`);
+}
+
+async function expectReferenceDesktopProfile(page, label) {
+  await waitForStableLayout(page);
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const value = document.querySelector(selector)?.getBoundingClientRect();
+      return value ? { x: value.x, y: value.y, width: value.width, height: value.height } : null;
+    };
+    return {
+      layout: rect(".public-profile__layout"),
+      rail: rect(".profile-list-rail"),
+      main: rect(".public-profile__layout > main"),
+      avatar: rect(".profile-cover .avatar--xl"),
+      heading: rect(".public-wishes-head"),
+      grid: rect(".public-profile .wish-grid"),
+      card: rect(".public-profile .wish-card__image"),
+      backDisplay: getComputedStyle(document.querySelector(".public-profile__back")).display,
+      tabsDisplay: getComputedStyle(document.querySelector(".public-list-tabs")).display,
+    };
+  });
+  const close = (actual, expected, tolerance = 2) => Math.abs(actual - expected) <= tolerance;
+  assert(close(geometry.layout.x, 0) && close(geometry.layout.width, 1912), `${label} layout is not full width`);
+  assert(close(geometry.rail.x, 16) && close(geometry.rail.width, 280), `${label} rail geometry differs from the reference`);
+  assert(close(geometry.main.x, 312) && close(geometry.main.width, 1584), `${label} main geometry differs from the reference`);
+  assert(close(geometry.avatar.x, 1004) && close(geometry.avatar.y, 116) && close(geometry.avatar.width, 200), `${label} avatar geometry differs from the reference`);
+  assert(close(geometry.heading.x, 312) && close(geometry.heading.y, 534) && close(geometry.heading.height, 41), `${label} heading geometry differs from the reference`);
+  assert(close(geometry.grid.x, 312) && close(geometry.grid.y, 605), `${label} grid geometry differs from the reference`);
+  assert(close(geometry.card.width, 236) && close(geometry.card.height, 286), `${label} card geometry differs from the reference`);
+  assert(geometry.backDisplay === "none", `${label} should hide the guest back control in the desktop list layout`);
+  assert(geometry.tabsDisplay === "none", `${label} should keep desktop list navigation in the rail, not horizontal tiles`);
 }
 
 async function expectPublicMobileShell(page, label) {
@@ -317,11 +356,22 @@ try {
   await publicMobile.close();
 
   const publicTablet = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1 });
+  const publicTabletLoginResponse = await publicTablet.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
+  assert(publicTabletLoginResponse.ok(), `768px public owner login failed: ${publicTabletLoginResponse.status()}`);
   const publicTabletPage = await publicTablet.newPage();
   await publicTabletPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicTabletPage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectDesktopUserAgent(publicTabletPage, "768px public profile");
-  await expectPublicGrid(publicTabletPage, 4, "768px public profile");
+  await expectPublicGrid(publicTabletPage, 2, "768px public profile");
   await expectPublicMobileShell(publicTabletPage, "768px public profile");
+  const tabletOwnerSections = await publicTabletPage.evaluate(() => {
+    const hero = document.querySelector(".profile-cover")?.getBoundingClientRect();
+    const controls = document.querySelector(".profile-cover__controls")?.getBoundingClientRect();
+    const tabs = document.querySelector(".public-list-tabs")?.getBoundingClientRect();
+    return { heroBottom: hero?.bottom, controlsBottom: controls?.bottom, tabsTop: tabs?.top };
+  });
+  assert(tabletOwnerSections.controlsBottom <= tabletOwnerSections.heroBottom, "768px owner controls overflow the profile hero");
+  assert(tabletOwnerSections.tabsTop >= tabletOwnerSections.heroBottom, "768px owner profile hero overlaps the list tabs");
   await expectNoRootOverflow(publicTabletPage, "768px public profile");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
   const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish");
@@ -334,7 +384,7 @@ try {
   const publicLandscape = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   const publicLandscapePage = await publicLandscape.newPage();
   await publicLandscapePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
-  await expectPublicGrid(publicLandscapePage, 3, "1024px public profile");
+  await expectPublicGrid(publicLandscapePage, 2, "1024px public profile");
   await expectNoRootOverflow(publicLandscapePage, "1024px public profile");
   const publicLandscapeDetail = await expectWishDetailsOpen(publicLandscapePage, "1024px public wish");
   await expectNoRootOverflow(publicLandscapePage, "1024px public wish detail");
@@ -342,7 +392,53 @@ try {
   await publicLandscapeDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await publicLandscape.close();
 
-  console.log("Visual smoke passed: desktop/mobile wish details, app routes, drawer/modal, and 2/4-column public profiles rendered without root overflow");
+  const publicMedium = await browser.newContext({ viewport: { width: 1076, height: 800 }, deviceScaleFactor: 1 });
+  const publicMediumPage = await publicMedium.newPage();
+  await publicMediumPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await expectPublicGrid(publicMediumPage, 3, "1076px public profile");
+  await expectNoRootOverflow(publicMediumPage, "1076px public profile");
+  await publicMedium.close();
+
+  const publicWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1 });
+  const publicWidePage = await publicWide.newPage();
+  await publicWidePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await expectPublicGrid(publicWidePage, 6, "1912px public profile", { requireCards: false });
+  await expectReferenceDesktopProfile(publicWidePage, "1912px public profile");
+  await expectNoRootOverflow(publicWidePage, "1912px public profile");
+  await publicWidePage.screenshot({ path: "/tmp/rollapp-public-profile-1912.png", fullPage: false });
+  await publicWide.close();
+
+  const ownerWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1 });
+  const ownerLoginResponse = await ownerWide.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
+  assert(ownerLoginResponse.ok(), `1912px owner demo login failed: ${ownerLoginResponse.status()}`);
+  const ownerWidePage = await ownerWide.newPage();
+  await ownerWidePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+  await expectPublicGrid(ownerWidePage, 6, "1912px owner profile", { requireCards: false });
+  await expectReferenceDesktopProfile(ownerWidePage, "1912px owner profile");
+  assert(await ownerWidePage.getByRole("button", { name: "Загадать желание" }).isVisible(), "Owner profile does not expose the reference add-wish CTA");
+  assert((await ownerWidePage.getByRole("button", { name: "Подписаться" }).count()) === 0, "Owner profile should not expose a follow action");
+  await waitForStableLayout(ownerWidePage);
+  await ownerWidePage.screenshot({ path: "/tmp/rollapp-owner-profile-1912.png", fullPage: false });
+  await ownerWidePage.locator(".profile-desktop-menu").click();
+  await ownerWidePage.locator(".profile-desktop-panel.is-open").waitFor({ state: "visible" });
+  assert(!(await ownerWidePage.locator("body").evaluate((element) => element.classList.contains("profile-menu-open"))), "Desktop account menu should not lock page scrolling");
+  await ownerWidePage.locator(".public-wishes-head h2").click();
+  await ownerWidePage.waitForFunction(() => !document.querySelector(".profile-desktop-panel")?.classList.contains("is-open"));
+  await ownerWidePage.getByRole("button", { name: "Создать новый список" }).click();
+  const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
+  await ownerListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerListDialog.waitFor({ state: "detached" });
+  await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
+  const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  await ownerWishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
+  await ownerWishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerWishDialog.waitFor({ state: "detached" });
+  await expectNoRootOverflow(ownerWidePage, "1912px owner profile");
+  await ownerWide.close();
+
+  console.log("Visual smoke passed: desktop/mobile wish details, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
 } finally {
   await browser.close();
 }

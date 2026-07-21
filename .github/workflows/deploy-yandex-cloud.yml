@@ -100,6 +100,15 @@ jobs:
             if curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" \
               | jq -e --arg expected "$GITHUB_SHA" '.ok == true and .version == $expected' >/dev/null; then
               echo "Rollapp is healthy at ${PUBLIC_URL}"
+              for redirect_url in \
+                "https://rollapp.51-250-110-17.sslip.io/api/healthz" \
+                "https://www.xn--80avakiab.xn--p1ai/api/healthz"; do
+                redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$redirect_url")"
+                if [ "$redirect_result" != "301 ${PUBLIC_URL}/api/healthz" ]; then
+                  echo "Unexpected canonical redirect for ${redirect_url}: ${redirect_result}" >&2
+                  exit 1
+                fi
+              done
               exit 0
             fi
             echo "Waiting for production (${attempt}/30)..."

@@ -60,7 +60,7 @@ Yandex Cloud resources:
 - runtime service account `ajers2ngi708sf3i1t4g`;
 - CI service account `ajea75b2e3r8kiigmice`;
 - database password stays in Connection Manager Lockbox secret `e6qn7uuqpp2jg3krbh4u`;
-- static IP `51.250.110.17` and HTTPS hostnames `роллапп.рф`, `www.роллапп.рф`, and the technical fallback `rollapp.51-250-110-17.sslip.io`.
+- static IP `51.250.110.17`; `роллапп.рф` is canonical, while `www.роллапп.рф` and `rollapp.51-250-110-17.sslip.io` permanently redirect to it so authentication stays on one cookie host.
 
 No long-lived Yandex key is stored in GitHub. The federated credential accepts only the immutable GitHub subject for `rolloutrf/rollapp` on `refs/heads/main`. CI can push to this registry and update this VM; runtime can pull images and read only its database secret.
 
