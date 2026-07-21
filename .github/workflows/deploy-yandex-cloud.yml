@@ -19,7 +19,7 @@ env:
   YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
   YC_VM_ID: epd40l0koqqqietvpd18
   IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
-  PUBLIC_URL: https://51-250-110-17.sslip.io
+  PUBLIC_URL: https://rollapp.51-250-110-17.sslip.io
 
 jobs:
   deploy:
