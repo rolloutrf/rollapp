@@ -96,6 +96,28 @@ async function expectPublicMobileShell(page, label) {
   assert(geometry.left > 4 && geometry.right > 4, `${label} profile dock is not floating inside the viewport`);
 }
 
+async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
+  const card = page.locator(".wish-card").first();
+  await card.waitFor({ state: "visible" });
+  const title = (await card.locator("h3").innerText()).trim();
+  const opener = card.getByRole("button", { name: `Открыть желание «${title}»` });
+  await opener.click();
+  const dialog = page.getByRole("dialog", { name: `Желание: ${title}` });
+  await dialog.waitFor({ state: "visible" });
+  assert((await dialog.getByRole("heading", { name: title }).count()) === 1, `${label} detail does not show the selected wish title`);
+  assert(await dialog.locator(".wish-detail__price").isVisible(), `${label} detail does not show the selected wish price`);
+  if (fullscreen) {
+    await page.waitForTimeout(300);
+    const geometry = await dialog.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { width: rect.width, height: rect.height, viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
+    });
+    assert(Math.abs(geometry.width - geometry.viewportWidth) <= 1, `${label} mobile detail is not full width (${geometry.width}px of ${geometry.viewportWidth}px)`);
+    assert(geometry.height >= geometry.viewportHeight - 2, `${label} mobile detail is not full height (${geometry.height}px of ${geometry.viewportHeight}px)`);
+  }
+  return { card, title, opener, dialog };
+}
+
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   const landing = await desktop.newPage();
@@ -116,6 +138,19 @@ try {
   assert(await dashboard.locator(".mobile-bottom-nav a").count() === 5, "App navigation should contain the five primary sections");
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
+
+  await waitForAppRoute(dashboard, "/app/wishes");
+  const desktopCard = dashboard.locator(".wish-card").first();
+  await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
+  await desktopCard.locator(".card-menu").waitFor({ state: "visible" });
+  assert((await dashboard.locator(".modal--wish-detail").count()) === 0, "Wish options must not open the detail dialog");
+  await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
+  const desktopDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish");
+  await waitForStableLayout(dashboard);
+  await dashboard.screenshot({ path: "/tmp/rollapp-desktop-wish-detail.png" });
+  await dashboard.keyboard.press("Escape");
+  await desktopDetail.dialog.waitFor({ state: "detached" });
+  assert(await desktopDetail.opener.evaluate((element) => document.activeElement === element), "Closing wish detail should restore focus to its card");
 
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
   await dashboard.waitForURL((url) => url.pathname === "/app");
@@ -151,7 +186,14 @@ try {
     await waitForAppRoute(mobilePage, pathname);
     await expectMobileAppShell(mobilePage, pathname);
     await expectNoRootOverflow(mobilePage, `390px ${pathname}`);
-    if (pathname === "/app/wishes") await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
+    if (pathname === "/app/wishes") {
+      await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
+      const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
+      await expectNoRootOverflow(mobilePage, "390px wish detail");
+      await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-detail.png" });
+      await mobileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+      await mobileDetail.dialog.waitFor({ state: "detached" });
+    }
   }
 
   await waitForAppRoute(mobilePage, "/app");
@@ -229,6 +271,10 @@ try {
   await expectPublicMobileShell(publicMobilePage, "390px public profile");
   await expectNoRootOverflow(publicMobilePage, "390px public profile");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390.png", fullPage: true });
+  const publicDetail = await expectWishDetailsOpen(publicMobilePage, "390px public wish", { fullscreen: true });
+  await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-390.png" });
+  await publicDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicDetail.dialog.waitFor({ state: "detached" });
   await publicMobilePage.locator(".profile-mobile-menu").click();
   const publicMenu = publicMobilePage.locator("#profile-mobile-navigation.is-open");
   await publicMenu.waitFor({ state: "visible" });
@@ -261,7 +307,7 @@ try {
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
   await publicTablet.close();
 
-  console.log("Visual smoke passed: desktop, mobile app routes, drawer/modal, and 2/4-column public profiles rendered without root overflow");
+  console.log("Visual smoke passed: desktop/mobile wish details, app routes, drawer/modal, and 2/4-column public profiles rendered without root overflow");
 } finally {
   await browser.close();
 }
