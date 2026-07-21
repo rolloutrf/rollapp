@@ -96,6 +96,11 @@ const schema = `
     badge TEXT NOT NULL DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS rollapp_data_migrations (
+    id TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
@@ -116,6 +121,20 @@ const ideaRows = [
   ["idea-picnic", "Корзина для пикника", "Повод собрать любимых в парке", "Впечатления", "/art/gift.svg", "", 7490, "RUB", "на компанию"],
   ["idea-perfume", "Авторский аромат", "Запах как личная подпись", "Красота", "/art/style.svg", "", 9900, "RUB", "особенное"]
 ];
+
+const dataMigrations = [
+
+];
+
+async function runDataMigrations(client) {
+  for (const migration of dataMigrations) {
+    const applied = await client.query("SELECT 1 FROM rollapp_data_migrations WHERE id = $1", [migration.id]);
+    if (applied.rowCount) continue;
+    const result = await migration.run(client);
+    if (migration.requireMatch && !result.rowCount) continue;
+    await client.query("INSERT INTO rollapp_data_migrations (id) VALUES ($1)", [migration.id]);
+  }
+}
 
 async function insertIdeas(client) {
   for (const row of ideaRows) {
@@ -188,6 +207,7 @@ export async function initializeDatabase() {
   await query(schema);
   await transaction(async (client) => {
     await insertIdeas(client);
+    await runDataMigrations(client);
     if (isMemoryDatabase || process.env.SEED_DEMO === "true") {
       await seedDemo(client);
     }

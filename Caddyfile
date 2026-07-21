@@ -2,7 +2,11 @@
   admin off
 }
 
-{$PUBLIC_HOST:localhost} {
+{$REDIRECT_HOSTS:rollapp.51-250-110-17.sslip.io, www.xn--80avakiab.xn--p1ai} {
+  redir https://xn--80avakiab.xn--p1ai{uri} permanent
+}
+
+{$PUBLIC_HOST:xn--80avakiab.xn--p1ai} {
   encode zstd gzip
   reverse_proxy 127.0.0.1:8080
 

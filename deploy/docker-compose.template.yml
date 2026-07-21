@@ -18,7 +18,8 @@ services:
       PG_POOL_SIZE: "8"
       YC_LOCKBOX_SECRET_ID: "e6qn7uuqpp2jg3krbh4u"
       YC_LOCKBOX_SECRET_KEY: "postgresql_password"
-      PUBLIC_HOST: "rollapp.51-250-110-17.sslip.io, xn--80avakiab.xn--p1ai, www.xn--80avakiab.xn--p1ai"
+      PUBLIC_HOST: "xn--80avakiab.xn--p1ai"
+      REDIRECT_HOSTS: "rollapp.51-250-110-17.sslip.io, www.xn--80avakiab.xn--p1ai"
     ports:
       - "80:80"
       - "443:443"

@@ -2694,3 +2694,286 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .profile-header__dock { width: calc(100vw - 82px); left: 8px; }
   .profile-header__dock .profile-header__search { width: 56px; }
 }
+
+/* Owner/profile desktop shell — the full-width composition used by Ohmywishes. */
+.profile-header__dock { grid-template-columns: repeat(3, 1fr); }
+.profile-header__dock > a:first-child,
+.profile-header__dock > a:first-child:hover { color: rgba(255,255,255,.48); background: transparent; }
+.profile-header__dock > a.is-active,
+.profile-header__dock > a.is-active:hover { color: #f23849; background: #3b3b3d; }
+.profile-desktop-menu {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #1f1f20;
+  cursor: pointer;
+}
+.profile-desktop-menu svg { width: 24px; height: 24px; }
+.profile-desktop-panel {
+  width: 220px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: 52px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  color: #fff;
+  background: #171718;
+  box-shadow: 0 18px 50px rgba(0,0,0,.5);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.profile-desktop-panel.is-open { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }
+.profile-desktop-panel a { min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 10px; border-radius: 10px; font-size: 15px; font-weight: 600; }
+.profile-desktop-panel a:hover { background: rgba(255,255,255,.08); }
+.profile-desktop-panel svg { width: 19px; height: 19px; color: rgba(255,255,255,.55); }
+.public-wishes-head__actions { display: flex; align-items: center; gap: 10px; }
+.public-wishes-head__options {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #313132;
+  cursor: pointer;
+}
+.public-wishes-head__options svg { width: 20px; height: 20px; }
+.profile-cover__birthday {
+  min-height: 28px;
+  margin-top: 8px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 14px;
+  color: rgba(255,255,255,.5);
+  background: #242425;
+  font-size: 12px;
+  line-height: 14px;
+  font-weight: 600;
+}
+.profile-cover__birthday svg { width: 14px; height: 14px; }
+
+@media (min-width: 1024px) {
+  .public-profile--dark > .profile-header > .logo {
+    min-height: 40px;
+    gap: 8px;
+    font-size: 28px;
+    line-height: 1;
+  }
+  .public-profile--dark > .profile-header > .logo .logo__mark { width: 38px; height: 38px; }
+  .public-profile--dark > .profile-header > .logo .logo__mark > span { width: 22px; height: 31px; border-radius: 13px 13px 6px 6px; }
+  .public-profile--dark > .profile-header > .logo .logo__mark > span:last-child { width: 17px; height: 34px; }
+  .profile-header__dock { width: 238px; left: calc(50% - 34px); }
+  .profile-header__dock svg { width: 25px; height: 25px; stroke-width: 2.45; }
+  .profile-header__search svg,
+  .profile-desktop-menu svg { width: 26px; height: 26px; stroke-width: 2.7; }
+  .public-profile--list-layout .public-profile__layout {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 116px 16px 100px;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .public-profile--list-layout .public-profile__layout > main { width: 100%; min-width: 0; }
+  .public-profile--list-layout .profile-list-rail {
+    width: 280px;
+    min-width: 0;
+    height: calc(100vh - 116px);
+    padding: 0 24px 8px 0;
+    top: 100px;
+    display: flex;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    scrollbar-width: none;
+  }
+  .public-profile--list-layout .profile-list-rail::-webkit-scrollbar { display: none; }
+  .profile-list-rail > .profile-list-rail__lists {
+    width: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .profile-list-rail__lists > button,
+  .profile-list-rail__lists > a {
+    width: 100%;
+    min-height: 36px;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 8px;
+    color: rgba(255,255,255,.5);
+    background: transparent;
+    font-size: 16px;
+    line-height: 19px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color .14s ease, background .14s ease;
+  }
+  .profile-list-rail__lists > button:hover,
+  .profile-list-rail__lists > a:hover { color: #fff; background: rgba(255,255,255,.055); }
+  .profile-list-rail__lists > button.active { color: #fff; }
+  .profile-list-rail__lists > button > svg,
+  .profile-list-rail__lists > a > svg {
+    width: 24px;
+    height: 24px;
+    padding: 1px;
+    flex: 0 0 24px;
+    stroke-width: 2.7;
+  }
+  .profile-list-rail__lists > button > strong {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    color: #080808;
+    background: rgba(255,255,255,.58);
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 700;
+  }
+  .profile-list-rail__lists > button > span,
+  .profile-list-rail__lists > a > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .profile-list-rail__lists > .profile-list-rail__create { margin-bottom: 2px; }
+  .profile-list-rail__create > i {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #0b0b0b;
+    background: rgba(255,255,255,.58);
+    font-style: normal;
+  }
+  .profile-list-rail__create > i > svg { width: 15px; height: 15px; stroke-width: 3; }
+  .profile-list-rail > .profile-list-rail__ecosystem {
+    width: 100%;
+    margin-top: 54px;
+    display: grid;
+    gap: 0;
+  }
+  .profile-list-rail__ecosystem > a,
+  .profile-list-rail__ecosystem > button {
+    width: 100%;
+    min-height: 32px;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    border: 0;
+    color: rgba(255,255,255,.5);
+    background: transparent;
+    font-size: 14px;
+    line-height: 17px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .profile-list-rail__ecosystem > a:hover,
+  .profile-list-rail__ecosystem > button:hover { color: #fff; background: rgba(255,255,255,.055); }
+  .profile-list-rail__ecosystem > .profile-list-rail__business { color: #d5ff00; font-weight: 700; }
+  .profile-list-rail__ecosystem > .profile-list-rail__channel { margin-top: 12px; }
+  .profile-list-rail__ecosystem svg { width: 18px; height: 18px; flex: 0 0 18px; }
+  .profile-list-rail > small { margin-top: 18px; padding-left: 2px; color: rgba(255,255,255,.25); font-size: 11px; line-height: 16px; }
+
+  .public-profile--list-layout .public-profile__back,
+  .public-profile--list-layout .public-list-tabs { display: none; }
+  .public-profile--list-layout .profile-cover {
+    width: 100%;
+    height: 418px;
+    min-height: 418px;
+    padding: 0 0 30px;
+    justify-content: flex-start;
+  }
+  .public-profile--list-layout .profile-cover h1 {
+    color: #fff;
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    -webkit-text-fill-color: currentColor;
+  }
+  .public-profile--list-layout .profile-cover__controls { margin-top: 24px; }
+  .public-profile--list-layout.is-owner .profile-cover__controls { height: 56px; margin-top: 24px; }
+  .public-profile--list-layout .profile-cover__wish-action {
+    width: 242px;
+    min-width: 242px;
+    min-height: 56px;
+    padding: 0;
+    border: 0;
+    border-radius: 28px;
+    color: #fff;
+    background: linear-gradient(135deg, #073bff 0%, #0026b9 100%);
+    box-shadow: none;
+    font-size: 20px;
+    line-height: 24px;
+    font-weight: 700;
+  }
+  .public-profile--list-layout .profile-cover__wish-action svg { width: 24px; height: 24px; stroke-width: 2.4; }
+  .public-profile--list-layout .profile-cover__wish-action:hover:not(:disabled) { background: linear-gradient(135deg, #1648ff 0%, #0730cb 100%); box-shadow: none; }
+  .public-profile--list-layout .public-wishes-head { width: 100%; }
+  .public-profile--list-layout .wish-grid {
+    width: 100%;
+    padding: 0;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 236px));
+    justify-content: center;
+    column-gap: 20px;
+    row-gap: 36px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .profile-header__dock { grid-template-columns: repeat(3, 1fr); }
+  .profile-desktop-menu,
+  .profile-desktop-panel { display: none; }
+}
+
+@media (min-width: 561px) and (max-width: 1023px) {
+  .public-profile--list-layout.is-owner .profile-cover { height: 340px; min-height: 340px; }
+  .public-profile--list-layout .wish-grid {
+    grid-template-columns: repeat(auto-fit, 236px);
+    column-gap: 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .profile-cover__birthday,
+  .public-wishes-head__options { display: none; }
+}
+
+@media (min-width: 1024px) and (max-width: 1075px) {
+  .public-profile--list-layout .wish-grid { grid-template-columns: repeat(2, 236px); }
+}
+
+@media (min-width: 1076px) and (max-width: 1199px) {
+  .public-profile--list-layout .wish-grid { grid-template-columns: repeat(3, 236px); }
+}
+
+@media (min-width: 561px) {
+  .public-profile--dark .wish-card--public h3 { font-weight: 650; }
+}

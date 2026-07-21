@@ -2,10 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, Gift, Hand, Heart, Home, Image, Link2, ListPlus, LoaderCircle,
-  LockKeyhole, LogOut, Menu, MoreHorizontal, PackageCheck, Pencil, Plus, Search, Settings, Share2,
-  ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus, Users, WandSparkles, X,
+  Apple, Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
+  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Globe, Hand, Heart, Home, Image, Link2, ListPlus,
+  LoaderCircle, LockKeyhole, LogOut, Menu, MessageCircle, MoreHorizontal, PackageCheck, Pencil, Play, Plus,
+  Radio, Search, Send, Settings, Share2, ShoppingBag, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
+  Users, WandSparkles, X, Zap,
 } from "lucide-react";
 import { api } from "./api.js";
 
@@ -520,6 +521,9 @@ function PublicProfile({ shared = false }) {
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
   const [selected, setSelected] = useState("all");
   const [selectedWishId, setSelectedWishId] = useState(null);
+  const [listModalOpen, setListModalOpen] = useState(false);
+  const [wishModalOpen, setWishModalOpen] = useState(false);
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileCompact, setProfileCompact] = useState(false);
 
@@ -537,6 +541,18 @@ function PublicProfile({ shared = false }) {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
+    if (!desktopMenuOpen) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && event.target instanceof Element && event.target.closest(".profile-header__actions")) return;
+      setDesktopMenuOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    document.addEventListener("pointerdown", close);
+    return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", close); };
+  }, [desktopMenuOpen]);
+
+  useEffect(() => {
     const updateHeader = () => setProfileCompact(window.scrollY > 220);
     updateHeader();
     window.addEventListener("scroll", updateHeader, { passive: true });
@@ -547,12 +563,26 @@ function PublicProfile({ shared = false }) {
   if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/"><span>На главную</span></Link></div></div>;
 
   const lists = shared ? [data.list] : data.lists;
-  const selectedList = selected === "all" ? null : lists.find((list) => list.id === selected);
-  const wishes = shared ? data.wishes : selected === "all" ? data.wishes : data.wishes.filter((wish) => wish.listIds.includes(selected));
+  const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
+  const activeWishes = data.wishes.filter((wish) => wish.status === "active");
+  const fulfilledWishes = data.wishes.filter((wish) => wish.status === "fulfilled");
+  const privateListIds = new Set(lists.filter((list) => list.privacy === "private").map((list) => list.id));
+  const secretWishes = activeWishes.filter((wish) => wish.privacy === "private" || wish.listIds.some((id) => privateListIds.has(id)));
+  const selectedList = lists.find((list) => list.id === selected);
+  const wishes = shared
+    ? data.wishes
+    : selected === "all"
+      ? activeWishes
+      : selected === "secret"
+        ? secretWishes
+        : selected === "fulfilled"
+          ? fulfilledWishes
+          : activeWishes.filter((wish) => wish.listIds.includes(selected));
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
-  const sectionTitle = shared ? data.list.title : selectedList?.title || "Все желания";
+  const sectionTitle = shared ? data.list.title : selected === "secret" ? "Секретные желания" : selected === "fulfilled" ? "Исполнено" : selectedList?.title || "Мои желания";
   const appTarget = user ? "/app" : "/register";
   const friendsTarget = user ? "/app/friends" : "/login";
+  const wishCountForList = (listId) => activeWishes.filter((wish) => wish.listIds.includes(listId)).length;
 
   const follow = async () => {
     if (!user) return window.location.assign("/login");
@@ -571,7 +601,7 @@ function PublicProfile({ shared = false }) {
   };
 
   return (
-    <div className="public-profile public-profile--dark">
+    <div className={`public-profile public-profile--dark ${!shared ? "public-profile--list-layout" : "public-profile--shared-layout"} ${data.isOwner ? "is-owner" : "is-guest"}`}>
       <header className={`profile-header ${profileCompact ? "is-compact" : ""}`}>
         <Logo />
         <div className="profile-header__compact" aria-hidden={!profileCompact}>
@@ -579,14 +609,14 @@ function PublicProfile({ shared = false }) {
           <div><strong>{data.profile.name}</strong><span>@{data.profile.username}</span></div>
         </div>
         <nav className="profile-header__dock" aria-label="Основная навигация">
-          <Link to="/" aria-label="Главная" title="Главная"><Home /></Link>
-          <Link to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Sparkles /></Link>
-          <Link to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart /></Link>
-          <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users /></Link>
+          <Link to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
+          <Link className="is-active" to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
+          <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
           <Link className="profile-header__search" to={friendsTarget} aria-label="Поиск" title="Поиск"><Search /></Link>
         </nav>
         <div className="profile-header__actions">
-          {user ? <Link className="button button--soft" to="/app"><span>Мой вишлист</span></Link> : <Link className="button button--primary" to="/login"><span>Вход</span></Link>}
+          {user ? <button className="profile-desktop-menu" type="button" aria-label={desktopMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((value) => !value)}>{desktopMenuOpen ? <X /> : <Menu />}</button> : <Link className="button button--primary" to="/login"><span>Вход</span></Link>}
+          {user && <nav className={`profile-desktop-panel ${desktopMenuOpen ? "is-open" : ""}`} aria-label="Меню аккаунта" aria-hidden={!desktopMenuOpen}><Link to="/app" onClick={() => setDesktopMenuOpen(false)}><Heart /> Мои желания</Link><Link to="/app/settings" onClick={() => setDesktopMenuOpen(false)}><Settings /> Настройки</Link></nav>}
         </div>
         {!data.isOwner && !shared && <button className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</button>}
         <button className="profile-mobile-menu" type="button" aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={mobileMenuOpen} aria-controls="profile-mobile-navigation" onClick={() => setMobileMenuOpen((value) => !value)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
@@ -601,20 +631,36 @@ function PublicProfile({ shared = false }) {
       </header>
 
       <div className="public-profile__layout">
-        <aside className="profile-rail">
+        {!shared ? <aside className="profile-rail profile-list-rail">
+          <nav className="profile-list-rail__lists" aria-label="Списки желаний">
+            {data.isOwner ? <button className="profile-list-rail__create" type="button" onClick={() => setListModalOpen(true)}><i aria-hidden="true"><Plus /></i> Создать новый список</button> : <Link className="profile-list-rail__create" to={appTarget}><i aria-hidden="true"><Plus /></i> Создать новый список</Link>}
+            <button className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => setSelected("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></button>
+            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></button>)}
+            <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => setSelected("secret")}><EyeOff /><span>Секретные желания</span></button>
+            <Link to={user ? "/app/gifts" : "/login"}><Sparkles /><span>Хочу подарить</span></Link>
+            <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => setSelected("fulfilled")}><Check /><span>Исполнено</span></button>
+          </nav>
+          <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
+            <Link className="profile-list-rail__business" to="/register"><Zap fill="currentColor" /> Для бизнеса</Link>
+            <button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /> Скачать на iOS</button>
+            <button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><Play fill="currentColor" /> Скачать для Android</button>
+            <button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><Radio fill="currentColor" /> Скачать из RuStore</button>
+            <button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><Smartphone fill="currentColor" /> Скачать в AppGallery</button>
+            <button type="button" onClick={() => toast("Расширение Rollapp для Chrome скоро появится")}><Globe fill="currentColor" /> Расширение для Chrome</button>
+            <button className="profile-list-rail__channel" type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button>
+            <button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button>
+          </nav>
+          <small>© 2026 Rollapp</small>
+        </aside> : <aside className="profile-rail">
           <div className="profile-rail__intro">
             <span className="eyebrow">Rollapp</span>
             <p>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</p>
             <Link className="button button--primary" to={appTarget}><Heart />{user ? "Открыть мой список" : "Создать вишлист"}</Link>
           </div>
-          <nav aria-label="Разделы Rollapp">
-            <Link to="/ideas"><Sparkles /> Идеи подарков</Link>
-            <Link to={friendsTarget}><Users /> Найти друзей</Link>
-            <Link to={appTarget}><Gift /> Мои желания</Link>
-          </nav>
+          <nav aria-label="Разделы Rollapp"><Link to="/ideas"><Sparkles /> Идеи подарков</Link><Link to={friendsTarget}><Users /> Найти друзей</Link><Link to={appTarget}><Gift /> Мои желания</Link></nav>
           <div className="profile-rail__note"><LockKeyhole /><p>Брони остаются тайными: владелец списка не узнает, кто готовит подарок.</p></div>
           <small>© 2026 Rollapp</small>
-        </aside>
+        </aside>}
 
         <main>
           <Link className="public-profile__back" to={user ? "/app/friends" : "/"}><ArrowLeft /> Назад</Link>
@@ -627,27 +673,32 @@ function PublicProfile({ shared = false }) {
               <h1>{data.profile.name}</h1>
               <p>{data.profile.bio || "Здесь живут желания, которым пора сбыться."}</p>
             </div>
+            {data.isOwner && !shared && <Link className="profile-cover__birthday" to="/app/settings"><CalendarDays />{data.profile.birthday ? formatDate(data.profile.birthday) : "Укажите день рождения"}</Link>}
             <div className="profile-cover__controls">
-              {!data.isOwner && !shared && <Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>}
-              <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followersCount} подписчиков`}</span>
-              <button type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></button>
+              {data.isOwner && !shared ? <Button className="profile-cover__wish-action" icon={Plus} onClick={() => setWishModalOpen(true)}>Загадать желание</Button> : <>
+                {!shared && <Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>}
+                <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followingCount} друзей`}</span>
+                <button type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></button>
+              </>}
             </div>
           </section>
 
           {!shared && <div className="public-list-tabs" aria-label="Списки желаний">
-            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => setSelected("all")}><strong>Все желания</strong><span>{data.wishes.length}</span></button>
-            {lists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{list.title}</strong><span>{list.wishCount}</span></button>)}
+            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => setSelected("all")}><strong>{data.isOwner ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></button>
+            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></button>)}
           </div>}
 
           {shared && <div className={"shared-list-head shared-list-head--" + data.list.color}><ListPlus /><div><span>Отдельный список</span><h2>{data.list.title}</h2><p>{data.list.description}</p></div></div>}
 
           <div className="public-wishes-head">
             <h2>{sectionTitle} <span>{wishes.length}</span></h2>
-            <Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>
+            <div className="public-wishes-head__actions"><Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>{data.isOwner && !shared && <button className="public-wishes-head__options" type="button" aria-label="Опции списка" onClick={share}><MoreHorizontal /></button>}</div>
           </div>
 
           {wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} shareToken={shared ? params.token : ""} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
           {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} listTitle={sectionTitle} shareToken={shared ? params.token : ""} onChanged={reload} onClose={() => setSelectedWishId(null)} />}
+          {listModalOpen && <ListModal onClose={() => setListModalOpen(false)} onSaved={() => { setListModalOpen(false); reload(); }} />}
+          {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
         </main>
       </div>
 
