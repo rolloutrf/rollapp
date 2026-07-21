@@ -10,6 +10,7 @@ services:
       DEMO_MODE: "false"
       PORT: "8080"
       COOKIE_SECURE: "true"
+      APP_VERSION: "__VERSION__"
       PGHOST: "c-c9q11j9k294u5dmlk127.rw.mdb.yandexcloud.net"
       PGPORT: "6432"
       PGDATABASE: "rollwish"

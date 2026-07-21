@@ -183,7 +183,7 @@ const credentialsSchema = z.object({
 
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
-  res.json({ ok: true, service: "rollwish" });
+  res.json({ ok: true, service: "rollwish", version: process.env.APP_VERSION || "development" });
 }));
 
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
