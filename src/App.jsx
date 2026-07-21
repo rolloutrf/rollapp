@@ -222,9 +222,9 @@ function Dashboard({ onAdd, version }) {
 
 function Priority({ value }) { return <span className="priority" title={`Важность: ${value} из 3`}>{[1, 2, 3].map((item) => <i key={item} className={item <= value ? "is-on" : ""} />)}</span>; }
 
-function WishCard({ wish, owner = false, onChanged, profile }) {
+function WishCard({ wish, owner = false, onChanged, profile, shareToken = "" }) {
   const toast = useToast(); const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false);
-  const reserve = async () => { setBusy(true); try { const result = await api.post(`/wishes/${wish.id}/reserve`, {}); toast(result.reserved ? "Подарок забронирован — владелец не узнает кем" : "Бронь снята"); onChanged?.(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } };
+  const reserve = async () => { setBusy(true); try { const result = await api.post(`/wishes/${wish.id}/reserve`, { shareToken: shareToken || wish.shareToken || "" }); toast(result.reserved ? "Подарок забронирован — владелец не узнает кем" : "Бронь снята"); onChanged?.(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } };
   const remove = async () => { if (!window.confirm("Удалить это желание?")) return; try { await api.delete(`/wishes/${wish.id}`); toast("Желание удалено"); onChanged?.(); } catch (error) { toast(error.message, "error"); } };
   const fulfilled = async () => { try { await api.post(`/wishes/${wish.id}/fulfilled`, {}); toast(wish.status === "fulfilled" ? "Желание снова активно" : "Отмечено исполненным ✦"); onChanged?.(); } catch (error) { toast(error.message, "error"); } };
   const share = async () => { await navigator.clipboard.writeText(wish.url || `${window.location.origin}/u/${profile?.username || ""}`); toast("Ссылка скопирована"); };

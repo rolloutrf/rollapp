@@ -36,6 +36,44 @@ app.use(compression());
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 
+function createRateLimit({ windowMs, max }) {
+  const clients = new Map();
+  let lastSweep = Date.now();
+
+  return (req, res, next) => {
+    const now = Date.now();
+    if (clients.size > 10_000) {
+      clients.clear();
+      lastSweep = now;
+    } else if (now - lastSweep >= windowMs) {
+      for (const [key, value] of clients) {
+        if (value.resetAt <= now) clients.delete(key);
+      }
+      lastSweep = now;
+    }
+
+    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const current = clients.get(key);
+    if (!current || current.resetAt <= now) {
+      clients.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    res.set("RateLimit-Limit", String(max));
+    res.set("RateLimit-Remaining", String(Math.max(0, max - current.count)));
+    res.set("RateLimit-Reset", String(Math.ceil(current.resetAt / 1000)));
+    if (current.count >= max) {
+      res.set("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
+      return res.status(429).json({ error: "Слишком много попыток. Попробуйте немного позже" });
+    }
+
+    current.count += 1;
+    next();
+  };
+}
+
+const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+
 function cleanUser(row) {
   if (!row) return null;
   return {
@@ -148,7 +186,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
   res.json({ ok: true, service: "rollwish" });
 }));
 
-app.post("/api/auth/register", asyncRoute(async (req, res) => {
+app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте имя, email и пароль — минимум 8 символов" });
   const { name, email, password } = parsed.data;
@@ -178,7 +216,7 @@ app.post("/api/auth/register", asyncRoute(async (req, res) => {
   res.status(201).json({ user: cleanUser(result.rows[0]) });
 }));
 
-app.post("/api/auth/login", asyncRoute(async (req, res) => {
+app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Введите корректные email и пароль" });
   const result = await query("SELECT * FROM users WHERE email = $1", [parsed.data.email]);
@@ -269,6 +307,26 @@ async function getWishes(userId, viewerId = null, includePrivate = false) {
     wish.listIds = links.rows.map((row) => row.wishlist_id);
   }
   return wishes;
+}
+
+async function canViewWish(wish, viewerId, shareToken = "") {
+  if (wish.user_id === viewerId) return true;
+  if (wish.privacy === "private") return false;
+
+  const linkedLists = await query(
+    `SELECT l.privacy,l.share_token FROM wishlist_wishes ww
+     JOIN wishlists l ON l.id=ww.wishlist_id WHERE ww.wish_id=$1`,
+    [wish.id],
+  );
+  if (linkedLists.rows.some((list) => list.privacy === "public")) return true;
+  if (shareToken && linkedLists.rows.some((list) => list.privacy === "link" && list.share_token === shareToken)) return true;
+  if (!linkedLists.rows.some((list) => list.privacy === "followers")) return false;
+
+  const follows = await query(
+    "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2",
+    [viewerId, wish.user_id],
+  );
+  return Boolean(follows.rowCount);
 }
 
 app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
@@ -494,8 +552,9 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
     query("SELECT COUNT(*) AS count FROM follows WHERE following_id=$1", [owner.id]),
     query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [owner.id]),
   ]);
+  const visibleLists = isOwner ? lists : lists.map(({ shareToken: _shareToken, ...list }) => list);
   res.json({
-    profile: { ...cleanUser(owner), email: undefined }, lists, wishes,
+    profile: { ...cleanUser(owner), email: undefined }, lists: visibleLists, wishes,
     isOwner, isFollowing: follower,
     followersCount: Number(stats[0].rows[0].count), followingCount: Number(stats[1].rows[0].count),
   });
@@ -508,9 +567,21 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
   );
   if (!found.rowCount) return res.status(404).json({ error: "Список не найден" });
   const row = found.rows[0];
+  const isOwner = req.user?.id === row.user_id;
+  let canView = isOwner || row.privacy === "public" || row.privacy === "link";
+  if (!canView && row.privacy === "followers" && req.user) {
+    const follows = await query(
+      "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2",
+      [req.user.id, row.user_id],
+    );
+    canView = Boolean(follows.rowCount);
+  }
+  if (!canView) return res.status(404).json({ error: "Список не найден" });
   const list = mapList({ ...row, wish_count: 0 });
-  const wishes = (await getWishes(row.user_id, req.user?.id, req.user?.id === row.user_id)).filter((wish) => wish.listIds.includes(row.id));
-  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes });
+  const wishes = (await getWishes(row.user_id, req.user?.id, isOwner))
+    .filter((wish) => wish.listIds.includes(row.id))
+    .map((wish) => ({ ...wish, shareToken: req.params.token }));
+  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, isOwner });
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
@@ -533,6 +604,10 @@ app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => 
   if (!found.rowCount) return res.status(404).json({ error: "Желание не найдено" });
   const wish = found.rows[0];
   if (wish.user_id === req.user.id) return res.status(400).json({ error: "Своё желание бронировать не нужно" });
+  const shareToken = typeof req.body?.shareToken === "string" ? req.body.shareToken : "";
+  if (!(await canViewWish(wish, req.user.id, shareToken))) {
+    return res.status(404).json({ error: "Желание не найдено" });
+  }
   const existing = await query("SELECT * FROM reservations WHERE wish_id=$1 AND user_id=$2", [wish.id, req.user.id]);
   if (existing.rowCount) {
     await query("DELETE FROM reservations WHERE id=$1", [existing.rows[0].id]);
@@ -544,7 +619,7 @@ app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => 
   }
   const note = z.string().trim().max(300).catch("").parse(req.body?.note || "");
   await query("INSERT INTO reservations (id,wish_id,user_id,note) VALUES ($1,$2,$3,$4)", [randomUUID(), wish.id, req.user.id, note]);
-  await notify(wish.user_id, "reservation", "Одно из ваших желаний забронировали", "Кто именно — секрет. Так интереснее.", `/u/${req.user.username}`);
+  await notify(wish.user_id, "reservation", "Одно из ваших желаний забронировали", "Кто именно — секрет. Так интереснее.", "/app/wishes");
   res.status(201).json({ reserved: true });
 }));
 
