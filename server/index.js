@@ -6,10 +6,11 @@ import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
+import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
+import { parseProductMetadata } from "./metadata.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -73,6 +74,10 @@ function createRateLimit({ windowMs, max }) {
 }
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
+const metadataCache = new Map();
+const metadataCacheTtlMs = 10 * 60 * 1000;
+const metadataCacheLimit = 500;
 
 function cleanUser(row) {
   if (!row) return null;
@@ -502,39 +507,26 @@ app.delete("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json({ ok: true });
 }));
 
-function isPrivateAddress(address) {
-  if (address.includes(":")) return address === "::1" || address.toLowerCase().startsWith("fc") || address.toLowerCase().startsWith("fd") || address.toLowerCase().startsWith("fe80");
-  const [a, b] = address.split(".").map(Number);
-  return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 0;
-}
-
-function extractMeta(html, property) {
-  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const patterns = [
-    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"']+)["']`, "i"),
-    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${escaped}["']`, "i"),
-  ];
-  return patterns.map((pattern) => html.match(pattern)?.[1]).find(Boolean) || "";
-}
-
-app.post("/api/metadata", requireAuth, asyncRoute(async (req, res) => {
+app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req, res) => {
   const parsed = z.object({ url: z.string().url().max(2000) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Нужна корректная ссылка" });
-  const url = new URL(parsed.data.url);
-  if (!['http:', 'https:'].includes(url.protocol)) return res.status(400).json({ error: "Поддерживаются только http и https ссылки" });
-  const addresses = await lookup(url.hostname, { all: true });
-  if (addresses.some(({ address }) => isPrivateAddress(address))) return res.status(400).json({ error: "Локальные адреса не поддерживаются" });
-  const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(7000), headers: { "User-Agent": "RollappBot/1.0" } });
-  if (!response.ok) return res.status(422).json({ error: "Магазин не отдал данные, заполните карточку вручную" });
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("text/html")) return res.status(422).json({ error: "По ссылке нет страницы товара" });
-  const html = (await response.text()).slice(0, 400_000);
-  const title = extractMeta(html, "og:title") || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || "";
-  const description = extractMeta(html, "og:description") || extractMeta(html, "description");
-  const imageUrl = extractMeta(html, "og:image");
-  const rawPrice = extractMeta(html, "product:price:amount") || extractMeta(html, "og:price:amount");
-  const currency = extractMeta(html, "product:price:currency") || "RUB";
-  res.json({ title: title.trim().slice(0, 160), description: description.trim().slice(0, 1000), imageUrl, price: rawPrice ? Number(rawPrice.replace(",", ".")) || null : null, currency });
+  const cacheUrl = new URL(parsed.data.url);
+  cacheUrl.hash = "";
+  const cacheKey = cacheUrl.href;
+  const cached = metadataCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return res.json(cached.value);
+  if (cached) metadataCache.delete(cacheKey);
+
+  try {
+    const { html, url } = await fetchPublicHtml(cacheUrl);
+    const value = parseProductMetadata(html, url);
+    if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
+    metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
+    res.json(value);
+  } catch (error) {
+    if (error instanceof MetadataFetchError) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
 }));
 
 app.get("/api/profile/:username", asyncRoute(async (req, res) => {
