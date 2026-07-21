@@ -224,13 +224,13 @@ function Dashboard({ onAdd, version }) {
 
 function Priority({ value }) { return <span className="priority" title={`Важность: ${value} из 3`}>{[1, 2, 3].map((item) => <i key={item} className={item <= value ? "is-on" : ""} />)}</span>; }
 
-function WishCard({ wish, owner = false, onChanged, profile, shareToken = "" }) {
+function WishCard({ wish, owner = false, onChanged, profile, shareToken = "", variant = "" }) {
   const toast = useToast(); const [menu, setMenu] = useState(false); const [busy, setBusy] = useState(false);
   const reserve = async () => { setBusy(true); try { const result = await api.post(`/wishes/${wish.id}/reserve`, { shareToken: shareToken || wish.shareToken || "" }); toast(result.reserved ? "Подарок забронирован — владелец не узнает кем" : "Бронь снята"); onChanged?.(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } };
   const remove = async () => { if (!window.confirm("Удалить это желание?")) return; try { await api.delete(`/wishes/${wish.id}`); toast("Желание удалено"); onChanged?.(); } catch (error) { toast(error.message, "error"); } };
   const fulfilled = async () => { try { await api.post(`/wishes/${wish.id}/fulfilled`, {}); toast(wish.status === "fulfilled" ? "Желание снова активно" : "Отмечено исполненным ✦"); onChanged?.(); } catch (error) { toast(error.message, "error"); } };
   const share = async () => { await navigator.clipboard.writeText(wish.url || `${window.location.origin}/u/${profile?.username || ""}`); toast("Ссылка скопирована"); };
-  return <article className={`wish-card ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}><div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <div className="fulfilled-badge"><Check /> Исполнено</div>}</div><div className="wish-card__body"><div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button onClick={() => setMenu(!menu)}><MoreHorizontal /></button>{menu && <div className="card-menu"><button onClick={share}><Share2 /> Поделиться</button>{wish.url && <a href={wish.url} target="_blank" rel="noreferrer"><ExternalLink /> Открыть магазин</a>}{owner && <><button onClick={fulfilled}><PackageCheck /> {wish.status === "fulfilled" ? "Вернуть в активные" : "Желание исполнено"}</button><button className="danger" onClick={remove}><Trash2 /> Удалить</button></>}</div>}</div><h3>{wish.title}</h3><p>{wish.description || "Без дополнительного описания"}</p>{owner ? <div className="wish-card__owner-meta">{wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active"}>{wish.reservedByMe ? "Забронировано вами" : wish.reservationCount > 0 && !wish.allowMultiple ? "Уже забронировано" : "Забронировать"}</Button>}</div></article>;
+  return <article className={`wish-card ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}><div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <div className="fulfilled-badge"><Check /> Исполнено</div>}</div><div className="wish-card__body"><div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button type="button" aria-label={`Опции желания «${wish.title}»`} aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreHorizontal /></button>{menu && <div className="card-menu"><button onClick={share}><Share2 /> Поделиться</button>{wish.url && <a href={wish.url} target="_blank" rel="noreferrer"><ExternalLink /> Открыть магазин</a>}{owner && <><button onClick={fulfilled}><PackageCheck /> {wish.status === "fulfilled" ? "Вернуть в активные" : "Желание исполнено"}</button><button className="danger" onClick={remove}><Trash2 /> Удалить</button></>}</div>}</div><h3>{wish.title}</h3><p>{wish.description || "Без дополнительного описания"}</p>{owner ? <div className="wish-card__owner-meta">{wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active"}>{wish.reservedByMe ? "Забронировано вами" : wish.reservationCount > 0 && !wish.allowMultiple ? "Уже забронировано" : "Забронировать"}</Button>}</div></article>;
 }
 
 function WishesPage({ onAdd, version }) {
@@ -328,7 +328,115 @@ function NotificationsPage() { const { refresh } = useSession(); const { data, l
 
 function SettingsPage() { const { user, refresh } = useSession(); const toast = useToast(); const [form, setForm] = useState({ name: user.name, username: user.username, bio: user.bio || "", birthday: user.birthday ? String(user.birthday).slice(0, 10) : "", avatarUrl: user.avatarUrl || "" }); const [loading, setLoading] = useState(false); const submit = async (event) => { event.preventDefault(); setLoading(true); try { await api.patch("/me", { ...form, birthday: form.birthday || null }); await refresh(); toast("Профиль обновлён"); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } }; return <div className="app-page settings-page"><PageTitle eyebrow="Личное пространство" title="Настройки профиля" text="Эту информацию увидят друзья рядом с вашим вишлистом." /><form className="settings-form panel" onSubmit={submit}><div className="avatar-editor"><Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="xl" /><div><strong>Фото профиля</strong><span>Укажите публичную ссылку на изображение</span></div></div><label><span>Ссылка на фото</span><input type="url" value={form.avatarUrl} placeholder="https://…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label><div className="form-row"><label><span>Имя</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>Адрес профиля</span><div className="input-prefix"><span>{window.location.host}/u/</span><input required pattern="[a-z0-9-]{3,32}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></div></label></div><label><span>О себе</span><textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label><label className="short-field"><span>День рождения</span><input type="date" value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label><div className="settings-save"><Button type="submit" loading={loading}>Сохранить изменения</Button></div></form></div>; }
 
-function PublicProfile({ shared = false }) { const params = useParams(); const { user } = useSession(); const toast = useToast(); const endpoint = shared ? `/shared/${params.token}` : `/profile/${params.username}`; const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]); const [selected, setSelected] = useState("all"); if (loading) return <LoadingScreen />; if (error) return <div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/"><span>На главную</span></Link></div>; const lists = shared ? [data.list] : data.lists; const wishes = shared ? data.wishes : selected === "all" ? data.wishes : data.wishes.filter((wish) => wish.listIds.includes(selected)); const follow = async () => { if (!user) return window.location.assign("/login"); try { const result = await api.post(`/profile/${data.profile.username}/follow`, {}); toast(result.following ? "Вы подписались" : "Подписка отменена"); reload(); } catch (e) { toast(e.message, "error"); } }; const share = async () => { await navigator.clipboard.writeText(window.location.href); toast("Ссылка скопирована"); }; return <div className="public-profile"><header><Logo /><div>{user ? <Link className="button button--soft" to="/app"><span>Мой вишлист</span></Link> : <><Link className="text-link" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать свой</span></Link></>}</div></header><main><section className="profile-cover"><div className="profile-cover__pattern" /><Avatar user={data.profile} size="xl" /><div className="profile-cover__copy"><span className="eyebrow">Вишлист</span><h1>{data.profile.name}</h1><p>{data.profile.bio || "Здесь живут желания, которым пора сбыться."}</p><div className="profile-stats">{data.profile.birthday && <span><CalendarDays /> {formatDate(data.profile.birthday)}</span>}{!shared && <><span><Users /> {data.followersCount} подписчиков</span><span><Heart /> {data.wishes.length} желаний</span></>}</div></div><div className="profile-cover__actions"><Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button>{!data.isOwner && !shared && <Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>}</div></section>{!shared && <div className="public-list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}>Все желания</button>{lists.map((list) => <button className={selected === list.id ? "active" : ""} onClick={() => setSelected(list.id)} key={list.id}>{list.title}<span>{list.wishCount}</span></button>)}</div>}{shared && <div className={`shared-list-head shared-list-head--${data.list.color}`}><ListPlus /><div><span>Отдельный список</span><h2>{data.list.title}</h2><p>{data.list.description}</p></div></div>}{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner={data.isOwner} profile={data.profile} onChanged={reload} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}</main><footer><Logo /><span>Создано с мечтами в Rollapp</span><Link to="/register">Собрать свой список <ArrowRight size={16} /></Link></footer></div>; }
+function PublicProfile({ shared = false }) {
+  const params = useParams();
+  const { user } = useSession();
+  const toast = useToast();
+  const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
+  const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
+  const [selected, setSelected] = useState("all");
+
+  useEffect(() => {
+    document.body.classList.add("public-profile-dark");
+    return () => document.body.classList.remove("public-profile-dark");
+  }, []);
+
+  if (loading) return <div className="public-profile public-profile--dark public-profile--state"><LoadingScreen /></div>;
+  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/"><span>На главную</span></Link></div></div>;
+
+  const lists = shared ? [data.list] : data.lists;
+  const selectedList = selected === "all" ? null : lists.find((list) => list.id === selected);
+  const wishes = shared ? data.wishes : selected === "all" ? data.wishes : data.wishes.filter((wish) => wish.listIds.includes(selected));
+  const sectionTitle = shared ? data.list.title : selectedList?.title || "Все желания";
+  const appTarget = user ? "/app" : "/register";
+  const friendsTarget = user ? "/app/friends" : "/login";
+
+  const follow = async () => {
+    if (!user) return window.location.assign("/login");
+    try {
+      const result = await api.post("/profile/" + data.profile.username + "/follow", {});
+      toast(result.following ? "Вы подписались" : "Подписка отменена");
+      reload();
+    } catch (followError) {
+      toast(followError.message, "error");
+    }
+  };
+
+  const share = async () => {
+    await navigator.clipboard.writeText(window.location.href);
+    toast("Ссылка скопирована");
+  };
+
+  return (
+    <div className="public-profile public-profile--dark">
+      <header className="profile-header">
+        <Logo />
+        <nav className="profile-header__dock" aria-label="Основная навигация">
+          <Link to="/" aria-label="Главная" title="Главная"><Home /></Link>
+          <Link to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Sparkles /></Link>
+          <Link to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart /></Link>
+          <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users /></Link>
+        </nav>
+        <div className="profile-header__actions">
+          {user ? <Link className="button button--soft" to="/app"><span>Мой вишлист</span></Link> : <><Link className="text-link" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать свой</span></Link></>}
+        </div>
+      </header>
+
+      <div className="public-profile__layout">
+        <aside className="profile-rail">
+          <div className="profile-rail__intro">
+            <span className="eyebrow">Rollapp</span>
+            <p>Списки желаний, которые приятно исполнять.</p>
+            <Link className="button button--primary" to={appTarget}><Heart />{user ? "Открыть мой список" : "Создать вишлист"}</Link>
+          </div>
+          <nav aria-label="Разделы Rollapp">
+            <Link to="/ideas"><Sparkles /> Идеи подарков</Link>
+            <Link to={friendsTarget}><Users /> Найти друзей</Link>
+            <Link to={appTarget}><Gift /> Мои желания</Link>
+          </nav>
+          <div className="profile-rail__note"><LockKeyhole /><p>Брони остаются тайными: владелец списка не узнает, кто готовит подарок.</p></div>
+          <small>© 2026 Rollapp</small>
+        </aside>
+
+        <main>
+          <Link className="public-profile__back" to={user ? "/app/friends" : "/"}><ArrowLeft /> Назад</Link>
+
+          <section className="profile-cover">
+            <div className="profile-cover__pattern" />
+            <Avatar user={data.profile} size="xl" />
+            <div className="profile-cover__copy">
+              <span className="profile-handle">@{data.profile.username}</span>
+              <h1>{data.profile.name}</h1>
+              <p>{data.profile.bio || "Здесь живут желания, которым пора сбыться."}</p>
+            </div>
+            {!data.isOwner && !shared && <div className="profile-cover__actions"><Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button></div>}
+            <div className="profile-stats">
+              {data.profile.birthday && <span><CalendarDays /> {formatDate(data.profile.birthday)}</span>}
+              {!shared && <><span><Users /> {data.followersCount} подписчиков</span><span><Heart /> {data.wishes.length} желаний</span></>}
+              {shared && <span><Heart /> {data.wishes.length} желаний</span>}
+            </div>
+          </section>
+
+          {!shared && <div className="public-list-tabs" aria-label="Списки желаний">
+            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => setSelected("all")}><strong>Все желания</strong><span>{data.wishes.length}</span></button>
+            {lists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{list.title}</strong><span>{list.wishCount}</span></button>)}
+          </div>}
+
+          {shared && <div className={"shared-list-head shared-list-head--" + data.list.color}><ListPlus /><div><span>Отдельный список</span><h2>{data.list.title}</h2><p>{data.list.description}</p></div></div>}
+
+          <div className="public-wishes-head">
+            <h2>{sectionTitle} <span>{wishes.length}</span></h2>
+            <Button variant="soft" icon={Share2} onClick={share}>Поделиться</Button>
+          </div>
+
+          {wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} onChanged={reload} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
+        </main>
+      </div>
+
+      <footer><Logo /><span>Создано с мечтами в Rollapp</span><Link to="/register">Собрать свой список <ArrowRight size={16} /></Link></footer>
+    </div>
+  );
+}
 
 function SantaPage() { const toast = useToast(); const { data, loading, reload } = useAsync(() => api.get("/santa"), []); const [mode, setMode] = useState(null); if (loading) return <LoadingScreen compact />; return <div className="app-page santa-page"><PageTitle eyebrow="Подарки инкогнито" title="Тайный Санта" text="Вся игра — от приглашения до анонимного сообщения — в одном месте." action={<div className="page-actions"><Button variant="outline" icon={Link2} onClick={() => setMode("join")}>Войти по коду</Button><Button icon={Plus} onClick={() => setMode("create")}>Создать игру</Button></div>} /><section className="santa-app-banner"><div><span><PartyPopper /> Как это работает</span><h2>Соберите компанию.<br />Мы тихо всё разыграем.</h2><p>Участники оставляют подсказки, а после жеребьёвки каждый видит только своего подопечного.</p></div><div className="santa-banner-gift"><Gift /><span>?</span></div></section>{data.games.length ? <div className="game-grid">{data.games.map((game) => <Link className={`game-card ${game.status === "drawn" ? "game-card--drawn" : ""}`} to={`/app/santa/${game.id}`} key={game.id}><div><span>{game.status === "drawn" ? <Check /> : <Users />}{game.status === "drawn" ? "Пары готовы" : "Собираем участников"}</span><strong>{game.participantCount}</strong></div><h3>{game.title}</h3><p>{game.description || "Праздничный обмен подарками"}</p><footer><span><CalendarDays /> {formatDate(game.event_date)}</span><span>{formatMoney(game.budget, game.currency)}</span><ArrowRight /></footer></Link>)}</div> : <EmptyState icon={PartyPopper} title="Пока ни одной игры" text="Создайте свою или присоединитесь по коду приглашения." action={<Button onClick={() => setMode("create")}>Создать игру</Button>} />}{mode && <SantaModal mode={mode} onClose={() => setMode(null)} onSaved={() => { setMode(null); reload(); toast(mode === "create" ? "Игра создана — зовите друзей" : "Вы в игре!"); }} />}</div>; }
 
