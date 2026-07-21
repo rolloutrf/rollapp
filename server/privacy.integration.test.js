@@ -51,6 +51,27 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const ownerCookie = await login("demo@rollapp.test");
   const viewerCookie = await login("max@rollapp.test");
 
+  const meResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
+  assert.equal(meResponse.status, 200);
+  assert.equal(typeof (await meResponse.json()).unreadCount, "number");
+
+  const notificationsResponse = await fetch(`${baseUrl}/notifications`, { headers: { Cookie: ownerCookie } });
+  assert.equal(notificationsResponse.status, 200);
+  assert.ok(Array.isArray((await notificationsResponse.json()).notifications));
+
+  const readNotificationsResponse = await post("/notifications/read", {}, ownerCookie);
+  assert.equal(readNotificationsResponse.status, 200);
+
+  const dashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
+  assert.equal(dashboardResponse.status, 200);
+  const dashboard = await dashboardResponse.json();
+  assert.deepEqual(dashboard.games, []);
+
+  const removedApiResponse = await fetch(`${baseUrl}/santa`, { headers: { Cookie: ownerCookie } });
+  assert.equal(removedApiResponse.status, 404);
+  assert.match(removedApiResponse.headers.get("content-type"), /^application\/json/);
+  assert.deepEqual(await removedApiResponse.json(), { error: "Маршрут API не найден" });
+
   const privateListResponse = await post("/lists", { title: "Private", privacy: "private" }, ownerCookie);
   assert.equal(privateListResponse.status, 201);
   const privateList = (await privateListResponse.json()).list;
