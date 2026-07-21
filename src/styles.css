@@ -416,6 +416,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .list-choice small { color: var(--muted); font-size: 8px; }
 .list-choice > label > svg { width: 15px; opacity: 0; color: var(--coral); }
 .list-choice input:checked ~ svg { opacity: 1; }
+.wish-form__list-error { margin: 8px 0 0; color: #d83a30; font-size: 10px; font-weight: 700; }
 .list-dot { width: 10px; height: 10px; border-radius: 50%; }
 .list-dot--coral { background: var(--coral); }.list-dot--blue { background: var(--blue); }.list-dot--lime { background: var(--lime); }.list-dot--sun { background: var(--sun); }.list-dot--ink { background: var(--ink); }
 .wish-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -2367,6 +2368,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .wish-detail__side { min-width: 0; }
 .wish-detail__toolbar { height: 40px; padding-right: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .wish-detail__toolbar > span,
+.wish-detail__toolbar > .wish-detail__list-control,
 .wish-detail__toolbar > button {
   min-height: 40px;
   padding: 0 16px;
@@ -2382,8 +2384,30 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   line-height: 19px;
   font-weight: 500;
 }
-.wish-detail__toolbar > span svg { width: 16px; }
-.wish-detail__toolbar > button { width: 40px; padding: 0; cursor: pointer; }
+.wish-detail__toolbar > .wish-detail__list-control { min-width: 0; max-width: calc(100% - 48px); padding: 0; }
+.wish-detail__list-control > button,
+.wish-detail__list-control > span {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+.wish-detail__list-control > button { cursor: pointer; transition: background .16s ease; }
+.wish-detail__list-control > button:hover { background: rgba(255,255,255,.09); }
+.wish-detail__list-control > button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wish-detail__list-control > button > span,
+.wish-detail__list-control > span > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wish-detail__list-control svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.wish-detail__toolbar > .wish-detail__share { width: 40px; padding: 0; flex: 0 0 40px; cursor: pointer; }
 .wish-detail__notice {
   min-height: 77px;
   margin: 32px 0 16px;
@@ -2669,7 +2693,8 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .wish-detail { width: 100%; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
   .wish-detail__side { display: contents; }
   .wish-detail__toolbar { width: 100%; height: 40px; padding: 0; position: relative; order: 1; flex: 0 0 auto; justify-content: center; }
-  .wish-detail__toolbar > button { position: absolute; left: 0; top: 0; }
+  .wish-detail__toolbar > .wish-detail__list-control { max-width: calc(100% - 104px); }
+  .wish-detail__toolbar > .wish-detail__share { position: absolute; left: 0; top: 0; }
   .wish-detail__notice { width: 100%; min-height: 77px; margin: 0; order: 2; flex: 0 0 auto; }
   .wish-detail__media { width: 100%; height: auto; max-height: none; aspect-ratio: 4 / 5; order: 3; flex: 0 0 auto; border-radius: 20px; }
   .wish-detail__content { width: 100%; margin: 0; padding: 0; order: 4; gap: 16px; }

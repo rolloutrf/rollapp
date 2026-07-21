@@ -416,17 +416,23 @@ app.delete("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json({ ok: true });
 }));
 
+const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
+const listIdsSchema = z.array(z.string()).min(1).refine(
+  (listIds) => new Set(listIds).size === listIds.length,
+  { message: "Список нельзя выбрать дважды" },
+);
+
 const wishSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(1000).default(""),
   url: z.string().url().max(2000).or(z.literal("")).default(""),
-  imageUrl: z.string().url().max(2000).or(z.literal("")).default(""),
+  imageUrl: z.string().url().max(2000).or(localImageUrlSchema).or(z.literal("")).default(""),
   price: z.coerce.number().min(0).max(999999999).nullable().optional(),
   currency: z.enum(["RUB", "USD", "EUR", "KZT", "BYN"]).default("RUB"),
   priority: z.coerce.number().int().min(1).max(3).default(2),
   privacy: z.enum(["inherit", "private"]).default("inherit"),
   allowMultiple: z.boolean().default(false),
-  listIds: z.array(z.string()).min(1),
+  listIds: listIdsSchema,
 });
 
 app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {

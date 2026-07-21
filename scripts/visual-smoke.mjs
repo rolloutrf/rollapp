@@ -8,6 +8,22 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function sameMembers(actual, expected) {
+  return actual.length === expected.length && expected.every((item) => actual.includes(item));
+}
+
+async function apiFromPage(page, path, { method = "GET", body } = {}) {
+  return page.evaluate(async ({ requestPath, requestMethod, requestBody }) => {
+    const response = await fetch(requestPath, {
+      method: requestMethod,
+      headers: requestBody === undefined ? undefined : { "Content-Type": "application/json" },
+      body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
+    });
+    const data = await response.json().catch(() => null);
+    return { ok: response.ok, status: response.status, data };
+  }, { requestPath: path, requestMethod: method, requestBody: body });
+}
+
 async function waitForStableLayout(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
@@ -435,10 +451,100 @@ try {
   await ownerWishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
   await ownerWishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await ownerWishDialog.waitFor({ state: "detached" });
+
+  const dashboardBeforeMoveResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+  assert(dashboardBeforeMoveResponse.ok, `Owner dashboard before list move failed: ${dashboardBeforeMoveResponse.status}`);
+  const dashboardBeforeMove = dashboardBeforeMoveResponse.data;
+  const wishToMove = dashboardBeforeMove.wishes.find((wish) => wish.id === "demo-wish-camera");
+  assert(wishToMove, "List move regression needs the seeded demo wish");
+  assert(wishToMove.listIds.length === 1, "Seeded list move wish should initially belong to exactly one list");
+  const originalListIds = [...wishToMove.listIds];
+  const sourceList = dashboardBeforeMove.lists.find((list) => list.id === originalListIds[0]);
+  const isVisibleProfileList = (list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад");
+  const targetList = dashboardBeforeMove.lists.find((list) => list.title === "Когда-нибудь" && !originalListIds.includes(list.id))
+    || dashboardBeforeMove.lists.find((list) => isVisibleProfileList(list) && !originalListIds.includes(list.id));
+  assert(sourceList && targetList, "List move regression needs distinct source and target lists");
+
+  try {
+    const wishCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
+    await wishCard.waitFor({ state: "visible" });
+    await wishCard.getByRole("button", { name: `Открыть желание «${wishToMove.title}»` }).click();
+    const wishDetailsDialog = ownerWidePage.getByRole("dialog", { name: `Желание: ${wishToMove.title}` });
+    await wishDetailsDialog.waitFor({ state: "visible" });
+    const changeListsButton = wishDetailsDialog.getByRole("button", { name: /^Изменить списки желания\./ });
+    assert(await changeListsButton.isVisible(), "Owner wish detail does not expose the editable list control");
+    await changeListsButton.click();
+
+    const editDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
+    await editDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    const sourceChoice = editDialog.locator(".list-choice > label").filter({ hasText: sourceList.title });
+    const targetChoice = editDialog.locator(".list-choice > label").filter({ hasText: targetList.title });
+    const sourceCheckbox = sourceChoice.locator("input[type='checkbox']");
+    const targetCheckbox = targetChoice.locator("input[type='checkbox']");
+    assert(await sourceCheckbox.isChecked(), "Wish editor should preselect the wish's current list");
+    assert(!(await targetCheckbox.isChecked()), "Wish editor should not preselect an unrelated list");
+
+    await sourceChoice.click();
+    await targetChoice.click();
+    assert(!(await sourceCheckbox.isChecked()), "Wish editor did not remove the source list selection");
+    assert(await targetCheckbox.isChecked(), "Wish editor did not select the target list");
+
+    const updateResponsePromise = ownerWidePage.waitForResponse((response) => (
+      response.request().method() === "PATCH"
+      && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}`
+    ));
+    await editDialog.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
+    const updateResponse = await updateResponsePromise;
+    assert(updateResponse.ok(), `Wish list update failed: ${updateResponse.status()}`);
+    await editDialog.waitFor({ state: "detached" });
+    await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+
+    const dashboardAfterMoveResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(dashboardAfterMoveResponse.ok, `Owner dashboard after list move failed: ${dashboardAfterMoveResponse.status}`);
+    const dashboardAfterMove = dashboardAfterMoveResponse.data;
+    const movedWish = dashboardAfterMove.wishes.find((wish) => wish.id === wishToMove.id);
+    assert(movedWish && sameMembers(movedWish.listIds, [targetList.id]), "API did not persist the wish's new list membership");
+    const sourceAfterMove = dashboardAfterMove.lists.find((list) => list.id === sourceList.id);
+    const targetAfterMove = dashboardAfterMove.lists.find((list) => list.id === targetList.id);
+    assert(sourceAfterMove.wishCount === sourceList.wishCount - 1, "Source list count did not decrease after moving the wish");
+    assert(targetAfterMove.wishCount === targetList.wishCount + 1, "Target list count did not increase after moving the wish");
+
+    if (isVisibleProfileList(sourceList)) {
+      const sourceRailButton = ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: sourceList.title });
+      await sourceRailButton.click();
+      assert((await ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).count()) === 0, "Moved wish is still rendered in its former list");
+    }
+    const targetRailButton = ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: targetList.title });
+    await targetRailButton.click();
+    await ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).waitFor({ state: "visible" });
+
+    await ownerWidePage.reload({ waitUntil: "domcontentloaded" });
+    await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: targetList.title }).click();
+    const persistedCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
+    await persistedCard.waitFor({ state: "visible" });
+    await persistedCard.getByRole("button", { name: `Опции желания «${wishToMove.title}»` }).click();
+    await persistedCard.getByRole("button", { name: "Редактировать", exact: true }).click();
+    const reloadedEditDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
+    await reloadedEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    assert(!(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: sourceList.title }).locator("input[type='checkbox']").isChecked()), "Source list became selected again after reload");
+    assert(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: targetList.title }).locator("input[type='checkbox']").isChecked(), "Target list selection did not survive reload");
+    await reloadedEditDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+    await reloadedEditDialog.waitFor({ state: "detached" });
+
+    const dashboardAfterReloadResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(dashboardAfterReloadResponse.ok, `Owner dashboard after reload failed: ${dashboardAfterReloadResponse.status}`);
+    const dashboardAfterReload = dashboardAfterReloadResponse.data;
+    const persistedWish = dashboardAfterReload.wishes.find((wish) => wish.id === wishToMove.id);
+    assert(persistedWish && sameMembers(persistedWish.listIds, [targetList.id]), "API list membership changed after browser reload");
+  } finally {
+    const restoreResponse = await apiFromPage(ownerWidePage, `/api/wishes/${wishToMove.id}`, { method: "PATCH", body: { listIds: originalListIds } });
+    assert(restoreResponse.ok, `Failed to restore seeded wish membership: ${restoreResponse.status}`);
+  }
   await expectNoRootOverflow(ownerWidePage, "1912px owner profile");
   await ownerWide.close();
 
-  console.log("Visual smoke passed: desktop/mobile wish details, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
+  console.log("Visual smoke passed: desktop/mobile wish details, owner list reassignment persistence, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
 } finally {
   await browser.close();
 }
