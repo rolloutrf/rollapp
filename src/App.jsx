@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
@@ -14,6 +14,8 @@ const ToastContext = createContext(null);
 const formatMoney = (value, currency = "RUB") => value == null ? "Цена не указана" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatDate = (value, options = {}) => value ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...options }).format(new Date(value)) : "Без даты";
 const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
+const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
 
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
@@ -248,12 +250,65 @@ function ListModal({ onClose, onSaved }) {
 }
 
 function WishModal({ onClose, onSaved }) {
-  const toast = useToast(); const { data, loading: listsLoading } = useAsync(() => api.get("/dashboard"), []); const [step, setStep] = useState("link"); const [loading, setLoading] = useState(false); const [metaLoading, setMetaLoading] = useState(false); const [form, setForm] = useState({ title: "", description: "", url: "", imageUrl: "", price: "", currency: "RUB", priority: 2, privacy: "inherit", allowMultiple: false, listIds: [] });
+  const toast = useToast(); const { data, loading: listsLoading } = useAsync(() => api.get("/dashboard"), []); const [step, setStep] = useState("link"); const [loading, setLoading] = useState(false); const [metadata, setMetadata] = useState({ status: "idle", message: "" }); const [form, setForm] = useState({ title: "", description: "", url: "", imageUrl: "", price: "", currency: "RUB", priority: 2, privacy: "inherit", allowMultiple: false, listIds: [] });
+  const autoTimerRef = useRef(null); const metadataRequestRef = useRef(0); const editedMetadataFieldsRef = useRef(new Set());
   useEffect(() => { if (data?.lists?.[0] && form.listIds.length === 0) setForm((current) => ({ ...current, listIds: [data.lists[0].id] })); }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-  const recognize = async () => { if (!form.url) { setStep("details"); return; } setMetaLoading(true); try { const meta = await api.post("/metadata", { url: form.url }); setForm((current) => ({ ...current, ...meta, price: meta.price ?? current.price, currency: ["RUB", "USD", "EUR", "KZT", "BYN"].includes(meta.currency) ? meta.currency : "RUB" })); setStep("details"); toast(meta.title ? "Карточка заполнена по ссылке" : "Заполните детали вручную"); } catch (error) { setStep("details"); toast(error.message, "error"); } finally { setMetaLoading(false); } };
+  const recognize = async (sourceUrl = form.url, { advance = true } = {}) => {
+    const url = sourceUrl.trim();
+    window.clearTimeout(autoTimerRef.current);
+    if (!url) { setMetadata({ status: "idle", message: "" }); setStep("details"); return false; }
+    if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
+    const requestId = ++metadataRequestRef.current;
+    setMetadata({ status: "loading", message: "Ищем название, фотографию и цену на странице магазина…" });
+    try {
+      const meta = await api.post("/metadata", { url });
+      if (requestId !== metadataRequestRef.current) return false;
+      const values = {
+        title: typeof meta.title === "string" ? meta.title.trim() : "",
+        description: typeof meta.description === "string" ? meta.description.trim() : "",
+        imageUrl: typeof meta.imageUrl === "string" ? meta.imageUrl.trim() : "",
+        price: meta.price == null || meta.price === "" ? "" : String(meta.price),
+        currency: typeof meta.currency === "string" && WISH_CURRENCIES.includes(meta.currency.toUpperCase()) ? meta.currency.toUpperCase() : "",
+      };
+      const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
+      if (foundFields.length === 0) {
+        setMetadata({ status: "error", message: "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        return false;
+      }
+      const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
+      setForm((current) => {
+        if (current.url.trim() !== url) return current;
+        const next = { ...current };
+        appliedFields.forEach((field) => { next[field] = values[field]; });
+        return next;
+      });
+      const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
+      setMetadata({ status: "success", message: appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      if (advance) setStep("details");
+      return true;
+    } catch (error) {
+      if (requestId !== metadataRequestRef.current) return false;
+      setMetadata({ status: "error", message: error.message || "Не удалось прочитать страницу магазина." });
+      return false;
+    }
+  };
+  useEffect(() => {
+    window.clearTimeout(autoTimerRef.current);
+    metadataRequestRef.current += 1;
+    const url = form.url.trim();
+    if (!url || !isProductUrl(url)) { setMetadata({ status: "idle", message: "" }); return undefined; }
+    setMetadata({ status: "waiting", message: "Ссылка принята — через мгновение заполним карточку." });
+    autoTimerRef.current = window.setTimeout(() => { recognize(url); }, 600);
+    return () => window.clearTimeout(autoTimerRef.current);
+  }, [form.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; }, []);
+  const updateMetadataField = (field, value) => { editedMetadataFieldsRef.current.add(field); setForm((current) => ({ ...current, [field]: value })); };
+  const continueFromLink = () => { if (!form.url.trim()) { setStep("details"); return; } if (metadata.status === "success") { setStep("details"); return; } recognize(); };
+  const fillManually = () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; setMetadata((current) => current.status === "error" ? current : { status: "idle", message: "" }); setStep("details"); };
   const submit = async (event) => { event.preventDefault(); setLoading(true); try { await api.post("/wishes", { ...form, price: form.price === "" ? null : Number(form.price) }); toast("Желание добавлено ✦"); onSaved(); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } };
   const toggleList = (id) => setForm((current) => ({ ...current, listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id] }));
-  return <Modal onClose={onClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon"><Heart fill="currentColor" /></span><div><span className="eyebrow">Новое желание</span><h2>{step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{step === "link" ? "Вставьте ссылку на товар или добавьте всё вручную." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} /></label><Button type="button" onClick={recognize} loading={metaLoading}>Продолжить</Button><button type="button" className="manual-link" onClick={() => setStep("details")}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Умное заполнение</strong><span>Попробуем распознать название, фото и цену на странице магазина.</span></div></div></div> : <><div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label></div><div className="wish-fields"><label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => setForm({ ...form, price: event.target.value })} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>{["RUB", "USD", "EUR", "KZT", "BYN"].map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>Добавить в списки</legend>{listsLoading ? <LoadingScreen compact /> : data.lists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions"><Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button><Button type="submit" loading={loading} icon={Heart}>Добавить желание</Button></div></>}</form></Modal>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{step === "details" && metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url, { advance: false })}>Повторить</button>}</div>;
+  return <Modal onClose={onClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon"><Heart fill="currentColor" /></span><div><span className="eyebrow">Новое желание</span><h2>{step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields"><label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>Добавить в списки</legend>{listsLoading ? <LoadingScreen compact /> : data.lists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions"><Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button><Button type="submit" loading={loading} icon={Heart}>Добавить желание</Button></div></>}</form></Modal>;
 }
 
 function IdeasPage({ appMode = false }) {
