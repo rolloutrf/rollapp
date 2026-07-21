@@ -96,38 +96,6 @@ const schema = `
     badge TEXT NOT NULL DEFAULT ''
   );
 
-  CREATE TABLE IF NOT EXISTS santa_games (
-    id TEXT PRIMARY KEY,
-    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    event_date DATE,
-    budget NUMERIC(12, 2),
-    currency TEXT NOT NULL DEFAULT 'RUB',
-    invite_code TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'collecting',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS santa_participants (
-    game_id TEXT NOT NULL REFERENCES santa_games(id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    note TEXT NOT NULL DEFAULT '',
-    gift_hints TEXT NOT NULL DEFAULT '',
-    assigned_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (game_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS santa_messages (
-    id TEXT PRIMARY KEY,
-    game_id TEXT NOT NULL REFERENCES santa_games(id) ON DELETE CASCADE,
-    sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
@@ -214,16 +182,6 @@ async function seedDemo(client) {
   }
 
   await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2),($1,$3),($2,$1),($3,$1)", [alisa.id, max.id, sonya.id]);
-
-  const gameId = randomUUID();
-  await client.query(
-    `INSERT INTO santa_games (id,owner_id,title,description,event_date,budget,currency,invite_code,status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [gameId, alisa.id, "Тайный Санта редакции", "Дарим небольшое, личное и без пластиковой ерунды", "2026-12-24", 3000, "RUB", "SNOW26", "collecting"],
-  );
-  for (const person of [alisa, max, sonya, lev]) {
-    await client.query("INSERT INTO santa_participants (game_id,user_id,note,gift_hints) VALUES ($1,$2,$3,$4)", [gameId, person.id, "", person.id === alisa.id ? "Люблю бумажные книги, керамику и всё зелёное" : "Сюрпризам рад, аллергий нет"]);
-  }
 }
 
 export async function initializeDatabase() {

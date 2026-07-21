@@ -1,6 +1,6 @@
 # Rollapp
 
-Rollapp is a full-stack wishlist service: users collect wishes, share lists, follow friends, reserve gifts without spoiling the surprise, browse curated ideas, and run Secret Santa games.
+Rollapp is a full-stack wishlist service: users collect wishes, share lists, follow friends, reserve gifts without spoiling the surprise, and browse curated ideas.
 
 The product is an independent functional alternative to popular wishlist services. It does not reuse Oh My Wishes branding, code, editorial content, or visual assets.
 
@@ -15,7 +15,6 @@ The product is an independent functional alternative to popular wishlist service
 - Anonymous reservations that never expose the giver to the wish owner.
 - Follows, friend search, birthdays, and in-app notifications.
 - Curated gift ideas with search, categories, and save-to-wishlist.
-- Secret Santa games with invite codes, hints, drawing, wish access, and anonymous chat.
 - Responsive desktop and mobile UI.
 
 ## Local development

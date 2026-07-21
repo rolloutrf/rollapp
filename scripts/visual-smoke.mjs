@@ -9,6 +9,9 @@ try {
   const landing = await desktop.newPage();
   await landing.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await landing.getByRole("heading", { name: /Дарите радость/ }).waitFor();
+  if ((await landing.locator("body").innerText()).includes("Тайный Санта")) {
+    throw new Error("Removed Secret Santa content is still visible on the landing page");
+  }
   await landing.waitForTimeout(2500);
   await landing.screenshot({ path: "/tmp/rollapp-landing.png", fullPage: true });
 
@@ -17,8 +20,18 @@ try {
   const dashboard = await desktop.newPage();
   await dashboard.goto(`${baseUrl}/app`, { waitUntil: "domcontentloaded" });
   await dashboard.getByRole("heading", { name: /Привет, Алиса/ }).waitFor();
+  if ((await dashboard.locator("body").innerText()).includes("Тайный Санта")) {
+    throw new Error("Removed Secret Santa content is still visible in the authenticated app");
+  }
+  if (await dashboard.locator(".mobile-bottom-nav a").count() !== 5) {
+    throw new Error("Mobile navigation should contain the five remaining app sections");
+  }
   await dashboard.waitForTimeout(2500);
   await dashboard.screenshot({ path: "/tmp/rollapp-dashboard.png", fullPage: true });
+
+  await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
+  await dashboard.waitForURL((url) => url.pathname === "/app");
+  await dashboard.getByRole("heading", { name: /Привет, Алиса/ }).waitFor();
   await desktop.close();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
