@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -85,17 +85,20 @@ jobs:
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
         run: |
-          sed "s|__IMAGE__|${IMAGE_SHA}|g" \
+          sed -e "s|__IMAGE__|${IMAGE_SHA}|g" \
+            -e "s|__VERSION__|${GITHUB_SHA}|g" \
             deploy/docker-compose.template.yml > deploy/docker-compose.yml
           yc compute instance update-container \
             --id "$YC_VM_ID" \
             --docker-compose-file deploy/docker-compose.yml \
-            --folder-id "$YC_FOLDER_ID"
+            --folder-id "$YC_FOLDER_ID" \
+            --async
 
       - name: Verify production health
         run: |
           for attempt in $(seq 1 30); do
-            if curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" | jq -e '.ok == true' >/dev/null; then
+            if curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" \
+              | jq -e --arg expected "$GITHUB_SHA" '.ok == true and .version == $expected' >/dev/null; then
               echo "Rollwish is healthy at ${PUBLIC_URL}"
               exit 0
             fi
