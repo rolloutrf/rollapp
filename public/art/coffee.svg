@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900">
+  <rect width="800" height="900" rx="55" fill="#edc7a8"/><path d="M213 295h352v312c0 78-64 142-142 142h-68c-78 0-142-64-142-142V295Z" fill="#fffaf2" stroke="#1c1c1a" stroke-width="18"/><path d="M565 383h38c68 0 96 51 96 105s-38 105-108 105h-26" fill="none" stroke="#1c1c1a" stroke-width="22"/>
+  <ellipse cx="389" cy="298" rx="176" ry="53" fill="#5f3826" stroke="#1c1c1a" stroke-width="18"/><path d="M323 301c27-51 104-47 132 0-28 48-105 47-132 0Z" fill="#bfda72"/>
+  <path d="M289 184c-31-37 28-66-3-102m104 102c-31-37 28-66-3-102m104 102c-31-37 28-66-3-102" fill="none" stroke="#fffaf2" stroke-width="14" stroke-linecap="round"/><path d="M289 545h202" stroke="#f26b4f" stroke-width="19"/><text x="306" y="604" font-family="Georgia,serif" font-size="39" font-weight="700" fill="#1c1c1a">SUNDAY</text>
+</svg>

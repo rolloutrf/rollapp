@@ -1,0 +1,26 @@
+version: "3.7"
+
+services:
+  rollwish:
+    container_name: rollwish
+    image: "__IMAGE__"
+    restart: always
+    environment:
+      NODE_ENV: production
+      DEMO_MODE: "false"
+      PORT: "8080"
+      COOKIE_SECURE: "true"
+      PGHOST: "c-c9q11j9k294u5dmlk127.rw.mdb.yandexcloud.net"
+      PGPORT: "6432"
+      PGDATABASE: "rollwish"
+      PGUSER: "rollwish_app"
+      PG_POOL_SIZE: "8"
+      YC_LOCKBOX_SECRET_ID: "e6qf5vss5flop5pjagql"
+      YC_LOCKBOX_SECRET_KEY: "postgresql_password"
+      PUBLIC_HOST: "51-250-110-17.sslip.io"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/lib/rollwish-caddy:/data
+      - /var/lib/rollwish-caddy-config:/config

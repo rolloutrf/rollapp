@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+coverage/
+npm-debug.log*
+*.pem
+!certs/yandex-cloud-ca.pem
