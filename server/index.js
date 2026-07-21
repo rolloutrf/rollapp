@@ -183,7 +183,7 @@ const credentialsSchema = z.object({
 
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
-  res.json({ ok: true, service: "rollwish", version: process.env.APP_VERSION || "development" });
+  res.json({ ok: true, service: "rollapp", version: process.env.APP_VERSION || "development" });
 }));
 
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
@@ -208,7 +208,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
     );
     await client.query(
       "INSERT INTO notifications (id,user_id,type,title,body,href) VALUES ($1,$2,$3,$4,$5,$6)",
-      [randomUUID(), userId, "welcome", "Добро пожаловать в Rollwish", "Добавьте первое желание или сохраните идею из каталога.", "/app/ideas"],
+      [randomUUID(), userId, "welcome", "Добро пожаловать в Rollapp", "Добавьте первое желание или сохраните идею из каталога.", "/app/ideas"],
     );
   });
   await createSession(res, userId);
@@ -230,7 +230,7 @@ app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
 
 app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
   if (process.env.DEMO_MODE === "false") return res.status(404).json({ error: "Демо-вход отключён" });
-  const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollwish.ru"]);
+  const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (!result.rowCount) return res.status(404).json({ error: "Демо-профиль не найден" });
   await createSession(res, result.rows[0].id);
   res.json({ user: cleanUser(result.rows[0]) });
@@ -524,7 +524,7 @@ app.post("/api/metadata", requireAuth, asyncRoute(async (req, res) => {
   if (!['http:', 'https:'].includes(url.protocol)) return res.status(400).json({ error: "Поддерживаются только http и https ссылки" });
   const addresses = await lookup(url.hostname, { all: true });
   if (addresses.some(({ address }) => isPrivateAddress(address))) return res.status(400).json({ error: "Локальные адреса не поддерживаются" });
-  const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(7000), headers: { "User-Agent": "RollwishBot/1.0" } });
+  const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(7000), headers: { "User-Agent": "RollappBot/1.0" } });
   if (!response.ok) return res.status(422).json({ error: "Магазин не отдал данные, заполните карточку вручную" });
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/html")) return res.status(422).json({ error: "По ссылке нет страницы товара" });
@@ -823,7 +823,7 @@ app.use((error, _req, res, _next) => {
 await initializeDatabase();
 
 const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`Rollwish server listening on ${port}`);
+  console.log(`Rollapp server listening on ${port}`);
 });
 
 async function shutdown() {
