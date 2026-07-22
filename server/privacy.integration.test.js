@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import { test } from "node:test";
 
 const port = 18_000 + (process.pid % 1_000);
-const baseUrl = `http://127.0.0.1:${port}/api`;
+const origin = `http://127.0.0.1:${port}`;
+const baseUrl = `${origin}/api`;
 
 async function waitForServer(child) {
   let output = "";
@@ -66,6 +67,16 @@ test("private lists stay private while link lists remain reservable", async (t) 
   t.after(() => child.kill("SIGTERM"));
   await waitForServer(child);
 
+  for (const [legacyPath, expectedLocation] of [
+    ["/u/alisa?view=fulfilled", "/alisa?view=fulfilled"],
+    ["/u/alisa/lists/list-1", "/alisa/lists/list-1"],
+    ["/users/alisa/wishes/wish-1", "/alisa/wishes/wish-1"],
+  ]) {
+    const legacyResponse = await fetch(`${origin}${legacyPath}`, { redirect: "manual" });
+    assert.equal(legacyResponse.status, 301);
+    assert.equal(legacyResponse.headers.get("location"), expectedLocation);
+  }
+
   const ownerCookie = await login("demo@rollapp.test");
   const viewerCookie = await login("max@rollapp.test");
   const secondFollowerCookie = await login("sonya@rollapp.test");
@@ -74,6 +85,10 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const meResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
   assert.equal(meResponse.status, 200);
   assert.equal(typeof (await meResponse.json()).unreadCount, "number");
+
+  const reservedUsernameResponse = await patch("/me", { username: "app" }, ownerCookie);
+  assert.equal(reservedUsernameResponse.status, 409);
+  assert.deepEqual(await reservedUsernameResponse.json(), { error: "Этот адрес зарезервирован сервисом — выберите другое имя профиля" });
 
   const notificationsResponse = await fetch(`${baseUrl}/notifications`, { headers: { Cookie: ownerCookie } });
   assert.equal(notificationsResponse.status, 200);

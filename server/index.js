@@ -11,6 +11,7 @@ import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
 import { parseProductMetadata } from "./metadata.js";
+import { isReservedProfileUsername, legacyProfileTarget, normalizePublicProfileHref, profileUsernameCandidates, publicProfilePath } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -182,8 +183,7 @@ async function createSession(res, userId) {
 
 async function uniqueUsername(name) {
   const base = slugify(name);
-  for (let index = 0; index < 20; index += 1) {
-    const candidate = index ? `${base}-${index + 1}` : base;
+  for (const candidate of profileUsernameCandidates(base)) {
     const found = await query("SELECT 1 FROM users WHERE username = $1", [candidate]);
     if (!found.rowCount) return candidate;
   }
@@ -282,6 +282,9 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     avatarUrl: z.string().url().max(1000).or(z.literal("")).optional(),
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Не удалось сохранить: проверьте формат полей" });
+  if (parsed.data.username && isReservedProfileUsername(parsed.data.username)) {
+    return res.status(409).json({ error: "Этот адрес зарезервирован сервисом — выберите другое имя профиля" });
+  }
   const next = {
     name: parsed.data.name ?? req.user.name,
     username: parsed.data.username ?? req.user.username,
@@ -783,7 +786,7 @@ app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, re
     await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [req.user.id, target.id]);
     await client.query(
       "INSERT INTO notifications (id,user_id,type,title,body,href) VALUES ($1,$2,$3,$4,$5,$6)",
-      [randomUUID(), target.id, "follow", `${req.user.name} подписался на вас`, "Теперь ваши открытые желания будут проще найти.", `/u/${req.user.username}`],
+      [randomUUID(), target.id, "follow", `${req.user.name} подписался на вас`, "Теперь ваши открытые желания будут проще найти.", publicProfilePath(req.user.username)],
     );
     return true;
   }));
@@ -904,7 +907,7 @@ app.get("/api/notifications", requireAuth, asyncRoute(async (req, res) => {
     "SELECT * FROM notifications WHERE user_id=$1 AND available_at<=$2 AND type NOT IN ('santa','santa-message') ORDER BY created_at DESC LIMIT 40",
     [req.user.id, new Date()],
   );
-  res.json({ notifications: result.rows.map((row) => ({ id: row.id, type: row.type, title: row.title, body: row.body, href: row.href, readAt: row.read_at, createdAt: row.created_at })) });
+  res.json({ notifications: result.rows.map((row) => ({ id: row.id, type: row.type, title: row.title, body: row.body, href: normalizePublicProfileHref(row.href), readAt: row.read_at, createdAt: row.created_at })) });
 }));
 
 app.post("/api/notifications/read", requireAuth, asyncRoute(async (req, res) => {
@@ -916,6 +919,13 @@ app.post("/api/notifications/read", requireAuth, asyncRoute(async (req, res) => 
 }));
 
 app.use("/api", (_req, res) => res.status(404).json({ error: "Маршрут API не найден" }));
+
+const redirectLegacyProfile = (req, res) => res.redirect(301, legacyProfileTarget(req.params, req.originalUrl));
+for (const prefix of ["u", "users"]) {
+  app.get(`/${prefix}/:username`, redirectLegacyProfile);
+  app.get(`/${prefix}/:username/lists/:listId`, redirectLegacyProfile);
+  app.get(`/${prefix}/:username/wishes/:wishId`, redirectLegacyProfile);
+}
 
 if (isProduction) {
   const distPath = path.resolve(__dirname, "../dist");
