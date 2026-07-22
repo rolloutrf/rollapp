@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
 
@@ -334,6 +335,13 @@ async function seedDemo(client) {
 
 export async function initializeDatabase() {
   await query(schema);
+  const existingUsernames = await query("SELECT username FROM users");
+  const reservedConflicts = existingUsernames.rows
+    .map((row) => row.username)
+    .filter(isReservedProfileUsername);
+  if (reservedConflicts.length) {
+    throw new Error(`Reserved profile usernames already exist: ${reservedConflicts.join(", ")}`);
+  }
   const exclusiveReservations = await query(
     `SELECT id,wish_id FROM reservations
      WHERE status='reserved' ORDER BY wish_id,created_at,id`,

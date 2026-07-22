@@ -109,6 +109,18 @@ jobs:
                   exit 1
                 fi
               done
+              profile_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/koloskof")"
+              if [ "$profile_status" != "200" ]; then
+                echo "Clean public profile returned ${profile_status}" >&2
+                exit 1
+              fi
+              for legacy_path in "/u/koloskof" "/users/koloskof"; do
+                redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "${PUBLIC_URL}${legacy_path}")"
+                if [ "$redirect_result" != "301 ${PUBLIC_URL}/koloskof" ]; then
+                  echo "Unexpected profile redirect for ${legacy_path}: ${redirect_result}" >&2
+                  exit 1
+                fi
+              done
               exit 0
             fi
             echo "Waiting for production (${attempt}/30)..."

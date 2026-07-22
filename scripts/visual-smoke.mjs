@@ -295,10 +295,10 @@ try {
   assert(mobileWishToMove && mobileSourceList && mobileTargetList, "Mobile category regression needs one wish and two themed lists");
   const mobileOriginalListIds = [...mobileWishToMove.listIds];
   try {
-    await mobilePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+    await mobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
     await mobilePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
     await mobilePage.locator(".public-list-tabs button").filter({ hasText: mobileSourceList.title }).click();
-    await mobilePage.waitForURL((url) => url.pathname === `/u/alisa/lists/${mobileSourceList.id}`);
+    await mobilePage.waitForURL((url) => url.pathname === `/alisa/lists/${mobileSourceList.id}`);
     const mobileListOptions = mobilePage.getByRole("button", { name: "Опции списка" });
     assert(await mobileListOptions.isVisible(), "Mobile owner profile does not expose list management");
     await mobileListOptions.click();
@@ -372,7 +372,7 @@ try {
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-settings-360.png", fullPage: true });
   await waitForAppRoute(narrowPage, "/app");
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-app-360.png", fullPage: true });
-  await narrowPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await narrowPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(narrowPage, 2, "360px public profile");
   await expectPublicMobileShell(narrowPage, "360px public profile");
   await expectNoRootOverflow(narrowPage, "360px public profile");
@@ -380,7 +380,7 @@ try {
 
   const compactPublic = await browser.newContext({ viewport: { width: 320, height: 700 }, deviceScaleFactor: 1 });
   const compactPublicPage = await compactPublic.newPage();
-  await compactPublicPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await compactPublicPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(compactPublicPage, 2, "320px public profile");
   await expectPublicMobileShell(compactPublicPage, "320px public profile");
   await expectNoRootOverflow(compactPublicPage, "320px public profile");
@@ -411,7 +411,16 @@ try {
 
   const publicMobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   const publicMobilePage = await publicMobile.newPage();
-  await publicMobilePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  const legacyProfileResponse = await publicMobilePage.request.get(`${baseUrl}/u/alisa?view=fulfilled`, { maxRedirects: 0 });
+  assert(legacyProfileResponse.status() === 301, `Legacy profile route should permanently redirect, received ${legacyProfileResponse.status()}`);
+  assert(legacyProfileResponse.headers().location === "/alisa?view=fulfilled", `Legacy profile redirect lost its clean path or query: ${legacyProfileResponse.headers().location}`);
+  await publicMobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.evaluate(() => {
+    window.history.pushState({}, "", "/u/alisa?view=fulfilled");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await publicMobilePage.waitForURL((url) => url.pathname === "/alisa" && url.search === "?view=fulfilled");
+  await publicMobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectDesktopUserAgent(publicMobilePage, "390px public profile");
   await expectPublicGrid(publicMobilePage, 2, "390px public profile");
   await expectPublicMobileShell(publicMobilePage, "390px public profile");
@@ -419,7 +428,10 @@ try {
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390.png", fullPage: true });
   const publicDetail = await expectWishDetailsOpen(publicMobilePage, "390px public wish", { fullscreen: true });
   const publicWishPath = new URL(publicMobilePage.url()).pathname;
-  assert(/^\/u\/alisa\/wishes\/[^/]+$/.test(publicWishPath), `Opening a public wish did not create a deep link: ${publicWishPath}`);
+  assert(/^\/alisa\/wishes\/[^/]+$/.test(publicWishPath), `Opening a public wish did not create a clean deep link: ${publicWishPath}`);
+  const legacyWishResponse = await publicMobilePage.request.get(`${baseUrl}/u${publicWishPath}`, { maxRedirects: 0 });
+  assert(legacyWishResponse.status() === 301, `Legacy wish route should permanently redirect, received ${legacyWishResponse.status()}`);
+  assert(legacyWishResponse.headers().location === publicWishPath, `Legacy wish redirect is not canonical: ${legacyWishResponse.headers().location}`);
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-390.png" });
   await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
   const reloadedPublicDetail = publicMobilePage.getByRole("dialog", { name: `Желание: ${publicDetail.title}` });
@@ -427,7 +439,7 @@ try {
   assert(await reloadedPublicDetail.locator(".wish-detail__price").isVisible(), "A public wish deep link did not survive reload");
   await reloadedPublicDetail.getByRole("button", { name: "Закрыть диалог" }).click();
   await reloadedPublicDetail.waitFor({ state: "detached" });
-  await publicMobilePage.waitForURL((url) => url.pathname === "/u/alisa");
+  await publicMobilePage.waitForURL((url) => url.pathname === "/alisa");
 
   const publicProfileResponse = await apiFromPage(publicMobilePage, "/api/profile/alisa");
   assert(publicProfileResponse.ok, `Public profile API failed during deep-link verification: ${publicProfileResponse.status}`);
@@ -435,12 +447,15 @@ try {
     list.wishCount > 0 && !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад")
   ));
   assert(directList, "Public list deep-link verification needs a non-empty themed list");
-  await publicMobilePage.goto(`${baseUrl}/u/alisa/lists/${directList.id}`, { waitUntil: "domcontentloaded" });
+  const legacyListResponse = await publicMobilePage.request.get(`${baseUrl}/users/alisa/lists/${directList.id}`, { maxRedirects: 0 });
+  assert(legacyListResponse.status() === 301, `Legacy list route should permanently redirect, received ${legacyListResponse.status()}`);
+  assert(legacyListResponse.headers().location === `/alisa/lists/${directList.id}`, `Legacy list redirect is not canonical: ${legacyListResponse.headers().location}`);
+  await publicMobilePage.goto(`${baseUrl}/alisa/lists/${directList.id}`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
   assert(await publicMobilePage.locator(".wish-card").count() > 0, "A public list deep link did not render its wishes");
   await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
   await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
-  const listPath = `/u/alisa/lists/${directList.id}`;
+  const listPath = `/alisa/lists/${directList.id}`;
   const listCard = publicMobilePage.locator(".wish-card").first();
   const listWishTitle = (await listCard.locator("h3").innerText()).trim();
   const listWishOpener = listCard.getByRole("button", { name: `Открыть желание «${listWishTitle}»` });
@@ -448,6 +463,7 @@ try {
   await listWishOpener.press("Enter");
   const listWishDialog = publicMobilePage.getByRole("dialog", { name: `Желание: ${listWishTitle}` });
   await listWishDialog.waitFor({ state: "visible" });
+  assert(/^\/alisa\/wishes\/[^/]+$/.test(new URL(publicMobilePage.url()).pathname), "Opening a wish from a list did not create a clean wish URL");
   await publicMobilePage.keyboard.press("Shift+Tab");
   assert(await listWishDialog.evaluate((dialog) => dialog.contains(document.activeElement)), "Reverse tab escaped the wish dialog");
   await publicMobilePage.keyboard.press("Escape");
@@ -460,10 +476,15 @@ try {
   assert(await restoredListWishOpener.evaluate((element) => document.activeElement === element), "Closing a wish did not restore focus to its list card");
   await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
 
-  await publicMobilePage.goto(`${baseUrl}/u/alisa/wishes/not-a-real-wish`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.goto(`${baseUrl}/alisa/wishes/not-a-real-wish`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.getByRole("heading", { name: "Желание не найдено" }).waitFor({ state: "visible" });
-  await publicMobilePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  assert(await publicMobilePage.getByRole("link", { name: "Вернуться к профилю" }).getAttribute("href") === "/alisa", "Invalid wish return link is not canonical");
+  await publicMobilePage.goto(`${baseUrl}/alisa/lists/not-a-real-list`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.getByRole("heading", { name: "Список не найден" }).waitFor({ state: "visible" });
+  assert(await publicMobilePage.getByRole("link", { name: "Вернуться к профилю" }).getAttribute("href") === "/alisa", "Invalid list return link is not canonical");
+  await publicMobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
+  assert(await publicMobilePage.locator('a[href^="/u/"], a[href^="/users/"]').count() === 0, "Public profile still renders legacy profile links");
   await publicMobilePage.locator(".profile-mobile-menu").click();
   const publicMenu = publicMobilePage.locator("#profile-mobile-navigation.is-open");
   await publicMenu.waitFor({ state: "visible" });
@@ -490,7 +511,7 @@ try {
   const publicTabletLoginResponse = await publicTablet.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(publicTabletLoginResponse.ok(), `768px public owner login failed: ${publicTabletLoginResponse.status()}`);
   const publicTabletPage = await publicTablet.newPage();
-  await publicTabletPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicTabletPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await publicTabletPage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectDesktopUserAgent(publicTabletPage, "768px public profile");
   await expectPublicGrid(publicTabletPage, 4, "768px public profile");
@@ -514,7 +535,7 @@ try {
 
   const publicLandscape = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
   const publicLandscapePage = await publicLandscape.newPage();
-  await publicLandscapePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicLandscapePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicLandscapePage, 2, "1024px public profile");
   await expectNoRootOverflow(publicLandscapePage, "1024px public profile");
   const publicLandscapeDetail = await expectWishDetailsOpen(publicLandscapePage, "1024px public wish");
@@ -525,14 +546,14 @@ try {
 
   const publicMedium = await browser.newContext({ viewport: { width: 1076, height: 800 }, deviceScaleFactor: 1 });
   const publicMediumPage = await publicMedium.newPage();
-  await publicMediumPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicMediumPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicMediumPage, 3, "1076px public profile");
   await expectNoRootOverflow(publicMediumPage, "1076px public profile");
   await publicMedium.close();
 
   const publicWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1 });
   const publicWidePage = await publicWide.newPage();
-  await publicWidePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicWidePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicWidePage, 6, "1912px public profile", { requireCards: false });
   await expectReferenceDesktopProfile(publicWidePage, "1912px public profile", { guest: true });
   await expectNoRootOverflow(publicWidePage, "1912px public profile");
@@ -543,7 +564,7 @@ try {
   const ownerLoginResponse = await ownerWide.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(ownerLoginResponse.ok(), `1912px owner demo login failed: ${ownerLoginResponse.status()}`);
   const ownerWidePage = await ownerWide.newPage();
-  await ownerWidePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await ownerWidePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectPublicGrid(ownerWidePage, 6, "1912px owner profile", { requireCards: false });
   await expectReferenceDesktopProfile(ownerWidePage, "1912px owner profile");
@@ -569,7 +590,7 @@ try {
   assert(createListResponse.ok(), `List creation failed: ${createListResponse.status()}`);
   const createdList = (await createListResponse.json()).list;
   await ownerListDialog.waitFor({ state: "detached" });
-  await ownerWidePage.waitForURL((url) => url.pathname === `/u/alisa/lists/${createdList.id}`);
+  await ownerWidePage.waitForURL((url) => url.pathname === `/alisa/lists/${createdList.id}`);
   await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list" }).waitFor({ state: "visible" });
   await ownerWidePage.getByRole("button", { name: "Опции списка" }).click();
   await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
@@ -599,7 +620,7 @@ try {
   const deleteListResponse = await deleteListResponsePromise;
   assert(deleteListResponse.ok(), `List deletion failed: ${deleteListResponse.status()}`);
   await deleteListDialog.waitFor({ state: "detached" });
-  await ownerWidePage.waitForURL((url) => url.pathname === "/u/alisa");
+  await ownerWidePage.waitForURL((url) => url.pathname === "/alisa");
   assert((await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).count()) === 0, "Deleted list is still visible in the owner rail");
   await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
   const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
