@@ -47,8 +47,11 @@ const schema = `
     privacy TEXT NOT NULL DEFAULT 'inherit',
     allow_multiple BOOLEAN NOT NULL DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'active',
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
   CREATE TABLE IF NOT EXISTS wishlist_wishes (
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
@@ -80,9 +83,15 @@ const schema = `
     title TEXT NOT NULL,
     body TEXT NOT NULL DEFAULT '',
     href TEXT NOT NULL DEFAULT '',
+    reference_id TEXT,
     read_at TIMESTAMPTZ,
+    available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
+  CREATE INDEX IF NOT EXISTS notifications_reference_idx ON notifications(reference_id);
 
   CREATE TABLE IF NOT EXISTS ideas (
     id TEXT PRIMARY KEY,
@@ -103,7 +112,11 @@ const schema = `
 
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
+  CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
+  UPDATE reservations
+  SET status='multiple'
+  WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 `;
 
@@ -122,6 +135,8 @@ const ideaRows = [
   ["idea-perfume", "Авторский аромат", "Запах как личная подпись", "Красота", "/art/style.svg", "", 9900, "RUB", "особенное"]
 ];
 
+const example-ownerWishOrder = [];
+
 const dataMigrations = [
 
 ];
@@ -131,7 +146,7 @@ async function runDataMigrations(client) {
     const applied = await client.query("SELECT 1 FROM rollapp_data_migrations WHERE id = $1", [migration.id]);
     if (applied.rowCount) continue;
     const result = await migration.run(client);
-    if (migration.requireMatch && !result.rowCount) continue;
+    if (migration.requireMatch && result.rowCount < (migration.requiredRows || 1)) continue;
     await client.query("INSERT INTO rollapp_data_migrations (id) VALUES ($1)", [migration.id]);
   }
 }
@@ -205,6 +220,22 @@ async function seedDemo(client) {
 
 export async function initializeDatabase() {
   await query(schema);
+  const exclusiveReservations = await query(
+    `SELECT id,wish_id FROM reservations
+     WHERE status='reserved' ORDER BY wish_id,created_at,id`,
+  );
+  const occupiedWishIds = new Set();
+  for (const reservation of exclusiveReservations.rows) {
+    if (!occupiedWishIds.has(reservation.wish_id)) {
+      occupiedWishIds.add(reservation.wish_id);
+      continue;
+    }
+    await query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [reservation.id]);
+    await query("DELETE FROM reservations WHERE id=$1", [reservation.id]);
+  }
+  await query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_one_exclusive ON reservations(wish_id) WHERE status='reserved'",
+  );
   await transaction(async (client) => {
     await insertIdeas(client);
     await runDataMigrations(client);

@@ -30,6 +30,16 @@ const wishFormFrom = (wish) => ({
   allowMultiple: Boolean(wish?.allowMultiple),
   listIds: Array.isArray(wish?.listIds) ? [...wish.listIds] : [],
 });
+const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/app";
+const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
+const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
+  if (shareToken) return `/s/${encodeURIComponent(shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
+  const linkedLists = lists.filter((list) => wish.listIds?.includes(list.id));
+  const linkList = linkedLists.find((list) => list.privacy === "link" && list.shareToken);
+  const publiclyReachable = linkedLists.some((list) => ["public", "followers"].includes(list.privacy));
+  if (!publiclyReachable && linkList) return `/s/${encodeURIComponent(linkList.shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
+  return `/u/${encodeURIComponent(profile?.username || "")}/wishes/${encodeURIComponent(wish.id)}`;
+};
 
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
@@ -192,25 +202,24 @@ function LandingPage() {
 
 function AuthPage({ mode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, refresh } = useSession();
   const toast = useToast();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  if (user) return <Navigate to="/app" replace />;
+  const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
+  if (user) return <Navigate to={nextPath} replace />;
 
   const submit = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
       await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
-      await refresh(); navigate("/app"); toast(mode === "register" ? "Вишлист готов — добавьте первую мечту" : "С возвращением!");
+      await refresh(); navigate(nextPath); toast(mode === "register" ? "Вишлист готов — добавьте первую мечту" : "С возвращением!");
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
-  };
-  const demo = async () => {
-    setLoading(true); try { await api.post("/auth/demo", {}); await refresh(); navigate("/app"); toast("Вы вошли в демонстрационный профиль"); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
   };
 
   return (
-    <div className="auth-page"><div className="auth-art"><Logo /><div className="auth-art__copy"><span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span><h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1><p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p></div><div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div></div><div className="auth-panel"><Link className="auth-back" to="/"><ArrowLeft size={17} /> На главную</Link><form className="auth-form" onSubmit={submit}><div><span className="eyebrow">{mode === "register" ? "Новый аккаунт" : "С возвращением"}</span><h2>{mode === "register" ? "Создать свой Rollapp" : "Войти в Rollapp"}</h2><p>{mode === "register" ? "Это бесплатно и займёт меньше минуты." : "Продолжите собирать и исполнять желания."}</p></div>{mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}<label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button><div className="or"><span>или</span></div><Button type="button" variant="outline" onClick={demo} loading={loading}>Попробовать демо</Button><p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to="/login">Войти</Link></> : <>Впервые здесь? <Link to="/register">Создать аккаунт</Link></>}</p></form></div></div>
+    <div className="auth-page"><div className="auth-art"><Logo /><div className="auth-art__copy"><span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span><h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1><p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p></div><div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div></div><div className="auth-panel"><Link className="auth-back" to="/"><ArrowLeft size={17} /> На главную</Link><form className="auth-form" onSubmit={submit}><div><span className="eyebrow">{mode === "register" ? "Новый аккаунт" : "С возвращением"}</span><h2>{mode === "register" ? "Создать свой Rollapp" : "Войти в Rollapp"}</h2><p>{mode === "register" ? "Это бесплатно и займёт меньше минуты." : "Продолжите собирать и исполнять желания."}</p></div>{mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}<label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button><p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p></form></div></div>
   );
 }
 
@@ -275,10 +284,20 @@ function Dashboard({ onAdd, version }) {
 
 function Priority({ value }) { return <span className="priority" title={`Важность: ${value} из 3`}>{[1, 2, 3].map((item) => <i key={item} className={item <= value ? "is-on" : ""} />)}</span>; }
 
-function useWishActions({ wish, profile, shareToken = "", onChanged, onDeleted }) {
+function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
   const toast = useToast();
+  const { user } = useSession();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [busy, setBusy] = useState(false);
+  const requireLogin = () => {
+    if (user) return false;
+    const next = `${location.pathname}${location.search}`;
+    navigate(`/login?next=${encodeURIComponent(next)}`);
+    return true;
+  };
   const reserve = async () => {
+    if (requireLogin()) return;
     setBusy(true);
     try {
       const result = await api.post(`/wishes/${wish.id}/reserve`, { shareToken: shareToken || wish.shareToken || "" });
@@ -317,26 +336,44 @@ function useWishActions({ wish, profile, shareToken = "", onChanged, onDeleted }
     }
   };
   const share = async () => {
+    const linkedLists = lists.filter((list) => wish.listIds?.includes(list.id));
+    const privateOnly = wish.privacy === "private" || (linkedLists.length > 0 && linkedLists.every((list) => list.privacy === "private"));
+    if (privateOnly) {
+      toast("Секретное желание видно только вам", "error");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(wish.url || `${window.location.origin}/u/${profile?.username || ""}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${wishSharePath({ wish, profile, lists, shareToken })}`);
       toast("Ссылка скопирована");
     } catch {
       toast("Не удалось скопировать ссылку", "error");
     }
   };
-  return { busy, reserve, remove, fulfilled, share };
+  const save = async () => {
+    if (requireLogin()) return;
+    setBusy(true);
+    try {
+      await api.post(`/wishes/${wish.id}/copy`, { shareToken: shareToken || wish.shareToken || "" });
+      toast("Желание сохранено в ваш список");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, reserve, remove, fulfilled, share, save };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, profile, shareToken = "", variant = "" }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, profile, lists = [], shareToken = "", variant = "" }) {
   const [menu, setMenu] = useState(false);
-  const { busy, reserve, remove, fulfilled, share } = useWishActions({ wish, profile, shareToken, onChanged });
+  const { busy, reserve, remove, fulfilled, share, save } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
   return (
     <article className={`wish-card ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}>
-      {onOpen && <button type="button" className="wish-card__open" aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={() => { setMenu(false); onOpen(); }} />}
+      {onOpen && <button type="button" className="wish-card__open" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { setMenu(false); onOpen(event.currentTarget); }} />}
       <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <div className="fulfilled-badge"><Check /> Исполнено</div>}</div>
       <div className="wish-card__body">
-        <div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button type="button" aria-label={`Опции желания «${wish.title}»`} aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreHorizontal /></button>{menu && <div className="card-menu"><button type="button" onClick={share}><Share2 /> Поделиться</button>{wish.url && <a href={wish.url} target="_blank" rel="noreferrer"><ExternalLink /> Открыть магазин</a>}{owner && <>{onEdit && <button type="button" aria-haspopup="dialog" onClick={() => { setMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}<button type="button" onClick={fulfilled}><PackageCheck /> {wish.status === "fulfilled" ? "Вернуть в активные" : "Желание исполнено"}</button><button type="button" className="danger" onClick={remove}><Trash2 /> Удалить</button></>}</div>}</div>
+        <div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button type="button" aria-label={`Опции желания «${wish.title}»`} aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreHorizontal /></button>{menu && <div className="card-menu">{!owner && <button type="button" onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}{!owner && <button type="button" onClick={save}><Archive /> Сохранить к себе</button>}<button type="button" onClick={share}><Share2 /> Поделиться</button>{wish.url && <a href={wish.url} target="_blank" rel="noreferrer"><ExternalLink /> Открыть магазин</a>}{owner && <>{onEdit && <button type="button" aria-haspopup="dialog" onClick={() => { setMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}<button type="button" onClick={fulfilled}><PackageCheck /> {wish.status === "fulfilled" ? "Вернуть в активные" : "Желание исполнено"}</button><button type="button" className="danger" onClick={remove}><Trash2 /> Удалить</button></>}</div>}</div>
         <h3>{wish.title}</h3>
         <p>{wish.description || "Без дополнительного описания"}</p>
         {owner ? <div className="wish-card__owner-meta">{wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
@@ -352,17 +389,32 @@ function WishesPage({ onAdd, version }) {
   const [selected, setSelected] = useState("all");
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
-  const [listModal, setListModal] = useState(false);
+  const [listModal, setListModal] = useState(null);
   if (loading) return <LoadingScreen compact />;
-  const wishes = selected === "all" ? data.wishes : data.wishes.filter((wish) => wish.listIds.includes(selected));
+  const activeWishes = data.wishes.filter((wish) => wish.status === "active");
+  const categoryLists = data.lists.filter((list) => !isGeneralList(list));
+  const wishes = selected === "all" ? activeWishes : activeWishes.filter((wish) => wish.listIds.includes(selected));
+  const selectedList = categoryLists.find((list) => list.id === selected) || null;
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
-  const share = async () => { const url = selected === "all" ? `${window.location.origin}/u/${user.username}` : `${window.location.origin}/s/${data.lists.find((list) => list.id === selected)?.shareToken}`; await navigator.clipboard.writeText(url); toast("Ссылка на список скопирована"); };
+  const share = async () => {
+    if (selected === "secret" || selectedList?.privacy === "private") {
+      toast("Приватный список виден только вам", "error");
+      return;
+    }
+    const url = selected === "all"
+      ? `${window.location.origin}/u/${user.username}`
+      : selectedList?.privacy === "link"
+        ? `${window.location.origin}/s/${selectedList.shareToken}`
+        : `${window.location.origin}/u/${user.username}/lists/${selectedList?.id}`;
+    await navigator.clipboard.writeText(url);
+    toast("Ссылка на список скопирована");
+  };
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${data.wishes.filter((wish) => wish.status === "active").length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions"><Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Все <span>{data.wishes.length}</span></button>{data.lists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal(true)}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={reload} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal onClose={() => setListModal(false)} onSaved={() => { setListModal(false); reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={reload} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={async (saved) => { setListModal(null); await reload(); if (saved?.id) setSelected(saved.id); }} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
-function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = false, backdropClassName = "" }) {
+function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = true, backdropClassName = "" }) {
   const dialogRef = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -371,7 +423,7 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
     const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
     const focusDialog = window.requestAnimationFrame(() => {
       if (dialogRef.current?.contains(document.activeElement)) return;
-      const target = dialogRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || dialogRef.current?.querySelector(focusableSelector) || dialogRef.current;
+      const target = dialogRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || dialogRef.current;
       target?.focus();
     });
     const handleKeyDown = (event) => {
@@ -384,8 +436,14 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
       const focusable = [...dialogRef.current.querySelectorAll(focusableSelector)].filter((element) => element.getClientRects().length > 0);
       if (!focusable.length) { event.preventDefault(); dialogRef.current.focus(); return; }
       const first = focusable[0]; const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      const active = document.activeElement;
+      if (active === dialogRef.current || !dialogRef.current.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener("keydown", handleKeyDown);
     document.body.classList.add("modal-open");
@@ -401,7 +459,7 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
 }
 
 function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onClose }) {
-  const { busy, reserve, fulfilled, share } = useWishActions({ wish, profile, shareToken, onChanged });
+  const { busy, reserve, fulfilled, share } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
   const linkedLists = lists.filter((list) => wish.listIds.includes(list.id));
   const linkedListNames = linkedLists.map((list) => list.title);
@@ -434,7 +492,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               {wish.url && <a href={wish.url} target="_blank" rel="noreferrer">Где купить <ExternalLink /></a>}
             </div>
             <div className="wish-detail__actions">
-              {!owner && <Button icon={wish.reservedByMe ? Check : Gift} variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
+              {!owner && <Button variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
               {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
             </div>
             {owner && <div className="wish-detail__meta">
@@ -450,17 +508,78 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   );
 }
 
-function ListModal({ onClose, onSaved }) {
-  const toast = useToast(); const [loading, setLoading] = useState(false); const [form, setForm] = useState({ title: "", description: "", privacy: "public", occasionDate: "", color: "coral" });
-  const submit = async (event) => { event.preventDefault(); setLoading(true); try { await api.post("/lists", { ...form, occasionDate: form.occasionDate || null }); toast("Новый список создан"); onSaved(); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } };
-  return <Modal onClose={onClose} className="modal--list"><form className="modal-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon"><ListPlus /></span><div><span className="eyebrow">Новая глава</span><h2>Создать список</h2><p>Для отдельного события, настроения или большой мечты.</p></div></div><label><span>Название</span><input autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Описание</span><textarea rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><div className="form-row"><label><span>Дата события</span><input type="date" value={form.occasionDate} onChange={(event) => setForm({ ...form, occasionDate: event.target.value })} /></label><label><span>Кто увидит</span><select value={form.privacy} onChange={(event) => setForm({ ...form, privacy: event.target.value })}><option value="public">Все</option><option value="followers">Подписчики</option><option value="link">Только по ссылке</option><option value="private">Только я</option></select></label></div><fieldset className="color-picker"><legend>Цвет обложки</legend>{["coral", "blue", "lime", "sun", "ink"].map((color) => <button type="button" aria-label={`Цвет ${color}`} aria-pressed={form.color === color} className={`${color} ${form.color === color ? "active" : ""}`} onClick={() => setForm({ ...form, color })} key={color}>{form.color === color && <Check />}</button>)}</fieldset><div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Отмена</Button><Button type="submit" loading={loading}>Создать список</Button></div></form></Modal>;
+function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted }) {
+  const editing = Boolean(list?.id);
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [form, setForm] = useState(() => ({
+    title: list?.title || "",
+    description: list?.description || "",
+    privacy: list?.privacy || "public",
+    occasionDate: list?.occasionDate ? String(list.occasionDate).slice(0, 10) : "",
+    color: list?.color || "coral",
+  }));
+  const submit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const payload = { ...form, occasionDate: form.occasionDate || null };
+      const result = editing ? await api.patch(`/lists/${list.id}`, payload) : await api.post("/lists", payload);
+      toast(editing ? "Настройки списка сохранены" : "Новый список создан");
+      await onSaved?.(result.list);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const remove = async () => {
+    if (!editing || !window.confirm(`Удалить список «${list.title}»? Желания из него останутся в вашем общем списке.`)) return;
+    setDeleting(true);
+    try {
+      const result = await api.delete(`/lists/${list.id}`);
+      toast(result.reassignedCount ? `Список удалён, ${result.reassignedCount} желаний сохранено` : "Список удалён");
+      await onDeleted?.(result);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+  return <Modal onClose={onClose} className="modal--list" ariaLabel={editing ? `Настройки списка: ${list.title}` : "Создание списка"}><form className="modal-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <ListPlus />}</span><div><span className="eyebrow">{editing ? "Настройки списка" : "Новая глава"}</span><h2>{editing ? "Изменить список" : "Создать список"}</h2><p>{editing ? "Название, доступ и оформление можно менять в любое время." : "Для отдельного события, настроения или большой мечты."}</p></div></div><label><span>Название</span><input autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Описание</span><textarea rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><div className="form-row"><label><span>Дата события</span><input type="date" value={form.occasionDate} onChange={(event) => setForm({ ...form, occasionDate: event.target.value })} /></label><label><span>Кто увидит</span><select value={form.privacy} onChange={(event) => setForm({ ...form, privacy: event.target.value })}><option value="public">Все</option><option value="followers">Подписчики</option><option value="link">Только по ссылке</option><option value="private">Только я</option></select></label></div><fieldset className="color-picker"><legend>Цвет обложки</legend>{["coral", "blue", "lime", "sun", "ink"].map((color) => <button type="button" aria-label={`Цвет ${color}`} aria-pressed={form.color === color} className={`${color} ${form.color === color ? "active" : ""}`} onClick={() => setForm({ ...form, color })} key={color}>{form.color === color && <Check />}</button>)}</fieldset>{editing && <div className="list-danger"><div><strong>Удалить список</strong><span>Желания не пропадут и будут перенесены в оставшийся список.</span></div><Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} disabled={listsCount <= 1} onClick={remove}>Удалить</Button></div>}<div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Отмена</Button><Button type="submit" loading={loading}>{editing ? "Сохранить изменения" : "Создать список"}</Button></div></form></Modal>;
+}
+
+function ListActionsMenu({ list = null, onEdit, onShare, onCreate, compact = false }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && rootRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    document.addEventListener("pointerdown", close);
+    return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", close); };
+  }, [open]);
+  return <div className={`list-actions-menu ${compact ? "is-compact" : ""}`} ref={rootRef}><button className="public-wishes-head__options" type="button" aria-label="Опции списка" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal /></button>{open && <div className="list-actions-menu__panel">{list && <button type="button" onClick={() => { setOpen(false); onEdit?.(); }}><Pencil /> Редактировать список</button>}<button type="button" onClick={() => { setOpen(false); onShare?.(); }}><Share2 /> {list ? "Поделиться списком" : "Поделиться профилем"}</button><button type="button" onClick={() => { setOpen(false); onCreate?.(); }}><Plus /> Создать новый список</button></div>}</div>;
 }
 
 function WishModal({ onClose, onSaved, wish = null }) {
   const editing = Boolean(wish?.id);
   const toast = useToast(); const { data, loading: listsLoading } = useAsync(() => api.get("/dashboard"), []); const [step, setStep] = useState(editing ? "details" : "link"); const [loading, setLoading] = useState(false); const [metadata, setMetadata] = useState({ status: "idle", message: "" }); const [form, setForm] = useState(() => wishFormFrom(wish));
   const autoTimerRef = useRef(null); const metadataRequestRef = useRef(0); const editedMetadataFieldsRef = useRef(new Set());
-  useEffect(() => { if (!editing && data?.lists?.[0] && form.listIds.length === 0) setForm((current) => ({ ...current, listIds: [data.lists[0].id] })); }, [data, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
+  useEffect(() => {
+    if (!data?.lists) return;
+    const generalIds = new Set(data.lists.filter(isGeneralList).map((list) => list.id));
+    setForm((current) => {
+      const nextListIds = current.listIds.filter((id) => !generalIds.has(id));
+      return nextListIds.length === current.listIds.length ? current : { ...current, listIds: nextListIds };
+    });
+  }, [data]);
   const recognize = async (sourceUrl = form.url, { advance = true } = {}) => {
     const url = sourceUrl.trim();
     window.clearTimeout(autoTimerRef.current);
@@ -515,9 +634,12 @@ function WishModal({ onClose, onSaved, wish = null }) {
   const continueFromLink = () => { if (!form.url.trim()) { setStep("details"); return; } if (metadata.status === "success") { setStep("details"); return; } recognize(); };
   const fillManually = () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; setMetadata((current) => current.status === "error" ? current : { status: "idle", message: "" }); setStep("details"); };
   const submit = async (event) => { event.preventDefault(); setLoading(true); try { const payload = { ...form, price: form.price === "" ? null : Number(form.price) }; const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload); toast(editing ? "Изменения сохранены" : "Желание добавлено ✦"); await onSaved?.(result.wish); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } };
-  const toggleList = (id) => setForm((current) => ({ ...current, listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id] }));
+  const toggleList = (id) => setForm((current) => ({
+    ...current,
+    listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id],
+  }));
   const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{step === "details" && metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url, { advance: false })}>Повторить</button>}</div>;
-  return <Modal onClose={onClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <Heart fill="currentColor" />}</span><div><span className="eyebrow">{editing ? "Редактирование" : "Новое желание"}</span><h2>{editing ? "Изменить желание" : step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{editing ? "Измените детали или перенесите желание в другие списки." : step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="text" inputMode="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields">{editing && <label><span>Ссылка на товар</span><input type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value.trim())} /></label>}<label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" aria-label={`Важность ${item} из 3`} aria-pressed={form.priority === item} className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>{editing ? "Списки желания" : "Добавить в списки"}</legend>{listsLoading ? <LoadingScreen compact /> : data.lists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset>{form.listIds.length === 0 && <p className="wish-form__list-error" role="alert">Выберите хотя бы один список.</p>}<div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions">{editing ? <Button type="button" variant="ghost" onClick={onClose}>Отмена</Button> : <Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button>}<Button type="submit" loading={loading} disabled={form.listIds.length === 0} icon={editing ? Check : Heart}>{editing ? "Сохранить изменения" : "Добавить желание"}</Button></div></>}</form></Modal>;
+  return <Modal onClose={onClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <Heart fill="currentColor" />}</span><div><span className="eyebrow">{editing ? "Редактирование" : "Новое желание"}</span><h2>{editing ? "Изменить желание" : step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{editing ? "Измените детали или перенесите желание в другие списки." : step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="text" inputMode="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields">{editing && <label><span>Ссылка на товар</span><input type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value.trim())} /></label>}<label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" aria-label={`Важность ${item} из 3`} aria-pressed={form.priority === item} className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>{editing ? "Списки желания" : "Добавить в списки"}</legend>{listsLoading ? <LoadingScreen compact /> : selectableLists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><p className="wish-form__list-hint">Список можно не выбирать — желание останется в «Моих желаниях».</p><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions">{editing ? <Button type="button" variant="ghost" onClick={onClose}>Отмена</Button> : <Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button>}<Button type="submit" loading={loading} icon={editing ? Check : Heart}>{editing ? "Сохранить изменения" : "Добавить желание"}</Button></div></>}</form></Modal>;
 }
 
 function IdeasPage({ appMode = false }) {
@@ -539,18 +661,44 @@ function SettingsPage() { const { user, refresh } = useSession(); const toast = 
 
 function PublicProfile({ shared = false }) {
   const params = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useSession();
   const toast = useToast();
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
-  const [selected, setSelected] = useState("all");
-  const [selectedWishId, setSelectedWishId] = useState(null);
+  const initialView = new URLSearchParams(location.search).get("view");
+  const [selected, setSelected] = useState(params.listId || (["secret", "fulfilled"].includes(initialView) ? initialView : "all"));
+  const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
-  const [listModalOpen, setListModalOpen] = useState(false);
+  const [listModal, setListModal] = useState(null);
   const [wishModalOpen, setWishModalOpen] = useState(false);
   const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileCompact, setProfileCompact] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(20);
+  const loadMoreRef = useRef(null);
+  const lastWishOpenerRef = useRef(null);
+
+  useEffect(() => {
+    const view = new URLSearchParams(location.search).get("view");
+    if (!params.wishId) {
+      setSelected(params.listId || (["secret", "fulfilled"].includes(view) ? view : "all"));
+    }
+    setSelectedWishId(params.wishId || null);
+  }, [params.listId, params.wishId, location.search]);
+
+  useEffect(() => { setVisibleLimit(20); }, [selected, endpoint]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisibleLimit((value) => value + 20);
+    }, { rootMargin: "500px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [visibleLimit, data?.wishes?.length, selected]);
 
   useEffect(() => {
     document.body.classList.add("public-profile-dark");
@@ -589,6 +737,7 @@ function PublicProfile({ shared = false }) {
 
   const lists = shared ? [data.list] : data.lists;
   const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
+  const tabLists = data.isOwner ? navigationLists : [...navigationLists].reverse();
   const activeWishes = data.wishes.filter((wish) => wish.status === "active");
   const fulfilledWishes = data.wishes.filter((wish) => wish.status === "fulfilled");
   const privateListIds = new Set(lists.filter((list) => list.privacy === "private").map((list) => list.id));
@@ -605,13 +754,54 @@ function PublicProfile({ shared = false }) {
           : activeWishes.filter((wish) => wish.listIds.includes(selected));
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
-  const sectionTitle = shared ? data.list.title : selected === "secret" ? "Секретные желания" : selected === "fulfilled" ? "Исполнено" : selectedList?.title || "Мои желания";
+  if ((!shared && params.listId && !selectedList) || (params.wishId && !selectedWish)) {
+    return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>{params.wishId ? "Желание не найдено" : "Список не найден"}</h1><p>Ссылка устарела или доступ к этой странице ограничен.</p><Link className="button button--primary" to={shared ? `/s/${params.token}` : `/u/${data.profile.username}`}><span>Вернуться к профилю</span></Link></div></div>;
+  }
+  const sectionTitle = shared ? data.list.title : selected === "secret" ? "Секретные желания" : selected === "fulfilled" ? "Исполнено" : selectedList?.title || (data.isOwner ? "Мои желания" : "Все желания");
   const appTarget = user ? "/app" : "/register";
   const friendsTarget = user ? "/app/friends" : "/login";
   const wishCountForList = (listId) => activeWishes.filter((wish) => wish.listIds.includes(listId)).length;
+  const profileBasePath = shared ? `/s/${params.token}` : `/u/${data.profile.username}`;
+  const currentCollectionPath = shared
+    ? profileBasePath
+    : selectedList
+      ? `/u/${data.profile.username}/lists/${selectedList.id}`
+      : ["secret", "fulfilled"].includes(selected)
+        ? `/u/${data.profile.username}?view=${selected}`
+        : `/u/${data.profile.username}`;
+
+  const selectCollection = (value) => {
+    setSelected(value);
+    setSelectedWishId(null);
+    if (shared) return;
+    navigate(value === "all"
+      ? `/u/${data.profile.username}`
+      : ["secret", "fulfilled"].includes(value)
+        ? `/u/${data.profile.username}?view=${value}`
+        : `/u/${data.profile.username}/lists/${value}`);
+  };
+
+  const openWish = (id, opener = null) => {
+    lastWishOpenerRef.current = opener;
+    setSelectedWishId(id);
+    navigate(`${profileBasePath}/wishes/${id}`);
+  };
+
+  const closeWish = () => {
+    const wishId = selectedWishId;
+    const opener = lastWishOpenerRef.current;
+    setSelectedWishId(null);
+    navigate(currentCollectionPath, { replace: true });
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const fallback = [...document.querySelectorAll(".wish-card__open")].find((element) => element.dataset.wishId === wishId);
+      const target = opener?.isConnected ? opener : fallback;
+      target?.focus();
+      lastWishOpenerRef.current = null;
+    }));
+  };
 
   const follow = async () => {
-    if (!user) return window.location.assign("/login");
+    if (!user) return navigate(`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`);
     try {
       const result = await api.post("/profile/" + data.profile.username + "/follow", {});
       toast(result.following ? "Вы подписались" : "Подписка отменена");
@@ -622,18 +812,26 @@ function PublicProfile({ shared = false }) {
   };
 
   const share = async () => {
-    await navigator.clipboard.writeText(window.location.href);
+    if (selected === "secret" || selectedList?.privacy === "private") {
+      toast("Приватный список виден только вам", "error");
+      return;
+    }
+    const path = selectedList?.privacy === "link" && selectedList.shareToken
+      ? `/s/${selectedList.shareToken}`
+      : currentCollectionPath;
+    await navigator.clipboard.writeText(`${window.location.origin}${path}`);
     toast("Ссылка скопирована");
   };
 
   const editWish = (id) => {
-    if (!data.isOwner || shared) return;
+    if (!data.isOwner) return;
     setSelectedWishId(null);
     setEditingWishId(id);
+    navigate(currentCollectionPath, { replace: true });
   };
 
   return (
-    <div className={`public-profile public-profile--dark ${!shared ? "public-profile--list-layout" : "public-profile--shared-layout"} ${data.isOwner ? "is-owner" : "is-guest"}`}>
+    <div className={`public-profile public-profile--dark ${data.isOwner && !shared ? "public-profile--list-layout" : shared ? "public-profile--shared-layout" : "public-profile--guest-layout"} ${data.isOwner ? "is-owner" : "is-guest"}`}>
       <header className={`profile-header ${profileCompact ? "is-compact" : ""}`}>
         <Logo />
         <div className="profile-header__compact" aria-hidden={!profileCompact}>
@@ -641,36 +839,37 @@ function PublicProfile({ shared = false }) {
           <div><strong>{data.profile.name}</strong><span>@{data.profile.username}</span></div>
         </div>
         <nav className="profile-header__dock" aria-label="Основная навигация">
-          <Link to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
-          <Link className="is-active" to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
+          <Link className={!data.isOwner ? "profile-header__ideas is-active" : "profile-header__ideas"} to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
+          <Link className={data.isOwner ? "is-active" : ""} to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
           <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
           <Link className="profile-header__search" to={friendsTarget} aria-label="Поиск" title="Поиск"><Search /></Link>
         </nav>
         <div className="profile-header__actions">
-          {user ? <button className="profile-desktop-menu" type="button" aria-label={desktopMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((value) => !value)}>{desktopMenuOpen ? <X /> : <Menu />}</button> : <Link className="button button--primary" to="/login"><span>Вход</span></Link>}
+          {user ? <button className="profile-desktop-menu" type="button" aria-label={desktopMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((value) => !value)}>{desktopMenuOpen ? <X /> : <Menu />}</button> : <Link className="button button--primary" to={`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`}><span>Вход</span></Link>}
           {user && <nav className={`profile-desktop-panel ${desktopMenuOpen ? "is-open" : ""}`} aria-label="Меню аккаунта" aria-hidden={!desktopMenuOpen}><Link to="/app" onClick={() => setDesktopMenuOpen(false)}><Heart /> Мои желания</Link><Link to="/app/settings" onClick={() => setDesktopMenuOpen(false)}><Settings /> Настройки</Link></nav>}
         </div>
         {!data.isOwner && !shared && <button className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</button>}
         <button className="profile-mobile-menu" type="button" aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={mobileMenuOpen} aria-controls="profile-mobile-navigation" onClick={() => setMobileMenuOpen((value) => !value)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
         <button className={`profile-mobile-overlay ${mobileMenuOpen ? "is-open" : ""}`} type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)} />
         <nav id="profile-mobile-navigation" className={`profile-mobile-panel ${mobileMenuOpen ? "is-open" : ""}`} aria-label="Меню профиля">
-          <Link to="/" onClick={() => setMobileMenuOpen(false)}><Home /> Главная</Link>
-          <Link to="/ideas" onClick={() => setMobileMenuOpen(false)}><Sparkles /> Идеи подарков</Link>
-          <Link to={appTarget} onClick={() => setMobileMenuOpen(false)}><Heart /> Мои желания</Link>
-          <Link to={friendsTarget} onClick={() => setMobileMenuOpen(false)}><Users /> Друзья</Link>
-          {user ? <Link className="button button--primary" to="/app" onClick={() => setMobileMenuOpen(false)}><span>Открыть Rollapp</span></Link> : <><Link className="button button--primary" to="/register" onClick={() => setMobileMenuOpen(false)}><span>Создать свой список</span></Link><Link className="profile-mobile-login" to="/login" onClick={() => setMobileMenuOpen(false)}>Войти</Link></>}
+          <div className="profile-mobile-panel__head"><Logo /><button type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)}><X /></button></div>
+          <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><Link className="button button--primary" to={user ? "/app" : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} onClick={() => setMobileMenuOpen(false)}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></Link></div><img src="/art/gift-3d.png" alt="" /></div>
+          <div className="profile-mobile-panel__about"><p>Rollapp — это бесплатный онлайн-сервис вишлистов. Создайте персональный список желаний, добавьте ссылки на товары из любых магазинов с ценами и поделитесь списком с друзьями или семьёй.</p><p>Друзья бронируют подарки через быстрое бронирование без долгой регистрации — система исключает повторы. Встроенный каталог содержит идеи для дня рождения, Нового года, свадьбы и других праздников: от электроники до впечатлений.</p><p>Вишлист работает в браузере и в приложениях для iOS и Android. Регистрация занимает секунды через электронную почту, а функция многократного бронирования идеально подходит для подарочных сертификатов.</p></div>
+          <div className="profile-mobile-panel__ecosystem"><button type="button" onClick={() => toast("Поддержка Rollapp скоро откроется")}><MessageCircle fill="currentColor" /> Поддержка</button><button type="button" onClick={() => toast("Rollapp в Дзене скоро откроется")}><Globe /> Аккаунт в «Дзене»</button><button type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button><button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button><strong><Zap fill="currentColor" /> Для бизнеса</strong></div>
+          <div className="profile-mobile-panel__stores"><button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /><span>App Store</span></button><button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><i className="store-mark store-mark--google" aria-hidden="true" /><span>Google Play</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><i className="store-mark store-mark--rustore" aria-hidden="true" /><span>RuStore</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><i className="store-mark store-mark--appgallery" aria-hidden="true" /><span>AppGallery</span></button></div>
+          <div className="profile-mobile-panel__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
         </nav>
       </header>
 
       <div className="public-profile__layout">
-        {!shared ? <aside className="profile-rail profile-list-rail">
+        {data.isOwner && !shared ? <aside className="profile-rail profile-list-rail">
           <nav className="profile-list-rail__lists" aria-label="Списки желаний">
-            {data.isOwner ? <button className="profile-list-rail__create" type="button" onClick={() => setListModalOpen(true)}><i aria-hidden="true"><Plus /></i> Создать новый список</button> : <Link className="profile-list-rail__create" to={appTarget}><i aria-hidden="true"><Plus /></i> Создать новый список</Link>}
-            <button className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => setSelected("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></button>
-            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></button>)}
-            <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => setSelected("secret")}><EyeOff /><span>Секретные желания</span></button>
+            <button className="profile-list-rail__create" type="button" onClick={() => setListModal({})}><i aria-hidden="true"><Plus /></i> Создать новый список</button>
+            <button className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></button>
+            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></button>)}
+            <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><EyeOff /><span>Секретные желания</span></button>
             <Link to={user ? "/app/gifts" : "/login"}><Sparkles /><span>Хочу подарить</span></Link>
-            <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => setSelected("fulfilled")}><Check /><span>Исполнено</span></button>
+            <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><Check /><span>Исполнено</span></button>
           </nav>
           <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
             <Link className="profile-list-rail__business" to="/register"><Zap fill="currentColor" /> Для бизнеса</Link>
@@ -683,19 +882,29 @@ function PublicProfile({ shared = false }) {
             <button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button>
           </nav>
           <small>© 2026 Rollapp</small>
-        </aside> : <aside className="profile-rail">
+        </aside> : <aside className="profile-rail profile-guest-rail">
           <div className="profile-rail__intro">
-            <span className="eyebrow">Rollapp</span>
             <p>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</p>
-            <Link className="button button--primary" to={appTarget}><Heart />{user ? "Открыть мой список" : "Создать вишлист"}</Link>
+            <Link className="button button--primary" to={appTarget}>{user ? "Открыть мой список" : "Создать вишлист"}</Link>
           </div>
-          <nav aria-label="Разделы Rollapp"><Link to="/ideas"><Sparkles /> Идеи подарков</Link><Link to={friendsTarget}><Users /> Найти друзей</Link><Link to={appTarget}><Gift /> Мои желания</Link></nav>
-          <div className="profile-rail__note"><LockKeyhole /><p>Брони остаются тайными: владелец списка не узнает, кто готовит подарок.</p></div>
-          <small>© 2026 Rollapp</small>
+          <nav className="profile-guest-rail__people" aria-label="Люди в Rollapp"><Link to={friendsTarget}><Users /> Подписки</Link><Link to={friendsTarget}><UserPlus /> Подписчики</Link><Link to={friendsTarget}><CircleUserRound /> Найти друзей</Link></nav>
+          <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
+            <Link className="profile-list-rail__business" to="/register"><Zap fill="currentColor" /> Для бизнеса</Link>
+            <button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /> Скачать на iOS</button>
+            <button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><Play fill="currentColor" /> Скачать для Android</button>
+            <button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><Radio fill="currentColor" /> Скачать из RuStore</button>
+            <button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><Smartphone fill="currentColor" /> Скачать в AppGallery</button>
+            <button type="button" onClick={() => toast("Расширение Rollapp для Chrome скоро появится")}><Globe fill="currentColor" /> Расширение для Chrome</button>
+            <button className="profile-list-rail__channel" type="button" onClick={() => toast("Rollapp в Дзене скоро откроется")}><Globe /> Аккаунт в «Дзене»</button>
+            <button type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button>
+            <button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button>
+            <button type="button" onClick={() => toast("Поддержка Rollapp скоро откроется")}><MessageCircle fill="currentColor" /> Поддержка</button>
+          </nav>
+          <div className="profile-guest-rail__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
         </aside>}
 
         <main>
-          <Link className="public-profile__back" to={user ? "/app/friends" : "/"}><ArrowLeft /> Назад</Link>
+          <Link className="public-profile__back" to={user ? "/app/friends" : "/"}><i aria-hidden="true"><ArrowLeft /></i><span>Назад</span></Link>
 
           <section className="profile-cover">
             <div className="profile-cover__pattern" />
@@ -707,30 +916,34 @@ function PublicProfile({ shared = false }) {
             </div>
             {data.isOwner && !shared && <Link className="profile-cover__birthday" to="/app/settings"><CalendarDays />{data.profile.birthday ? formatDate(data.profile.birthday) : "Укажите день рождения"}</Link>}
             <div className="profile-cover__controls">
-              {data.isOwner && !shared ? <Button className="profile-cover__wish-action" icon={Plus} onClick={() => setWishModalOpen(true)}>Загадать желание</Button> : <>
-                {!shared && <Button icon={data.isFollowing ? Check : UserPlus} variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>}
-                <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followingCount} друзей`}</span>
+              {data.isOwner ? shared
+                ? <Button className="profile-cover__wish-action" onClick={() => navigate(`/u/${data.profile.username}/lists/${data.list.id}`)}>Открыть мой список</Button>
+                : <Button className="profile-cover__wish-action" icon={Plus} onClick={() => setWishModalOpen(true)}>Загадать желание</Button> : <>
+                <Button variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>
+                <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followersCount} друзей`}</span>
                 <button type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></button>
               </>}
             </div>
           </section>
 
           {!shared && <div className="public-list-tabs" aria-label="Списки желаний">
-            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => setSelected("all")}><strong>{data.isOwner ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></button>
-            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => setSelected(list.id)} key={list.id}><strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></button>)}
+            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><strong>{data.isOwner ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></button>
+            {tabLists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></button>)}
+            {data.isOwner && <button className={selected === "secret" ? "active" : ""} aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><strong>Секретные</strong><span>{secretWishes.length}</span></button>}
+            {data.isOwner && <button className={selected === "fulfilled" ? "active" : ""} aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><strong>Исполнено</strong><span>{fulfilledWishes.length}</span></button>}
           </div>}
 
           {shared && <div className={"shared-list-head shared-list-head--" + data.list.color}><ListPlus /><div><span>Отдельный список</span><h2>{data.list.title}</h2><p>{data.list.description}</p></div></div>}
 
           <div className="public-wishes-head">
             <h2>{sectionTitle} <span>{wishes.length}</span></h2>
-            <div className="public-wishes-head__actions"><Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>{data.isOwner && !shared && <button className="public-wishes-head__options" type="button" aria-label="Опции списка" onClick={share}><MoreHorizontal /></button>}</div>
+            <div className="public-wishes-head__actions"><Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>{data.isOwner && !shared && <ListActionsMenu list={selectedList} onEdit={() => selectedList && setListModal(selectedList)} onShare={share} onCreate={() => setListModal({})} />}</div>
           </div>
 
-          {wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} shareToken={shared ? params.token : ""} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} onEdit={data.isOwner && !shared ? () => editWish(wish.id) : undefined} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
-          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={reload} onEdit={data.isOwner && !shared ? () => editWish(selectedWish.id) : undefined} onClose={() => setSelectedWishId(null)} />}
+          {wishes.length ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={reload} onOpen={(opener) => openWish(wish.id, opener)} onEdit={data.isOwner ? () => editWish(wish.id) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
+          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={reload} onEdit={data.isOwner ? () => editWish(selectedWish.id) : undefined} onClose={closeWish} />}
           {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}
-          {listModalOpen && <ListModal onClose={() => setListModalOpen(false)} onSaved={() => { setListModalOpen(false); reload(); }} />}
+          {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={async (saved) => { setListModal(null); await reload(); if (saved?.id) selectCollection(saved.id); }} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
           {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
         </main>
       </div>
@@ -742,4 +955,4 @@ function PublicProfile({ shared = false }) {
 
 function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to="/"><span>Вернуться на главную</span></Link></div>; }
 
-export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasPage />} /><Route path="/u/:username" element={<PublicProfile />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasPage />} /><Route path="/u/:username" element={<PublicProfile />} /><Route path="/u/:username/lists/:listId" element={<PublicProfile />} /><Route path="/u/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="/users/:username" element={<PublicProfile />} /><Route path="/users/:username/lists/:listId" element={<PublicProfile />} /><Route path="/users/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
