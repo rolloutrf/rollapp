@@ -101,16 +101,16 @@ async function expectPublicGrid(page, columns, label, { requireCards = true } = 
   assert(actualColumns === columns, `${label} should render ${columns} wish columns, rendered ${actualColumns}`);
 }
 
-async function expectReferenceDesktopProfile(page, label) {
+async function expectReferenceDesktopProfile(page, label, { guest = false } = {}) {
   await waitForStableLayout(page);
-  const geometry = await page.evaluate(() => {
+  const geometry = await page.evaluate((isGuest) => {
     const rect = (selector) => {
       const value = document.querySelector(selector)?.getBoundingClientRect();
       return value ? { x: value.x, y: value.y, width: value.width, height: value.height } : null;
     };
     return {
       layout: rect(".public-profile__layout"),
-      rail: rect(".profile-list-rail"),
+      rail: rect(isGuest ? ".profile-guest-rail" : ".profile-list-rail"),
       main: rect(".public-profile__layout > main"),
       avatar: rect(".profile-cover .avatar--xl"),
       heading: rect(".public-wishes-head"),
@@ -119,17 +119,17 @@ async function expectReferenceDesktopProfile(page, label) {
       backDisplay: getComputedStyle(document.querySelector(".public-profile__back")).display,
       tabsDisplay: getComputedStyle(document.querySelector(".public-list-tabs")).display,
     };
-  });
+  }, guest);
   const close = (actual, expected, tolerance = 2) => Math.abs(actual - expected) <= tolerance;
   assert(close(geometry.layout.x, 0) && close(geometry.layout.width, 1912), `${label} layout is not full width`);
   assert(close(geometry.rail.x, 16) && close(geometry.rail.width, 280), `${label} rail geometry differs from the reference`);
   assert(close(geometry.main.x, 312) && close(geometry.main.width, 1584), `${label} main geometry differs from the reference`);
   assert(close(geometry.avatar.x, 1004) && close(geometry.avatar.y, 116) && close(geometry.avatar.width, 200), `${label} avatar geometry differs from the reference`);
-  assert(close(geometry.heading.x, 312) && close(geometry.heading.y, 534) && close(geometry.heading.height, 41), `${label} heading geometry differs from the reference`);
-  assert(close(geometry.grid.x, 312) && close(geometry.grid.y, 605), `${label} grid geometry differs from the reference`);
+  assert(close(geometry.heading.x, 312) && close(geometry.heading.y, guest ? 612 : 534) && close(geometry.heading.height, 41), `${label} heading geometry differs from the reference`);
+  assert(close(geometry.grid.x, 312) && close(geometry.grid.y, guest ? 683 : 605), `${label} grid geometry differs from the reference`);
   assert(close(geometry.card.width, 236) && close(geometry.card.height, 286), `${label} card geometry differs from the reference`);
-  assert(geometry.backDisplay === "none", `${label} should hide the guest back control in the desktop list layout`);
-  assert(geometry.tabsDisplay === "none", `${label} should keep desktop list navigation in the rail, not horizontal tiles`);
+  assert(geometry.backDisplay === (guest ? "flex" : "none"), `${label} desktop back control is in the wrong presentation mode`);
+  assert(geometry.tabsDisplay === (guest ? "flex" : "none"), `${label} desktop list navigation is in the wrong presentation mode`);
 }
 
 async function expectPublicMobileShell(page, label) {
@@ -148,7 +148,7 @@ async function expectPublicMobileShell(page, label) {
   });
   assert(geometry.position === "fixed", `${label} profile dock is not fixed`);
   assert(geometry.bottom >= 0 && geometry.bottom <= 24, `${label} profile dock is not anchored to the viewport bottom`);
-  assert(geometry.left > 4 && geometry.right > 4, `${label} profile dock is not floating inside the viewport`);
+  assert(geometry.left >= -10 && geometry.right > 4, `${label} profile dock does not match the compact reference placement`);
 }
 
 async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
@@ -282,6 +282,78 @@ try {
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-details-modal.png" });
   await wishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await wishDialog.waitFor({ state: "detached" });
+
+  const mobileDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
+  assert(mobileDashboardResponse.ok, `Mobile category regression dashboard failed: ${mobileDashboardResponse.status}`);
+  const mobileDashboard = mobileDashboardResponse.data;
+  const mobileCategoryLists = mobileDashboard.lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
+  const mobileWishToMove = mobileDashboard.wishes.find((wish) => (
+    wish.status === "active" && wish.listIds.length === 1 && mobileCategoryLists.some((list) => list.id === wish.listIds[0])
+  ));
+  const mobileSourceList = mobileCategoryLists.find((list) => list.id === mobileWishToMove?.listIds[0]);
+  const mobileTargetList = mobileCategoryLists.find((list) => list.id !== mobileSourceList?.id);
+  assert(mobileWishToMove && mobileSourceList && mobileTargetList, "Mobile category regression needs one wish and two themed lists");
+  const mobileOriginalListIds = [...mobileWishToMove.listIds];
+  try {
+    await mobilePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+    await mobilePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    await mobilePage.locator(".public-list-tabs button").filter({ hasText: mobileSourceList.title }).click();
+    await mobilePage.waitForURL((url) => url.pathname === `/u/alisa/lists/${mobileSourceList.id}`);
+    const mobileListOptions = mobilePage.getByRole("button", { name: "Опции списка" });
+    assert(await mobileListOptions.isVisible(), "Mobile owner profile does not expose list management");
+    await mobileListOptions.click();
+    await mobilePage.getByRole("button", { name: "Редактировать список" }).click();
+    const mobileListDialog = mobilePage.getByRole("dialog", { name: `Настройки списка: ${mobileSourceList.title}` });
+    await mobileListDialog.waitFor({ state: "visible" });
+    await mobileListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+    await mobileListDialog.waitFor({ state: "detached" });
+    const mobileOwnerCard = mobilePage.locator(".wish-card").filter({ hasText: mobileWishToMove.title }).first();
+    await mobileOwnerCard.waitFor({ state: "visible" });
+    await mobileOwnerCard.getByRole("button", { name: `Открыть желание «${mobileWishToMove.title}»` }).click();
+    const mobileOwnerDetail = mobilePage.getByRole("dialog", { name: `Желание: ${mobileWishToMove.title}` });
+    await mobileOwnerDetail.waitFor({ state: "visible" });
+    await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ }).click();
+    const mobileEditDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
+    await mobileEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    const mobileSourceChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileSourceList.title });
+    const mobileTargetChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileTargetList.title });
+    await mobileSourceChoice.click();
+    await mobileTargetChoice.click();
+    const mobileSaveButton = mobileEditDialog.getByRole("button", { name: "Сохранить изменения", exact: true });
+    await mobileSaveButton.scrollIntoViewIfNeeded();
+    const hitTargetIsSave = await mobileSaveButton.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === button || button.contains(hit);
+    });
+    assert(hitTargetIsSave, "Mobile wish save action is covered by another interface layer");
+    const mobileUpdateResponsePromise = mobilePage.waitForResponse((response) => (
+      response.request().method() === "PATCH"
+      && new URL(response.url()).pathname === `/api/wishes/${mobileWishToMove.id}`
+    ));
+    await mobileSaveButton.click();
+    const mobileUpdateResponse = await mobileUpdateResponsePromise;
+    assert(mobileUpdateResponse.ok(), `Mobile wish category update failed: ${mobileUpdateResponse.status()}`);
+    await mobileEditDialog.waitFor({ state: "detached" });
+    const mobileAfterMoveResponse = await apiFromPage(mobilePage, "/api/dashboard");
+    const mobileMovedWish = mobileAfterMoveResponse.data.wishes.find((wish) => wish.id === mobileWishToMove.id);
+    assert(mobileMovedWish && sameMembers(mobileMovedWish.listIds, [mobileTargetList.id]), "Mobile wish category change was not persisted");
+  } finally {
+    const mobileRestoreResponse = await apiFromPage(mobilePage, `/api/wishes/${mobileWishToMove.id}`, { method: "PATCH", body: { listIds: mobileOriginalListIds } });
+    assert(mobileRestoreResponse.ok, `Failed to restore mobile wish membership: ${mobileRestoreResponse.status}`);
+  }
+  await mobilePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
+  await mobilePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+  assert((await mobilePage.getByRole("button", { name: "Подписаться" }).count()) === 0, "Owner shared list exposes a self-follow action");
+  assert(await mobilePage.getByRole("button", { name: "Открыть мой список" }).isVisible(), "Owner shared list does not expose its canonical list action");
+  const sharedOwnerCard = mobilePage.locator(".wish-card").first();
+  const sharedOwnerWishTitle = (await sharedOwnerCard.locator("h3").innerText()).trim();
+  await sharedOwnerCard.getByRole("button", { name: `Открыть желание «${sharedOwnerWishTitle}»` }).click();
+  const sharedOwnerDialog = mobilePage.getByRole("dialog", { name: `Желание: ${sharedOwnerWishTitle}` });
+  await sharedOwnerDialog.waitFor({ state: "visible" });
+  assert(await sharedOwnerDialog.getByRole("button", { name: /^Изменить списки желания\./ }).isVisible(), "Owner shared wish does not expose editing");
+  await sharedOwnerDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await sharedOwnerDialog.waitFor({ state: "detached" });
   await mobile.close();
 
   const narrow = await browser.newContext({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
@@ -328,7 +400,7 @@ try {
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
   }
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-wishes-768.png", fullPage: true });
-  const tabletOwnerDetail = await expectWishDetailsOpen(tabletAppPage, "768px owner wish");
+  const tabletOwnerDetail = await expectWishDetailsOpen(tabletAppPage, "768px owner wish", { fullscreen: true });
   await expectNoRootOverflow(tabletAppPage, "768px owner wish detail");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-owner-wish-detail-768.png" });
   await tabletOwnerDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -346,9 +418,52 @@ try {
   await expectNoRootOverflow(publicMobilePage, "390px public profile");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390.png", fullPage: true });
   const publicDetail = await expectWishDetailsOpen(publicMobilePage, "390px public wish", { fullscreen: true });
+  const publicWishPath = new URL(publicMobilePage.url()).pathname;
+  assert(/^\/u\/alisa\/wishes\/[^/]+$/.test(publicWishPath), `Opening a public wish did not create a deep link: ${publicWishPath}`);
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-390.png" });
-  await publicDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
-  await publicDetail.dialog.waitFor({ state: "detached" });
+  await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
+  const reloadedPublicDetail = publicMobilePage.getByRole("dialog", { name: `Желание: ${publicDetail.title}` });
+  await reloadedPublicDetail.waitFor({ state: "visible" });
+  assert(await reloadedPublicDetail.locator(".wish-detail__price").isVisible(), "A public wish deep link did not survive reload");
+  await reloadedPublicDetail.getByRole("button", { name: "Закрыть диалог" }).click();
+  await reloadedPublicDetail.waitFor({ state: "detached" });
+  await publicMobilePage.waitForURL((url) => url.pathname === "/u/alisa");
+
+  const publicProfileResponse = await apiFromPage(publicMobilePage, "/api/profile/alisa");
+  assert(publicProfileResponse.ok, `Public profile API failed during deep-link verification: ${publicProfileResponse.status}`);
+  const directList = publicProfileResponse.data.lists.find((list) => (
+    list.wishCount > 0 && !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад")
+  ));
+  assert(directList, "Public list deep-link verification needs a non-empty themed list");
+  await publicMobilePage.goto(`${baseUrl}/u/alisa/lists/${directList.id}`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
+  assert(await publicMobilePage.locator(".wish-card").count() > 0, "A public list deep link did not render its wishes");
+  await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
+  await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
+  const listPath = `/u/alisa/lists/${directList.id}`;
+  const listCard = publicMobilePage.locator(".wish-card").first();
+  const listWishTitle = (await listCard.locator("h3").innerText()).trim();
+  const listWishOpener = listCard.getByRole("button", { name: `Открыть желание «${listWishTitle}»` });
+  await listWishOpener.focus();
+  await listWishOpener.press("Enter");
+  const listWishDialog = publicMobilePage.getByRole("dialog", { name: `Желание: ${listWishTitle}` });
+  await listWishDialog.waitFor({ state: "visible" });
+  await publicMobilePage.keyboard.press("Shift+Tab");
+  assert(await listWishDialog.evaluate((dialog) => dialog.contains(document.activeElement)), "Reverse tab escaped the wish dialog");
+  await publicMobilePage.keyboard.press("Escape");
+  await listWishDialog.waitFor({ state: "detached" });
+  await publicMobilePage.waitForURL((url) => url.pathname === listPath);
+  const restoredListWishOpener = publicMobilePage.locator(".wish-card").first().getByRole("button", { name: `Открыть желание «${listWishTitle}»` });
+  await publicMobilePage.waitForFunction((title) => (
+    document.activeElement?.getAttribute("aria-label") === `Открыть желание «${title}»`
+  ), listWishTitle);
+  assert(await restoredListWishOpener.evaluate((element) => document.activeElement === element), "Closing a wish did not restore focus to its list card");
+  await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
+
+  await publicMobilePage.goto(`${baseUrl}/u/alisa/wishes/not-a-real-wish`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.getByRole("heading", { name: "Желание не найдено" }).waitFor({ state: "visible" });
+  await publicMobilePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
   await publicMobilePage.locator(".profile-mobile-menu").click();
   const publicMenu = publicMobilePage.locator("#profile-mobile-navigation.is-open");
   await publicMenu.waitFor({ state: "visible" });
@@ -361,9 +476,9 @@ try {
     const rect = element.getBoundingClientRect();
     return { top: rect.top, bottom: window.innerHeight - rect.bottom, width: rect.width };
   });
-  assert(publicMenuGeometry.top >= 50 && publicMenuGeometry.bottom <= 1 && Math.abs(publicMenuGeometry.width - 390) <= 1, "390px public profile menu is not a full-screen mobile sheet");
+  assert(publicMenuGeometry.top <= 1 && publicMenuGeometry.bottom <= 1 && Math.abs(publicMenuGeometry.width - 390) <= 1, "390px public profile menu is not a full-screen mobile sheet");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390-menu.png" });
-  await publicMobilePage.locator(".profile-mobile-menu").click();
+  await publicMenu.getByRole("button", { name: "Закрыть меню" }).click();
   await publicMenu.waitFor({ state: "hidden" });
   await publicMobilePage.evaluate(() => window.scrollTo(0, 300));
   await publicMobilePage.waitForFunction(() => document.querySelector(".profile-header")?.classList.contains("is-compact"));
@@ -378,7 +493,7 @@ try {
   await publicTabletPage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
   await publicTabletPage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectDesktopUserAgent(publicTabletPage, "768px public profile");
-  await expectPublicGrid(publicTabletPage, 2, "768px public profile");
+  await expectPublicGrid(publicTabletPage, 4, "768px public profile");
   await expectPublicMobileShell(publicTabletPage, "768px public profile");
   const tabletOwnerSections = await publicTabletPage.evaluate(() => {
     const hero = document.querySelector(".profile-cover")?.getBoundingClientRect();
@@ -390,7 +505,7 @@ try {
   assert(tabletOwnerSections.tabsTop >= tabletOwnerSections.heroBottom, "768px owner profile hero overlaps the list tabs");
   await expectNoRootOverflow(publicTabletPage, "768px public profile");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
-  const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish");
+  const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish", { fullscreen: true });
   await expectNoRootOverflow(publicTabletPage, "768px public wish detail");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-wish-detail-768.png" });
   await publicTabletDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -419,7 +534,7 @@ try {
   const publicWidePage = await publicWide.newPage();
   await publicWidePage.goto(`${baseUrl}/u/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicWidePage, 6, "1912px public profile", { requireCards: false });
-  await expectReferenceDesktopProfile(publicWidePage, "1912px public profile");
+  await expectReferenceDesktopProfile(publicWidePage, "1912px public profile", { guest: true });
   await expectNoRootOverflow(publicWidePage, "1912px public profile");
   await publicWidePage.screenshot({ path: "/tmp/rollapp-public-profile-1912.png", fullPage: false });
   await publicWide.close();
@@ -442,10 +557,50 @@ try {
   await ownerWidePage.locator(".public-wishes-head h2").click();
   await ownerWidePage.waitForFunction(() => !document.querySelector(".profile-desktop-panel")?.classList.contains("is-open"));
   await ownerWidePage.getByRole("button", { name: "Создать новый список" }).click();
-  const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка" });
   await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
-  await ownerListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerListDialog.getByLabel("Название").fill("Smoke list");
+  await ownerListDialog.getByLabel("Описание").fill("Проверка полного цикла списка");
+  const createListResponsePromise = ownerWidePage.waitForResponse((response) => (
+    response.request().method() === "POST" && new URL(response.url()).pathname === "/api/lists"
+  ));
+  await ownerListDialog.getByRole("button", { name: "Создать список", exact: true }).click();
+  const createListResponse = await createListResponsePromise;
+  assert(createListResponse.ok(), `List creation failed: ${createListResponse.status()}`);
+  const createdList = (await createListResponse.json()).list;
   await ownerListDialog.waitFor({ state: "detached" });
+  await ownerWidePage.waitForURL((url) => url.pathname === `/u/alisa/lists/${createdList.id}`);
+  await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list" }).waitFor({ state: "visible" });
+  await ownerWidePage.getByRole("button", { name: "Опции списка" }).click();
+  await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
+  const editListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list" });
+  await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
+  await editListDialog.getByLabel("Название").fill("Smoke list edited");
+  await editListDialog.getByLabel("Кто увидит").selectOption("private");
+  const editListResponsePromise = ownerWidePage.waitForResponse((response) => (
+    response.request().method() === "PATCH" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
+  ));
+  await editListDialog.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
+  const editListResponse = await editListResponsePromise;
+  assert(editListResponse.ok(), `List editing failed: ${editListResponse.status()}`);
+  await editListDialog.waitFor({ state: "detached" });
+  await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).waitFor({ state: "visible" });
+  await ownerWidePage.locator(".public-wishes-head .button").filter({ hasText: "Поделиться" }).click();
+  await ownerWidePage.getByText("Приватный список виден только вам", { exact: true }).waitFor({ state: "visible" });
+  await ownerWidePage.getByRole("button", { name: "Опции списка" }).click();
+  await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
+  const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list edited" });
+  await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
+  ownerWidePage.once("dialog", (dialog) => dialog.accept());
+  const deleteListResponsePromise = ownerWidePage.waitForResponse((response) => (
+    response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
+  ));
+  await deleteListDialog.getByRole("button", { name: "Удалить", exact: true }).click();
+  const deleteListResponse = await deleteListResponsePromise;
+  assert(deleteListResponse.ok(), `List deletion failed: ${deleteListResponse.status()}`);
+  await deleteListDialog.waitFor({ state: "detached" });
+  await ownerWidePage.waitForURL((url) => url.pathname === "/u/alisa");
+  assert((await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).count()) === 0, "Deleted list is still visible in the owner rail");
   await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
   const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
   await ownerWishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();

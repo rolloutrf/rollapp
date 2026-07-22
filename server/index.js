@@ -78,6 +78,21 @@ const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
 const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
 const metadataCacheLimit = 500;
+const mutationLocks = new Map();
+
+async function withMutationLock(key, callback) {
+  const previous = mutationLocks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  mutationLocks.set(key, current);
+  await previous;
+  try {
+    return await callback();
+  } finally {
+    release();
+    if (mutationLocks.get(key) === current) mutationLocks.delete(key);
+  }
+}
 
 function cleanUser(row) {
   if (!row) return null;
@@ -120,6 +135,7 @@ function mapWish(row) {
     privacy: row.privacy,
     allowMultiple: row.allow_multiple,
     status: row.status,
+    sortOrder: Number(row.sort_order || 0),
     createdAt: row.created_at,
     reservationCount: Number(row.reservation_count || 0),
     reservedByMe: Boolean(row.reserved_by_me),
@@ -251,8 +267,8 @@ app.post("/api/auth/logout", asyncRoute(async (req, res) => {
 app.get("/api/me", asyncRoute(async (req, res) => {
   if (!req.user) return res.json({ user: null });
   const unread = await query(
-    "SELECT COUNT(*) AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL AND type NOT IN ('santa','santa-message')",
-    [req.user.id],
+    "SELECT COUNT(*) AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL AND available_at<=$2 AND type NOT IN ('santa','santa-message')",
+    [req.user.id, new Date()],
   );
   res.json({ user: cleanUser(req.user), unreadCount: Number(unread.rows[0].count) });
 }));
@@ -292,7 +308,12 @@ async function getLists(userId) {
   );
   const lists = [];
   for (const row of result.rows) {
-    const count = await query("SELECT COUNT(*) AS count FROM wishlist_wishes WHERE wishlist_id=$1", [row.id]);
+    const count = await query(
+      `SELECT COUNT(*) AS count FROM wishlist_wishes ww
+       JOIN wishes w ON w.id=ww.wish_id
+       WHERE ww.wishlist_id=$1 AND w.status='active'`,
+      [row.id],
+    );
     lists.push(mapList({ ...row, wish_count: count.rows[0].count }));
   }
   return lists;
@@ -303,34 +324,41 @@ async function getWishes(userId, viewerId = null, includePrivate = false) {
   const privacyClause = includePrivate ? "" : "AND w.privacy <> 'private'";
   const result = await query(
     `SELECT w.* FROM wishes w WHERE w.user_id=$1 ${privacyClause}
-     ORDER BY w.status='active' DESC, w.priority DESC, w.created_at DESC`,
+     ORDER BY w.status='active' DESC, w.sort_order ASC, w.created_at DESC`,
     params,
   );
   const wishes = result.rows.map(mapWish);
   for (const wish of wishes) {
-    const reservations = await query("SELECT user_id FROM reservations WHERE wish_id=$1 AND status='reserved'", [wish.id]);
-    wish.reservationCount = reservations.rowCount;
-    wish.reservedByMe = reservations.rows.some((row) => row.user_id === viewerId);
+    if (viewerId === userId) {
+      wish.reservationCount = 0;
+      wish.reservedByMe = false;
+    } else {
+      const reservations = await query("SELECT user_id FROM reservations WHERE wish_id=$1 AND status IN ('reserved','multiple')", [wish.id]);
+      wish.reservationCount = reservations.rowCount;
+      wish.reservedByMe = reservations.rows.some((row) => row.user_id === viewerId);
+    }
     const links = await query("SELECT wishlist_id FROM wishlist_wishes WHERE wish_id=$1", [wish.id]);
     wish.listIds = links.rows.map((row) => row.wishlist_id);
   }
   return wishes;
 }
 
-async function canViewWish(wish, viewerId, shareToken = "") {
+async function canViewWish(wish, viewerId, shareToken = "", client = null) {
+  const runQuery = client ? (...args) => client.query(...args) : query;
   if (wish.user_id === viewerId) return true;
   if (wish.privacy === "private") return false;
 
-  const linkedLists = await query(
+  const linkedLists = await runQuery(
     `SELECT l.privacy,l.share_token FROM wishlist_wishes ww
      JOIN wishlists l ON l.id=ww.wishlist_id WHERE ww.wish_id=$1`,
     [wish.id],
   );
+  if (!linkedLists.rowCount) return true;
   if (linkedLists.rows.some((list) => list.privacy === "public")) return true;
   if (shareToken && linkedLists.rows.some((list) => list.privacy === "link" && list.share_token === shareToken)) return true;
   if (!linkedLists.rows.some((list) => list.privacy === "followers")) return false;
 
-  const follows = await query(
+  const follows = await runQuery(
     "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2",
     [viewerId, wish.user_id],
   );
@@ -349,18 +377,45 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
       [req.user.id],
     ),
     query(
-      `SELECT r.id,r.created_at,w.id AS wish_id,w.title,w.image_url,w.price,w.currency,u.name AS owner_name,u.username AS owner_username
-       FROM reservations r JOIN wishes w ON w.id=r.wish_id JOIN users u ON u.id=w.user_id
-       WHERE r.user_id=$1 AND r.status='reserved' ORDER BY r.created_at DESC LIMIT 6`,
+      `SELECT r.id,r.created_at,w.id AS wish_id,w.title,w.image_url,w.price,w.currency,
+              w.status AS wish_status,w.privacy AS wish_privacy,
+              u.name AS owner_name,u.username AS owner_username,
+              f.follower_id AS follows_owner,l.privacy AS list_privacy
+       FROM reservations r
+       JOIN wishes w ON w.id=r.wish_id
+       JOIN users u ON u.id=w.user_id
+       LEFT JOIN follows f ON f.follower_id=$1 AND f.following_id=w.user_id
+       LEFT JOIN wishlist_wishes ww ON ww.wish_id=w.id
+       LEFT JOIN wishlists l ON l.id=ww.wishlist_id
+       WHERE r.user_id=$1
+         AND r.status IN ('reserved','multiple')
+       ORDER BY r.created_at DESC`,
       [req.user.id],
     ),
   ]);
+  const reservationGroups = new Map();
+  for (const row of reservations.rows) {
+    if (!reservationGroups.has(row.id)) reservationGroups.set(row.id, { row, listPrivacies: new Set() });
+    if (row.list_privacy) reservationGroups.get(row.id).listPrivacies.add(row.list_privacy);
+  }
+  const visibleReservations = [...reservationGroups.values()]
+    .filter(({ row, listPrivacies }) => (
+      row.wish_status === "active"
+      && row.wish_privacy !== "private"
+      && Boolean(row.follows_owner)
+      && (!listPrivacies.size || [...listPrivacies].some((privacy) => ["public", "followers", "link"].includes(privacy)))
+    ))
+    .slice(0, 6)
+    .map(({ row }) => {
+      const { wish_status: _wishStatus, wish_privacy: _wishPrivacy, follows_owner: _followsOwner, list_privacy: _listPrivacy, ...item } = row;
+      return { ...item, price: item.price === null ? null : Number(item.price) };
+    });
   res.json({
     lists,
     wishes,
     followingCount: Number(follows.rows[0].count),
     birthdays: birthdays.rows.map((row) => ({ ...cleanUser(row), email: undefined })),
-    reservations: reservations.rows.map((row) => ({ ...row, price: row.price === null ? null : Number(row.price) })),
+    reservations: visibleReservations,
     games: [],
   });
 }));
@@ -387,37 +442,83 @@ app.post("/api/lists", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.patch("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
-  const owned = await query("SELECT * FROM wishlists WHERE id=$1 AND user_id=$2", [req.params.id, req.user.id]);
-  if (!owned.rowCount) return res.status(404).json({ error: "Список не найден" });
-  const current = owned.rows[0];
-  const parsed = z.object({
+  const patchSchema = z.object({
     title: z.string().trim().min(1).max(80).optional(),
     description: z.string().trim().max(300).optional(),
     privacy: z.enum(["public", "followers", "link", "private"]).optional(),
     occasionDate: z.string().date().nullable().optional(),
     color: z.enum(["coral", "blue", "lime", "sun", "ink"]).optional(),
-  }).safeParse(req.body);
+  });
+  const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте настройки списка" });
   const data = parsed.data;
-  await query(
-    `UPDATE wishlists SET title=$1,description=$2,privacy=$3,occasion_date=$4,color=$5 WHERE id=$6`,
-    [data.title ?? current.title, data.description ?? current.description, data.privacy ?? current.privacy, data.occasionDate === undefined ? current.occasion_date : data.occasionDate, data.color ?? current.color, current.id],
+  const outcome = await withMutationLock(`list:${req.params.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT * FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.rowCount) return { status: 404, error: "Список не найден" };
+    const current = owned.rows[0];
+    await client.query(
+      `UPDATE wishlists SET title=$1,description=$2,privacy=$3,occasion_date=$4,color=$5 WHERE id=$6`,
+      [data.title ?? current.title, data.description ?? current.description, data.privacy ?? current.privacy, data.occasionDate === undefined ? current.occasion_date : data.occasionDate, data.color ?? current.color, current.id],
+    );
+    return { status: 200, id: current.id };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  const result = await query("SELECT * FROM wishlists WHERE id=$1", [outcome.id]);
+  const count = await query(
+    `SELECT COUNT(*) AS count FROM wishlist_wishes ww
+     JOIN wishes w ON w.id=ww.wish_id
+     WHERE ww.wishlist_id=$1 AND w.status='active'`,
+    [outcome.id],
   );
-  const result = await query("SELECT * FROM wishlists WHERE id=$1", [current.id]);
-  const count = await query("SELECT COUNT(*) AS count FROM wishlist_wishes WHERE wishlist_id=$1", [current.id]);
   res.json({ list: mapList({ ...result.rows[0], wish_count: count.rows[0].count }) });
 }));
 
 app.delete("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
-  const count = await query("SELECT COUNT(*) AS count FROM wishlists WHERE user_id=$1", [req.user.id]);
-  if (Number(count.rows[0].count) <= 1) return res.status(400).json({ error: "Нельзя удалить единственный список" });
-  const result = await query("DELETE FROM wishlists WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
-  if (!result.rowCount) return res.status(404).json({ error: "Список не найден" });
-  res.json({ ok: true });
+  const outcome = await withMutationLock(`list:${req.params.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id,privacy FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.rowCount) return { status: 404, error: "Список не найден" };
+
+    const fallback = await client.query(
+      `SELECT id FROM wishlists
+       WHERE user_id=$1 AND id<>$2
+       ORDER BY CASE WHEN title='Мои желания' THEN 0 ELSE 1 END, created_at
+       LIMIT 1 FOR UPDATE`,
+      [req.user.id, req.params.id],
+    );
+    if (!fallback.rowCount) return { status: 400, error: "Нельзя удалить единственный список" };
+
+    const linked = await client.query("SELECT wish_id FROM wishlist_wishes WHERE wishlist_id=$1", [req.params.id]);
+    let reassignedCount = 0;
+    for (const row of linked.rows) {
+      const other = await client.query(
+        "SELECT 1 FROM wishlist_wishes WHERE wish_id=$1 AND wishlist_id<>$2 LIMIT 1",
+        [row.wish_id, req.params.id],
+      );
+      if (other.rowCount) continue;
+      await client.query(
+        "INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2) ON CONFLICT (wishlist_id,wish_id) DO NOTHING",
+        [fallback.rows[0].id, row.wish_id],
+      );
+      if (owned.rows[0].privacy !== "public") {
+        await client.query("UPDATE wishes SET privacy='private' WHERE id=$1", [row.wish_id]);
+      }
+      reassignedCount += 1;
+    }
+    await client.query("DELETE FROM wishlists WHERE id=$1", [req.params.id]);
+    return { status: 200, reassignedCount, fallbackListId: fallback.rows[0].id };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.json({ ok: true, reassignedCount: outcome.reassignedCount, fallbackListId: outcome.fallbackListId });
 }));
 
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
-const listIdsSchema = z.array(z.string()).min(1).refine(
+const listIdsSchema = z.array(z.string()).refine(
   (listIds) => new Set(listIds).size === listIds.length,
   { message: "Список нельзя выбрать дважды" },
 );
@@ -437,7 +538,7 @@ const wishSchema = z.object({
 
 app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const parsed = wishSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Добавьте название и выберите хотя бы один список" });
+  if (!parsed.success) return res.status(400).json({ error: "Добавьте название и проверьте данные желания" });
   const data = parsed.data;
   const ownedLists = await query("SELECT id FROM wishlists WHERE user_id=$1", [req.user.id]);
   const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
@@ -456,38 +557,59 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
-  const owned = await query("SELECT * FROM wishes WHERE id=$1 AND user_id=$2", [req.params.id, req.user.id]);
-  if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
-  const currentLinks = await query("SELECT wishlist_id FROM wishlist_wishes WHERE wish_id=$1", [req.params.id]);
-  const current = owned.rows[0];
-  const merged = {
-    title: req.body.title ?? current.title,
-    description: req.body.description ?? current.description,
-    url: req.body.url ?? current.url,
-    imageUrl: req.body.imageUrl ?? current.image_url,
-    price: req.body.price === undefined ? current.price : req.body.price,
-    currency: req.body.currency ?? current.currency,
-    priority: req.body.priority ?? current.priority,
-    privacy: req.body.privacy ?? current.privacy,
-    allowMultiple: req.body.allowMultiple ?? current.allow_multiple,
-    listIds: req.body.listIds ?? currentLinks.rows.map((row) => row.wishlist_id),
-  };
-  const parsed = wishSchema.safeParse(merged);
-  if (!parsed.success) return res.status(400).json({ error: "Проверьте данные желания" });
-  const data = parsed.data;
-  const ownedLists = await query("SELECT id FROM wishlists WHERE user_id=$1", [req.user.id]);
-  const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
-  if (data.listIds.some((id) => !ownedIds.has(id))) return res.status(403).json({ error: "Список вам не принадлежит" });
-  await transaction(async (client) => {
+  const outcome = await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT * FROM wishes WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.rowCount) return { status: 404, error: "Желание не найдено" };
+    const current = owned.rows[0];
+    const currentLinks = await client.query("SELECT wishlist_id FROM wishlist_wishes WHERE wish_id=$1", [current.id]);
+    const merged = {
+      title: req.body.title ?? current.title,
+      description: req.body.description ?? current.description,
+      url: req.body.url ?? current.url,
+      imageUrl: req.body.imageUrl ?? current.image_url,
+      price: req.body.price === undefined ? current.price : req.body.price,
+      currency: req.body.currency ?? current.currency,
+      priority: req.body.priority ?? current.priority,
+      privacy: req.body.privacy ?? current.privacy,
+      allowMultiple: req.body.allowMultiple ?? current.allow_multiple,
+      listIds: req.body.listIds ?? currentLinks.rows.map((row) => row.wishlist_id),
+    };
+    const parsed = wishSchema.safeParse(merged);
+    if (!parsed.success) return { status: 400, error: "Проверьте данные желания" };
+    const data = parsed.data;
+    const ownedLists = await client.query("SELECT id FROM wishlists WHERE user_id=$1", [req.user.id]);
+    const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
+    if (data.listIds.some((id) => !ownedIds.has(id))) {
+      return { status: 403, error: "Список вам не принадлежит" };
+    }
     await client.query(
       `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,price=$5,currency=$6,priority=$7,privacy=$8,allow_multiple=$9 WHERE id=$10`,
       [data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, current.id],
     );
+    const reservations = await client.query(
+      "SELECT id FROM reservations WHERE wish_id=$1 ORDER BY created_at,id",
+      [current.id],
+    );
+    if (data.allowMultiple) {
+      await client.query("UPDATE reservations SET status='multiple' WHERE wish_id=$1", [current.id]);
+    } else if (reservations.rowCount) {
+      const [kept, ...duplicates] = reservations.rows;
+      for (const duplicate of duplicates) {
+        await client.query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [duplicate.id]);
+        await client.query("DELETE FROM reservations WHERE id=$1", [duplicate.id]);
+      }
+      await client.query("UPDATE reservations SET status='reserved' WHERE id=$1", [kept.id]);
+    }
     await client.query("DELETE FROM wishlist_wishes WHERE wish_id=$1", [current.id]);
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, current.id]);
-  });
+    return { status: 200, id: current.id };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
   const result = await getWishes(req.user.id, req.user.id, true);
-  res.json({ wish: result.find((wish) => wish.id === current.id) });
+  res.json({ wish: result.find((wish) => wish.id === outcome.id) });
 }));
 
 app.post("/api/wishes/:id/fulfilled", requireAuth, asyncRoute(async (req, res) => {
@@ -500,9 +622,54 @@ app.post("/api/wishes/:id/fulfilled", requireAuth, asyncRoute(async (req, res) =
 }));
 
 app.delete("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
-  const result = await query("DELETE FROM wishes WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
+  const result = await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM wishes WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.rowCount) return { rowCount: 0, rows: [] };
+    const reservations = await client.query(
+      "SELECT id FROM reservations WHERE wish_id=$1",
+      [req.params.id],
+    );
+    for (const reservation of reservations.rows) {
+      await client.query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [reservation.id]);
+    }
+    return client.query("DELETE FROM wishes WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
+  }));
   if (!result.rowCount) return res.status(404).json({ error: "Желание не найдено" });
   res.json({ ok: true });
+}));
+
+app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
+  const found = await query("SELECT * FROM wishes WHERE id=$1 AND status='active'", [req.params.id]);
+  if (!found.rowCount) return res.status(404).json({ error: "Желание не найдено" });
+  const source = found.rows[0];
+  if (source.user_id === req.user.id) return res.status(400).json({ error: "Это желание уже находится в вашем списке" });
+  const shareToken = typeof req.body?.shareToken === "string" ? req.body.shareToken : "";
+  if (!(await canViewWish(source, req.user.id, shareToken))) return res.status(404).json({ error: "Желание не найдено" });
+
+  const requestedListId = typeof req.body?.listId === "string" ? req.body.listId : "";
+  const target = requestedListId
+    ? await query("SELECT id FROM wishlists WHERE id=$1 AND user_id=$2", [requestedListId, req.user.id])
+    : await query(
+      `SELECT id FROM wishlists WHERE user_id=$1
+       ORDER BY CASE WHEN title='Мои желания' THEN 0 ELSE 1 END, created_at LIMIT 1`,
+      [req.user.id],
+    );
+  if (!target.rowCount) return res.status(400).json({ error: "Сначала создайте список желаний" });
+
+  const id = randomUUID();
+  await transaction(async (client) => {
+    await client.query(
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority,privacy,allow_multiple)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'inherit',FALSE)`,
+      [id, req.user.id, source.title, source.description, source.url, source.image_url, source.price, source.currency, source.priority],
+    );
+    await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [target.rows[0].id, id]);
+  });
+  const wishes = await getWishes(req.user.id, req.user.id, true);
+  res.status(201).json({ wish: wishes.find((wish) => wish.id === id) });
 }));
 
 app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req, res) => {
@@ -537,12 +704,18 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   const allLists = await getLists(owner.id);
   const lists = allLists.filter((list) => isOwner || list.privacy === "public" || (list.privacy === "followers" && follower));
   const allowedIds = new Set(lists.map((list) => list.id));
-  const wishes = (await getWishes(owner.id, req.user?.id, isOwner)).filter((wish) => wish.listIds.some((id) => allowedIds.has(id)));
+  const wishes = (await getWishes(owner.id, req.user?.id, isOwner))
+    .filter((wish) => isOwner || wish.status === "active")
+    .filter((wish) => wish.listIds.length === 0 || wish.listIds.some((id) => allowedIds.has(id)))
+    .map((wish) => isOwner ? wish : { ...wish, listIds: wish.listIds.filter((id) => allowedIds.has(id)) });
   const stats = await Promise.all([
     query("SELECT COUNT(*) AS count FROM follows WHERE following_id=$1", [owner.id]),
     query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [owner.id]),
   ]);
-  const visibleLists = isOwner ? lists : lists.map(({ shareToken: _shareToken, ...list }) => list);
+  const visibleLists = isOwner ? lists : lists.map(({ shareToken: _shareToken, ...list }) => ({
+    ...list,
+    wishCount: wishes.filter((wish) => wish.status === "active" && wish.listIds.includes(list.id)).length,
+  }));
   res.json({
     profile: { ...cleanUser(owner), email: undefined }, lists: visibleLists, wishes,
     isOwner, isFollowing: follower,
@@ -568,10 +741,14 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
   }
   if (!canView) return res.status(404).json({ error: "Список не найден" });
   const list = mapList({ ...row, wish_count: 0 });
+  const follows = req.user && !isOwner
+    ? await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, row.user_id])
+    : { rowCount: 0 };
   const wishes = (await getWishes(row.user_id, req.user?.id, isOwner))
     .filter((wish) => wish.listIds.includes(row.id))
-    .map((wish) => ({ ...wish, shareToken: req.params.token }));
-  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, isOwner });
+    .filter((wish) => isOwner || wish.status === "active")
+    .map((wish) => ({ ...wish, listIds: isOwner ? wish.listIds : [row.id], shareToken: req.params.token }));
+  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, isOwner, isFollowing: Boolean(follows.rowCount) });
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
@@ -579,38 +756,88 @@ app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, re
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const target = found.rows[0];
   if (target.id === req.user.id) return res.status(400).json({ error: "На себя уже можно положиться" });
-  const existing = await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, target.id]);
-  if (existing.rowCount) {
-    await query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, target.id]);
-    return res.json({ following: false });
-  }
-  await query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [req.user.id, target.id]);
-  await notify(target.id, "follow", `${req.user.name} подписался на вас`, "Теперь ваши открытые желания будут проще найти.", `/u/${req.user.username}`);
-  res.json({ following: true });
+  const following = await withMutationLock(`actor:${req.user.id}`, () => transaction(async (client) => {
+    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    const existing = await client.query(
+      "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2 FOR UPDATE",
+      [req.user.id, target.id],
+    );
+    if (existing.rowCount) {
+      await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, target.id]);
+      const reservations = await client.query(
+        `SELECT r.id FROM reservations r
+         JOIN wishes w ON w.id=r.wish_id
+         WHERE r.user_id=$1 AND w.user_id=$2`,
+        [req.user.id, target.id],
+      );
+      for (const reservation of reservations.rows) {
+        await client.query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [reservation.id]);
+      }
+      await client.query(
+        `DELETE FROM reservations
+         WHERE user_id=$1 AND wish_id IN (SELECT id FROM wishes WHERE user_id=$2)`,
+        [req.user.id, target.id],
+      );
+      return false;
+    }
+    await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [req.user.id, target.id]);
+    await client.query(
+      "INSERT INTO notifications (id,user_id,type,title,body,href) VALUES ($1,$2,$3,$4,$5,$6)",
+      [randomUUID(), target.id, "follow", `${req.user.name} подписался на вас`, "Теперь ваши открытые желания будут проще найти.", `/u/${req.user.username}`],
+    );
+    return true;
+  }));
+  res.json({ following });
 }));
 
 app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => {
-  const found = await query("SELECT * FROM wishes WHERE id=$1 AND status='active'", [req.params.id]);
-  if (!found.rowCount) return res.status(404).json({ error: "Желание не найдено" });
-  const wish = found.rows[0];
-  if (wish.user_id === req.user.id) return res.status(400).json({ error: "Своё желание бронировать не нужно" });
   const shareToken = typeof req.body?.shareToken === "string" ? req.body.shareToken : "";
-  if (!(await canViewWish(wish, req.user.id, shareToken))) {
-    return res.status(404).json({ error: "Желание не найдено" });
-  }
-  const existing = await query("SELECT * FROM reservations WHERE wish_id=$1 AND user_id=$2", [wish.id, req.user.id]);
-  if (existing.rowCount) {
-    await query("DELETE FROM reservations WHERE id=$1", [existing.rows[0].id]);
-    return res.json({ reserved: false });
-  }
-  if (!wish.allow_multiple) {
-    const occupied = await query("SELECT 1 FROM reservations WHERE wish_id=$1 AND status='reserved'", [wish.id]);
-    if (occupied.rowCount) return res.status(409).json({ error: "Это желание уже забронировал кто-то другой" });
-  }
   const note = z.string().trim().max(300).catch("").parse(req.body?.note || "");
-  await query("INSERT INTO reservations (id,wish_id,user_id,note) VALUES ($1,$2,$3,$4)", [randomUUID(), wish.id, req.user.id, note]);
-  await notify(wish.user_id, "reservation", "Одно из ваших желаний забронировали", "Кто именно — секрет. Так интереснее.", "/app/wishes");
-  res.status(201).json({ reserved: true });
+  let outcome;
+  try {
+    outcome = await withMutationLock(`wish:${req.params.id}`, () => withMutationLock(`actor:${req.user.id}`, () => transaction(async (client) => {
+      const found = await client.query("SELECT * FROM wishes WHERE id=$1 AND status='active' FOR UPDATE", [req.params.id]);
+      if (!found.rowCount) return { status: 404, error: "Желание не найдено" };
+      const wish = found.rows[0];
+      if (wish.user_id === req.user.id) return { status: 400, error: "Своё желание бронировать не нужно" };
+      await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+      if (!(await canViewWish(wish, req.user.id, shareToken, client))) return { status: 404, error: "Желание не найдено" };
+
+      const existing = await client.query("SELECT * FROM reservations WHERE wish_id=$1 AND user_id=$2", [wish.id, req.user.id]);
+      if (existing.rowCount) {
+        await client.query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [existing.rows[0].id]);
+        await client.query("DELETE FROM reservations WHERE id=$1", [existing.rows[0].id]);
+        return { status: 200, reserved: false };
+      }
+
+      const following = await client.query(
+        "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2 FOR UPDATE",
+        [req.user.id, wish.user_id],
+      );
+      if (!following.rowCount) return { status: 403, error: "Сначала подпишитесь на автора желания" };
+
+      if (!wish.allow_multiple) {
+        const occupied = await client.query("SELECT 1 FROM reservations WHERE wish_id=$1 AND status IN ('reserved','multiple')", [wish.id]);
+        if (occupied.rowCount) return { status: 409, error: "Это желание уже забронировал кто-то другой" };
+      }
+      const reservationId = randomUUID();
+      await client.query(
+        "INSERT INTO reservations (id,wish_id,user_id,note,status) VALUES ($1,$2,$3,$4,$5)",
+        [reservationId, wish.id, req.user.id, note, wish.allow_multiple ? "multiple" : "reserved"],
+      );
+      const availableAt = new Date(Date.now() + (2 + Math.random() * 4) * 60 * 60 * 1000);
+      await client.query(
+        "INSERT INTO notifications (id,user_id,type,title,body,href,available_at,reference_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+        [randomUUID(), wish.user_id, "reservation", "Одно из ваших желаний забронировали", "Какое именно и кто готовит подарок — останется секретом.", "/app/wishes", availableAt, reservationId],
+      );
+      return { status: 201, reserved: true };
+    })));
+  } catch (error) {
+    if (error.code === "23505") return res.status(409).json({ error: "Это желание уже забронировал кто-то другой" });
+    throw error;
+  }
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.status(outcome.status).json({ reserved: outcome.reserved });
 }));
 
 app.get("/api/people", asyncRoute(async (req, res) => {
@@ -618,14 +845,24 @@ app.get("/api/people", asyncRoute(async (req, res) => {
   const pattern = `%${search.toLowerCase()}%`;
   const result = await query(
     `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
-     FROM users u WHERE LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1
+     FROM users u
+     WHERE (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
+       AND ($2::text IS NULL OR u.id<>$2)
      ORDER BY u.created_at DESC LIMIT 24`,
-    [pattern],
+    [pattern, req.user?.id || null],
   );
   const people = [];
   for (const row of result.rows) {
-    const wishes = await query("SELECT COUNT(*) AS count FROM wishes WHERE user_id=$1 AND status='active' AND privacy<>'private'", [row.id]);
     const following = req.user ? await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, row.id]) : { rowCount: 0 };
+    const wishes = await query(
+      `SELECT COUNT(DISTINCT w.id) AS count
+       FROM wishes w
+       LEFT JOIN wishlist_wishes ww ON ww.wish_id=w.id
+       LEFT JOIN wishlists l ON l.id=ww.wishlist_id
+       WHERE w.user_id=$1 AND w.status='active' AND w.privacy<>'private'
+         AND (ww.wish_id IS NULL OR l.privacy='public' OR ($2::boolean AND l.privacy='followers'))`,
+      [row.id, Boolean(following.rowCount)],
+    );
     people.push({ id: row.id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday, wishCount: Number(wishes.rows[0].count), isFollowing: Boolean(following.rowCount) });
   }
   people.sort((a, b) => b.wishCount - a.wishCount);
@@ -664,16 +901,16 @@ app.post("/api/ideas/:id/save", requireAuth, asyncRoute(async (req, res) => {
 
 app.get("/api/notifications", requireAuth, asyncRoute(async (req, res) => {
   const result = await query(
-    "SELECT * FROM notifications WHERE user_id=$1 AND type NOT IN ('santa','santa-message') ORDER BY created_at DESC LIMIT 40",
-    [req.user.id],
+    "SELECT * FROM notifications WHERE user_id=$1 AND available_at<=$2 AND type NOT IN ('santa','santa-message') ORDER BY created_at DESC LIMIT 40",
+    [req.user.id, new Date()],
   );
   res.json({ notifications: result.rows.map((row) => ({ id: row.id, type: row.type, title: row.title, body: row.body, href: row.href, readAt: row.read_at, createdAt: row.created_at })) });
 }));
 
 app.post("/api/notifications/read", requireAuth, asyncRoute(async (req, res) => {
   await query(
-    "UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND read_at IS NULL AND type NOT IN ('santa','santa-message')",
-    [req.user.id],
+    "UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND read_at IS NULL AND available_at<=$2 AND type NOT IN ('santa','santa-message')",
+    [req.user.id, new Date()],
   );
   res.json({ ok: true });
 }));

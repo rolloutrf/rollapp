@@ -47,8 +47,11 @@ const schema = `
     privacy TEXT NOT NULL DEFAULT 'inherit',
     allow_multiple BOOLEAN NOT NULL DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'active',
+    sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
   CREATE TABLE IF NOT EXISTS wishlist_wishes (
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
@@ -80,9 +83,15 @@ const schema = `
     title TEXT NOT NULL,
     body TEXT NOT NULL DEFAULT '',
     href TEXT NOT NULL DEFAULT '',
+    reference_id TEXT,
     read_at TIMESTAMPTZ,
+    available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
+  CREATE INDEX IF NOT EXISTS notifications_reference_idx ON notifications(reference_id);
 
   CREATE TABLE IF NOT EXISTS ideas (
     id TEXT PRIMARY KEY,
@@ -103,7 +112,11 @@ const schema = `
 
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
+  CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
+  UPDATE reservations
+  SET status='multiple'
+  WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 `;
 
@@ -122,6 +135,92 @@ const ideaRows = [
   ["idea-perfume", "Авторский аромат", "Запах как личная подпись", "Красота", "/art/style.svg", "", 9900, "RUB", "особенное"]
 ];
 
+const koloskofWishOrder = [
+  "omw-wish-8269522345b446b528121881",
+  "omw-wish-ad6934be2b75c92613954618",
+  "omw-wish-996a511a3fccb28543201785",
+  "omw-wish-576a525f1bccc27133133888",
+  "omw-wish-c966726d3c2b80f866050341",
+  "omw-wish-c56a58efe7dca97879563811",
+  "omw-wish-236a58ef578201d768825741",
+  "omw-wish-e2692c86e90f180657823317",
+  "omw-wish-f3692c37b5540f2856497672",
+  "omw-wish-f06a41361ed32d4648799440",
+  "omw-wish-7d688504079daba451719954",
+  "omw-wish-3a64bc19233c82c289936152",
+  "omw-wish-9e6892e1397d9fd604116052",
+  "omw-wish-df6a47b4c6247e2255327699",
+  "omw-wish-9968ea86c285f1a001297830",
+  "omw-wish-9f68f29d513e608155636572",
+  "omw-wish-4c65880fcf069ac798897154",
+  "omw-wish-5460b25235d5885147529245",
+  "omw-wish-ef6a47589cedbc5380836946",
+  "omw-wish-70688506b57d28a681210378",
+  "omw-wish-7468962f1623767834158068",
+  "omw-wish-8769ae8a6b91145322394605",
+  "omw-wish-8a6a56987a131c8679284009",
+  "omw-wish-5a6a418b2311b62663640170",
+  "omw-wish-42693a4d470ec9c402826238",
+  "omw-wish-2b695284e35b78a526290794",
+  "omw-wish-686097ee8c6358a869985894",
+  "omw-wish-c567af9dfd55751280066415",
+  "omw-wish-6369470d0943ce8242818112",
+  "omw-wish-5a662ec5f851b4c797618314",
+  "omw-wish-8967a7227e51494822931472",
+  "omw-wish-9169405c5c7daa5768139122",
+  "omw-wish-de696b78b165112480502588",
+  "omw-wish-6f693da29bded31551477624",
+  "omw-wish-706a566668d3f15168150834",
+  "omw-wish-6d69358d828cf3d467218995",
+  "omw-wish-3d6920cf158dc02893626254",
+  "omw-wish-7d6918cba202926926842874",
+  "omw-wish-886918cb89f404f463596160",
+  "omw-wish-d1688539a16a409122694209",
+  "omw-wish-6668849c55260e5609571507",
+  "omw-wish-5b68849bc647d4d006444463",
+  "omw-wish-eb682429b7be5ac170873280",
+  "omw-wish-e1681fceebadf02716945101",
+  "omw-wish-ef67d91db225bfc369683753",
+  "omw-wish-5467b6bff3d74bb666080913",
+  "omw-wish-5967ae268c75a56188036034",
+  "omw-wish-ba6783eca5ed152700179426",
+  "omw-wish-886767333d448ad355801240",
+  "omw-wish-316595b8fc46748002777712",
+  "omw-wish-a9668a5ea7e589e348399688",
+  "omw-wish-9b6595b769e872f274133604",
+  "omw-wish-5c658a5e56322bd807879286",
+  "omw-wish-da6585295ce8a5c283828019",
+  "omw-wish-d5658528e83405c097734291",
+  "omw-wish-7c64bc1d4f657a2275211949",
+  "omw-wish-4964bc3c589e1be041981271",
+  "omw-wish-cb67b21d91d564d128648374",
+  "omw-wish-7662ddadd8a4bd5581334363",
+  "omw-wish-f261817240300b7124991428",
+  "omw-wish-236173c453ba0e9783362380",
+  "omw-wish-cc617d32a6dc5e8486139180",
+  "omw-wish-f160ee91f31995c604023678",
+  "omw-wish-d6617ad670b3ff0557618682",
+  "omw-wish-766093bb19324e8356939497",
+  "omw-wish-876093b577f3105726049798",
+  "omw-wish-e26093b51833b70625244734",
+  "omw-wish-3f60a9806464171700066007",
+  "omw-wish-476093b31691a2f983827694",
+  "omw-wish-8760f09b740f3e7035614133",
+  "omw-wish-3760b252c8489e9070587563",
+  "omw-wish-5d693e886540719862395106",
+  "omw-wish-5f672e46ada82e5006144424",
+  "omw-wish-906595b48b736a6012213246",
+  "omw-wish-bb6757372ea93ac015932714",
+  "omw-wish-4769a451ecde256857006272",
+  "omw-wish-2767915ea937e9c678784152",
+  "omw-wish-4a69ac9dcf3771e746130953",
+  "omw-wish-70696b719289f57041060631",
+  "omw-wish-25695509aab9cbb448953526",
+  "omw-wish-b46093b129a1f49329068535",
+  "omw-wish-73694661aa3b8da799112034",
+  "omw-wish-8c6945b86e9f800983273108",
+];
+
 const dataMigrations = [
   {
     id: "2026-07-21-koloskof-profile-parity",
@@ -137,6 +236,23 @@ const dataMigrations = [
        WHERE username = 'koloskof'`,
     ),
   },
+  {
+    id: "2026-07-22-koloskof-wish-order",
+    requireMatch: true,
+    requiredRows: koloskofWishOrder.length,
+    run: async (client) => {
+      let rowCount = 0;
+      for (const [index, id] of koloskofWishOrder.entries()) {
+        const result = await client.query(
+          `UPDATE wishes SET sort_order=$1
+           WHERE id=$2 AND user_id=(SELECT id FROM users WHERE username='koloskof')`,
+          [index + 1, id],
+        );
+        rowCount += result.rowCount;
+      }
+      return { rowCount };
+    },
+  },
 ];
 
 async function runDataMigrations(client) {
@@ -144,7 +260,7 @@ async function runDataMigrations(client) {
     const applied = await client.query("SELECT 1 FROM rollapp_data_migrations WHERE id = $1", [migration.id]);
     if (applied.rowCount) continue;
     const result = await migration.run(client);
-    if (migration.requireMatch && !result.rowCount) continue;
+    if (migration.requireMatch && result.rowCount < (migration.requiredRows || 1)) continue;
     await client.query("INSERT INTO rollapp_data_migrations (id) VALUES ($1)", [migration.id]);
   }
 }
@@ -218,6 +334,22 @@ async function seedDemo(client) {
 
 export async function initializeDatabase() {
   await query(schema);
+  const exclusiveReservations = await query(
+    `SELECT id,wish_id FROM reservations
+     WHERE status='reserved' ORDER BY wish_id,created_at,id`,
+  );
+  const occupiedWishIds = new Set();
+  for (const reservation of exclusiveReservations.rows) {
+    if (!occupiedWishIds.has(reservation.wish_id)) {
+      occupiedWishIds.add(reservation.wish_id);
+      continue;
+    }
+    await query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [reservation.id]);
+    await query("DELETE FROM reservations WHERE id=$1", [reservation.id]);
+  }
+  await query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_one_exclusive ON reservations(wish_id) WHERE status='reserved'",
+  );
   await transaction(async (client) => {
     await insertIdeas(client);
     await runDataMigrations(client);
