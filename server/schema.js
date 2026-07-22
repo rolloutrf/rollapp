@@ -255,7 +255,7 @@ const dataMigrations = [
     },
   },
   {
-    id: "2026-07-22-restore-koloskof-airpods-pro-3",
+    id: "2026-07-22-restore-koloskof-airpods-pro-3-v2",
     run: async (client) => {
       await client.query(
         `INSERT INTO wishes (
@@ -265,7 +265,20 @@ const dataMigrations = [
          SELECT $1::text,id,$2::text,$3::text,$4::text,$5::text,$6::numeric,$7::text,
                 2,'inherit',FALSE,'active',4,$8::timestamptz
          FROM users WHERE username='koloskof'
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id) DO UPDATE SET
+           user_id=EXCLUDED.user_id,
+           title=EXCLUDED.title,
+           description=EXCLUDED.description,
+           url=EXCLUDED.url,
+           image_url=EXCLUDED.image_url,
+           price=EXCLUDED.price,
+           currency=EXCLUDED.currency,
+           priority=EXCLUDED.priority,
+           privacy=EXCLUDED.privacy,
+           allow_multiple=EXCLUDED.allow_multiple,
+           status=EXCLUDED.status,
+           sort_order=EXCLUDED.sort_order,
+           created_at=EXCLUDED.created_at`,
         [
           "omw-wish-576a525f1bccc27133133888",
           "Apple AirPods Pro 3",
