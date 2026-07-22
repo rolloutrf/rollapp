@@ -254,6 +254,39 @@ const dataMigrations = [
       return { rowCount };
     },
   },
+  {
+    id: "2026-07-22-restore-koloskof-airpods-pro-3",
+    run: async (client) => {
+      await client.query(
+        `INSERT INTO wishes (
+           id,user_id,title,description,url,image_url,price,currency,priority,
+           privacy,allow_multiple,status,sort_order,created_at
+         )
+         SELECT $1::text,id,$2::text,$3::text,$4::text,$5::text,$6::numeric,$7::text,
+                2,'inherit',FALSE,'active',4,$8::timestamptz
+         FROM users WHERE username='koloskof'
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          "omw-wish-576a525f1bccc27133133888",
+          "Apple AirPods Pro 3",
+          "https://www.tbank.ru/cf/7T9TNL4QrJW",
+          "https://ipick.ru/products/naushniki-apple-airpods-pro-3-0-1/?utm_source=ohmywishes",
+          "https://cdn.ohmywishes.com/images/wish-photo/2026/07/12/1Ccxi6N56wnzokGcK6u2zm.webp",
+          17990,
+          "RUB",
+          new Date("2026-07-11T15:19:55.000Z"),
+        ],
+      );
+      return client.query(
+        `INSERT INTO wishlist_wishes (wishlist_id,wish_id)
+         SELECT l.id,$1 FROM wishlists l
+         JOIN users u ON u.id=l.user_id
+         WHERE u.username='koloskof' AND l.id=$2
+         ON CONFLICT (wishlist_id,wish_id) DO NOTHING`,
+        ["omw-wish-576a525f1bccc27133133888", "omw-list-f06a4141d023da4892906101"],
+      );
+    },
+  },
 ];
 
 async function runDataMigrations(client) {
