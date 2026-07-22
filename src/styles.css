@@ -2808,6 +2808,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .profile-cover__birthday svg { width: 14px; height: 14px; }
 
 @media (min-width: 1024px) {
+  .public-profile--dark > .profile-header > .logo .logo__mark { margin-left: 11px; margin-right: -11px; }
   .public-profile--dark > .profile-header > .logo {
     min-height: 40px;
     gap: 8px;
