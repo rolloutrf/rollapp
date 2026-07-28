@@ -3377,3 +3377,25 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .friend-row__identity small { max-width: 39vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .friend-row__mutual { display: none; }
 }
+
+/* Keep the owner completion action dark in every interactive state. */
+.modal--wish-detail .wish-detail__actions > .button--outline {
+  color: #fff;
+  border-color: rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+}
+.modal--wish-detail .wish-detail__actions > .button--outline:hover:not(:disabled),
+.modal--wish-detail .wish-detail__actions > .button--outline:focus-visible:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255,255,255,.25);
+  background: #313132;
+}
+.modal--wish-detail .wish-detail__actions > .button--outline:active:not(:disabled) {
+  color: #fff;
+  background: #3b3b3d;
+}
+.modal--wish-detail .wish-detail__actions > .button--outline:disabled {
+  color: #fff;
+  border-color: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+}
