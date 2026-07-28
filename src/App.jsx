@@ -13,11 +13,13 @@ import { api } from "./api.js";
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
 const APP_HOME = "/app/wishes";
+const modalStack = [];
 
 const formatMoney = (value, currency = "RUB") => value == null ? "Цена не указана" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatDate = (value, options = {}) => value ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...options }).format(new Date(value)) : "Без даты";
 const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
+const WISH_CURRENCY_SYMBOLS = { RUB: "₽", USD: "$", EUR: "€", KZT: "₸", BYN: "Br" };
 const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
 const wishFormFrom = (wish) => ({
   title: wish?.title || "",
@@ -829,22 +831,28 @@ function WishesPage({ onAdd, version }) {
     await reload();
     if (saved?.id && attached) setSelected(saved.id);
   };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = true, backdropClassName = "" }) {
   const dialogRef = useRef(null);
   const onCloseRef = useRef(onClose);
+  const modalTokenRef = useRef(Symbol("modal"));
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
+    const modalToken = modalTokenRef.current;
     const previousFocus = document.activeElement;
+    modalStack.push(modalToken);
+    document.body.classList.add("modal-open");
     const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
     const focusDialog = window.requestAnimationFrame(() => {
+      if (modalStack.at(-1) !== modalToken) return;
       if (dialogRef.current?.contains(document.activeElement)) return;
       const target = dialogRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || dialogRef.current;
       target?.focus();
     });
     const handleKeyDown = (event) => {
+      if (modalStack.at(-1) !== modalToken) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -864,12 +872,14 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
       else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener("keydown", handleKeyDown);
-    document.body.classList.add("modal-open");
     return () => {
       window.cancelAnimationFrame(focusDialog);
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.classList.remove("modal-open");
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      const wasTopModal = modalStack.at(-1) === modalToken;
+      const stackIndex = modalStack.lastIndexOf(modalToken);
+      if (stackIndex >= 0) modalStack.splice(stackIndex, 1);
+      if (!modalStack.length) document.body.classList.remove("modal-open");
+      if (wasTopModal && previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
   const modal = <div className={`modal-backdrop ${backdropClassName}`} onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
@@ -979,10 +989,25 @@ function ListActionsMenu({ list = null, onEdit, onShare, onCreate, compact = fal
   return <div className={`list-actions-menu ${compact ? "is-compact" : ""}`} ref={rootRef}><button className="public-wishes-head__options" type="button" aria-label="Опции списка" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal /></button>{open && <div className="list-actions-menu__panel">{list && <button type="button" onClick={() => { setOpen(false); onEdit?.(); }}><Pencil /> Редактировать список</button>}<button type="button" onClick={() => { setOpen(false); onShare?.(); }}><Share2 /> {list ? "Поделиться списком" : "Поделиться профилем"}</button><button type="button" onClick={() => { setOpen(false); onCreate?.(); }}><Plus /> Создать новый список</button></div>}</div>;
 }
 
-function WishModal({ onClose, onSaved, wish = null }) {
+function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   const editing = Boolean(wish?.id);
-  const toast = useToast(); const { data, loading: listsLoading } = useAsync(() => api.get("/dashboard"), []); const [step, setStep] = useState(editing ? "details" : "link"); const [loading, setLoading] = useState(false); const [metadata, setMetadata] = useState({ status: "idle", message: "" }); const [form, setForm] = useState(() => wishFormFrom(wish));
-  const autoTimerRef = useRef(null); const metadataRequestRef = useRef(0); const editedMetadataFieldsRef = useRef(new Set());
+  const toast = useToast();
+  const { data, loading: listsLoading, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
+  const [step, setStep] = useState(editing ? "details" : "link");
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [imageEditorOpen, setImageEditorOpen] = useState(false);
+  const [listCreatorOpen, setListCreatorOpen] = useState(false);
+  const [metadata, setMetadata] = useState({ status: "idle", message: "" });
+  const [form, setForm] = useState(() => wishFormFrom(wish));
+  const autoTimerRef = useRef(null);
+  const metadataRequestRef = useRef(0);
+  const editedMetadataFieldsRef = useRef(new Set());
+  const mutationRef = useRef(null);
+  const deleteTriggerRef = useRef(null);
+  const deleteConfirmRef = useRef(null);
+  const restoreDeleteFocusRef = useRef(false);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
   useEffect(() => {
     if (!data?.lists) return;
@@ -1045,13 +1070,209 @@ function WishModal({ onClose, onSaved, wish = null }) {
   const updateMetadataField = (field, value) => { editedMetadataFieldsRef.current.add(field); setForm((current) => ({ ...current, [field]: value })); };
   const continueFromLink = () => { if (!form.url.trim()) { setStep("details"); return; } if (metadata.status === "success") { setStep("details"); return; } recognize(); };
   const fillManually = () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; setMetadata((current) => current.status === "error" ? current : { status: "idle", message: "" }); setStep("details"); };
-  const submit = async (event) => { event.preventDefault(); setLoading(true); try { const payload = { ...form, price: form.price === "" ? null : Number(form.price) }; const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload); toast(editing ? "Изменения сохранены" : "Желание добавлено ✦"); await onSaved?.(result.wish); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (mutationRef.current || deleting) return;
+    mutationRef.current = "save";
+    setLoading(true);
+    try {
+      const payload = { ...form, price: form.price === "" ? null : Number(form.price) };
+      const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload);
+      toast(editing ? "Изменения сохранены" : "Желание добавлено ✦");
+      await onSaved?.(result.wish);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      mutationRef.current = null;
+      setLoading(false);
+    }
+  };
+  const remove = async () => {
+    if (mutationRef.current || loading || deleting) return;
+    mutationRef.current = "delete";
+    setDeleting(true);
+    try {
+      await api.delete(`/wishes/${wish.id}`);
+      toast("Желание удалено");
+      if (onDeleted) await onDeleted();
+      else onClose();
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      mutationRef.current = null;
+      setDeleting(false);
+    }
+  };
   const toggleList = (id) => setForm((current) => ({
     ...current,
     listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id],
   }));
   const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{step === "details" && metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url, { advance: false })}>Повторить</button>}</div>;
-  return <Modal onClose={onClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <Heart fill="currentColor" />}</span><div><span className="eyebrow">{editing ? "Редактирование" : "Новое желание"}</span><h2>{editing ? "Изменить желание" : step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{editing ? "Измените детали или перенесите желание в другие списки." : step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="text" inputMode="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields">{editing && <label><span>Ссылка на товар</span><input type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value.trim())} /></label>}<label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" aria-label={`Важность ${item} из 3`} aria-pressed={form.priority === item} className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>{editing ? "Списки желания" : "Добавить в списки"}</legend>{listsLoading ? <LoadingScreen compact /> : selectableLists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><p className="wish-form__list-hint">Список можно не выбирать — желание останется в «Моих желаниях».</p><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions">{editing ? <Button type="button" variant="ghost" onClick={onClose}>Отмена</Button> : <Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button>}<Button type="submit" loading={loading} icon={editing ? Check : Heart}>{editing ? "Сохранить изменения" : "Добавить желание"}</Button></div></>}</form></Modal>;
+  const requestClose = () => { if (!loading && !deleting) onClose(); };
+  const cancelDelete = () => {
+    if (deleting) return;
+    restoreDeleteFocusRef.current = true;
+    setDeleteConfirm(false);
+  };
+  useEffect(() => {
+    if (!editing) return undefined;
+    let settleFrame;
+    const focusFrame = window.requestAnimationFrame(() => {
+      settleFrame = window.requestAnimationFrame(() => {
+        if (deleteConfirm) {
+          deleteConfirmRef.current?.querySelector("button:not(:disabled)")?.focus();
+          return;
+        }
+        if (restoreDeleteFocusRef.current) {
+          restoreDeleteFocusRef.current = false;
+          deleteTriggerRef.current?.focus();
+        }
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.cancelAnimationFrame(settleFrame);
+    };
+  }, [deleteConfirm, editing]);
+
+  if (editing && deleteConfirm) {
+    return <Modal
+      onClose={cancelDelete}
+      className="modal--wish-delete"
+      ariaLabel={`Удаление желания «${wish.title}»`}
+    >
+      <div className="wish-delete-confirm" ref={deleteConfirmRef}>
+        <span className="modal-icon"><Trash2 /></span>
+        <span className="eyebrow">Удаление желания</span>
+        <h2>Удалить «{wish.title}»?</h2>
+        <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
+        <div className="modal-actions">
+          <Button type="button" variant="ghost" data-modal-initial-focus disabled={deleting} onClick={cancelDelete}>Отмена</Button>
+          <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} onClick={remove}>Удалить</Button>
+        </div>
+      </div>
+    </Modal>;
+  }
+
+  if (editing) {
+    const fieldId = (name) => `wish-editor-${name}-${wish.id}`;
+    const coverForList = (listId) => data?.wishes?.find((item) => item.imageUrl && item.listIds.includes(listId))?.imageUrl || "";
+    return <>
+      <Modal
+        onClose={requestClose}
+        className="modal--wish-editor"
+        backdropClassName="modal-backdrop--wish-editor"
+        ariaLabel={`Редактирование желания «${wish.title}»`}
+      >
+      <form className="wish-editor" onSubmit={submit}>
+        <Button className="wish-editor__submit" type="submit" loading={loading}>Обновить</Button>
+        <div className="wish-editor__layout">
+          <section className="wish-editor__media" aria-label="Фотография желания">
+            <div className={`wish-editor__image ${form.imageUrl ? "has-image" : "is-empty"}`}>
+              {form.imageUrl
+                ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish.title}»`} />
+                : <button type="button" className="wish-editor__image-empty" onClick={() => setImageEditorOpen(true)}><Image /><span>Добавить фото</span></button>}
+              <button ref={deleteTriggerRef} type="button" className="wish-editor__delete" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /></button>
+              <button type="button" className="wish-editor__image-change" aria-expanded={imageEditorOpen} onClick={() => setImageEditorOpen((value) => !value)}><Pencil /> {form.imageUrl ? "Сменить фото" : "Указать ссылку"}</button>
+              {imageEditorOpen && <div className="wish-editor__image-url">
+                <label htmlFor={fieldId("image")}>Ссылка на фото</label>
+                <input id={fieldId("image")} type="text" inputMode="url" value={form.imageUrl} placeholder="https://… или /art/…" onChange={(event) => updateMetadataField("imageUrl", event.target.value)} />
+                <button type="button" aria-label="Готово" onClick={() => setImageEditorOpen(false)}><Check /></button>
+              </div>}
+            </div>
+          </section>
+
+          <section className="wish-editor__panel">
+            <div className="wish-editor__scroll">
+              <label className="wish-editor__field" htmlFor={fieldId("title")}>
+                <span>Название</span>
+                <input id={fieldId("title")} data-modal-initial-focus required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+              </label>
+
+              <div className="wish-editor__field wish-editor__field--link">
+                <label htmlFor={fieldId("url")}>Ссылка</label>
+                <input id={fieldId("url")} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <button type="button" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url, { advance: false })}>
+                  <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
+                  <i>{metadata.status === "loading" ? <LoaderCircle className="spin" /> : <ArrowRight />}</i>
+                </button>
+              </div>
+
+              {metadataNotice}
+
+              <label className="wish-editor__field wish-editor__field--description" htmlFor={fieldId("description")}>
+                <span className="visually-hidden">Описание желания</span>
+                <textarea id={fieldId("description")} rows={2} value={form.description} placeholder="Опишите желание" onChange={(event) => updateMetadataField("description", event.target.value)} />
+              </label>
+
+              <label className="wish-editor__field wish-editor__field--price" htmlFor={fieldId("price")}>
+                <span>Цена</span>
+                <input id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
+                <select aria-label="Валюта" value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>
+                  {WISH_CURRENCIES.map((currency) => <option value={currency} key={currency}>{WISH_CURRENCY_SYMBOLS[currency]}</option>)}
+                </select>
+              </label>
+
+              <div className="wish-editor__settings" role="group" aria-label="Настройки желания">
+                <label className="wish-editor__switch-row">
+                  <EyeOff />
+                  <span><strong>Секретное желание <i title="Такое желание видно только вам">?</i></strong></span>
+                  <input type="checkbox" role="switch" aria-label="Секретное желание" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} />
+                  <span className="wish-editor__switch" aria-hidden="true"><i /></span>
+                </label>
+                <label className="wish-editor__switch-row">
+                  <LockKeyhole />
+                  <span><strong>Многократное бронирование <i title="Разрешает нескольким друзьям забронировать одинаковый подарок">?</i></strong></span>
+                  <input type="checkbox" role="switch" aria-label="Многократное бронирование" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} />
+                  <span className="wish-editor__switch" aria-hidden="true"><i /></span>
+                </label>
+              </div>
+
+              <fieldset className="wish-editor__lists">
+                <legend className="visually-hidden">Списки желания</legend>
+                <div className="wish-editor__lists-head">
+                  <strong>Списки</strong>
+                  <button type="button" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}><ListPlus /> Новый список</button>
+                </div>
+                {listsLoading ? <LoadingScreen compact /> : <div className="wish-editor__list-rows">
+                  {selectableLists.map((list) => {
+                    const selected = form.listIds.includes(list.id);
+                    const cover = coverForList(list.id);
+                    return <label className={`wish-editor__list-row ${selected ? "is-selected" : ""}`} key={list.id}>
+                      <input type="checkbox" checked={selected} onChange={() => toggleList(list.id)} />
+                      <span className={`wish-editor__list-thumb list-dot--${list.color}`}>{cover ? <img src={cover} alt="" /> : <ListPlus />}</span>
+                      <span>{list.title}</span>
+                      <span className="wish-editor__list-state" aria-hidden="true">{selected ? <Check /> : <Plus />}</span>
+                    </label>;
+                  })}
+                </div>}
+              </fieldset>
+            </div>
+          </section>
+        </div>
+      </form>
+      </Modal>
+      {listCreatorOpen && <ListModal
+        listsCount={data?.lists?.length || 0}
+        onClose={() => setListCreatorOpen(false)}
+        onSaved={async (saved) => {
+          if (saved?.id) {
+            setForm((current) => current.listIds.includes(saved.id)
+              ? current
+              : { ...current, listIds: [...current.listIds, saved.id] });
+          }
+          try {
+            await reloadDashboard({ background: true });
+          } catch {
+            toast("Список создан, но перечень не обновился. Откройте редактор ещё раз.", "error");
+          }
+          setListCreatorOpen(false);
+        }}
+      />}
+    </>;
+  }
+
+  return <Modal onClose={requestClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon"><Heart fill="currentColor" /></span><div><span className="eyebrow">Новое желание</span><h2>{step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="text" inputMode="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields"><label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" aria-label={`Важность ${item} из 3`} aria-pressed={form.priority === item} className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>Добавить в списки</legend>{listsLoading ? <LoadingScreen compact /> : selectableLists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><p className="wish-form__list-hint">Список можно не выбирать — желание останется в «Моих желаниях».</p><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions"><Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button><Button type="submit" loading={loading} icon={Heart}>Добавить желание</Button></div></>}</form></Modal>;
 }
 
 function IdeasPage({ appMode = false }) {
@@ -1509,7 +1730,7 @@ function PublicProfile({ shared = false }) {
 
           {wishes.length ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onOpen={(opener) => openWish(wish.id, opener)} onEdit={data.isOwner ? () => editWish(wish.id) : undefined} onCreateList={data.isOwner && !shared ? () => setListModal({ attachWishId: wish.id }) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
           {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={data.isOwner ? () => editWish(selectedWish.id) : undefined} onClose={closeWish} />}
-          {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}
+          {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
           {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
           {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
         </main>
