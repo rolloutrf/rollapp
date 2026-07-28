@@ -941,6 +941,7 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
     assert((await dialog.getByRole("heading", { name: title }).count()) === 1, `${label} detail does not show the selected wish title`);
   }
   assert(await dialog.locator(".wish-detail__price").isVisible(), `${label} detail does not show the selected wish price`);
+  assert((await dialog.locator(".wish-detail__meta").count()) === 0, `${label} detail still shows the removed metadata pills`);
   if (fullscreen) {
     await page.waitForTimeout(300);
     const geometry = await dialog.evaluate((element) => {
