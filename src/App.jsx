@@ -831,7 +831,7 @@ function WishesPage({ onAdd, version }) {
     await reload();
     if (saved?.id && attached) setSelected(saved.id);
   };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function Modal({ children, onClose, onEscape, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = true, backdropClassName = "" }) {
@@ -889,16 +889,34 @@ function Modal({ children, onClose, onEscape, wide = false, className = "", aria
   return portal ? createPortal(modal, document.body) : modal;
 }
 
-function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], wishes = [], onChanged, onCreateList, onClose }) {
+function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], wishes = [], onChanged, onEdit, onCreateList, onClose }) {
   const categoryLists = useMemo(() => lists.filter((list) => !isGeneralList(list)), [lists]);
   const normalizeListIds = useCallback((ids = []) => categoryLists.filter((list) => ids.includes(list.id)).map((list) => list.id), [categoryLists]);
   const [listsOpen, setListsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuListsOpen, setMenuListsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => normalizeListIds(wish.listIds));
+  const [menuPosition, setMenuPosition] = useState(null);
+  const [menuListsPosition, setMenuListsPosition] = useState(null);
   const listTriggerRef = useRef(null);
   const listPanelRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuListsTriggerRef = useRef(null);
+  const menuListsPanelRef = useRef(null);
   const listMutationRef = useRef(false);
   const focusListOnOpenRef = useRef(false);
-  const { busy, reserve, fulfilled, share, update } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const focusMenuOnOpenRef = useRef(false);
+  const focusMenuListsOnOpenRef = useRef(false);
+  const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({
+    wish,
+    profile,
+    lists,
+    shareToken,
+    onChanged,
+    onDeleted: onClose,
+  });
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
   const linkedLists = categoryLists.filter((list) => selectedListIds.includes(list.id));
   const linkedListNames = linkedLists.map((list) => list.title);
@@ -913,6 +931,103 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     setListsOpen(false);
     if (restoreFocus) window.requestAnimationFrame(() => listTriggerRef.current?.focus());
   }, []);
+
+  const closeActionMenu = useCallback((restoreFocus = false) => {
+    setMenuOpen(false);
+    setMenuListsOpen(false);
+    setMenuPosition(null);
+    setMenuListsPosition(null);
+    if (restoreFocus) window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const position = () => {
+      const trigger = menuTriggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+      const margin = 6;
+      const gap = 10;
+      const triggerRect = trigger.getBoundingClientRect();
+      const width = Math.min(280, window.innerWidth - margin * 2);
+      const height = menu.offsetHeight;
+      const left = Math.min(
+        Math.max(margin, triggerRect.left),
+        window.innerWidth - width - margin,
+      );
+      const below = triggerRect.bottom + gap;
+      const top = below + height <= window.innerHeight - margin
+        ? below
+        : Math.max(margin, triggerRect.top - height - gap);
+      setMenuPosition({ left, top, width });
+    };
+    const frame = window.requestAnimationFrame(position);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [menuOpen, owner, wish.status]);
+
+  useEffect(() => {
+    if (!menuOpen || !menuPosition || !focusMenuOnOpenRef.current) return;
+    menuRef.current?.querySelector(".card-menu__main [role='menuitem']:not(:disabled)")?.focus();
+    focusMenuOnOpenRef.current = false;
+  }, [menuOpen, menuPosition]);
+
+  useEffect(() => {
+    if (!menuOpen || !menuListsOpen) return undefined;
+    const position = () => {
+      const menu = menuRef.current;
+      const panel = menuListsPanelRef.current;
+      if (!menu || !panel) return;
+      const margin = 6;
+      const menuRect = menu.getBoundingClientRect();
+      const anchorRect = menuListsTriggerRef.current?.getBoundingClientRect() || menuRect;
+      const mobile = window.innerWidth <= 640;
+      const width = mobile ? menuRect.width : Math.min(280, window.innerWidth - margin * 2);
+      const height = panel.offsetHeight;
+      let left;
+      if (mobile) left = menuRect.left;
+      else if (anchorRect.right - 8 + width <= window.innerWidth - margin) left = anchorRect.right - 8;
+      else left = Math.max(margin, anchorRect.left - width + 8);
+      const preferredTop = anchorRect.top - 8 + height <= window.innerHeight - margin
+        ? anchorRect.top - 8
+        : anchorRect.bottom - height + 8;
+      const top = mobile
+        ? Math.min(Math.max(margin, menuRect.top), Math.max(margin, window.innerHeight - height - margin))
+        : Math.min(Math.max(margin, preferredTop), Math.max(margin, window.innerHeight - height - margin));
+      setMenuListsPosition({ left, top, width });
+    };
+    const frame = window.requestAnimationFrame(position);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [menuOpen, menuListsOpen, menuPosition, categoryLists.length]);
+
+  useEffect(() => {
+    if (!menuListsOpen || !menuListsPosition || !focusMenuListsOnOpenRef.current) return;
+    const selected = menuListsPanelRef.current?.querySelector("[role='menuitemcheckbox'][aria-checked='true']:not(:disabled)");
+    const first = menuListsPanelRef.current?.querySelector("[role='menuitemcheckbox']:not(:disabled), [role='menuitem']:not(:disabled)");
+    (selected || first)?.focus();
+    focusMenuListsOnOpenRef.current = false;
+  }, [menuListsOpen, menuListsPosition]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (menuTriggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      closeActionMenu(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpen, closeActionMenu]);
 
   useEffect(() => {
     if (!listsOpen) return undefined;
@@ -966,17 +1081,10 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     items[nextIndex]?.focus();
   };
 
-  const listPicker = owner && listsOpen ? <section
-    ref={listPanelRef}
-    id={`wish-detail-lists-${wish.id}`}
-    className="card-menu--popover wish-detail__list-popover"
-    role="menu"
-    aria-label={`Списки желания «${wish.title}»`}
-    onKeyDown={handleListPickerKeyDown}
-  >
+  const renderListPickerBody = (createList) => <>
     <div className="card-menu__lists-head">
       <strong>Списки</strong>
-      {onCreateList && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeListPicker(false); onCreateList(); }}><ListPlus /> Новый список</button>}
+      {onCreateList && <button role="menuitem" type="button" disabled={busy} onClick={createList}><ListPlus /> Новый список</button>}
     </div>
     <div className="card-menu__list-scroll">
       {categoryLists.length ? categoryLists.map((list) => {
@@ -1004,71 +1112,262 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
         </button>;
       }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
     </div>
+  </>;
+
+  const handleActionMenuKeyDown = (event) => {
+    const inListPanel = Boolean(menuListsPanelRef.current?.contains(event.target));
+    const container = inListPanel ? menuListsPanelRef.current : menuRef.current?.querySelector(".card-menu__main");
+    const items = [...(container?.querySelectorAll("[role='menuitem']:not(:disabled), [role='menuitemcheckbox']:not(:disabled)") || [])]
+      .filter((item) => item.getClientRects().length > 0);
+    const currentIndex = items.indexOf(document.activeElement);
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length) {
+      event.preventDefault();
+      const nextIndex = event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : event.key === "ArrowDown"
+            ? (currentIndex + 1 + items.length) % items.length
+            : (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (event.key === "ArrowRight" && event.target === menuListsTriggerRef.current && !menuListsOpen) {
+      event.preventDefault();
+      focusMenuListsOnOpenRef.current = true;
+      setMenuListsOpen(true);
+      setMenuListsPosition(null);
+      return;
+    }
+    if (event.key === "ArrowLeft" && inListPanel) {
+      event.preventDefault();
+      setMenuListsOpen(false);
+      setMenuListsPosition(null);
+      window.requestAnimationFrame(() => menuListsTriggerRef.current?.focus());
+      return;
+    }
+    if (event.key === "Tab") closeActionMenu(false);
+  };
+
+  const listPicker = owner && listsOpen ? <section
+    ref={listPanelRef}
+    id={`wish-detail-lists-${wish.id}`}
+    className="card-menu--popover wish-detail__list-popover"
+    role="menu"
+    aria-label={`Списки желания «${wish.title}»`}
+    onKeyDown={handleListPickerKeyDown}
+  >
+    {renderListPickerBody(() => { closeListPicker(false); onCreateList?.(); })}
   </section> : null;
 
-  return (
-    <Modal
-      portal
-      onClose={onClose}
-      onEscape={() => {
-        if (!listsOpen) return false;
-        closeListPicker(true);
-        return true;
-      }}
-      className="modal--wish-detail"
-      backdropClassName="modal-backdrop--wish-detail"
-      ariaLabel={`Желание: ${wish.title}`}
+  const actionMenu = menuOpen ? <div
+    ref={menuRef}
+    id={`wish-detail-menu-${wish.id}`}
+    className={`card-menu card-menu--popover wish-detail__actions-menu ${owner ? "card-menu--owner" : ""} ${menuListsOpen ? "is-showing-lists" : ""}`}
+    style={menuPosition || { left: 0, top: 0, visibility: "hidden" }}
+    role="menu"
+    aria-label={`Действия с желанием «${wish.title}»`}
+    onKeyDown={handleActionMenuKeyDown}
+  >
+    <div className="card-menu__main" role="group">
+      {!owner && <button role="menuitem" type="button" disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={() => { closeActionMenu(true); reserve(); }}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}
+      {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); save(); }}><Archive /> Сохранить к себе</button>}
+      {owner && wish.status === "fulfilled" ? <>
+        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); fulfilled(); }}><RotateCcw /> Не исполнено</button>
+        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); repeat(); }}><Plus /> Загадать ещё раз</button>
+        {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}
+      </> : owner && <>
+        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); fulfilled(); }}><Check /> Исполнено</button>
+        {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}
+        <button
+          role="menuitem"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
+            closeActionMenu(true);
+            update(
+              { privacy: nextPrivacy },
+              nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
+            );
+          }}
+        >
+          {wish.privacy === "private" ? <Eye /> : <EyeOff />}
+          {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
+        </button>
+        <button
+          ref={menuListsTriggerRef}
+          role="menuitem"
+          type="button"
+          className="card-menu__submenu-trigger"
+          disabled={busy}
+          aria-haspopup="menu"
+          aria-expanded={menuListsOpen}
+          aria-controls={`wish-detail-action-lists-${wish.id}`}
+          onMouseEnter={() => {
+            if (!window.matchMedia("(hover: hover)").matches || menuListsOpen) return;
+            setMenuListsOpen(true);
+            setMenuListsPosition(null);
+          }}
+          onClick={(event) => {
+            if (event.detail === 0 && !menuListsOpen) focusMenuListsOnOpenRef.current = true;
+            const hoverCapable = window.matchMedia("(hover: hover)").matches;
+            setMenuListsOpen((open) => event.detail > 0 && hoverCapable ? true : !open);
+            setMenuListsPosition(null);
+          }}
+        >
+          <ListPlus /> <span>Добавить в список</span><ArrowRight className="card-menu__chevron" />
+        </button>
+      </>}
+      {(!owner || wish.status !== "fulfilled") && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); share(); }}><Share2 /> Поделиться</button>}
+      {!owner && wish.url && <a role="menuitem" href={wish.url} target="_blank" rel="noreferrer" onClick={() => closeActionMenu(true)}><ExternalLink /> Открыть магазин</a>}
+      {owner && <button role="menuitem" type="button" className="danger" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); setDeleteOpen(true); }}><Trash2 /> Удалить</button>}
+    </div>
+    {owner && menuListsOpen && <section
+      ref={menuListsPanelRef}
+      id={`wish-detail-action-lists-${wish.id}`}
+      className="card-menu__lists"
+      style={menuListsPosition || { left: 0, top: 0, visibility: "hidden" }}
+      role="menu"
+      aria-label={`Списки желания «${wish.title}»`}
     >
-      <article className="wish-detail">
-        <div className="wish-detail__media">
-          {wish.imageUrl ? <img src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} /> : <span className="wish-detail__placeholder"><Gift /></span>}
-          <Priority value={wish.priority} />
-          {wish.status === "fulfilled" && <span className="wish-detail__fulfilled"><Check /> Исполнено</span>}
-        </div>
-        <div className="wish-detail__side">
-          <div className="wish-detail__toolbar">
-            <div className={`wish-detail__list-control ${owner ? "is-editable" : ""} ${listsOpen ? "is-open" : ""}`} title={listTitleText}>
-              {owner
-                ? <button
-                    ref={listTriggerRef}
-                    type="button"
-                    aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
-                    aria-haspopup="menu"
-                    aria-expanded={listsOpen}
-                    aria-controls={`wish-detail-lists-${wish.id}`}
-                    onKeyDown={(event) => {
-                      if (event.key !== "ArrowDown" || listsOpen) return;
-                      event.preventDefault();
-                      focusListOnOpenRef.current = true;
-                      setListsOpen(true);
-                    }}
-                    onClick={(event) => {
-                      if (!listsOpen && event.detail === 0) focusListOnOpenRef.current = true;
-                      setListsOpen((open) => !open);
-                    }}
-                  ><span>{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}</button>
-                : <span><span>{listLabel}</span><ChevronDown /></span>}
-              {listPicker}
-            </div>
-            <button className="wish-detail__share" type="button" aria-label="Поделиться желанием" title="Поделиться" onClick={share}><MoreHorizontal /></button>
+      {renderListPickerBody(() => { closeActionMenu(false); onCreateList?.(); })}
+    </section>}
+  </div> : null;
+
+  return (
+    <>
+      <Modal
+        portal
+        onClose={onClose}
+        onEscape={() => {
+          if (menuListsOpen) {
+            setMenuListsOpen(false);
+            setMenuListsPosition(null);
+            window.requestAnimationFrame(() => menuListsTriggerRef.current?.focus());
+            return true;
+          }
+          if (menuOpen) {
+            closeActionMenu(true);
+            return true;
+          }
+          if (listsOpen) {
+            closeListPicker(true);
+            return true;
+          }
+          return false;
+        }}
+        className="modal--wish-detail"
+        backdropClassName="modal-backdrop--wish-detail"
+        ariaLabel={`Желание: ${wish.title}`}
+      >
+        <article className="wish-detail">
+          <div className="wish-detail__media">
+            {wish.imageUrl ? <img src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} /> : <span className="wish-detail__placeholder"><Gift /></span>}
+            <Priority value={wish.priority} />
+            {wish.status === "fulfilled" && <span className="wish-detail__fulfilled"><Check /> Исполнено</span>}
           </div>
-          {!owner && <div className="wish-detail__notice"><Hand /><p>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</p></div>}
-          <div className="wish-detail__content">
-            <Link className="wish-detail__owner" to={profile?.username ? publicProfilePath(profile.username) : "#"}><Avatar user={profile} size="sm" /><strong>{profile?.name || "Автор желания"}</strong></Link>
-            <div className="wish-detail__heading"><h2>{wish.title}</h2></div>
-            <p className={`wish-detail__description ${wish.description ? "" : "is-muted"}`}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</p>
-            <div className="wish-detail__price-bar">
-              <strong className="wish-detail__price">{formatMoney(wish.price, wish.currency)}</strong>
-              {wish.url && <a href={wish.url} target="_blank" rel="noreferrer">Где купить <ExternalLink /></a>}
+          <div className="wish-detail__side">
+            <div className="wish-detail__toolbar">
+              <div className={`wish-detail__list-control ${owner ? "is-editable" : ""} ${listsOpen ? "is-open" : ""}`} title={listTitleText}>
+                {owner
+                  ? <button
+                      ref={listTriggerRef}
+                      type="button"
+                      aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
+                      aria-haspopup="menu"
+                      aria-expanded={listsOpen}
+                      aria-controls={`wish-detail-lists-${wish.id}`}
+                      onKeyDown={(event) => {
+                        if (event.key !== "ArrowDown" || listsOpen) return;
+                        event.preventDefault();
+                        closeActionMenu(false);
+                        focusListOnOpenRef.current = true;
+                        setListsOpen(true);
+                      }}
+                      onClick={(event) => {
+                        closeActionMenu(false);
+                        if (!listsOpen && event.detail === 0) focusListOnOpenRef.current = true;
+                        setListsOpen((open) => !open);
+                      }}
+                    ><span>{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}</button>
+                  : <span><span>{listLabel}</span><ChevronDown /></span>}
+                {listPicker}
+              </div>
+              <button
+                ref={menuTriggerRef}
+                className="wish-detail__share"
+                type="button"
+                aria-label={`Опции желания «${wish.title}»`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-controls={`wish-detail-menu-${wish.id}`}
+                title="Опции желания"
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowDown" || menuOpen) return;
+                  event.preventDefault();
+                  closeListPicker(false);
+                  focusMenuOnOpenRef.current = true;
+                  setMenuOpen(true);
+                  setMenuPosition(null);
+                }}
+                onClick={(event) => {
+                  closeListPicker(false);
+                  if (menuOpen) {
+                    closeActionMenu(false);
+                    return;
+                  }
+                  if (event.detail === 0) focusMenuOnOpenRef.current = true;
+                  setMenuListsOpen(false);
+                  setMenuListsPosition(null);
+                  setMenuPosition(null);
+                  setMenuOpen(true);
+                }}
+              ><MoreHorizontal /></button>
+              {actionMenu}
             </div>
-            <div className="wish-detail__actions">
-              {!owner && <Button variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
-              {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
+            {!owner && <div className="wish-detail__notice"><Hand /><p>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</p></div>}
+            <div className="wish-detail__content">
+              <Link className="wish-detail__owner" to={profile?.username ? publicProfilePath(profile.username) : "#"}><Avatar user={profile} size="sm" /><strong>{profile?.name || "Автор желания"}</strong></Link>
+              <div className="wish-detail__heading"><h2>{wish.title}</h2></div>
+              <p className={`wish-detail__description ${wish.description ? "" : "is-muted"}`}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</p>
+              <div className="wish-detail__price-bar">
+                <strong className="wish-detail__price">{formatMoney(wish.price, wish.currency)}</strong>
+                {wish.url && <a href={wish.url} target="_blank" rel="noreferrer">Где купить <ExternalLink /></a>}
+              </div>
+              <div className="wish-detail__actions">
+                {!owner && <Button variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
+                {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
+              </div>
             </div>
           </div>
+        </article>
+      </Modal>
+      {deleteOpen && <Modal
+        onClose={() => {
+          if (busy) return;
+          setDeleteOpen(false);
+          window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+        }}
+        className="modal--wish-delete"
+        backdropClassName="modal-backdrop--detail-delete"
+        ariaLabel={`Удаление желания «${wish.title}»`}
+      >
+        <div className="wish-delete-confirm">
+          <span className="modal-icon"><Trash2 /></span>
+          <span className="eyebrow">Удаление желания</span>
+          <h2>Удалить «{wish.title}»?</h2>
+          <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
+          <div className="modal-actions">
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => {
+              setDeleteOpen(false);
+              window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
+            }}>Отмена</Button>
+            <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={busy} onClick={async () => { if (await remove()) setDeleteOpen(false); }}>Удалить</Button>
+          </div>
         </div>
-      </article>
-    </Modal>
+      </Modal>}
+    </>
   );
 }
 
@@ -1878,7 +2177,7 @@ function PublicProfile({ shared = false }) {
           </div>
 
           {wishes.length ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onOpen={(opener) => openWish(wish.id, opener)} onEdit={data.isOwner ? () => editWish(wish.id) : undefined} onCreateList={data.isOwner && !shared ? () => setListModal({ attachWishId: wish.id }) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
-          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onCreateList={data.isOwner && !shared ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
+          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={data.isOwner && !shared ? () => editWish(selectedWish.id) : undefined} onCreateList={data.isOwner && !shared ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
           {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
           {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
           {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}

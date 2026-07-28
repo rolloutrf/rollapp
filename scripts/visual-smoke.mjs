@@ -1075,6 +1075,168 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   return { card, title, opener, dialog };
 }
 
+async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mobile = false } = {}) {
+  assert(wish?.status === "active", `${label} requires an active owner wish`);
+  await page.waitForTimeout(280);
+  const categoryLists = lists.filter((list) => !isGeneralListRecord(list));
+  const trigger = detail.dialog.getByRole("button", { name: `Опции желания «${wish.title}»`, exact: true });
+  await trigger.focus();
+  await page.keyboard.press("ArrowDown");
+  const menu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  await menu.waitFor({ state: "visible" });
+  assert(await trigger.getAttribute("aria-haspopup") === "menu", `${label} trigger does not advertise a menu`);
+  assert(await trigger.getAttribute("aria-expanded") === "true", `${label} trigger is not expanded`);
+  const controlsId = await trigger.getAttribute("aria-controls");
+  const menuId = await menu.getAttribute("id");
+  assert(Boolean(controlsId) && controlsId === menuId, `${label} trigger is not linked to the action menu`);
+  assert((await detail.dialog.locator(`#${menuId}`).count()) === 1, `${label} menu must stay inside the detail dialog focus trap`);
+
+  const main = menu.locator(".card-menu__main");
+  const rootItems = main.locator(":scope > [role='menuitem']");
+  const expectedRootLabels = [
+    "Исполнено",
+    "Редактировать",
+    wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным",
+    "Добавить в список",
+    "Поделиться",
+    "Удалить",
+  ];
+  const actualRootLabels = (await rootItems.allInnerTexts()).map(normalizeMenuLabel);
+  assert(
+    JSON.stringify(actualRootLabels) === JSON.stringify(expectedRootLabels),
+    `${label} action order differs: ${actualRootLabels.join(" | ")}`,
+  );
+  assert(await main.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
+  assert(await main.getByRole("menuitem", { name: "Удалить", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} delete action does not advertise its confirmation`);
+
+  const rootGeometry = await expectFixedPopoverGeometry(menu, `${label} root menu`);
+  const triggerGeometry = await trigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  const expectedRootLeft = Math.min(
+    Math.max(6, triggerGeometry.left),
+    triggerGeometry.viewportWidth - rootGeometry.width - 6,
+  );
+  assert(Math.abs(rootGeometry.left - expectedRootLeft) <= 1, `${label} root menu is not anchored to the trigger`);
+  assert(
+    Math.abs(rootGeometry.top - triggerGeometry.bottom - 10) <= 1
+      || Math.abs(triggerGeometry.top - rootGeometry.bottom - 10) <= 1,
+    `${label} root menu does not keep the reference 10px trigger gap`,
+  );
+  const menuSurface = await menu.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + Math.min(24, rect.height / 2));
+    const channels = getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.map(Number) || [];
+    return {
+      hittable: element.contains(hit),
+      background: channels.slice(0, 3),
+    };
+  });
+  assert(menuSurface.hittable, `${label} root menu is covered by another layer`);
+  assert(menuSurface.background.length === 3 && Math.max(...menuSurface.background) <= 70, `${label} root menu leaked a light surface`);
+  await waitForFocused(page, rootItems.first(), `${label} first action`);
+  assert(await rootItems.first().evaluate((element) => element.matches(":focus-visible")), `${label} first action has no visible keyboard focus`);
+  if (mobile) {
+    assert(triggerGeometry.width >= 39 && triggerGeometry.height >= 39, `${label} trigger is too small for touch`);
+    await expectMobileTouchTargets(main, `${label} root menu`, { minHeight: 44 });
+    await expectNoRootOverflow(page, `${label} root menu`);
+  }
+  await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-menu.png" : "/tmp/rollapp-desktop-wish-detail-menu.png" });
+
+  const listTriggerIndex = expectedRootLabels.indexOf("Добавить в список");
+  for (let index = 0; index < listTriggerIndex; index += 1) await page.keyboard.press("ArrowDown");
+  const listTrigger = main.getByRole("menuitem", { name: "Добавить в список", exact: true });
+  assert(await listTrigger.evaluate((element) => document.activeElement === element), `${label} list submenu trigger is not keyboard reachable`);
+  await page.keyboard.press("ArrowRight");
+  const listMenu = detail.dialog.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
+  await listMenu.waitFor({ state: "visible" });
+  assert(await listTrigger.getAttribute("aria-expanded") === "true", `${label} list submenu is not expanded`);
+  assert(await listTrigger.getAttribute("aria-controls") === await listMenu.getAttribute("id"), `${label} list submenu is not linked to its trigger`);
+  const listGeometry = await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
+  const listTriggerGeometry = await listTrigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+  });
+  if (mobile) {
+    assert(
+      Math.abs(listGeometry.left - rootGeometry.left) <= 1
+        && Math.abs(listGeometry.top - rootGeometry.top) <= 1
+        && Math.abs(listGeometry.width - rootGeometry.width) <= 1,
+      `${label} mobile list submenu is not using the same drill-in lane`,
+    );
+  } else {
+    assert(
+      Math.abs(listGeometry.left - listTriggerGeometry.right + 8) <= 1
+        || Math.abs(listTriggerGeometry.left - listGeometry.right + 8) <= 1,
+      `${label} desktop list submenu does not use the reference 8px overlap`,
+    );
+  }
+  const options = listMenu.getByRole("menuitemcheckbox");
+  const actualListLabels = (await options.allInnerTexts()).map(normalizeMenuLabel);
+  const expectedListLabels = categoryLists.map((list) => list.title);
+  assert(
+    JSON.stringify(actualListLabels) === JSON.stringify(expectedListLabels),
+    `${label} list submenu differs: ${actualListLabels.join(" | ")}`,
+  );
+  for (const list of categoryLists) {
+    assert(
+      await listMenu.getByRole("menuitemcheckbox", { name: list.title, exact: true }).getAttribute("aria-checked") === String(wish.listIds.includes(list.id)),
+      `${label} list "${list.title}" has the wrong checked state`,
+    );
+  }
+  const focusedListOption = listMenu.locator("[role='menuitemcheckbox'][aria-checked='true']").first();
+  if (await focusedListOption.count()) await waitForFocused(page, focusedListOption, `${label} selected list option`);
+  else if (await options.count()) await waitForFocused(page, options.first(), `${label} first list option`);
+  if (mobile) {
+    await expectMobileTouchTargets(listMenu.locator(".card-menu__list-scroll"), `${label} list submenu`, { minHeight: 44 });
+    await expectNoRootOverflow(page, `${label} list submenu`);
+  }
+  await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-lists.png" : "/tmp/rollapp-desktop-wish-detail-lists.png" });
+
+  await page.keyboard.press("Escape");
+  await listMenu.waitFor({ state: "detached" });
+  await menu.waitFor({ state: "visible" });
+  await waitForFocused(page, listTrigger, `${label} list trigger after Escape`);
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "detached" });
+  await detail.dialog.waitFor({ state: "visible" });
+  await waitForFocused(page, trigger, `${label} detail trigger after Escape`);
+
+  await trigger.click();
+  const pointerMenu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  await pointerMenu.waitFor({ state: "visible" });
+  if (mobile) {
+    const viewport = page.viewportSize();
+    await page.mouse.click(viewport.width - 8, Math.min(viewport.height - 8, rootGeometry.bottom + 20));
+  } else {
+    await detail.dialog.locator(".wish-detail__media").click({ position: { x: 32, y: 32 } });
+  }
+  await pointerMenu.waitFor({ state: "detached" });
+  await detail.dialog.waitFor({ state: "visible" });
+  assert(await trigger.getAttribute("aria-expanded") === "false", `${label} outside dismissal left the trigger expanded`);
+
+  await trigger.click();
+  const deleteMenu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  await deleteMenu.getByRole("menuitem", { name: "Удалить", exact: true }).click();
+  await deleteMenu.waitFor({ state: "detached" });
+  const deleteDialog = page.getByRole("dialog", { name: `Удаление желания «${wish.title}»`, exact: true });
+  await deleteDialog.waitFor({ state: "visible" });
+  await expectDarkAuthenticatedModal(deleteDialog, `${label} delete confirmation`);
+  await deleteDialog.getByRole("button", { name: "Отмена", exact: true }).click();
+  await deleteDialog.waitFor({ state: "detached" });
+  await detail.dialog.waitFor({ state: "visible" });
+  await waitForFocused(page, trigger, `${label} detail trigger after delete cancellation`);
+}
+
 async function expectFulfilledActionContrast(page, dialog, label) {
   const action = dialog.getByRole("button", { name: "Отметить исполненным", exact: true });
   await action.waitFor({ state: "visible" });
@@ -1192,6 +1354,13 @@ try {
   const desktopDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish");
   await expectDarkAuthenticatedModal(desktopDetail.dialog, "Desktop owner wish detail");
   await expectFulfilledActionContrast(dashboard, desktopDetail.dialog, "Desktop owner wish detail");
+  await expectOwnerWishDetailMenu(
+    dashboard,
+    desktopDetail,
+    desktopMenuWish,
+    desktopMenuDashboardResponse.data.lists,
+    "Desktop owner wish detail menu",
+  );
   await waitForStableLayout(dashboard);
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-wish-detail.png" });
   await dashboard.keyboard.press("Escape");
@@ -1256,6 +1425,16 @@ try {
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
       await expectDarkAuthenticatedModal(mobileDetail.dialog, "390px owner wish detail");
       await expectFulfilledActionContrast(mobilePage, mobileDetail.dialog, "390px owner wish detail");
+      const mobileDetailWish = mobileMenuDashboardResponse.data.wishes.find((wish) => wish.title === mobileDetail.title);
+      assert(mobileDetailWish, "390px owner detail menu wish is missing from the dashboard");
+      await expectOwnerWishDetailMenu(
+        mobilePage,
+        mobileDetail,
+        mobileDetailWish,
+        mobileMenuDashboardResponse.data.lists,
+        "390px owner wish detail menu",
+        { mobile: true },
+      );
       await expectNoRootOverflow(mobilePage, "390px wish detail");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-detail.png" });
       await mobileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -1684,6 +1863,20 @@ try {
   assert((await ownerWidePage.getByRole("button", { name: "Подписаться" }).count()) === 0, "Owner profile should not expose a follow action");
   await waitForStableLayout(ownerWidePage);
   await ownerWidePage.screenshot({ path: "/tmp/rollapp-owner-profile-1912.png", fullPage: false });
+  const ownerProfileMenuDashboardResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+  assert(ownerProfileMenuDashboardResponse.ok, `1912px owner detail menu dashboard failed: ${ownerProfileMenuDashboardResponse.status}`);
+  const ownerProfileDetail = await expectWishDetailsOpen(ownerWidePage, "1912px owner profile wish");
+  const ownerProfileDetailWish = ownerProfileMenuDashboardResponse.data.wishes.find((wish) => wish.title === ownerProfileDetail.title);
+  assert(ownerProfileDetailWish, "1912px owner detail menu wish is missing from the dashboard");
+  await expectOwnerWishDetailMenu(
+    ownerWidePage,
+    ownerProfileDetail,
+    ownerProfileDetailWish,
+    ownerProfileMenuDashboardResponse.data.lists,
+    "1912px owner profile wish detail menu",
+  );
+  await ownerProfileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerProfileDetail.dialog.waitFor({ state: "detached" });
   await ownerWidePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
   await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectDarkPage(ownerWidePage, "Desktop shared owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
