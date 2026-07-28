@@ -1555,20 +1555,6 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 .wish-detail__description { max-width: 46em; margin: 25px 0 0; color: rgba(255,255,255,.82); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
 .wish-detail__description.is-muted { color: rgba(255,255,255,.46); }
-.wish-detail__meta { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 7px; }
-.wish-detail__meta span {
-  min-height: 32px;
-  padding: 0 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 999px;
-  color: rgba(255,255,255,.58);
-  background: rgba(255,255,255,.045);
-  font-size: 9px;
-}
-.wish-detail__meta svg { width: 14px; height: 14px; }
 .wish-detail__source {
   min-height: 64px;
   margin-top: 24px;
@@ -1630,7 +1616,6 @@ textarea { resize: vertical; line-height: 1.5; }
   .wish-detail__heading h2 { margin-bottom: 16px; font-size: 30px; }
   .wish-detail__price { font-size: 30px; }
   .wish-detail__description { margin-top: 20px; font-size: 12px; }
-  .wish-detail__meta { margin-top: 18px; }
   .wish-detail__source { margin-top: 20px; }
   .wish-detail__actions { padding-bottom: env(safe-area-inset-bottom); flex-direction: column; }
   .wish-detail__actions > .button { width: 100%; min-height: 50px; flex-basis: auto; }
@@ -2114,7 +2099,6 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .wish-detail__actions > .button--reserved { color: #000; border-color: #fff; background: #fff; }
 .wish-detail__actions > .button--primary:hover:not(:disabled),
 .wish-detail__actions > .button--reserved:hover:not(:disabled) { color: #000; border-color: #fff; background: #f3f3f3; }
-.wish-detail__meta { margin-top: 0; }
 
 @media (hover: hover) {
   .app-layout--dark .wish-card .wish-card__top > button { opacity: 0; }
@@ -2351,7 +2335,6 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .wish-detail__price { font-size: 26px; line-height: 28.6px; }
   .wish-detail__actions { margin: 0; }
   .wish-detail__actions > .button { min-height: 40px; border-radius: 20px; font-size: 16px; line-height: 19px; font-weight: 500; }
-  .wish-detail__meta { display: none; }
 }
 
 @media (max-width: 359px) {

@@ -913,12 +913,6 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               {!owner && <Button variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
               {owner && <Button type="button" variant="outline" icon={PackageCheck} loading={busy} onClick={fulfilled}>{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</Button>}
             </div>
-            {owner && <div className="wish-detail__meta">
-              <span><CalendarDays /> Добавлено {formatDate(wish.createdAt)}</span>
-              {wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Видно друзьям</span>}
-              {wish.allowMultiple && <span><Gift /> Можно подарить несколько</span>}
-              {wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}
-            </div>}
           </div>
         </div>
       </article>
