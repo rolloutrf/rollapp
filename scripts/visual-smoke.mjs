@@ -627,6 +627,80 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   return { card, title, opener, dialog };
 }
 
+async function expectFulfilledActionContrast(page, dialog, label) {
+  const action = dialog.getByRole("button", { name: "Отметить исполненным", exact: true });
+  await action.waitFor({ state: "visible" });
+  assert(await action.isEnabled(), `${label} fulfilled action is disabled`);
+  const readState = () => action.evaluate((element) => {
+    const parse = (value) => {
+      const numbers = value.match(/[\d.]+/g)?.map(Number) || [];
+      return { red: numbers[0] || 0, green: numbers[1] || 0, blue: numbers[2] || 0, alpha: numbers[3] ?? 1 };
+    };
+    const blend = (front, back) => ({
+      red: front.red * front.alpha + back.red * (1 - front.alpha),
+      green: front.green * front.alpha + back.green * (1 - front.alpha),
+      blue: front.blue * front.alpha + back.blue * (1 - front.alpha),
+      alpha: 1,
+    });
+    const channel = (value) => {
+      const normalized = value / 255;
+      return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+    };
+    const luminance = (color) => .2126 * channel(color.red) + .7152 * channel(color.green) + .0722 * channel(color.blue);
+    const style = getComputedStyle(element);
+    const modal = element.closest(".modal--wish-detail");
+    const modalBackground = parse(getComputedStyle(modal).backgroundColor);
+    const opacity = Number(style.opacity);
+    const opaqueBackground = blend(parse(style.backgroundColor), modalBackground);
+    const opaqueForeground = blend(parse(style.color), opaqueBackground);
+    const background = blend({ ...opaqueBackground, alpha: opacity }, modalBackground);
+    const foreground = blend({ ...opaqueForeground, alpha: opacity }, modalBackground);
+    const foregroundLuminance = luminance(foreground);
+    const backgroundLuminance = luminance(background);
+    return {
+      hovered: element.matches(":hover"),
+      focusVisible: element.matches(":focus-visible"),
+      disabled: element.disabled,
+      color: style.color,
+      backgroundColor: style.backgroundColor,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: parseFloat(style.outlineWidth),
+      backgroundLuminance,
+      contrast: (Math.max(foregroundLuminance, backgroundLuminance) + .05) / (Math.min(foregroundLuminance, backgroundLuminance) + .05),
+    };
+  });
+
+  await page.mouse.move(1, 1);
+  await page.waitForTimeout(240);
+  const defaultState = await readState();
+  await action.hover();
+  await page.waitForTimeout(240);
+  const hoverState = await readState();
+  await page.mouse.move(1, 1);
+  let keyboardFocused = await action.evaluate((element) => document.activeElement === element);
+  for (let step = 0; step < 16 && !keyboardFocused; step += 1) {
+    await page.keyboard.press("Tab");
+    keyboardFocused = await action.evaluate((element) => document.activeElement === element);
+  }
+  assert(keyboardFocused, `${label} completion action is not keyboard reachable`);
+  await page.waitForTimeout(240);
+  const focusState = await readState();
+  await action.evaluate((element) => { element.disabled = true; });
+  await page.waitForTimeout(240);
+  const disabledState = await readState();
+  await action.evaluate((element) => { element.disabled = false; });
+  for (const [stateLabel, state] of [["default", defaultState], ["hover", hoverState], ["focus", focusState], ["disabled", disabledState]]) {
+    assert(state.contrast >= 4.5, `${label} ${stateLabel} completion action contrast is ${state.contrast.toFixed(2)} (${state.color} on ${state.backgroundColor})`);
+    assert(state.backgroundLuminance <= .08, `${label} ${stateLabel} completion action leaked a light background (${state.backgroundColor})`);
+  }
+  assert(hoverState.hovered, `${label} completion action did not enter its hover state`);
+  assert(focusState.focusVisible, `${label} completion action has no visible keyboard focus`);
+  assert(focusState.outlineStyle !== "none" && focusState.outlineWidth >= 2, `${label} completion action focus outline is missing`);
+  assert(disabledState.disabled, `${label} completion action did not enter its disabled state`);
+  await action.hover();
+  await page.waitForTimeout(240);
+}
+
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
@@ -663,6 +737,7 @@ try {
   await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
   const desktopDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish");
   await expectDarkAuthenticatedModal(desktopDetail.dialog, "Desktop owner wish detail");
+  await expectFulfilledActionContrast(dashboard, desktopDetail.dialog, "Desktop owner wish detail");
   await waitForStableLayout(dashboard);
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-wish-detail.png" });
   await dashboard.keyboard.press("Escape");
@@ -713,6 +788,7 @@ try {
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
       await expectDarkAuthenticatedModal(mobileDetail.dialog, "390px owner wish detail");
+      await expectFulfilledActionContrast(mobilePage, mobileDetail.dialog, "390px owner wish detail");
       await expectNoRootOverflow(mobilePage, "390px wish detail");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-detail.png" });
       await mobileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
