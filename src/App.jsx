@@ -3,15 +3,16 @@ import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Apple, Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Globe, Hand, Heart, Home, Image, Link2, ListPlus,
+  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Globe, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Menu, MessageCircle, MoreHorizontal, PackageCheck, Pencil, Play, Plus,
-  Radio, Search, Send, Settings, Share2, ShoppingBag, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
+  Radio, Search, Send, Settings, Share2, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
   Users, WandSparkles, X, Zap,
 } from "lucide-react";
 import { api } from "./api.js";
 
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
+const APP_HOME = "/app/wishes";
 
 const formatMoney = (value, currency = "RUB") => value == null ? "Цена не указана" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatDate = (value, options = {}) => value ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...options }).format(new Date(value)) : "Без даты";
@@ -30,7 +31,7 @@ const wishFormFrom = (wish) => ({
   allowMultiple: Boolean(wish?.allowMultiple),
   listIds: Array.isArray(wish?.listIds) ? [...wish.listIds] : [],
 });
-const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/app";
+const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
 const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
 const publicProfilePath = (username = "") => `/${encodeURIComponent(username)}`;
 const publicListPath = (username, listId) => `${publicProfilePath(username)}/lists/${encodeURIComponent(listId)}`;
@@ -100,7 +101,7 @@ function useToast() { return useContext(ToastContext); }
 
 function Logo({ compact = false }) {
   return (
-    <Link to="/app" className={`logo ${compact ? "logo--compact" : ""}`} aria-label="Rollapp — в приложение">
+    <Link to={APP_HOME} className={`logo ${compact ? "logo--compact" : ""}`} aria-label="Rollapp — в приложение">
       <span className="logo__mark"><span /><span /><span /></span>
       {!compact && <span>rollapp</span>}
     </Link>
@@ -143,10 +144,10 @@ function LandingHeader() {
       <Logo />
       <nav id="landing-navigation" className={open ? "landing-nav is-open" : "landing-nav"}>
         <Link to={user ? "/app/wishes" : "/login?next=%2Fapp%2Fwishes"} onClick={() => setOpen(false)}>Мои желания</Link><Link to={user ? "/app/friends" : "/login?next=%2Fapp%2Ffriends"} onClick={() => setOpen(false)}>Друзья</Link><Link to="/ideas" onClick={() => setOpen(false)}>Идеи подарков</Link>
-        <div className="landing-nav__mobile-actions">{user ? <Link className="button button--primary" to="/app" onClick={() => setOpen(false)}><span>Открыть мой вишлист</span></Link> : <><Link className="button button--primary" to="/register" onClick={() => setOpen(false)}><span>Создать вишлист</span></Link><Link className="button button--outline" to="/login" onClick={() => setOpen(false)}><span>Войти</span></Link></>}</div>
+        <div className="landing-nav__mobile-actions">{user ? <Link className="button button--primary" to={APP_HOME} onClick={() => setOpen(false)}><span>Открыть мой вишлист</span></Link> : <><Link className="button button--primary" to="/register" onClick={() => setOpen(false)}><span>Создать вишлист</span></Link><Link className="button button--outline" to="/login" onClick={() => setOpen(false)}><span>Войти</span></Link></>}</div>
       </nav>
       <div className="landing-header__actions">
-        {user ? <Link className="button button--primary" to="/app"><span>Мой вишлист</span><ArrowRight size={18} /></Link> : <><Link className="text-link desktop-only" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать вишлист</span></Link></>}
+        {user ? <Link className="button button--primary" to={APP_HOME}><span>Мой вишлист</span><ArrowRight size={18} /></Link> : <><Link className="text-link desktop-only" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать вишлист</span></Link></>}
       </div>
       <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label={open ? "Закрыть меню" : "Открыть меню"} aria-expanded={open} aria-controls="landing-navigation">{open ? <X /> : <Menu />}</button>
     </header>
@@ -156,7 +157,7 @@ function LandingHeader() {
 function RootRoute() {
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
-  return <Navigate to={user ? "/app" : "/login"} replace />;
+  return <Navigate to={user ? APP_HOME : "/login"} replace />;
 }
 
 function AuthPage({ mode }) {
@@ -183,9 +184,9 @@ function AuthPage({ mode }) {
 }
 
 const shellNav = [
-  { to: "/app", icon: Home, label: "Обзор", end: true }, { to: "/app/wishes", icon: Heart, label: "Мои желания" },
-  { to: "/app/ideas", icon: Sparkles, label: "Идеи" }, { to: "/app/friends", icon: Users, label: "Друзья" },
-  { to: "/app/gifts", icon: Gift, label: "Хочу подарить" },
+  { to: "/app/wishes", icon: Heart, label: "Мои желания" },
+  { to: "/app/ideas", icon: Sparkles, label: "Идеи" },
+  { to: "/app/friends", icon: Users, label: "Друзья" },
 ];
 
 function AppShell({ children, onAddWish }) {
@@ -216,7 +217,7 @@ function AppShell({ children, onAddWish }) {
     };
   }, [mobileOpen]);
   const logout = async () => { await api.post("/auth/logout", {}); await refresh(); navigate("/"); toast("Вы вышли из аккаунта"); };
-  return <div className="app-layout app-layout--dark"><aside ref={sidebarRef} id="app-sidebar" aria-label="Меню приложения" className={`sidebar ${mobileOpen ? "is-open" : ""}`}><div className="sidebar__head"><Logo /><button className="sidebar-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X /></button></div><Button icon={Plus} onClick={onAddWish} className="sidebar__add">Добавить желание</Button><nav className="sidebar__nav">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}><Icon size={19} /><span>{label}</span></NavLink>)}</nav><div className="sidebar__bottom"><NavLink to="/app/notifications"><Bell size={19} /><span>Уведомления</span>{unreadCount > 0 && <i>{unreadCount}</i>}</NavLink><NavLink to="/app/settings"><Settings size={19} /><span>Настройки</span></NavLink><div className="sidebar__user"><Avatar user={user} size="sm" /><div><strong>{user.name}</strong><span>@{user.username}</span></div><button onClick={logout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></button></div></div></aside><button className="mobile-overlay" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)} /><main className="app-main"><header className="mobile-app-head"><button ref={mobileMenuButtonRef} onClick={() => setMobileOpen(true)} aria-label="Открыть меню" aria-expanded={mobileOpen} aria-controls="app-sidebar"><Menu /></button><Logo /><Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link></header>{children}</main><nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.slice(0, 5).map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end}><Icon /><span>{label === "Мои желания" ? "Желания" : label === "Хочу подарить" ? "Подарить" : label}</span></NavLink>)}</nav></div>;
+  return <div className="app-layout app-layout--dark"><aside ref={sidebarRef} id="app-sidebar" aria-label="Меню приложения" className={`sidebar ${mobileOpen ? "is-open" : ""}`}><div className="sidebar__head"><Logo /><button className="sidebar-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X /></button></div><Button icon={Plus} onClick={onAddWish} className="sidebar__add">Добавить желание</Button><nav className="sidebar__nav">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}><Icon size={19} /><span>{label}</span></NavLink>)}</nav><div className="sidebar__bottom"><NavLink to="/app/notifications"><Bell size={19} /><span>Уведомления</span>{unreadCount > 0 && <i>{unreadCount}</i>}</NavLink><NavLink to="/app/settings"><Settings size={19} /><span>Настройки</span></NavLink><div className="sidebar__user"><Avatar user={user} size="sm" /><div><strong>{user.name}</strong><span>@{user.username}</span></div><button onClick={logout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></button></div></div></aside><button className="mobile-overlay" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)} /><main className="app-main"><header className="mobile-app-head"><button ref={mobileMenuButtonRef} onClick={() => setMobileOpen(true)} aria-label="Открыть меню" aria-expanded={mobileOpen} aria-controls="app-sidebar"><Menu /></button><Logo /><Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link></header>{children}</main><nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></NavLink>)}</nav></div>;
 }
 
 function ProtectedApp() {
@@ -227,19 +228,10 @@ function ProtectedApp() {
   }, []);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Dashboard onAdd={() => setWishModal(true)} version={version} />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<FriendsPage />} /><Route path="gifts" element={<GiftsPage />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/app" replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function PageTitle({ eyebrow, title, text, action }) { return <div className="app-page-title"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{text && <p>{text}</p>}</div>{action}</div>; }
-
-function Dashboard({ onAdd, version }) {
-  const { user } = useSession(); const { data, loading, error, reload } = useAsync(() => api.get("/dashboard"), [version]); const toast = useToast();
-  if (loading) return <LoadingScreen compact />;
-  if (error) return <EmptyState title="Не удалось загрузить обзор" text={error.message} action={<Button onClick={() => reload().catch(() => {})}>Повторить</Button>} />;
-  const active = data.wishes.filter((wish) => wish.status === "active");
-  const copyProfile = async () => { await navigator.clipboard.writeText(`${window.location.origin}${publicProfilePath(user.username)}`); toast("Ссылка на вишлист скопирована"); };
-  return <div className="app-page dashboard"><PageTitle eyebrow={new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date())} title={`Привет, ${user.name.split(" ")[0]}!`} text="Что сегодня хочется добавить в жизнь?" action={<Button variant="outline" icon={Share2} onClick={copyProfile}>Поделиться</Button>} /><section className="dashboard-hero"><div><span>В вашем вишлисте</span><strong>{active.length}</strong><p>{active.length === 1 ? "активное желание" : "активных желаний"} в {data.lists.length} {data.lists.length === 1 ? "списке" : "списках"}</p><Button icon={Plus} onClick={onAdd}>Добавить мечту</Button></div><div className="dashboard-hero__collage">{active.slice(0, 3).map((wish, index) => <img key={wish.id} src={wish.imageUrl || `https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=500&q=80&sig=${index}`} alt="" />)}{active.length === 0 && <Gift size={80} />}</div></section><div className="dashboard-grid"><section className="panel panel--wide"><div className="panel__head"><div><h2>Последние желания</h2><span>Ваш список выглядит чудесно</span></div><Link to="/app/wishes">Все желания <ArrowRight size={16} /></Link></div>{active.length ? <div className="compact-wishes">{active.slice(0, 4).map((wish) => <Link to="/app/wishes" className="compact-wish" key={wish.id}><img src={wish.imageUrl || "/gift-placeholder.svg"} alt="" /><div><strong>{wish.title}</strong><span>{formatMoney(wish.price, wish.currency)}</span></div><Priority value={wish.priority} /></Link>)}</div> : <EmptyState title="Пока здесь тихо" text="Добавьте первую мечту — даже самую маленькую." action={<Button onClick={onAdd} icon={Plus}>Добавить</Button>} />}</section><section className="panel"><div className="panel__head"><div><h2>Скоро праздник</h2><span>Дни рождения друзей</span></div><CalendarDays size={19} /></div><div className="birthday-list">{data.birthdays.length ? data.birthdays.map((friend) => <Link to={publicProfilePath(friend.username)} key={friend.id}><Avatar user={friend} size="sm" /><div><strong>{friend.name}</strong><span>{formatDate(friend.birthday)}</span></div><ArrowRight size={16} /></Link>) : <p className="muted">Подпишитесь на друзей, чтобы видеть даты.</p>}</div><Link className="panel-link" to="/app/friends"><UserPlus size={16} /> Найти друзей</Link></section><section className="panel panel--wide dashboard-lists"><div className="panel__head"><div><h2>Ваши списки</h2><span>Разложите мечты по настроению</span></div><Link to="/app/wishes">Управлять <ArrowRight size={16} /></Link></div><div className="list-strip">{data.lists.map((list) => <article className={`mini-list mini-list--${list.color}`} key={list.id}><div><ListPlus size={18} /><span>{list.privacy === "private" ? <LockKeyhole size={13} /> : null}{list.wishCount} желаний</span></div><strong>{list.title}</strong><p>{list.description || "Ваш личный список"}</p></article>)}</div></section></div></div>;
-}
 
 function Priority({ value }) { return <span className="priority" title={`Важность: ${value} из 3`}>{[1, 2, 3].map((item) => <i key={item} className={item <= value ? "is-on" : ""} />)}</span>; }
 
@@ -612,8 +604,6 @@ function SaveIdeaModal({ idea, onClose }) { const toast = useToast(); const { da
 
 function FriendsPage() { const [search, setSearch] = useState(""); const { data, loading, reload } = useAsync(() => api.get(`/people?search=${encodeURIComponent(search)}`), [search]); const toast = useToast(); const follow = async (person) => { try { const result = await api.post(`/profile/${person.username}/follow`, {}); toast(result.following ? `Вы подписались на ${person.name}` : "Подписка отменена"); reload(); } catch (error) { toast(error.message, "error"); } }; return <div className="app-page friends-page"><PageTitle eyebrow="Люди рядом" title="Друзья и их мечты" text="Подпишитесь, чтобы не пропускать важные даты и новые желания." /><label className="app-search"><Search /><input placeholder="Имя или @профиль" value={search} onChange={(event) => setSearch(event.target.value)} /></label>{loading ? <LoadingScreen compact /> : <div className="people-grid">{data.people.map((person) => <article className="person-card" key={person.id}><Link to={publicProfilePath(person.username)}><Avatar user={person} size="lg" /><span className="person-card__count"><Heart size={14} fill="currentColor" /> {person.wishCount}</span><h3>{person.name}</h3><small>@{person.username}</small><p>{person.bio || "Пока без описания"}</p></Link><Button variant={person.isFollowing ? "soft" : "outline"} icon={person.isFollowing ? Check : UserPlus} onClick={() => follow(person)}>{person.isFollowing ? "Вы подписаны" : "Подписаться"}</Button></article>)}</div>}</div>; }
 
-function GiftsPage() { const { data, loading } = useAsync(() => api.get("/dashboard"), []); if (loading) return <LoadingScreen compact />; return <div className="app-page gifts-page"><PageTitle eyebrow="Секретный план" title="Хочу подарить" text="Здесь видны ваши брони. Владельцы желаний — ничего не узнают." />{data.reservations.length ? <div className="reservation-list">{data.reservations.map((item) => <article key={item.id}><img src={item.image_url || "/gift-placeholder.svg"} alt="" /><div><small>Подарок для <Link to={publicProfilePath(item.owner_username)}>{item.owner_name}</Link></small><h3>{item.title}</h3><span>{formatMoney(item.price, item.currency)}</span></div><Link className="button button--outline" to={publicProfilePath(item.owner_username)}><span>Открыть список</span><ArrowRight size={17} /></Link></article>)}</div> : <EmptyState icon={Gift} title="Вы пока ничего не забронировали" text="Загляните в вишлисты друзей и выберите подарок." action={<Link className="button button--primary" to="/app/friends"><span>Найти друзей</span></Link>} />}</div>; }
-
 function NotificationsPage() { const { refresh } = useSession(); const { data, loading } = useAsync(() => api.get("/notifications"), []); useEffect(() => { api.post("/notifications/read", {}).then(() => refresh()); }, [refresh]); if (loading) return <LoadingScreen compact />; const icons = { reservation: Gift, follow: UserPlus, welcome: Sparkles }; return <div className="app-page notifications-page"><PageTitle eyebrow="В курсе важного" title="Уведомления" text="Сюрпризы останутся скрыты, а важные события — нет." />{data.notifications.length ? <div className="notification-list">{data.notifications.map((item) => { const Icon = icons[item.type] || Bell; return <Link to={item.href || "#"} key={item.id} className={!item.readAt ? "is-unread" : ""}><span><Icon /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{formatDate(item.createdAt, { hour: "2-digit", minute: "2-digit" })}</small></div><ArrowRight /></Link>; })}</div> : <EmptyState icon={Bell} title="Пока тихо" text="Здесь появятся новые подписки и важные события." />}</div>; }
 
 function SettingsPage() { const { user, refresh } = useSession(); const toast = useToast(); const [form, setForm] = useState({ name: user.name, username: user.username, bio: user.bio || "", birthday: user.birthday ? String(user.birthday).slice(0, 10) : "", avatarUrl: user.avatarUrl || "" }); const [loading, setLoading] = useState(false); const submit = async (event) => { event.preventDefault(); setLoading(true); try { await api.patch("/me", { ...form, birthday: form.birthday || null }); await refresh(); toast("Профиль обновлён"); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } }; return <div className="app-page settings-page"><PageTitle eyebrow="Личное пространство" title="Настройки профиля" text="Эту информацию увидят друзья рядом с вашим вишлистом." /><form className="settings-form panel" onSubmit={submit}><div className="avatar-editor"><Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="xl" /><div><strong>Фото профиля</strong><span>Укажите публичную ссылку на изображение</span></div></div><label><span>Ссылка на фото</span><input type="url" value={form.avatarUrl} placeholder="https://…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label><div className="form-row"><label><span>Имя</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>Адрес профиля</span><div className="input-prefix"><span>{window.location.host}/</span><input required pattern="[a-z0-9-]{3,32}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></div></label></div><label><span>О себе</span><textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label><label className="short-field"><span>День рождения</span><input type="date" value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label><div className="settings-save"><Button type="submit" loading={loading}>Сохранить изменения</Button></div></form></div>; }
@@ -692,7 +682,7 @@ function PublicProfile({ shared = false }) {
   }, []);
 
   if (loading) return <div className="public-profile public-profile--dark public-profile--state"><LoadingScreen /></div>;
-  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/app"><span>В приложение</span></Link></div></div>;
+  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div></div>;
 
   const lists = shared ? [data.list] : data.lists;
   const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
@@ -717,7 +707,7 @@ function PublicProfile({ shared = false }) {
     return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>{params.wishId ? "Желание не найдено" : "Список не найден"}</h1><p>Ссылка устарела или доступ к этой странице ограничен.</p><Link className="button button--primary" to={shared ? `/s/${params.token}` : publicProfilePath(data.profile.username)}><span>Вернуться к профилю</span></Link></div></div>;
   }
   const sectionTitle = shared ? data.list.title : selected === "secret" ? "Секретные желания" : selected === "fulfilled" ? "Исполнено" : selectedList?.title || (data.isOwner ? "Мои желания" : "Все желания");
-  const appTarget = user ? "/app" : "/register";
+  const appTarget = user ? APP_HOME : "/register";
   const friendsTarget = user ? "/app/friends" : "/login";
   const wishCountForList = (listId) => activeWishes.filter((wish) => wish.listIds.includes(listId)).length;
   const profileBasePath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
@@ -805,14 +795,14 @@ function PublicProfile({ shared = false }) {
         </nav>
         <div className="profile-header__actions">
           {user ? <button className="profile-desktop-menu" type="button" aria-label={desktopMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((value) => !value)}>{desktopMenuOpen ? <X /> : <Menu />}</button> : <Link className="button button--primary" to={`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`}><span>Вход</span></Link>}
-          {user && <nav className={`profile-desktop-panel ${desktopMenuOpen ? "is-open" : ""}`} aria-label="Меню аккаунта" aria-hidden={!desktopMenuOpen}><Link to="/app" onClick={() => setDesktopMenuOpen(false)}><Heart /> Мои желания</Link><Link to="/app/settings" onClick={() => setDesktopMenuOpen(false)}><Settings /> Настройки</Link></nav>}
+          {user && <nav className={`profile-desktop-panel ${desktopMenuOpen ? "is-open" : ""}`} aria-label="Меню аккаунта" aria-hidden={!desktopMenuOpen}><Link to={APP_HOME} onClick={() => setDesktopMenuOpen(false)}><Heart /> Мои желания</Link><Link to="/app/settings" onClick={() => setDesktopMenuOpen(false)}><Settings /> Настройки</Link></nav>}
         </div>
         {!data.isOwner && !shared && <button className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</button>}
         <button className="profile-mobile-menu" type="button" aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={mobileMenuOpen} aria-controls="profile-mobile-navigation" onClick={() => setMobileMenuOpen((value) => !value)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
         <button className={`profile-mobile-overlay ${mobileMenuOpen ? "is-open" : ""}`} type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)} />
         <nav id="profile-mobile-navigation" className={`profile-mobile-panel ${mobileMenuOpen ? "is-open" : ""}`} aria-label="Меню профиля">
           <div className="profile-mobile-panel__head"><Logo /><button type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)}><X /></button></div>
-          <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><Link className="button button--primary" to={user ? "/app" : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} onClick={() => setMobileMenuOpen(false)}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></Link></div><img src="/art/gift-3d.png" alt="" /></div>
+          <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><Link className="button button--primary" to={user ? APP_HOME : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} onClick={() => setMobileMenuOpen(false)}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></Link></div><img src="/art/gift-3d.png" alt="" /></div>
           <div className="profile-mobile-panel__about"><p>Rollapp — это бесплатный онлайн-сервис вишлистов. Создайте персональный список желаний, добавьте ссылки на товары из любых магазинов с ценами и поделитесь списком с друзьями или семьёй.</p><p>Друзья бронируют подарки через быстрое бронирование без долгой регистрации — система исключает повторы. Встроенный каталог содержит идеи для дня рождения, Нового года, свадьбы и других праздников: от электроники до впечатлений.</p><p>Вишлист работает в браузере и в приложениях для iOS и Android. Регистрация занимает секунды через электронную почту, а функция многократного бронирования идеально подходит для подарочных сертификатов.</p></div>
           <div className="profile-mobile-panel__ecosystem"><button type="button" onClick={() => toast("Поддержка Rollapp скоро откроется")}><MessageCircle fill="currentColor" /> Поддержка</button><button type="button" onClick={() => toast("Rollapp в Дзене скоро откроется")}><Globe /> Аккаунт в «Дзене»</button><button type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button><button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button><strong><Zap fill="currentColor" /> Для бизнеса</strong></div>
           <div className="profile-mobile-panel__stores"><button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /><span>App Store</span></button><button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><i className="store-mark store-mark--google" aria-hidden="true" /><span>Google Play</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><i className="store-mark store-mark--rustore" aria-hidden="true" /><span>RuStore</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><i className="store-mark store-mark--appgallery" aria-hidden="true" /><span>AppGallery</span></button></div>
@@ -827,7 +817,6 @@ function PublicProfile({ shared = false }) {
             <button className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></button>
             {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></button>)}
             <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><EyeOff /><span>Секретные желания</span></button>
-            <Link to={user ? "/app/gifts" : "/login"}><Sparkles /><span>Хочу подарить</span></Link>
             <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><Check /><span>Исполнено</span></button>
           </nav>
           <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
@@ -912,7 +901,7 @@ function PublicProfile({ shared = false }) {
   );
 }
 
-function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to="/app"><span>В приложение</span></Link></div>; }
+function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div>; }
 
 function LegacyProfileRedirect() {
   const params = useParams();
