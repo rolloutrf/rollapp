@@ -53,6 +53,106 @@ async function expectNoRootOverflow(page, label) {
   );
 }
 
+async function expectDarkPage(page, label, surfaceSelectors) {
+  await waitForStableLayout(page);
+  const theme = await page.evaluate((selectors) => {
+    const parseColor = (value) => {
+      const match = value.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\)/);
+      return match
+        ? { red: Number(match[1]), green: Number(match[2]), blue: Number(match[3]), alpha: match[4] === undefined ? 1 : Number(match[4]) }
+        : null;
+    };
+    const blend = (foreground, background) => {
+      const alpha = foreground.alpha + (background.alpha * (1 - foreground.alpha));
+      if (!alpha) return { red: 0, green: 0, blue: 0, alpha: 0 };
+      return {
+        red: ((foreground.red * foreground.alpha) + (background.red * background.alpha * (1 - foreground.alpha))) / alpha,
+        green: ((foreground.green * foreground.alpha) + (background.green * background.alpha * (1 - foreground.alpha))) / alpha,
+        blue: ((foreground.blue * foreground.alpha) + (background.blue * background.alpha * (1 - foreground.alpha))) / alpha,
+        alpha,
+      };
+    };
+    const luminance = ({ red, green, blue }) => (red * .2126) + (green * .7152) + (blue * .0722);
+    const effectiveBackground = (element) => {
+      const chain = [];
+      for (let node = element; node; node = node.parentElement) chain.unshift(node);
+      return chain.reduce((background, node) => {
+        const color = parseColor(getComputedStyle(node).backgroundColor);
+        return color ? blend(color, background) : background;
+      }, { red: 255, green: 255, blue: 255, alpha: 1 });
+    };
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return rect.width > 1 && rect.height > 1 && style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > .01;
+    };
+    const surfaces = selectors.map((selector) => {
+      const element = [...document.querySelectorAll(selector)].find(isVisible);
+      if (!element) return { selector, missing: true };
+      const style = getComputedStyle(element);
+      return {
+        selector,
+        background: luminance(effectiveBackground(element)),
+        foreground: parseColor(style.color) ? luminance(parseColor(style.color)) : null,
+        colorScheme: style.colorScheme,
+      };
+    });
+    const controls = [...document.querySelectorAll("input, textarea, select")]
+      .filter(isVisible)
+      .map((element) => ({
+        selector: element.getAttribute("name") || element.getAttribute("type") || element.tagName.toLowerCase(),
+        background: luminance(effectiveBackground(element)),
+        colorScheme: getComputedStyle(element).colorScheme,
+      }));
+    const htmlStyle = getComputedStyle(document.documentElement);
+    const bodyStyle = getComputedStyle(document.body);
+    return {
+      prefersLight: matchMedia("(prefers-color-scheme: light)").matches,
+      htmlColorScheme: htmlStyle.colorScheme,
+      bodyColorScheme: bodyStyle.colorScheme,
+      bodyBackground: luminance(effectiveBackground(document.body)),
+      surfaces,
+      controls,
+    };
+  }, surfaceSelectors);
+
+  assert(theme.prefersLight, `${label} dark-default regression must run while the browser requests a light system theme`);
+  assert(theme.htmlColorScheme === "dark", `${label} does not set the root color-scheme to dark (${theme.htmlColorScheme})`);
+  assert(theme.bodyColorScheme === "dark", `${label} does not set the body color-scheme to dark (${theme.bodyColorScheme})`);
+  assert(theme.bodyBackground <= 80, `${label} uses a light body surface (luminance ${theme.bodyBackground})`);
+  const missingSurfaces = theme.surfaces.filter((surface) => surface.missing);
+  assert(missingSurfaces.length === 0, `${label} is missing principal surfaces: ${missingSurfaces.map((surface) => surface.selector).join(", ")}`);
+  const lightSurfaces = theme.surfaces.filter((surface) => surface.background > 100);
+  assert(
+    lightSurfaces.length === 0,
+    `${label} contains light principal surfaces: ${lightSurfaces.map((surface) => `${surface.selector} (${surface.background})`).join(", ")}`,
+  );
+  const nonDarkSurfaces = theme.surfaces.filter((surface) => surface.colorScheme !== "dark");
+  assert(
+    nonDarkSurfaces.length === 0,
+    `${label} contains surfaces without a dark color-scheme: ${nonDarkSurfaces.map((surface) => `${surface.selector} (${surface.colorScheme})`).join(", ")}`,
+  );
+  const lightControls = theme.controls.filter((control) => control.background > 110 || control.colorScheme !== "dark");
+  assert(
+    lightControls.length === 0,
+    `${label} contains light native controls: ${lightControls.map((control) => `${control.selector} (${control.background}, ${control.colorScheme})`).join(", ")}`,
+  );
+}
+
+async function expectUnauthenticatedDarkRoutes(page, label) {
+  const routes = [
+    { pathname: "/login", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
+    { pathname: "/register", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
+    { pathname: "/ideas", ready: ".public-ideas .ideas-hero", surfaces: [".public-ideas", ".public-ideas > main"] },
+    { pathname: "/this-page/does-not/exist", ready: ".not-found", surfaces: [".not-found"] },
+  ];
+  for (const route of routes) {
+    await page.goto(`${baseUrl}${route.pathname}`, { waitUntil: "domcontentloaded" });
+    await page.locator(route.ready).waitFor({ state: "visible" });
+    await expectDarkPage(page, `${label} ${route.pathname}`, route.surfaces);
+  }
+}
+
 async function expectDesktopUserAgent(page, label) {
   const userAgent = await page.evaluate(() => navigator.userAgent);
   assert(!/(Android|iPhone|iPad|Mobile)/i.test(userAgent), `${label} unexpectedly uses a mobile User-Agent: ${userAgent}`);
@@ -131,9 +231,17 @@ async function expectDarkAuthenticatedModal(dialog, label) {
     return {
       background: modalBackground && luminance(modalBackground),
       foreground: modalForeground && luminance(modalForeground),
+      prefersLight: matchMedia("(prefers-color-scheme: light)").matches,
+      htmlColorScheme: getComputedStyle(document.documentElement).colorScheme,
+      bodyColorScheme: getComputedStyle(document.body).colorScheme,
+      modalColorScheme: modalStyle.colorScheme,
       lightSurfaces: surfaces.filter((surface) => surface.luminance === null || surface.luminance > 115),
     };
   });
+  assert(theme.prefersLight, `${label} dark-modal regression must run while the browser requests a light system theme`);
+  assert(theme.htmlColorScheme === "dark", `${label} does not keep the root color-scheme dark`);
+  assert(theme.bodyColorScheme === "dark", `${label} does not keep the body color-scheme dark`);
+  assert(theme.modalColorScheme === "dark", `${label} does not set the modal color-scheme to dark`);
   assert(theme.background !== null && theme.background <= 80, `${label} uses a light modal surface (luminance ${theme.background})`);
   assert(theme.foreground !== null && theme.foreground >= 170, `${label} does not use light foreground text on its dark surface`);
   assert(
@@ -234,14 +342,16 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
 }
 
 try {
-  const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
   await guestRoot.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await guestRoot.waitForURL((url) => url.pathname === "/login");
   await guestRoot.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   assert(!(await guestRoot.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible on the login page");
+  await expectDarkPage(guestRoot, "Desktop login page", [".auth-page", ".auth-art", ".auth-panel"]);
   await expectNoRootOverflow(guestRoot, "Desktop login page");
   await guestRoot.screenshot({ path: "/tmp/rollapp-desktop-login.png", fullPage: true });
+  await expectUnauthenticatedDarkRoutes(guestRoot, "Desktop unauthenticated");
 
   const loginResponse = await desktop.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(loginResponse.ok(), `Demo login failed: ${loginResponse.status()}`);
@@ -255,6 +365,7 @@ try {
   assert(await dashboard.locator(".sidebar").isVisible(), "Desktop app sidebar is not visible");
   assert(await dashboard.locator(".sidebar__nav a").count() === 3, "Desktop app navigation should contain the three primary sections");
   assert(await dashboard.locator(".mobile-bottom-nav a").count() === 3, "Mobile app navigation should contain the three primary sections");
+  await expectDarkPage(dashboard, "Desktop /app/wishes", [".app-layout--dark", ".app-main", ".app-page"]);
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
 
@@ -275,18 +386,24 @@ try {
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
   await dashboard.waitForURL((url) => url.pathname === "/app/wishes");
   await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
+  for (const pathname of ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"]) {
+    await waitForAppRoute(dashboard, pathname);
+    await expectDarkPage(dashboard, `Desktop ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
+  }
   await desktop.close();
 
   // Deliberately keep Chromium's ordinary desktop User-Agent. Responsive behavior
   // must be driven by viewport/CSS, not a server-side mobile User-Agent branch.
-  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: "light" });
   const mobilePage = await mobile.newPage();
   await mobilePage.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await mobilePage.waitForURL((url) => url.pathname === "/login");
   await mobilePage.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   await expectDesktopUserAgent(mobilePage, "390px viewport");
+  await expectDarkPage(mobilePage, "390px login page", [".auth-page", ".auth-panel"]);
   await expectNoRootOverflow(mobilePage, "390px login page");
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-login.png", fullPage: true });
+  await expectUnauthenticatedDarkRoutes(mobilePage, "390px unauthenticated");
 
   const mobileLoginResponse = await mobile.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(mobileLoginResponse.ok(), `Mobile demo login failed: ${mobileLoginResponse.status()}`);
@@ -298,10 +415,11 @@ try {
   await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
   await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
 
-  const appRoutes = ["/app/wishes", "/app/ideas", "/app/friends", "/app/settings"];
+  const appRoutes = ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"];
   for (const pathname of appRoutes) {
     await waitForAppRoute(mobilePage, pathname);
     await expectMobileAppShell(mobilePage, pathname);
+    await expectDarkPage(mobilePage, `390px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
     await expectNoRootOverflow(mobilePage, `390px ${pathname}`);
     if (pathname === "/app/wishes") {
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
@@ -317,6 +435,7 @@ try {
   await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
   const publicIdeaCard = mobilePage.locator(".public-ideas .idea-card").first();
   await publicIdeaCard.waitFor({ state: "visible" });
+  await expectDarkPage(mobilePage, "390px public ideas", [".public-ideas", ".public-ideas > main"]);
   await publicIdeaCard.locator(".idea-card__image > button").click();
   const publicIdeaDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
   await expectDarkAuthenticatedModal(publicIdeaDialog, "390px public ideas save modal");
@@ -330,6 +449,7 @@ try {
   await mobilePage.getByRole("button", { name: "Открыть меню" }).click();
   const drawer = mobilePage.locator("#app-sidebar.is-open");
   await drawer.waitFor({ state: "visible" });
+  await expectDarkPage(mobilePage, "390px application drawer", [".app-layout--dark", ".app-main", "#app-sidebar.is-open"]);
   await waitForStableLayout(mobilePage);
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-app-drawer.png" });
   await drawer.getByRole("button", { name: "Закрыть меню" }).click();
@@ -369,6 +489,7 @@ try {
   try {
     await mobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
     await mobilePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    await expectDarkPage(mobilePage, "390px public owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
     await mobilePage.locator(".public-list-tabs button").filter({ hasText: mobileSourceList.title }).click();
     await mobilePage.waitForURL((url) => url.pathname === `/alisa/lists/${mobileSourceList.id}`);
     const mobileListOptions = mobilePage.getByRole("button", { name: "Опции списка" });
@@ -419,6 +540,7 @@ try {
   }
   await mobilePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
   await mobilePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+  await expectDarkPage(mobilePage, "390px shared owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
   assert((await mobilePage.getByRole("button", { name: "Подписаться" }).count()) === 0, "Owner shared list exposes a self-follow action");
   assert(await mobilePage.getByRole("button", { name: "Открыть мой список" }).isVisible(), "Owner shared list does not expose its canonical list action");
   const sharedOwnerCard = mobilePage.locator(".wish-card").first();
@@ -432,7 +554,7 @@ try {
   await sharedOwnerDialog.waitFor({ state: "detached" });
   await mobile.close();
 
-  const narrow = await browser.newContext({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
+  const narrow = await browser.newContext({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1, colorScheme: "light" });
   const narrowPage = await narrow.newPage();
   await narrowPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await narrowPage.waitForURL((url) => url.pathname === "/login");
@@ -455,7 +577,7 @@ try {
   await expectNoRootOverflow(narrowPage, "360px public profile");
   await narrow.close();
 
-  const compactPublic = await browser.newContext({ viewport: { width: 320, height: 700 }, deviceScaleFactor: 1 });
+  const compactPublic = await browser.newContext({ viewport: { width: 320, height: 700 }, deviceScaleFactor: 1, colorScheme: "light" });
   const compactPublicPage = await compactPublic.newPage();
   await compactPublicPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(compactPublicPage, 2, "320px public profile");
@@ -463,21 +585,32 @@ try {
   await expectNoRootOverflow(compactPublicPage, "320px public profile");
   await compactPublicPage.screenshot({ path: "/tmp/rollapp-public-profile-320.png", fullPage: true });
   const compactPublicDetail = await expectWishDetailsOpen(compactPublicPage, "320px public wish", { fullscreen: true });
+  await expectDarkAuthenticatedModal(compactPublicDetail.dialog, "320px public wish detail");
   await expectNoRootOverflow(compactPublicPage, "320px public wish detail");
   await compactPublicDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await compactPublic.close();
 
-  const tabletApp = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1 });
+  const tabletApp = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1, colorScheme: "light" });
   const tabletAppPage = await tabletApp.newPage();
+  await expectUnauthenticatedDarkRoutes(tabletAppPage, "768px unauthenticated");
+  await tabletAppPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
+  await tabletAppPage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
+  await expectDarkPage(tabletAppPage, "768px public guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
+  await tabletAppPage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
+  await tabletAppPage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
+  await expectDarkPage(tabletAppPage, "768px shared guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   const tabletLoginResponse = await tabletApp.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(tabletLoginResponse.ok(), `768px demo login failed: ${tabletLoginResponse.status()}`);
-  for (const pathname of ["/app/wishes"]) {
+  for (const pathname of ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"]) {
     await waitForAppRoute(tabletAppPage, pathname);
     await expectMobileAppShell(tabletAppPage, `768px ${pathname}`);
+    await expectDarkPage(tabletAppPage, `768px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
   }
+  await waitForAppRoute(tabletAppPage, "/app/wishes");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-wishes-768.png", fullPage: true });
   const tabletOwnerDetail = await expectWishDetailsOpen(tabletAppPage, "768px owner wish", { fullscreen: true });
+  await expectDarkAuthenticatedModal(tabletOwnerDetail.dialog, "768px owner wish detail");
   await expectNoRootOverflow(tabletAppPage, "768px owner wish detail");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-owner-wish-detail-768.png" });
   await tabletOwnerDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -486,7 +619,7 @@ try {
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-app-768.png", fullPage: true });
   await tabletApp.close();
 
-  const publicMobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const publicMobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: "light" });
   const publicMobilePage = await publicMobile.newPage();
   const legacyProfileResponse = await publicMobilePage.request.get(`${baseUrl}/u/alisa?view=fulfilled`, { maxRedirects: 0 });
   assert(legacyProfileResponse.status() === 301, `Legacy profile route should permanently redirect, received ${legacyProfileResponse.status()}`);
@@ -501,9 +634,11 @@ try {
   await expectDesktopUserAgent(publicMobilePage, "390px public profile");
   await expectPublicGrid(publicMobilePage, 2, "390px public profile");
   await expectPublicMobileShell(publicMobilePage, "390px public profile");
+  await expectDarkPage(publicMobilePage, "390px public guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   await expectNoRootOverflow(publicMobilePage, "390px public profile");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390.png", fullPage: true });
   const publicDetail = await expectWishDetailsOpen(publicMobilePage, "390px public wish", { fullscreen: true });
+  await expectDarkAuthenticatedModal(publicDetail.dialog, "390px public guest wish detail");
   const publicWishPath = new URL(publicMobilePage.url()).pathname;
   assert(/^\/alisa\/wishes\/[^/]+$/.test(publicWishPath), `Opening a public wish did not create a clean deep link: ${publicWishPath}`);
   const legacyWishResponse = await publicMobilePage.request.get(`${baseUrl}/u${publicWishPath}`, { maxRedirects: 0 });
@@ -513,6 +648,7 @@ try {
   await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
   const reloadedPublicDetail = publicMobilePage.getByRole("dialog", { name: `Желание: ${publicDetail.title}` });
   await reloadedPublicDetail.waitFor({ state: "visible" });
+  await expectDarkAuthenticatedModal(reloadedPublicDetail, "390px reloaded public guest wish detail");
   assert(await reloadedPublicDetail.locator(".wish-detail__price").isVisible(), "A public wish deep link did not survive reload");
   await reloadedPublicDetail.getByRole("button", { name: "Закрыть диалог" }).click();
   await reloadedPublicDetail.waitFor({ state: "detached" });
@@ -540,6 +676,7 @@ try {
   await listWishOpener.press("Enter");
   const listWishDialog = publicMobilePage.getByRole("dialog", { name: `Желание: ${listWishTitle}` });
   await listWishDialog.waitFor({ state: "visible" });
+  await expectDarkAuthenticatedModal(listWishDialog, "390px public list wish detail");
   assert(/^\/alisa\/wishes\/[^/]+$/.test(new URL(publicMobilePage.url()).pathname), "Opening a wish from a list did not create a clean wish URL");
   await publicMobilePage.keyboard.press("Shift+Tab");
   assert(await listWishDialog.evaluate((dialog) => dialog.contains(document.activeElement)), "Reverse tab escaped the wish dialog");
@@ -569,6 +706,7 @@ try {
     const rect = document.querySelector("#profile-mobile-navigation.is-open")?.getBoundingClientRect();
     return rect && Math.abs(window.innerHeight - rect.bottom) <= 1;
   });
+  await expectDarkPage(publicMobilePage, "390px public profile menu", [".public-profile--dark", "#profile-mobile-navigation.is-open"]);
   await waitForStableLayout(publicMobilePage);
   const publicMenuGeometry = await publicMenu.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -582,9 +720,12 @@ try {
   await publicMobilePage.waitForFunction(() => document.querySelector(".profile-header")?.classList.contains("is-compact"));
   assert(await publicMobilePage.locator(".profile-header__compact").isVisible(), "390px public profile compact header is not visible after scrolling");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390-scrolled.png" });
+  await publicMobilePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
+  await publicMobilePage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
+  await expectDarkPage(publicMobilePage, "390px shared guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   await publicMobile.close();
 
-  const publicTablet = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1 });
+  const publicTablet = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1, colorScheme: "light" });
   const publicTabletLoginResponse = await publicTablet.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(publicTabletLoginResponse.ok(), `768px public owner login failed: ${publicTabletLoginResponse.status()}`);
   const publicTabletPage = await publicTablet.newPage();
@@ -593,6 +734,7 @@ try {
   await expectDesktopUserAgent(publicTabletPage, "768px public profile");
   await expectPublicGrid(publicTabletPage, 4, "768px public profile");
   await expectPublicMobileShell(publicTabletPage, "768px public profile");
+  await expectDarkPage(publicTabletPage, "768px public owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
   const tabletOwnerSections = await publicTabletPage.evaluate(() => {
     const hero = document.querySelector(".profile-cover")?.getBoundingClientRect();
     const controls = document.querySelector(".profile-cover__controls")?.getBoundingClientRect();
@@ -611,34 +753,39 @@ try {
   await publicTabletDetail.dialog.waitFor({ state: "detached" });
   await publicTablet.close();
 
-  const publicLandscape = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1 });
+  const publicLandscape = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1, colorScheme: "light" });
   const publicLandscapePage = await publicLandscape.newPage();
   await publicLandscapePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicLandscapePage, 2, "1024px public profile");
   await expectNoRootOverflow(publicLandscapePage, "1024px public profile");
   const publicLandscapeDetail = await expectWishDetailsOpen(publicLandscapePage, "1024px public wish");
+  await expectDarkAuthenticatedModal(publicLandscapeDetail.dialog, "1024px public wish detail");
   await expectNoRootOverflow(publicLandscapePage, "1024px public wish detail");
   await publicLandscapePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-1024.png" });
   await publicLandscapeDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await publicLandscape.close();
 
-  const publicMedium = await browser.newContext({ viewport: { width: 1076, height: 800 }, deviceScaleFactor: 1 });
+  const publicMedium = await browser.newContext({ viewport: { width: 1076, height: 800 }, deviceScaleFactor: 1, colorScheme: "light" });
   const publicMediumPage = await publicMedium.newPage();
   await publicMediumPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicMediumPage, 3, "1076px public profile");
   await expectNoRootOverflow(publicMediumPage, "1076px public profile");
   await publicMedium.close();
 
-  const publicWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1 });
+  const publicWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1, colorScheme: "light" });
   const publicWidePage = await publicWide.newPage();
   await publicWidePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(publicWidePage, 6, "1912px public profile", { requireCards: false });
   await expectReferenceDesktopProfile(publicWidePage, "1912px public profile", { guest: true });
+  await expectDarkPage(publicWidePage, "Desktop public guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   await expectNoRootOverflow(publicWidePage, "1912px public profile");
   await publicWidePage.screenshot({ path: "/tmp/rollapp-public-profile-1912.png", fullPage: false });
+  await publicWidePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
+  await publicWidePage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
+  await expectDarkPage(publicWidePage, "Desktop shared guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   await publicWide.close();
 
-  const ownerWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1 });
+  const ownerWide = await browser.newContext({ viewport: { width: 1912, height: 991 }, deviceScaleFactor: 1, colorScheme: "light" });
   const ownerLoginResponse = await ownerWide.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(ownerLoginResponse.ok(), `1912px owner demo login failed: ${ownerLoginResponse.status()}`);
   const ownerWidePage = await ownerWide.newPage();
@@ -646,10 +793,16 @@ try {
   await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await expectPublicGrid(ownerWidePage, 6, "1912px owner profile", { requireCards: false });
   await expectReferenceDesktopProfile(ownerWidePage, "1912px owner profile");
+  await expectDarkPage(ownerWidePage, "Desktop public owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
   assert(await ownerWidePage.getByRole("button", { name: "Загадать желание" }).isVisible(), "Owner profile does not expose the reference add-wish CTA");
   assert((await ownerWidePage.getByRole("button", { name: "Подписаться" }).count()) === 0, "Owner profile should not expose a follow action");
   await waitForStableLayout(ownerWidePage);
   await ownerWidePage.screenshot({ path: "/tmp/rollapp-owner-profile-1912.png", fullPage: false });
+  await ownerWidePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
+  await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+  await expectDarkPage(ownerWidePage, "Desktop shared owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
+  await ownerWidePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
+  await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
   await ownerWidePage.locator(".profile-desktop-menu").click();
   await ownerWidePage.locator(".profile-desktop-panel.is-open").waitFor({ state: "visible" });
   assert(!(await ownerWidePage.locator("body").evaluate((element) => element.classList.contains("profile-menu-open"))), "Desktop account menu should not lock page scrolling");
