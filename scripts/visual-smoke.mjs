@@ -1339,35 +1339,84 @@ try {
     const mobileOwnerDetail = mobilePage.getByRole("dialog", { name: `Желание: ${mobileWishToMove.title}` });
     await mobileOwnerDetail.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileOwnerDetail, "390px profile owner wish detail");
-    await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ }).click();
-    const mobileEditDialog = mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileWishToMove.title}»`, exact: true });
-    await mobileEditDialog.waitFor({ state: "visible" });
-    await expectDarkAuthenticatedModal(mobileEditDialog, "390px wish editor");
-    await expectWishEditorLayout(mobileEditDialog, "390px wish editor", { mobile: true });
-    await mobilePage.setViewportSize({ width: 844, height: 390 });
-    await expectWishEditorLandscape(mobileEditDialog, "844×390 landscape wish editor");
-    await mobilePage.setViewportSize({ width: 390, height: 844 });
-    await expectWishEditorLayout(mobileEditDialog, "390px restored wish editor", { mobile: true });
-    const mobileSourceChoice = mobileEditDialog.locator(".wish-editor__list-row").filter({ hasText: mobileSourceList.title });
-    const mobileTargetChoice = mobileEditDialog.locator(".wish-editor__list-row").filter({ hasText: mobileTargetList.title });
-    await mobileSourceChoice.click();
-    await mobileTargetChoice.click();
-    const mobileSaveButton = mobileEditDialog.getByRole("button", { name: "Обновить", exact: true });
-    await mobileSaveButton.scrollIntoViewIfNeeded();
-    const hitTargetIsSave = await mobileSaveButton.evaluate((button) => {
-      const rect = button.getBoundingClientRect();
-      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return hit === button || button.contains(hit);
+    const mobileListTrigger = mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ });
+    await mobileListTrigger.click();
+    const mobileListPicker = mobileOwnerDetail.getByRole("menu", { name: `Списки желания «${mobileWishToMove.title}»`, exact: true });
+    await mobileListPicker.waitFor({ state: "visible" });
+    assert((await mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileWishToMove.title}»`, exact: true }).count()) === 0, "Quick list switch unexpectedly opened the full wish editor");
+    assert(await mobileListTrigger.getAttribute("aria-expanded") === "true", "Quick list trigger did not expose its expanded state");
+    assert(await mobileListPicker.getByRole("menuitem", { name: "Новый список", exact: true }).isVisible(), "Quick list picker does not expose new-list creation");
+    assert((await mobileListPicker.getByRole("menuitemcheckbox").count()) === mobileCategoryLists.length, "Quick list picker does not expose every themed list");
+    assert((await mobileListPicker.getByRole("menuitemcheckbox", { name: "Мои желания", exact: true }).count()) === 0, "Quick list picker exposed the aggregate system list");
+    const mobileSourceChoice = mobileListPicker.getByRole("menuitemcheckbox", { name: mobileSourceList.title, exact: true });
+    const mobileTargetChoice = mobileListPicker.getByRole("menuitemcheckbox", { name: mobileTargetList.title, exact: true });
+    assert(await mobileSourceChoice.getAttribute("aria-checked") === "true", "Current wish list is not checked in the quick picker");
+    assert(await mobileTargetChoice.getAttribute("aria-checked") === "false", "Unselected wish list is incorrectly checked in the quick picker");
+    await expectMobileTouchTargets(mobileListPicker.locator(".card-menu__list-scroll"), "390px wish quick-list picker", { minHeight: 44 });
+    const mobilePickerGeometry = await mobileListPicker.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
     });
-    assert(hitTargetIsSave, "Mobile wish save action is covered by another interface layer");
-    const mobileUpdateResponsePromise = mobilePage.waitForResponse((response) => (
+    assert(mobilePickerGeometry.width <= 280.5, `Quick list picker is wider than the reference (${mobilePickerGeometry.width}px)`);
+    assert(mobilePickerGeometry.left >= 9 && mobilePickerGeometry.right <= mobilePickerGeometry.viewportWidth - 9, "Quick list picker escapes the mobile viewport horizontally");
+    assert(mobilePickerGeometry.top >= 0 && mobilePickerGeometry.bottom <= mobilePickerGeometry.viewportHeight, "Quick list picker escapes the mobile viewport vertically");
+    await mobilePage.setViewportSize({ width: 844, height: 390 });
+    const landscapePickerGeometry = await mobileListPicker.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
+    });
+    assert(landscapePickerGeometry.left >= 5 && landscapePickerGeometry.right <= landscapePickerGeometry.viewportWidth - 5, "Quick list picker escapes the landscape viewport horizontally");
+    assert(landscapePickerGeometry.top >= 5 && landscapePickerGeometry.bottom <= landscapePickerGeometry.viewportHeight - 5, "Quick list picker escapes the landscape viewport vertically");
+    await mobilePage.setViewportSize({ width: 390, height: 844 });
+    const mobileRemoveResponsePromise = mobilePage.waitForResponse((response) => (
       response.request().method() === "PATCH"
       && new URL(response.url()).pathname === `/api/wishes/${mobileWishToMove.id}`
     ));
-    await mobileSaveButton.click();
-    const mobileUpdateResponse = await mobileUpdateResponsePromise;
-    assert(mobileUpdateResponse.ok(), `Mobile wish category update failed: ${mobileUpdateResponse.status()}`);
-    await mobileEditDialog.waitFor({ state: "detached" });
+    await mobileSourceChoice.click();
+    const mobileRemoveResponse = await mobileRemoveResponsePromise;
+    assert(mobileRemoveResponse.ok(), `Mobile wish list removal failed: ${mobileRemoveResponse.status()}`);
+    const mobileRemovePayload = await mobileRemoveResponse.json();
+    assert(mobileRemovePayload.wish && sameMembers(mobileRemovePayload.wish.listIds, []), "Quick list removal returned the wrong membership");
+    await mobilePage.waitForFunction((id) => document.querySelector(`#wish-detail-lists-${CSS.escape(id)} [role="menuitemcheckbox"][aria-checked="true"]`) === null, mobileWishToMove.id);
+    assert(await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\. Сейчас: Без списка$/ }).isVisible(), "Quick list trigger did not update to the empty-list state");
+    assert(await mobileListPicker.isVisible(), "Quick list picker closed after an immediate removal");
+
+    const mobileAddResponsePromise = mobilePage.waitForResponse((response) => (
+      response.request().method() === "PATCH"
+      && new URL(response.url()).pathname === `/api/wishes/${mobileWishToMove.id}`
+    ));
+    await mobileTargetChoice.click();
+    const mobileAddResponse = await mobileAddResponsePromise;
+    assert(mobileAddResponse.ok(), `Mobile wish list addition failed: ${mobileAddResponse.status()}`);
+    const mobileAddPayload = await mobileAddResponse.json();
+    assert(mobileAddPayload.wish && sameMembers(mobileAddPayload.wish.listIds, [mobileTargetList.id]), "Quick list addition returned the wrong membership");
+    await mobilePage.waitForFunction(
+      ({ wishId, listTitle }) => document.querySelector(`#wish-detail-lists-${CSS.escape(wishId)} [role="menuitemcheckbox"][aria-checked="true"]`)?.textContent.includes(listTitle),
+      { wishId: mobileWishToMove.id, listTitle: mobileTargetList.title },
+    );
+    assert(await mobileListPicker.isVisible(), "Quick list picker closed after an immediate addition");
+    await mobilePage.keyboard.press("Escape");
+    await mobileListPicker.waitFor({ state: "detached" });
+    assert(await mobileOwnerDetail.isVisible(), "Escape closed the wish detail instead of only the quick list picker");
+    assert(await mobileListTrigger.getAttribute("aria-expanded") === "false", "Quick list trigger remained expanded after Escape");
+    await waitForFocused(mobilePage, mobileListTrigger, "quick list trigger after Escape");
+
+    await mobileListTrigger.click();
+    await mobileListPicker.waitFor({ state: "visible" });
+    assert(await mobileTargetChoice.getAttribute("aria-checked") === "true", "Persisted target list is not checked after reopening the quick picker");
+    assert(await mobileSourceChoice.getAttribute("aria-checked") === "false", "Removed source list is checked after reopening the quick picker");
+    await mobileListTrigger.click();
+    await mobileListPicker.waitFor({ state: "detached" });
+    assert(await mobileOwnerDetail.isVisible(), "Closing the quick list picker closed the wish detail");
+
     const mobileAfterMoveResponse = await apiFromPage(mobilePage, "/api/dashboard");
     const mobileMovedWish = mobileAfterMoveResponse.data.wishes.find((wish) => wish.id === mobileWishToMove.id);
     assert(mobileMovedWish && sameMembers(mobileMovedWish.listIds, [mobileTargetList.id]), "Mobile wish category change was not persisted");
