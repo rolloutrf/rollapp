@@ -84,6 +84,64 @@ async function expectMobileAppShell(page, label) {
   assert(geometry.bottom >= 0, `${label} primary mobile navigation is outside the viewport`);
 }
 
+async function expectDarkAuthenticatedModal(dialog, label) {
+  await dialog.waitFor({ state: "visible" });
+  const theme = await dialog.evaluate((element) => {
+    const parseColor = (value) => {
+      const match = value.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\)/);
+      return match
+        ? { red: Number(match[1]), green: Number(match[2]), blue: Number(match[3]), alpha: match[4] === undefined ? 1 : Number(match[4]) }
+        : null;
+    };
+    const luminance = ({ red, green, blue }) => (red * .2126) + (green * .7152) + (blue * .0722);
+    const modalStyle = getComputedStyle(element);
+    const modalBackground = parseColor(modalStyle.backgroundColor);
+    const modalForeground = parseColor(modalStyle.color);
+    const selectors = [
+      ".modal-icon",
+      ".link-input input",
+      ".recognition-note",
+      ".metadata-status",
+      ".image-preview > label",
+      ".priority-picker",
+      ".wish-settings > label",
+      ".modal-actions",
+      "input:not([type='checkbox']):not([type='radio']):not([type='hidden'])",
+      "textarea",
+      "select",
+    ];
+    const surfaces = [...new Set(selectors.flatMap((selector) => [...element.querySelectorAll(selector)]))]
+      .filter((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return rect.width > 1 && rect.height > 1 && style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > .01;
+      })
+      .map((node) => {
+        const color = parseColor(getComputedStyle(node).backgroundColor);
+        if (!color || !modalBackground) return { selector: node.className || node.tagName, luminance: null };
+        const effective = color.alpha >= 1
+          ? color
+          : {
+              red: (color.red * color.alpha) + (modalBackground.red * (1 - color.alpha)),
+              green: (color.green * color.alpha) + (modalBackground.green * (1 - color.alpha)),
+              blue: (color.blue * color.alpha) + (modalBackground.blue * (1 - color.alpha)),
+            };
+        return { selector: node.className || node.tagName, luminance: luminance(effective) };
+      });
+    return {
+      background: modalBackground && luminance(modalBackground),
+      foreground: modalForeground && luminance(modalForeground),
+      lightSurfaces: surfaces.filter((surface) => surface.luminance === null || surface.luminance > 115),
+    };
+  });
+  assert(theme.background !== null && theme.background <= 80, `${label} uses a light modal surface (luminance ${theme.background})`);
+  assert(theme.foreground !== null && theme.foreground >= 170, `${label} does not use light foreground text on its dark surface`);
+  assert(
+    theme.lightSurfaces.length === 0,
+    `${label} contains light form surfaces: ${theme.lightSurfaces.map((surface) => `${surface.selector} (${surface.luminance})`).join(", ")}`,
+  );
+}
+
 async function waitForAppRoute(page, pathname) {
   await page.goto(`${baseUrl}${pathname}`, { waitUntil: "domcontentloaded" });
   await page.locator(".app-page").waitFor({ state: "visible" });
@@ -207,6 +265,7 @@ try {
   assert((await dashboard.locator(".modal--wish-detail").count()) === 0, "Wish options must not open the detail dialog");
   await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
   const desktopDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish");
+  await expectDarkAuthenticatedModal(desktopDetail.dialog, "Desktop owner wish detail");
   await waitForStableLayout(dashboard);
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-wish-detail.png" });
   await dashboard.keyboard.press("Escape");
@@ -247,12 +306,22 @@ try {
     if (pathname === "/app/wishes") {
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
+      await expectDarkAuthenticatedModal(mobileDetail.dialog, "390px owner wish detail");
       await expectNoRootOverflow(mobilePage, "390px wish detail");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-detail.png" });
       await mobileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
       await mobileDetail.dialog.waitFor({ state: "detached" });
     }
   }
+
+  await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
+  const publicIdeaCard = mobilePage.locator(".public-ideas .idea-card").first();
+  await publicIdeaCard.waitFor({ state: "visible" });
+  await publicIdeaCard.locator(".idea-card__image > button").click();
+  const publicIdeaDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  await expectDarkAuthenticatedModal(publicIdeaDialog, "390px public ideas save modal");
+  await publicIdeaDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicIdeaDialog.waitFor({ state: "detached" });
 
   await waitForAppRoute(mobilePage, "/app/wishes");
   await expectMobileAppShell(mobilePage, "/app/wishes");
@@ -272,6 +341,7 @@ try {
   await wishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
   assert(await wishDialog.locator(".link-step input[type='url']").isVisible(), "Wish modal should open on the product-link step");
   assert(await wishDialog.getByRole("button", { name: "Продолжить" }).isVisible(), "Wish link step continue action is not visible");
+  await expectDarkAuthenticatedModal(wishDialog, "390px add-wish link step");
   await waitForStableLayout(mobilePage);
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-link-modal.png" });
   await wishDialog.getByRole("button", { name: /заполнить вручную/i }).click();
@@ -279,6 +349,7 @@ try {
   const addWishAction = wishDialog.getByRole("button", { name: "Добавить желание" });
   await addWishAction.scrollIntoViewIfNeeded();
   assert(await addWishAction.isVisible(), "Wish details action is not reachable inside the mobile bottom sheet");
+  await expectDarkAuthenticatedModal(wishDialog, "390px add-wish details step");
   await waitForStableLayout(mobilePage);
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-details-modal.png" });
   await wishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -306,6 +377,7 @@ try {
     await mobilePage.getByRole("button", { name: "Редактировать список" }).click();
     const mobileListDialog = mobilePage.getByRole("dialog", { name: `Настройки списка: ${mobileSourceList.title}` });
     await mobileListDialog.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(mobileListDialog, "390px list editor");
     await mobileListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
     await mobileListDialog.waitFor({ state: "detached" });
     const mobileOwnerCard = mobilePage.locator(".wish-card").filter({ hasText: mobileWishToMove.title }).first();
@@ -313,9 +385,11 @@ try {
     await mobileOwnerCard.getByRole("button", { name: `Открыть желание «${mobileWishToMove.title}»` }).click();
     const mobileOwnerDetail = mobilePage.getByRole("dialog", { name: `Желание: ${mobileWishToMove.title}` });
     await mobileOwnerDetail.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(mobileOwnerDetail, "390px profile owner wish detail");
     await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ }).click();
     const mobileEditDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
     await mobileEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    await expectDarkAuthenticatedModal(mobileEditDialog, "390px wish editor");
     const mobileSourceChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileSourceList.title });
     const mobileTargetChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileTargetList.title });
     await mobileSourceChoice.click();
@@ -352,6 +426,7 @@ try {
   await sharedOwnerCard.getByRole("button", { name: `Открыть желание «${sharedOwnerWishTitle}»` }).click();
   const sharedOwnerDialog = mobilePage.getByRole("dialog", { name: `Желание: ${sharedOwnerWishTitle}` });
   await sharedOwnerDialog.waitFor({ state: "visible" });
+  await expectDarkAuthenticatedModal(sharedOwnerDialog, "390px shared owner wish detail");
   assert(await sharedOwnerDialog.getByRole("button", { name: /^Изменить списки желания\./ }).isVisible(), "Owner shared wish does not expose editing");
   await sharedOwnerDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await sharedOwnerDialog.waitFor({ state: "detached" });
@@ -529,6 +604,7 @@ try {
   await expectNoRootOverflow(publicTabletPage, "768px public profile");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
   const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish", { fullscreen: true });
+  await expectDarkAuthenticatedModal(publicTabletDetail.dialog, "768px profile owner wish detail");
   await expectNoRootOverflow(publicTabletPage, "768px public wish detail");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-wish-detail-768.png" });
   await publicTabletDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
@@ -582,6 +658,7 @@ try {
   await ownerWidePage.getByRole("button", { name: "Создать новый список" }).click();
   const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка" });
   await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
+  await expectDarkAuthenticatedModal(ownerListDialog, "Desktop create-list modal");
   await ownerListDialog.getByLabel("Название").fill("Smoke list");
   await ownerListDialog.getByLabel("Описание").fill("Проверка полного цикла списка");
   const createListResponsePromise = ownerWidePage.waitForResponse((response) => (
@@ -598,6 +675,7 @@ try {
   await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
   const editListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list" });
   await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
+  await expectDarkAuthenticatedModal(editListDialog, "Desktop edit-list modal");
   await editListDialog.getByLabel("Название").fill("Smoke list edited");
   await editListDialog.getByLabel("Кто увидит").selectOption("private");
   const editListResponsePromise = ownerWidePage.waitForResponse((response) => (
@@ -614,6 +692,7 @@ try {
   await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
   const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list edited" });
   await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
+  await expectDarkAuthenticatedModal(deleteListDialog, "Desktop delete-list modal");
   ownerWidePage.once("dialog", (dialog) => dialog.accept());
   const deleteListResponsePromise = ownerWidePage.waitForResponse((response) => (
     response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
@@ -627,6 +706,7 @@ try {
   await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
   const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
   await ownerWishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
+  await expectDarkAuthenticatedModal(ownerWishDialog, "Desktop profile add-wish link step");
   await ownerWishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await ownerWishDialog.waitFor({ state: "detached" });
 
@@ -649,12 +729,14 @@ try {
     await wishCard.getByRole("button", { name: `Открыть желание «${wishToMove.title}»` }).click();
     const wishDetailsDialog = ownerWidePage.getByRole("dialog", { name: `Желание: ${wishToMove.title}` });
     await wishDetailsDialog.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(wishDetailsDialog, "Desktop profile owner wish detail");
     const changeListsButton = wishDetailsDialog.getByRole("button", { name: /^Изменить списки желания\./ });
     assert(await changeListsButton.isVisible(), "Owner wish detail does not expose the editable list control");
     await changeListsButton.click();
 
     const editDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
     await editDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    await expectDarkAuthenticatedModal(editDialog, "Desktop wish editor");
     const sourceChoice = editDialog.locator(".list-choice > label").filter({ hasText: sourceList.title });
     const targetChoice = editDialog.locator(".list-choice > label").filter({ hasText: targetList.title });
     const sourceCheckbox = sourceChoice.locator("input[type='checkbox']");
@@ -705,6 +787,7 @@ try {
     await persistedCard.getByRole("button", { name: "Редактировать", exact: true }).click();
     const reloadedEditDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
     await reloadedEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    await expectDarkAuthenticatedModal(reloadedEditDialog, "Reloaded desktop wish editor");
     assert(!(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: sourceList.title }).locator("input[type='checkbox']").isChecked()), "Source list became selected again after reload");
     assert(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: targetList.title }).locator("input[type='checkbox']").isChecked(), "Target list selection did not survive reload");
     await reloadedEditDialog.getByRole("button", { name: "Закрыть диалог" }).click();
