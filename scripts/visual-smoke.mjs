@@ -65,8 +65,8 @@ async function expectMobileAppShell(page, label) {
   await navigation.waitFor({ state: "visible" });
 
   const items = navigation.locator("a");
-  assert(await items.count() === 5, `${label} should expose five primary mobile navigation items`);
-  for (let index = 0; index < 5; index += 1) {
+  assert(await items.count() === 3, `${label} should expose three primary mobile navigation items`);
+  for (let index = 0; index < 3; index += 1) {
     assert(await items.nth(index).isVisible(), `${label} mobile navigation item ${index + 1} is not visible`);
   }
 
@@ -189,11 +189,14 @@ try {
   assert(loginResponse.ok(), `Demo login failed: ${loginResponse.status()}`);
 
   const dashboard = await desktop.newPage();
-  await waitForAppRoute(dashboard, "/app");
-  await dashboard.getByRole("heading", { name: /Привет, Алиса/ }).waitFor();
+  await dashboard.goto(`${baseUrl}/app`, { waitUntil: "domcontentloaded" });
+  await dashboard.waitForURL((url) => url.pathname === "/app/wishes");
+  await dashboard.locator(".app-page").waitFor({ state: "visible" });
+  await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
   assert(!(await dashboard.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible in the authenticated app");
   assert(await dashboard.locator(".sidebar").isVisible(), "Desktop app sidebar is not visible");
-  assert(await dashboard.locator(".mobile-bottom-nav a").count() === 5, "App navigation should contain the five primary sections");
+  assert(await dashboard.locator(".sidebar__nav a").count() === 3, "Desktop app navigation should contain the three primary sections");
+  assert(await dashboard.locator(".mobile-bottom-nav a").count() === 3, "Mobile app navigation should contain the three primary sections");
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
 
@@ -211,8 +214,8 @@ try {
   assert(await desktopDetail.opener.evaluate((element) => document.activeElement === element), "Closing wish detail should restore focus to its card");
 
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
-  await dashboard.waitForURL((url) => url.pathname === "/app");
-  await dashboard.getByRole("heading", { name: /Привет, Алиса/ }).waitFor();
+  await dashboard.waitForURL((url) => url.pathname === "/app/wishes");
+  await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
   await desktop.close();
 
   // Deliberately keep Chromium's ordinary desktop User-Agent. Responsive behavior
@@ -229,7 +232,14 @@ try {
   const mobileLoginResponse = await mobile.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(mobileLoginResponse.ok(), `Mobile demo login failed: ${mobileLoginResponse.status()}`);
 
-  const appRoutes = ["/app", "/app/wishes", "/app/ideas", "/app/friends", "/app/gifts", "/app/settings"];
+  await mobilePage.goto(`${baseUrl}/app`, { waitUntil: "domcontentloaded" });
+  await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
+  await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
+  await mobilePage.goto(`${baseUrl}/app/gifts`, { waitUntil: "domcontentloaded" });
+  await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
+  await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
+
+  const appRoutes = ["/app/wishes", "/app/ideas", "/app/friends", "/app/settings"];
   for (const pathname of appRoutes) {
     await waitForAppRoute(mobilePage, pathname);
     await expectMobileAppShell(mobilePage, pathname);
@@ -244,8 +254,8 @@ try {
     }
   }
 
-  await waitForAppRoute(mobilePage, "/app");
-  await expectMobileAppShell(mobilePage, "/app");
+  await waitForAppRoute(mobilePage, "/app/wishes");
+  await expectMobileAppShell(mobilePage, "/app/wishes");
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-app.png", fullPage: true });
 
   await mobilePage.getByRole("button", { name: "Открыть меню" }).click();
@@ -256,7 +266,7 @@ try {
   await drawer.getByRole("button", { name: "Закрыть меню" }).click();
   await mobilePage.waitForFunction(() => !document.querySelector("#app-sidebar")?.classList.contains("is-open"));
 
-  await mobilePage.getByRole("button", { name: "Добавить мечту" }).click();
+  await mobilePage.getByRole("button", { name: "Добавить", exact: true }).click();
   const wishDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
   await wishDialog.waitFor({ state: "visible" });
   await wishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
@@ -356,13 +366,13 @@ try {
   await expectNoRootOverflow(narrowPage, "360px login page");
   const narrowLoginResponse = await narrow.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(narrowLoginResponse.ok(), `360px demo login failed: ${narrowLoginResponse.status()}`);
-  for (const pathname of ["/app", "/app/wishes", "/app/settings"]) {
+  for (const pathname of ["/app/wishes", "/app/settings"]) {
     await waitForAppRoute(narrowPage, pathname);
     await expectMobileAppShell(narrowPage, `360px ${pathname}`);
     await expectNoRootOverflow(narrowPage, `360px ${pathname}`);
   }
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-settings-360.png", fullPage: true });
-  await waitForAppRoute(narrowPage, "/app");
+  await waitForAppRoute(narrowPage, "/app/wishes");
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-app-360.png", fullPage: true });
   await narrowPage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectPublicGrid(narrowPage, 2, "360px public profile");
@@ -386,7 +396,7 @@ try {
   const tabletAppPage = await tabletApp.newPage();
   const tabletLoginResponse = await tabletApp.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(tabletLoginResponse.ok(), `768px demo login failed: ${tabletLoginResponse.status()}`);
-  for (const pathname of ["/app", "/app/wishes"]) {
+  for (const pathname of ["/app/wishes"]) {
     await waitForAppRoute(tabletAppPage, pathname);
     await expectMobileAppShell(tabletAppPage, `768px ${pathname}`);
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
@@ -397,7 +407,7 @@ try {
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-owner-wish-detail-768.png" });
   await tabletOwnerDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await tabletOwnerDetail.dialog.waitFor({ state: "detached" });
-  await waitForAppRoute(tabletAppPage, "/app");
+  await waitForAppRoute(tabletAppPage, "/app/wishes");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-app-768.png", fullPage: true });
   await tabletApp.close();
 
