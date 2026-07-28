@@ -177,12 +177,13 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
 
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
-  const landing = await desktop.newPage();
-  await landing.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await landing.getByRole("heading", { name: /Дарите радость/ }).waitFor();
-  assert(!(await landing.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible on the landing page");
-  await expectNoRootOverflow(landing, "Desktop landing page");
-  await landing.screenshot({ path: "/tmp/rollapp-desktop-landing.png", fullPage: true });
+  const guestRoot = await desktop.newPage();
+  await guestRoot.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await guestRoot.waitForURL((url) => url.pathname === "/login");
+  await guestRoot.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
+  assert(!(await guestRoot.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible on the login page");
+  await expectNoRootOverflow(guestRoot, "Desktop login page");
+  await guestRoot.screenshot({ path: "/tmp/rollapp-desktop-login.png", fullPage: true });
 
   const loginResponse = await desktop.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(loginResponse.ok(), `Demo login failed: ${loginResponse.status()}`);
@@ -219,21 +220,11 @@ try {
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   const mobilePage = await mobile.newPage();
   await mobilePage.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await mobilePage.getByRole("heading", { name: /Дарите радость/ }).waitFor();
+  await mobilePage.waitForURL((url) => url.pathname === "/login");
+  await mobilePage.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   await expectDesktopUserAgent(mobilePage, "390px viewport");
-  await expectNoRootOverflow(mobilePage, "390px landing page");
-  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-landing.png", fullPage: true });
-
-  await mobilePage.getByRole("button", { name: "Открыть меню" }).click();
-  const landingMenu = mobilePage.locator("#landing-navigation.is-open");
-  await landingMenu.waitFor({ state: "visible" });
-  assert(await landingMenu.locator(".landing-nav__mobile-actions .button--primary").isVisible(), "Mobile landing menu CTA is not visible");
-  await expectNoRootOverflow(mobilePage, "Open 390px landing menu");
-  await waitForStableLayout(mobilePage);
-  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-landing-menu.png", fullPage: true });
-  await mobilePage.getByRole("button", { name: "Закрыть меню" }).click();
-  await mobilePage.waitForFunction(() => !document.querySelector("#landing-navigation")?.classList.contains("is-open"));
-  assert(!(await mobilePage.locator("body").evaluate((element) => element.classList.contains("nav-open"))), "Closing the landing menu should restore body scrolling");
+  await expectNoRootOverflow(mobilePage, "390px login page");
+  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-login.png", fullPage: true });
 
   const mobileLoginResponse = await mobile.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(mobileLoginResponse.ok(), `Mobile demo login failed: ${mobileLoginResponse.status()}`);
@@ -359,9 +350,10 @@ try {
   const narrow = await browser.newContext({ viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 });
   const narrowPage = await narrow.newPage();
   await narrowPage.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await narrowPage.getByRole("heading", { name: /Дарите радость/ }).waitFor();
+  await narrowPage.waitForURL((url) => url.pathname === "/login");
+  await narrowPage.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   await expectDesktopUserAgent(narrowPage, "360px viewport");
-  await expectNoRootOverflow(narrowPage, "360px landing page");
+  await expectNoRootOverflow(narrowPage, "360px login page");
   const narrowLoginResponse = await narrow.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(narrowLoginResponse.ok(), `360px demo login failed: ${narrowLoginResponse.status()}`);
   for (const pathname of ["/app", "/app/wishes", "/app/settings"]) {
