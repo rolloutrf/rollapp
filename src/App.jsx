@@ -5,7 +5,7 @@ import {
   Apple, Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
   CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Globe, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Menu, MessageCircle, MoreHorizontal, PackageCheck, Pencil, Play, Plus,
-  Radio, Search, Send, Settings, Share2, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
+  Radio, RotateCcw, Search, Send, Settings, Share2, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
   Users, WandSparkles, X, Zap,
 } from "lucide-react";
 import { api } from "./api.js";
@@ -48,16 +48,20 @@ const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
   const requestIdRef = useRef(0);
-  const reload = useCallback(async () => {
+  const reload = useCallback(async ({ background = false } = {}) => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setState((current) => ({ ...current, loading: true, error: null }));
+    setState((current) => ({ ...current, loading: background ? current.data == null : true, error: null }));
     try {
       const data = await load();
       if (requestId === requestIdRef.current) setState({ data, loading: false, error: null });
       return data;
     } catch (error) {
-      if (requestId === requestIdRef.current) setState({ data: null, loading: false, error });
+      if (requestId === requestIdRef.current) {
+        setState((current) => background && current.data != null
+          ? { ...current, loading: false, error }
+          : { data: null, loading: false, error });
+      }
       throw error;
     }
   }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
@@ -292,6 +296,13 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   const navigate = useNavigate();
   const location = useLocation();
   const [busy, setBusy] = useState(false);
+  const refreshAfterMutation = async () => {
+    try {
+      await onChanged?.();
+    } catch {
+      toast("Изменение сохранено. Обновите страницу, чтобы увидеть актуальные данные.", "error");
+    }
+  };
   const requireLogin = () => {
     if (user) return false;
     const next = `${location.pathname}${location.search}`;
@@ -299,40 +310,46 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
     return true;
   };
   const reserve = async () => {
-    if (requireLogin()) return;
+    if (requireLogin()) return false;
     setBusy(true);
     try {
       const result = await api.post(`/wishes/${wish.id}/reserve`, { shareToken: shareToken || wish.shareToken || "" });
       toast(result.reserved ? "Подарок забронирован — владелец не узнает кем" : "Бронь снята");
-      await onChanged?.();
+      await refreshAfterMutation();
+      return true;
     } catch (error) {
       toast(error.message, "error");
+      return false;
     } finally {
       setBusy(false);
     }
   };
   const remove = async () => {
-    if (!window.confirm("Удалить это желание?")) return;
     setBusy(true);
     try {
       await api.delete(`/wishes/${wish.id}`);
       toast("Желание удалено");
-      await onChanged?.();
+      await refreshAfterMutation();
       onDeleted?.();
+      return true;
     } catch (error) {
       toast(error.message, "error");
+      return false;
     } finally {
       setBusy(false);
     }
   };
   const fulfilled = async () => {
+    const targetFulfilled = wish.status !== "fulfilled";
     setBusy(true);
     try {
-      await api.post(`/wishes/${wish.id}/fulfilled`, {});
-      toast(wish.status === "fulfilled" ? "Желание снова активно" : "Отмечено исполненным ✦");
-      await onChanged?.();
+      await api.post(`/wishes/${wish.id}/fulfilled`, { fulfilled: targetFulfilled });
+      toast(targetFulfilled ? "Отмечено исполненным ✦" : "Желание снова активно");
+      await refreshAfterMutation();
+      return true;
     } catch (error) {
       toast(error.message, "error");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -342,45 +359,428 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
     const privateOnly = wish.privacy === "private" || (linkedLists.length > 0 && linkedLists.every((list) => list.privacy === "private"));
     if (privateOnly) {
       toast("Секретное желание видно только вам", "error");
-      return;
+      return false;
     }
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${wishSharePath({ wish, profile, lists, shareToken })}`);
       toast("Ссылка скопирована");
+      return true;
     } catch {
       toast("Не удалось скопировать ссылку", "error");
+      return false;
     }
   };
   const save = async () => {
-    if (requireLogin()) return;
+    if (requireLogin()) return false;
     setBusy(true);
     try {
       await api.post(`/wishes/${wish.id}/copy`, { shareToken: shareToken || wish.shareToken || "" });
       toast("Желание сохранено в ваш список");
+      return true;
     } catch (error) {
       toast(error.message, "error");
+      return false;
     } finally {
       setBusy(false);
     }
   };
-  return { busy, reserve, remove, fulfilled, share, save };
+  const update = async (payload, successMessage) => {
+    setBusy(true);
+    try {
+      const result = await api.patch(`/wishes/${wish.id}`, payload);
+      if (successMessage) toast(successMessage);
+      await refreshAfterMutation();
+      return result.wish;
+    } catch (error) {
+      toast(error.message, "error");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const repeat = async () => {
+    setBusy(true);
+    try {
+      await api.post("/wishes", {
+        title: wish.title,
+        description: wish.description || "",
+        url: wish.url || "",
+        imageUrl: wish.imageUrl || "",
+        price: wish.price,
+        currency: wish.currency,
+        priority: wish.priority,
+        privacy: wish.privacy,
+        allowMultiple: wish.allowMultiple,
+        listIds: [...(wish.listIds || [])],
+      });
+      toast("Желание снова добавлено в активные ✦");
+      await refreshAfterMutation();
+      return true;
+    } catch (error) {
+      toast(error.message, "error");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, reserve, remove, fulfilled, share, save, update, repeat };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, profile, lists = [], shareToken = "", variant = "" }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, profile, lists = [], shareToken = "", variant = "" }) {
   const [menu, setMenu] = useState(false);
-  const { busy, reserve, remove, fulfilled, share, save } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const [listsOpen, setListsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const [listPanelPosition, setListPanelPosition] = useState(null);
+  const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const listTriggerRef = useRef(null);
+  const listPanelRef = useRef(null);
+  const focusMenuOnOpenRef = useRef(false);
+  const focusListsOnOpenRef = useRef(false);
+  const listCloseTimerRef = useRef(null);
+  const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const categoryLists = lists.filter((list) => !isGeneralList(list));
+  const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
+    || selectedListIds.some((id) => !(wish.listIds || []).includes(id));
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
+
+  useEffect(() => {
+    if (!listsOpen) setSelectedListIds([...(wish.listIds || [])]);
+  }, [wish.id, wish.listIds, listsOpen]);
+
+  const closeMenu = (restoreFocus = false) => {
+    window.clearTimeout(listCloseTimerRef.current);
+    if (restoreFocus) triggerRef.current?.focus();
+    setMenu(false);
+    setListsOpen(false);
+    setSelectedListIds([...(wish.listIds || [])]);
+    setMenuPosition(null);
+    setListPanelPosition(null);
+  };
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const position = () => {
+      const trigger = triggerRef.current;
+      const popover = menuRef.current;
+      if (!trigger || !popover) return;
+      const margin = 6;
+      const gap = 10;
+      const triggerRect = trigger.getBoundingClientRect();
+      const width = Math.min(280, window.innerWidth - margin * 2);
+      const height = popover.offsetHeight;
+      const left = Math.min(Math.max(margin, triggerRect.left), window.innerWidth - width - margin);
+      const below = triggerRect.bottom + gap;
+      const top = below + height <= window.innerHeight - margin
+        ? below
+        : Math.max(margin, triggerRect.top - height - gap);
+      setMenuPosition({ left, top, width });
+    };
+    const frame = window.requestAnimationFrame(position);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [menu, owner]);
+
+  useEffect(() => {
+    if (!menu || !menuPosition || !focusMenuOnOpenRef.current) return;
+    menuRef.current?.querySelector(".card-menu__main [role='menuitem']:not(:disabled)")?.focus();
+    focusMenuOnOpenRef.current = false;
+  }, [menu, menuPosition]);
+
+  useEffect(() => {
+    if (!menu || !listsOpen) return undefined;
+    const position = () => {
+      const popover = menuRef.current;
+      const panel = listPanelRef.current;
+      if (!popover || !panel) return;
+      const margin = 6;
+      const popoverRect = popover.getBoundingClientRect();
+      const anchorRect = listTriggerRef.current?.getBoundingClientRect() || popoverRect;
+      const mobile = window.innerWidth <= 640;
+      const width = window.innerWidth <= 640
+        ? popoverRect.width
+        : Math.min(280, window.innerWidth - margin * 2);
+      const height = panel.offsetHeight;
+      let left;
+      if (mobile) left = popoverRect.left;
+      else if (anchorRect.right - 8 + width <= window.innerWidth - margin) left = anchorRect.right - 8;
+      else left = Math.max(margin, anchorRect.left - width + 8);
+      const preferredTop = anchorRect.top - 8 + height <= window.innerHeight - margin
+        ? anchorRect.top - 8
+        : anchorRect.bottom - height + 8;
+      const top = Math.min(Math.max(margin, preferredTop), Math.max(margin, window.innerHeight - height - margin));
+      setListPanelPosition({ left, top, width });
+    };
+    const frame = window.requestAnimationFrame(position);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [menu, listsOpen, menuPosition, categoryLists.length, listSelectionChanged]);
+
+  useEffect(() => () => window.clearTimeout(listCloseTimerRef.current), []);
+
+  useEffect(() => {
+    if (!listsOpen || !listPanelPosition || !focusListsOnOpenRef.current) return;
+    const firstList = listPanelRef.current?.querySelector("[role='menuitemcheckbox']:not(:disabled)")
+      || listPanelRef.current?.querySelector("[role='menuitem']:not(:disabled)");
+    firstList?.focus();
+    focusListsOnOpenRef.current = false;
+  }, [listsOpen, listPanelPosition]);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const handlePointerDown = (event) => {
+      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      closeMenu(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (listsOpen) {
+        setListsOpen(false);
+        setSelectedListIds([...(wish.listIds || [])]);
+        setListPanelPosition(null);
+        window.requestAnimationFrame(() => listTriggerRef.current?.focus());
+      } else {
+        closeMenu(true);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [menu, listsOpen]);
+
+  const toggleList = (list) => {
+    if (busy) return;
+    const selected = selectedListIds.includes(list.id);
+    const nextListIds = selected
+      ? selectedListIds.filter((id) => id !== list.id)
+      : [...selectedListIds, list.id];
+    setSelectedListIds(nextListIds);
+  };
+
+  const saveLists = async () => {
+    if (!listSelectionChanged || busy) return;
+    const updatedWish = await update({ listIds: selectedListIds }, "Списки желания обновлены");
+    if (updatedWish) closeMenu(true);
+  };
+
+  const cancelListClose = () => window.clearTimeout(listCloseTimerRef.current);
+  const scheduleListClose = () => {
+    if (listSelectionChanged) return;
+    cancelListClose();
+    listCloseTimerRef.current = window.setTimeout(() => {
+      setListsOpen(false);
+      setSelectedListIds([...(wish.listIds || [])]);
+      setListPanelPosition(null);
+    }, 140);
+  };
+  const openListsOnHover = () => {
+    if (!window.matchMedia("(hover: hover)").matches) return;
+    cancelListClose();
+    if (!listsOpen) {
+      setListsOpen(true);
+      setListPanelPosition(null);
+    }
+  };
+
+  const handleMenuKeyDown = (event) => {
+    const inListPanel = Boolean(listPanelRef.current?.contains(event.target));
+    const container = inListPanel ? listPanelRef.current : menuRef.current?.querySelector(".card-menu__main");
+    const items = [...(container?.querySelectorAll("[role='menuitem']:not(:disabled), [role='menuitemcheckbox']:not(:disabled)") || [])]
+      .filter((item) => item.getClientRects().length > 0);
+    const currentIndex = items.indexOf(document.activeElement);
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length) {
+      event.preventDefault();
+      const nextIndex = event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? items.length - 1
+          : event.key === "ArrowDown"
+            ? (currentIndex + 1 + items.length) % items.length
+            : (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (event.key === "ArrowRight" && event.target === listTriggerRef.current && !listsOpen) {
+      event.preventDefault();
+      focusListsOnOpenRef.current = true;
+      setListsOpen(true);
+      setListPanelPosition(null);
+      return;
+    }
+    if (event.key === "ArrowLeft" && inListPanel) {
+      event.preventDefault();
+      setListsOpen(false);
+      setSelectedListIds([...(wish.listIds || [])]);
+      setListPanelPosition(null);
+      window.requestAnimationFrame(() => listTriggerRef.current?.focus());
+      return;
+    }
+    if (event.key === "Tab") closeMenu(true);
+  };
+
+  const menuContent = menu ? createPortal(
+    <>
+      <div className="card-menu__dismiss-layer" aria-hidden="true" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); closeMenu(false); }} />
+      <div
+        ref={menuRef}
+        id={`wish-menu-${wish.id}`}
+        className={`card-menu card-menu--popover ${owner ? "card-menu--owner" : ""} ${listsOpen ? "is-showing-lists" : ""}`}
+        style={menuPosition || { left: 0, top: 0, visibility: "hidden" }}
+        role="menu"
+        aria-label={`Действия с желанием «${wish.title}»`}
+        onKeyDown={handleMenuKeyDown}
+      >
+      <div className="card-menu__main" role="group">
+        {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); reserve(); }}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}
+        {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); save(); }}><Archive /> Сохранить к себе</button>}
+        {owner && wish.status === "fulfilled" ? <>
+          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); fulfilled(); }}><RotateCcw /> Не исполнено</button>
+          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); repeat(); }}><Plus /> Загадать ещё раз</button>
+          {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeMenu(true); onEdit(); }}><Pencil /> Редактировать</button>}
+        </> : owner && <>
+          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); fulfilled(); }}><Check /> Исполнено</button>
+          {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeMenu(true); onEdit(); }}><Pencil /> Редактировать</button>}
+          <button
+            role="menuitem"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
+              closeMenu(true);
+              update(
+                { privacy: nextPrivacy },
+                nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
+              );
+            }}
+          >
+            {wish.privacy === "private" ? <Eye /> : <EyeOff />}
+            {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
+          </button>
+          <button
+            ref={listTriggerRef}
+            role="menuitem"
+            type="button"
+            className="card-menu__submenu-trigger"
+            disabled={busy}
+            aria-haspopup="menu"
+            aria-expanded={listsOpen}
+            aria-controls={`wish-lists-${wish.id}`}
+            onMouseEnter={openListsOnHover}
+            onMouseLeave={scheduleListClose}
+            onClick={(event) => {
+              if (event.detail === 0 && !listsOpen) focusListsOnOpenRef.current = true;
+              const hoverCapable = window.matchMedia("(hover: hover)").matches;
+              setListsOpen((open) => {
+                const nextOpen = event.detail > 0 && hoverCapable ? true : !open;
+                if (!nextOpen) setSelectedListIds([...(wish.listIds || [])]);
+                return nextOpen;
+              });
+              setListPanelPosition(null);
+            }}
+          >
+            <ListPlus /> <span>Добавить в список</span><ArrowRight className="card-menu__chevron" />
+          </button>
+        </>}
+        {(!owner || wish.status !== "fulfilled") && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); share(); }}><Share2 /> Поделиться</button>}
+        {!owner && wish.url && <a role="menuitem" href={wish.url} target="_blank" rel="noreferrer" onClick={() => closeMenu(true)}><ExternalLink /> Открыть магазин</a>}
+        {owner && <button role="menuitem" type="button" className="danger" disabled={busy} onClick={() => { closeMenu(true); setDeleteOpen(true); }}><Trash2 /> Удалить</button>}
+      </div>
+
+        {owner && listsOpen && <section
+          ref={listPanelRef}
+          id={`wish-lists-${wish.id}`}
+          className="card-menu__lists"
+          style={listPanelPosition || { left: 0, top: 0, visibility: "hidden" }}
+          role="menu"
+          aria-label={`Списки желания «${wish.title}»`}
+          onMouseEnter={cancelListClose}
+          onMouseLeave={scheduleListClose}
+        >
+        <div className="card-menu__lists-head">
+          <strong>Списки</strong>
+          {onCreateList && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); onCreateList(); }}><ListPlus /> Новый список</button>}
+        </div>
+        <div className="card-menu__list-scroll">
+          {categoryLists.length ? categoryLists.map((list) => {
+            const selected = selectedListIds.includes(list.id);
+            return <button
+              type="button"
+              key={list.id}
+              className={`card-menu__list-row ${selected ? "is-selected" : ""}`}
+              role="menuitemcheckbox"
+              aria-checked={selected}
+              disabled={busy}
+              onClick={() => toggleList(list)}
+            >
+              <span className={`card-menu__list-thumb list-dot--${list.color}`}>
+                <ListPlus />
+              </span>
+              <span>
+                {list.title}
+                {list.privacy !== "public" && <small className="card-menu__list-privacy" aria-hidden="true">
+                  {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
+                </small>}
+              </span>
+              <span className="card-menu__list-state">{selected ? <Check /> : <Plus />}</span>
+            </button>;
+          }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
+        </div>
+        {listSelectionChanged && <div className="card-menu__lists-actions">
+          <button role="menuitem" type="button" disabled={busy} onClick={() => setSelectedListIds([...(wish.listIds || [])])}>Отменить</button>
+          <button role="menuitem" type="button" className="is-primary" disabled={busy} onClick={saveLists}>{busy ? <LoaderCircle className="spin" /> : <Check />} Сохранить</button>
+        </div>}
+      </section>}
+      </div>
+    </>,
+    document.body,
+  ) : null;
+
   return (
+    <>
     <article className={`wish-card ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}>
-      {onOpen && <button type="button" className="wish-card__open" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { setMenu(false); onOpen(event.currentTarget); }} />}
+      {onOpen && <button type="button" className="wish-card__open" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <div className="fulfilled-badge"><Check /> Исполнено</div>}</div>
       <div className="wish-card__body">
-        <div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button type="button" aria-label={`Опции желания «${wish.title}»`} aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreHorizontal /></button>{menu && <div className="card-menu">{!owner && <button type="button" onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}{!owner && <button type="button" onClick={save}><Archive /> Сохранить к себе</button>}<button type="button" onClick={share}><Share2 /> Поделиться</button>{wish.url && <a href={wish.url} target="_blank" rel="noreferrer"><ExternalLink /> Открыть магазин</a>}{owner && <>{onEdit && <button type="button" aria-haspopup="dialog" onClick={() => { setMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}<button type="button" onClick={fulfilled}><PackageCheck /> {wish.status === "fulfilled" ? "Вернуть в активные" : "Желание исполнено"}</button><button type="button" className="danger" onClick={remove}><Trash2 /> Удалить</button></>}</div>}</div>
+        <div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button ref={triggerRef} type="button" aria-label={`Опции желания «${wish.title}»`} aria-haspopup="menu" aria-expanded={menu} aria-controls={`wish-menu-${wish.id}`} onKeyDown={(event) => { if (event.key === "ArrowDown" && !menu) { event.preventDefault(); focusMenuOnOpenRef.current = true; setMenu(true); } }} onClick={(event) => { if (!menu && event.detail === 0) focusMenuOnOpenRef.current = true; setMenu((open) => !open); setListsOpen(false); setMenuPosition(null); setListPanelPosition(null); }}><MoreHorizontal /></button></div>
         <h3>{wish.title}</h3>
         <p>{wish.description || "Без дополнительного описания"}</p>
         {owner ? <div className="wish-card__owner-meta">{wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
       </div>
+      {menuContent}
     </article>
+    {deleteOpen && <Modal
+      onClose={() => { if (!busy) setDeleteOpen(false); }}
+      className="modal--wish-delete"
+      ariaLabel={`Удаление желания «${wish.title}»`}
+    >
+      <div className="wish-delete-confirm">
+        <span className="modal-icon"><Trash2 /></span>
+        <span className="eyebrow">Удаление желания</span>
+        <h2>Удалить «{wish.title}»?</h2>
+        <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
+        <div className="modal-actions">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>Отмена</Button>
+          <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={busy} onClick={async () => { if (await remove()) setDeleteOpen(false); }}>Удалить</Button>
+        </div>
+      </div>
+    </Modal>}
+    </>
   );
 }
 
@@ -413,7 +813,23 @@ function WishesPage({ onAdd, version }) {
     toast("Ссылка на список скопирована");
   };
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={reload} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={reload} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={async (saved) => { setListModal(null); await reload(); if (saved?.id) setSelected(saved.id); }} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  const saveList = async (saved) => {
+    const attachWishId = listModal?.attachWishId;
+    let attached = true;
+    setListModal(null);
+    if (saved?.id && attachWishId) {
+      try {
+        await api.post(`/wishes/${encodeURIComponent(attachWishId)}/lists/${encodeURIComponent(saved.id)}`, {});
+        toast(`Желание добавлено в новый список «${saved.title}»`);
+      } catch (error) {
+        attached = false;
+        toast(error.message, "error");
+      }
+    }
+    await reload();
+    if (saved?.id && attached) setSelected(saved.id);
+  };
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" onClick={() => setListModal({})}><Plus size={16} /> Новый список</button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function Modal({ children, onClose, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = true, backdropClassName = "" }) {
@@ -874,7 +1290,7 @@ function PublicProfile({ shared = false }) {
   }, []);
 
   if (loading) return <div className="public-profile public-profile--dark public-profile--state"><LoadingScreen /></div>;
-  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div></div>;
+  if (error && !data) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div></div>;
 
   const lists = shared ? [data.list] : data.lists;
   const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
@@ -969,6 +1385,23 @@ function PublicProfile({ shared = false }) {
     setSelectedWishId(null);
     setEditingWishId(id);
     navigate(currentCollectionPath, { replace: true });
+  };
+
+  const saveProfileList = async (saved) => {
+    const attachWishId = listModal?.attachWishId;
+    let attached = true;
+    setListModal(null);
+    if (saved?.id && attachWishId) {
+      try {
+        await api.post(`/wishes/${encodeURIComponent(attachWishId)}/lists/${encodeURIComponent(saved.id)}`, {});
+        toast(`Желание добавлено в новый список «${saved.title}»`);
+      } catch (listError) {
+        attached = false;
+        toast(listError.message, "error");
+      }
+    }
+    await reload();
+    if (saved?.id && attached && !shared) selectCollection(saved.id);
   };
 
   return (
@@ -1080,10 +1513,10 @@ function PublicProfile({ shared = false }) {
             <div className="public-wishes-head__actions"><Button variant="soft" icon={Upload} onClick={share}>Поделиться</Button>{data.isOwner && !shared && <ListActionsMenu list={selectedList} onEdit={() => selectedList && setListModal(selectedList)} onShare={share} onCreate={() => setListModal({})} />}</div>
           </div>
 
-          {wishes.length ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={reload} onOpen={(opener) => openWish(wish.id, opener)} onEdit={data.isOwner ? () => editWish(wish.id) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
-          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={reload} onEdit={data.isOwner ? () => editWish(selectedWish.id) : undefined} onClose={closeWish} />}
+          {wishes.length ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} variant="public" wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onOpen={(opener) => openWish(wish.id, opener)} onEdit={data.isOwner ? () => editWish(wish.id) : undefined} onCreateList={data.isOwner && !shared ? () => setListModal({ attachWishId: wish.id }) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Загляните чуть позже — новая мечта наверняка появится." />}
+          {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={data.isOwner ? () => editWish(selectedWish.id) : undefined} onClose={closeWish} />}
           {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} />}
-          {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={async (saved) => { setListModal(null); await reload(); if (saved?.id) selectCollection(saved.id); }} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
+          {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
           {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
         </main>
       </div>

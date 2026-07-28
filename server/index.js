@@ -615,11 +615,46 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json({ wish: result.find((wish) => wish.id === outcome.id) });
 }));
 
+app.post("/api/wishes/:id/lists/:listId", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
+    const [ownedWish, ownedList] = await Promise.all([
+      client.query(
+        "SELECT id FROM wishes WHERE id=$1 AND user_id=$2 FOR UPDATE",
+        [req.params.id, req.user.id],
+      ),
+      client.query(
+        "SELECT id FROM wishlists WHERE id=$1 AND user_id=$2",
+        [req.params.listId, req.user.id],
+      ),
+    ]);
+    if (!ownedWish.rowCount) return { status: 404, error: "Желание не найдено" };
+    if (!ownedList.rowCount) return { status: 403, error: "Список вам не принадлежит" };
+    await client.query(
+      "INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2) ON CONFLICT (wishlist_id,wish_id) DO NOTHING",
+      [req.params.listId, req.params.id],
+    );
+    return { status: 200, id: req.params.id };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  const result = await getWishes(req.user.id, req.user.id, true);
+  res.json({ wish: result.find((wish) => wish.id === outcome.id) });
+}));
+
 app.post("/api/wishes/:id/fulfilled", requireAuth, asyncRoute(async (req, res) => {
-  const result = await query(
-    "UPDATE wishes SET status=CASE WHEN status='fulfilled' THEN 'active' ELSE 'fulfilled' END WHERE id=$1 AND user_id=$2 RETURNING status",
-    [req.params.id, req.user.id],
-  );
+  const parsed = z.object({ fulfilled: z.boolean().optional() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Проверьте статус желания" });
+  const requestedStatus = parsed.data.fulfilled === undefined
+    ? null
+    : parsed.data.fulfilled ? "fulfilled" : "active";
+  const result = requestedStatus
+    ? await query(
+      "UPDATE wishes SET status=$3 WHERE id=$1 AND user_id=$2 RETURNING status",
+      [req.params.id, req.user.id, requestedStatus],
+    )
+    : await query(
+      "UPDATE wishes SET status=CASE WHEN status='fulfilled' THEN 'active' ELSE 'fulfilled' END WHERE id=$1 AND user_id=$2 RETURNING status",
+      [req.params.id, req.user.id],
+    );
   if (!result.rowCount) return res.status(404).json({ error: "Желание не найдено" });
   res.json({ status: result.rows[0].status });
 }));

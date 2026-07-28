@@ -142,6 +142,19 @@ test("private lists stay private while link lists remain reservable", async (t) 
   assert.equal(emptyListsResponse.status, 200);
   assert.deepEqual((await emptyListsResponse.json()).wish.listIds, []);
 
+  const concurrentMembershipResponses = await Promise.all([
+    post(`/wishes/${legacyWish.id}/lists/${sourceList.id}`, {}, ownerCookie),
+    post(`/wishes/${legacyWish.id}/lists/${targetList.id}`, {}, ownerCookie),
+  ]);
+  assert.deepEqual(concurrentMembershipResponses.map((response) => response.status), [200, 200]);
+  await Promise.all(concurrentMembershipResponses.map((response) => response.json()));
+  const idempotentMembershipResponse = await post(`/wishes/${legacyWish.id}/lists/${targetList.id}`, {}, ownerCookie);
+  assert.equal(idempotentMembershipResponse.status, 200);
+  assert.deepEqual(new Set((await idempotentMembershipResponse.json()).wish.listIds), new Set([sourceList.id, targetList.id]));
+  const clearAtomicMembershipResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [] }, ownerCookie);
+  assert.equal(clearAtomicMembershipResponse.status, 200);
+  await clearAtomicMembershipResponse.json();
+
   const duplicateListsResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [targetList.id, targetList.id] }, ownerCookie);
   assert.equal(duplicateListsResponse.status, 400);
   await duplicateListsResponse.json();
@@ -153,6 +166,9 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const foreignListResponse = await patch(`/wishes/${legacyWish.id}`, { listIds: [foreignListId] }, ownerCookie);
   assert.equal(foreignListResponse.status, 403);
   await foreignListResponse.json();
+  const foreignAtomicListResponse = await post(`/wishes/${legacyWish.id}/lists/${foreignListId}`, {}, ownerCookie);
+  assert.equal(foreignAtomicListResponse.status, 403);
+  await foreignAtomicListResponse.json();
 
   const unchangedDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
   assert.equal(unchangedDashboardResponse.status, 200);
@@ -328,8 +344,12 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const countedWishResponse = await post("/wishes", { title: "Fulfilled count", listIds: [countList.id] }, ownerCookie);
   assert.equal(countedWishResponse.status, 201);
   const countedWish = (await countedWishResponse.json()).wish;
-  const fulfilledResponse = await post(`/wishes/${countedWish.id}/fulfilled`, {}, ownerCookie);
+  const fulfilledResponse = await post(`/wishes/${countedWish.id}/fulfilled`, { fulfilled: true }, ownerCookie);
   assert.equal(fulfilledResponse.status, 200);
+  assert.deepEqual(await fulfilledResponse.json(), { status: "fulfilled" });
+  const fulfilledAgainResponse = await post(`/wishes/${countedWish.id}/fulfilled`, { fulfilled: true }, ownerCookie);
+  assert.equal(fulfilledAgainResponse.status, 200);
+  assert.deepEqual(await fulfilledAgainResponse.json(), { status: "fulfilled" });
   const countListPatchResponse = await patch(`/lists/${countList.id}`, { description: "Count active only" }, ownerCookie);
   assert.equal(countListPatchResponse.status, 200);
   assert.equal((await countListPatchResponse.json()).list.wishCount, 0);

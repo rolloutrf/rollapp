@@ -603,6 +603,332 @@ async function expectPublicMobileShell(page, label) {
   assert(geometry.left >= -10 && geometry.right > 4, `${label} profile dock does not match the compact reference placement`);
 }
 
+function isGeneralListRecord(list) {
+  return list.title === "Мои желания" && list.description === "Всё, чему я буду рад";
+}
+
+function normalizeMenuLabel(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+async function wishRecordForCard(card, dashboard, label) {
+  await card.waitFor({ state: "visible" });
+  const wishId = await card.locator(".wish-card__open").getAttribute("data-wish-id");
+  const wish = dashboard.wishes.find((item) => item.id === wishId);
+  assert(wish, `${label} cannot match the rendered wish card to dashboard data (${wishId || "missing id"})`);
+  return wish;
+}
+
+async function expectNoWishDetail(page, label) {
+  assert((await page.locator(".modal--wish-detail").count()) === 0, `${label} unexpectedly opened the wish detail dialog`);
+}
+
+async function expectFixedPopoverGeometry(locator, label, { margin = 6 } = {}) {
+  await locator.waitFor({ state: "visible" });
+  const geometry = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      position: style.position,
+      visibility: style.visibility,
+    };
+  });
+  assert(geometry.position === "fixed", `${label} should be fixed, rendered as ${geometry.position}`);
+  assert(geometry.visibility !== "hidden", `${label} remained hidden after positioning`);
+  assert(geometry.width > 0 && geometry.height > 0, `${label} has empty geometry`);
+  assert(geometry.left >= margin - 1, `${label} extends beyond the viewport left edge (${geometry.left}px)`);
+  assert(geometry.top >= margin - 1, `${label} extends beyond the viewport top edge (${geometry.top}px)`);
+  assert(geometry.right <= geometry.viewportWidth - margin + 1, `${label} extends beyond the viewport right edge (${geometry.right}px of ${geometry.viewportWidth}px)`);
+  assert(geometry.bottom <= geometry.viewportHeight - margin + 1, `${label} extends beyond the viewport bottom edge (${geometry.bottom}px of ${geometry.viewportHeight}px)`);
+  return geometry;
+}
+
+async function expectMobileTouchTargets(locator, label, { minHeight = 40 } = {}) {
+  const targets = await locator.locator("button, a").evaluateAll((elements) => elements
+    .filter((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+    })
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.getAttribute("aria-label") || element.textContent.replace(/\s+/g, " ").trim(),
+        width: rect.width,
+        height: rect.height,
+      };
+    }));
+  assert(targets.length > 0, `${label} has no visible interactive targets`);
+  for (const target of targets) {
+    assert(
+      target.width >= minHeight && target.height >= minHeight,
+      `${label} target "${target.label}" is smaller than ${minHeight}px (${target.width}x${target.height})`,
+    );
+  }
+}
+
+async function waitForFocused(page, locator, label) {
+  const handle = await locator.elementHandle();
+  assert(handle, `${label} focus target is missing`);
+  await page.waitForFunction((element) => document.activeElement === element, handle);
+  await handle.dispose();
+}
+
+async function openOwnerWishCardMenu(page, card, wish, { keyboard = false } = {}) {
+  const trigger = card.getByRole("button", { name: `Опции желания «${wish.title}»`, exact: true });
+  if (keyboard) {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+  } else {
+    await trigger.click();
+  }
+  const menu = page.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  await menu.waitFor({ state: "visible" });
+  assert(await trigger.getAttribute("aria-haspopup") === "menu", `Wish menu trigger for "${wish.title}" does not advertise a menu`);
+  assert(await trigger.getAttribute("aria-expanded") === "true", `Wish menu trigger for "${wish.title}" is not expanded`);
+  const controlsId = await trigger.getAttribute("aria-controls");
+  const menuId = await menu.getAttribute("id");
+  assert(
+    Boolean(controlsId) && Boolean(menuId) && controlsId === menuId,
+    `Wish menu trigger for "${wish.title}" is not linked to its portal`,
+  );
+  assert((await card.locator(".card-menu").count()) === 0, `Wish menu for "${wish.title}" is not rendered through the portal`);
+  return { trigger, menu };
+}
+
+async function openOwnerWishListMenu(page, menu, wish, { keyboard = false } = {}) {
+  const listTrigger = menu.locator(".card-menu__submenu-trigger");
+  assert(await listTrigger.getAttribute("role") === "menuitem", `List submenu trigger for "${wish.title}" is not a menu item`);
+  assert(await listTrigger.getAttribute("aria-haspopup") === "menu", `List submenu trigger for "${wish.title}" does not advertise a menu`);
+  if (keyboard) await page.keyboard.press("ArrowRight");
+  else await listTrigger.click();
+  const listMenu = page.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
+  await listMenu.waitFor({ state: "visible" });
+  assert(await listTrigger.getAttribute("aria-expanded") === "true", `List submenu trigger for "${wish.title}" is not expanded`);
+  const controlsId = await listTrigger.getAttribute("aria-controls");
+  const menuId = await listMenu.getAttribute("id");
+  assert(
+    Boolean(controlsId) && Boolean(menuId) && controlsId === menuId,
+    `List submenu trigger for "${wish.title}" is not linked to its portal`,
+  );
+  return { listTrigger, listMenu };
+}
+
+async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile = false } = {}) {
+  const categoryLists = lists.filter((list) => !isGeneralListRecord(list));
+  const expectedRootLabels = wish.status === "fulfilled"
+    ? ["Не исполнено", "Загадать ещё раз", "Редактировать", "Удалить"]
+    : [
+      "Исполнено",
+      "Редактировать",
+      wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным",
+      "Добавить в список",
+      "Поделиться",
+      "Удалить",
+    ];
+  const { trigger, menu } = await openOwnerWishCardMenu(page, card, wish, { keyboard: true });
+  const main = menu.locator(".card-menu__main");
+  const rootItems = main.locator(":scope > [role='menuitem']");
+  const actualRootLabels = (await rootItems.allInnerTexts()).map(normalizeMenuLabel);
+  assert(
+    JSON.stringify(actualRootLabels) === JSON.stringify(expectedRootLabels),
+    `${label} root menu order differs: ${actualRootLabels.join(" | ")}`,
+  );
+  assert((await main.getByRole("menuitem", { name: "Забронировать", exact: true }).count()) === 0, `${label} owner menu exposes a reservation action`);
+  assert((await main.getByRole("menuitem", { name: "Сохранить к себе", exact: true }).count()) === 0, `${label} owner menu exposes a copy action`);
+  assert(await main.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
+  assert(await main.getByRole("menuitem", { name: "Удалить", exact: true }).evaluate((element) => element.classList.contains("danger")), `${label} delete action is not marked as dangerous`);
+  await expectNoWishDetail(page, `${label} root menu`);
+  const rootGeometry = await expectFixedPopoverGeometry(menu, `${label} root menu`);
+  const triggerGeometry = await trigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      hitInset: {
+        left: parseFloat(getComputedStyle(element, "::before").left) || 0,
+        right: parseFloat(getComputedStyle(element, "::before").right) || 0,
+        top: parseFloat(getComputedStyle(element, "::before").top) || 0,
+        bottom: parseFloat(getComputedStyle(element, "::before").bottom) || 0,
+      },
+    };
+  });
+  const expectedRootLeft = Math.min(
+    Math.max(6, triggerGeometry.left),
+    triggerGeometry.viewportWidth - rootGeometry.width - 6,
+  );
+  assert(Math.abs(rootGeometry.left - expectedRootLeft) <= 1, `${label} root menu is not anchored to the trigger start edge`);
+  assert(
+    Math.abs(rootGeometry.top - triggerGeometry.bottom - 10) <= 1
+      || Math.abs(triggerGeometry.top - rootGeometry.bottom - 10) <= 1,
+    `${label} root menu does not keep the reference 10px trigger gap`,
+  );
+  const dismissLayer = page.locator(".card-menu__dismiss-layer");
+  await dismissLayer.waitFor({ state: "visible" });
+  const dismissGeometry = await dismissLayer.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      position: getComputedStyle(element).position,
+    };
+  });
+  assert(dismissGeometry.position === "fixed", `${label} dismiss layer is not fixed`);
+  assert(
+    Math.abs(dismissGeometry.left) <= 1
+      && Math.abs(dismissGeometry.top) <= 1
+      && Math.abs(dismissGeometry.width - dismissGeometry.viewportWidth) <= 1
+      && Math.abs(dismissGeometry.height - dismissGeometry.viewportHeight) <= 1,
+    `${label} dismiss layer does not cover the viewport`,
+  );
+  await waitForFocused(page, rootItems.first(), `${label} first root action`);
+  assert(await rootItems.first().evaluate((element) => element.matches(":focus-visible")), `${label} first root action has no visible keyboard focus`);
+  if (mobile) {
+    assert(
+      triggerGeometry.width >= 35 && triggerGeometry.width <= 37 && triggerGeometry.height >= 35 && triggerGeometry.height <= 37,
+      `${label} menu trigger does not match the 36px reference (${triggerGeometry.width}x${triggerGeometry.height})`,
+    );
+    const effectiveHitWidth = triggerGeometry.width - triggerGeometry.hitInset.left - triggerGeometry.hitInset.right;
+    const effectiveHitHeight = triggerGeometry.height - triggerGeometry.hitInset.top - triggerGeometry.hitInset.bottom;
+    assert(effectiveHitWidth >= 44 && effectiveHitHeight >= 44, `${label} menu trigger has no 44px touch hit area`);
+    await expectMobileTouchTargets(main, `${label} root menu`);
+    await expectNoRootOverflow(page, `${label} root menu`);
+  }
+  const menuScreenshot = wish.status === "fulfilled"
+    ? mobile ? "/tmp/rollapp-mobile-fulfilled-wish-card-menu.png" : "/tmp/rollapp-desktop-fulfilled-wish-card-menu.png"
+    : mobile ? "/tmp/rollapp-mobile-wish-card-menu.png" : "/tmp/rollapp-desktop-wish-card-menu.png";
+  await page.screenshot({ path: menuScreenshot });
+
+  if (wish.status === "fulfilled") {
+    assert((await main.getByRole("menuitem", { name: "Добавить в список", exact: true }).count()) === 0, `${label} fulfilled menu exposes list assignment`);
+    assert((await main.getByRole("menuitem", { name: "Поделиться", exact: true }).count()) === 0, `${label} fulfilled menu exposes sharing`);
+    await page.keyboard.press("Escape");
+    await menu.waitFor({ state: "detached" });
+    await waitForFocused(page, trigger, `${label} fulfilled trigger`);
+    assert(await trigger.getAttribute("aria-expanded") === "false", `${label} fulfilled trigger remained expanded after Escape`);
+    assert(await trigger.evaluate((element) => element.matches(":focus-visible")), `${label} fulfilled trigger has no visible focus after Escape`);
+    const pointerMenu = await openOwnerWishCardMenu(page, card, wish);
+    await page.locator(".card-menu__dismiss-layer").click({ position: { x: 2, y: 2 } });
+    await pointerMenu.menu.waitFor({ state: "detached" });
+    assert(await pointerMenu.trigger.getAttribute("aria-expanded") === "false", `${label} fulfilled outside dismissal left the trigger expanded`);
+    await expectNoWishDetail(page, `${label} fulfilled outside dismissal`);
+    return;
+  }
+
+  const listTriggerIndex = expectedRootLabels.indexOf("Добавить в список");
+  for (let index = 0; index < listTriggerIndex; index += 1) await page.keyboard.press("ArrowDown");
+  const listTrigger = main.getByRole("menuitem", { name: "Добавить в список", exact: true });
+  assert(await listTrigger.evaluate((element) => document.activeElement === element), `${label} list submenu trigger is not keyboard reachable`);
+  const { listMenu } = await openOwnerWishListMenu(page, menu, wish, { keyboard: true });
+  await expectNoWishDetail(page, `${label} list submenu`);
+  const listGeometry = await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
+  const listTriggerGeometry = await listTrigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+  });
+  if (!mobile) {
+    assert(
+      Math.abs(listGeometry.left - listTriggerGeometry.right + 8) <= 1
+        || Math.abs(listTriggerGeometry.left - listGeometry.right + 8) <= 1,
+      `${label} desktop list submenu does not use the reference 8px overlap`,
+    );
+    assert(
+      Math.abs(listGeometry.top - listTriggerGeometry.top + 8) <= 1
+        || Math.abs(listGeometry.bottom - listTriggerGeometry.bottom - 8) <= 1,
+      `${label} desktop list submenu is not anchored to the list action`,
+    );
+  } else {
+    assert(
+      Math.abs(listGeometry.left - rootGeometry.left) <= 1
+        && Math.abs(listGeometry.width - rootGeometry.width) <= 1,
+      `${label} mobile list submenu is not shifted into the root-menu viewport lane`,
+    );
+    assert(
+      Math.abs(listGeometry.top - listTriggerGeometry.top + 8) <= 1
+        || Math.abs(listGeometry.bottom - listTriggerGeometry.bottom - 8) <= 1,
+      `${label} mobile list submenu is not anchored to the list action`,
+    );
+  }
+  const options = listMenu.getByRole("menuitemcheckbox");
+  const actualListLabels = (await options.allInnerTexts()).map(normalizeMenuLabel);
+  const expectedListLabels = categoryLists.map((list) => list.title);
+  assert(
+    JSON.stringify(actualListLabels) === JSON.stringify(expectedListLabels),
+    `${label} list submenu differs: ${actualListLabels.join(" | ")}`,
+  );
+  assert(await listMenu.getByRole("menuitem", { name: "Новый список", exact: true }).isVisible(), `${label} list submenu does not expose list creation`);
+  for (const list of categoryLists) {
+    const option = listMenu.getByRole("menuitemcheckbox", { name: list.title, exact: true });
+    assert(
+      await option.getAttribute("aria-checked") === String(wish.listIds.includes(list.id)),
+      `${label} list "${list.title}" has the wrong initial checked state`,
+    );
+  }
+  if (categoryLists.length) {
+    await waitForFocused(page, options.first(), `${label} first list option`);
+    assert(await options.first().evaluate((element) => element.matches(":focus-visible")), `${label} first list option has no visible keyboard focus`);
+  }
+  if (mobile) {
+    await expectMobileTouchTargets(listMenu.locator(".card-menu__list-scroll"), `${label} list submenu`, { minHeight: 44 });
+    await expectNoRootOverflow(page, `${label} list submenu`);
+  }
+  await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-card-lists.png" : "/tmp/rollapp-desktop-wish-card-lists.png" });
+
+  await page.keyboard.press("Escape");
+  await listMenu.waitFor({ state: "detached" });
+  await menu.waitFor({ state: "visible" });
+  assert(await listTrigger.getAttribute("aria-expanded") === "false", `${label} first Escape did not collapse the list submenu`);
+  await waitForFocused(page, listTrigger, `${label} list trigger after Escape`);
+  assert(await listTrigger.evaluate((element) => element.matches(":focus-visible")), `${label} list trigger has no visible focus after Escape`);
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "detached" });
+  assert(await trigger.getAttribute("aria-expanded") === "false", `${label} second Escape did not collapse the root menu`);
+  await waitForFocused(page, trigger, `${label} card trigger after Escape`);
+  assert(await trigger.evaluate((element) => element.matches(":focus-visible")), `${label} card trigger has no visible focus after Escape`);
+
+  const pointerMenu = await openOwnerWishCardMenu(page, card, wish);
+  const pointerDismissLayer = page.locator(".card-menu__dismiss-layer");
+  if (!mobile) {
+    await pointerMenu.menu.locator(".card-menu__submenu-trigger").hover();
+    const hoverListMenu = page.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
+    await hoverListMenu.waitFor({ state: "visible" });
+    await page.mouse.move(2, 2);
+    await hoverListMenu.waitFor({ state: "detached" });
+    await pointerMenu.menu.waitFor({ state: "visible" });
+  }
+  await pointerDismissLayer.click({ position: { x: 2, y: 2 } });
+  await pointerMenu.menu.waitFor({ state: "detached" });
+  assert(await pointerMenu.trigger.getAttribute("aria-expanded") === "false", `${label} outside pointer dismissal left the trigger expanded`);
+  await expectNoWishDetail(page, `${label} outside dismissal`);
+  if (!mobile) {
+    const deleteMenu = await openOwnerWishCardMenu(page, card, wish);
+    await deleteMenu.menu.getByRole("menuitem", { name: "Удалить", exact: true }).click();
+    await deleteMenu.menu.waitFor({ state: "detached" });
+    const deleteDialog = page.getByRole("dialog", { name: `Удаление желания «${wish.title}»`, exact: true });
+    await deleteDialog.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(deleteDialog, `${label} delete confirmation`);
+    await deleteDialog.getByRole("button", { name: "Отмена", exact: true }).click();
+    await deleteDialog.waitFor({ state: "detached" });
+  }
+}
+
 async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   const card = page.locator(".wish-card").first();
   await card.waitFor({ state: "visible" });
@@ -731,10 +1057,16 @@ try {
 
   await waitForAppRoute(dashboard, "/app/wishes");
   const desktopCard = dashboard.locator(".wish-card").first();
-  await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
-  await desktopCard.locator(".card-menu").waitFor({ state: "visible" });
-  assert((await dashboard.locator(".modal--wish-detail").count()) === 0, "Wish options must not open the detail dialog");
-  await desktopCard.getByRole("button", { name: /Опции желания/ }).click();
+  const desktopMenuDashboardResponse = await apiFromPage(dashboard, "/api/dashboard");
+  assert(desktopMenuDashboardResponse.ok, `Desktop wish menu dashboard failed: ${desktopMenuDashboardResponse.status}`);
+  const desktopMenuWish = await wishRecordForCard(desktopCard, desktopMenuDashboardResponse.data, "Desktop owner wish menu");
+  await expectOwnerWishCardMenu(
+    dashboard,
+    desktopCard,
+    desktopMenuWish,
+    desktopMenuDashboardResponse.data.lists,
+    "Desktop owner wish menu",
+  );
   const desktopDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish");
   await expectDarkAuthenticatedModal(desktopDetail.dialog, "Desktop owner wish detail");
   await expectFulfilledActionContrast(dashboard, desktopDetail.dialog, "Desktop owner wish detail");
@@ -786,6 +1118,19 @@ try {
     await expectNoRootOverflow(mobilePage, `390px ${pathname}`);
     if (pathname === "/app/wishes") {
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
+      const mobileMenuDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
+      assert(mobileMenuDashboardResponse.ok, `390px wish menu dashboard failed: ${mobileMenuDashboardResponse.status}`);
+      const mobileCards = mobilePage.locator(".wish-card");
+      const mobileMenuCard = mobileCards.nth((await mobileCards.count()) > 1 ? 1 : 0);
+      const mobileMenuWish = await wishRecordForCard(mobileMenuCard, mobileMenuDashboardResponse.data, "390px owner wish menu");
+      await expectOwnerWishCardMenu(
+        mobilePage,
+        mobileMenuCard,
+        mobileMenuWish,
+        mobileMenuDashboardResponse.data.lists,
+        "390px owner wish menu",
+        { mobile: true },
+      );
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
       await expectDarkAuthenticatedModal(mobileDetail.dialog, "390px owner wish detail");
       await expectFulfilledActionContrast(mobilePage, mobileDetail.dialog, "390px owner wish detail");
@@ -1244,37 +1589,50 @@ try {
   try {
     const wishCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
     await wishCard.waitFor({ state: "visible" });
-    await wishCard.getByRole("button", { name: `Открыть желание «${wishToMove.title}»` }).click();
-    const wishDetailsDialog = ownerWidePage.getByRole("dialog", { name: `Желание: ${wishToMove.title}` });
-    await wishDetailsDialog.waitFor({ state: "visible" });
-    await expectDarkAuthenticatedModal(wishDetailsDialog, "Desktop profile owner wish detail");
-    const changeListsButton = wishDetailsDialog.getByRole("button", { name: /^Изменить списки желания\./ });
-    assert(await changeListsButton.isVisible(), "Owner wish detail does not expose the editable list control");
-    await changeListsButton.click();
+    const wishPatchRequests = [];
+    const captureWishPatch = (request) => {
+      if (
+        request.method() === "PATCH"
+        && new URL(request.url()).pathname === `/api/wishes/${wishToMove.id}`
+      ) wishPatchRequests.push(request);
+    };
+    ownerWidePage.on("request", captureWishPatch);
+    try {
+      const portalMenu = await openOwnerWishCardMenu(ownerWidePage, wishCard, wishToMove);
+      const { listMenu } = await openOwnerWishListMenu(ownerWidePage, portalMenu.menu, wishToMove);
+      const sourceOption = listMenu.getByRole("menuitemcheckbox", { name: sourceList.title, exact: true });
+      const targetOption = listMenu.getByRole("menuitemcheckbox", { name: targetList.title, exact: true });
+      assert(await sourceOption.getAttribute("aria-checked") === "true", "Wish list draft should start with the source list selected");
+      assert(await targetOption.getAttribute("aria-checked") === "false", "Wish list draft should start with the target list unselected");
 
-    const editDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
-    await editDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
-    await expectDarkAuthenticatedModal(editDialog, "Desktop wish editor");
-    const sourceChoice = editDialog.locator(".list-choice > label").filter({ hasText: sourceList.title });
-    const targetChoice = editDialog.locator(".list-choice > label").filter({ hasText: targetList.title });
-    const sourceCheckbox = sourceChoice.locator("input[type='checkbox']");
-    const targetCheckbox = targetChoice.locator("input[type='checkbox']");
-    assert(await sourceCheckbox.isChecked(), "Wish editor should preselect the wish's current list");
-    assert(!(await targetCheckbox.isChecked()), "Wish editor should not preselect an unrelated list");
+      await sourceOption.click();
+      await targetOption.click();
+      assert(await sourceOption.getAttribute("aria-checked") === "false", "Wish list draft did not remove the source list");
+      assert(await targetOption.getAttribute("aria-checked") === "true", "Wish list draft did not add the target list");
+      await ownerWidePage.waitForTimeout(100);
+      assert(wishPatchRequests.length === 0, "Changing draft list rows sent a PATCH before Save");
 
-    await sourceChoice.click();
-    await targetChoice.click();
-    assert(!(await sourceCheckbox.isChecked()), "Wish editor did not remove the source list selection");
-    assert(await targetCheckbox.isChecked(), "Wish editor did not select the target list");
-
-    const updateResponsePromise = ownerWidePage.waitForResponse((response) => (
-      response.request().method() === "PATCH"
-      && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}`
-    ));
-    await editDialog.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
-    const updateResponse = await updateResponsePromise;
-    assert(updateResponse.ok(), `Wish list update failed: ${updateResponse.status()}`);
-    await editDialog.waitFor({ state: "detached" });
+      const saveDraft = listMenu.getByRole("menuitem", { name: "Сохранить", exact: true });
+      await saveDraft.waitFor({ state: "visible" });
+      const updateResponsePromise = ownerWidePage.waitForResponse((response) => (
+        response.request().method() === "PATCH"
+        && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}`
+      ));
+      await saveDraft.click();
+      const updateResponse = await updateResponsePromise;
+      assert(updateResponse.ok(), `Wish list update failed: ${updateResponse.status()}`);
+      const updatePayload = await updateResponse.json();
+      assert(updatePayload.wish && sameMembers(updatePayload.wish.listIds, [targetList.id]), "Wish list PATCH returned the wrong membership");
+      await listMenu.waitFor({ state: "detached" });
+      await portalMenu.menu.waitFor({ state: "detached" });
+      assert(wishPatchRequests.length === 1, `Wish list Save should send exactly one PATCH, sent ${wishPatchRequests.length}`);
+      const patchBody = wishPatchRequests[0].postDataJSON();
+      assert(Array.isArray(patchBody.listIds) && sameMembers(patchBody.listIds, [targetList.id]), "Wish list Save sent the wrong listIds payload");
+      assert(await portalMenu.trigger.getAttribute("aria-expanded") === "false", "Wish list Save left the root menu expanded");
+      await expectNoWishDetail(ownerWidePage, "Desktop list draft persistence");
+    } finally {
+      ownerWidePage.off("request", captureWishPatch);
+    }
     await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
 
     const dashboardAfterMoveResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
@@ -1301,8 +1659,19 @@ try {
     await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: targetList.title }).click();
     const persistedCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
     await persistedCard.waitFor({ state: "visible" });
-    await persistedCard.getByRole("button", { name: `Опции желания «${wishToMove.title}»` }).click();
-    await persistedCard.getByRole("button", { name: "Редактировать", exact: true }).click();
+    const persistedPortalMenu = await openOwnerWishCardMenu(ownerWidePage, persistedCard, wishToMove);
+    const persistedLists = await openOwnerWishListMenu(ownerWidePage, persistedPortalMenu.menu, wishToMove);
+    assert(
+      await persistedLists.listMenu.getByRole("menuitemcheckbox", { name: sourceList.title, exact: true }).getAttribute("aria-checked") === "false",
+      "Source list became selected again in the card menu after reload",
+    );
+    assert(
+      await persistedLists.listMenu.getByRole("menuitemcheckbox", { name: targetList.title, exact: true }).getAttribute("aria-checked") === "true",
+      "Target list selection did not survive reload in the card menu",
+    );
+    await ownerWidePage.keyboard.press("Escape");
+    await persistedLists.listMenu.waitFor({ state: "detached" });
+    await persistedPortalMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
     const reloadedEditDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
     await reloadedEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
     await expectDarkAuthenticatedModal(reloadedEditDialog, "Reloaded desktop wish editor");
@@ -1319,11 +1688,79 @@ try {
   } finally {
     const restoreResponse = await apiFromPage(ownerWidePage, `/api/wishes/${wishToMove.id}`, { method: "PATCH", body: { listIds: originalListIds } });
     assert(restoreResponse.ok, `Failed to restore seeded wish membership: ${restoreResponse.status}`);
+    assert(
+      restoreResponse.data?.wish && sameMembers(restoreResponse.data.wish.listIds, originalListIds),
+      "Seeded wish membership restoration returned the wrong listIds",
+    );
+    const restoredDashboardResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(restoredDashboardResponse.ok, `Restored owner dashboard failed: ${restoredDashboardResponse.status}`);
+    const restoredWish = restoredDashboardResponse.data.wishes.find((wish) => wish.id === wishToMove.id);
+    assert(restoredWish && sameMembers(restoredWish.listIds, originalListIds), "Seeded wish membership was not restored");
+  }
+
+  let repeatedWishId = null;
+  try {
+    const markFulfilledResponse = await apiFromPage(ownerWidePage, `/api/wishes/${wishToMove.id}/fulfilled`, {
+      method: "POST",
+      body: { fulfilled: true },
+    });
+    assert(markFulfilledResponse.ok && markFulfilledResponse.data?.status === "fulfilled", "Failed to prepare fulfilled wish menu regression");
+    await ownerWidePage.goto(`${baseUrl}/alisa?view=fulfilled`, { waitUntil: "domcontentloaded" });
+    await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    const fulfilledCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
+    await fulfilledCard.waitFor({ state: "visible" });
+    const fulfilledDashboardResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(fulfilledDashboardResponse.ok, `Fulfilled menu dashboard failed: ${fulfilledDashboardResponse.status}`);
+    const fulfilledWish = fulfilledDashboardResponse.data.wishes.find((wish) => wish.id === wishToMove.id);
+    assert(fulfilledWish?.status === "fulfilled", "Fulfilled menu regression received an active wish");
+    await expectOwnerWishCardMenu(
+      ownerWidePage,
+      fulfilledCard,
+      fulfilledWish,
+      fulfilledDashboardResponse.data.lists,
+      "Desktop fulfilled owner wish menu",
+    );
+
+    const repeatMenu = await openOwnerWishCardMenu(ownerWidePage, fulfilledCard, fulfilledWish);
+    const repeatResponsePromise = ownerWidePage.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname === "/api/wishes"
+    ));
+    await repeatMenu.menu.getByRole("menuitem", { name: "Загадать ещё раз", exact: true }).click();
+    const repeatResponse = await repeatResponsePromise;
+    assert(repeatResponse.ok(), `Repeating a fulfilled wish failed: ${repeatResponse.status()}`);
+    const repeatedWish = (await repeatResponse.json()).wish;
+    repeatedWishId = repeatedWish?.id || null;
+    assert(repeatedWish?.status === "active" && repeatedWish.id !== wishToMove.id, "Repeat action did not create a separate active wish");
+    assert(repeatedWish.title === wishToMove.title, "Repeat action changed the wish title");
+    assert(sameMembers(repeatedWish.listIds, originalListIds), "Repeat action changed the wish list membership");
+    await repeatMenu.menu.waitFor({ state: "detached" });
+
+    const unfulfillMenu = await openOwnerWishCardMenu(ownerWidePage, fulfilledCard, fulfilledWish);
+    const unfulfillResponsePromise = ownerWidePage.waitForResponse((response) => (
+      response.request().method() === "POST"
+      && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}/fulfilled`
+    ));
+    await unfulfillMenu.menu.getByRole("menuitem", { name: "Не исполнено", exact: true }).click();
+    const unfulfillResponse = await unfulfillResponsePromise;
+    assert(unfulfillResponse.ok(), `Unfulfilling a wish failed: ${unfulfillResponse.status()}`);
+    assert((await unfulfillResponse.json()).status === "active", "Unfulfill action returned the wrong target status");
+    await fulfilledCard.waitFor({ state: "detached" });
+  } finally {
+    const restoreStatusResponse = await apiFromPage(ownerWidePage, `/api/wishes/${wishToMove.id}/fulfilled`, {
+      method: "POST",
+      body: { fulfilled: false },
+    });
+    assert(restoreStatusResponse.ok && restoreStatusResponse.data?.status === "active", "Failed to restore seeded wish status");
+    if (repeatedWishId) {
+      const cleanupResponse = await apiFromPage(ownerWidePage, `/api/wishes/${repeatedWishId}`, { method: "DELETE" });
+      assert(cleanupResponse.ok, `Failed to remove repeated smoke wish ${repeatedWishId}: ${cleanupResponse.status}`);
+    }
   }
   await expectNoRootOverflow(ownerWidePage, "1912px owner profile");
   await ownerWide.close();
 
-  console.log("Visual smoke passed: desktop/mobile friend directories, wish details, owner list reassignment persistence, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
+  console.log("Visual smoke passed: desktop/mobile card menus, hover lists, fulfilled/repeat/delete actions, list persistence, wish details, app routes, friend directories, and public profiles");
 } finally {
   await browser.close();
 }
