@@ -1,6 +1,16 @@
 import { chromium } from "playwright-core";
 
 const baseUrl = (process.env.BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
+const baseHostname = new URL(baseUrl).hostname.toLowerCase();
+const loopbackHostnames = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
+const allowedSslipTestEnvironment = baseHostname.endsWith(".sslip.io")
+  && process.env.ROLLAPP_VISUAL_TEST_ENV === "1";
+if (!loopbackHostnames.has(baseHostname) && !baseHostname.endsWith(".localhost") && !allowedSslipTestEnvironment) {
+  throw new Error(
+    `Refusing to run mutating visual smoke against ${baseHostname}. `
+    + "Use localhost/127.0.0.1, or set ROLLAPP_VISUAL_TEST_ENV=1 for an isolated *.sslip.io test deployment.",
+  );
+}
 const executablePath = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const browser = await chromium.launch({ executablePath, headless: true });
 const friendsRoutes = {
@@ -215,6 +225,9 @@ async function expectDarkAuthenticatedModal(dialog, label) {
       ".image-preview > label",
       ".priority-picker",
       ".wish-settings > label",
+      ".wish-editor__field",
+      ".wish-editor__switch",
+      ".wish-editor__list-row",
       ".modal-actions",
       "input:not([type='checkbox']):not([type='radio']):not([type='hidden'])",
       "textarea",
@@ -258,6 +271,114 @@ async function expectDarkAuthenticatedModal(dialog, label) {
     theme.lightSurfaces.length === 0,
     `${label} contains light form surfaces: ${theme.lightSurfaces.map((surface) => `${surface.selector} (${surface.luminance})`).join(", ")}`,
   );
+}
+
+async function expectWishEditorLayout(dialog, label, { mobile = false } = {}) {
+  await dialog.waitFor({ state: "visible" });
+  await dialog.evaluate(async () => {
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const geometry = await dialog.evaluate((element) => {
+    const rectOf = (node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    };
+    const media = element.querySelector(".wish-editor__image");
+    const panel = element.querySelector(".wish-editor__panel");
+    const scroll = element.querySelector(".wish-editor__scroll");
+    const submit = element.querySelector(".wish-editor__submit");
+    const close = element.querySelector(".modal__close");
+    const remove = element.querySelector(".wish-editor__delete");
+    const hitContains = (node) => {
+      const rect = node.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === node || node.contains(hit);
+    };
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      dialog: rectOf(element),
+      media: rectOf(media),
+      panel: rectOf(panel),
+      scroll: {
+        ...rectOf(scroll),
+        clientHeight: scroll.clientHeight,
+        scrollHeight: scroll.scrollHeight,
+        overflowY: getComputedStyle(scroll).overflowY,
+      },
+      submit: { ...rectOf(submit), position: getComputedStyle(submit).position, hittable: hitContains(submit) },
+      close: { ...rectOf(close), position: getComputedStyle(close).position, hittable: hitContains(close) },
+      remove: { ...rectOf(remove), hittable: hitContains(remove) },
+      fieldCount: element.querySelectorAll(".wish-editor__field").length,
+      switchCount: element.querySelectorAll(".wish-editor__switch-row").length,
+      rootWidth: document.documentElement.scrollWidth,
+    };
+  });
+
+  assert(geometry.fieldCount === 4, `${label} should expose the four reference field tiles`);
+  assert(geometry.switchCount === 2, `${label} should expose the two reference switch rows`);
+  assert(geometry.submit.hittable, `${label} Update action is covered`);
+  assert(geometry.close.hittable, `${label} close action is covered`);
+  assert(geometry.remove.hittable, `${label} delete action is covered`);
+  assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal overflow`);
+
+  if (mobile) {
+    assert(Math.abs(geometry.dialog.width - geometry.viewport.width) <= 1, `${label} is not full width (${geometry.dialog.width}px of ${geometry.viewport.width}px)`);
+    assert(geometry.dialog.height >= geometry.viewport.height - 1, `${label} is not full height`);
+    assert(geometry.media.top < geometry.panel.top, `${label} does not stack media above fields`);
+    assert(Math.abs(geometry.media.left - geometry.panel.left) <= 1, `${label} mobile columns are not aligned`);
+    assert(geometry.submit.position === "fixed", `${label} Update action is not fixed on mobile`);
+    assert(geometry.close.position === "fixed", `${label} close action is not fixed on mobile`);
+  } else {
+    assert(geometry.dialog.width >= geometry.viewport.width - 50, `${label} is not viewport-wide`);
+    assert(geometry.dialog.height >= geometry.viewport.height - 50, `${label} is not viewport-high`);
+    assert(geometry.media.right < geometry.panel.left, `${label} does not keep media and fields in separate columns`);
+    assert(Math.abs(geometry.media.top - geometry.submit.top) <= 2, `${label} does not align media with Update`);
+    assert(Math.abs(geometry.media.width - geometry.panel.width) <= 24, `${label} editor columns are not balanced`);
+    assert(Math.abs(geometry.media.width - geometry.media.height) <= 2, `${label} media is not square`);
+    assert(geometry.scroll.overflowY === "auto", `${label} right form rail is not independently scrollable`);
+  }
+}
+
+async function expectWishEditorLandscape(dialog, label) {
+  await dialog.waitFor({ state: "visible" });
+  await dialog.evaluate(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const geometry = await dialog.evaluate((element) => {
+    const rectOf = (node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    };
+    const hitContains = (node) => {
+      const rect = node.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === node || node.contains(hit);
+    };
+    const media = element.querySelector(".wish-editor__image");
+    const panel = element.querySelector(".wish-editor__panel");
+    const submit = element.querySelector(".wish-editor__submit");
+    const close = element.querySelector(".modal__close");
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      dialog: rectOf(element),
+      media: rectOf(media),
+      panel: rectOf(panel),
+      submit: { ...rectOf(submit), position: getComputedStyle(submit).position, hittable: hitContains(submit) },
+      close: { ...rectOf(close), position: getComputedStyle(close).position, hittable: hitContains(close) },
+      rootWidth: document.documentElement.scrollWidth,
+    };
+  });
+  assert(Math.abs(geometry.dialog.width - geometry.viewport.width) <= 1, `${label} is not full width`);
+  assert(geometry.dialog.height >= geometry.viewport.height - 1, `${label} is not full height`);
+  assert(geometry.media.right < geometry.panel.left, `${label} does not use the compact landscape columns`);
+  assert(geometry.media.bottom <= geometry.viewport.height + 1, `${label} clips the media below the landscape viewport`);
+  assert(geometry.panel.right <= geometry.viewport.width + 1, `${label} pushes the form outside the viewport`);
+  assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal overflow`);
+  assert(geometry.submit.position === "fixed" && geometry.submit.hittable, `${label} Update action is not fixed and reachable`);
+  assert(geometry.close.position === "fixed" && geometry.close.hittable, `${label} close action is not fixed and reachable`);
 }
 
 async function waitForAppRoute(page, pathname) {
@@ -1219,14 +1340,19 @@ try {
     await mobileOwnerDetail.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileOwnerDetail, "390px profile owner wish detail");
     await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ }).click();
-    const mobileEditDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
-    await mobileEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
+    const mobileEditDialog = mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileWishToMove.title}»`, exact: true });
+    await mobileEditDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileEditDialog, "390px wish editor");
-    const mobileSourceChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileSourceList.title });
-    const mobileTargetChoice = mobileEditDialog.locator(".list-choice > label").filter({ hasText: mobileTargetList.title });
+    await expectWishEditorLayout(mobileEditDialog, "390px wish editor", { mobile: true });
+    await mobilePage.setViewportSize({ width: 844, height: 390 });
+    await expectWishEditorLandscape(mobileEditDialog, "844×390 landscape wish editor");
+    await mobilePage.setViewportSize({ width: 390, height: 844 });
+    await expectWishEditorLayout(mobileEditDialog, "390px restored wish editor", { mobile: true });
+    const mobileSourceChoice = mobileEditDialog.locator(".wish-editor__list-row").filter({ hasText: mobileSourceList.title });
+    const mobileTargetChoice = mobileEditDialog.locator(".wish-editor__list-row").filter({ hasText: mobileTargetList.title });
     await mobileSourceChoice.click();
     await mobileTargetChoice.click();
-    const mobileSaveButton = mobileEditDialog.getByRole("button", { name: "Сохранить изменения", exact: true });
+    const mobileSaveButton = mobileEditDialog.getByRole("button", { name: "Обновить", exact: true });
     await mobileSaveButton.scrollIntoViewIfNeeded();
     const hitTargetIsSave = await mobileSaveButton.evaluate((button) => {
       const rect = button.getBoundingClientRect();
@@ -1672,14 +1798,8 @@ try {
     );
     await ownerWidePage.keyboard.press("Escape");
     await persistedLists.listMenu.waitFor({ state: "detached" });
-    await persistedPortalMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
-    const reloadedEditDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
-    await reloadedEditDialog.getByRole("heading", { name: "Изменить желание", exact: true }).waitFor();
-    await expectDarkAuthenticatedModal(reloadedEditDialog, "Reloaded desktop wish editor");
-    assert(!(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: sourceList.title }).locator("input[type='checkbox']").isChecked()), "Source list became selected again after reload");
-    assert(await reloadedEditDialog.locator(".list-choice > label").filter({ hasText: targetList.title }).locator("input[type='checkbox']").isChecked(), "Target list selection did not survive reload");
-    await reloadedEditDialog.getByRole("button", { name: "Закрыть диалог" }).click();
-    await reloadedEditDialog.waitFor({ state: "detached" });
+    await ownerWidePage.keyboard.press("Escape");
+    await persistedPortalMenu.menu.waitFor({ state: "detached" });
 
     const dashboardAfterReloadResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
     assert(dashboardAfterReloadResponse.ok, `Owner dashboard after reload failed: ${dashboardAfterReloadResponse.status}`);
@@ -1697,6 +1817,212 @@ try {
     assert(restoredDashboardResponse.ok, `Restored owner dashboard failed: ${restoredDashboardResponse.status}`);
     const restoredWish = restoredDashboardResponse.data.wishes.find((wish) => wish.id === wishToMove.id);
     assert(restoredWish && sameMembers(restoredWish.listIds, originalListIds), "Seeded wish membership was not restored");
+  }
+
+  let editorSmokeWishId = null;
+  try {
+    const editorBaselineResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(editorBaselineResponse.ok, `Editor smoke baseline dashboard failed: ${editorBaselineResponse.status}`);
+    const editorBaseline = editorBaselineResponse.data;
+    const baselineSourceCount = editorBaseline.lists.find((list) => list.id === sourceList.id)?.wishCount;
+    const baselineTargetCount = editorBaseline.lists.find((list) => list.id === targetList.id)?.wishCount;
+    assert(Number.isInteger(baselineSourceCount) && Number.isInteger(baselineTargetCount), "Editor smoke list counts are unavailable");
+
+    const initialTitle = `Disposable editor smoke ${Date.now()}`;
+    const initialDescription = "Temporary wish used only by the visual regression";
+    const initialUrl = "https://example.com/rollapp-editor-before";
+    const createEditorWishResponse = await apiFromPage(ownerWidePage, "/api/wishes", {
+      method: "POST",
+      body: {
+        title: initialTitle,
+        description: initialDescription,
+        url: initialUrl,
+        imageUrl: "/art/camera.svg",
+        price: 1234,
+        currency: "RUB",
+        priority: 2,
+        privacy: "inherit",
+        allowMultiple: false,
+        listIds: [sourceList.id],
+      },
+    });
+    assert(createEditorWishResponse.ok, `Disposable editor wish creation failed: ${createEditorWishResponse.status}`);
+    const editorSmokeWish = createEditorWishResponse.data?.wish;
+    editorSmokeWishId = editorSmokeWish?.id || null;
+    assert(editorSmokeWishId, "Disposable editor wish response did not include an id");
+
+    const afterCreateResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(afterCreateResponse.ok, `Editor smoke post-create dashboard failed: ${afterCreateResponse.status}`);
+    assert(
+      afterCreateResponse.data.lists.find((list) => list.id === sourceList.id)?.wishCount === baselineSourceCount + 1,
+      "Creating the disposable editor wish did not increment its source list",
+    );
+
+    await ownerWidePage.goto(`${baseUrl}/alisa/lists/${sourceList.id}`, { waitUntil: "domcontentloaded" });
+    await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    const editorSmokeCard = ownerWidePage.locator(".wish-card").filter({ hasText: initialTitle }).first();
+    await editorSmokeCard.waitFor({ state: "visible" });
+    const editorSmokeMenu = await openOwnerWishCardMenu(ownerWidePage, editorSmokeCard, editorSmokeWish);
+    await editorSmokeMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
+
+    const editorDialog = ownerWidePage.getByRole("dialog", { name: `Редактирование желания «${initialTitle}»`, exact: true });
+    await editorDialog.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(editorDialog, "Disposable desktop wish editor");
+    await expectWishEditorLayout(editorDialog, "1912px disposable desktop wish editor");
+    const createListFromEditor = editorDialog.getByRole("button", { name: "Новый список", exact: true });
+    assert(await createListFromEditor.isVisible(), "Desktop wish editor does not expose list creation");
+
+    const draftProbeTitle = `${initialTitle} · draft`;
+    const draftProbeInput = editorDialog.getByLabel("Название", { exact: true });
+    assert(await draftProbeInput.inputValue() === initialTitle, "Disposable editor did not prefill the wish title");
+    await draftProbeInput.fill(draftProbeTitle);
+    await createListFromEditor.click();
+    const nestedListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка", exact: true });
+    await nestedListDialog.waitFor({ state: "visible" });
+    assert(await editorDialog.isVisible(), "Opening list creation unmounted the wish editor");
+    assert(await draftProbeInput.inputValue() === draftProbeTitle, "Opening list creation discarded the wish editor draft");
+    await nestedListDialog.getByRole("button", { name: "Отмена", exact: true }).click();
+    await nestedListDialog.waitFor({ state: "detached" });
+    assert(await editorDialog.isVisible(), "Cancelling list creation did not return to the wish editor");
+    assert(await draftProbeInput.inputValue() === draftProbeTitle, "Cancelling list creation discarded the wish editor draft");
+    assert(
+      await ownerWidePage.locator("body").evaluate((element) => element.classList.contains("modal-open")),
+      "Closing a stacked list modal unlocked the page while the wish editor remained open",
+    );
+
+    const sourceChoice = editorDialog.locator(".wish-editor__list-row").filter({ hasText: sourceList.title });
+    const targetChoice = editorDialog.locator(".wish-editor__list-row").filter({ hasText: targetList.title });
+    assert(await sourceChoice.locator("input[type='checkbox']").isChecked(), "Disposable editor wish did not preselect its source list");
+    assert(!(await targetChoice.locator("input[type='checkbox']").isChecked()), "Disposable editor wish unexpectedly preselected its target list");
+    await sourceChoice.click();
+    await targetChoice.click();
+
+    const imageEditorButton = editorDialog.getByRole("button", { name: "Сменить фото", exact: true });
+    await imageEditorButton.click();
+    const imageUrlInput = editorDialog.getByLabel("Ссылка на фото", { exact: true });
+    assert(await imageUrlInput.inputValue() === "/art/camera.svg", "Editor did not preserve the local image URL");
+    assert(await imageUrlInput.evaluate((input) => input.validity.valid), "Editor rejects a supported local /art image URL");
+
+    const editedTitle = `${initialTitle} · updated`;
+    const editedDescription = "Проверка полноэкранного редактора на временном желании";
+    const editedUrl = "https://example.com/rollapp-editor-after";
+    const editedPrice = 2345;
+    const titleInput = editorDialog.getByLabel("Название", { exact: true });
+    const urlInput = editorDialog.getByLabel("Ссылка", { exact: true });
+    const descriptionInput = editorDialog.locator(".wish-editor__field--description > textarea");
+    const priceInput = editorDialog.locator(".wish-editor__field--price > input");
+    const currencySelect = editorDialog.getByLabel("Валюта", { exact: true });
+    const privateSwitch = editorDialog.getByRole("switch", { name: "Секретное желание", exact: true });
+    const multipleSwitch = editorDialog.getByRole("switch", { name: "Многократное бронирование", exact: true });
+    assert(await titleInput.inputValue() === draftProbeTitle, "Disposable editor did not preserve the title draft after list creation");
+    assert(await urlInput.inputValue() === initialUrl, "Disposable editor did not prefill the wish URL");
+    assert(await descriptionInput.inputValue() === initialDescription, "Disposable editor did not prefill the wish description");
+    assert(Number(await priceInput.inputValue()) === 1234, "Disposable editor did not prefill the wish price");
+    assert(await currencySelect.inputValue() === "RUB", "Disposable editor did not prefill the wish currency");
+    assert(!(await privateSwitch.isChecked()), "Disposable editor wish unexpectedly started private");
+    assert(!(await multipleSwitch.isChecked()), "Disposable editor wish unexpectedly allowed multiple reservations");
+
+    await titleInput.fill(editedTitle);
+    await urlInput.fill(editedUrl);
+    await descriptionInput.fill(editedDescription);
+    await priceInput.fill(String(editedPrice));
+    await currencySelect.selectOption("EUR");
+    await editorDialog.locator(".wish-editor__switch-row").filter({ hasText: "Секретное желание" }).click();
+    await editorDialog.locator(".wish-editor__switch-row").filter({ hasText: "Многократное бронирование" }).click();
+    assert(await privateSwitch.isChecked(), "Visible privacy switch did not toggle");
+    assert(await multipleSwitch.isChecked(), "Visible multiple-reservation switch did not toggle");
+
+    const editorUpdateResponsePromise = ownerWidePage.waitForResponse((response) => (
+      response.request().method() === "PATCH"
+      && new URL(response.url()).pathname === `/api/wishes/${editorSmokeWishId}`
+    ));
+    await editorDialog.getByRole("button", { name: "Обновить", exact: true }).click();
+    const editorUpdateResponse = await editorUpdateResponsePromise;
+    assert(editorUpdateResponse.ok(), `Disposable wish editor update failed: ${editorUpdateResponse.status()}`);
+    const editorUpdateRequest = editorUpdateResponse.request().postDataJSON();
+    assert(editorUpdateRequest.title === editedTitle, "Wish editor sent the wrong title");
+    assert(editorUpdateRequest.description === editedDescription, "Wish editor sent the wrong description");
+    assert(editorUpdateRequest.url === editedUrl, "Wish editor sent the wrong URL");
+    assert(editorUpdateRequest.imageUrl === "/art/camera.svg", "Wish editor changed the supported local image URL");
+    assert(editorUpdateRequest.price === editedPrice, "Wish editor sent the wrong price");
+    assert(editorUpdateRequest.currency === "EUR", "Wish editor sent the wrong currency");
+    assert(editorUpdateRequest.privacy === "private", "Wish editor sent the wrong privacy");
+    assert(editorUpdateRequest.allowMultiple === true, "Wish editor sent the wrong multiple-reservation setting");
+    assert(sameMembers(editorUpdateRequest.listIds, [targetList.id]), "Wish editor sent the wrong list membership");
+    assert(editorUpdateRequest.priority === 2, "Wish editor changed the hidden priority");
+    await editorDialog.waitFor({ state: "detached" });
+    await editorSmokeCard.waitFor({ state: "detached" });
+
+    const afterUpdateResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(afterUpdateResponse.ok, `Disposable editor wish verification failed: ${afterUpdateResponse.status}`);
+    const updatedEditorWish = afterUpdateResponse.data.wishes.find((wish) => wish.id === editorSmokeWishId);
+    assert(
+      updatedEditorWish
+      && updatedEditorWish.title === editedTitle
+      && updatedEditorWish.description === editedDescription
+      && updatedEditorWish.url === editedUrl
+      && updatedEditorWish.imageUrl === "/art/camera.svg"
+      && Number(updatedEditorWish.price) === editedPrice
+      && updatedEditorWish.currency === "EUR"
+      && updatedEditorWish.privacy === "private"
+      && updatedEditorWish.allowMultiple === true
+      && updatedEditorWish.priority === 2
+      && sameMembers(updatedEditorWish.listIds, [targetList.id]),
+      "API did not persist the complete disposable wish editor payload",
+    );
+    assert(
+      afterUpdateResponse.data.lists.find((list) => list.id === sourceList.id)?.wishCount === baselineSourceCount,
+      "Editing the disposable wish did not restore the source list count",
+    );
+    assert(
+      afterUpdateResponse.data.lists.find((list) => list.id === targetList.id)?.wishCount === baselineTargetCount + 1,
+      "Editing the disposable wish did not increment the target list count",
+    );
+
+    await ownerWidePage.goto(`${baseUrl}/alisa/lists/${targetList.id}`, { waitUntil: "domcontentloaded" });
+    await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
+    const updatedEditorCard = ownerWidePage.locator(".wish-card").filter({ hasText: editedTitle }).first();
+    await updatedEditorCard.waitFor({ state: "visible" });
+    const updatedEditorMenu = await openOwnerWishCardMenu(ownerWidePage, updatedEditorCard, updatedEditorWish);
+    await updatedEditorMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
+    const deleteEditorDialog = ownerWidePage.getByRole("dialog", { name: `Редактирование желания «${editedTitle}»`, exact: true });
+    await deleteEditorDialog.waitFor({ state: "visible" });
+    assert(await deleteEditorDialog.getByRole("switch", { name: "Секретное желание", exact: true }).isChecked(), "Saved privacy switch did not survive reopening");
+    assert(await deleteEditorDialog.getByRole("switch", { name: "Многократное бронирование", exact: true }).isChecked(), "Saved multiple-reservation switch did not survive reopening");
+    await deleteEditorDialog.getByRole("button", { name: "Удалить желание", exact: true }).click();
+
+    const editorDeleteDialog = ownerWidePage.getByRole("dialog", { name: `Удаление желания «${editedTitle}»`, exact: true });
+    await editorDeleteDialog.waitFor({ state: "visible" });
+    await expectDarkAuthenticatedModal(editorDeleteDialog, "Disposable editor delete confirmation");
+    const editorDeleteResponsePromise = ownerWidePage.waitForResponse((response) => (
+      response.request().method() === "DELETE"
+      && new URL(response.url()).pathname === `/api/wishes/${editorSmokeWishId}`
+    ));
+    await editorDeleteDialog.getByRole("button", { name: "Удалить", exact: true }).click();
+    const editorDeleteResponse = await editorDeleteResponsePromise;
+    assert(editorDeleteResponse.ok(), `Disposable editor wish deletion failed: ${editorDeleteResponse.status()}`);
+    await editorDeleteDialog.waitFor({ state: "detached" });
+    await updatedEditorCard.waitFor({ state: "detached" });
+
+    const afterDeleteResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
+    assert(afterDeleteResponse.ok, `Disposable editor delete verification failed: ${afterDeleteResponse.status}`);
+    assert(!afterDeleteResponse.data.wishes.some((wish) => wish.id === editorSmokeWishId), "Deleted disposable wish remains in the dashboard API");
+    assert(
+      afterDeleteResponse.data.lists.find((list) => list.id === sourceList.id)?.wishCount === baselineSourceCount
+      && afterDeleteResponse.data.lists.find((list) => list.id === targetList.id)?.wishCount === baselineTargetCount,
+      "Deleting the disposable editor wish did not restore list counts",
+    );
+    const profileAfterDeleteResponse = await apiFromPage(ownerWidePage, "/api/profile/alisa");
+    assert(profileAfterDeleteResponse.ok, `Profile API after disposable wish deletion failed: ${profileAfterDeleteResponse.status}`);
+    assert(!profileAfterDeleteResponse.data.wishes.some((wish) => wish.id === editorSmokeWishId), "Deleted disposable wish remains in the profile API");
+  } finally {
+    if (editorSmokeWishId) {
+      const cleanupEditorWishResponse = await apiFromPage(ownerWidePage, `/api/wishes/${editorSmokeWishId}`, { method: "DELETE" });
+      assert(
+        cleanupEditorWishResponse.ok || cleanupEditorWishResponse.status === 404,
+        `Failed to clean up disposable editor wish: ${cleanupEditorWishResponse.status}`,
+      );
+    }
   }
 
   let repeatedWishId = null;
