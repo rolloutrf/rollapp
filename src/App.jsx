@@ -222,10 +222,6 @@ function AppShell({ children, onAddWish }) {
 
 function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [version, setVersion] = useState(0);
-  useEffect(() => {
-    document.body.classList.add("app-dark");
-    return () => document.body.classList.remove("app-dark");
-  }, []);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
@@ -405,7 +401,7 @@ function Modal({ children, onClose, wide = false, className = "", ariaLabel = "�
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
-  const modal = <div className={`modal-backdrop modal-backdrop--dark ${backdropClassName}`} onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal modal--dark ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
+  const modal = <div className={`modal-backdrop ${backdropClassName}`} onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
   return portal ? createPortal(modal, document.body) : modal;
 }
 
@@ -648,11 +644,6 @@ function PublicProfile({ shared = false }) {
     observer.observe(node);
     return () => observer.disconnect();
   }, [visibleLimit, data?.wishes?.length, selected]);
-
-  useEffect(() => {
-    document.body.classList.add("public-profile-dark");
-    return () => document.body.classList.remove("public-profile-dark");
-  }, []);
 
   useEffect(() => {
     if (!mobileMenuOpen) return undefined;
