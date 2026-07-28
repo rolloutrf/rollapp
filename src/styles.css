@@ -3646,6 +3646,46 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   }
 }
 
+.wish-detail__toolbar > .wish-detail__share {
+  transition: color .15s ease, background-color .15s ease;
+}
+.wish-detail__toolbar > .wish-detail__share:hover,
+.wish-detail__toolbar > .wish-detail__share:focus-visible,
+.wish-detail__toolbar > .wish-detail__share[aria-expanded="true"] {
+  color: #fff;
+  background: #3b3b3d;
+}
+.card-menu.card-menu--popover.wish-detail__actions-menu {
+  z-index: 205;
+}
+.wish-detail__actions-menu .card-menu__lists {
+  z-index: 206;
+}
+.wish-detail__actions-menu .card-menu__list-thumb {
+  overflow: hidden;
+}
+.wish-detail__actions-menu .card-menu__list-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wish-detail__actions-menu .card-menu__main > .danger {
+  color: rgba(255,255,255,.7);
+}
+.wish-detail__actions-menu .card-menu__main > .danger:hover:not(:disabled) {
+  color: #fff;
+}
+.modal-backdrop.modal-backdrop--detail-delete {
+  z-index: 220;
+}
+
+@media (max-width: 640px) {
+  .wish-detail__actions-menu .card-menu__main > button,
+  .wish-detail__actions-menu .card-menu__main > a {
+    min-height: 44px;
+  }
+}
+
 .wish-delete-confirm { width: min(430px, 100%); text-align: center; }
 .wish-delete-confirm .modal-icon { margin: 0 auto 14px; color: #f3463b; background: rgba(243,70,59,.12); }
 .wish-delete-confirm h2 { margin: 8px 0; font-size: clamp(26px, 5vw, 34px); line-height: 1.08; }
