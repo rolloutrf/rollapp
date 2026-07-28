@@ -47,19 +47,25 @@ const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
 
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
+  const requestIdRef = useRef(0);
   const reload = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setState((current) => ({ ...current, loading: true, error: null }));
     try {
       const data = await load();
-      setState({ data, loading: false, error: null });
+      if (requestId === requestIdRef.current) setState({ data, loading: false, error: null });
       return data;
     } catch (error) {
-      setState({ data: null, loading: false, error });
+      if (requestId === requestIdRef.current) setState({ data: null, loading: false, error });
       throw error;
     }
   }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { reload().catch(() => {}); }, [reload]);
+  useEffect(() => {
+    reload().catch(() => {});
+    return () => { requestIdRef.current += 1; };
+  }, [reload]);
   return { ...state, reload };
 }
 
@@ -186,12 +192,61 @@ function AuthPage({ mode }) {
 const shellNav = [
   { to: "/app/wishes", icon: Heart, label: "Мои желания" },
   { to: "/app/ideas", icon: Sparkles, label: "Идеи" },
-  { to: "/app/friends", icon: Users, label: "Друзья" },
+  { to: "/app/friends/subscriptions", icon: Users, label: "Друзья" },
 ];
+
+const friendNavigation = [
+  { to: "/app/friends/subscriptions", icon: Users, label: "Подписки" },
+  { to: "/app/friends/followers", icon: CircleUserRound, label: "Подписчики" },
+  { to: "/app/friends/search", icon: UserPlus, label: "Найти друзей" },
+];
+
+function FriendsTopbar({ unreadCount, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const accountRef = useRef(null);
+  const menuButtonRef = useRef(null);
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (event.type === "pointerdown" && accountRef.current?.contains(event.target)) return;
+      setMenuOpen(false);
+      if (event.type === "keydown") window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [menuOpen]);
+
+  return (
+    <header className="friends-topbar">
+      <nav className="friends-topbar__dock" aria-label="Основные разделы">
+        <NavLink to="/app/ideas" aria-label="Идеи" title="Идеи"><Flame fill="currentColor" /></NavLink>
+        <NavLink to="/app/wishes" aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></NavLink>
+        <Link className="active" to="/app/friends/subscriptions" aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
+        <Link className="friends-topbar__search" to="/app/friends/search" aria-label="Найти друзей" title="Найти друзей"><Search /></Link>
+      </nav>
+      <div className="friends-topbar__account" ref={accountRef}>
+        <button ref={menuButtonRef} type="button" className="friends-topbar__menu" aria-label={menuOpen ? "Закрыть меню аккаунта" : "Открыть меню аккаунта"} aria-expanded={menuOpen} aria-controls="friends-account-menu" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
+        {menuOpen && (
+          <div className="friends-topbar__panel" id="friends-account-menu">
+            <Link to="/app/notifications" onClick={() => setMenuOpen(false)}><Bell />Уведомления{unreadCount > 0 && <i>{unreadCount}</i>}</Link>
+            <Link to="/app/settings" onClick={() => setMenuOpen(false)}><Settings />Настройки</Link>
+            <button type="button" onClick={onLogout}><LogOut />Выйти</button>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
 
 function AppShell({ children, onAddWish }) {
   const { user, unreadCount, refresh } = useSession();
   const navigate = useNavigate(); const location = useLocation(); const toast = useToast(); const [mobileOpen, setMobileOpen] = useState(false);
+  const friendsRoute = location.pathname.startsWith("/app/friends");
   const sidebarRef = useRef(null); const mobileMenuButtonRef = useRef(null);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   useEffect(() => {
@@ -217,14 +272,14 @@ function AppShell({ children, onAddWish }) {
     };
   }, [mobileOpen]);
   const logout = async () => { await api.post("/auth/logout", {}); await refresh(); navigate("/"); toast("Вы вышли из аккаунта"); };
-  return <div className="app-layout app-layout--dark"><aside ref={sidebarRef} id="app-sidebar" aria-label="Меню приложения" className={`sidebar ${mobileOpen ? "is-open" : ""}`}><div className="sidebar__head"><Logo /><button className="sidebar-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X /></button></div><Button icon={Plus} onClick={onAddWish} className="sidebar__add">Добавить желание</Button><nav className="sidebar__nav">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}><Icon size={19} /><span>{label}</span></NavLink>)}</nav><div className="sidebar__bottom"><NavLink to="/app/notifications"><Bell size={19} /><span>Уведомления</span>{unreadCount > 0 && <i>{unreadCount}</i>}</NavLink><NavLink to="/app/settings"><Settings size={19} /><span>Настройки</span></NavLink><div className="sidebar__user"><Avatar user={user} size="sm" /><div><strong>{user.name}</strong><span>@{user.username}</span></div><button onClick={logout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></button></div></div></aside><button className="mobile-overlay" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)} /><main className="app-main"><header className="mobile-app-head"><button ref={mobileMenuButtonRef} onClick={() => setMobileOpen(true)} aria-label="Открыть меню" aria-expanded={mobileOpen} aria-controls="app-sidebar"><Menu /></button><Logo /><Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link></header>{children}</main><nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></NavLink>)}</nav></div>;
+  return <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}><aside ref={sidebarRef} id="app-sidebar" aria-label="Меню приложения" className={`sidebar ${mobileOpen ? "is-open" : ""}`}><div className="sidebar__head"><Logo /><button className="sidebar-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X /></button></div>{friendsRoute ? <nav className="sidebar__friend-nav" aria-label="Разделы друзей">{friendNavigation.map(({ to, icon: Icon, label }, index) => <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} className={({ isActive }) => `${index === 2 ? "is-separated" : ""} ${isActive ? "active" : ""}`}><Icon /><span>{label}</span></NavLink>)}</nav> : <><Button icon={Plus} onClick={onAddWish} className="sidebar__add">Добавить желание</Button><nav className="sidebar__nav">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}><Icon size={19} /><span>{label}</span></NavLink>)}</nav></>}<div className="sidebar__bottom"><NavLink to="/app/notifications"><Bell size={19} /><span>Уведомления</span>{unreadCount > 0 && <i>{unreadCount}</i>}</NavLink><NavLink to="/app/settings"><Settings size={19} /><span>Настройки</span></NavLink><div className="sidebar__user"><Avatar user={user} size="sm" /><div><strong>{user.name}</strong><span>@{user.username}</span></div><button onClick={logout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></button></div></div></aside><button className="mobile-overlay" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)} /><main className="app-main"><header className="mobile-app-head"><button ref={mobileMenuButtonRef} onClick={() => setMobileOpen(true)} aria-label="Открыть меню" aria-expanded={mobileOpen} aria-controls="app-sidebar"><Menu /></button><Logo /><Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link></header>{friendsRoute && <FriendsTopbar unreadCount={unreadCount} onLogout={logout} />}{children}</main><nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => isActive || (friendsRoute && to.startsWith("/app/friends")) ? "active" : ""}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></NavLink>)}</nav></div>;
 }
 
 function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function PageTitle({ eyebrow, title, text, action }) { return <div className="app-page-title"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{text && <p>{text}</p>}</div>{action}</div>; }
@@ -598,7 +653,153 @@ function IdeasPage({ appMode = false }) {
 
 function SaveIdeaModal({ idea, onClose }) { const toast = useToast(); const { data, loading } = useAsync(() => api.get("/dashboard"), []); const [listId, setListId] = useState(""); const [busy, setBusy] = useState(false); useEffect(() => { if (data?.lists?.[0]) setListId(data.lists[0].id); }, [data]); const save = async () => { setBusy(true); try { await api.post(`/ideas/${idea.id}/save`, { listId }); toast("Идея сохранена в ваш список"); onClose(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } }; return <Modal onClose={onClose}><div className="save-idea"><img src={idea.imageUrl} alt="" /><span className="eyebrow">Сохранить идею</span><h2>{idea.title}</h2><p>{idea.description}</p>{loading ? <LoadingScreen compact /> : <label><span>Выберите список</span><select value={listId} onChange={(event) => setListId(event.target.value)}>{data.lists.map((list) => <option value={list.id} key={list.id}>{list.title}</option>)}</select></label>}<div className="modal-actions"><Button variant="ghost" onClick={onClose}>Отмена</Button><Button icon={Heart} onClick={save} loading={busy}>Сохранить</Button></div></div></Modal>; }
 
-function FriendsPage() { const [search, setSearch] = useState(""); const { data, loading, reload } = useAsync(() => api.get(`/people?search=${encodeURIComponent(search)}`), [search]); const toast = useToast(); const follow = async (person) => { try { const result = await api.post(`/profile/${person.username}/follow`, {}); toast(result.following ? `Вы подписались на ${person.name}` : "Подписка отменена"); reload(); } catch (error) { toast(error.message, "error"); } }; return <div className="app-page friends-page"><PageTitle eyebrow="Люди рядом" title="Друзья и их мечты" text="Подпишитесь, чтобы не пропускать важные даты и новые желания." /><label className="app-search"><Search /><input placeholder="Имя или @профиль" value={search} onChange={(event) => setSearch(event.target.value)} /></label>{loading ? <LoadingScreen compact /> : <div className="people-grid">{data.people.map((person) => <article className="person-card" key={person.id}><Link to={publicProfilePath(person.username)}><Avatar user={person} size="lg" /><span className="person-card__count"><Heart size={14} fill="currentColor" /> {person.wishCount}</span><h3>{person.name}</h3><small>@{person.username}</small><p>{person.bio || "Пока без описания"}</p></Link><Button variant={person.isFollowing ? "soft" : "outline"} icon={person.isFollowing ? Check : UserPlus} onClick={() => follow(person)}>{person.isFollowing ? "Вы подписаны" : "Подписаться"}</Button></article>)}</div>}</div>; }
+const friendSections = {
+  subscriptions: {
+    label: "Подписки",
+    icon: Users,
+    placeholder: "Поиск по подпискам",
+    emptyTitle: "Подписок пока нет",
+    emptyText: "Найдите близких и подпишитесь на их желания.",
+  },
+  followers: {
+    label: "Подписчики",
+    icon: CircleUserRound,
+    placeholder: "Поиск по подписчикам",
+    emptyTitle: "Подписчиков пока нет",
+    emptyText: "Когда кто-то подпишется на вас, он появится здесь.",
+  },
+  search: {
+    label: "Найти друзей",
+    icon: UserPlus,
+    placeholder: "Имя или @профиль",
+    emptyTitle: "Никого не нашли",
+    emptyText: "Попробуйте изменить имя или адрес профиля.",
+    scope: "discover",
+  },
+};
+
+function FriendsPage() {
+  const { section: requestedSection } = useParams();
+  const section = friendSections[requestedSection] ? requestedSection : null;
+  const config = section ? friendSections[section] : null;
+  const [search, setSearch] = useState("");
+  const [openPersonId, setOpenPersonId] = useState(null);
+  const [busyPersonId, setBusyPersonId] = useState(null);
+  const menuRef = useRef(null);
+  const toast = useToast();
+  const EmptyIcon = config?.icon || Users;
+  const scope = config?.scope || section;
+  const { data, loading, error, reload } = useAsync(
+    () => api.get(`/people?scope=${encodeURIComponent(scope || "subscriptions")}&search=${encodeURIComponent(search)}`),
+    [scope, search],
+  );
+
+  useEffect(() => {
+    setSearch("");
+    setOpenPersonId(null);
+  }, [section]);
+
+  useEffect(() => {
+    if (!openPersonId) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown") {
+        if (event.key !== "Escape") return;
+        const trigger = document.querySelector(`[aria-controls="friend-actions-${CSS.escape(openPersonId)}"]`);
+        setOpenPersonId(null);
+        window.requestAnimationFrame(() => trigger?.focus());
+        return;
+      }
+      if (event.type === "pointerdown" && menuRef.current?.contains(event.target)) return;
+      setOpenPersonId(null);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [openPersonId]);
+
+  if (!section) return <Navigate to="/app/friends/subscriptions" replace />;
+
+  const toggleFollow = async (person) => {
+    setBusyPersonId(person.id);
+    try {
+      const result = await api.post(`/profile/${person.username}/follow`, {});
+      toast(result.following ? `Вы подписались на ${person.name}` : `Вы отписались от ${person.name}`);
+      setOpenPersonId(null);
+      await reload();
+    } catch (followError) {
+      toast(followError.message, "error");
+    } finally {
+      setBusyPersonId(null);
+    }
+  };
+
+  return (
+    <div className="app-page friends-page">
+      <div className="friends-layout">
+        <section className="friends-directory" aria-labelledby="friends-title">
+          <h1 id="friends-title">{config.label}</h1>
+          <nav className="friends-section-nav" aria-label="Разделы друзей">
+            {Object.entries(friendSections).map(([key, item]) => {
+              const Icon = item.icon;
+              return <NavLink key={key} to={`/app/friends/${key}`}><Icon /><span>{item.label}</span></NavLink>;
+            })}
+          </nav>
+          <label className="friends-search">
+            <Search aria-hidden="true" />
+            <span className="visually-hidden">{config.placeholder}</span>
+            <input type="search" aria-label={config.placeholder} placeholder={config.placeholder} value={search} onChange={(event) => setSearch(event.target.value)} />
+          </label>
+          {loading ? <LoadingScreen compact /> : error ? (
+            <div className="friends-empty" role="alert">
+              <strong>Не удалось загрузить людей</strong>
+              <span>{error.message}</span>
+              <Button variant="outline" onClick={() => reload().catch(() => {})}>Попробовать снова</Button>
+            </div>
+          ) : data.people.length ? (
+            <ul className="friends-list">
+              {data.people.map((person) => (
+                <li className="friend-row" data-username={person.username} key={person.id}>
+                  <Link className="friend-row__profile" to={publicProfilePath(person.username)}>
+                    <Avatar user={person} size="md" />
+                    <span className="friend-row__identity">
+                      <strong>{person.name}</strong>
+                      <small>@{person.username} · {person.wishCount} {person.wishCount === 1 ? "желание" : "желаний"}</small>
+                    </span>
+                  </Link>
+                  {person.isFollowing && person.isFollower && <span className="friend-row__mutual" title="Взаимная подписка" aria-label="Взаимная подписка"><Star fill="currentColor" /></span>}
+                  <div className="friend-row__actions" ref={openPersonId === person.id ? menuRef : null}>
+                    <button type="button" className="friend-row__more" aria-label={`Действия для ${person.name}`} aria-expanded={openPersonId === person.id} aria-controls={`friend-actions-${person.id}`} onClick={() => setOpenPersonId((current) => current === person.id ? null : person.id)}>
+                      <MoreHorizontal />
+                    </button>
+                    {openPersonId === person.id && (
+                      <div className="friend-row__menu" id={`friend-actions-${person.id}`}>
+                        <Link to={publicProfilePath(person.username)}><CircleUserRound />Открыть профиль</Link>
+                        <button type="button" disabled={busyPersonId === person.id} onClick={() => toggleFollow(person)}>
+                          {busyPersonId === person.id ? <LoaderCircle className="spin" /> : person.isFollowing ? <X /> : <UserPlus />}
+                          {person.isFollowing ? "Отписаться" : "Подписаться"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="friends-empty">
+              <span className="friends-empty__icon"><EmptyIcon /></span>
+              <strong>{config.emptyTitle}</strong>
+              <span>{config.emptyText}</span>
+              {section !== "search" && <Link className="button button--primary" to="/app/friends/search">Найти друзей</Link>}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function NotificationsPage() { const { refresh } = useSession(); const { data, loading } = useAsync(() => api.get("/notifications"), []); useEffect(() => { api.post("/notifications/read", {}).then(() => refresh()); }, [refresh]); if (loading) return <LoadingScreen compact />; const icons = { reservation: Gift, follow: UserPlus, welcome: Sparkles }; return <div className="app-page notifications-page"><PageTitle eyebrow="В курсе важного" title="Уведомления" text="Сюрпризы останутся скрыты, а важные события — нет." />{data.notifications.length ? <div className="notification-list">{data.notifications.map((item) => { const Icon = icons[item.type] || Bell; return <Link to={item.href || "#"} key={item.id} className={!item.readAt ? "is-unread" : ""}><span><Icon /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{formatDate(item.createdAt, { hour: "2-digit", minute: "2-digit" })}</small></div><ArrowRight /></Link>; })}</div> : <EmptyState icon={Bell} title="Пока тихо" text="Здесь появятся новые подписки и важные события." />}</div>; }
 

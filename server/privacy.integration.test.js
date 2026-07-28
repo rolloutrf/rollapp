@@ -382,6 +382,50 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const ownerPeopleResponse = await fetch(`${baseUrl}/people?search=alisa`, { headers: { Cookie: ownerCookie } });
   assert.equal((await ownerPeopleResponse.json()).people.some((person) => person.username === "alisa"), false);
 
+  const anonymousSubscriptionsResponse = await fetch(`${baseUrl}/people?scope=subscriptions`);
+  assert.equal(anonymousSubscriptionsResponse.status, 401);
+  const invalidPeopleScopeResponse = await fetch(`${baseUrl}/people?scope=unknown`, { headers: { Cookie: ownerCookie } });
+  assert.equal(invalidPeopleScopeResponse.status, 400);
+
+  const initialLevResponse = await fetch(`${baseUrl}/people?scope=discover&search=lev`, { headers: { Cookie: ownerCookie } });
+  assert.equal(initialLevResponse.status, 200);
+  const initialLev = (await initialLevResponse.json()).people.find((person) => person.username === "lev");
+  assert.ok(initialLev);
+  assert.equal(initialLev.isFollowing, false);
+  assert.equal(initialLev.isFollower, false);
+
+  const initialSubscriptionsResponse = await fetch(`${baseUrl}/people?scope=subscriptions`, { headers: { Cookie: ownerCookie } });
+  assert.equal(initialSubscriptionsResponse.status, 200);
+  const initialSubscriptions = (await initialSubscriptionsResponse.json()).people;
+  assert.deepEqual(new Set(initialSubscriptions.map((person) => person.username)), new Set(["max", "sonya"]));
+  assert.equal(initialSubscriptions.every((person) => person.isFollowing), true);
+  const filteredSubscriptionsResponse = await fetch(`${baseUrl}/people?scope=subscriptions&search=sonya`, { headers: { Cookie: ownerCookie } });
+  assert.equal(filteredSubscriptionsResponse.status, 200);
+  assert.deepEqual((await filteredSubscriptionsResponse.json()).people.map((person) => person.username), ["sonya"]);
+
+  const levFollowsOwnerResponse = await post("/profile/alisa/follow", {}, nonFollowerCookie);
+  assert.equal(levFollowsOwnerResponse.status, 200);
+  assert.equal((await levFollowsOwnerResponse.json()).following, true);
+
+  const ownerFollowersResponse = await fetch(`${baseUrl}/people?scope=followers`, { headers: { Cookie: ownerCookie } });
+  assert.equal(ownerFollowersResponse.status, 200);
+  const ownerFollowers = (await ownerFollowersResponse.json()).people;
+  const levFollower = ownerFollowers.find((person) => person.username === "lev");
+  assert.ok(levFollower);
+  assert.equal(levFollower.isFollowing, false);
+  assert.equal(levFollower.isFollower, true);
+
+  const subscriptionsAfterIncomingFollowResponse = await fetch(`${baseUrl}/people?scope=subscriptions`, { headers: { Cookie: ownerCookie } });
+  assert.equal(subscriptionsAfterIncomingFollowResponse.status, 200);
+  assert.equal((await subscriptionsAfterIncomingFollowResponse.json()).people.some((person) => person.username === "lev"), false);
+
+  const removeLevFollowResponse = await post("/profile/alisa/follow", {}, nonFollowerCookie);
+  assert.equal(removeLevFollowResponse.status, 200);
+  assert.equal((await removeLevFollowResponse.json()).following, false);
+  const followersAfterRemovalResponse = await fetch(`${baseUrl}/people?scope=followers&search=lev`, { headers: { Cookie: ownerCookie } });
+  assert.equal(followersAfterRemovalResponse.status, 200);
+  assert.deepEqual((await followersAfterRemovalResponse.json()).people, []);
+
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const rejected = await post("/auth/login", { email: "invalid", password: "short" });
     assert.equal(rejected.status, 400);
