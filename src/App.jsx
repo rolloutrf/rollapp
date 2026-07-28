@@ -100,7 +100,7 @@ function useToast() { return useContext(ToastContext); }
 
 function Logo({ compact = false }) {
   return (
-    <Link to="/" className={`logo ${compact ? "logo--compact" : ""}`} aria-label="Rollapp — на главную">
+    <Link to="/app" className={`logo ${compact ? "logo--compact" : ""}`} aria-label="Rollapp — в приложение">
       <span className="logo__mark"><span /><span /><span /></span>
       {!compact && <span>rollapp</span>}
     </Link>
@@ -142,7 +142,7 @@ function LandingHeader() {
     <header className="landing-header">
       <Logo />
       <nav id="landing-navigation" className={open ? "landing-nav is-open" : "landing-nav"}>
-        <a href="#how" onClick={() => setOpen(false)}>Как работает</a><a href="#features" onClick={() => setOpen(false)}>Возможности</a><Link to="/ideas" onClick={() => setOpen(false)}>Идеи подарков</Link>
+        <Link to={user ? "/app/wishes" : "/login?next=%2Fapp%2Fwishes"} onClick={() => setOpen(false)}>Мои желания</Link><Link to={user ? "/app/friends" : "/login?next=%2Fapp%2Ffriends"} onClick={() => setOpen(false)}>Друзья</Link><Link to="/ideas" onClick={() => setOpen(false)}>Идеи подарков</Link>
         <div className="landing-nav__mobile-actions">{user ? <Link className="button button--primary" to="/app" onClick={() => setOpen(false)}><span>Открыть мой вишлист</span></Link> : <><Link className="button button--primary" to="/register" onClick={() => setOpen(false)}><span>Создать вишлист</span></Link><Link className="button button--outline" to="/login" onClick={() => setOpen(false)}><span>Войти</span></Link></>}</div>
       </nav>
       <div className="landing-header__actions">
@@ -150,56 +150,6 @@ function LandingHeader() {
       </div>
       <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label={open ? "Закрыть меню" : "Открыть меню"} aria-expanded={open} aria-controls="landing-navigation">{open ? <X /> : <Menu />}</button>
     </header>
-  );
-}
-
-const previewWishes = [
-  { title: "Плёночная камера", price: "8 990 ₽", image: "/art/camera.svg", tilt: "-3deg" },
-  { title: "Урок керамики", price: "для двоих", image: "/art/pottery.svg", tilt: "2deg" },
-  { title: "Альбом про Баухаус", price: "3 490 ₽", image: "/art/book.svg", tilt: "-1deg" },
-];
-
-function LandingPage() {
-  return (
-    <div className="landing">
-      <LandingHeader />
-      <main>
-        <section className="hero">
-          <div className="hero__copy">
-            <span className="eyebrow"><Sparkles size={15} /> Желания любят ясность</span>
-            <h1>Дарите радость.<br /><em>Без угадываний.</em></h1>
-            <p>Соберите всё, что хочется, в одном красивом вишлисте. Друзья договорятся о подарках так, что сюрприз останется сюрпризом.</p>
-            <div className="hero__actions"><Link className="button button--primary button--large" to="/register"><span>Начать свой список</span><ArrowRight size={20} /></Link><a className="button button--ghost button--large" href="#how"><span>Посмотреть, как это работает</span></a></div>
-            <div className="hero__proof"><div className="avatar-stack"><Avatar user={{ name: "А" }} size="sm" /><Avatar user={{ name: "М" }} size="sm" /><Avatar user={{ name: "С" }} size="sm" /></div><span>Списки для дней рождения, свадеб<br />и обычных счастливых вторников</span></div>
-          </div>
-          <div className="hero__visual" aria-label="Пример вишлиста">
-            <div className="hero-blob hero-blob--one" /><div className="hero-blob hero-blob--two" />
-            <div className="preview-profile"><Avatar user={{ name: "Алиса" }} /><div><small>Вишлист</small><strong>Алиса, 14 августа</strong></div><Heart size={19} fill="currentColor" /></div>
-            <div className="preview-grid">{previewWishes.map((wish) => <article className="preview-card" key={wish.title} style={{ "--tilt": wish.tilt }}><img src={wish.image} alt="" /><div><strong>{wish.title}</strong><span>{wish.price}</span></div><button aria-label="Добавить"><Plus size={16} /></button></article>)}</div>
-            <div className="reserved-note"><Check size={17} /><div><strong>Подарок забронирован</strong><span>Алиса не узнает кем</span></div></div>
-          </div>
-        </section>
-
-        <section className="marquee" aria-label="Сценарии"><div>день рождения <span>✦</span> новоселье <span>✦</span> свадьба <span>✦</span> путешествия <span>✦</span> мечты без повода <span>✦</span> день рождения <span>✦</span></div></section>
-
-        <section className="how-section" id="how">
-          <div className="section-heading"><span className="eyebrow">Три простых шага</span><h2>Никаких неловких<br />«что тебе подарить?»</h2><p>Список создаётся за минуту, а хорошее предвкушение остаётся надолго.</p></div>
-          <div className="steps-grid">
-            <article className="step-card step-card--coral"><span className="step-number">01</span><div className="step-visual step-visual--link"><Link2 size={30} /><span>Вставьте ссылку на товар</span><div className="fake-cursor" /></div><h3>Соберите желания</h3><p>Добавляйте из любого магазина по ссылке или просто опишите мечту своими словами.</p></article>
-            <article className="step-card step-card--blue"><span className="step-number">02</span><div className="step-visual step-visual--share"><div className="share-bubble"><Share2 size={22} /> rollapp · /alisa</div><div className="share-people"><span>МА</span><span>С</span><span>Л</span></div></div><h3>Поделитесь красиво</h3><p>Одна ссылка откроет друзьям ваши списки. Приватность настраивается отдельно.</p></article>
-            <article className="step-card step-card--lime"><span className="step-number">03</span><div className="step-visual step-visual--reserve"><Gift size={36} /><span><Check size={14} /> Уже забронировано</span></div><h3>Сохраните сюрприз</h3><p>Друзья видят брони друг друга, а вы — нет. Повторяющихся подарков не будет.</p></article>
-          </div>
-        </section>
-
-        <section className="feature-story" id="features">
-          <div className="feature-story__visual"><div className="phone-frame"><div className="phone-notch" /><div className="mini-app-head"><Logo compact /><Bell size={18} /></div><div className="mini-profile"><span>Мои желания</span><strong>Когда-нибудь</strong></div><div className="mini-card"><img src={previewWishes[0].image} alt="" /><div><strong>Плёночная камера</strong><span>важность •••</span></div></div><div className="mini-card"><img src={previewWishes[2].image} alt="" /><div><strong>Альбом про Баухаус</strong><span>важность ••</span></div></div><button><Plus /> Добавить желание</button></div><div className="feature-sticker"><WandSparkles size={18} /> Умная карточка<br />из любой ссылки</div></div>
-          <div className="feature-story__copy"><span className="eyebrow">Всегда под рукой</span><h2>Ваши желания —<br /><em>ваши правила</em></h2><div className="feature-list"><div><span><Eye /></span><div><strong>Гибкая приватность</strong><p>Открытый список, только для подписчиков, по секретной ссылке или исключительно для себя.</p></div></div><div><span><Bell /></span><div><strong>Деликатные напоминания</strong><p>Дни рождения друзей не застанут врасплох, а брони не раскроют сюрприз.</p></div></div><div><span><ListPlus /></span><div><strong>Сколько угодно списков</strong><p>Планы на дом, путешествие, праздник или мечты без конкретного повода.</p></div></div></div></div>
-        </section>
-
-        <section className="final-cta"><div className="final-cta__spark">✦</div><span className="eyebrow">Первое желание — самое важное</span><h2>Что хочется<br /><em>прямо сейчас?</em></h2><p>Начните список бесплатно. Возможно, кто-то как раз ищет идею для вашего подарка.</p><Link className="button button--primary button--large" to="/register"><span>Создать свой Rollapp</span><ArrowRight size={19} /></Link></section>
-      </main>
-      <footer className="landing-footer"><Logo /><p>Списки желаний, которые приятно исполнять.</p><div><Link to="/ideas">Идеи</Link><a href="#how">Как работает</a><Link to="/login">Войти</Link></div><span>© 2026 Rollapp</span></footer>
-    </div>
   );
 }
 
@@ -222,7 +172,7 @@ function AuthPage({ mode }) {
   };
 
   return (
-    <div className="auth-page"><div className="auth-art"><Logo /><div className="auth-art__copy"><span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span><h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1><p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p></div><div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div></div><div className="auth-panel"><Link className="auth-back" to="/"><ArrowLeft size={17} /> На главную</Link><form className="auth-form" onSubmit={submit}><div><span className="eyebrow">{mode === "register" ? "Новый аккаунт" : "С возвращением"}</span><h2>{mode === "register" ? "Создать свой Rollapp" : "Войти в Rollapp"}</h2><p>{mode === "register" ? "Это бесплатно и займёт меньше минуты." : "Продолжите собирать и исполнять желания."}</p></div>{mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}<label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button><p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p></form></div></div>
+    <div className="auth-page"><div className="auth-art"><Logo /><div className="auth-art__copy"><span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span><h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1><p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p></div><div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div></div><div className="auth-panel"><Link className="auth-back" to="/ideas"><ArrowLeft size={17} /> Идеи подарков</Link><form className="auth-form" onSubmit={submit}><div><span className="eyebrow">{mode === "register" ? "Новый аккаунт" : "С возвращением"}</span><h2>{mode === "register" ? "Создать свой Rollapp" : "Войти в Rollapp"}</h2><p>{mode === "register" ? "Это бесплатно и займёт меньше минуты." : "Продолжите собирать и исполнять желания."}</p></div>{mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}<label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button><p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p></form></div></div>
   );
 }
 
@@ -736,7 +686,7 @@ function PublicProfile({ shared = false }) {
   }, []);
 
   if (loading) return <div className="public-profile public-profile--dark public-profile--state"><LoadingScreen /></div>;
-  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/"><span>На главную</span></Link></div></div>;
+  if (error) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to="/app"><span>В приложение</span></Link></div></div>;
 
   const lists = shared ? [data.list] : data.lists;
   const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
@@ -907,7 +857,7 @@ function PublicProfile({ shared = false }) {
         </aside>}
 
         <main>
-          <Link className="public-profile__back" to={user ? "/app/friends" : "/"}><i aria-hidden="true"><ArrowLeft /></i><span>Назад</span></Link>
+          <Link className="public-profile__back" to={user ? "/app/friends" : "/login"}><i aria-hidden="true"><ArrowLeft /></i><span>{user ? "Назад" : "Войти"}</span></Link>
 
           <section className="profile-cover">
             <div className="profile-cover__pattern" />
@@ -956,7 +906,7 @@ function PublicProfile({ shared = false }) {
   );
 }
 
-function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to="/"><span>Вернуться на главную</span></Link></div>; }
+function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to="/app"><span>В приложение</span></Link></div>; }
 
 function LegacyProfileRedirect() {
   const params = useParams();
@@ -966,4 +916,4 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<LandingPage />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasPage />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<Navigate to="/app" replace />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasPage />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
