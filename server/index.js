@@ -845,31 +845,98 @@ app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => 
 
 app.get("/api/people", asyncRoute(async (req, res) => {
   const search = String(req.query.search || "").trim().slice(0, 80);
+  const scope = String(req.query.scope || "discover");
+  if (!["discover", "subscriptions", "followers"].includes(scope)) {
+    return res.status(400).json({ error: "Неизвестный раздел друзей" });
+  }
+  if (scope !== "discover" && !req.user) {
+    return res.status(401).json({ error: "Войдите, чтобы увидеть друзей" });
+  }
   const pattern = `%${search.toLowerCase()}%`;
-  const result = await query(
-    `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
-     FROM users u
-     WHERE (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
-       AND ($2::text IS NULL OR u.id<>$2)
-     ORDER BY u.created_at DESC LIMIT 24`,
-    [pattern, req.user?.id || null],
-  );
-  const people = [];
-  for (const row of result.rows) {
-    const following = req.user ? await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, row.id]) : { rowCount: 0 };
-    const wishes = await query(
-      `SELECT COUNT(DISTINCT w.id) AS count
-       FROM wishes w
+  let result;
+  if (scope === "subscriptions") {
+    result = await query(
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+       FROM follows f JOIN users u ON u.id=f.following_id
+       WHERE f.follower_id=$2 AND (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
+       ORDER BY f.created_at DESC LIMIT 48`,
+      [pattern, req.user.id],
+    );
+  } else if (scope === "followers") {
+    result = await query(
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+       FROM follows f JOIN users u ON u.id=f.follower_id
+       WHERE f.following_id=$2 AND (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
+       ORDER BY f.created_at DESC LIMIT 48`,
+      [pattern, req.user.id],
+    );
+  } else {
+    result = await query(
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+       FROM users u
+       WHERE (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
+         AND ($2::text IS NULL OR u.id<>$2)
+       ORDER BY u.created_at DESC LIMIT 48`,
+      [pattern, req.user?.id || null],
+    );
+  }
+  const relationships = new Map(result.rows.map((row) => [row.id, { isFollowing: false, isFollower: false }]));
+  if (req.user && result.rows.length) {
+    const idPlaceholders = result.rows.map((_, index) => `$${index + 2}`).join(",");
+    const relationRows = await query(
+      `SELECT follower_id,following_id FROM follows
+       WHERE (follower_id=$1 AND following_id IN (${idPlaceholders}))
+          OR (following_id=$1 AND follower_id IN (${idPlaceholders}))`,
+      [req.user.id, ...result.rows.map((row) => row.id)],
+    );
+    for (const relation of relationRows.rows) {
+      const personId = relation.follower_id === req.user.id ? relation.following_id : relation.follower_id;
+      const flags = relationships.get(personId);
+      if (!flags) continue;
+      if (relation.follower_id === req.user.id) flags.isFollowing = true;
+      if (relation.following_id === req.user.id) flags.isFollower = true;
+    }
+  }
+
+  const countParameters = result.rows.flatMap((row) => [row.id, relationships.get(row.id)?.isFollowing || false]);
+  const countRows = result.rows.map((_, index) => (
+    `SELECT $${index * 2 + 1}::text AS user_id,$${index * 2 + 2}::boolean AS can_view_followers`
+  )).join(" UNION ALL ");
+  const wishCounts = new Map();
+  if (countRows) {
+    const wishCountRows = await query(
+      `WITH visible_users AS (${countRows})
+       SELECT vu.user_id,COUNT(DISTINCT w.id) AS count
+       FROM visible_users vu
+       JOIN wishes w ON w.user_id=vu.user_id
        LEFT JOIN wishlist_wishes ww ON ww.wish_id=w.id
        LEFT JOIN wishlists l ON l.id=ww.wishlist_id
-       WHERE w.user_id=$1 AND w.status='active' AND w.privacy<>'private'
-         AND (ww.wish_id IS NULL OR l.privacy='public' OR ($2::boolean AND l.privacy='followers'))`,
-      [row.id, Boolean(following.rowCount)],
+       WHERE w.status='active' AND w.privacy<>'private'
+         AND (ww.wish_id IS NULL OR l.privacy='public' OR (vu.can_view_followers AND l.privacy='followers'))
+       GROUP BY vu.user_id`,
+      countParameters,
     );
-    people.push({ id: row.id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday, wishCount: Number(wishes.rows[0].count), isFollowing: Boolean(following.rowCount) });
+    for (const row of wishCountRows.rows) wishCounts.set(row.user_id, Number(row.count));
   }
-  people.sort((a, b) => b.wishCount - a.wishCount);
-  res.json({ people });
+
+  const people = result.rows.map((row) => {
+    const relationship = relationships.get(row.id);
+    return {
+      id: row.id,
+      username: row.username,
+      name: row.name,
+      bio: row.bio,
+      avatarUrl: row.avatar_url,
+      birthday: row.birthday,
+      wishCount: wishCounts.get(row.id) || 0,
+      isFollowing: relationship?.isFollowing || false,
+      isFollower: relationship?.isFollower || false,
+    };
+  });
+  people.sort(scope === "discover"
+    ? (a, b) => b.wishCount - a.wishCount || a.name.localeCompare(b.name, "ru")
+    : (a, b) => a.name.localeCompare(b.name, "ru"));
+  res.json({ people, scope });
 }));
 
 app.get("/api/ideas", asyncRoute(async (req, res) => {

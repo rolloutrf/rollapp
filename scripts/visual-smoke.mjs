@@ -3,6 +3,16 @@ import { chromium } from "playwright-core";
 const baseUrl = (process.env.BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const executablePath = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const browser = await chromium.launch({ executablePath, headless: true });
+const friendsRoutes = {
+  subscriptions: "/app/friends/subscriptions",
+  followers: "/app/friends/followers",
+  search: "/app/friends/search",
+};
+const friendsLabels = {
+  subscriptions: "Подписки",
+  followers: "Подписчики",
+  search: "Найти друзей",
+};
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -256,6 +266,282 @@ async function waitForAppRoute(page, pathname) {
   await page.waitForURL((url) => url.pathname === pathname);
 }
 
+function friendRow(page, username) {
+  return page.locator(`.friend-row[data-username="${username}"]`);
+}
+
+function isPeopleSearchResponse(response, search) {
+  if (response.request().method() !== "GET") return false;
+  const url = new URL(response.url());
+  return url.pathname === "/api/people" && url.searchParams.get("search") === search;
+}
+
+function isPeopleSectionResponse(response, section, search = "") {
+  if (!isPeopleSearchResponse(response, search)) return false;
+  const scope = section === "search" ? "discover" : section;
+  return new URL(response.url()).searchParams.get("scope") === scope;
+}
+
+async function getLevFollowing(page, label) {
+  const response = await apiFromPage(page, "/api/people?search=lev");
+  assert(response.ok, `${label} could not read Lev's relationship state: ${response.status}`);
+  const lev = response.data?.people?.find((person) => person.username === "lev");
+  assert(lev, `${label} could not find the seeded Lev profile`);
+  return Boolean(lev.isFollowing);
+}
+
+async function ensureLevFollowing(page, expected, label) {
+  const current = await getLevFollowing(page, label);
+  if (current === expected) return;
+  const response = await apiFromPage(page, "/api/profile/lev/follow", { method: "POST", body: {} });
+  assert(response.ok, `${label} could not restore Lev's relationship state: ${response.status}`);
+  assert(response.data?.following === expected, `${label} restored Lev to the wrong relationship state`);
+}
+
+async function clickFriendMenuAction(page, row, personName, action) {
+  const menuButton = row.getByRole("button", { name: `Действия для ${personName}`, exact: true });
+  await menuButton.waitFor({ state: "visible" });
+  await menuButton.click();
+  const item = row.locator(".friend-row__menu").getByRole("button", { name: action, exact: true });
+  await item.waitFor({ state: "visible" });
+  await item.click();
+}
+
+async function waitForFriendsResults(page) {
+  await page.locator(".friends-directory > .inline-loader").waitFor({ state: "detached" });
+  await page.waitForFunction(() => (
+    Boolean(document.querySelector(".friends-directory .friends-list"))
+    || Boolean(document.querySelector(".friends-directory .friends-empty"))
+  ));
+}
+
+async function waitForOnlyFriend(page, username) {
+  await page.waitForFunction((expectedUsername) => {
+    const rows = [...document.querySelectorAll(".friend-row")];
+    return rows.length === 1 && rows[0].dataset.username === expectedUsername;
+  }, username);
+}
+
+async function waitForFriendSet(page, usernames) {
+  await page.waitForFunction((expectedUsernames) => {
+    const actual = [...document.querySelectorAll(".friend-row")].map((row) => row.dataset.username).sort();
+    return actual.length === expectedUsernames.length
+      && expectedUsernames.every((username, index) => username === actual[index]);
+  }, [...usernames].sort());
+}
+
+async function expectFriendsNavigation(page, activeTab, label) {
+  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
+  await navigation.waitFor({ state: "visible" });
+  const links = navigation.getByRole("link");
+  assert(await links.count() === 3, `${label} should expose three friend sections`);
+  for (const [tab, pathname] of Object.entries(friendsRoutes)) {
+    const link = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
+    assert(await link.getAttribute("href") === pathname, `${label} ${friendsLabels[tab]} points to the wrong route`);
+  }
+  const activeLink = navigation.getByRole("link", { name: friendsLabels[activeTab], exact: true });
+  assert(await activeLink.getAttribute("aria-current") === "page", `${label} does not identify ${friendsLabels[activeTab]} as the active section`);
+  return navigation;
+}
+
+async function openFriendsTab(page, tab, label) {
+  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
+  const link = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
+  const dataResponsePromise = page.waitForResponse((response) => isPeopleSectionResponse(response, tab));
+  await link.click();
+  await page.waitForURL((url) => url.pathname === friendsRoutes[tab]);
+  await page.locator(".friends-page").waitFor({ state: "visible" });
+  await page.getByRole("heading", { name: friendsLabels[tab], exact: true }).waitFor({ state: "visible" });
+  const dataResponse = await dataResponsePromise;
+  assert(dataResponse.ok(), `${label} data request failed: ${dataResponse.status()}`);
+  await waitForFriendsResults(page);
+  await expectFriendsNavigation(page, tab, label);
+}
+
+async function expectFriendsLayout(page, label, { mobile }) {
+  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
+  const firstRow = page.locator(".friend-row").first();
+  await navigation.waitFor({ state: "visible" });
+  await firstRow.waitFor({ state: "visible" });
+  await waitForStableLayout(page);
+  const geometry = await page.evaluate((navigationSelector) => {
+    const navigationNode = document.querySelector(navigationSelector);
+    const rowNode = document.querySelector(".friend-row");
+    const navigationRect = navigationNode?.getBoundingClientRect();
+    const rowRect = rowNode?.getBoundingClientRect();
+    const linkRects = [...(navigationNode?.querySelectorAll("a") || [])].map((link) => {
+      const rect = link.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    });
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      navigation: navigationRect && { left: navigationRect.left, right: navigationRect.right, top: navigationRect.top, bottom: navigationRect.bottom, width: navigationRect.width },
+      row: rowRect && { left: rowRect.left, right: rowRect.right, top: rowRect.top, width: rowRect.width },
+      linkRects,
+    };
+  }, mobile ? ".friends-section-nav" : ".sidebar__friend-nav");
+  assert(geometry.navigation && geometry.row, `${label} is missing its friend navigation or list geometry`);
+  assert(geometry.row.right <= geometry.viewportWidth + 1, `${label} friend rows extend beyond the viewport`);
+  if (mobile) {
+    assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the mobile list`);
+    assert(geometry.navigation.width <= geometry.viewportWidth + 1, `${label} mobile friend navigation overflows the viewport`);
+    assert(geometry.linkRects.every((rect) => rect.height >= 40), `${label} mobile friend navigation has undersized touch targets`);
+    const pageHeight = await page.evaluate(() => ({ viewport: window.innerHeight, document: document.documentElement.scrollHeight }));
+    assert(pageHeight.document <= pageHeight.viewport + 1, `${label} adds empty mobile scrolling (${pageHeight.document}px document inside ${pageHeight.viewport}px viewport)`);
+  } else {
+    assert(geometry.navigation.right <= geometry.row.left + 1, `${label} friend navigation should form a desktop side rail`);
+    assert(geometry.row.width > geometry.navigation.width, `${label} desktop friend list should be wider than its side rail`);
+    const dock = page.locator(".friends-topbar__dock");
+    await dock.waitFor({ state: "visible" });
+    assert(await dock.locator(":scope > a:not(.friends-topbar__search)").count() === 3, `${label} desktop top dock should expose the three primary sections`);
+  }
+}
+
+async function expectWideFriendsLayout(page, label) {
+  await page.setViewportSize({ width: 1912, height: 991 });
+  try {
+    await page.goto(`${baseUrl}${friendsRoutes.subscriptions}`, { waitUntil: "domcontentloaded" });
+    await page.locator(".friends-page").waitFor({ state: "visible" });
+    await friendRow(page, "max").waitFor({ state: "visible" });
+    await expectFriendsLayout(page, label, { mobile: false });
+    await expectNoRootOverflow(page, label);
+    const searchGeometry = await page.locator(".friends-search").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { width: rect.width, rightGap: window.innerWidth - rect.right };
+    });
+    assert(searchGeometry.width >= 1200, `${label} search remains capped on a wide viewport (${searchGeometry.width}px)`);
+    assert(searchGeometry.rightGap <= 150, `${label} search is too far from the right edge (${searchGeometry.rightGap}px)`);
+    await page.screenshot({ path: "/tmp/rollapp-wide-friends-1912.png", fullPage: true });
+  } finally {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+}
+
+async function expectFriendsMenus(page, label) {
+  const rowTrigger = friendRow(page, "max").getByRole("button", { name: "Действия для Макс Ветров", exact: true });
+  await rowTrigger.click();
+  const rowPopover = friendRow(page, "max").locator(".friend-row__menu");
+  await rowPopover.waitFor({ state: "visible" });
+  await page.keyboard.press("Escape");
+  await rowPopover.waitFor({ state: "detached" });
+  assert(await rowTrigger.evaluate((element) => document.activeElement === element), `${label} row popover does not restore trigger focus after Escape`);
+
+  const accountTrigger = page.getByRole("button", { name: "Открыть меню аккаунта", exact: true });
+  if (!(await accountTrigger.isVisible())) return;
+  await accountTrigger.click();
+  const accountPanel = page.locator("#friends-account-menu");
+  await accountPanel.waitFor({ state: "visible" });
+  await accountPanel.getByRole("link", { name: /Уведомления/ }).waitFor();
+  await accountPanel.getByRole("link", { name: "Настройки", exact: true }).waitFor();
+  await accountPanel.getByRole("button", { name: "Выйти", exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  await accountPanel.waitFor({ state: "detached" });
+  assert(await accountTrigger.evaluate((element) => document.activeElement === element), `${label} account menu does not restore trigger focus after Escape`);
+}
+
+async function expectFriendsRegression(page, label, { mobile }) {
+  await page.goto(`${baseUrl}/app/friends`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL((url) => url.pathname === friendsRoutes.subscriptions);
+  await page.locator(".friends-page").waitFor({ state: "visible" });
+  const initialLevFollowing = await getLevFollowing(page, label);
+  try {
+    await ensureLevFollowing(page, false, label);
+    await page.goto(`${baseUrl}${friendsRoutes.subscriptions}`, { waitUntil: "domcontentloaded" });
+    await page.locator(".friends-page").waitFor({ state: "visible" });
+    await friendRow(page, "max").waitFor({ state: "visible" });
+    await friendRow(page, "sonya").waitFor({ state: "visible" });
+    assert(await friendRow(page, "lev").count() === 0, `${label} subscriptions include an unfollowed profile`);
+    await expectFriendsNavigation(page, "subscriptions", label);
+    await expectFriendsLayout(page, label, { mobile });
+    await expectFriendsMenus(page, label);
+    await expectDarkPage(page, `${label} subscriptions`, [".app-layout--dark", ".app-main", ".friends-page"]);
+    await expectNoRootOverflow(page, `${label} subscriptions`);
+    if (mobile) await expectMobileAppShell(page, `${label} subscriptions`);
+    await page.screenshot({
+      path: mobile ? "/tmp/rollapp-mobile-friends-390.png" : "/tmp/rollapp-desktop-friends.png",
+      fullPage: true,
+    });
+
+    const subscriptionsSearch = page.getByPlaceholder("Поиск по подпискам");
+    const maxSearchResponse = page.waitForResponse((response) => isPeopleSearchResponse(response, "Макс"));
+    await subscriptionsSearch.fill("Макс");
+    assert((await maxSearchResponse).ok(), `${label} subscription search request failed`);
+    await waitForFriendsResults(page);
+    await waitForOnlyFriend(page, "max");
+    await friendRow(page, "max").waitFor({ state: "visible" });
+    assert(await page.locator(".friend-row").count() === 1, `${label} subscription search did not narrow the result list`);
+    const clearSearchResponse = page.waitForResponse((response) => isPeopleSearchResponse(response, ""));
+    await subscriptionsSearch.fill("");
+    assert((await clearSearchResponse).ok(), `${label} subscription search reset request failed`);
+    await friendRow(page, "sonya").waitFor({ state: "visible" });
+
+    await openFriendsTab(page, "followers", `${label} followers`);
+    await friendRow(page, "max").waitFor({ state: "visible" });
+    await friendRow(page, "sonya").waitFor({ state: "visible" });
+    assert(await friendRow(page, "lev").count() === 0, `${label} followers include a profile that does not follow the owner`);
+    await expectNoRootOverflow(page, `${label} followers`);
+    if (mobile) await expectMobileAppShell(page, `${label} followers`);
+    const followersSearch = page.getByPlaceholder("Поиск по подписчикам");
+    const sonyaSearchResponse = page.waitForResponse((response) => isPeopleSectionResponse(response, "followers", "Соня"));
+    await followersSearch.fill("Соня");
+    assert((await sonyaSearchResponse).ok(), `${label} follower search request failed`);
+    await waitForOnlyFriend(page, "sonya");
+    const clearFollowersResponse = page.waitForResponse((response) => isPeopleSectionResponse(response, "followers"));
+    await followersSearch.fill("");
+    assert((await clearFollowersResponse).ok(), `${label} follower search reset request failed`);
+    await waitForFriendSet(page, ["max", "sonya"]);
+
+    await openFriendsTab(page, "search", `${label} search`);
+    const peopleSearch = page.locator(".friends-page input").first();
+    await peopleSearch.waitFor({ state: "visible" });
+    const levSearchResponse = page.waitForResponse((response) => isPeopleSearchResponse(response, "lev"));
+    await peopleSearch.fill("lev");
+    assert((await levSearchResponse).ok(), `${label} people search request failed`);
+    await waitForFriendsResults(page);
+    await waitForOnlyFriend(page, "lev");
+    const levSearchRow = friendRow(page, "lev");
+    await levSearchRow.waitFor({ state: "visible" });
+    assert(await page.locator(".friend-row").count() === 1, `${label} people search did not isolate Lev`);
+    assert(await levSearchRow.getByRole("link").first().getAttribute("href") === "/lev", `${label} Lev row does not open the canonical profile route`);
+    await expectNoRootOverflow(page, `${label} search`);
+    if (mobile) await expectMobileAppShell(page, `${label} search`);
+
+    const followResponsePromise = page.waitForResponse((response) => (
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/profile/lev/follow"
+    ));
+    await clickFriendMenuAction(page, levSearchRow, "Лев Орлов", "Подписаться");
+    const followResponse = await followResponsePromise;
+    assert(followResponse.ok(), `${label} could not follow Lev: ${followResponse.status()}`);
+    assert((await followResponse.json()).following === true, `${label} follow action returned the wrong state`);
+
+    await openFriendsTab(page, "subscriptions", `${label} subscriptions after follow`);
+    const followedLevRow = friendRow(page, "lev");
+    await followedLevRow.waitFor({ state: "visible" });
+    await waitForFriendSet(page, ["lev", "max", "sonya"]);
+    await openFriendsTab(page, "followers", `${label} followers after follow`);
+    await friendRow(page, "max").waitFor({ state: "visible" });
+    await friendRow(page, "sonya").waitFor({ state: "visible" });
+    assert(await friendRow(page, "lev").count() === 0, `${label} confuses outgoing subscriptions with incoming followers`);
+    await openFriendsTab(page, "subscriptions", `${label} subscriptions before unfollow`);
+    await followedLevRow.waitFor({ state: "visible" });
+
+    const unfollowResponsePromise = page.waitForResponse((response) => (
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/profile/lev/follow"
+    ));
+    const subscriptionsRefreshPromise = page.waitForResponse((response) => isPeopleSectionResponse(response, "subscriptions"));
+    await clickFriendMenuAction(page, followedLevRow, "Лев Орлов", "Отписаться");
+    const unfollowResponse = await unfollowResponsePromise;
+    assert(unfollowResponse.ok(), `${label} could not unfollow Lev: ${unfollowResponse.status()}`);
+    assert((await unfollowResponse.json()).following === false, `${label} unfollow action returned the wrong state`);
+    assert((await subscriptionsRefreshPromise).ok(), `${label} subscriptions did not reload after unfollowing Lev`);
+    await waitForFriendsResults(page);
+    await followedLevRow.waitFor({ state: "detached" });
+    assert(await getLevFollowing(page, label) === false, `${label} did not persist Lev's unfollowed state`);
+  } finally {
+    await ensureLevFollowing(page, initialLevFollowing, `${label} cleanup`);
+  }
+}
+
 async function expectPublicGrid(page, columns, label, { requireCards = true } = {}) {
   const grid = page.locator(".public-profile .wish-grid").first();
   await grid.waitFor({ state: "visible" });
@@ -386,7 +672,9 @@ try {
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
   await dashboard.waitForURL((url) => url.pathname === "/app/wishes");
   await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
-  for (const pathname of ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"]) {
+  await expectFriendsRegression(dashboard, "Desktop friends", { mobile: false });
+  await expectWideFriendsLayout(dashboard, "1912px friends");
+  for (const pathname of ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"]) {
     await waitForAppRoute(dashboard, pathname);
     await expectDarkPage(dashboard, `Desktop ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
   }
@@ -415,7 +703,7 @@ try {
   await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
   await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
 
-  const appRoutes = ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"];
+  const appRoutes = ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"];
   for (const pathname of appRoutes) {
     await waitForAppRoute(mobilePage, pathname);
     await expectMobileAppShell(mobilePage, pathname);
@@ -431,6 +719,7 @@ try {
       await mobileDetail.dialog.waitFor({ state: "detached" });
     }
   }
+  await expectFriendsRegression(mobilePage, "390px friends", { mobile: true });
 
   await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
   const publicIdeaCard = mobilePage.locator(".public-ideas .idea-card").first();
@@ -601,7 +890,7 @@ try {
   await expectDarkPage(tabletAppPage, "768px shared guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   const tabletLoginResponse = await tabletApp.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(tabletLoginResponse.ok(), `768px demo login failed: ${tabletLoginResponse.status()}`);
-  for (const pathname of ["/app/wishes", "/app/ideas", "/app/friends", "/app/notifications", "/app/settings"]) {
+  for (const pathname of ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"]) {
     await waitForAppRoute(tabletAppPage, pathname);
     await expectMobileAppShell(tabletAppPage, `768px ${pathname}`);
     await expectDarkPage(tabletAppPage, `768px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
@@ -958,7 +1247,7 @@ try {
   await expectNoRootOverflow(ownerWidePage, "1912px owner profile");
   await ownerWide.close();
 
-  console.log("Visual smoke passed: desktop/mobile wish details, owner list reassignment persistence, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
+  console.log("Visual smoke passed: desktop/mobile friend directories, wish details, owner list reassignment persistence, app routes, drawer/modal, and 2/4/6-column public profiles rendered without root overflow");
 } finally {
   await browser.close();
 }

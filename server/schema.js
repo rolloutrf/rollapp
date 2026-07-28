@@ -115,6 +115,8 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
+  CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows(following_id, created_at DESC);
   UPDATE reservations
   SET status='multiple'
   WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
