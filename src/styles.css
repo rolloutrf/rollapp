@@ -2014,6 +2014,8 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   font-weight: 500;
 }
 .wish-detail__toolbar > .wish-detail__list-control { min-width: 0; max-width: calc(100% - 48px); padding: 0; }
+.wish-detail__list-control { position: relative; z-index: 30; }
+.wish-detail__list-control.is-open { background: #555556; }
 .wish-detail__list-control > button,
 .wish-detail__list-control > span {
   width: 100%;
@@ -2036,6 +2038,39 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .wish-detail__list-control > button > span,
 .wish-detail__list-control > span > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wish-detail__list-control svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.wish-detail__list-popover {
+  width: 280px;
+  max-height: min(416px, calc(100dvh - 76px));
+  padding: 8px 16px;
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  top: 50px;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  border: 0;
+  border-radius: 24px;
+  background: #313132;
+  box-shadow: 0 30px 60px rgba(0,0,0,.65);
+  font-family: var(--font-ui);
+}
+.wish-detail__list-popover .card-menu__list-scroll {
+  max-height: min(364px, calc(100dvh - 116px));
+}
+.wish-detail__list-popover button {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.wish-detail__list-popover .card-menu__list-thumb { overflow: hidden; }
+.wish-detail__list-popover .card-menu__list-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .wish-detail__toolbar > .wish-detail__share { width: 40px; padding: 0; flex: 0 0 40px; cursor: pointer; }
 .wish-detail__notice {
   min-height: 77px;
@@ -2322,6 +2357,11 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .wish-detail__side { display: contents; }
   .wish-detail__toolbar { width: 100%; height: 40px; padding: 0; position: relative; order: 1; flex: 0 0 auto; justify-content: center; }
   .wish-detail__toolbar > .wish-detail__list-control { max-width: calc(100% - 104px); }
+  .wish-detail__list-popover {
+    width: min(280px, calc(100vw - 20px));
+    left: 50%;
+    transform: translateX(-50%);
+  }
   .wish-detail__toolbar > .wish-detail__share { position: absolute; left: 0; top: 0; }
   .wish-detail__notice { width: 100%; min-height: 77px; margin: 0; order: 2; flex: 0 0 auto; }
   .wish-detail__media { width: 100%; height: auto; max-height: none; aspect-ratio: 4 / 5; order: 3; flex: 0 0 auto; border-radius: 20px; }
