@@ -1311,6 +1311,32 @@ async function expectFulfilledActionContrast(page, dialog, label) {
   await page.waitForTimeout(240);
 }
 
+async function expectNewListTile(page, label) {
+  const tile = page.locator(".list-tabs__add");
+  assert(await tile.count() === 1, `${label} should render one new-list tile`);
+  await tile.waitFor({ state: "visible" });
+  assert(await tile.getAttribute("aria-label") === "Новый список", `${label} lost its accessible name`);
+  const geometry = await tile.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const iconRect = element.querySelector("svg")?.getBoundingClientRect();
+    const hiddenLabel = element.querySelector(".visually-hidden");
+    const hiddenRect = hiddenLabel?.getBoundingClientRect();
+    const hiddenStyle = hiddenLabel ? getComputedStyle(hiddenLabel) : null;
+    return {
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      overflow: getComputedStyle(element).overflow,
+      iconInside: Boolean(iconRect) && iconRect.left >= rect.left - 1 && iconRect.right <= rect.right + 1 && iconRect.top >= rect.top - 1 && iconRect.bottom <= rect.bottom + 1,
+      iconCentered: Boolean(iconRect) && Math.abs((iconRect.left + iconRect.right) / 2 - (rect.left + rect.right) / 2) <= 1 && Math.abs((iconRect.top + iconRect.bottom) / 2 - (rect.top + rect.bottom) / 2) <= 1,
+      hiddenLabel: Boolean(hiddenLabel) && hiddenRect.width <= 1 && hiddenRect.height <= 1 && hiddenStyle.position === "absolute" && hiddenStyle.clip !== "auto",
+    };
+  });
+  assert(geometry.scrollWidth <= geometry.clientWidth + 1, `${label} content overflows its tile`);
+  assert(geometry.overflow === "hidden", `${label} does not clip accidental overflow`);
+  assert(geometry.iconInside && geometry.iconCentered, `${label} plus icon is not centered inside the tile`);
+  assert(geometry.hiddenLabel, `${label} visual label is not safely hidden`);
+}
+
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
@@ -1337,6 +1363,7 @@ try {
   assert(await dashboard.locator(".mobile-bottom-nav a").count() === 3, "Mobile app navigation should contain the three primary sections");
   await expectDarkPage(dashboard, "Desktop /app/wishes", [".app-layout--dark", ".app-main", ".app-page"]);
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
+  await expectNewListTile(dashboard, "Desktop new-list tile");
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
 
   await waitForAppRoute(dashboard, "/app/wishes");
@@ -1408,6 +1435,7 @@ try {
     await expectDarkPage(mobilePage, `390px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
     await expectNoRootOverflow(mobilePage, `390px ${pathname}`);
     if (pathname === "/app/wishes") {
+      await expectNewListTile(mobilePage, "390px new-list tile");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
       const mobileMenuDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
       assert(mobileMenuDashboardResponse.ok, `390px wish menu dashboard failed: ${mobileMenuDashboardResponse.status}`);
@@ -1675,6 +1703,7 @@ try {
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
   }
   await waitForAppRoute(tabletAppPage, "/app/wishes");
+  await expectNewListTile(tabletAppPage, "768px new-list tile");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-wishes-768.png", fullPage: true });
   const tabletOwnerDetail = await expectWishDetailsOpen(tabletAppPage, "768px owner wish", { fullscreen: true });
   await expectDarkAuthenticatedModal(tabletOwnerDetail.dialog, "768px owner wish detail");
