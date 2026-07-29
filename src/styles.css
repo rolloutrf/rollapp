@@ -2565,37 +2565,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
     font-style: normal;
   }
   .profile-list-rail__create > i > svg { width: 15px; height: 15px; stroke-width: 3; }
-  .profile-list-rail > .profile-list-rail__ecosystem {
-    width: 100%;
-    margin-top: 54px;
-    display: grid;
-    gap: 0;
-  }
-  .profile-list-rail__ecosystem > a,
-  .profile-list-rail__ecosystem > button {
-    width: 100%;
-    min-height: 32px;
-    padding: 0 2px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-radius: 8px;
-    border: 0;
-    color: rgba(255,255,255,.5);
-    background: transparent;
-    font-size: 14px;
-    line-height: 17px;
-    font-weight: 600;
-    text-align: left;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .profile-list-rail__ecosystem > a:hover,
-  .profile-list-rail__ecosystem > button:hover { color: #fff; background: rgba(255,255,255,.055); }
-  .profile-list-rail__ecosystem > .profile-list-rail__business { color: #d5ff00; font-weight: 700; }
-  .profile-list-rail__ecosystem > .profile-list-rail__channel { margin-top: 12px; }
-  .profile-list-rail__ecosystem svg { width: 18px; height: 18px; flex: 0 0 18px; }
-  .profile-list-rail > small { margin-top: 18px; padding-left: 2px; color: rgba(255,255,255,.25); font-size: 11px; line-height: 16px; }
+  .profile-list-rail > small { margin-top: auto; padding-left: 2px; color: rgba(255,255,255,.25); font-size: 11px; line-height: 16px; }
 
   .public-profile--list-layout .public-profile__back,
   .public-profile--list-layout .public-list-tabs { display: none; }
@@ -2774,31 +2744,8 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
     top: -12px;
     background: rgba(255,255,255,.14);
   }
-  .profile-guest-rail > .profile-list-rail__ecosystem {
-    width: 100%;
-    margin-top: 54px;
-    display: grid;
-    gap: 10px;
-  }
-  .profile-guest-rail > .profile-list-rail__ecosystem > a,
-  .profile-guest-rail > .profile-list-rail__ecosystem > button {
-    min-height: 20px;
-    padding: 0 2px;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-  }
-  .profile-guest-rail > .profile-list-rail__ecosystem > .profile-list-rail__business {
-    margin-bottom: 10px;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 500;
-  }
-  .profile-guest-rail > .profile-list-rail__ecosystem > .profile-list-rail__channel {
-    margin-top: 20px;
-  }
   .profile-guest-rail__legal {
-    margin-top: 80px;
+    margin-top: auto;
     display: grid;
     grid-template-columns: 168px max-content;
     gap: 16px 10px;
@@ -2904,49 +2851,10 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .profile-mobile-panel__promo strong { font-size: 17px; line-height: 18.7px; font-weight: 500; }
   .public-profile--dark .profile-mobile-panel__promo .button { min-height: 40px; padding: 0 16px; font-size: 16px; line-height: 19px; }
   .profile-mobile-panel__promo img { width: 100px; height: 110px; position: absolute; right: -8px; bottom: -8px; object-fit: contain; border-radius: 0; filter: drop-shadow(0 10px 20px rgba(0,0,0,.25)); }
-  .profile-mobile-panel__about { margin-bottom: 64px; display: grid; gap: 15px; }
+  .profile-mobile-panel__about { margin-bottom: 32px; display: grid; gap: 15px; }
   .profile-mobile-panel__about p { margin: 0; color: rgba(255,255,255,.42); font-size: 14px; line-height: 15px; font-weight: 500; }
-  .profile-mobile-panel__ecosystem {
-    margin: 0;
-    padding: 0;
-    display: grid;
-    border: 0;
-  }
-  .profile-mobile-panel__ecosystem > strong,
-  .profile-mobile-panel__ecosystem > button {
-    min-height: 24px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border: 0;
-    color: rgba(255,255,255,.52);
-    background: transparent;
-    font: 500 16px/16px var(--font-ui);
-    text-align: left;
-  }
-  .profile-mobile-panel__ecosystem > strong { color: #d5ff00; }
-  .profile-mobile-panel__ecosystem svg { width: 20px; height: 20px; flex: 0 0 20px; }
-  .profile-mobile-panel__ecosystem { gap: 12px; }
-  .profile-mobile-panel__stores { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .profile-mobile-panel__stores button { width: max-content; min-height: 52px; padding: 0 14px; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 26px; color: #fff; background: #000; font: 600 16px/19px var(--font-ui); text-align: left; }
-  .profile-mobile-panel__stores button:nth-child(1) { width: 136px; }
-  .profile-mobile-panel__stores button:nth-child(2) { width: 152px; }
-  .profile-mobile-panel__stores button:nth-child(3) { width: 159px; }
-  .profile-mobile-panel__stores button:nth-child(4) { width: 169px; }
-  .profile-mobile-panel__stores svg { width: 24px; height: 24px; flex: 0 0 24px; }
-  .store-mark { width: 24px; height: 24px; position: relative; flex: 0 0 24px; display: block; overflow: hidden; font-style: normal; }
-  .store-mark--google { clip-path: polygon(7% 2%, 94% 50%, 7% 98%); background: conic-gradient(from 45deg at 48% 50%, #34a853 0 25%, #fbbc04 0 50%, #ea4335 0 75%, #4285f4 0); }
-  .store-mark--google::after { content: ""; width: 16px; height: 2px; position: absolute; left: 2px; top: 11px; background: rgba(255,255,255,.9); transform: rotate(-29deg); }
-  .store-mark--rustore,
-  .store-mark--appgallery { width: 32px; height: 32px; flex-basis: 32px; border-radius: 9px; }
-  .store-mark--rustore { background: #1677ff; }
-  .store-mark--rustore::before { content: ""; width: 4px; height: 15px; position: absolute; left: 8px; top: 8px; border-radius: 3px; background: #fff; box-shadow: 6px -2px 0 #fff, 12px 1px 0 #fff; transform: skewY(14deg); }
-  .store-mark--appgallery { background: #ef3340; }
-  .store-mark--appgallery::before { content: ""; width: 17px; height: 10px; position: absolute; left: 7px; top: 6px; border: 2px solid #fff; border-top: 0; border-radius: 0 0 10px 10px; }
-  .store-mark--appgallery::after { content: "HUAWEI"; position: absolute; left: 4px; right: 4px; bottom: 5px; color: #fff; font: 500 4px/1 Arial, sans-serif; letter-spacing: .1px; text-align: center; }
   .profile-mobile-panel__legal {
-    margin-top: 16px;
+    margin-top: 0;
     display: grid;
     grid-template-columns: max-content max-content;
     gap: 15px 10px;

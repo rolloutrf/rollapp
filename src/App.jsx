@@ -2,11 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Apple, Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Globe, Hand, Heart, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Menu, MessageCircle, MoreHorizontal, PackageCheck, Pencil, Play, Plus,
-  Radio, RotateCcw, Search, Send, Settings, Share2, Smartphone, Sparkles, Star, Trash2, Upload, UserPlus,
-  Users, WandSparkles, X, Zap,
+  Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
+  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Hand, Heart, Image, Link2, ListPlus,
+  LoaderCircle, LockKeyhole, LogOut, Menu, MoreHorizontal, PackageCheck, Pencil, Plus,
+  RotateCcw, Search, Settings, Share2, Sparkles, Star, Trash2, Upload, UserPlus,
+  Users, WandSparkles, X,
 } from "lucide-react";
 import { api } from "./api.js";
 
@@ -2092,8 +2092,6 @@ function PublicProfile({ shared = false }) {
           <div className="profile-mobile-panel__head"><Logo /><button type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)}><X /></button></div>
           <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><Link className="button button--primary" to={user ? APP_HOME : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} onClick={() => setMobileMenuOpen(false)}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></Link></div><img src="/art/gift-3d.png" alt="" /></div>
           <div className="profile-mobile-panel__about"><p>Rollapp — это бесплатный онлайн-сервис вишлистов. Создайте персональный список желаний, добавьте ссылки на товары из любых магазинов с ценами и поделитесь списком с друзьями или семьёй.</p><p>Друзья бронируют подарки через быстрое бронирование без долгой регистрации — система исключает повторы. Встроенный каталог содержит идеи для дня рождения, Нового года, свадьбы и других праздников: от электроники до впечатлений.</p><p>Вишлист работает в браузере и в приложениях для iOS и Android. Регистрация занимает секунды через электронную почту, а функция многократного бронирования идеально подходит для подарочных сертификатов.</p></div>
-          <div className="profile-mobile-panel__ecosystem"><button type="button" onClick={() => toast("Поддержка Rollapp скоро откроется")}><MessageCircle fill="currentColor" /> Поддержка</button><button type="button" onClick={() => toast("Rollapp в Дзене скоро откроется")}><Globe /> Аккаунт в «Дзене»</button><button type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button><button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button><strong><Zap fill="currentColor" /> Для бизнеса</strong></div>
-          <div className="profile-mobile-panel__stores"><button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /><span>App Store</span></button><button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><i className="store-mark store-mark--google" aria-hidden="true" /><span>Google Play</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><i className="store-mark store-mark--rustore" aria-hidden="true" /><span>RuStore</span></button><button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><i className="store-mark store-mark--appgallery" aria-hidden="true" /><span>AppGallery</span></button></div>
           <div className="profile-mobile-panel__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
         </nav>
       </header>
@@ -2107,16 +2105,6 @@ function PublicProfile({ shared = false }) {
             <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><EyeOff /><span>Секретные желания</span></button>
             <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><Check /><span>Исполнено</span></button>
           </nav>
-          <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
-            <Link className="profile-list-rail__business" to="/register"><Zap fill="currentColor" /> Для бизнеса</Link>
-            <button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /> Скачать на iOS</button>
-            <button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><Play fill="currentColor" /> Скачать для Android</button>
-            <button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><Radio fill="currentColor" /> Скачать из RuStore</button>
-            <button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><Smartphone fill="currentColor" /> Скачать в AppGallery</button>
-            <button type="button" onClick={() => toast("Расширение Rollapp для Chrome скоро появится")}><Globe fill="currentColor" /> Расширение для Chrome</button>
-            <button className="profile-list-rail__channel" type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button>
-            <button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button>
-          </nav>
           <small>© 2026 Rollapp</small>
         </aside> : <aside className="profile-rail profile-guest-rail">
           <div className="profile-rail__intro">
@@ -2124,18 +2112,6 @@ function PublicProfile({ shared = false }) {
             <Link className="button button--primary" to={appTarget}>{user ? "Открыть мой список" : "Создать вишлист"}</Link>
           </div>
           <nav className="profile-guest-rail__people" aria-label="Люди в Rollapp"><Link to={friendsTarget}><Users /> Подписки</Link><Link to={friendsTarget}><UserPlus /> Подписчики</Link><Link to={friendsTarget}><CircleUserRound /> Найти друзей</Link></nav>
-          <nav className="profile-list-rail__ecosystem" aria-label="Сервисы Rollapp">
-            <Link className="profile-list-rail__business" to="/register"><Zap fill="currentColor" /> Для бизнеса</Link>
-            <button type="button" onClick={() => toast("Приложение Rollapp для iOS скоро появится")}><Apple fill="currentColor" /> Скачать на iOS</button>
-            <button type="button" onClick={() => toast("Приложение Rollapp для Android скоро появится")}><Play fill="currentColor" /> Скачать для Android</button>
-            <button type="button" onClick={() => toast("Rollapp скоро появится в RuStore")}><Radio fill="currentColor" /> Скачать из RuStore</button>
-            <button type="button" onClick={() => toast("Rollapp скоро появится в AppGallery")}><Smartphone fill="currentColor" /> Скачать в AppGallery</button>
-            <button type="button" onClick={() => toast("Расширение Rollapp для Chrome скоро появится")}><Globe fill="currentColor" /> Расширение для Chrome</button>
-            <button className="profile-list-rail__channel" type="button" onClick={() => toast("Rollapp в Дзене скоро откроется")}><Globe /> Аккаунт в «Дзене»</button>
-            <button type="button" onClick={() => toast("Канал Rollapp в Telegram скоро откроется")}><Send fill="currentColor" /> Канал в «Телеграме»</button>
-            <button type="button" onClick={() => toast("Канал Rollapp в MAX скоро откроется")}><MessageCircle fill="currentColor" /> Канал в MAX</button>
-            <button type="button" onClick={() => toast("Поддержка Rollapp скоро откроется")}><MessageCircle fill="currentColor" /> Поддержка</button>
-          </nav>
           <div className="profile-guest-rail__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
         </aside>}
 
