@@ -1297,6 +1297,10 @@ textarea { resize: vertical; line-height: 1.5; }
 .app-layout--dark .ideas-hero h1 { font-family: var(--sans); color: #fff; font-weight: 760; }
 .app-layout--dark .ideas-hero h1 em { color: #8aa4ff; }
 .app-layout--dark .ideas-hero > p { color: var(--app-muted); }
+.app-layout--dark .ideas-catalog-head { margin-bottom: 30px; }
+.app-layout--dark .ideas-catalog-head .app-page-title { margin-bottom: 22px; }
+.app-layout--dark .ideas-catalog-head .ideas-search { width: min(720px, 100%); margin: 0; }
+.app-layout--dark .ideas-page .category-row { justify-content: flex-start; }
 .app-layout--dark .ideas-search input { background: var(--app-surface); box-shadow: none; }
 .app-layout--dark .ideas-search kbd { color: var(--app-muted); border-color: var(--app-line); background: var(--app-surface-2); }
 .app-layout--dark .idea-card { transform: none; }
@@ -1383,6 +1387,8 @@ textarea { resize: vertical; line-height: 1.5; }
   .app-layout--dark .app-page-title { margin-bottom: 28px; }
   .app-layout--dark .app-page-title h1 { font-size: 32px; line-height: 1.05; }
   .app-layout--dark .app-page-title p { font-size: 11px; }
+  .app-layout--dark .ideas-catalog-head { margin-bottom: 24px; }
+  .app-layout--dark .ideas-catalog-head .app-page-title { margin-bottom: 18px; }
   .app-layout--dark .panel { padding: 16px; }
   .app-layout--dark .list-tabs { margin: 0 -16px 24px; padding: 0 16px 6px; scroll-padding-inline: 16px; }
   .app-layout--dark .list-tabs button { width: 80px; min-width: 80px; height: 70px; min-height: 70px; padding: 8px; border-radius: 12px; font-size: 10px; }

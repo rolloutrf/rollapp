@@ -1444,14 +1444,16 @@ try {
   await expectFriendsRegression(mobilePage, "390px friends", { mobile: true });
 
   await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
-  const publicIdeaCard = mobilePage.locator(".public-ideas .idea-card").first();
-  await publicIdeaCard.waitFor({ state: "visible" });
-  await expectDarkPage(mobilePage, "390px public ideas", [".public-ideas", ".public-ideas > main"]);
-  await publicIdeaCard.locator(".idea-card__image > button").click();
-  const publicIdeaDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
-  await expectDarkAuthenticatedModal(publicIdeaDialog, "390px public ideas save modal");
-  await publicIdeaDialog.getByRole("button", { name: "Закрыть диалог" }).click();
-  await publicIdeaDialog.waitFor({ state: "detached" });
+  await mobilePage.waitForURL((url) => url.pathname === "/app/ideas");
+  const authenticatedIdeaCard = mobilePage.locator(".ideas-page .idea-card").first();
+  await authenticatedIdeaCard.waitFor({ state: "visible" });
+  await expectMobileAppShell(mobilePage, "390px ideas redirect");
+  await expectDarkPage(mobilePage, "390px authenticated ideas redirect", [".app-layout--dark", ".app-main", ".app-page"]);
+  await authenticatedIdeaCard.locator(".idea-card__image > button").click();
+  const authenticatedIdeaDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  await expectDarkAuthenticatedModal(authenticatedIdeaDialog, "390px authenticated ideas save modal");
+  await authenticatedIdeaDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await authenticatedIdeaDialog.waitFor({ state: "detached" });
 
   await waitForAppRoute(mobilePage, "/app/wishes");
   await expectMobileAppShell(mobilePage, "/app/wishes");

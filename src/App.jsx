@@ -1717,10 +1717,39 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
 }
 
 function IdeasPage({ appMode = false }) {
-  const { user } = useSession(); const toast = useToast(); const [search, setSearch] = useState(""); const [category, setCategory] = useState(""); const [selectedIdea, setSelectedIdea] = useState(null); const { data, loading } = useAsync(() => api.get(`/ideas?category=${encodeURIComponent(category)}&search=${encodeURIComponent(search)}`), [category, search]);
-      const content = <><div className="ideas-hero"><span className="eyebrow"><WandSparkles size={15} /> Отобрано с любопытством</span><h1>Идеи, от которых<br /><em>что-то ёкает</em></h1><p>Не безликий каталог товаров, а поводы заметить: «Да, вот этого мне и хотелось».</p><label className="ideas-search"><Search /><input placeholder="Керамика, музыка, впечатления…" value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>⌘ K</kbd></label></div>{loading ? <LoadingScreen compact /> : <><div className="category-row"><button className={!category ? "active" : ""} onClick={() => setCategory("")}>Всё <span>{data.categories.reduce((sum, item) => sum + item.count, 0)}</span></button>{data.categories.map((item) => <button className={category === item.name ? "active" : ""} onClick={() => setCategory(item.name)} key={item.name}>{item.name} <span>{item.count}</span></button>)}</div><div className="ideas-grid">{data.ideas.map((idea, index) => <article className={`idea-card idea-card--${index % 5}`} key={idea.id}><div className="idea-card__image"><img src={idea.imageUrl} alt="" /><span>{idea.badge}</span><button aria-label={`Сохранить идею «${idea.title}»`} onClick={() => user ? setSelectedIdea(idea) : toast("Войдите, чтобы сохранить идею", "error")}><Heart /></button></div><div className="idea-card__copy"><small>{idea.category}</small><h3>{idea.title}</h3><p>{idea.description}</p><strong>{formatMoney(idea.price, idea.currency)}</strong></div></article>)}</div></>}{selectedIdea && <SaveIdeaModal idea={selectedIdea} onClose={() => setSelectedIdea(null)} />}</>;
+  const { user } = useSession();
+  const toast = useToast();
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [selectedIdea, setSelectedIdea] = useState(null);
+  const { data, loading } = useAsync(
+    () => api.get(`/ideas?category=${encodeURIComponent(category)}&search=${encodeURIComponent(search)}`),
+    [category, search],
+  );
+  const searchControl = <label className="ideas-search"><Search /><input aria-label="Поиск идей" placeholder="Керамика, музыка, впечатления…" value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>⌘ K</kbd></label>;
+  const content = <>
+    {appMode
+      ? <div className="ideas-catalog-head"><PageTitle eyebrow="Подборка идей" title="Идеи подарков" text="Найдите то, что действительно захочется добавить в свой список." />{searchControl}</div>
+      : <div className="ideas-hero"><span className="eyebrow"><WandSparkles size={15} /> Отобрано с любопытством</span><h1>Идеи, от которых<br /><em>что-то ёкает</em></h1><p>Не безликий каталог товаров, а поводы заметить: «Да, вот этого мне и хотелось».</p>{searchControl}</div>}
+    {loading ? <LoadingScreen compact /> : <>
+      <div className="category-row">
+        <button className={!category ? "active" : ""} onClick={() => setCategory("")}>Всё <span>{data.categories.reduce((sum, item) => sum + item.count, 0)}</span></button>
+        {data.categories.map((item) => <button className={category === item.name ? "active" : ""} onClick={() => setCategory(item.name)} key={item.name}>{item.name} <span>{item.count}</span></button>)}
+      </div>
+      <div className="ideas-grid">
+        {data.ideas.map((idea, index) => <article className={`idea-card idea-card--${index % 5}`} key={idea.id}><div className="idea-card__image"><img src={idea.imageUrl} alt="" /><span>{idea.badge}</span><button aria-label={`Сохранить идею «${idea.title}»`} onClick={() => user ? setSelectedIdea(idea) : toast("Войдите, чтобы сохранить идею", "error")}><Heart /></button></div><div className="idea-card__copy"><small>{idea.category}</small><h3>{idea.title}</h3><p>{idea.description}</p><strong>{formatMoney(idea.price, idea.currency)}</strong></div></article>)}
+      </div>
+    </>}
+    {selectedIdea && <SaveIdeaModal idea={selectedIdea} onClose={() => setSelectedIdea(null)} />}
+  </>;
   if (appMode) return <div className="app-page ideas-page">{content}</div>;
   return <div className="public-ideas"><LandingHeader /><main>{content}</main><footer className="landing-footer"><Logo /><p>Списки желаний, которые приятно исполнять.</p><span>© 2026 Rollapp</span></footer></div>;
+}
+
+function IdeasRoute() {
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  return user ? <Navigate to="/app/ideas" replace /> : <IdeasPage />;
 }
 
 function SaveIdeaModal({ idea, onClose }) { const toast = useToast(); const { data, loading } = useAsync(() => api.get("/dashboard"), []); const [listId, setListId] = useState(""); const [busy, setBusy] = useState(false); useEffect(() => { if (data?.lists?.[0]) setListId(data.lists[0].id); }, [data]); const save = async () => { setBusy(true); try { await api.post(`/ideas/${idea.id}/save`, { listId }); toast("Идея сохранена в ваш список"); onClose(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } }; return <Modal onClose={onClose}><div className="save-idea"><img src={idea.imageUrl} alt="" /><span className="eyebrow">Сохранить идею</span><h2>{idea.title}</h2><p>{idea.description}</p>{loading ? <LoadingScreen compact /> : <label><span>Выберите список</span><select value={listId} onChange={(event) => setListId(event.target.value)}>{data.lists.map((list) => <option value={list.id} key={list.id}>{list.title}</option>)}</select></label>}<div className="modal-actions"><Button variant="ghost" onClick={onClose}>Отмена</Button><Button icon={Heart} onClick={save} loading={busy}>Сохранить</Button></div></div></Modal>; }
@@ -2076,7 +2105,7 @@ function PublicProfile({ shared = false }) {
           <div><strong>{data.profile.name}</strong><span>@{data.profile.username}</span></div>
         </div>
         <nav className="profile-header__dock" aria-label="Основная навигация">
-          <Link className={!data.isOwner ? "profile-header__ideas is-active" : "profile-header__ideas"} to="/ideas" aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
+          <Link className={!data.isOwner ? "profile-header__ideas is-active" : "profile-header__ideas"} to={user ? "/app/ideas" : "/ideas"} aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
           <Link className={data.isOwner ? "is-active" : ""} to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
           <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
           <Link className="profile-header__search" to={friendsTarget} aria-label="Поиск" title="Поиск"><Search /></Link>
@@ -2175,4 +2204,4 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasPage />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasRoute />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
