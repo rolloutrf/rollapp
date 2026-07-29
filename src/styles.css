@@ -2900,35 +2900,6 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 
 /* Friends directory — flat Ohmywishes-style subscriptions and followers. */
 .friends-topbar { display: none; }
-.sidebar__friend-nav {
-  margin-top: 86px;
-  display: grid;
-  gap: 2px;
-}
-.sidebar__friend-nav a {
-  min-height: 46px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-radius: 13px;
-  color: rgba(255,255,255,.48);
-  font-size: 16px;
-  line-height: 19px;
-  font-weight: 600;
-  transition: color .16s ease, background .16s ease;
-}
-.sidebar__friend-nav a:hover { color: #fff; background: rgba(255,255,255,.06); }
-.sidebar__friend-nav a.active,
-.sidebar__friend-nav a[aria-current="page"] { color: #fff; background: transparent; }
-.sidebar__friend-nav a.is-separated {
-  min-height: 59px;
-  margin-top: 8px;
-  padding-top: 13px;
-  border-top: 1px solid rgba(255,255,255,.12);
-  border-radius: 0 0 13px 13px;
-}
-.sidebar__friend-nav svg { width: 22px; height: 22px; flex: 0 0 22px; stroke-width: 2.15; }
 
 .app-layout--friends .friends-page {
   width: 100%;
@@ -2949,7 +2920,33 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   font: 700 42px/1.05 var(--font-ui);
   letter-spacing: -.035em;
 }
-.friends-section-nav { display: none; }
+.friends-section-nav {
+  margin: 0 0 24px;
+  padding: 0 0 5px;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 1px;
+}
+.friends-section-nav::-webkit-scrollbar { display: none; }
+.friends-section-nav a {
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--app-line);
+  border-radius: 22px;
+  color: var(--app-muted);
+  background: var(--app-surface);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.friends-section-nav a.active,
+.friends-section-nav a[aria-current="page"] { color: #050505; border-color: #fff; background: #fff; }
+.friends-section-nav svg { width: 18px; height: 18px; }
 .friends-search {
   width: 100%;
   height: 64px;
@@ -3119,26 +3116,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .friends-empty .button { margin-top: 12px; }
 
 @media (min-width: 821px) {
-  .app-layout--friends {
-    grid-template-columns: 360px minmax(0, 1fr);
-    gap: 0;
-    padding: 0;
-    background: #000;
-  }
-  .app-layout--friends .sidebar {
-    height: 100vh;
-    padding: 28px 24px 22px;
-    border-radius: 0;
-    background: #000;
-  }
-  .app-layout--friends .sidebar__head { padding: 5px 14px 20px; }
-  .app-layout--friends .sidebar__bottom { margin-inline: 0; }
-  .app-layout--friends .app-main {
-    min-height: 100vh;
-    position: relative;
-    border-radius: 0;
-    background: #000;
-  }
+  .app-layout--friends .app-main { position: relative; }
   .friends-topbar {
     height: 62px;
     position: fixed;
@@ -3262,13 +3240,10 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 }
 
 @media (max-width: 1180px) and (min-width: 821px) {
-  .app-layout--friends { grid-template-columns: 300px minmax(0, 1fr); }
   .friends-directory { padding-left: 112px; padding-right: 84px; }
 }
 
 @media (max-width: 820px) {
-  .app-layout--friends { padding: 0; background: #000; }
-  .app-layout--friends .sidebar__friend-nav { margin-top: 28px; }
   .app-layout--friends .friends-page {
     min-height: calc(100dvh - 62px - env(safe-area-inset-top));
     padding: 27px 18px calc(112px + env(safe-area-inset-bottom));
@@ -3278,30 +3253,8 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .friends-section-nav {
     margin: 0 -18px 22px;
     padding: 0 18px 5px;
-    display: flex;
-    gap: 7px;
-    overflow-x: auto;
-    scrollbar-width: none;
     scroll-padding-inline: 18px;
   }
-  .friends-section-nav::-webkit-scrollbar { display: none; }
-  .friends-section-nav a {
-    min-height: 44px;
-    padding: 0 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    border: 1px solid var(--app-line);
-    border-radius: 22px;
-    color: var(--app-muted);
-    background: var(--app-surface);
-    font-size: 13px;
-    font-weight: 650;
-    white-space: nowrap;
-  }
-  .friends-section-nav a.active,
-  .friends-section-nav a[aria-current="page"] { color: #050505; border-color: #fff; background: #fff; }
-  .friends-section-nav svg { width: 18px; height: 18px; }
   .friends-search { height: 54px; margin-bottom: 30px; border-radius: 27px; }
   .friends-search > svg { width: 21px; height: 21px; left: 17px; }
   .app-layout--dark .friends-search input { height: 54px; padding-left: 50px; font-size: 16px; }

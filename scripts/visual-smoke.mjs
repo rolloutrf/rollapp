@@ -204,6 +204,101 @@ async function expectMobileAppShell(page, label) {
   assert(geometry.bottom >= 0, `${label} primary mobile navigation is outside the viewport`);
 }
 
+const stableAppRoutes = ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"];
+const stablePrimaryLinks = [
+  { label: "Мои желания", pathname: "/app/wishes" },
+  { label: "Идеи", pathname: "/app/ideas" },
+  { label: "Друзья", pathname: friendsRoutes.subscriptions },
+];
+
+async function captureStableSidebar(page, label, { mobile = false } = {}) {
+  const sidebar = page.locator("#app-sidebar");
+  if (mobile) {
+    await page.getByRole("button", { name: "Открыть меню", exact: true }).click();
+    await sidebar.waitFor({ state: "visible" });
+    await page.waitForFunction(() => document.querySelector("#app-sidebar")?.classList.contains("is-open"));
+    await page.waitForTimeout(280);
+  } else {
+    await sidebar.waitFor({ state: "visible" });
+  }
+
+  const addButton = sidebar.getByRole("button", { name: "Добавить желание", exact: true });
+  assert(await addButton.isVisible(), `${label} is missing the global add-wish action`);
+  const primaryLinks = sidebar.locator(".sidebar__nav a");
+  assert(await primaryLinks.count() === stablePrimaryLinks.length, `${label} should expose three primary sidebar links`);
+  for (const expected of stablePrimaryLinks) {
+    const link = sidebar.getByRole("link", { name: expected.label, exact: true });
+    assert(await link.isVisible(), `${label} is missing the ${expected.label} link`);
+    assert(new URL(await link.getAttribute("href"), baseUrl).pathname === expected.pathname, `${label} ${expected.label} points to the wrong route`);
+  }
+  for (const utility of ["Уведомления", "Настройки"]) {
+    assert(await sidebar.getByRole("link", { name: new RegExp(`^${utility}`) }).isVisible(), `${label} is missing ${utility}`);
+  }
+
+  await waitForStableLayout(page);
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const value = document.querySelector(selector)?.getBoundingClientRect();
+      return value ? { x: value.x, y: value.y, width: value.width, height: value.height } : null;
+    };
+    const sidebarNode = document.querySelector("#app-sidebar");
+    const sidebarStyle = sidebarNode ? getComputedStyle(sidebarNode) : null;
+    return {
+      sidebar: rect("#app-sidebar"),
+      head: rect("#app-sidebar .sidebar__head"),
+      add: rect("#app-sidebar .sidebar__add"),
+      navigation: rect("#app-sidebar .sidebar__nav"),
+      bottom: rect("#app-sidebar .sidebar__bottom"),
+      user: rect("#app-sidebar .sidebar__user"),
+      main: rect(".app-main"),
+      style: sidebarStyle && {
+        position: sidebarStyle.position,
+        padding: [sidebarStyle.paddingTop, sidebarStyle.paddingRight, sidebarStyle.paddingBottom, sidebarStyle.paddingLeft],
+        borderRadius: sidebarStyle.borderRadius,
+      },
+    };
+  });
+  assert(Object.values(geometry).every(Boolean), `${label} is missing sidebar geometry`);
+
+  if (mobile) {
+    await sidebar.locator(".sidebar-close").click();
+    await page.waitForFunction(() => !document.querySelector("#app-sidebar")?.classList.contains("is-open"));
+    await page.waitForFunction(() => getComputedStyle(document.querySelector("#app-sidebar")).visibility === "hidden");
+  }
+  return geometry;
+}
+
+function expectSameSidebar(actual, expected, label) {
+  const close = (left, right) => Math.abs(left - right) <= 1;
+  for (const region of ["sidebar", "head", "add", "navigation", "bottom", "user"]) {
+    for (const dimension of ["x", "y", "width", "height"]) {
+      assert(close(actual[region][dimension], expected[region][dimension]), `${label} changed sidebar ${region}.${dimension}`);
+    }
+  }
+  for (const dimension of ["x", "width"]) {
+    assert(close(actual.main[dimension], expected.main[dimension]), `${label} shifted the app main ${dimension}`);
+  }
+  assert(actual.style.position === expected.style.position, `${label} changed sidebar positioning`);
+  assert(actual.style.borderRadius === expected.style.borderRadius, `${label} changed sidebar rounding`);
+  assert(actual.style.padding.join("|") === expected.style.padding.join("|"), `${label} changed sidebar padding`);
+}
+
+async function expectStableDesktopSidebarAcrossRoutes(page, label, viewport) {
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize(viewport);
+  try {
+    let baseline = null;
+    for (const pathname of stableAppRoutes) {
+      await waitForAppRoute(page, pathname);
+      const snapshot = await captureStableSidebar(page, `${label} ${pathname}`);
+      if (!baseline) baseline = snapshot;
+      else expectSameSidebar(snapshot, baseline, `${label} ${pathname}`);
+    }
+  } finally {
+    if (originalViewport) await page.setViewportSize(originalViewport);
+  }
+}
+
 async function expectDarkAuthenticatedModal(dialog, label) {
   await dialog.waitFor({ state: "visible" });
   const theme = await dialog.evaluate((element) => {
@@ -500,18 +595,18 @@ async function expectFriendsLayout(page, label, { mobile }) {
       row: rowRect && { left: rowRect.left, right: rowRect.right, top: rowRect.top, width: rowRect.width },
       linkRects,
     };
-  }, mobile ? ".friends-section-nav" : ".sidebar__friend-nav");
+  }, ".friends-section-nav");
   assert(geometry.navigation && geometry.row, `${label} is missing its friend navigation or list geometry`);
   assert(geometry.row.right <= geometry.viewportWidth + 1, `${label} friend rows extend beyond the viewport`);
+  assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the list`);
   if (mobile) {
-    assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the mobile list`);
     assert(geometry.navigation.width <= geometry.viewportWidth + 1, `${label} mobile friend navigation overflows the viewport`);
     assert(geometry.linkRects.every((rect) => rect.height >= 40), `${label} mobile friend navigation has undersized touch targets`);
     const pageHeight = await page.evaluate(() => ({ viewport: window.innerHeight, document: document.documentElement.scrollHeight }));
     assert(pageHeight.document <= pageHeight.viewport + 1, `${label} adds empty mobile scrolling (${pageHeight.document}px document inside ${pageHeight.viewport}px viewport)`);
   } else {
-    assert(geometry.navigation.right <= geometry.row.left + 1, `${label} friend navigation should form a desktop side rail`);
-    assert(geometry.row.width > geometry.navigation.width, `${label} desktop friend list should be wider than its side rail`);
+    assert(geometry.navigation.left >= geometry.row.left - 1, `${label} desktop friend navigation is not aligned with the directory`);
+    assert(geometry.linkRects.every((rect) => rect.height >= 40), `${label} desktop friend navigation has undersized targets`);
     const dock = page.locator(".friends-topbar__dock");
     await dock.waitFor({ state: "visible" });
     assert(await dock.locator(":scope > a:not(.friends-topbar__search)").count() === 3, `${label} desktop top dock should expose the three primary sections`);
@@ -1399,7 +1494,9 @@ try {
   await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
   await expectFriendsRegression(dashboard, "Desktop friends", { mobile: false });
   await expectWideFriendsLayout(dashboard, "1912px friends");
-  for (const pathname of ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"]) {
+  await expectStableDesktopSidebarAcrossRoutes(dashboard, "1440px stable sidebar", { width: 1440, height: 1000 });
+  await expectStableDesktopSidebarAcrossRoutes(dashboard, "1024px stable sidebar", { width: 1024, height: 900 });
+  for (const pathname of stableAppRoutes) {
     await waitForAppRoute(dashboard, pathname);
     await expectDarkPage(dashboard, `Desktop ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
   }
@@ -1428,12 +1525,15 @@ try {
   await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
   await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
 
-  const appRoutes = ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"];
-  for (const pathname of appRoutes) {
+  let mobileSidebarBaseline = null;
+  for (const pathname of stableAppRoutes) {
     await waitForAppRoute(mobilePage, pathname);
     await expectMobileAppShell(mobilePage, pathname);
     await expectDarkPage(mobilePage, `390px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
     await expectNoRootOverflow(mobilePage, `390px ${pathname}`);
+    const mobileSidebar = await captureStableSidebar(mobilePage, `390px sidebar ${pathname}`, { mobile: true });
+    if (!mobileSidebarBaseline) mobileSidebarBaseline = mobileSidebar;
+    else expectSameSidebar(mobileSidebar, mobileSidebarBaseline, `390px sidebar ${pathname}`);
     if (pathname === "/app/wishes") {
       await expectNewListTile(mobilePage, "390px new-list tile");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
@@ -1696,11 +1796,15 @@ try {
   await expectDarkPage(tabletAppPage, "768px shared guest profile", [".public-profile--dark", ".public-profile__layout > main"]);
   const tabletLoginResponse = await tabletApp.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(tabletLoginResponse.ok(), `768px demo login failed: ${tabletLoginResponse.status()}`);
-  for (const pathname of ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"]) {
+  let tabletSidebarBaseline = null;
+  for (const pathname of stableAppRoutes) {
     await waitForAppRoute(tabletAppPage, pathname);
     await expectMobileAppShell(tabletAppPage, `768px ${pathname}`);
     await expectDarkPage(tabletAppPage, `768px ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
     await expectNoRootOverflow(tabletAppPage, `768px ${pathname}`);
+    const tabletSidebar = await captureStableSidebar(tabletAppPage, `768px sidebar ${pathname}`, { mobile: true });
+    if (!tabletSidebarBaseline) tabletSidebarBaseline = tabletSidebar;
+    else expectSameSidebar(tabletSidebar, tabletSidebarBaseline, `768px sidebar ${pathname}`);
   }
   await waitForAppRoute(tabletAppPage, "/app/wishes");
   await expectNewListTile(tabletAppPage, "768px new-list tile");
