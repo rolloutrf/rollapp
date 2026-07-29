@@ -1675,7 +1675,16 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   font-weight: 700;
 }
 .app-layout--dark .list-tabs button span { margin-top: auto; font-size: 24px; line-height: 29px; font-weight: 600; }
-.app-layout--dark .list-tabs .list-tabs__add { width: 56px; min-width: 56px; align-items: center; justify-content: center; }
+.app-layout--dark .list-tabs .list-tabs__add {
+  width: 56px;
+  min-width: 56px;
+  padding: 0;
+  flex: 0 0 56px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
+}
 .app-layout--dark { --serif: var(--font-ui); --sans: var(--font-ui); }
 .app-layout--dark .app-page .button { min-height: 40px; font-weight: 500; }
 
