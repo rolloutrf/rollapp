@@ -149,6 +149,96 @@ textarea { resize: vertical; line-height: 1.5; }
 .or span { position: relative; z-index: 1; padding: 0 10px; color: var(--muted); background: var(--white); font-size: 10px; }
 .auth-switch { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 12px; }
 .auth-switch a { color: var(--coral); font-weight: 800; }
+.auth-config-loading {
+  min-height: 176px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--muted);
+  background: rgba(255,255,255,.045);
+  font-size: 12px;
+  font-weight: 700;
+}
+.auth-config-loading svg { width: 20px; height: 20px; color: var(--blue); }
+.auth-method-switch,
+.phone-otp__resend {
+  min-height: 44px;
+  padding: 0 8px;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  color: var(--blue);
+  background: transparent;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.auth-method-switch svg { width: 17px; height: 17px; }
+.auth-method-switch:hover:not(:disabled),
+.phone-otp__resend:hover:not(:disabled) { color: #a9b9ff; }
+.auth-method-switch:disabled,
+.phone-otp__resend:disabled { color: var(--muted); cursor: not-allowed; }
+.phone-otp__summary {
+  min-height: 56px;
+  padding: 9px 10px 9px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.055);
+}
+.phone-otp__summary > span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+.phone-otp__summary > span > svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--blue); }
+.phone-otp__summary strong { color: #fff; font-weight: 700; }
+.phone-otp__summary > button {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255,255,255,.08);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.phone-otp__summary > button:hover:not(:disabled) { background: rgba(255,255,255,.13); }
+.phone-otp__summary > button:disabled { opacity: .5; cursor: not-allowed; }
+input.phone-otp__code {
+  min-height: 62px;
+  padding-left: calc(14px + .32em);
+  text-align: center;
+  font-size: 27px;
+  line-height: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .32em;
+}
+.phone-otp__error {
+  margin: -8px 0 -2px;
+  color: #ff8179;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 650;
+}
+.phone-otp__resend { margin: -6px auto 0; }
 
 /* App shell */
 .app-layout { min-height: 100vh; display: grid; grid-template-columns: 236px 1fr; background: var(--app-bg); }
@@ -896,6 +986,10 @@ textarea { resize: vertical; line-height: 1.5; }
   .auth-art__copy p { max-width: 330px; }
   .auth-panel { min-height: auto; padding: 72px 18px calc(35px + env(safe-area-inset-bottom)); }
   .auth-back { left: 18px; top: 20px; min-height: 44px; }
+  .auth-method-switch { width: 100%; }
+  .phone-otp__summary { align-items: flex-start; }
+  .phone-otp__summary > span { padding-top: 9px; align-items: flex-start; }
+  input.phone-otp__code { font-size: 24px; letter-spacing: .26em; }
 
   .mobile-app-head > .logo > span:last-child { display: none; }
   .app-page { padding: 24px 14px calc(108px + env(safe-area-inset-bottom)); }
@@ -4528,6 +4622,49 @@ button.settings-row:hover { background: rgba(255,255,255,.045); }
 .settings-editor > label > textarea { min-height: 116px; }
 .settings-editor .short-field { max-width: 300px; }
 .settings-editor .modal-actions { margin-top: 3px; }
+.phone-settings__current {
+  min-height: 68px;
+  margin: 18px 0 16px;
+  padding: 12px 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 17px;
+  color: #fff;
+  background: #29292a;
+}
+.phone-settings__current > svg {
+  width: 38px;
+  height: 38px;
+  padding: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: var(--blue);
+  background: rgba(109,140,255,.13);
+}
+.phone-settings__current > span { min-width: 0; display: flex; flex-direction: column; }
+.phone-settings__current small { color: var(--muted); font-size: 11px; line-height: 15px; }
+.phone-settings__current strong { overflow: hidden; font-size: 16px; line-height: 21px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-settings__form { margin-top: 18px; }
+.phone-settings__form > label > input { min-height: 54px; }
+.phone-settings__status {
+  min-height: 110px;
+  margin-top: 18px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: 20px;
+  color: var(--muted);
+  background: #29292a;
+  font-size: 13px;
+}
+.phone-settings__status > svg { width: 24px; height: 24px; flex: 0 0 auto; color: var(--blue); }
+.phone-settings__status > span { display: flex; flex-direction: column; gap: 2px; }
+.phone-settings__status strong { color: #fff; font-size: 15px; line-height: 20px; }
+.phone-settings__status small { color: var(--muted); font-size: 12px; line-height: 17px; }
+.phone-settings__status--unavailable { justify-content: flex-start; }
 
 @media (max-width: 820px) {
   .app-layout--dark .settings-page {
@@ -4617,6 +4754,9 @@ button.settings-row:hover { background: rgba(255,255,255,.045); }
     font-size: 13px;
   }
   .settings-editor .short-field { max-width: none; }
+  .phone-settings__current { margin-top: 16px; padding: 11px 13px; border-radius: 16px; }
+  .phone-settings__form { margin-top: 16px; }
+  .phone-settings__status { min-height: 104px; margin-top: 16px; padding: 17px; border-radius: 18px; }
 }
 
 @media (max-width: 390px) {

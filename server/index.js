@@ -11,8 +11,22 @@ import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
 import { parseProductMetadata } from "./metadata.js";
+import {
+  createOtpCode,
+  digestIp,
+  digestOtp,
+  digestPhone,
+  getPhoneAuthPolicy,
+  maskPhone,
+  normalizeRussianPhone,
+  phoneLast4,
+  PHONE_OTP_CODE_LENGTH,
+  requirePhoneAuthSecret,
+  verifyOtpDigest,
+} from "./phone-auth.js";
 import { isReservedProfileUsername, legacyProfileTarget, normalizePublicProfileHref, profileUsernameCandidates, publicProfilePath } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
+import { getSmsConfig, sendSms } from "./sms.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -35,6 +49,13 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
+const phoneRequestSchema = z.object({
+  phone: z.string().trim().min(10).max(64),
+}).strict();
+const phoneVerifySchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().regex(/^\d{6}$/),
+}).strict();
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -141,6 +162,8 @@ function cleanUser(row) {
     bio: row.bio,
     birthday: row.birthday,
     avatarUrl: row.avatar_url,
+    hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
+    phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
     createdAt: row.created_at,
   };
 }
@@ -205,9 +228,18 @@ function requireAuth(req, res, next) {
 app.use("/api", asyncRoute(optionalAuth));
 
 async function createSession(res, userId) {
+  const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
+  setSessionCookie(res, session);
+}
+
+async function createSessionRecord(client, userId) {
   const token = createSessionToken();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)", [hashToken(token), userId, expiresAt]);
+  await client.query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)", [hashToken(token), userId, expiresAt]);
+  return { token, expiresAt };
+}
+
+function setSessionCookie(res, { token, expiresAt }) {
   res.cookie(sessionCookie, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -237,6 +269,295 @@ const credentialsSchema = z.object({
   email: z.string().email().max(160).transform((value) => value.toLowerCase().trim()),
   password: z.string().min(8).max(128),
 });
+
+class PhoneRequestLimitError extends Error {
+  constructor(retryAfterSeconds) {
+    super("Phone OTP request limit exceeded");
+    this.name = "PhoneRequestLimitError";
+    this.retryAfterSeconds = Math.max(1, Math.ceil(retryAfterSeconds));
+  }
+}
+
+function phoneAuthRuntimeConfig() {
+  const sms = getSmsConfig();
+  let secret = "";
+  try {
+    secret = requirePhoneAuthSecret();
+  } catch {
+    // The public config reports the feature as disabled until a strong secret exists.
+  }
+  return {
+    ...sms,
+    enabled: sms.enabled && Boolean(secret),
+    policy: getPhoneAuthPolicy(),
+    secret,
+  };
+}
+
+function publicPhoneAuthConfig() {
+  const runtime = phoneAuthRuntimeConfig();
+  return {
+    enabled: runtime.enabled,
+    testMode: runtime.testMode,
+    country: "RU",
+    codeLength: PHONE_OTP_CODE_LENGTH,
+    expiresInSeconds: runtime.policy.ttlSeconds,
+    resendAfterSeconds: runtime.policy.resendSeconds,
+  };
+}
+
+function phoneAuthUnavailable(res) {
+  return res.status(503).json({ error: "Вход по телефону временно недоступен" });
+}
+
+function phoneRequestLimited(res, retryAfterSeconds) {
+  const retry = Math.max(1, Math.ceil(retryAfterSeconds));
+  res.set("Retry-After", String(retry));
+  return res.status(429).json({
+    error: "Слишком много запросов кода. Попробуйте позже",
+    retryAfterSeconds: retry,
+  });
+}
+
+async function enforcePhoneRequestLimits(client, {
+  phoneHash,
+  ipHash,
+  purpose,
+  now,
+  policy,
+}) {
+  const resendCutoff = new Date(now.getTime() - policy.resendSeconds * 1_000);
+  const latest = await client.query(
+    `SELECT created_at FROM phone_auth_challenges
+     WHERE phone_hash=$1 AND purpose=$2 AND created_at>$3
+     ORDER BY created_at DESC LIMIT 1`,
+    [phoneHash, purpose, resendCutoff],
+  );
+  if (latest.rowCount) {
+    const elapsedMs = now.getTime() - new Date(latest.rows[0].created_at).getTime();
+    throw new PhoneRequestLimitError(policy.resendSeconds - elapsedMs / 1_000);
+  }
+
+  const rateCutoff = new Date(now.getTime() - policy.rateWindowSeconds * 1_000);
+  const phoneRequests = await client.query(
+    "SELECT COUNT(*) AS count FROM phone_auth_challenges WHERE phone_hash=$1 AND created_at>$2",
+    [phoneHash, rateCutoff],
+  );
+  if (Number(phoneRequests.rows[0]?.count || 0) >= policy.phoneRequestLimit) {
+    throw new PhoneRequestLimitError(policy.rateWindowSeconds);
+  }
+
+  const ipRequests = await client.query(
+    "SELECT COUNT(*) AS count FROM phone_auth_challenges WHERE request_ip_hash=$1 AND created_at>$2",
+    [ipHash, rateCutoff],
+  );
+  if (Number(ipRequests.rows[0]?.count || 0) >= policy.ipRequestLimit) {
+    throw new PhoneRequestLimitError(policy.rateWindowSeconds);
+  }
+
+  const dailyCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1_000);
+  const deliveries = await client.query(
+    `SELECT COUNT(*) AS count FROM phone_auth_challenges
+     WHERE delivery_status<>'suppressed' AND created_at>$1`,
+    [dailyCutoff],
+  );
+  if (Number(deliveries.rows[0]?.count || 0) >= policy.globalDailyLimit) {
+    throw new PhoneRequestLimitError(60 * 60);
+  }
+}
+
+let lastPhoneAuthCleanupAt = 0;
+async function cleanupExpiredAuthData() {
+  const now = Date.now();
+  if (now - lastPhoneAuthCleanupAt < 60 * 60 * 1_000) return;
+  const challengeCutoff = new Date(now - 24 * 60 * 60 * 1_000);
+  await Promise.all([
+    query("DELETE FROM phone_auth_challenges WHERE created_at<$1", [challengeCutoff]),
+    query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
+  ]);
+  lastPhoneAuthCleanupAt = now;
+}
+
+async function startPhoneChallenge(req, res, { purpose, userId = null }) {
+  const parsed = phoneRequestSchema.safeParse(req.body);
+  const phone = parsed.success ? normalizeRussianPhone(parsed.data.phone) : null;
+  if (!phone) return res.status(400).json({ error: "Введите российский мобильный номер" });
+
+  const runtime = phoneAuthRuntimeConfig();
+  if (!runtime.enabled) return phoneAuthUnavailable(res);
+
+  await cleanupExpiredAuthData();
+  const now = new Date();
+  const challengeId = randomUUID();
+  const code = createOtpCode();
+  const phoneHash = digestPhone(runtime.secret, phone);
+  const ipHash = digestIp(runtime.secret, req.ip || req.socket.remoteAddress || "unknown");
+  const last4 = phoneLast4(phone);
+
+  let challenge;
+  try {
+    challenge = await withMutationLock("phone-otp-request", async () => transaction(async (client) => {
+      let targetUserId = userId;
+      if (purpose === "login") {
+        const owner = await client.query(
+          "SELECT id FROM users WHERE phone_hash=$1 AND phone_verified_at IS NOT NULL",
+          [phoneHash],
+        );
+        targetUserId = owner.rows[0]?.id || null;
+      }
+      await enforcePhoneRequestLimits(client, {
+        phoneHash,
+        ipHash,
+        purpose,
+        now,
+        policy: runtime.policy,
+      });
+      await client.query(
+        `UPDATE phone_auth_challenges SET consumed_at=$1
+         WHERE phone_hash=$2 AND purpose=$3 AND consumed_at IS NULL`,
+        [now, phoneHash, purpose],
+      );
+      const expiresAt = new Date(now.getTime() + runtime.policy.ttlSeconds * 1_000);
+      const shouldDeliver = Boolean(targetUserId);
+      await client.query(
+        `INSERT INTO phone_auth_challenges
+          (id,phone_hash,phone_last4,purpose,user_id,code_hash,request_ip_hash,max_attempts,expires_at,delivery_status,created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          challengeId,
+          phoneHash,
+          last4,
+          purpose,
+          targetUserId,
+          digestOtp(runtime.secret, challengeId, code),
+          ipHash,
+          runtime.policy.maxAttempts,
+          expiresAt,
+          shouldDeliver ? "pending" : "suppressed",
+          now,
+        ],
+      );
+      return { shouldDeliver };
+    }));
+  } catch (error) {
+    if (error instanceof PhoneRequestLimitError) {
+      return phoneRequestLimited(res, error.retryAfterSeconds);
+    }
+    throw error;
+  }
+
+  if (challenge.shouldDeliver) {
+    try {
+      const delivered = await sendSms({ phone, code });
+      await query(
+        "UPDATE phone_auth_challenges SET delivery_status='sent',provider_message_id=$1 WHERE id=$2",
+        [delivered.providerMessageId || null, challengeId],
+      );
+    } catch (error) {
+      await query("UPDATE phone_auth_challenges SET delivery_status='failed' WHERE id=$1", [challengeId]);
+      console.error(`[phone-auth] SMS delivery failed for challenge ${challengeId}: ${error.message}`);
+    }
+  } else if (!runtime.testMode) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+
+  const response = {
+    challengeId,
+    phoneMasked: maskPhone(last4),
+    expiresInSeconds: runtime.policy.ttlSeconds,
+    resendAfterSeconds: runtime.policy.resendSeconds,
+  };
+  if (runtime.testMode) response.testCode = code;
+  return res.status(202).json(response);
+}
+
+const invalidPhoneCodeResponse = { error: "Неверный или истёкший код" };
+
+async function verifyPhoneChallenge(req, res, { purpose, userId = null }) {
+  const parsed = phoneVerifySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(invalidPhoneCodeResponse);
+  const runtime = phoneAuthRuntimeConfig();
+  if (!runtime.enabled) return phoneAuthUnavailable(res);
+
+  const result = await withMutationLock(`phone-otp-verify:${parsed.data.challengeId}`, async () => transaction(async (client) => {
+    const found = await client.query(
+      "SELECT * FROM phone_auth_challenges WHERE id=$1 AND purpose=$2 FOR UPDATE",
+      [parsed.data.challengeId, purpose],
+    );
+    const challenge = found.rows[0];
+    if (!challenge) return { kind: "invalid" };
+    if (purpose === "link" && challenge.user_id !== userId) return { kind: "invalid" };
+
+    const now = new Date();
+    const attempts = Number(challenge.attempt_count || 0);
+    const maxAttempts = Number(challenge.max_attempts || runtime.policy.maxAttempts);
+    if (challenge.consumed_at || attempts >= maxAttempts || new Date(challenge.expires_at) <= now) {
+      if (!challenge.consumed_at) {
+        await client.query("UPDATE phone_auth_challenges SET consumed_at=$1 WHERE id=$2", [now, challenge.id]);
+      }
+      return { kind: "invalid" };
+    }
+
+    if (!verifyOtpDigest(runtime.secret, challenge.id, parsed.data.code, challenge.code_hash)) {
+      const nextAttempts = attempts + 1;
+      await client.query(
+        `UPDATE phone_auth_challenges
+         SET attempt_count=$1,consumed_at=CASE WHEN $1>=max_attempts THEN $2 ELSE consumed_at END
+         WHERE id=$3`,
+        [nextAttempts, now, challenge.id],
+      );
+      return { kind: "invalid" };
+    }
+
+    if (purpose === "login") {
+      const user = challenge.user_id
+        ? await client.query(
+          `SELECT * FROM users
+           WHERE id=$1 AND phone_hash=$2 AND phone_verified_at IS NOT NULL`,
+          [challenge.user_id, challenge.phone_hash],
+        )
+        : { rows: [] };
+      await client.query("UPDATE phone_auth_challenges SET consumed_at=$1 WHERE id=$2", [now, challenge.id]);
+      if (!user.rows[0]) return { kind: "invalid" };
+      const session = await createSessionRecord(client, user.rows[0].id);
+      return { kind: "success", user: user.rows[0], session };
+    }
+
+    const claimed = await client.query(
+      "SELECT id FROM users WHERE phone_hash=$1 AND id<>$2 LIMIT 1",
+      [challenge.phone_hash, userId],
+    );
+    await client.query("UPDATE phone_auth_challenges SET consumed_at=$1 WHERE id=$2", [now, challenge.id]);
+    if (claimed.rowCount) return { kind: "conflict" };
+    const updated = await client.query(
+      `UPDATE users
+       SET phone_hash=$1,phone_last4=$2,phone_verified_at=$3
+       WHERE id=$4 RETURNING *`,
+      [challenge.phone_hash, challenge.phone_last4, now, userId],
+    );
+    if (!updated.rows[0]) return { kind: "invalid" };
+    return { kind: "success", user: updated.rows[0] };
+  }));
+
+  if (result.kind === "conflict") {
+    return res.status(409).json({ error: "Этот номер уже привязан к другому аккаунту" });
+  }
+  if (result.kind !== "success") return res.status(401).json(invalidPhoneCodeResponse);
+  if (result.session) setSessionCookie(res, result.session);
+  return res.json({ user: cleanUser(result.user) });
+}
+
+app.get("/api/auth/phone/config", (_req, res) => {
+  res.json(publicPhoneAuthConfig());
+});
+
+app.post("/api/auth/phone/request", asyncRoute(async (req, res) => {
+  await startPhoneChallenge(req, res, { purpose: "login" });
+}));
+
+app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
+  await verifyPhoneChallenge(req, res, { purpose: "login" });
+}));
 
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
@@ -336,6 +657,14 @@ app.post("/api/auth/logout", asyncRoute(async (req, res) => {
   if (token) await query("DELETE FROM sessions WHERE token_hash = $1", [hashToken(token)]);
   res.clearCookie(sessionCookie, { path: "/" });
   res.json({ ok: true });
+}));
+
+app.post("/api/me/phone/request", requireAuth, asyncRoute(async (req, res) => {
+  await startPhoneChallenge(req, res, { purpose: "link", userId: req.user.id });
+}));
+
+app.post("/api/me/phone/verify", requireAuth, asyncRoute(async (req, res) => {
+  await verifyPhoneChallenge(req, res, { purpose: "link", userId: req.user.id });
 }));
 
 app.get("/api/me", asyncRoute(async (req, res) => {
