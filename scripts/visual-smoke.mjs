@@ -323,6 +323,8 @@ async function expectDarkAuthenticatedModal(dialog, label) {
       ".wish-editor__field",
       ".wish-editor__switch",
       ".wish-editor__list-row",
+      ".phone-settings__current",
+      ".phone-settings__status",
       ".modal-actions",
       "input:not([type='checkbox']):not([type='radio']):not([type='hidden'])",
       "textarea",
@@ -546,12 +548,13 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
   );
   assert(await settings.locator(":scope > .settings-section > .settings-profile-card").count() === 1, `${label} is missing the profile summary card`);
   assert(await settings.locator(":scope > .settings-section > .settings-card").count() === 2, `${label} should expose two grouped settings cards`);
-  assert(await sections.nth(1).locator(".settings-row").count() === 3, `${label} data card should expose email, birthday and profile address`);
+  assert(await sections.nth(1).locator(".settings-row").count() === 4, `${label} data card should expose email, phone, birthday and profile address`);
   assert(await sections.nth(2).locator(".settings-row").count() === 2, `${label} privacy card should expose the two supported privacy destinations`);
   const rowLabels = (await settings.locator(".settings-row__copy > strong").allInnerTexts()).map((value) => value.trim());
   assert(
     JSON.stringify(rowLabels) === JSON.stringify([
       "demo@rollapp.test",
+      "Номер телефона",
       "День рождения",
       "Адрес профиля",
       "Доступ к спискам",
@@ -615,6 +618,32 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
     );
   }
   await expectNoRootOverflow(page, label);
+
+  const phoneRow = settings.locator("button.settings-row").filter({ hasText: "Номер телефона" });
+  assert(await phoneRow.count() === 1, `${label} is missing the phone sign-in settings action`);
+  assert(
+    (await phoneRow.locator(".settings-row__copy > small").innerText()).trim() === "Не привязан",
+    `${label} does not explain that the demo phone number is not linked`,
+  );
+  await phoneRow.click();
+  const phoneDialog = page.getByRole("dialog", { name: "Привязать номер", exact: true });
+  await phoneDialog.waitFor({ state: "visible" });
+  await phoneDialog.getByRole("heading", { name: "Привязать номер", exact: true }).waitFor();
+  const unavailableStatus = phoneDialog.getByRole("status");
+  await unavailableStatus.getByText("Вход по телефону временно недоступен", { exact: true }).waitFor();
+  await unavailableStatus.getByText("Попробуйте снова немного позже.", { exact: true }).waitFor();
+  assert(await phoneDialog.locator("input").count() === 0, `${label} exposes a phone input while the SMS provider is disabled`);
+  assert(await phoneDialog.locator("form").count() === 0, `${label} exposes a phone form while the SMS provider is disabled`);
+  const phoneClose = phoneDialog.getByRole("button", { name: "Закрыть диалог", exact: true });
+  assert(await phoneClose.count() === 1, `${label} phone dialog is missing an accessible close action`);
+  assert(
+    await phoneDialog.evaluate((element) => element.contains(document.activeElement)),
+    `${label} phone dialog did not receive keyboard focus`,
+  );
+  await expectDarkAuthenticatedModal(phoneDialog, `${label} disabled phone sign-in`);
+  await expectNoRootOverflow(page, `${label} disabled phone sign-in`);
+  await phoneClose.click();
+  await phoneDialog.waitFor({ state: "detached" });
 
   if (!openEditor) return;
   await settings.getByRole("button", { name: "Редактировать общие сведения", exact: true }).click();

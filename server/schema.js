@@ -13,13 +13,39 @@ const schema = `
     bio TEXT NOT NULL DEFAULT '',
     birthday DATE,
     avatar_url TEXT NOT NULL DEFAULT '',
+    phone_hash TEXT,
+    phone_last4 TEXT,
+    phone_verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
+    ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS phone_auth_challenges (
+    id TEXT PRIMARY KEY,
+    phone_hash TEXT NOT NULL,
+    phone_last4 TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    request_ip_hash TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    delivery_status TEXT NOT NULL DEFAULT 'pending',
+    provider_message_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -121,6 +147,9 @@ const schema = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
+  CREATE INDEX IF NOT EXISTS idx_phone_auth_phone_created ON phone_auth_challenges(phone_hash,created_at);
+  CREATE INDEX IF NOT EXISTS idx_phone_auth_ip_created ON phone_auth_challenges(request_ip_hash,created_at);
+  CREATE INDEX IF NOT EXISTS idx_phone_auth_expires ON phone_auth_challenges(expires_at);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);

@@ -1,10 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, AtSign, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
   CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Hand, Heart, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Mail, Menu, MoreHorizontal, PackageCheck, Pencil, Plus,
+  LoaderCircle, LockKeyhole, LogOut, Mail, Menu, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   RotateCcw, Search, Settings, Share2, Sparkles, Star, Trash2, Upload, UserPlus,
   Users, WandSparkles, X,
 } from "lucide-react";
@@ -18,6 +18,16 @@ const modalStack = [];
 const formatMoney = (value, currency = "RUB") => value == null ? "Цена не указана" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatDate = (value, options = {}) => value ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...options }).format(new Date(value)) : "Без даты";
 const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+const isRussianMobilePhone = (value = "") => {
+  let digits = String(value).replace(/\D/g, "");
+  if (digits.length === 10) digits = `7${digits}`;
+  if (digits.length === 11 && digits.startsWith("8")) digits = `7${digits.slice(1)}`;
+  return /^79\d{9}$/.test(digits);
+};
+const formatCountdown = (seconds) => {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  return `${String(Math.floor(safeSeconds / 60)).padStart(2, "0")}:${String(safeSeconds % 60).padStart(2, "0")}`;
+};
 const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
 const WISH_CURRENCY_SYMBOLS = { RUB: "₽", USD: "$", EUR: "€", KZT: "₸", BYN: "Br" };
 const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
@@ -173,6 +183,202 @@ function RootRoute() {
   return <Navigate to={user ? APP_HOME : "/login"} replace />;
 }
 
+function usePhoneOtp({ requestPath, verifyPath, onVerified }) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState("phone");
+  const [challengeId, setChallengeId] = useState("");
+  const [phoneMasked, setPhoneMasked] = useState("");
+  const [retryAt, setRetryAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const phoneInputRef = useRef(null);
+  const codeInputRef = useRef(null);
+
+  const retrySeconds = Math.max(0, Math.ceil((retryAt - now) / 1000));
+
+  useEffect(() => {
+    if (step !== "otp" || retrySeconds <= 0) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [step, retrySeconds]);
+
+  const focusInput = (ref) => window.requestAnimationFrame(() => ref.current?.focus());
+
+  const requestCode = async () => {
+    if (!isRussianMobilePhone(phone)) {
+      setError("Введите российский мобильный номер, например +7 999 123-45-67.");
+      focusInput(phoneInputRef);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api.post(requestPath, { phone });
+      setChallengeId(result.challengeId);
+      setPhoneMasked(result.phoneMasked || phone);
+      setCode("");
+      setStep("otp");
+      const resendAfterSeconds = Number(result.resendAfterSeconds) || 60;
+      const nextRetryAt = Date.now() + resendAfterSeconds * 1000;
+      setRetryAt(nextRetryAt);
+      setNow(Date.now());
+      focusInput(codeInputRef);
+    } catch (requestError) {
+      if (requestError.status === 429) {
+        const retryAfterSeconds = requestError.retryAfterSeconds || 60;
+        setRetryAt(Date.now() + retryAfterSeconds * 1_000);
+        setNow(Date.now());
+        setError("Слишком много попыток. Попробуйте немного позже.");
+      } else if (requestError.status === 400 || requestError.status === 503) {
+        setError(requestError.message);
+      } else {
+        setError("Не удалось отправить код. Проверьте номер и попробуйте ещё раз.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!challengeId || code.length !== 6) {
+      setError("Введите шестизначный код из SMS.");
+      focusInput(codeInputRef);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api.post(verifyPath, { challengeId, code });
+      await onVerified(result);
+    } catch (verifyError) {
+      if (verifyError.status === 409 || verifyError.status === 503) {
+        setError(verifyError.message);
+      } else {
+        setError("Код не подошёл или устарел. Запросите новый код.");
+        if (verifyError.status === 400 || verifyError.status === 401) setCode("");
+      }
+      focusInput(codeInputRef);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (step === "phone") await requestCode();
+    else await verifyCode();
+  };
+
+  const changePhone = () => {
+    setStep("phone");
+    setChallengeId("");
+    setPhoneMasked("");
+    setCode("");
+    setError("");
+    setRetryAt(0);
+    focusInput(phoneInputRef);
+  };
+
+  const reset = () => {
+    setPhone("");
+    setCode("");
+    setStep("phone");
+    setChallengeId("");
+    setPhoneMasked("");
+    setRetryAt(0);
+    setError("");
+  };
+
+  return {
+    phone,
+    setPhone,
+    code,
+    setCode,
+    step,
+    phoneMasked,
+    retrySeconds,
+    loading,
+    error,
+    clearError: () => setError(""),
+    phoneInputRef,
+    codeInputRef,
+    submit,
+    requestCode,
+    changePhone,
+    reset,
+  };
+}
+
+function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получить код", verifyLabel = "Подтвердить и войти" }) {
+  const fieldId = useId();
+  const phoneErrorId = `${fieldId}-phone-error`;
+  const codeHintId = `${fieldId}-code-hint`;
+  const readyToResend = flow.step === "otp" && flow.retrySeconds === 0;
+  if (flow.step === "phone") {
+    return <>
+      <label htmlFor={`${fieldId}-phone`}>
+        <span>Номер телефона</span>
+        <input
+          ref={flow.phoneInputRef}
+          id={`${fieldId}-phone`}
+          data-modal-initial-focus={initialFocus ? "" : undefined}
+          required
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          minLength={10}
+          maxLength={24}
+          placeholder="+7 999 123-45-67"
+          value={flow.phone}
+          aria-invalid={Boolean(flow.error)}
+          aria-describedby={flow.error ? phoneErrorId : undefined}
+          onChange={(event) => {
+            flow.setPhone(event.target.value);
+            if (flow.error) flow.clearError();
+          }}
+        />
+      </label>
+      {flow.error && <p id={phoneErrorId} className="phone-otp__error" role="alert">{flow.error}</p>}
+      <Button type="submit" loading={flow.loading} className="auth-submit">{requestLabel}</Button>
+    </>;
+  }
+  return <>
+    <div className="phone-otp__summary" id={codeHintId}>
+      <span><Phone aria-hidden="true" /><span>Код отправлен на <strong>{flow.phoneMasked}</strong></span></span>
+      <button type="button" disabled={flow.loading} onClick={flow.changePhone}>Изменить</button>
+    </div>
+    <label htmlFor={`${fieldId}-code`}>
+      <span>Код из SMS</span>
+      <input
+        ref={flow.codeInputRef}
+        id={`${fieldId}-code`}
+        className="phone-otp__code"
+        required
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={6}
+        placeholder="••••••"
+        value={flow.code}
+        aria-invalid={Boolean(flow.error)}
+        aria-describedby={flow.error ? phoneErrorId : codeHintId}
+        onChange={(event) => {
+          flow.setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+          if (flow.error) flow.clearError();
+        }}
+      />
+    </label>
+    {flow.error && <p id={phoneErrorId} className="phone-otp__error" role="alert">{flow.error}</p>}
+    <Button type="submit" loading={flow.loading} className="auth-submit">{verifyLabel}</Button>
+    <button className="phone-otp__resend" type="button" disabled={flow.loading || !readyToResend} onClick={flow.requestCode}>
+      {readyToResend ? "Отправить код снова" : `Отправить снова через ${formatCountdown(flow.retrySeconds)}`}
+    </button>
+    <span className="visually-hidden" aria-live="polite">{readyToResend ? "Код можно отправить снова" : ""}</span>
+  </>;
+}
+
 function AuthPage({ mode }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -180,10 +386,50 @@ function AuthPage({ mode }) {
   const toast = useToast();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [phoneEnabled, setPhoneEnabled] = useState(false);
+  const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
+  const [authMethod, setAuthMethod] = useState("email");
+  const methodTouchedRef = useRef(false);
   const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
+  const phoneFlow = usePhoneOtp({
+    requestPath: "/auth/phone/request",
+    verifyPath: "/auth/phone/verify",
+    onVerified: async () => {
+      await refresh();
+      navigate(nextPath);
+      toast("С возвращением!");
+    },
+  });
+
+  useEffect(() => {
+    methodTouchedRef.current = false;
+    if (mode !== "login") {
+      setPhoneEnabled(false);
+      setPhoneConfigLoaded(true);
+      setAuthMethod("email");
+      return undefined;
+    }
+    let active = true;
+    setPhoneConfigLoaded(false);
+    api.get("/auth/phone/config")
+      .then((config) => {
+        if (!active) return;
+        const enabled = Boolean(config.enabled);
+        setPhoneEnabled(enabled);
+        if (enabled && !methodTouchedRef.current) setAuthMethod("phone");
+      })
+      .catch(() => {
+        if (!active) return;
+        setPhoneEnabled(false);
+        setAuthMethod("email");
+      })
+      .finally(() => { if (active) setPhoneConfigLoaded(true); });
+    return () => { active = false; };
+  }, [mode]);
+
   if (user) return <Navigate to={nextPath} replace />;
 
-  const submit = async (event) => {
+  const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
       await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
@@ -191,8 +437,57 @@ function AuthPage({ mode }) {
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
   };
 
+  const switchAuthMethod = () => {
+    methodTouchedRef.current = true;
+    phoneFlow.reset();
+    setAuthMethod((current) => current === "phone" ? "email" : "phone");
+  };
+  const usingPhone = mode === "login" && phoneEnabled && authMethod === "phone";
+  const subtitle = usingPhone && phoneFlow.step === "otp"
+    ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
+    : mode === "register"
+      ? "Это бесплатно и займёт меньше минуты."
+      : "Продолжите собирать и исполнять желания.";
+
   return (
-    <div className="auth-page"><div className="auth-art"><Logo /><div className="auth-art__copy"><span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span><h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1><p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p></div><div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div></div><div className="auth-panel"><Link className="auth-back" to="/ideas"><ArrowLeft size={17} /> Идеи подарков</Link><form className="auth-form" onSubmit={submit}><div><span className="eyebrow">{mode === "register" ? "Новый аккаунт" : "С возвращением"}</span><h2>{mode === "register" ? "Создать свой Rollapp" : "Войти в Rollapp"}</h2><p>{mode === "register" ? "Это бесплатно и займёт меньше минуты." : "Продолжите собирать и исполнять желания."}</p></div>{mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}<label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} /></label><Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button><p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p></form></div></div>
+    <div className="auth-page">
+      <div className="auth-art">
+        <Logo />
+        <div className="auth-art__copy">
+          <span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span>
+          <h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1>
+          <p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p>
+        </div>
+        <div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div>
+      </div>
+      <div className="auth-panel">
+        <Link className="auth-back" to="/ideas"><ArrowLeft size={17} /> Идеи подарков</Link>
+        <form className="auth-form" aria-busy={!phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={usingPhone ? phoneFlow.submit : submitCredentials}>
+          <div>
+            <span className="eyebrow">{usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : mode === "register" ? "Новый аккаунт" : "С возвращением"}</span>
+            <h2>{mode === "register" ? "Создать свой Rollapp" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h2>
+            <p>{subtitle}</p>
+          </div>
+          {mode === "login" && !phoneConfigLoaded
+            ? <div className="auth-config-loading" role="status"><LoaderCircle className="spin" /><span>Проверяем способы входа…</span></div>
+            : usingPhone
+            ? <PhoneOtpFields flow={phoneFlow} />
+            : <>
+              {mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}
+              <label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></label>
+              <label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></label>
+              <Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button>
+            </>}
+          {mode === "login" && phoneConfigLoaded && phoneEnabled && (
+            <button className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
+              {usingPhone ? <Mail aria-hidden="true" /> : <Phone aria-hidden="true" />}
+              <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
+            </button>
+          )}
+          <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -2087,9 +2382,69 @@ function SettingsRow({ icon: Icon, label, detail = "", action = null, to = "", o
   return <div className="settings-row">{content}</div>;
 }
 
+function PhoneSettingsModal({ user, onClose, onSaved }) {
+  const toast = useToast();
+  const [config, setConfig] = useState({ loading: true, enabled: false });
+  const phoneFlow = usePhoneOtp({
+    requestPath: "/me/phone/request",
+    verifyPath: "/me/phone/verify",
+    onVerified: async (result) => {
+      toast(user.hasPhone ? "Номер телефона обновлён" : "Номер телефона привязан");
+      await onSaved(result.user);
+    },
+  });
+
+  useEffect(() => {
+    let active = true;
+    api.get("/auth/phone/config")
+      .then((result) => {
+        if (active) setConfig({ loading: false, enabled: Boolean(result.enabled) });
+      })
+      .catch(() => {
+        if (active) setConfig({ loading: false, enabled: false });
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (config.loading || !config.enabled) return undefined;
+    const focusField = window.requestAnimationFrame(() => phoneFlow.phoneInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(focusField);
+  }, [config.loading, config.enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const title = user.hasPhone ? "Изменить номер" : "Привязать номер";
+  return <Modal onClose={onClose} ariaLabel={title}>
+    <div className="modal-heading">
+      <span className="modal-icon"><Phone /></span>
+      <div>
+        <span className="eyebrow">Безопасный вход</span>
+        <h2>{phoneFlow.step === "otp" ? "Подтвердите номер" : title}</h2>
+        <p>{phoneFlow.step === "otp" ? `Введите код из SMS на ${phoneFlow.phoneMasked}.` : "После подтверждения вы сможете входить в Rollapp без пароля."}</p>
+      </div>
+    </div>
+    {user.phoneMasked && (
+      <div className="phone-settings__current">
+        <Phone aria-hidden="true" />
+        <span><small>Текущий номер</small><strong>{user.phoneMasked}</strong></span>
+      </div>
+    )}
+    {config.loading
+      ? <div className="phone-settings__status" role="status"><LoaderCircle className="spin" /><span>Проверяем доступность SMS…</span></div>
+      : config.enabled
+        ? <form className="modal-form phone-settings__form" aria-busy={phoneFlow.loading} onSubmit={phoneFlow.submit}>
+          <PhoneOtpFields flow={phoneFlow} initialFocus requestLabel="Отправить код" verifyLabel="Подтвердить номер" />
+        </form>
+        : <div className="phone-settings__status phone-settings__status--unavailable" role="status">
+          <Phone />
+          <span><strong>Вход по телефону временно недоступен</strong><small>Попробуйте снова немного позже.</small></span>
+        </div>}
+  </Modal>;
+}
+
 function SettingsPage() {
   const { user, refresh } = useSession();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [phoneEditorOpen, setPhoneEditorOpen] = useState(false);
   const birthday = user.birthday ? formatDate(user.birthday, { year: "numeric" }) : "Не указан";
   return <div className="app-page settings-page">
     <SettingsSection title="Общие сведения">
@@ -2103,6 +2458,7 @@ function SettingsPage() {
     <SettingsSection title="Управление данными">
       <div className="settings-card">
         <SettingsRow icon={Mail} label={user.email} detail="Email для входа" action={<span className="settings-row__badge">Основной</span>} />
+        <SettingsRow icon={Phone} label={user.phoneMasked || "Номер телефона"} detail={user.hasPhone ? "Вход по коду из SMS" : "Не привязан"} onClick={() => setPhoneEditorOpen(true)} />
         <SettingsRow icon={CalendarDays} label="День рождения" detail={birthday} onClick={() => setEditorOpen(true)} />
         <SettingsRow icon={AtSign} label="Адрес профиля" detail={`роллапп.рф/${user.username}`} to={publicProfilePath(user.username)} />
       </div>
@@ -2121,6 +2477,14 @@ function SettingsPage() {
       onSaved={async () => {
         await refresh();
         setEditorOpen(false);
+      }}
+    />}
+    {phoneEditorOpen && <PhoneSettingsModal
+      user={user}
+      onClose={() => setPhoneEditorOpen(false)}
+      onSaved={async () => {
+        await refresh();
+        setPhoneEditorOpen(false);
       }}
     />}
   </div>;

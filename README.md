@@ -6,7 +6,7 @@ The product is an independent functional alternative to popular wishlist service
 
 ## What is included
 
-- Email and password authentication with HTTP-only sessions.
+- Email/password authentication and optional SMS OTP login with HTTP-only sessions.
 - Public profiles and shareable list links.
 - Multiple lists with public, followers-only, link-only, and private visibility.
 - Wishes that may belong to several lists at once.
@@ -69,3 +69,19 @@ No long-lived Yandex key is stored in GitHub. The federated credential accepts o
 Local `.env` variables are documented in `.env.example`. Production non-secret settings live in `deploy/docker-compose.template.yml`; the PostgreSQL password is loaded at runtime by `server/start.js` and never enters the repository, VM metadata, or GitHub Actions.
 
 The server initializes idempotent tables at startup. Production seeding is disabled unless `SEED_DEMO=true` is explicitly set.
+
+### Phone login
+
+Phone login is an additional sign-in method for existing accounts. A signed-in user first verifies and links a Russian mobile number in settings; email/password login remains available and existing sessions are not invalidated. Unknown phone numbers never create accounts and receive the same API response shape as linked numbers.
+
+The OTP backend supports three provider modes:
+
+- `disabled` (default): the public configuration reports that phone login is unavailable;
+- `test`: deterministic delivery for automated tests only and rejected outside `NODE_ENV=test`;
+- `yandex`: SMS delivery through Yandex Cloud Notification Service.
+
+Yandex mode obtains a short-lived IAM token from the Compute VM metadata service and calls the CNS HTTP API directly, so no static cloud access key is stored in the app. The VM runtime service account needs the `notifications.publisher` role, an active SMS channel, and a registered authorization-message template/sender. Set `PHONE_AUTH_SECRET` to a random value of at least 32 bytes through the runtime secret mechanism before enabling the provider.
+
+OTP codes expire after five minutes, are single-use, and are stored only as HMAC digests. Full phone numbers and requester IP addresses are also represented by keyed HMAC digests in PostgreSQL; the API exposes only a masked last-four-digit display. Persistent resend, per-phone, per-IP, attempt, and global daily limits protect the SMS quota. See `.env.example` for configurable bounds.
+
+`PHONE_AUTH_SECRET` is also the stable lookup key for linked phone numbers. Rotating it without a planned re-verification migration makes existing phone links unavailable, so keep it in Lockbox, back it up, and rotate it only through an explicit account migration.

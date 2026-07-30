@@ -20,7 +20,7 @@ async function loadLockboxValue(secretId, secretKey = "postgresql_password") {
   return entry.textValue;
 }
 
-async function loadLockboxSecret() {
+async function loadDatabaseLockboxSecret() {
   const secretId = process.env.YC_LOCKBOX_SECRET_ID;
   const secretKey = process.env.YC_LOCKBOX_SECRET_KEY || "postgresql_password";
   if (!secretId || process.env.PGPASSWORD) return;
@@ -28,7 +28,16 @@ async function loadLockboxSecret() {
   console.log("Runtime database credential loaded from Yandex Lockbox");
 }
 
-await loadLockboxSecret();
+async function loadPhoneAuthLockboxSecret() {
+  const secretId = process.env.YC_PHONE_AUTH_LOCKBOX_SECRET_ID;
+  const secretKey = process.env.YC_PHONE_AUTH_LOCKBOX_SECRET_KEY || "phone_auth_secret";
+  if (!secretId || process.env.PHONE_AUTH_SECRET) return;
+  process.env.PHONE_AUTH_SECRET = await loadLockboxValue(secretId, secretKey);
+  console.log("Runtime phone authentication credential loaded from Yandex Lockbox");
+}
+
+await loadDatabaseLockboxSecret();
+await loadPhoneAuthLockboxSecret();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });
