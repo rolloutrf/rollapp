@@ -2,9 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
+  Archive, ArrowLeft, ArrowRight, AtSign, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
   CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Hand, Heart, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Menu, MoreHorizontal, PackageCheck, Pencil, Plus,
+  LoaderCircle, LockKeyhole, LogOut, Mail, Menu, MoreHorizontal, PackageCheck, Pencil, Plus,
   RotateCcw, Search, Settings, Share2, Sparkles, Star, Trash2, Upload, UserPlus,
   Users, WandSparkles, X,
 } from "lucide-react";
@@ -21,6 +21,7 @@ const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("")
 const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
 const WISH_CURRENCY_SYMBOLS = { RUB: "₽", USD: "$", EUR: "€", KZT: "₸", BYN: "Br" };
 const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
+const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 const wishFormFrom = (wish) => ({
   title: wish?.title || "",
   description: wish?.description || "",
@@ -1428,17 +1429,20 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   const editing = Boolean(wish?.id);
   const toast = useToast();
   const { data, loading: listsLoading, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
-  const [step, setStep] = useState(editing ? "details" : "link");
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [imageEditorOpen, setImageEditorOpen] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageDropActive, setImageDropActive] = useState(false);
+  const [imageError, setImageError] = useState("");
   const [listCreatorOpen, setListCreatorOpen] = useState(false);
   const [metadata, setMetadata] = useState({ status: "idle", message: "" });
   const [form, setForm] = useState(() => wishFormFrom(wish));
   const autoTimerRef = useRef(null);
   const metadataRequestRef = useRef(0);
   const editedMetadataFieldsRef = useRef(new Set());
+  const imageFileRef = useRef(null);
+  const uploadedImageIdsRef = useRef(new Set());
   const mutationRef = useRef(null);
   const deleteTriggerRef = useRef(null);
   const deleteConfirmRef = useRef(null);
@@ -1452,10 +1456,10 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       return nextListIds.length === current.listIds.length ? current : { ...current, listIds: nextListIds };
     });
   }, [data]);
-  const recognize = async (sourceUrl = form.url, { advance = true } = {}) => {
+  const recognize = async (sourceUrl = form.url) => {
     const url = sourceUrl.trim();
     window.clearTimeout(autoTimerRef.current);
-    if (!url) { setMetadata({ status: "idle", message: "" }); setStep("details"); return false; }
+    if (!url) { setMetadata({ status: "idle", message: "" }); return false; }
     if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
     const requestId = ++metadataRequestRef.current;
     setMetadata({ status: "loading", message: "Ищем название, фотографию и цену на странице магазина…" });
@@ -1483,7 +1487,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
       setMetadata({ status: "success", message: appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
-      if (advance) setStep("details");
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
@@ -1503,8 +1506,47 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   }, [form.url, editing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; }, []);
   const updateMetadataField = (field, value) => { editedMetadataFieldsRef.current.add(field); setForm((current) => ({ ...current, [field]: value })); };
-  const continueFromLink = () => { if (!form.url.trim()) { setStep("details"); return; } if (metadata.status === "success") { setStep("details"); return; } recognize(); };
-  const fillManually = () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; setMetadata((current) => current.status === "error" ? current : { status: "idle", message: "" }); setStep("details"); };
+  const cleanupUploadedImages = async (keepUrl = "") => {
+    const keepId = uploadedImageIdFromUrl(keepUrl);
+    const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
+    ids.forEach((id) => uploadedImageIdsRef.current.delete(id));
+    await Promise.allSettled(ids.map((id) => api.delete(`/uploads/images/${encodeURIComponent(id)}`)));
+  };
+  useEffect(() => () => {
+    const ids = [...uploadedImageIdsRef.current];
+    uploadedImageIdsRef.current.clear();
+    ids.forEach((id) => {
+      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    });
+  }, []);
+  const uploadImage = async (file) => {
+    if (!file || imageUploading) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setImageError("Подойдёт изображение JPG, PNG или WEBP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setImageError("Изображение должно быть не больше 8 МБ.");
+      return;
+    }
+    setImageUploading(true);
+    setImageError("");
+    try {
+      const result = await api.uploadImage(file);
+      uploadedImageIdsRef.current.add(result.id);
+      updateMetadataField("imageUrl", result.imageUrl);
+    } catch (error) {
+      setImageError(error.message || "Не удалось загрузить изображение.");
+    } finally {
+      setImageUploading(false);
+      setImageDropActive(false);
+      if (imageFileRef.current) imageFileRef.current.value = "";
+    }
+  };
   const submit = async (event) => {
     event.preventDefault();
     if (mutationRef.current || deleting) return;
@@ -1513,6 +1555,9 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     try {
       const payload = { ...form, price: form.price === "" ? null : Number(form.price) };
       const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload);
+      const savedUploadId = uploadedImageIdFromUrl(result.wish?.imageUrl);
+      if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
+      await cleanupUploadedImages(result.wish?.imageUrl || "");
       toast(editing ? "Изменения сохранены" : "Желание добавлено ✦");
       await onSaved?.(result.wish);
     } catch (error) {
@@ -1542,8 +1587,12 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     ...current,
     listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id],
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{step === "details" && metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url, { advance: false })}>Повторить</button>}</div>;
-  const requestClose = () => { if (!loading && !deleting) onClose(); };
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url)}>Повторить</button>}</div>;
+  const requestClose = () => {
+    if (loading || deleting || imageUploading) return;
+    cleanupUploadedImages();
+    onClose();
+  };
   const cancelDelete = () => {
     if (deleting) return;
     restoreDeleteFocusRef.current = true;
@@ -1589,45 +1638,66 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     </Modal>;
   }
 
-  if (editing) {
-    const fieldId = (name) => `wish-editor-${name}-${wish.id}`;
-    const coverForList = (listId) => data?.wishes?.find((item) => item.imageUrl && item.listIds.includes(listId))?.imageUrl || "";
-    return <>
-      <Modal
-        onClose={requestClose}
-        className="modal--wish-editor"
-        backdropClassName="modal-backdrop--wish-editor"
-        ariaLabel={`Редактирование желания «${wish.title}»`}
-      >
-      <form className="wish-editor" onSubmit={submit}>
-        <Button className="wish-editor__submit" type="submit" loading={loading}>Обновить</Button>
+  const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
+  const coverForList = (listId) => data?.wishes?.find((item) => item.imageUrl && item.listIds.includes(listId))?.imageUrl || "";
+  return <>
+    <Modal
+      onClose={requestClose}
+      className="modal--wish-editor"
+      backdropClassName="modal-backdrop--wish-editor"
+      ariaLabel={editing ? `Редактирование желания «${wish.title}»` : "Создание желания"}
+    >
+      <form className={`wish-editor ${editing ? "wish-editor--edit" : "wish-editor--create"}`} onSubmit={submit}>
+        {!editing && <h2 className="wish-editor__title">Новое желание</h2>}
+        <Button className="wish-editor__submit" type="submit" loading={loading} aria-label={editing ? "Обновить" : "Загадать желание"}>
+          <span className="wish-editor__submit-full">{editing ? "Обновить" : "Загадать желание"}</span>
+          {!editing && <span className="wish-editor__submit-mobile" aria-hidden="true">Готово</span>}
+        </Button>
         <div className="wish-editor__layout">
           <section className="wish-editor__media" aria-label="Фотография желания">
-            <div className={`wish-editor__image ${form.imageUrl ? "has-image" : "is-empty"}`}>
+            <div
+              className={`wish-editor__image ${form.imageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
+              onDragEnter={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
+              onDragOver={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
+              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setImageDropActive(false); }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setImageDropActive(false);
+                uploadImage(event.dataTransfer.files?.[0]);
+              }}
+            >
               {form.imageUrl
-                ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish.title}»`} />
-                : <button type="button" className="wish-editor__image-empty" onClick={() => setImageEditorOpen(true)}><Image /><span>Добавить фото</span></button>}
-              <button ref={deleteTriggerRef} type="button" className="wish-editor__delete" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /></button>
-              <button type="button" className="wish-editor__image-change" aria-expanded={imageEditorOpen} onClick={() => setImageEditorOpen((value) => !value)}><Pencil /> {form.imageUrl ? "Сменить фото" : "Указать ссылку"}</button>
-              {imageEditorOpen && <div className="wish-editor__image-url">
-                <label htmlFor={fieldId("image")}>Ссылка на фото</label>
-                <input id={fieldId("image")} type="text" inputMode="url" value={form.imageUrl} placeholder="https://… или /art/…" onChange={(event) => updateMetadataField("imageUrl", event.target.value)} />
-                <button type="button" aria-label="Готово" onClick={() => setImageEditorOpen(false)}><Check /></button>
-              </div>}
+                ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} />
+                : <button type="button" className="wish-editor__image-empty" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}>
+                  {imageUploading ? <LoaderCircle className="spin" /> : <Image />}
+                  <strong>{imageUploading ? "Загружаем изображение…" : "Перетащите изображение или нажмите для загрузки"}</strong>
+                  <span>JPG, PNG, WEBP · НЕ БОЛЕЕ 8 МБ</span>
+                </button>}
+              <input
+                ref={imageFileRef}
+                className="visually-hidden"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="Загрузить фотографию желания"
+                onChange={(event) => uploadImage(event.target.files?.[0])}
+              />
+              {editing && <button ref={deleteTriggerRef} type="button" className="wish-editor__delete" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /></button>}
+              {form.imageUrl && <button type="button" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</button>}
             </div>
+            {imageError && <p className="wish-editor__image-error" role="alert">{imageError}</p>}
           </section>
 
           <section className="wish-editor__panel">
             <div className="wish-editor__scroll">
               <label className="wish-editor__field" htmlFor={fieldId("title")}>
                 <span>Название</span>
-                <input id={fieldId("title")} data-modal-initial-focus required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+                <input id={fieldId("title")} data-modal-initial-focus={editing ? "" : undefined} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
               </label>
 
               <div className="wish-editor__field wish-editor__field--link">
                 <label htmlFor={fieldId("url")}>Ссылка</label>
-                <input id={fieldId("url")} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
-                <button type="button" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url, { advance: false })}>
+                <input id={fieldId("url")} data-modal-initial-focus={!editing ? "" : undefined} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <button type="button" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                   <i>{metadata.status === "loading" ? <LoaderCircle className="spin" /> : <ArrowRight />}</i>
                 </button>
@@ -1705,9 +1775,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
         }}
       />}
     </>;
-  }
-
-  return <Modal onClose={requestClose} wide><form className="modal-form wish-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon"><Heart fill="currentColor" /></span><div><span className="eyebrow">Новое желание</span><h2>{step === "link" ? "Добавим мечту" : "Проверьте карточку"}</h2><p>{step === "link" ? "Вставьте ссылку — название, фото и цену подставим сами." : "Чем точнее детали, тем проще друзьям."}</p></div></div>{step === "link" ? <div className="link-step"><label className="link-input"><Link2 /><input autoFocus type="url" inputMode="url" placeholder="https://магазин.ru/то-самое" value={form.url} onChange={(event) => setForm((current) => ({ ...current, url: event.target.value.trim() }))} /></label>{metadataNotice}<Button type="button" onClick={continueFromLink} loading={metadata.status === "loading"}>{metadata.status === "error" ? "Попробовать снова" : "Продолжить"}</Button><button type="button" className="manual-link" onClick={fillManually}>У меня нет ссылки — заполнить вручную</button><div className="recognition-note"><WandSparkles /><div><strong>Автоматическое заполнение</strong><span>Начнём разбор через мгновение после вставки ссылки.</span></div></div></div> : <>{metadataNotice}<div className="wish-form__grid"><div className="image-preview"><div>{form.imageUrl ? <img src={form.imageUrl} alt="Предпросмотр" /> : <><Image size={35} /><span>Фото желания</span></>}</div><label><Image size={16} /> Ссылка на фото<input type="text" inputMode="url" value={form.imageUrl} onChange={(event) => updateMetadataField("imageUrl", event.target.value)} /></label></div><div className="wish-fields"><label><span>Название</span><input autoFocus required value={form.title} placeholder="Что вы хотите?" onChange={(event) => updateMetadataField("title", event.target.value)} /></label><label><span>Комментарий для друзей</span><textarea rows={3} value={form.description} placeholder="Размер, цвет, важные детали…" onChange={(event) => updateMetadataField("description", event.target.value)} /></label><div className="form-row form-row--price"><label><span>Цена</span><input type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} /></label><label><span>Валюта</span><select value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>{WISH_CURRENCIES.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label><span>Важность</span><div className="priority-picker">{[1, 2, 3].map((item) => <button type="button" aria-label={`Важность ${item} из 3`} aria-pressed={form.priority === item} className={item <= form.priority ? "active" : ""} onClick={() => setForm({ ...form, priority: item })} key={item}><Star fill="currentColor" /></button>)}</div></label></div></div></div><fieldset className="list-choice"><legend>Добавить в списки</legend>{listsLoading ? <LoadingScreen compact /> : selectableLists.map((list) => <label key={list.id}><input type="checkbox" checked={form.listIds.includes(list.id)} onChange={() => toggleList(list.id)} /><span className={`list-dot list-dot--${list.color}`} /><span>{list.title}</span><small>{list.wishCount} желаний</small><Check /></label>)}</fieldset><p className="wish-form__list-hint">Список можно не выбирать — желание останется в «Моих желаниях».</p><div className="wish-settings"><label><input type="checkbox" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} /><span><LockKeyhole /> Секретное желание<small>Видно только вам</small></span></label><label><input type="checkbox" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} /><span><Gift /> Можно подарить несколько<small>Например, сертификаты</small></span></label></div><div className="modal-actions"><Button type="button" variant="ghost" onClick={() => setStep("link")} icon={ArrowLeft}>Назад</Button><Button type="submit" loading={loading} icon={Heart}>Добавить желание</Button></div></>}</form></Modal>;
 }
 
 function IdeasPage({ appMode = false }) {
@@ -1898,7 +1965,166 @@ function FriendsPage() {
 
 function NotificationsPage() { const { refresh } = useSession(); const { data, loading } = useAsync(() => api.get("/notifications"), []); useEffect(() => { api.post("/notifications/read", {}).then(() => refresh()); }, [refresh]); if (loading) return <LoadingScreen compact />; const icons = { reservation: Gift, follow: UserPlus, welcome: Sparkles }; return <div className="app-page notifications-page"><PageTitle eyebrow="В курсе важного" title="Уведомления" text="Сюрпризы останутся скрыты, а важные события — нет." />{data.notifications.length ? <div className="notification-list">{data.notifications.map((item) => { const Icon = icons[item.type] || Bell; return <Link to={item.href || "#"} key={item.id} className={!item.readAt ? "is-unread" : ""}><span><Icon /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{formatDate(item.createdAt, { hour: "2-digit", minute: "2-digit" })}</small></div><ArrowRight /></Link>; })}</div> : <EmptyState icon={Bell} title="Пока тихо" text="Здесь появятся новые подписки и важные события." />}</div>; }
 
-function SettingsPage() { const { user, refresh } = useSession(); const toast = useToast(); const [form, setForm] = useState({ name: user.name, username: user.username, bio: user.bio || "", birthday: user.birthday ? String(user.birthday).slice(0, 10) : "", avatarUrl: user.avatarUrl || "" }); const [loading, setLoading] = useState(false); const submit = async (event) => { event.preventDefault(); setLoading(true); try { await api.patch("/me", { ...form, birthday: form.birthday || null }); await refresh(); toast("Профиль обновлён"); } catch (error) { toast(error.message, "error"); } finally { setLoading(false); } }; return <div className="app-page settings-page"><PageTitle eyebrow="Личное пространство" title="Настройки профиля" text="Эту информацию увидят друзья рядом с вашим вишлистом." /><form className="settings-form panel" onSubmit={submit}><div className="avatar-editor"><Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="xl" /><div><strong>Фото профиля</strong><span>Укажите публичную ссылку на изображение</span></div></div><label><span>Ссылка на фото</span><input type="url" value={form.avatarUrl} placeholder="https://…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label><div className="form-row"><label><span>Имя</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label><span>Адрес профиля</span><div className="input-prefix"><span>{window.location.host}/</span><input required pattern="[a-z0-9-]{3,32}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></div></label></div><label><span>О себе</span><textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label><label className="short-field"><span>День рождения</span><input type="date" value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label><div className="settings-save"><Button type="submit" loading={loading}>Сохранить изменения</Button></div></form></div>; }
+function ProfileSettingsModal({ user, onClose, onSaved }) {
+  const toast = useToast();
+  const initialForm = useMemo(() => ({
+    name: user.name,
+    username: user.username,
+    bio: user.bio || "",
+    birthday: user.birthday ? String(user.birthday).slice(0, 10) : "",
+    avatarUrl: user.avatarUrl || "",
+  }), [user]);
+  const [form, setForm] = useState(initialForm);
+  const [loading, setLoading] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const imageFileRef = useRef(null);
+  const uploadedImageIdsRef = useRef(new Set());
+  const changed = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const cleanupUploadedImages = async (keepUrl = "") => {
+    const keepId = uploadedImageIdFromUrl(keepUrl);
+    const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
+    ids.forEach((id) => uploadedImageIdsRef.current.delete(id));
+    await Promise.allSettled(ids.map((id) => api.delete(`/uploads/images/${encodeURIComponent(id)}`)));
+  };
+  useEffect(() => () => {
+    const ids = [...uploadedImageIdsRef.current];
+    uploadedImageIdsRef.current.clear();
+    ids.forEach((id) => {
+      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    });
+  }, []);
+  const uploadAvatar = async (file) => {
+    if (!file || imageUploading) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setImageError("Подойдёт изображение JPG, PNG или WEBP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setImageError("Изображение должно быть не больше 8 МБ.");
+      return;
+    }
+    setImageUploading(true);
+    setImageError("");
+    try {
+      const result = await api.uploadImage(file);
+      uploadedImageIdsRef.current.add(result.id);
+      setForm((current) => ({ ...current, avatarUrl: result.imageUrl }));
+    } catch (error) {
+      setImageError(error.message || "Не удалось загрузить фотографию.");
+    } finally {
+      setImageUploading(false);
+      if (imageFileRef.current) imageFileRef.current.value = "";
+    }
+  };
+  const close = () => {
+    if (loading || imageUploading) return;
+    cleanupUploadedImages();
+    onClose();
+  };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!changed || loading || imageUploading) return;
+    const payload = {};
+    Object.keys(initialForm).forEach((key) => {
+      if (form[key] === initialForm[key]) return;
+      payload[key] = key === "birthday" ? form[key] || null : form[key];
+    });
+    setLoading(true);
+    try {
+      const result = await api.patch("/me", payload);
+      const savedUploadId = uploadedImageIdFromUrl(result.user?.avatarUrl);
+      if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
+      await cleanupUploadedImages(result.user?.avatarUrl || "");
+      toast("Профиль обновлён");
+      await onSaved(result.user);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  return <Modal onClose={close} wide ariaLabel="Редактирование общих сведений">
+    <form className="modal-form settings-editor" onSubmit={submit}>
+      <div className="modal-heading">
+        <span className="modal-icon"><Pencil /></span>
+        <div><span className="eyebrow">Общие сведения</span><h2>Изменить профиль</h2><p>Эти данные видны рядом с вашими списками желаний.</p></div>
+      </div>
+      <div className="settings-editor__avatar">
+        <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="xl" />
+        <div><strong>Фото профиля</strong><span>JPG, PNG или WEBP · до 8 МБ</span><Button type="button" variant="outline" icon={Upload} loading={imageUploading} onClick={() => imageFileRef.current?.click()}>Загрузить фото</Button></div>
+        <input ref={imageFileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+      </div>
+      {imageError && <p className="settings-editor__error" role="alert">{imageError}</p>}
+      <label><span>Ссылка на фото</span><input type="text" inputMode="url" value={form.avatarUrl} placeholder="https://… или /api/media/…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label>
+      <div className="form-row">
+        <label><span>Имя</span><input data-modal-initial-focus required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+        <label><span>Адрес профиля</span><div className="input-prefix"><span>роллапп.рф/</span><input required pattern="[a-z0-9-]{3,32}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></div></label>
+      </div>
+      <label><span>О себе</span><textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label>
+      <label className="short-field"><span>День рождения</span><input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label>
+      <div className="modal-actions"><Button type="button" variant="ghost" onClick={close}>Отмена</Button><Button type="submit" loading={loading} disabled={!changed || imageUploading}>Сохранить</Button></div>
+    </form>
+  </Modal>;
+}
+
+function SettingsSection({ title, children }) {
+  return <section className="settings-section"><h2>{title}</h2>{children}</section>;
+}
+
+function SettingsRow({ icon: Icon, label, detail = "", action = null, to = "", onClick = null }) {
+  const content = <>
+    <span className="settings-row__icon"><Icon /></span>
+    <span className="settings-row__copy"><strong>{label}</strong>{detail && <small>{detail}</small>}</span>
+    {action || ((to || onClick) && <span className="settings-row__arrow"><ArrowRight /></span>)}
+  </>;
+  if (to) return <Link className="settings-row" to={to}>{content}</Link>;
+  if (onClick) return <button className="settings-row" type="button" onClick={onClick}>{content}</button>;
+  return <div className="settings-row">{content}</div>;
+}
+
+function SettingsPage() {
+  const { user, refresh } = useSession();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const birthday = user.birthday ? formatDate(user.birthday, { year: "numeric" }) : "Не указан";
+  return <div className="app-page settings-page">
+    <SettingsSection title="Общие сведения">
+      <article className="settings-profile-card">
+        <Avatar user={user} size="xl" />
+        <div><strong>{user.name}</strong><span>@{user.username}</span><small>{user.bio || "Расскажите немного о себе"}</small></div>
+        <button type="button" aria-label="Редактировать общие сведения" onClick={() => setEditorOpen(true)}><Pencil /></button>
+      </article>
+    </SettingsSection>
+
+    <SettingsSection title="Управление данными">
+      <div className="settings-card">
+        <SettingsRow icon={Mail} label={user.email} detail="Email для входа" action={<span className="settings-row__badge">Основной</span>} />
+        <SettingsRow icon={CalendarDays} label="День рождения" detail={birthday} onClick={() => setEditorOpen(true)} />
+        <SettingsRow icon={AtSign} label="Адрес профиля" detail={`роллапп.рф/${user.username}`} to={publicProfilePath(user.username)} />
+      </div>
+    </SettingsSection>
+
+    <SettingsSection title="Приватность">
+      <div className="settings-card">
+        <SettingsRow icon={ListPlus} label="Доступ к спискам" detail="Настройте видимость каждого списка" to="/app/wishes" />
+        <SettingsRow icon={EyeOff} label="Секретные желания" detail="Видны только вам" to={`${publicProfilePath(user.username)}?view=secret`} />
+      </div>
+    </SettingsSection>
+
+    {editorOpen && <ProfileSettingsModal
+      user={user}
+      onClose={() => setEditorOpen(false)}
+      onSaved={async () => {
+        await refresh();
+        setEditorOpen(false);
+      }}
+    />}
+  </div>;
+}
 
 function PublicProfile({ shared = false }) {
   const params = useParams();

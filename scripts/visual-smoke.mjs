@@ -344,7 +344,12 @@ async function expectDarkAuthenticatedModal(dialog, label) {
               green: (color.green * color.alpha) + (modalBackground.green * (1 - color.alpha)),
               blue: (color.blue * color.alpha) + (modalBackground.blue * (1 - color.alpha)),
             };
-        return { selector: node.className || node.tagName, luminance: luminance(effective) };
+        return {
+          selector: node.className || node.tagName,
+          luminance: luminance(effective),
+          allowedAccent: node.matches(".wish-editor__switch")
+            && node.previousElementSibling?.matches("input[type='checkbox']:checked"),
+        };
       });
     return {
       background: modalBackground && luminance(modalBackground),
@@ -353,7 +358,9 @@ async function expectDarkAuthenticatedModal(dialog, label) {
       htmlColorScheme: getComputedStyle(document.documentElement).colorScheme,
       bodyColorScheme: getComputedStyle(document.body).colorScheme,
       modalColorScheme: modalStyle.colorScheme,
-      lightSurfaces: surfaces.filter((surface) => surface.luminance === null || surface.luminance > 115),
+      lightSurfaces: surfaces.filter((surface) => (
+        surface.luminance === null || (surface.luminance > 115 && !surface.allowedAccent)
+      )),
     };
   });
   assert(theme.prefersLight, `${label} dark-modal regression must run while the browser requests a light system theme`);
@@ -368,7 +375,7 @@ async function expectDarkAuthenticatedModal(dialog, label) {
   );
 }
 
-async function expectWishEditorLayout(dialog, label, { mobile = false } = {}) {
+async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "edit" } = {}) {
   await dialog.waitFor({ state: "visible" });
   await dialog.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
@@ -386,6 +393,14 @@ async function expectWishEditorLayout(dialog, label, { mobile = false } = {}) {
     const submit = element.querySelector(".wish-editor__submit");
     const close = element.querySelector(".modal__close");
     const remove = element.querySelector(".wish-editor__delete");
+    const title = element.querySelector(".wish-editor__title");
+    const titleInput = element.querySelector(".wish-editor__field:not(.wish-editor__field--link):not(.wish-editor__field--description):not(.wish-editor__field--price) > input");
+    const linkInput = element.querySelector(".wish-editor__field--link > input");
+    const descriptionInput = element.querySelector(".wish-editor__field--description > textarea");
+    const priceInput = element.querySelector(".wish-editor__field--price > input");
+    const currencySelect = element.querySelector(".wish-editor__field--price > select");
+    const nativeSwitches = [...element.querySelectorAll("input[type='checkbox'][role='switch']")];
+    const switchRows = [...element.querySelectorAll(".wish-editor__switch-row")];
     const hitContains = (node) => {
       const rect = node.getBoundingClientRect();
       const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -404,18 +419,58 @@ async function expectWishEditorLayout(dialog, label, { mobile = false } = {}) {
       },
       submit: { ...rectOf(submit), position: getComputedStyle(submit).position, hittable: hitContains(submit) },
       close: { ...rectOf(close), position: getComputedStyle(close).position, hittable: hitContains(close) },
-      remove: { ...rectOf(remove), hittable: hitContains(remove) },
+      remove: remove ? { ...rectOf(remove), hittable: hitContains(remove) } : null,
+      title: title ? { ...rectOf(title), hittable: hitContains(title) } : null,
       fieldCount: element.querySelectorAll(".wish-editor__field").length,
-      switchCount: element.querySelectorAll(".wish-editor__switch-row").length,
+      switchCount: switchRows.length,
+      nativeSwitchCount: nativeSwitches.length,
+      fakeSwitchCount: element.querySelectorAll("[role='switch']:not(input[type='checkbox'])").length,
+      switchRowsWithNativeInput: switchRows.filter((row) => row.querySelector(":scope > input[type='checkbox'][role='switch']")).length,
+      titleCount: element.querySelectorAll(".wish-editor__title").length,
+      uploadCount: element.querySelectorAll("input[type='file'][accept*='image/jpeg']").length,
+      legacyCreateCount: element.querySelectorAll(".link-step, .wish-form").length,
+      legacyControlCount: element.querySelectorAll(".manual-link, .priority-picker, .wish-settings").length,
+      listFieldsetCount: element.querySelectorAll("fieldset.wish-editor__lists").length,
+      supportedFields: {
+        title: Boolean(titleInput) && titleInput.tagName === "INPUT" && titleInput.required,
+        link: Boolean(linkInput) && linkInput.tagName === "INPUT" && linkInput.type === "url",
+        description: Boolean(descriptionInput) && descriptionInput.tagName === "TEXTAREA",
+        price: Boolean(priceInput) && priceInput.tagName === "INPUT" && priceInput.type === "number" && priceInput.min === "0",
+        currency: Boolean(currencySelect) && currencySelect.tagName === "SELECT",
+      },
+      currencyValues: currencySelect ? [...currencySelect.options].map((option) => option.value) : [],
+      submitType: submit.type,
       rootWidth: document.documentElement.scrollWidth,
     };
   });
 
   assert(geometry.fieldCount === 4, `${label} should expose the four reference field tiles`);
   assert(geometry.switchCount === 2, `${label} should expose the two reference switch rows`);
-  assert(geometry.submit.hittable, `${label} Update action is covered`);
+  assert(geometry.nativeSwitchCount === 2, `${label} should expose exactly two native checkbox switches`);
+  assert(geometry.fakeSwitchCount === 0, `${label} exposes a fake role=switch control`);
+  assert(geometry.switchRowsWithNativeInput === 2, `${label} switch visuals are not backed by native inputs`);
+  assert(Object.values(geometry.supportedFields).every(Boolean), `${label} does not expose the supported title/link/description/price/currency fields`);
+  assert(
+    JSON.stringify(geometry.currencyValues) === JSON.stringify(["RUB", "USD", "EUR", "KZT", "BYN"]),
+    `${label} exposes an unsupported currency set: ${geometry.currencyValues.join(", ")}`,
+  );
+  assert(geometry.submitType === "submit", `${label} primary save action does not submit the editor form`);
+  assert(geometry.submit.hittable, `${label} submit action is covered`);
   assert(geometry.close.hittable, `${label} close action is covered`);
-  assert(geometry.remove.hittable, `${label} delete action is covered`);
+  assert(geometry.uploadCount === 1, `${label} does not expose image upload`);
+  assert(geometry.legacyCreateCount === 0, `${label} still renders the legacy create flow`);
+  assert(geometry.legacyControlCount === 0, `${label} still exposes legacy manual-link, priority or wish-settings controls`);
+  assert(geometry.listFieldsetCount === 1, `${label} does not expose one canonical list selector`);
+  if (mode === "create") {
+    assert(geometry.remove === null, `${label} exposes delete for an unsaved wish`);
+    assert(geometry.titleCount === 1, `${label} does not expose the new-wish title`);
+    assert(geometry.title?.hittable, `${label} new-wish title is covered`);
+    assert(geometry.title.top >= 0 && geometry.title.bottom <= geometry.viewport.height, `${label} new-wish title is outside the viewport`);
+    assert(geometry.title.right <= geometry.submit.left + 1, `${label} new-wish title overlaps the submit action`);
+  } else {
+    assert(geometry.remove?.hittable, `${label} delete action is covered`);
+    assert(geometry.titleCount === 0, `${label} exposes the creation title while editing`);
+  }
   assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal overflow`);
 
   if (mobile) {
@@ -423,15 +478,16 @@ async function expectWishEditorLayout(dialog, label, { mobile = false } = {}) {
     assert(geometry.dialog.height >= geometry.viewport.height - 1, `${label} is not full height`);
     assert(geometry.media.top < geometry.panel.top, `${label} does not stack media above fields`);
     assert(Math.abs(geometry.media.left - geometry.panel.left) <= 1, `${label} mobile columns are not aligned`);
-    assert(geometry.submit.position === "fixed", `${label} Update action is not fixed on mobile`);
+    assert(geometry.submit.position === "fixed", `${label} submit action is not fixed on mobile`);
     assert(geometry.close.position === "fixed", `${label} close action is not fixed on mobile`);
   } else {
     assert(geometry.dialog.width >= geometry.viewport.width - 50, `${label} is not viewport-wide`);
     assert(geometry.dialog.height >= geometry.viewport.height - 50, `${label} is not viewport-high`);
     assert(geometry.media.right < geometry.panel.left, `${label} does not keep media and fields in separate columns`);
-    assert(Math.abs(geometry.media.top - geometry.submit.top) <= 2, `${label} does not align media with Update`);
+    assert(Math.abs(geometry.media.top - geometry.submit.top) <= 2, `${label} does not align media with submit`);
     assert(Math.abs(geometry.media.width - geometry.panel.width) <= 24, `${label} editor columns are not balanced`);
-    assert(Math.abs(geometry.media.width - geometry.media.height) <= 2, `${label} media is not square`);
+    if (mode === "create") assert(geometry.media.height > geometry.media.width, `${label} create dropzone is not tall`);
+    else assert(Math.abs(geometry.media.width - geometry.media.height) <= 2, `${label} media is not square`);
     assert(geometry.scroll.overflowY === "auto", `${label} right form rail is not independently scrollable`);
   }
 }
@@ -474,6 +530,163 @@ async function expectWishEditorLandscape(dialog, label) {
   assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal overflow`);
   assert(geometry.submit.position === "fixed" && geometry.submit.hittable, `${label} Update action is not fixed and reachable`);
   assert(geometry.close.position === "fixed" && geometry.close.hittable, `${label} close action is not fixed and reachable`);
+}
+
+async function expectSettingsScreen(page, label, { mobile = false, openEditor = true } = {}) {
+  const settings = page.locator(".settings-page");
+  await settings.waitFor({ state: "visible" });
+  await waitForStableLayout(page);
+
+  const sections = settings.locator(":scope > .settings-section");
+  assert(await sections.count() === 3, `${label} should expose three settings sections`);
+  const sectionTitles = (await sections.locator(":scope > h2").allInnerTexts()).map((value) => value.trim());
+  assert(
+    JSON.stringify(sectionTitles) === JSON.stringify(["Общие сведения", "Управление данными", "Приватность"]),
+    `${label} section order differs: ${sectionTitles.join(" | ")}`,
+  );
+  assert(await settings.locator(":scope > .settings-section > .settings-profile-card").count() === 1, `${label} is missing the profile summary card`);
+  assert(await settings.locator(":scope > .settings-section > .settings-card").count() === 2, `${label} should expose two grouped settings cards`);
+  assert(await sections.nth(1).locator(".settings-row").count() === 3, `${label} data card should expose email, birthday and profile address`);
+  assert(await sections.nth(2).locator(".settings-row").count() === 2, `${label} privacy card should expose the two supported privacy destinations`);
+  const rowLabels = (await settings.locator(".settings-row__copy > strong").allInnerTexts()).map((value) => value.trim());
+  assert(
+    JSON.stringify(rowLabels) === JSON.stringify([
+      "demo@rollapp.test",
+      "День рождения",
+      "Адрес профиля",
+      "Доступ к спискам",
+      "Секретные желания",
+    ]),
+    `${label} settings rows differ: ${rowLabels.join(" | ")}`,
+  );
+  assert((await settings.locator(".settings-form").count()) === 0, `${label} still renders the legacy flat settings form`);
+  assert((await settings.getByRole("switch").count()) === 0, `${label} exposes a privacy switch that is not backed by the profile API`);
+  assert((await settings.locator("input[type='checkbox'], input[type='radio'], .settings-switch").count()) === 0, `${label} exposes a fake settings toggle`);
+
+  const geometry = await settings.evaluate((element) => {
+    const rectOf = (node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    };
+    const sectionNodes = [...element.querySelectorAll(":scope > .settings-section")];
+    const cardNodes = sectionNodes.map((section) => section.querySelector(":scope > .settings-profile-card, :scope > .settings-card"));
+    const rowNodes = [...element.querySelectorAll(".settings-row")];
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      page: rectOf(element),
+      sections: sectionNodes.map(rectOf),
+      headings: sectionNodes.map((section) => rectOf(section.querySelector(":scope > h2"))),
+      cards: cardNodes.map(rectOf),
+      rows: rowNodes.map(rectOf),
+      rootWidth: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0),
+    };
+  });
+  const close = (left, right, tolerance = 2) => Math.abs(left - right) <= tolerance;
+  assert(geometry.sections.every((section) => section.width > 0 && section.height > 0), `${label} contains an empty settings section`);
+  assert(geometry.cards.every((card) => card.width > 0 && card.height > 0), `${label} contains an empty settings card`);
+  assert(
+    geometry.sections.every((section) => close(section.left, geometry.sections[0].left) && close(section.width, geometry.sections[0].width)),
+    `${label} settings sections do not share one content column`,
+  );
+  assert(
+    geometry.cards.every((card, index) => close(card.left, geometry.sections[index].left) && close(card.width, geometry.sections[index].width)),
+    `${label} settings cards do not fill their section width`,
+  );
+  assert(
+    geometry.sections.every((section, index) => index === 0 || section.top > geometry.sections[index - 1].bottom),
+    `${label} settings sections overlap`,
+  );
+  assert(
+    geometry.headings.every((heading, index) => heading.bottom <= geometry.cards[index].top),
+    `${label} a settings card overlaps its section heading`,
+  );
+  assert(geometry.rows.every((row) => row.width > 0 && row.height >= (mobile ? 52 : 48)), `${label} contains a collapsed settings row`);
+  assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal root overflow`);
+  if (mobile) {
+    const minimumWidth = geometry.viewport.width - (geometry.viewport.width <= 400 ? 48 : 80);
+    assert(
+      geometry.sections[0].width >= minimumWidth && geometry.sections[0].width <= geometry.viewport.width,
+      `${label} settings content width is ${geometry.sections[0].width}px inside a ${geometry.viewport.width}px viewport`,
+    );
+  } else {
+    assert(
+      geometry.sections[0].width >= 700 && geometry.sections[0].width <= 780,
+      `${label} settings card width differs from the 750px reference (${geometry.sections[0].width}px)`,
+    );
+  }
+  await expectNoRootOverflow(page, label);
+
+  if (!openEditor) return;
+  await settings.getByRole("button", { name: "Редактировать общие сведения", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Редактирование общих сведений", exact: true });
+  await dialog.waitFor({ state: "visible" });
+  await dialog.getByRole("heading", { name: "Изменить профиль", exact: true }).waitFor();
+  await expectDarkAuthenticatedModal(dialog, `${label} profile editor`);
+
+  const avatarUrl = dialog.getByLabel("Ссылка на фото", { exact: true });
+  const name = dialog.getByLabel("Имя", { exact: true });
+  const username = dialog.locator(".input-prefix input");
+  const bio = dialog.locator("textarea").first();
+  const birthday = dialog.getByLabel("День рождения", { exact: true });
+  const avatarUpload = dialog.getByLabel("Загрузить фото профиля", { exact: true });
+  for (const [fieldLabel, field] of [
+    ["avatar URL", avatarUrl],
+    ["name", name],
+    ["username", username],
+    ["bio", bio],
+    ["birthday", birthday],
+    ["avatar upload", avatarUpload],
+  ]) {
+    assert(await field.count() === 1, `${label} profile editor is missing the supported ${fieldLabel} field`);
+  }
+  assert(await dialog.locator("input:not([type='file'])").count() === 4, `${label} profile editor exposes unsupported text inputs`);
+  assert(await dialog.locator("textarea").count() === 1, `${label} profile editor exposes unsupported textareas`);
+  assert(await dialog.locator("select").count() === 0, `${label} profile editor exposes an unsupported select`);
+  assert(await dialog.locator("input[type='email'], input[type='password']").count() === 0, `${label} profile editor exposes an unsupported account field`);
+  assert(await dialog.getByRole("switch").count() === 0, `${label} profile editor exposes a privacy switch unsupported by /api/me`);
+  assert(await dialog.locator("input[type='checkbox'], input[type='radio'], .settings-switch").count() === 0, `${label} profile editor exposes a fake toggle`);
+  assert(await avatarUpload.getAttribute("accept") === "image/jpeg,image/png,image/webp", `${label} profile editor accepts unsupported avatar formats`);
+  assert(await username.getAttribute("pattern") === "[a-z0-9-]{3,32}", `${label} profile editor lost the username constraint`);
+  assert(
+    await birthday.evaluate((input) => input.max === new Date().toISOString().slice(0, 10)),
+    `${label} profile editor allows a future birthday`,
+  );
+
+  const save = dialog.getByRole("button", { name: "Сохранить", exact: true });
+  assert(await save.isDisabled(), `${label} profile save should be disabled before a supported field changes`);
+  const initialName = await name.inputValue();
+  await name.fill(`${initialName} ·`);
+  assert(await save.isEnabled(), `${label} profile save did not enable for a dirty supported field`);
+  await name.fill(initialName);
+  assert(await save.isDisabled(), `${label} profile save did not disable after restoring the initial value`);
+  await waitForStableLayout(page);
+
+  const modalGeometry = await dialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      viewportWidth: window.innerWidth,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    };
+  });
+  assert(modalGeometry.left >= -1 && modalGeometry.right <= modalGeometry.viewportWidth + 1, `${label} profile editor escapes the viewport`);
+  assert(modalGeometry.scrollWidth <= modalGeometry.clientWidth + 1, `${label} profile editor has horizontal overflow`);
+  if (mobile) {
+    assert(
+      modalGeometry.width >= modalGeometry.viewportWidth - 2,
+      `${label} profile editor is not full width on mobile (${modalGeometry.width}px of ${modalGeometry.viewportWidth}px)`,
+    );
+  } else {
+    assert(modalGeometry.width >= 700 && modalGeometry.width <= 780, `${label} profile editor width differs from the wide-modal reference`);
+  }
+  await expectNoRootOverflow(page, `${label} profile editor`);
+  await dialog.getByRole("button", { name: "Отмена", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
 }
 
 async function waitForAppRoute(page, pathname) {
@@ -1500,6 +1713,9 @@ try {
     await waitForAppRoute(dashboard, pathname);
     await expectDarkPage(dashboard, `Desktop ${pathname}`, [".app-layout--dark", ".app-main", ".app-page"]);
   }
+  await waitForAppRoute(dashboard, "/app/settings");
+  await expectSettingsScreen(dashboard, "1440px settings");
+  await dashboard.screenshot({ path: "/tmp/rollapp-desktop-settings.png", fullPage: true });
   await desktop.close();
 
   // Deliberately keep Chromium's ordinary desktop User-Agent. Responsive behavior
@@ -1550,6 +1766,15 @@ try {
         "390px owner wish menu",
         { mobile: true },
       );
+      const mobileEditMenu = await openOwnerWishCardMenu(mobilePage, mobileMenuCard, mobileMenuWish);
+      await mobileEditMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
+      const mobileEditDialog = mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileMenuWish.title}»`, exact: true });
+      await mobileEditDialog.waitFor({ state: "visible" });
+      await expectDarkAuthenticatedModal(mobileEditDialog, "390px owner wish editor");
+      await expectWishEditorLayout(mobileEditDialog, "390px owner wish editor", { mobile: true, mode: "edit" });
+      await mobileEditDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+      await mobileEditDialog.waitFor({ state: "detached" });
+      await mobileMenuCard.waitFor({ state: "visible" });
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { fullscreen: true });
       await expectDarkAuthenticatedModal(mobileDetail.dialog, "390px owner wish detail");
       await expectFulfilledActionContrast(mobilePage, mobileDetail.dialog, "390px owner wish detail");
@@ -1569,6 +1794,9 @@ try {
       await mobileDetail.dialog.waitFor({ state: "detached" });
     }
   }
+  await waitForAppRoute(mobilePage, "/app/settings");
+  await expectSettingsScreen(mobilePage, "390px settings", { mobile: true });
+  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-settings-390.png", fullPage: true });
   await expectFriendsRegression(mobilePage, "390px friends", { mobile: true });
 
   await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
@@ -1597,22 +1825,20 @@ try {
   await mobilePage.waitForFunction(() => !document.querySelector("#app-sidebar")?.classList.contains("is-open"));
 
   await mobilePage.getByRole("button", { name: "Добавить", exact: true }).click();
-  const wishDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
+  const wishDialog = mobilePage.getByRole("dialog", { name: "Создание желания", exact: true });
   await wishDialog.waitFor({ state: "visible" });
-  await wishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
-  assert(await wishDialog.locator(".link-step input[type='url']").isVisible(), "Wish modal should open on the product-link step");
-  assert(await wishDialog.getByRole("button", { name: "Продолжить" }).isVisible(), "Wish link step continue action is not visible");
-  await expectDarkAuthenticatedModal(wishDialog, "390px add-wish link step");
+  await wishDialog.getByRole("heading", { name: "Новое желание", exact: true }).waitFor();
+  assert(await wishDialog.getByLabel("Ссылка", { exact: true }).isVisible(), "Wish editor does not expose the product link immediately");
+  assert(await wishDialog.getByRole("button", { name: "Загадать желание", exact: true }).isVisible(), "Wish editor submit action is not visible");
+  assert((await wishDialog.locator(".link-step, .wish-form").count()) === 0, "Wish editor still renders the legacy two-step flow");
+  await expectDarkAuthenticatedModal(wishDialog, "390px add-wish editor");
+  await expectWishEditorLayout(wishDialog, "390px add-wish editor", { mobile: true, mode: "create" });
   await waitForStableLayout(mobilePage);
-  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-link-modal.png" });
-  await wishDialog.getByRole("button", { name: /заполнить вручную/i }).click();
-  await wishDialog.getByRole("heading", { name: "Проверьте карточку" }).waitFor();
-  const addWishAction = wishDialog.getByRole("button", { name: "Добавить желание" });
-  await addWishAction.scrollIntoViewIfNeeded();
-  assert(await addWishAction.isVisible(), "Wish details action is not reachable inside the mobile bottom sheet");
-  await expectDarkAuthenticatedModal(wishDialog, "390px add-wish details step");
-  await waitForStableLayout(mobilePage);
-  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-details-modal.png" });
+  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-editor.png" });
+  await mobilePage.setViewportSize({ width: 320, height: 760 });
+  await expectWishEditorLayout(wishDialog, "320px add-wish editor", { mobile: true, mode: "create" });
+  await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-editor-320.png" });
+  await mobilePage.setViewportSize({ width: 390, height: 844 });
   await wishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await wishDialog.waitFor({ state: "detached" });
 
@@ -1763,6 +1989,7 @@ try {
     await expectMobileAppShell(narrowPage, `360px ${pathname}`);
     await expectNoRootOverflow(narrowPage, `360px ${pathname}`);
   }
+  await expectSettingsScreen(narrowPage, "360px settings", { mobile: true, openEditor: false });
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-settings-360.png", fullPage: true });
   await waitForAppRoute(narrowPage, "/app/wishes");
   await narrowPage.screenshot({ path: "/tmp/rollapp-mobile-app-360.png", fullPage: true });
@@ -1806,6 +2033,8 @@ try {
     if (!tabletSidebarBaseline) tabletSidebarBaseline = tabletSidebar;
     else expectSameSidebar(tabletSidebar, tabletSidebarBaseline, `768px sidebar ${pathname}`);
   }
+  await waitForAppRoute(tabletAppPage, "/app/settings");
+  await expectSettingsScreen(tabletAppPage, "768px settings", { mobile: true, openEditor: false });
   await waitForAppRoute(tabletAppPage, "/app/wishes");
   await expectNewListTile(tabletAppPage, "768px new-list tile");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-wishes-768.png", fullPage: true });
@@ -2071,9 +2300,10 @@ try {
   await ownerWidePage.waitForURL((url) => url.pathname === "/alisa");
   assert((await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).count()) === 0, "Deleted list is still visible in the owner rail");
   await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
-  const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Диалог Rollapp" });
-  await ownerWishDialog.getByRole("heading", { name: "Добавим мечту" }).waitFor();
-  await expectDarkAuthenticatedModal(ownerWishDialog, "Desktop profile add-wish link step");
+  const ownerWishDialog = ownerWidePage.getByRole("dialog", { name: "Создание желания", exact: true });
+  await ownerWishDialog.getByRole("heading", { name: "Новое желание", exact: true }).waitFor();
+  await expectDarkAuthenticatedModal(ownerWishDialog, "Desktop profile add-wish editor");
+  await expectWishEditorLayout(ownerWishDialog, "1912px profile add-wish editor", { mode: "create" });
   await ownerWishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
   await ownerWishDialog.waitFor({ state: "detached" });
 
@@ -2274,11 +2504,14 @@ try {
     await sourceChoice.click();
     await targetChoice.click();
 
-    const imageEditorButton = editorDialog.getByRole("button", { name: "Сменить фото", exact: true });
-    await imageEditorButton.click();
-    const imageUrlInput = editorDialog.getByLabel("Ссылка на фото", { exact: true });
-    assert(await imageUrlInput.inputValue() === "/art/camera.svg", "Editor did not preserve the local image URL");
-    assert(await imageUrlInput.evaluate((input) => input.validity.valid), "Editor rejects a supported local /art image URL");
+    assert(
+      await editorDialog.locator("input[type='file'][accept*='image/jpeg']").count() === 1,
+      "Editor does not expose the canonical image upload control",
+    );
+    assert(
+      await editorDialog.locator(".wish-editor__image > img").getAttribute("src") === "/art/camera.svg",
+      "Editor did not preserve the supported local image URL",
+    );
 
     const editedTitle = `${initialTitle} · updated`;
     const editedDescription = "Проверка полноэкранного редактора на временном желании";

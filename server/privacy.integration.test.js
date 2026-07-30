@@ -52,6 +52,17 @@ async function remove(path, cookie = "") {
   });
 }
 
+async function uploadImage(path, bytes, contentType, cookie = "") {
+  return fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": contentType,
+      ...(cookie ? { Cookie: cookie } : {}),
+    },
+    body: bytes,
+  });
+}
+
 async function login(email) {
   const response = await post("/auth/login", { email, password: "demo1234" });
   assert.equal(response.status, 200);
@@ -89,6 +100,77 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const reservedUsernameResponse = await patch("/me", { username: "app" }, ownerCookie);
   assert.equal(reservedUsernameResponse.status, 409);
   assert.deepEqual(await reservedUsernameResponse.json(), { error: "Этот адрес зарезервирован сервисом — выберите другое имя профиля" });
+
+  const initialProfileResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
+  assert.equal(initialProfileResponse.status, 200);
+  const initialProfile = (await initialProfileResponse.json()).user;
+
+  const unknownProfileFieldResponse = await patch("/me", {
+    name: "Это имя не должно сохраниться",
+    isAdmin: true,
+  }, ownerCookie);
+  assert.equal(unknownProfileFieldResponse.status, 400);
+  const profileAfterUnknownFieldResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
+  assert.equal(profileAfterUnknownFieldResponse.status, 200);
+  assert.equal((await profileAfterUnknownFieldResponse.json()).user.name, initialProfile.name);
+
+  const tomorrow = new Date();
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const futureBirthdayResponse = await patch("/me", { birthday: tomorrow.toISOString().slice(0, 10) }, ownerCookie);
+  assert.equal(futureBirthdayResponse.status, 400);
+  const profileAfterFutureBirthdayResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
+  assert.equal(profileAfterFutureBirthdayResponse.status, 200);
+  assert.equal((await profileAfterFutureBirthdayResponse.json()).user.birthday, initialProfile.birthday);
+
+  const arbitraryLocalAvatarResponse = await patch("/me", { avatarUrl: "/art/camera.svg" }, ownerCookie);
+  assert.equal(arbitraryLocalAvatarResponse.status, 400);
+  const legacyAvatarResponse = await patch("/me", { avatarUrl: "/avatars/koloskof.jpeg" }, ownerCookie);
+  assert.equal(legacyAvatarResponse.status, 200);
+  assert.equal((await legacyAvatarResponse.json()).user.avatarUrl, "/avatars/koloskof.jpeg");
+
+  const webpBytes = Buffer.from("RIFF0000WEBP", "ascii");
+  const unauthorizedUploadResponse = await uploadImage("/uploads/images", webpBytes, "image/webp");
+  assert.equal(unauthorizedUploadResponse.status, 401);
+  await unauthorizedUploadResponse.json();
+
+  const invalidUploadResponse = await uploadImage("/uploads/images", Buffer.from("not an image"), "image/png", ownerCookie);
+  assert.equal(invalidUploadResponse.status, 400);
+  await invalidUploadResponse.json();
+
+  const uploadResponse = await uploadImage("/uploads/images", webpBytes, "image/webp", ownerCookie);
+  assert.equal(uploadResponse.status, 201);
+  const uploadedImage = await uploadResponse.json();
+  assert.match(uploadedImage.imageUrl, /^\/api\/media\/[0-9a-f-]{36}$/i);
+
+  const mediaResponse = await fetch(`${origin}${uploadedImage.imageUrl}`);
+  assert.equal(mediaResponse.status, 200);
+  assert.equal(mediaResponse.headers.get("content-type"), "image/webp");
+  assert.deepEqual(Buffer.from(await mediaResponse.arrayBuffer()), webpBytes);
+
+  const foreignAvatarResponse = await patch("/me", { avatarUrl: uploadedImage.imageUrl }, viewerCookie);
+  assert.equal(foreignAvatarResponse.status, 400);
+  await foreignAvatarResponse.json();
+
+  const uploadedAvatarResponse = await patch("/me", { avatarUrl: uploadedImage.imageUrl }, ownerCookie);
+  assert.equal(uploadedAvatarResponse.status, 200);
+  assert.equal((await uploadedAvatarResponse.json()).user.avatarUrl, uploadedImage.imageUrl);
+
+  const deleteUsedAvatarResponse = await remove(`/uploads/images/${uploadedImage.id}`, ownerCookie);
+  assert.equal(deleteUsedAvatarResponse.status, 409);
+  await deleteUsedAvatarResponse.json();
+
+  const restoreAvatarResponse = await patch("/me", { avatarUrl: initialProfile.avatarUrl }, ownerCookie);
+  assert.equal(restoreAvatarResponse.status, 200);
+  assert.equal((await restoreAvatarResponse.json()).user.avatarUrl, initialProfile.avatarUrl);
+
+  const deleteUploadAsOtherUserResponse = await remove(`/uploads/images/${uploadedImage.id}`, viewerCookie);
+  assert.equal(deleteUploadAsOtherUserResponse.status, 404);
+  await deleteUploadAsOtherUserResponse.json();
+  const deleteUploadResponse = await remove(`/uploads/images/${uploadedImage.id}`, ownerCookie);
+  assert.equal(deleteUploadResponse.status, 200);
+  assert.deepEqual(await deleteUploadResponse.json(), { ok: true });
+  const deletedMediaResponse = await fetch(`${origin}${uploadedImage.imageUrl}`);
+  assert.equal(deletedMediaResponse.status, 404);
 
   const notificationsResponse = await fetch(`${baseUrl}/notifications`, { headers: { Cookie: ownerCookie } });
   assert.equal(notificationsResponse.status, 200);

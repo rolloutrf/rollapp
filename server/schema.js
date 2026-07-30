@@ -54,6 +54,15 @@ const schema = `
 
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
 
+  CREATE TABLE IF NOT EXISTS wish_images (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mime_type TEXT NOT NULL,
+    image_data BYTEA NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS wishlist_wishes (
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
     wish_id TEXT NOT NULL REFERENCES wishes(id) ON DELETE CASCADE,
@@ -114,6 +123,7 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_wishlists_user ON wishlists(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows(following_id, created_at DESC);
