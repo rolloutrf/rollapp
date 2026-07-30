@@ -19,6 +19,22 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const sessionCookie = "rw_session";
+const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
+const uploadedMediaUrlPattern = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const avatarUrlSchema = z.union([
+  z.literal(""),
+  z.string().max(2000).url(),
+  z.string().max(2000).refine((value) => {
+    if (uploadedMediaUrlPattern.test(value)) return true;
+    if (!value.startsWith("/avatars/")) return false;
+    const segments = value.slice("/avatars/".length).split("/");
+    return segments.length > 0 && segments.every((segment) => /^[a-z0-9_-][a-z0-9._-]*$/i.test(segment));
+  }),
+]);
+const birthdaySchema = z.string().date().refine(
+  (value) => value <= new Date().toISOString().slice(0, 10),
+  { message: "Дата рождения не может быть в будущем" },
+);
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -76,10 +92,30 @@ function createRateLimit({ windowMs, max }) {
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
+const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
+const imageUploadBody = express.raw({
+  type: ["image/jpeg", "image/png", "image/webp"],
+  limit: "8mb",
+});
 const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
 const metadataCacheLimit = 500;
 const mutationLocks = new Map();
+const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function detectImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer)) return "";
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+  return "";
+}
 
 async function withMutationLock(key, callback) {
   const previous = mutationLocks.get(key) || Promise.resolve();
@@ -207,6 +243,44 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
   res.json({ ok: true, service: "rollapp", version: process.env.APP_VERSION || "development" });
 }));
 
+app.get("/api/media/:id", asyncRoute(async (req, res) => {
+  const result = await query("SELECT id,mime_type,image_data,size_bytes FROM wish_images WHERE id=$1", [req.params.id]);
+  if (!result.rowCount) return res.status(404).json({ error: "Изображение не найдено" });
+  const image = result.rows[0];
+  res.set({
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Length": String(image.size_bytes),
+    ETag: `"${image.id}"`,
+  });
+  res.type(image.mime_type).send(image.image_data);
+}));
+
+app.post("/api/uploads/images", requireAuth, imageUploadRateLimit, imageUploadBody, asyncRoute(async (req, res) => {
+  const declaredType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+  const detectedType = detectImageMimeType(req.body);
+  if (!imageMimeTypes.has(declaredType) || detectedType !== declaredType || !req.body?.length) {
+    return res.status(400).json({ error: "Загрузите изображение JPG, PNG или WEBP" });
+  }
+  const id = randomUUID();
+  await query(
+    "INSERT INTO wish_images (id,user_id,mime_type,image_data,size_bytes) VALUES ($1,$2,$3,$4,$5)",
+    [id, req.user.id, detectedType, req.body, req.body.length],
+  );
+  res.status(201).json({ id, imageUrl: `/api/media/${id}` });
+}));
+
+app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) => {
+  const imageUrl = `/api/media/${req.params.id}`;
+  const [usedByWish, usedByProfile] = await Promise.all([
+    query("SELECT 1 FROM wishes WHERE user_id=$1 AND image_url=$2 LIMIT 1", [req.user.id, imageUrl]),
+    query("SELECT 1 FROM users WHERE id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
+  ]);
+  if (usedByWish.rowCount || usedByProfile.rowCount) return res.status(409).json({ error: "Изображение уже используется" });
+  const deleted = await query("DELETE FROM wish_images WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
+  if (!deleted.rowCount) return res.status(404).json({ error: "Изображение не найдено" });
+  res.json({ ok: true });
+}));
+
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте имя, email и пароль — минимум 8 символов" });
@@ -278,12 +352,17 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     name: z.string().trim().min(2).max(80).optional(),
     username: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,32}$/).optional(),
     bio: z.string().trim().max(300).optional(),
-    birthday: z.string().date().nullable().optional(),
-    avatarUrl: z.string().url().max(1000).or(z.literal("")).optional(),
-  }).safeParse(req.body);
+    birthday: birthdaySchema.nullable().optional(),
+    avatarUrl: avatarUrlSchema.optional(),
+  }).strict().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Не удалось сохранить: проверьте формат полей" });
   if (parsed.data.username && isReservedProfileUsername(parsed.data.username)) {
     return res.status(409).json({ error: "Этот адрес зарезервирован сервисом — выберите другое имя профиля" });
+  }
+  const uploadedAvatarId = parsed.data.avatarUrl?.match(uploadedMediaUrlPattern)?.[1];
+  if (uploadedAvatarId) {
+    const uploadedAvatar = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2 LIMIT 1", [uploadedAvatarId, req.user.id]);
+    if (!uploadedAvatar.rowCount) return res.status(400).json({ error: "Загруженное изображение не найдено" });
   }
   const next = {
     name: parsed.data.name ?? req.user.name,
@@ -520,7 +599,6 @@ app.delete("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json({ ok: true, reassignedCount: outcome.reassignedCount, fallbackListId: outcome.fallbackListId });
 }));
 
-const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
 const listIdsSchema = z.array(z.string()).refine(
   (listIds) => new Set(listIds).size === listIds.length,
   { message: "Список нельзя выбрать дважды" },
@@ -1038,6 +1116,7 @@ if (isProduction) {
 app.use((error, _req, res, _next) => {
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Проверьте введённые данные" });
+  if (error?.type === "entity.too.large") return res.status(413).json({ error: "Изображение должно быть не больше 8 МБ" });
   res.status(500).json({ error: "Внутренняя ошибка. Мы уже разбираемся." });
 });
 
