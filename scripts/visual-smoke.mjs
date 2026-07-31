@@ -1674,6 +1674,11 @@ async function expectNewListTile(page, label) {
   assert(geometry.hiddenLabel, `${label} visual label is not safely hidden`);
 }
 
+async function expectNoListEventDate(dialog, label) {
+  assert((await dialog.getByText("Дата события", { exact: true }).count()) === 0, `${label} still exposes the removed event-date field`);
+  assert((await dialog.locator('input[type="date"]').count()) === 0, `${label} still renders an event-date input`);
+}
+
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
@@ -1895,6 +1900,7 @@ try {
     const mobileListDialog = mobilePage.getByRole("dialog", { name: `Настройки списка: ${mobileSourceList.title}` });
     await mobileListDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileListDialog, "390px list editor");
+    await expectNoListEventDate(mobileListDialog, "390px list editor");
     await mobileListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
     await mobileListDialog.waitFor({ state: "detached" });
     const mobileOwnerCard = mobilePage.locator(".wish-card").filter({ hasText: mobileWishToMove.title }).first();
@@ -2284,6 +2290,7 @@ try {
   const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка" });
   await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
   await expectDarkAuthenticatedModal(ownerListDialog, "Desktop create-list modal");
+  await expectNoListEventDate(ownerListDialog, "Desktop create-list modal");
   await ownerListDialog.getByLabel("Название").fill("Smoke list");
   await ownerListDialog.getByLabel("Описание").fill("Проверка полного цикла списка");
   const createListResponsePromise = ownerWidePage.waitForResponse((response) => (
@@ -2301,6 +2308,7 @@ try {
   const editListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list" });
   await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(editListDialog, "Desktop edit-list modal");
+  await expectNoListEventDate(editListDialog, "Desktop edit-list modal");
   await editListDialog.getByLabel("Название").fill("Smoke list edited");
   await editListDialog.getByLabel("Кто увидит").selectOption("private");
   const editListResponsePromise = ownerWidePage.waitForResponse((response) => (
@@ -2318,6 +2326,7 @@ try {
   const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list edited" });
   await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(deleteListDialog, "Desktop delete-list modal");
+  await expectNoListEventDate(deleteListDialog, "Desktop delete-list modal");
   ownerWidePage.once("dialog", (dialog) => dialog.accept());
   const deleteListResponsePromise = ownerWidePage.waitForResponse((response) => (
     response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
