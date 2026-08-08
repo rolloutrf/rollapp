@@ -553,6 +553,8 @@ async function captureStableSidebar(page, label, { mobile = false } = {}) {
     const rootSelector = isMobile ? "[data-sidebar='sidebar'][data-mobile='true']" : "#app-sidebar";
     const sidebarNode = document.querySelector(rootSelector);
     const sidebarStyle = sidebarNode ? getComputedStyle(sidebarNode) : null;
+    const sidebarSurface = sidebarNode?.querySelector(".sidebar");
+    const sidebarSurfaceStyle = sidebarSurface ? getComputedStyle(sidebarSurface) : null;
     return {
       sidebar: rect(rootSelector),
       head: rect(`${rootSelector} .sidebar__head`),
@@ -565,10 +567,20 @@ async function captureStableSidebar(page, label, { mobile = false } = {}) {
         position: sidebarStyle.position,
         padding: [sidebarStyle.paddingTop, sidebarStyle.paddingRight, sidebarStyle.paddingBottom, sidebarStyle.paddingLeft],
         borderRadius: sidebarStyle.borderRadius,
+        surfaceRadii: sidebarSurfaceStyle && [
+          sidebarSurfaceStyle.borderTopLeftRadius,
+          sidebarSurfaceStyle.borderTopRightRadius,
+          sidebarSurfaceStyle.borderBottomRightRadius,
+          sidebarSurfaceStyle.borderBottomLeftRadius,
+        ].map((value) => Number.parseFloat(value)),
       },
     };
   }, mobile);
   assert(Object.values(geometry).every(Boolean), `${label} is missing sidebar geometry`);
+  assert(
+    geometry.style.surfaceRadii?.every((radius) => radius === 0),
+    `${label} sidebar surface still has rounded corners: ${geometry.style.surfaceRadii?.join(", ")}`,
+  );
 
   if (mobile) {
     await sidebar.locator(".sidebar-close").click();
@@ -589,6 +601,7 @@ function expectSameSidebar(actual, expected, label) {
   }
   assert(actual.style.position === expected.style.position, `${label} changed sidebar positioning`);
   assert(actual.style.borderRadius === expected.style.borderRadius, `${label} changed sidebar rounding`);
+  assert(actual.style.surfaceRadii.join("|") === expected.style.surfaceRadii.join("|"), `${label} changed sidebar surface rounding`);
   assert(actual.style.padding.join("|") === expected.style.padding.join("|"), `${label} changed sidebar padding`);
 }
 
