@@ -1679,6 +1679,21 @@ async function expectNoListEventDate(dialog, label) {
   assert((await dialog.locator('input[type="date"]').count()) === 0, `${label} still renders an event-date input`);
 }
 
+async function expectCenteredAuthForm(page, label) {
+  assert(await page.locator(".auth-art").count() === 0, `${label} still renders the removed promotional panel`);
+  const geometry = await page.locator(".auth-form").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      centerX: rect.left + rect.width / 2,
+      centerY: rect.top + rect.height / 2,
+      viewportCenterX: window.innerWidth / 2,
+      viewportCenterY: window.innerHeight / 2,
+    };
+  });
+  assert(Math.abs(geometry.centerX - geometry.viewportCenterX) <= 1, `${label} is not horizontally centered`);
+  assert(Math.abs(geometry.centerY - geometry.viewportCenterY) <= 1, `${label} is not vertically centered`);
+}
+
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
@@ -1686,7 +1701,8 @@ try {
   await guestRoot.waitForURL((url) => url.pathname === "/login");
   await guestRoot.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   assert(!(await guestRoot.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible on the login page");
-  await expectDarkPage(guestRoot, "Desktop login page", [".auth-page", ".auth-art", ".auth-panel"]);
+  await expectDarkPage(guestRoot, "Desktop login page", [".auth-page", ".auth-panel"]);
+  await expectCenteredAuthForm(guestRoot, "Desktop login form");
   await expectNoRootOverflow(guestRoot, "Desktop login page");
   await guestRoot.screenshot({ path: "/tmp/rollapp-desktop-login.png", fullPage: true });
   await expectUnauthenticatedDarkRoutes(guestRoot, "Desktop unauthenticated");
@@ -1761,6 +1777,7 @@ try {
   await mobilePage.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   await expectDesktopUserAgent(mobilePage, "390px viewport");
   await expectDarkPage(mobilePage, "390px login page", [".auth-page", ".auth-panel"]);
+  await expectCenteredAuthForm(mobilePage, "390px login form");
   await expectNoRootOverflow(mobilePage, "390px login page");
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-login.png", fullPage: true });
   await expectUnauthenticatedDarkRoutes(mobilePage, "390px unauthenticated");
@@ -2016,6 +2033,7 @@ try {
   await narrowPage.waitForURL((url) => url.pathname === "/login");
   await narrowPage.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
   await expectDesktopUserAgent(narrowPage, "360px viewport");
+  await expectCenteredAuthForm(narrowPage, "360px login form");
   await expectNoRootOverflow(narrowPage, "360px login page");
   const narrowLoginResponse = await narrow.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(narrowLoginResponse.ok(), `360px demo login failed: ${narrowLoginResponse.status()}`);

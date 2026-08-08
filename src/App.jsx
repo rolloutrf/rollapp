@@ -451,15 +451,6 @@ function AuthPage({ mode }) {
 
   return (
     <div className="auth-page">
-      <div className="auth-art">
-        <Logo />
-        <div className="auth-art__copy">
-          <span className="eyebrow eyebrow--light"><Heart size={15} fill="currentColor" /> Место для мечтаний</span>
-          <h1>{mode === "register" ? <>Пусть близкие<br />знают, <em>чем вас<br />порадовать.</em></> : <>Ваши желания<br /><em>ждут вас.</em></>}</h1>
-          <p>Красивый вишлист, приватные брони и ни одного случайного подарка.</p>
-        </div>
-        <div className="auth-polaroid"><img src="/art/gift.svg" alt="Подарки" /><span>Хороший сюрприз начинается здесь ✦</span></div>
-      </div>
       <div className="auth-panel">
         <Link className="auth-back" to="/ideas"><ArrowLeft size={17} /> Идеи подарков</Link>
         <form className="auth-form" aria-busy={!phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={usingPhone ? phoneFlow.submit : submitCredentials}>
