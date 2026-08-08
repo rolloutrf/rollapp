@@ -2262,6 +2262,7 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   const overlays = page.locator("[data-slot='dialog-overlay'][data-open]");
   assert(await overlays.count() === 1 && await overlays.first().isVisible(), `${label} detail is missing the official Dialog overlay`);
   assert(await overlays.first().getAttribute("role") === "presentation", `${label} detail overlay is not the official presentation backdrop`);
+  await dialog.locator(":focus").waitFor({ state: "visible" });
   assert(await dialog.evaluate((element) => element.contains(document.activeElement)), `${label} detail did not move focus inside the Dialog`);
   assert(await page.locator("html").evaluate((element) => getComputedStyle(element).overflowY === "hidden"), `${label} detail did not lock page scrolling`);
   if (!fullscreen) {
