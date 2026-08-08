@@ -59,6 +59,50 @@ async function waitForStableLayout(page) {
   await page.waitForTimeout(150);
 }
 
+async function expectMinimumReadableText(page, label, minimum = 13) {
+  const undersized = await page.evaluate((minimumSize) => {
+    const isActuallyVisible = (element, style) => {
+      if (element.closest(".sr-only, .visually-hidden, [hidden]")) return false;
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false;
+      if (style.clip !== "auto" && style.clip !== "rect(auto, auto, auto, auto)") return false;
+      if (typeof element.checkVisibility === "function" && !element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > .5 && rect.height > .5;
+    };
+    const hasVisibleCopy = (element) => {
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(element.tagName)) return true;
+      if ([...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) return true;
+      return ["::before", "::after"].some((pseudo) => {
+        const content = getComputedStyle(element, pseudo).content;
+        return content && !["none", "normal", '""', "''"].includes(content);
+      });
+    };
+    const selectorFor = (element) => {
+      if (element.id) return `#${element.id}`;
+      const slot = element.getAttribute("data-slot");
+      if (slot) return `${element.tagName.toLowerCase()}[data-slot="${slot}"]`;
+      const classes = [...element.classList].slice(0, 2).map((name) => `.${name}`).join("");
+      return `${element.tagName.toLowerCase()}${classes}`;
+    };
+    return [...document.querySelectorAll("body *")].flatMap((element) => {
+      const style = getComputedStyle(element);
+      if (!isActuallyVisible(element, style) || !hasVisibleCopy(element)) return [];
+      const size = Number.parseFloat(style.fontSize);
+      if (!Number.isFinite(size) || size <= .1 || size + .01 >= minimumSize) return [];
+      const directText = [...element.childNodes]
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent.trim())
+        .filter(Boolean)
+        .join(" ");
+      return [{ selector: selectorFor(element), size, text: directText.slice(0, 80) }];
+    }).slice(0, 20);
+  }, minimum);
+  assert(
+    undersized.length === 0,
+    `${label} renders text below ${minimum}px: ${undersized.map(({ selector, size, text }) => `${selector} ${size}px “${text}”`).join(", ")}`,
+  );
+}
+
 async function expectNoRootOverflow(page, label) {
   await waitForStableLayout(page);
   const dimensions = await page.evaluate(() => ({
@@ -71,16 +115,280 @@ async function expectNoRootOverflow(page, label) {
     renderedWidth <= dimensions.viewportWidth + 1,
     `${label} has horizontal root overflow: ${renderedWidth}px rendered inside ${dimensions.viewportWidth}px`,
   );
+  await expectMinimumReadableText(page, label);
+}
+
+async function expectSquareAppMain(page, label) {
+  const radii = await page.locator(".app-main").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [
+      style.borderTopLeftRadius,
+      style.borderTopRightRadius,
+      style.borderBottomRightRadius,
+      style.borderBottomLeftRadius,
+    ].map((value) => Number.parseFloat(value));
+  });
+  assert(radii.every((radius) => radius === 0), `${label} app main still has rounded corners: ${radii.join(", ")}`);
+}
+
+async function expectWishGridContained(page, label, expectedColumns) {
+  await waitForStableLayout(page);
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const bounds = element.getBoundingClientRect();
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+        bottom: bounds.bottom,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    const grid = document.querySelector(".wishes-page .wish-grid");
+    const title = document.querySelector(".wishes-page .app-page-title");
+    const actions = title?.querySelector(".page-actions");
+    const cards = [...document.querySelectorAll(".wishes-page .wish-card")].slice(0, 4).map((card) => {
+      const bounds = card.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right, top: bounds.top, width: bounds.width };
+    });
+    return {
+      main: rect(".app-main"),
+      page: rect(".wishes-page"),
+      grid: rect(".wishes-page .wish-grid"),
+      title: rect(".wishes-page .app-page-title"),
+      heading: title?.firstElementChild ? (() => {
+        const bounds = title.firstElementChild.getBoundingClientRect();
+        return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
+      })() : null,
+      actions: rect(".wishes-page .page-actions"),
+      actionButtons: [...actions?.querySelectorAll("button") || []].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          clientWidth: button.clientWidth,
+          scrollWidth: button.scrollWidth,
+        };
+      }),
+      cards,
+      columns: grid ? getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
+    };
+  });
+  assert(geometry.main && geometry.page && geometry.grid, `${label} is missing the wishes layout`);
+  assert(geometry.columns === expectedColumns, `${label} renders ${geometry.columns} columns instead of ${expectedColumns}`);
+  assert(geometry.page.left >= geometry.main.left - 1, `${label} page escapes the app main on the left`);
+  assert(geometry.page.right <= geometry.main.right + 1, `${label} page escapes the app main on the right`);
+  assert(geometry.grid.left >= geometry.page.left - 1, `${label} grid escapes the page on the left`);
+  assert(geometry.grid.right <= geometry.page.right + 1, `${label} grid escapes the page on the right`);
+  assert(geometry.title && geometry.heading && geometry.actions, `${label} is missing its page actions`);
+  assert(geometry.actions.left >= geometry.title.left - 1, `${label} actions escape the title on the left`);
+  assert(geometry.actions.right <= geometry.title.right + 1, `${label} actions escape the title on the right`);
+  const headingActionsOverlap = Math.max(0, Math.min(geometry.heading.right, geometry.actions.right) - Math.max(geometry.heading.left, geometry.actions.left))
+    * Math.max(0, Math.min(geometry.heading.bottom, geometry.actions.bottom) - Math.max(geometry.heading.top, geometry.actions.top));
+  assert(headingActionsOverlap <= 1, `${label} actions overlap the page heading`);
+  for (const button of geometry.actionButtons) {
+    assert(button.left >= geometry.actions.left - 1, `${label} action button escapes its group on the left`);
+    assert(button.right <= geometry.actions.right + 1, `${label} action button escapes its group on the right`);
+    assert(button.scrollWidth <= button.clientWidth + 1, `${label} action button content overflows its bounds`);
+  }
+  assert(geometry.cards.length >= expectedColumns, `${label} has too few cards for its first row`);
+  for (const card of geometry.cards) {
+    assert(card.left >= geometry.grid.left - 1, `${label} card escapes the grid on the left`);
+    assert(card.right <= geometry.grid.right + 1, `${label} card escapes the grid on the right`);
+  }
+  const firstRow = geometry.cards.filter((card) => Math.abs(card.top - geometry.cards[0].top) <= 1);
+  assert(firstRow.length === expectedColumns, `${label} first row contains ${firstRow.length} cards instead of ${expectedColumns}`);
+}
+
+async function expectWishCardsUnframed(page, label, selector = ".wish-card") {
+  const cards = page.locator(selector);
+  await cards.first().waitFor({ state: "visible" });
+  const chrome = await cards.evaluateAll((nodes) => nodes.slice(0, 4).map((card) => {
+    const style = getComputedStyle(card);
+    const image = card.querySelector(".wish-card__image");
+    const imageStyle = image ? getComputedStyle(image) : null;
+    const imageRect = image?.getBoundingClientRect();
+    return {
+      background: style.backgroundColor,
+      borderWidth: Number.parseFloat(style.borderTopWidth),
+      borderStyle: style.borderTopStyle,
+      borderRadius: Number.parseFloat(style.borderTopLeftRadius),
+      ringShadow: style.getPropertyValue("--tw-ring-shadow"),
+      imageRadius: imageStyle ? Number.parseFloat(imageStyle.borderTopLeftRadius) : 0,
+      imageWidth: imageRect?.width || 0,
+      imageHeight: imageRect?.height || 0,
+    };
+  }));
+  assert(chrome.length > 0, `${label} has no wish cards to inspect`);
+  assert(chrome.every((card) => card.background === "rgba(0, 0, 0, 0)"), `${label} wish cards still have an outer background`);
+  assert(chrome.every((card) => card.borderWidth === 0), `${label} wish cards still have an outer border`);
+  assert(chrome.every((card) => card.borderRadius === 0), `${label} wish cards still have an outer rounded container`);
+  assert(chrome.every((card) => card.ringShadow.includes("calc(0px")), `${label} wish cards still have an outer ring`);
+  assert(chrome.every((card) => card.imageRadius > 0 && card.imageWidth > 0 && card.imageHeight > 0), `${label} removed the image surface together with the card chrome`);
+
+  const openAction = cards.first().locator(".wish-card__open");
+  if (await openAction.count()) {
+    await openAction.hover();
+    const hoverChrome = await cards.first().evaluate((card) => {
+      const open = card.querySelector(".wish-card__open");
+      const body = card.querySelector(".wish-card__body");
+      const read = (node) => {
+        const style = getComputedStyle(node);
+        return { background: style.backgroundColor, backgroundImage: style.backgroundImage, boxShadow: style.boxShadow };
+      };
+      return { card: read(card), open: read(open), body: read(body), hovered: open.matches(":hover") };
+    });
+    const isTransparent = (surface) => (
+      ["transparent", "rgba(0, 0, 0, 0)"].includes(surface.background)
+      && surface.backgroundImage === "none"
+    );
+    assert(
+      hoverChrome.hovered && isTransparent(hoverChrome.card) && isTransparent(hoverChrome.open) && isTransparent(hoverChrome.body),
+      `${label} wish card gains a background on hover (${JSON.stringify(hoverChrome)})`,
+    );
+    await page.mouse.move(0, 0);
+    await openAction.press("Escape");
+    const focusChrome = await openAction.evaluate((open) => {
+      const style = getComputedStyle(open);
+      return {
+        active: document.activeElement === open,
+        focusVisible: open.matches(":focus-visible"),
+        background: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        boxShadow: style.boxShadow,
+        outlineStyle: style.outlineStyle,
+        outlineWidth: Number.parseFloat(style.outlineWidth),
+      };
+    });
+    assert(
+      focusChrome.active
+        && focusChrome.focusVisible
+        && isTransparent(focusChrome)
+        && ((focusChrome.outlineStyle !== "none" && focusChrome.outlineWidth >= 2)
+          || focusChrome.boxShadow !== hoverChrome.open.boxShadow),
+      `${label} card keyboard focus is not visible without a hover background (${JSON.stringify(focusChrome)})`,
+    );
+    await openAction.evaluate((open) => open.blur());
+  }
+}
+
+async function expectWishHeaderActionsContained(page, label) {
+  await waitForStableLayout(page);
+  const geometry = await page.evaluate(() => {
+    const title = document.querySelector(".wishes-page .app-page-title");
+    const heading = title?.firstElementChild;
+    const actions = title?.querySelector(".page-actions");
+    const rect = (element) => {
+      if (!element) return null;
+      const bounds = element.getBoundingClientRect();
+      return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
+    };
+    return {
+      title: rect(title),
+      heading: rect(heading),
+      actions: rect(actions),
+      buttons: [...actions?.querySelectorAll("button") || []].map((button) => ({
+        ...rect(button),
+        clientWidth: button.clientWidth,
+        scrollWidth: button.scrollWidth,
+      })),
+    };
+  });
+  assert(geometry.title && geometry.heading && geometry.actions, `${label} is missing its page actions`);
+  assert(geometry.actions.left >= geometry.title.left - 1, `${label} actions escape the title on the left`);
+  assert(geometry.actions.right <= geometry.title.right + 1, `${label} actions escape the title on the right`);
+  const overlap = Math.max(0, Math.min(geometry.heading.right, geometry.actions.right) - Math.max(geometry.heading.left, geometry.actions.left))
+    * Math.max(0, Math.min(geometry.heading.bottom, geometry.actions.bottom) - Math.max(geometry.heading.top, geometry.actions.top));
+  assert(overlap <= 1, `${label} actions overlap the page heading`);
+  for (const button of geometry.buttons) {
+    assert(button.left >= geometry.actions.left - 1, `${label} action button escapes its group on the left`);
+    assert(button.right <= geometry.actions.right + 1, `${label} action button escapes its group on the right`);
+    assert(button.scrollWidth <= button.clientWidth + 1, `${label} action button content overflows its bounds`);
+  }
 }
 
 async function expectDarkPage(page, label, surfaceSelectors) {
   await waitForStableLayout(page);
   const theme = await page.evaluate((selectors) => {
     const parseColor = (value) => {
-      const match = value.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\)/);
-      return match
-        ? { red: Number(match[1]), green: Number(match[2]), blue: Number(match[3]), alpha: match[4] === undefined ? 1 : Number(match[4]) }
+      const clamp = (number, min, max) => Math.min(max, Math.max(min, number));
+      const parseAlpha = (token = "1") => {
+        const number = Number.parseFloat(token);
+        return Number.isFinite(number)
+          ? clamp(token.trim().endsWith("%") ? number / 100 : number, 0, 1)
+          : null;
+      };
+      const rgbMatch = value.trim().match(/^rgba?\((.*)\)$/i);
+      if (rgbMatch) {
+        const [channelsPart, slashAlpha] = rgbMatch[1].split(/\s*\/\s*/, 2);
+        const channels = channelsPart.replaceAll(",", " ").trim().split(/\s+/);
+        const legacyAlpha = channels.length === 4 ? channels.pop() : undefined;
+        if (channels.length !== 3) return null;
+        const rgb = channels.map((token) => {
+          const number = Number.parseFloat(token);
+          if (!Number.isFinite(number)) return null;
+          return clamp(token.endsWith("%") ? number * 2.55 : number, 0, 255);
+        });
+        const alpha = parseAlpha(slashAlpha ?? legacyAlpha);
+        return rgb.every((channel) => channel !== null) && alpha !== null
+          ? { red: rgb[0], green: rgb[1], blue: rgb[2], alpha }
+          : null;
+      }
+
+      const oklchMatch = value.trim().match(/^oklch\((.*)\)$/i);
+      const oklabMatch = value.trim().match(/^oklab\((.*)\)$/i);
+      if (!oklchMatch && !oklabMatch) return value.trim().toLowerCase() === "transparent"
+        ? { red: 0, green: 0, blue: 0, alpha: 0 }
         : null;
+      const [channelsPart, alphaPart] = (oklchMatch || oklabMatch)[1].split(/\s*\/\s*/, 2);
+      const channels = channelsPart.trim().split(/\s+/);
+      if (channels.length !== 3) return null;
+      const lightnessNumber = Number.parseFloat(channels[0]);
+      const secondNumber = Number.parseFloat(channels[1]);
+      const thirdNumber = Number.parseFloat(channels[2]);
+      const alpha = parseAlpha(alphaPart);
+      if (![lightnessNumber, secondNumber, thirdNumber, alpha].every(Number.isFinite)) return null;
+      const lightness = clamp(channels[0].endsWith("%") ? lightnessNumber / 100 : lightnessNumber, 0, 1);
+      let labA;
+      let labB;
+      if (oklchMatch) {
+        const chroma = Math.max(0, channels[1].endsWith("%") ? secondNumber * .004 : secondNumber);
+        const hue = channels[2].endsWith("turn")
+          ? thirdNumber * 360
+          : channels[2].endsWith("rad")
+            ? thirdNumber * (180 / Math.PI)
+            : channels[2].endsWith("grad")
+              ? thirdNumber * .9
+              : thirdNumber;
+        const angle = hue * (Math.PI / 180);
+        labA = chroma * Math.cos(angle);
+        labB = chroma * Math.sin(angle);
+      } else {
+        labA = channels[1].endsWith("%") ? secondNumber * .004 : secondNumber;
+        labB = channels[2].endsWith("%") ? thirdNumber * .004 : thirdNumber;
+      }
+      const lRoot = lightness + (.3963377774 * labA) + (.2158037573 * labB);
+      const mRoot = lightness - (.1055613458 * labA) - (.0638541728 * labB);
+      const sRoot = lightness - (.0894841775 * labA) - (1.291485548 * labB);
+      const l = lRoot ** 3;
+      const m = mRoot ** 3;
+      const s = sRoot ** 3;
+      const toSrgb = (linear) => clamp(
+        (linear <= .0031308 ? 12.92 * linear : (1.055 * (linear ** (1 / 2.4))) - .055) * 255,
+        0,
+        255,
+      );
+      return {
+        red: toSrgb((4.0767416621 * l) - (3.3077115913 * m) + (.2309699292 * s)),
+        green: toSrgb((-1.2684380046 * l) + (2.6097574011 * m) - (.3413193965 * s)),
+        blue: toSrgb((-.0041960863 * l) - (.7034186147 * m) + (1.707614701 * s)),
+        alpha,
+      };
     };
     const blend = (foreground, background) => {
       const alpha = foreground.alpha + (background.alpha * (1 - foreground.alpha));
@@ -163,7 +471,6 @@ async function expectUnauthenticatedDarkRoutes(page, label) {
   const routes = [
     { pathname: "/login", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
     { pathname: "/register", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
-    { pathname: "/ideas", ready: ".public-ideas .ideas-hero", surfaces: [".public-ideas", ".public-ideas > main"] },
     { pathname: "/this-page/does-not/exist", ready: ".not-found", surfaces: [".not-found"] },
   ];
   for (const route of routes) {
@@ -185,8 +492,8 @@ async function expectMobileAppShell(page, label) {
   await navigation.waitFor({ state: "visible" });
 
   const items = navigation.locator("a");
-  assert(await items.count() === 3, `${label} should expose three primary mobile navigation items`);
-  for (let index = 0; index < 3; index += 1) {
+  assert(await items.count() === 2, `${label} should expose two primary mobile navigation items`);
+  for (let index = 0; index < 2; index += 1) {
     assert(await items.nth(index).isVisible(), `${label} mobile navigation item ${index + 1} is not visible`);
   }
 
@@ -204,28 +511,30 @@ async function expectMobileAppShell(page, label) {
   assert(geometry.bottom >= 0, `${label} primary mobile navigation is outside the viewport`);
 }
 
-const stableAppRoutes = ["/app/wishes", "/app/ideas", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"];
+const stableAppRoutes = ["/app/wishes", friendsRoutes.subscriptions, "/app/notifications", "/app/settings"];
 const stablePrimaryLinks = [
   { label: "Мои желания", pathname: "/app/wishes" },
-  { label: "Идеи", pathname: "/app/ideas" },
   { label: "Друзья", pathname: friendsRoutes.subscriptions },
 ];
 
 async function captureStableSidebar(page, label, { mobile = false } = {}) {
-  const sidebar = page.locator("#app-sidebar");
+  let sidebar;
   if (mobile) {
     await page.getByRole("button", { name: "Открыть меню", exact: true }).click();
+    sidebar = page.getByRole("dialog", { name: "Меню приложения", exact: true });
     await sidebar.waitFor({ state: "visible" });
-    await page.waitForFunction(() => document.querySelector("#app-sidebar")?.classList.contains("is-open"));
+    assert(await sidebar.getAttribute("data-mobile") === "true", `${label} does not use the mobile Sidebar Sheet`);
     await page.waitForTimeout(280);
   } else {
+    sidebar = page.locator("#app-sidebar");
     await sidebar.waitFor({ state: "visible" });
+    assert(await sidebar.getAttribute("data-slot") === "sidebar-container", `${label} does not use the desktop Sidebar container`);
   }
 
   const addButton = sidebar.getByRole("button", { name: "Добавить желание", exact: true });
   assert(await addButton.isVisible(), `${label} is missing the global add-wish action`);
   const primaryLinks = sidebar.locator(".sidebar__nav a");
-  assert(await primaryLinks.count() === stablePrimaryLinks.length, `${label} should expose three primary sidebar links`);
+  assert(await primaryLinks.count() === stablePrimaryLinks.length, `${label} should expose ${stablePrimaryLinks.length} primary sidebar links`);
   for (const expected of stablePrimaryLinks) {
     const link = sidebar.getByRole("link", { name: expected.label, exact: true });
     assert(await link.isVisible(), `${label} is missing the ${expected.label} link`);
@@ -236,20 +545,21 @@ async function captureStableSidebar(page, label, { mobile = false } = {}) {
   }
 
   await waitForStableLayout(page);
-  const geometry = await page.evaluate(() => {
+  const geometry = await page.evaluate((isMobile) => {
     const rect = (selector) => {
       const value = document.querySelector(selector)?.getBoundingClientRect();
       return value ? { x: value.x, y: value.y, width: value.width, height: value.height } : null;
     };
-    const sidebarNode = document.querySelector("#app-sidebar");
+    const rootSelector = isMobile ? "[data-sidebar='sidebar'][data-mobile='true']" : "#app-sidebar";
+    const sidebarNode = document.querySelector(rootSelector);
     const sidebarStyle = sidebarNode ? getComputedStyle(sidebarNode) : null;
     return {
-      sidebar: rect("#app-sidebar"),
-      head: rect("#app-sidebar .sidebar__head"),
-      add: rect("#app-sidebar .sidebar__add"),
-      navigation: rect("#app-sidebar .sidebar__nav"),
-      bottom: rect("#app-sidebar .sidebar__bottom"),
-      user: rect("#app-sidebar .sidebar__user"),
+      sidebar: rect(rootSelector),
+      head: rect(`${rootSelector} .sidebar__head`),
+      add: rect(`${rootSelector} .sidebar__add`),
+      navigation: rect(`${rootSelector} .sidebar__nav`),
+      bottom: rect(`${rootSelector} .sidebar__bottom`),
+      user: rect(`${rootSelector} .sidebar__user`),
       main: rect(".app-main"),
       style: sidebarStyle && {
         position: sidebarStyle.position,
@@ -257,13 +567,12 @@ async function captureStableSidebar(page, label, { mobile = false } = {}) {
         borderRadius: sidebarStyle.borderRadius,
       },
     };
-  });
+  }, mobile);
   assert(Object.values(geometry).every(Boolean), `${label} is missing sidebar geometry`);
 
   if (mobile) {
     await sidebar.locator(".sidebar-close").click();
-    await page.waitForFunction(() => !document.querySelector("#app-sidebar")?.classList.contains("is-open"));
-    await page.waitForFunction(() => getComputedStyle(document.querySelector("#app-sidebar")).visibility === "hidden");
+    await sidebar.waitFor({ state: "detached" });
   }
   return geometry;
 }
@@ -303,10 +612,79 @@ async function expectDarkAuthenticatedModal(dialog, label) {
   await dialog.waitFor({ state: "visible" });
   const theme = await dialog.evaluate((element) => {
     const parseColor = (value) => {
-      const match = value.match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?\)/);
-      return match
-        ? { red: Number(match[1]), green: Number(match[2]), blue: Number(match[3]), alpha: match[4] === undefined ? 1 : Number(match[4]) }
+      const clamp = (number, min, max) => Math.min(max, Math.max(min, number));
+      const parseAlpha = (token = "1") => {
+        const number = Number.parseFloat(token);
+        return Number.isFinite(number)
+          ? clamp(token.trim().endsWith("%") ? number / 100 : number, 0, 1)
+          : null;
+      };
+      const rgbMatch = value.trim().match(/^rgba?\((.*)\)$/i);
+      if (rgbMatch) {
+        const [channelsPart, slashAlpha] = rgbMatch[1].split(/\s*\/\s*/, 2);
+        const channels = channelsPart.replaceAll(",", " ").trim().split(/\s+/);
+        const legacyAlpha = channels.length === 4 ? channels.pop() : undefined;
+        if (channels.length !== 3) return null;
+        const rgb = channels.map((token) => {
+          const number = Number.parseFloat(token);
+          if (!Number.isFinite(number)) return null;
+          return clamp(token.endsWith("%") ? number * 2.55 : number, 0, 255);
+        });
+        const alpha = parseAlpha(slashAlpha ?? legacyAlpha);
+        return rgb.every((channel) => channel !== null) && alpha !== null
+          ? { red: rgb[0], green: rgb[1], blue: rgb[2], alpha }
+          : null;
+      }
+
+      const oklchMatch = value.trim().match(/^oklch\((.*)\)$/i);
+      const oklabMatch = value.trim().match(/^oklab\((.*)\)$/i);
+      if (!oklchMatch && !oklabMatch) return value.trim().toLowerCase() === "transparent"
+        ? { red: 0, green: 0, blue: 0, alpha: 0 }
         : null;
+      const [channelsPart, alphaPart] = (oklchMatch || oklabMatch)[1].split(/\s*\/\s*/, 2);
+      const channels = channelsPart.trim().split(/\s+/);
+      if (channels.length !== 3) return null;
+      const lightnessNumber = Number.parseFloat(channels[0]);
+      const secondNumber = Number.parseFloat(channels[1]);
+      const thirdNumber = Number.parseFloat(channels[2]);
+      const alpha = parseAlpha(alphaPart);
+      if (![lightnessNumber, secondNumber, thirdNumber, alpha].every(Number.isFinite)) return null;
+      const lightness = clamp(channels[0].endsWith("%") ? lightnessNumber / 100 : lightnessNumber, 0, 1);
+      let labA;
+      let labB;
+      if (oklchMatch) {
+        const chroma = Math.max(0, channels[1].endsWith("%") ? secondNumber * .004 : secondNumber);
+        const hue = channels[2].endsWith("turn")
+          ? thirdNumber * 360
+          : channels[2].endsWith("rad")
+            ? thirdNumber * (180 / Math.PI)
+            : channels[2].endsWith("grad")
+              ? thirdNumber * .9
+              : thirdNumber;
+        const angle = hue * (Math.PI / 180);
+        labA = chroma * Math.cos(angle);
+        labB = chroma * Math.sin(angle);
+      } else {
+        labA = channels[1].endsWith("%") ? secondNumber * .004 : secondNumber;
+        labB = channels[2].endsWith("%") ? thirdNumber * .004 : thirdNumber;
+      }
+      const lRoot = lightness + (.3963377774 * labA) + (.2158037573 * labB);
+      const mRoot = lightness - (.1055613458 * labA) - (.0638541728 * labB);
+      const sRoot = lightness - (.0894841775 * labA) - (1.291485548 * labB);
+      const l = lRoot ** 3;
+      const m = mRoot ** 3;
+      const s = sRoot ** 3;
+      const toSrgb = (linear) => clamp(
+        (linear <= .0031308 ? 12.92 * linear : (1.055 * (linear ** (1 / 2.4))) - .055) * 255,
+        0,
+        255,
+      );
+      return {
+        red: toSrgb((4.0767416621 * l) - (3.3077115913 * m) + (.2309699292 * s)),
+        green: toSrgb((-1.2684380046 * l) + (2.6097574011 * m) - (.3413193965 * s)),
+        blue: toSrgb((-.0041960863 * l) - (.7034186147 * m) + (1.707614701 * s)),
+        alpha,
+      };
     };
     const luminance = ({ red, green, blue }) => (red * .2126) + (green * .7152) + (blue * .0722);
     const modalStyle = getComputedStyle(element);
@@ -322,6 +700,7 @@ async function expectDarkAuthenticatedModal(dialog, label) {
       ".wish-settings > label",
       ".wish-editor__field",
       ".wish-editor__switch",
+      ".wish-editor__list-switch",
       ".wish-editor__list-row",
       ".phone-settings__current",
       ".phone-settings__status",
@@ -349,8 +728,9 @@ async function expectDarkAuthenticatedModal(dialog, label) {
         return {
           selector: node.className || node.tagName,
           luminance: luminance(effective),
-          allowedAccent: node.matches(".wish-editor__switch")
-            && node.previousElementSibling?.matches("input[type='checkbox']:checked"),
+          allowedAccent: node.matches("[data-slot='switch'][role='switch'][aria-checked='true']")
+            || (node.matches(".wish-editor__switch")
+              && node.previousElementSibling?.matches("input[type='checkbox']:checked")),
         };
       });
     return {
@@ -379,6 +759,7 @@ async function expectDarkAuthenticatedModal(dialog, label) {
 
 async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "edit" } = {}) {
   await dialog.waitFor({ state: "visible" });
+  await dialog.locator(".wish-editor__list-row").first().waitFor({ state: "visible" });
   await dialog.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
     await new Promise((resolve) => setTimeout(resolve, 280));
@@ -390,6 +771,10 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
     };
     const media = element.querySelector(".wish-editor__image");
+    const mediaSection = element.querySelector(".wish-editor__media");
+    const emptyUploadTrigger = media?.classList.contains("is-empty")
+      ? media.querySelector(":scope > .wish-editor__image-empty")
+      : null;
     const panel = element.querySelector(".wish-editor__panel");
     const scroll = element.querySelector(".wish-editor__scroll");
     const submit = element.querySelector(".wish-editor__submit");
@@ -400,18 +785,99 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
     const linkInput = element.querySelector(".wish-editor__field--link > input");
     const descriptionInput = element.querySelector(".wish-editor__field--description > textarea");
     const priceInput = element.querySelector(".wish-editor__field--price > input");
-    const currencySelect = element.querySelector(".wish-editor__field--price > select");
-    const nativeSwitches = [...element.querySelectorAll("input[type='checkbox'][role='switch']")];
+    const currencySelect = element.querySelector(".wish-editor__field--price select[data-slot='native-select']");
+    const roleSwitches = [...element.querySelectorAll(".wish-editor__switch-row [role='switch']")];
     const switchRows = [...element.querySelectorAll(".wish-editor__switch-row")];
+    const listRows = [...element.querySelectorAll(".wish-editor__list-row")];
+    titleInput?.focus({ preventScroll: true });
+    const fieldSurfaces = [
+      ["title", titleInput, "input"],
+      ["link", linkInput, "input"],
+      ["description", descriptionInput, "textarea"],
+      ["price", priceInput, "input"],
+    ].map(([name, control, expectedSlot]) => {
+      const wrapper = control?.closest(".wish-editor__field");
+      if (!control || !wrapper) return { name, expectedSlot, wrapper: null, control: null };
+      const wrapperStyle = getComputedStyle(wrapper);
+      const controlStyle = getComputedStyle(control);
+      return {
+        name,
+        expectedSlot,
+        wrapper: {
+          ...rectOf(wrapper),
+          background: wrapperStyle.backgroundColor,
+          backgroundImage: wrapperStyle.backgroundImage,
+          borderWidths: [wrapperStyle.borderTopWidth, wrapperStyle.borderRightWidth, wrapperStyle.borderBottomWidth, wrapperStyle.borderLeftWidth].map(Number.parseFloat),
+          padding: [wrapperStyle.paddingTop, wrapperStyle.paddingRight, wrapperStyle.paddingBottom, wrapperStyle.paddingLeft].map(Number.parseFloat),
+          boxShadow: wrapperStyle.boxShadow,
+        },
+        control: {
+          ...rectOf(control),
+          slot: control.getAttribute("data-slot"),
+          background: controlStyle.backgroundColor,
+          borderWidths: [controlStyle.borderTopWidth, controlStyle.borderRightWidth, controlStyle.borderBottomWidth, controlStyle.borderLeftWidth].map(Number.parseFloat),
+          borderRadius: Number.parseFloat(controlStyle.borderTopLeftRadius),
+        },
+      };
+    });
+    const currencyWrapper = currencySelect?.closest("[data-slot='native-select-wrapper']");
     const hitContains = (node) => {
       const rect = node.getBoundingClientRect();
       const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
       return hit === node || node.contains(hit);
     };
+    const emptyUpload = media && emptyUploadTrigger ? (() => {
+      const triggerStyle = getComputedStyle(emptyUploadTrigger);
+      const textNodes = [...emptyUploadTrigger.querySelectorAll(":scope > strong, :scope > span")];
+      const hasVisibleShadow = (value) => value !== "none"
+        && (value.match(/-?(?:\d+\.?\d*|\.\d+)px/g) || [])
+          .some((length) => Math.abs(Number.parseFloat(length)) > .01);
+      const paintedDescendants = [...media.querySelectorAll("button, div, section, article, [data-slot='card']")]
+        .filter((node) => {
+          const style = getComputedStyle(node);
+          const hasBackground = !["transparent", "rgba(0, 0, 0, 0)"].includes(style.backgroundColor)
+            || style.backgroundImage !== "none";
+          const hasBorder = [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth]
+            .some((width) => Number.parseFloat(width) > 0);
+          return hasBackground || hasBorder || hasVisibleShadow(style.boxShadow);
+        });
+      return {
+        outer: {
+          ...rectOf(media),
+          clientWidth: media.clientWidth,
+          clientHeight: media.clientHeight,
+          scrollWidth: media.scrollWidth,
+          scrollHeight: media.scrollHeight,
+        },
+        section: mediaSection ? rectOf(mediaSection) : null,
+        trigger: {
+          ...rectOf(emptyUploadTrigger),
+          tag: emptyUploadTrigger.tagName,
+          type: emptyUploadTrigger.getAttribute("type"),
+          slot: emptyUploadTrigger.getAttribute("data-slot"),
+          background: triggerStyle.backgroundColor,
+          backgroundImage: triggerStyle.backgroundImage,
+          borderWidths: [triggerStyle.borderTopWidth, triggerStyle.borderRightWidth, triggerStyle.borderBottomWidth, triggerStyle.borderLeftWidth].map(Number.parseFloat),
+          boxShadow: triggerStyle.boxShadow,
+          hasVisibleShadow: hasVisibleShadow(triggerStyle.boxShadow),
+          clientWidth: emptyUploadTrigger.clientWidth,
+          clientHeight: emptyUploadTrigger.clientHeight,
+          scrollWidth: emptyUploadTrigger.scrollWidth,
+          scrollHeight: emptyUploadTrigger.scrollHeight,
+        },
+        text: textNodes.map((node) => ({
+          ...rectOf(node),
+          clientWidth: node.clientWidth,
+          scrollWidth: node.scrollWidth,
+        })),
+        paintedDescendantCount: paintedDescendants.length,
+      };
+    })() : null;
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       dialog: rectOf(element),
       media: rectOf(media),
+      emptyUpload,
       panel: rectOf(panel),
       scroll: {
         ...rectOf(scroll),
@@ -425,20 +891,53 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       title: title ? { ...rectOf(title), hittable: hitContains(title) } : null,
       fieldCount: element.querySelectorAll(".wish-editor__field").length,
       switchCount: switchRows.length,
-      nativeSwitchCount: nativeSwitches.length,
-      fakeSwitchCount: element.querySelectorAll("[role='switch']:not(input[type='checkbox'])").length,
-      switchRowsWithNativeInput: switchRows.filter((row) => row.querySelector(":scope > input[type='checkbox'][role='switch']")).length,
+      roleSwitchCount: roleSwitches.length,
+      switchRowsWithControl: switchRows.filter((row) => row.querySelector(":scope [role='switch']")).length,
+      switchSemantics: roleSwitches.map((control) => ({
+        ariaChecked: control.getAttribute("aria-checked"),
+        nativeChecked: control instanceof HTMLInputElement && control.type === "checkbox" ? control.checked : null,
+        dataState: control.getAttribute("data-state"),
+      })),
       titleCount: element.querySelectorAll(".wish-editor__title").length,
       uploadCount: element.querySelectorAll("input[type='file'][accept*='image/jpeg']").length,
       legacyCreateCount: element.querySelectorAll(".link-step, .wish-form").length,
       legacyControlCount: element.querySelectorAll(".manual-link, .priority-picker, .wish-settings").length,
       listFieldsetCount: element.querySelectorAll("fieldset.wish-editor__lists").length,
+      fieldSurfaces,
+      currency: currencySelect && currencyWrapper ? {
+        wrapper: rectOf(currencyWrapper),
+        control: rectOf(currencySelect),
+      } : null,
+      listRows: listRows.map((row) => {
+        const listSwitch = row.querySelector(":scope > [data-slot='switch']");
+        const rowTitle = row.querySelector(":scope > .wish-editor__list-title");
+        const rowRect = rectOf(row);
+        const switchRect = listSwitch ? rectOf(listSwitch) : null;
+        const titleRect = rowTitle ? rectOf(rowTitle) : null;
+        return {
+          row: rowRect,
+          listSwitch: switchRect,
+          title: titleRect,
+          imageCount: row.querySelectorAll("img").length,
+          thumbnailCount: row.querySelectorAll(".wish-editor__list-thumb").length,
+          backgroundImage: getComputedStyle(row).backgroundImage,
+          switchSlot: listSwitch?.getAttribute("data-slot") || null,
+          switchRole: listSwitch?.getAttribute("role") || null,
+          ariaChecked: listSwitch?.getAttribute("aria-checked") || null,
+          dataChecked: listSwitch?.hasAttribute("data-checked") || false,
+          dataUnchecked: listSwitch?.hasAttribute("data-unchecked") || false,
+          thumbCount: listSwitch?.querySelectorAll(":scope > [data-slot='switch-thumb']").length || 0,
+          titleText: rowTitle?.textContent.trim() || "",
+        };
+      }),
       supportedFields: {
         title: Boolean(titleInput) && titleInput.tagName === "INPUT" && titleInput.required,
         link: Boolean(linkInput) && linkInput.tagName === "INPUT" && linkInput.type === "url",
         description: Boolean(descriptionInput) && descriptionInput.tagName === "TEXTAREA",
         price: Boolean(priceInput) && priceInput.tagName === "INPUT" && priceInput.type === "number" && priceInput.min === "0",
-        currency: Boolean(currencySelect) && currencySelect.tagName === "SELECT",
+        currency: Boolean(currencySelect)
+          && currencySelect.tagName === "SELECT"
+          && currencySelect.parentElement?.getAttribute("data-slot") === "native-select-wrapper",
       },
       currencyValues: currencySelect ? [...currencySelect.options].map((option) => option.value) : [],
       submitType: submit.type,
@@ -446,11 +945,61 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
     };
   });
 
-  assert(geometry.fieldCount === 4, `${label} should expose the four reference field tiles`);
+  assert(geometry.fieldCount === 4, `${label} should expose the four field groups`);
+  assert(
+    geometry.fieldSurfaces.every(({ wrapper }) => wrapper
+      && ["transparent", "rgba(0, 0, 0, 0)"].includes(wrapper.background)
+      && wrapper.backgroundImage === "none"
+      && wrapper.borderWidths.every((width) => width === 0)
+      && wrapper.padding.every((value) => value <= .5)
+      && wrapper.boxShadow === "none"),
+    `${label} wish fields still render outer visual wrappers`,
+  );
+  assert(
+    geometry.fieldSurfaces.every(({ control, expectedSlot }) => control
+      && control.slot === expectedSlot
+      && !["transparent", "rgba(0, 0, 0, 0)"].includes(control.background)
+      && control.borderWidths.every((width) => width >= 1)
+      && control.borderRadius > 0
+      && control.height >= 44),
+    `${label} shadcn controls do not own the visible field surfaces`,
+  );
+  assert(
+    geometry.fieldSurfaces.every(({ name, wrapper, control }) => wrapper && control
+      && Math.abs(control.left - wrapper.left) <= 1
+      && (name === "price" || Math.abs(control.right - wrapper.right) <= 1)
+      && Math.abs(control.bottom - wrapper.bottom) <= 1),
+    `${label} wish controls remain inset inside redundant wrappers (${JSON.stringify(geometry.fieldSurfaces)})`,
+  );
+  assert(
+    geometry.currency
+      && Math.abs(geometry.currency.wrapper.right - geometry.fieldSurfaces.find(({ name }) => name === "price").wrapper.right) <= 1
+      && Math.abs(geometry.currency.wrapper.bottom - geometry.fieldSurfaces.find(({ name }) => name === "price").wrapper.bottom) <= 1
+      && geometry.currency.control.height >= 44,
+    `${label} currency control is not aligned beside price`,
+  );
   assert(geometry.switchCount === 2, `${label} should expose the two reference switch rows`);
-  assert(geometry.nativeSwitchCount === 2, `${label} should expose exactly two native checkbox switches`);
-  assert(geometry.fakeSwitchCount === 0, `${label} exposes a fake role=switch control`);
-  assert(geometry.switchRowsWithNativeInput === 2, `${label} switch visuals are not backed by native inputs`);
+  const switches = dialog.locator(".wish-editor__switch-row").getByRole("switch");
+  assert(await switches.count() === 2, `${label} should expose exactly two setting role=switch controls`);
+  assert(geometry.roleSwitchCount === 2, `${label} should render exactly two role=switch controls`);
+  assert(geometry.switchRowsWithControl === 2, `${label} switch rows do not contain their role=switch controls`);
+  assert(
+    geometry.switchSemantics.every(({ ariaChecked }) => ariaChecked === "true" || ariaChecked === "false"),
+    `${label} switches must expose boolean aria-checked state`,
+  );
+  assert(
+    geometry.switchSemantics.every(({ ariaChecked, nativeChecked }) => nativeChecked === null || String(nativeChecked) === ariaChecked),
+    `${label} native switch state disagrees with aria-checked`,
+  );
+  assert(
+    geometry.switchSemantics.every(({ ariaChecked, dataState }) => (
+      dataState === null || dataState === (ariaChecked === "true" ? "checked" : "unchecked")
+    )),
+    `${label} shadcn switch data-state disagrees with aria-checked`,
+  );
+  for (const name of ["Секретное желание", "Многократное бронирование"]) {
+    assert(await dialog.getByRole("switch", { name, exact: true }).count() === 1, `${label} does not expose the accessible “${name}” switch`);
+  }
   assert(Object.values(geometry.supportedFields).every(Boolean), `${label} does not expose the supported title/link/description/price/currency fields`);
   assert(
     JSON.stringify(geometry.currencyValues) === JSON.stringify(["RUB", "USD", "EUR", "KZT", "BYN"]),
@@ -463,7 +1012,84 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
   assert(geometry.legacyCreateCount === 0, `${label} still renders the legacy create flow`);
   assert(geometry.legacyControlCount === 0, `${label} still exposes legacy manual-link, priority or wish-settings controls`);
   assert(geometry.listFieldsetCount === 1, `${label} does not expose one canonical list selector`);
+  assert(geometry.listRows.length > 0, `${label} does not expose list choices`);
+  assert(geometry.listRows.every((row) => row.imageCount === 0 && row.thumbnailCount === 0), `${label} renders wish imagery inside list choices`);
+  assert(geometry.listRows.every((row) => row.backgroundImage === "none"), `${label} renders a background image inside list choices`);
+  assert(
+    geometry.listRows.every((row) => row.switchSlot === "switch" && row.switchRole === "switch" && row.thumbCount === 1),
+    `${label} list choices do not use the official shadcn Switch`,
+  );
+  assert(
+    geometry.listRows.every((row) => (
+      (row.ariaChecked === "true" || row.ariaChecked === "false")
+      && row.dataChecked === (row.ariaChecked === "true")
+      && row.dataUnchecked === (row.ariaChecked === "false")
+      && row.dataChecked !== row.dataUnchecked
+    )),
+    `${label} list switch state is not exposed consistently`,
+  );
+  for (let index = 0; index < geometry.listRows.length; index += 1) {
+    const row = geometry.listRows[index];
+    assert(
+      row.titleText && await dialog.locator(".wish-editor__list-row").nth(index).getByRole("switch", { name: row.titleText, exact: true }).count() === 1,
+      `${label} list switch does not expose the exact accessible name “${row.titleText}”`,
+    );
+  }
+  assert(geometry.listRows.every((row) => row.row.height >= 44), `${label} list choices have undersized touch targets`);
+  assert(geometry.listRows.every((row) => row.listSwitch && row.title), `${label} list choices are missing a switch or title`);
+  assert(
+    geometry.listRows.every((row) => (
+      Math.abs((row.listSwitch.top + row.listSwitch.height / 2) - (row.row.top + row.row.height / 2)) <= 1
+      && row.listSwitch.width >= 31
+      && row.listSwitch.height >= 18
+      && row.title.right < row.listSwitch.left
+      && row.listSwitch.right <= row.row.right + 1
+      && row.title.width > 0
+    )),
+    `${label} list choices are misaligned or overflow their rows`,
+  );
   if (mode === "create") {
+    assert(geometry.emptyUpload, `${label} does not expose one empty upload dropzone`);
+    assert(
+      geometry.emptyUpload.trigger.tag === "BUTTON"
+        && geometry.emptyUpload.trigger.type === "button"
+        && geometry.emptyUpload.trigger.slot === "button",
+      `${label} empty upload action is not the official shadcn Button`,
+    );
+    assert(
+      ["transparent", "rgba(0, 0, 0, 0)"].includes(geometry.emptyUpload.trigger.background)
+        && geometry.emptyUpload.trigger.backgroundImage === "none"
+        && geometry.emptyUpload.trigger.borderWidths.every((width) => width === 0)
+        && !geometry.emptyUpload.trigger.hasVisibleShadow
+        && geometry.emptyUpload.paintedDescendantCount === 0,
+      `${label} empty upload dropzone still contains a nested visual card (${JSON.stringify(geometry.emptyUpload)})`,
+    );
+    assert(
+      ["left", "top", "right", "bottom"].every((edge) => (
+        Math.abs(geometry.emptyUpload.trigger[edge] - geometry.emptyUpload.outer[edge]) <= 1
+      )),
+      `${label} empty upload action does not cover the complete dropzone`,
+    );
+    assert(
+      geometry.emptyUpload.outer.scrollWidth <= geometry.emptyUpload.outer.clientWidth + 1
+        && geometry.emptyUpload.outer.scrollHeight <= geometry.emptyUpload.outer.clientHeight + 1
+        && geometry.emptyUpload.trigger.scrollWidth <= geometry.emptyUpload.trigger.clientWidth + 1
+        && geometry.emptyUpload.trigger.scrollHeight <= geometry.emptyUpload.trigger.clientHeight + 1
+        && geometry.emptyUpload.text.every((node) => (
+          node.scrollWidth <= node.clientWidth + 1
+          && node.left >= geometry.emptyUpload.trigger.left - 1
+          && node.right <= geometry.emptyUpload.trigger.right + 1
+          && node.top >= geometry.emptyUpload.trigger.top - 1
+          && node.bottom <= geometry.emptyUpload.trigger.bottom + 1
+        )),
+      `${label} empty upload content overflows its dropzone`,
+    );
+    assert(
+      geometry.emptyUpload.section
+        && Math.abs(geometry.emptyUpload.outer.left - geometry.emptyUpload.section.left) <= 1
+        && Math.abs(geometry.emptyUpload.outer.right - geometry.emptyUpload.section.right) <= 1,
+      `${label} empty upload dropzone does not fill its media column`,
+    );
     assert(geometry.remove === null, `${label} exposes delete for an unsaved wish`);
     assert(geometry.titleCount === 1, `${label} does not expose the new-wish title`);
     assert(geometry.title?.hittable, `${label} new-wish title is covered`);
@@ -480,6 +1106,7 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
     assert(geometry.dialog.height >= geometry.viewport.height - 1, `${label} is not full height`);
     assert(geometry.media.top < geometry.panel.top, `${label} does not stack media above fields`);
     assert(Math.abs(geometry.media.left - geometry.panel.left) <= 1, `${label} mobile columns are not aligned`);
+    if (mode === "create") assert(Math.abs(geometry.media.width - geometry.media.height) <= 2, `${label} mobile upload dropzone is not square`);
     assert(geometry.submit.position === "fixed", `${label} submit action is not fixed on mobile`);
     assert(geometry.close.position === "fixed", `${label} close action is not fixed on mobile`);
   } else {
@@ -574,6 +1201,19 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
     const sectionNodes = [...element.querySelectorAll(":scope > .settings-section")];
     const cardNodes = sectionNodes.map((section) => section.querySelector(":scope > .settings-profile-card, :scope > .settings-card"));
     const rowNodes = [...element.querySelectorAll(".settings-row")];
+    const rowLayouts = rowNodes.map((row) => {
+      const style = getComputedStyle(row);
+      return {
+        display: style.display,
+        paddingLeft: Number.parseFloat(style.paddingLeft),
+        paddingRight: Number.parseFloat(style.paddingRight),
+        icon: rectOf(row.querySelector(".settings-row__icon")),
+        iconSvg: rectOf(row.querySelector(".settings-row__icon svg")),
+        copy: rectOf(row.querySelector(".settings-row__copy")),
+        trailing: rectOf(row.querySelector(".settings-row__badge, .settings-row__arrow")),
+        arrowSvg: row.querySelector(".settings-row__arrow svg") ? rectOf(row.querySelector(".settings-row__arrow svg")) : null,
+      };
+    });
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       page: rectOf(element),
@@ -581,6 +1221,7 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
       headings: sectionNodes.map((section) => rectOf(section.querySelector(":scope > h2"))),
       cards: cardNodes.map(rectOf),
       rows: rowNodes.map(rectOf),
+      rowLayouts,
       rootWidth: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0),
     };
   });
@@ -604,6 +1245,28 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
     `${label} a settings card overlaps its section heading`,
   );
   assert(geometry.rows.every((row) => row.width > 0 && row.height >= (mobile ? 52 : 48)), `${label} contains a collapsed settings row`);
+  assert(geometry.rowLayouts.every((row) => row.display === "grid"), `${label} contains a settings row that is not a grid`);
+  assert(
+    geometry.rowLayouts.every((row) => row.paddingLeft <= 1 && row.paddingRight <= 1),
+    `${label} contains a settings row with inconsistent horizontal padding`,
+  );
+  const rowAlignment = geometry.rowLayouts[0];
+  assert(
+    geometry.rowLayouts.every((row) => close(row.icon.left, rowAlignment.icon.left, 1) && close(row.copy.left, rowAlignment.copy.left, 1)),
+    `${label} settings icons or labels do not share one column`,
+  );
+  assert(
+    geometry.rowLayouts.every((row) => close(row.iconSvg.width, 24, 1) && close(row.iconSvg.height, 24, 1)),
+    `${label} settings icons do not share the 24px size`,
+  );
+  assert(
+    geometry.rowLayouts.every((row) => !row.arrowSvg || (close(row.arrowSvg.width, 24, 1) && close(row.arrowSvg.height, 24, 1))),
+    `${label} settings arrows do not share the 24px size`,
+  );
+  assert(
+    geometry.rowLayouts.every((row, index) => close(row.trailing.right, geometry.rows[index].right, 1)),
+    `${label} settings actions do not align to the right edge`,
+  );
   assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} has horizontal root overflow`);
   if (mobile) {
     const minimumWidth = geometry.viewport.width - (geometry.viewport.width <= 400 ? 48 : 80);
@@ -628,7 +1291,8 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
   await phoneRow.click();
   const phoneDialog = page.getByRole("dialog", { name: "Привязать номер", exact: true });
   await phoneDialog.waitFor({ state: "visible" });
-  await phoneDialog.getByRole("heading", { name: "Привязать номер", exact: true }).waitFor();
+  assert(await phoneDialog.locator("[data-slot='dialog-title']").count() === 1, `${label} phone dialog is missing the official DialogTitle`);
+  await phoneDialog.locator(".modal-heading").getByRole("heading", { name: "Привязать номер", exact: true }).waitFor();
   const unavailableStatus = phoneDialog.getByRole("status");
   await unavailableStatus.getByText("Вход по телефону временно недоступен", { exact: true }).waitFor();
   await unavailableStatus.getByText("Попробуйте снова немного позже.", { exact: true }).waitFor();
@@ -654,7 +1318,7 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
 
   const avatarUrl = dialog.getByLabel("Ссылка на фото", { exact: true });
   const name = dialog.getByLabel("Имя", { exact: true });
-  const username = dialog.locator(".input-prefix input");
+  const username = dialog.getByLabel("Адрес профиля", { exact: true });
   const bio = dialog.locator("textarea").first();
   const birthday = dialog.getByLabel("День рождения", { exact: true });
   const avatarUpload = dialog.getByLabel("Загрузить фото профиля", { exact: true });
@@ -676,6 +1340,135 @@ async function expectSettingsScreen(page, label, { mobile = false, openEditor = 
   assert(await dialog.locator("input[type='checkbox'], input[type='radio'], .settings-switch").count() === 0, `${label} profile editor exposes a fake toggle`);
   assert(await avatarUpload.getAttribute("accept") === "image/jpeg,image/png,image/webp", `${label} profile editor accepts unsupported avatar formats`);
   assert(await username.getAttribute("pattern") === "[a-z0-9-]{3,32}", `${label} profile editor lost the username constraint`);
+  const addressGroup = dialog.locator("[data-slot='input-group']");
+  const addressControl = addressGroup.locator(":scope > [data-slot='input-group-control']");
+  const addressAddon = addressGroup.locator(":scope > [data-slot='input-group-addon'][data-align='inline-start']");
+  assert(await dialog.locator(".input-prefix").count() === 0, `${label} profile address still uses the legacy prefix wrapper`);
+  assert(await addressGroup.count() === 1, `${label} profile address does not use one canonical InputGroup`);
+  assert(await addressControl.count() === 1, `${label} profile address does not use InputGroupInput`);
+  assert(await addressAddon.count() === 1, `${label} profile address is missing InputGroupAddon`);
+  assert((await addressAddon.innerText()).trim() === "роллапп.рф/", `${label} profile address prefix changed`);
+  await username.evaluate((input) => input.focus({ preventScroll: true }));
+  const addressGeometry = await dialog.evaluate((element) => {
+    const rectOf = (node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    };
+    const styleOf = (node) => {
+      const style = getComputedStyle(node);
+      const hasVisibleShadow = style.boxShadow !== "none"
+        && (style.boxShadow.match(/-?(?:\d+\.?\d*|\.\d+)px/g) || [])
+          .some((length) => Math.abs(Number.parseFloat(length)) > .01);
+      return {
+        background: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].map(Number.parseFloat),
+        borderRadius: Number.parseFloat(style.borderTopLeftRadius),
+        hasVisibleShadow,
+      };
+    };
+    const group = element.querySelector("[data-slot='input-group']");
+    const control = group?.querySelector(":scope > [data-slot='input-group-control']");
+    const addon = group?.querySelector(":scope > [data-slot='input-group-addon']");
+    const prefix = addon?.querySelector(":scope > span");
+    const field = group?.closest("[data-slot='field']");
+    const name = element.querySelector("#settings-profile-name");
+    if (!group || !control || !addon || !prefix || !field || !name) return null;
+    return {
+      group: {
+        ...rectOf(group),
+        ...styleOf(group),
+        role: group.getAttribute("role"),
+        clientWidth: group.clientWidth,
+        scrollWidth: group.scrollWidth,
+      },
+      control: {
+        ...rectOf(control),
+        ...styleOf(control),
+        slot: control.getAttribute("data-slot"),
+        focused: document.activeElement === control,
+        clientWidth: control.clientWidth,
+        scrollWidth: control.scrollWidth,
+      },
+      addon: {
+        ...rectOf(addon),
+        ...styleOf(addon),
+        slot: addon.getAttribute("data-slot"),
+        align: addon.getAttribute("data-align"),
+      },
+      prefix: {
+        ...rectOf(prefix),
+        clientWidth: prefix.clientWidth,
+        scrollWidth: prefix.scrollWidth,
+      },
+      field: rectOf(field),
+      name: rectOf(name),
+      nestedCardCount: group.querySelectorAll("[data-slot='card']").length,
+    };
+  });
+  const transparentSurface = (value) => ["transparent", "rgba(0, 0, 0, 0)"].includes(value);
+  assert(addressGeometry, `${label} profile address group geometry is unavailable`);
+  assert(
+    addressGeometry.group.role === "group"
+      && !transparentSurface(addressGeometry.group.background)
+      && addressGeometry.group.backgroundImage === "none"
+      && addressGeometry.group.borderWidths.every((width) => width >= 1)
+      && addressGeometry.group.borderRadius > 0
+      && addressGeometry.group.height >= 50,
+    `${label} InputGroup does not own the profile-address surface (${JSON.stringify(addressGeometry)})`,
+  );
+  assert(
+    addressGeometry.control.focused
+      && addressGeometry.control.slot === "input-group-control"
+      && transparentSurface(addressGeometry.control.background)
+      && addressGeometry.control.backgroundImage === "none"
+      && addressGeometry.control.borderWidths.every((width) => width === 0)
+      && !addressGeometry.control.hasVisibleShadow,
+    `${label} profile-address control renders a second focused surface`,
+  );
+  assert(
+    addressGeometry.addon.slot === "input-group-addon"
+      && addressGeometry.addon.align === "inline-start"
+      && transparentSurface(addressGeometry.addon.background)
+      && addressGeometry.addon.backgroundImage === "none"
+      && addressGeometry.addon.borderWidths.every((width) => width === 0)
+      && !addressGeometry.addon.hasVisibleShadow
+      && addressGeometry.nestedCardCount === 0,
+    `${label} profile-address addon renders nested chrome`,
+  );
+  assert(
+    Math.abs(addressGeometry.group.left - addressGeometry.field.left) <= 1
+      && Math.abs(addressGeometry.group.right - addressGeometry.field.right) <= 1
+      && addressGeometry.addon.left >= addressGeometry.group.left - 1
+      && addressGeometry.addon.right <= addressGeometry.control.left + 1
+      && addressGeometry.control.right <= addressGeometry.group.right + 1
+      && addressGeometry.control.top >= addressGeometry.group.top - 1
+      && addressGeometry.control.bottom <= addressGeometry.group.bottom + 1,
+    `${label} profile-address parts are misaligned`,
+  );
+  assert(
+    addressGeometry.group.scrollWidth <= addressGeometry.group.clientWidth + 1
+      && addressGeometry.control.scrollWidth <= addressGeometry.control.clientWidth + 1
+      && addressGeometry.prefix.scrollWidth <= addressGeometry.prefix.clientWidth + 1
+      && addressGeometry.prefix.left >= addressGeometry.addon.left - 1
+      && addressGeometry.prefix.right <= addressGeometry.addon.right + 1,
+    `${label} profile-address prefix or value overflows`,
+  );
+  assert(
+    Math.abs(addressGeometry.group.width - addressGeometry.name.width) <= 1
+      && Math.abs(addressGeometry.group.height - addressGeometry.name.height) <= 1,
+    `${label} profile-address and name controls use different dimensions`,
+  );
+  if (mobile) {
+    assert(
+      Math.abs(addressGeometry.group.left - addressGeometry.name.left) <= 1
+        && Math.abs(addressGeometry.group.right - addressGeometry.name.right) <= 1
+        && addressGeometry.group.top > addressGeometry.name.bottom,
+      `${label} mobile profile fields do not share one column`,
+    );
+  } else {
+    assert(Math.abs(addressGeometry.group.top - addressGeometry.name.top) <= 1, `${label} desktop profile row is vertically misaligned`);
+  }
   assert(
     await birthday.evaluate((input) => input.max === new Date().toISOString().slice(0, 10)),
     `${label} profile editor allows a future birthday`,
@@ -760,7 +1553,11 @@ async function clickFriendMenuAction(page, row, personName, action) {
   const menuButton = row.getByRole("button", { name: `Действия для ${personName}`, exact: true });
   await menuButton.waitFor({ state: "visible" });
   await menuButton.click();
-  const item = row.locator(".friend-row__menu").getByRole("button", { name: action, exact: true });
+  const menu = page.locator(".friend-row__menu");
+  await menu.waitFor({ state: "visible" });
+  assert(await menu.getAttribute("role") === "menu", `Actions for ${personName} do not use an official role=menu popup`);
+  assert(await menuButton.getAttribute("aria-controls") === await menu.getAttribute("id"), `Actions for ${personName} are not linked to their trigger`);
+  const item = menu.getByRole("menuitem", { name: action, exact: true });
   await item.waitFor({ state: "visible" });
   await item.click();
 }
@@ -791,20 +1588,22 @@ async function waitForFriendSet(page, usernames) {
 async function expectFriendsNavigation(page, activeTab, label) {
   const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
   await navigation.waitFor({ state: "visible" });
-  const links = navigation.getByRole("link");
-  assert(await links.count() === 3, `${label} should expose three friend sections`);
-  for (const [tab, pathname] of Object.entries(friendsRoutes)) {
-    const link = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
-    assert(await link.getAttribute("href") === pathname, `${label} ${friendsLabels[tab]} points to the wrong route`);
+  const toggleGroup = navigation.getByRole("group", { name: "Разделы друзей", exact: true });
+  assert(await toggleGroup.getAttribute("data-slot") === "toggle-group", `${label} does not use the official ToggleGroup`);
+  const toggles = toggleGroup.getByRole("button");
+  assert(await toggles.count() === 3, `${label} should expose three official friend toggles`);
+  for (const tab of Object.keys(friendsRoutes)) {
+    const tabControl = toggleGroup.getByRole("button", { name: friendsLabels[tab], exact: true });
+    assert(await tabControl.getAttribute("data-slot") === "toggle-group-item", `${label} ${friendsLabels[tab]} is not an official ToggleGroupItem`);
   }
-  const activeLink = navigation.getByRole("link", { name: friendsLabels[activeTab], exact: true });
-  assert(await activeLink.getAttribute("aria-current") === "page", `${label} does not identify ${friendsLabels[activeTab]} as the active section`);
+  const activeControl = toggleGroup.getByRole("button", { name: friendsLabels[activeTab], exact: true });
+  assert(await activeControl.getAttribute("aria-pressed") === "true", `${label} does not press ${friendsLabels[activeTab]} in the ToggleGroup`);
   return navigation;
 }
 
 async function openFriendsTab(page, tab, label) {
   const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
-  const link = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
+  const link = navigation.getByRole("group", { name: "Разделы друзей", exact: true }).getByRole("button", { name: friendsLabels[tab], exact: true });
   const dataResponsePromise = page.waitForResponse((response) => isPeopleSectionResponse(response, tab));
   await link.click();
   await page.waitForURL((url) => url.pathname === friendsRoutes[tab]);
@@ -819,16 +1618,18 @@ async function openFriendsTab(page, tab, label) {
 async function expectFriendsLayout(page, label, { mobile }) {
   const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
   const firstRow = page.locator(".friend-row").first();
+  const search = page.locator(".friends-search");
   await navigation.waitFor({ state: "visible" });
   await firstRow.waitFor({ state: "visible" });
+  await search.waitFor({ state: "visible" });
   await waitForStableLayout(page);
   const geometry = await page.evaluate((navigationSelector) => {
     const navigationNode = document.querySelector(navigationSelector);
     const rowNode = document.querySelector(".friend-row");
     const navigationRect = navigationNode?.getBoundingClientRect();
     const rowRect = rowNode?.getBoundingClientRect();
-    const linkRects = [...(navigationNode?.querySelectorAll("a") || [])].map((link) => {
-      const rect = link.getBoundingClientRect();
+    const linkRects = [...(navigationNode?.querySelectorAll("[data-slot='toggle-group-item']") || [])].map((control) => {
+      const rect = control.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     });
     return {
@@ -839,8 +1640,39 @@ async function expectFriendsLayout(page, label, { mobile }) {
     };
   }, ".friends-section-nav");
   assert(geometry.navigation && geometry.row, `${label} is missing its friend navigation or list geometry`);
+  assert(geometry.linkRects.length === 3, `${label} is missing ToggleGroup navigation targets`);
   assert(geometry.row.right <= geometry.viewportWidth + 1, `${label} friend rows extend beyond the viewport`);
   assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the list`);
+  const searchSurface = await search.evaluate((wrapper) => {
+    const input = wrapper.querySelector("[data-slot='input']");
+    const icon = wrapper.querySelector(":scope > svg");
+    if (!input || !icon) return null;
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const inputRect = input.getBoundingClientRect();
+    const iconRect = icon.getBoundingClientRect();
+    const inputStyle = getComputedStyle(input);
+    return {
+      inputCount: wrapper.querySelectorAll("[data-slot='input']").length,
+      wrapper: { left: wrapperRect.left, right: wrapperRect.right, top: wrapperRect.top, bottom: wrapperRect.bottom },
+      input: { left: inputRect.left, right: inputRect.right, top: inputRect.top, bottom: inputRect.bottom },
+      iconCenterY: iconRect.top + (iconRect.height / 2),
+      inputCenterY: inputRect.top + (inputRect.height / 2),
+      background: inputStyle.backgroundColor,
+      backgroundImage: inputStyle.backgroundImage,
+      borders: [inputStyle.borderTopWidth, inputStyle.borderRightWidth, inputStyle.borderBottomWidth, inputStyle.borderLeftWidth].map(Number.parseFloat),
+      shadow: inputStyle.boxShadow,
+    };
+  });
+  assert(searchSurface?.inputCount === 1, `${label} search should contain one official shadcn Input`);
+  for (const edge of ["left", "right", "top", "bottom"]) {
+    assert(Math.abs(searchSurface.wrapper[edge] - searchSurface.input[edge]) <= 1, `${label} search Input does not fill its ${edge} edge`);
+  }
+  assert(Math.abs(searchSurface.iconCenterY - searchSurface.inputCenterY) <= 1, `${label} search icon is not vertically centered`);
+  assert(["transparent", "rgba(0, 0, 0, 0)"].includes(searchSurface.background), `${label} search Input has a second background (${searchSurface.background})`);
+  assert(searchSurface.backgroundImage === "none", `${label} search Input has a second background image`);
+  assert(searchSurface.borders.every((width) => width === 0), `${label} search Input has a second border (${searchSurface.borders.join("/")})`);
+  const shadowLengths = [...searchSurface.shadow.matchAll(/-?(?:\d+\.?\d*|\.\d+)px/g)].map((match) => Number(match[0].slice(0, -2)));
+  assert(searchSurface.shadow === "none" || shadowLengths.every((length) => length === 0), `${label} search Input has a second shadow (${searchSurface.shadow})`);
   if (mobile) {
     assert(geometry.navigation.width <= geometry.viewportWidth + 1, `${label} mobile friend navigation overflows the viewport`);
     assert(geometry.linkRects.every((rect) => rect.height >= 40), `${label} mobile friend navigation has undersized touch targets`);
@@ -848,10 +1680,13 @@ async function expectFriendsLayout(page, label, { mobile }) {
     assert(pageHeight.document <= pageHeight.viewport + 1, `${label} adds empty mobile scrolling (${pageHeight.document}px document inside ${pageHeight.viewport}px viewport)`);
   } else {
     assert(geometry.navigation.left >= geometry.row.left - 1, `${label} desktop friend navigation is not aligned with the directory`);
-    assert(geometry.linkRects.every((rect) => rect.height >= 40), `${label} desktop friend navigation has undersized targets`);
+    assert(
+      geometry.linkRects.every((rect) => rect.height >= 40),
+      `${label} desktop friend navigation has undersized targets (${JSON.stringify(geometry.linkRects)})`,
+    );
     const dock = page.locator(".friends-topbar__dock");
     await dock.waitFor({ state: "visible" });
-    assert(await dock.locator(":scope > a:not(.friends-topbar__search)").count() === 3, `${label} desktop top dock should expose the three primary sections`);
+    assert(await dock.locator(":scope > a:not(.friends-topbar__search)").count() === 2, `${label} desktop top dock should expose the two primary sections`);
   }
 }
 
@@ -878,8 +1713,12 @@ async function expectWideFriendsLayout(page, label) {
 async function expectFriendsMenus(page, label) {
   const rowTrigger = friendRow(page, "max").getByRole("button", { name: "Действия для Макс Ветров", exact: true });
   await rowTrigger.click();
-  const rowPopover = friendRow(page, "max").locator(".friend-row__menu");
+  const rowPopover = page.locator(".friend-row__menu");
   await rowPopover.waitFor({ state: "visible" });
+  assert(await rowPopover.getAttribute("role") === "menu", `${label} row popup does not expose role=menu`);
+  assert(await rowPopover.getAttribute("data-slot") === "dropdown-menu-content", `${label} row popup is not official DropdownMenu content`);
+  assert(await rowTrigger.getAttribute("aria-controls") === await rowPopover.getAttribute("id"), `${label} row popup is not linked to its trigger`);
+  assert(await rowPopover.getByRole("menuitem").count() === 2, `${label} row popup should expose two menu items`);
   await page.keyboard.press("Escape");
   await rowPopover.waitFor({ state: "detached" });
   assert(await rowTrigger.evaluate((element) => document.activeElement === element), `${label} row popover does not restore trigger focus after Escape`);
@@ -887,11 +1726,14 @@ async function expectFriendsMenus(page, label) {
   const accountTrigger = page.getByRole("button", { name: "Открыть меню аккаунта", exact: true });
   if (!(await accountTrigger.isVisible())) return;
   await accountTrigger.click();
-  const accountPanel = page.locator("#friends-account-menu");
+  const accountPanel = page.locator(".friends-topbar__panel");
   await accountPanel.waitFor({ state: "visible" });
-  await accountPanel.getByRole("link", { name: /Уведомления/ }).waitFor();
-  await accountPanel.getByRole("link", { name: "Настройки", exact: true }).waitFor();
-  await accountPanel.getByRole("button", { name: "Выйти", exact: true }).waitFor();
+  assert(await accountPanel.getAttribute("role") === "menu", `${label} account popup does not expose role=menu`);
+  assert(await accountPanel.getAttribute("data-slot") === "dropdown-menu-content", `${label} account popup is not official DropdownMenu content`);
+  assert(await accountTrigger.getAttribute("aria-controls") === await accountPanel.getAttribute("id"), `${label} account popup is not linked to its trigger`);
+  await accountPanel.getByRole("menuitem", { name: /Уведомления/ }).waitFor();
+  await accountPanel.getByRole("menuitem", { name: "Настройки", exact: true }).waitFor();
+  await accountPanel.getByRole("menuitem", { name: "Выйти", exact: true }).waitFor();
   await page.keyboard.press("Escape");
   await accountPanel.waitFor({ state: "detached" });
   assert(await accountTrigger.evaluate((element) => document.activeElement === element), `${label} account menu does not restore trigger focus after Escape`);
@@ -1034,7 +1876,10 @@ async function expectReferenceDesktopProfile(page, label, { guest = false } = {}
   assert(close(geometry.layout.x, 0) && close(geometry.layout.width, 1912), `${label} layout is not full width`);
   assert(close(geometry.rail.x, 16) && close(geometry.rail.width, 280), `${label} rail geometry differs from the reference`);
   assert(close(geometry.main.x, 312) && close(geometry.main.width, 1584), `${label} main geometry differs from the reference`);
-  assert(close(geometry.avatar.x, 1004) && close(geometry.avatar.y, 116) && close(geometry.avatar.width, 200), `${label} avatar geometry differs from the reference`);
+  assert(
+    close(geometry.avatar.x, 1004) && close(geometry.avatar.y, 116) && close(geometry.avatar.width, 200),
+    `${label} avatar geometry differs from the reference (${JSON.stringify(geometry.avatar)})`,
+  );
   assert(close(geometry.heading.x, 312) && close(geometry.heading.y, guest ? 612 : 534) && close(geometry.heading.height, 41), `${label} heading geometry differs from the reference`);
   assert(close(geometry.grid.x, 312) && close(geometry.grid.y, guest ? 683 : 605), `${label} grid geometry differs from the reference`);
   assert(close(geometry.card.width, 236) && close(geometry.card.height, 286), `${label} card geometry differs from the reference`);
@@ -1059,6 +1904,7 @@ async function expectPublicMobileShell(page, label) {
   assert(geometry.position === "fixed", `${label} profile dock is not fixed`);
   assert(geometry.bottom >= 0 && geometry.bottom <= 24, `${label} profile dock is not anchored to the viewport bottom`);
   assert(geometry.left >= -10 && geometry.right > 4, `${label} profile dock does not match the compact reference placement`);
+  assert(await dock.locator(":scope > a:not(.profile-header__search)").count() === 2, `${label} profile dock should expose the two primary sections`);
 }
 
 function isGeneralListRecord(list) {
@@ -1086,6 +1932,9 @@ async function expectFixedPopoverGeometry(locator, label, { margin = 6 } = {}) {
   const geometry = await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const style = getComputedStyle(element);
+    const positioner = element.parentElement?.getAttribute("role") === "presentation"
+      ? element.parentElement
+      : element;
     return {
       left: rect.left,
       top: rect.top,
@@ -1096,10 +1945,16 @@ async function expectFixedPopoverGeometry(locator, label, { margin = 6 } = {}) {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       position: style.position,
+      positionerPosition: getComputedStyle(positioner).position,
+      positionerRole: positioner.getAttribute("role"),
       visibility: style.visibility,
     };
   });
-  assert(geometry.position === "fixed", `${label} should be fixed, rendered as ${geometry.position}`);
+  assert(geometry.positionerRole === "presentation", `${label} is missing the Base UI positioner`);
+  assert(
+    geometry.positionerPosition === "absolute" || geometry.positionerPosition === "fixed",
+    `${label} Base UI positioner is not anchored (${geometry.positionerPosition})`,
+  );
   assert(geometry.visibility !== "hidden", `${label} remained hidden after positioning`);
   assert(geometry.width > 0 && geometry.height > 0, `${label} has empty geometry`);
   assert(geometry.left >= margin - 1, `${label} extends beyond the viewport left edge (${geometry.left}px)`);
@@ -1110,20 +1965,32 @@ async function expectFixedPopoverGeometry(locator, label, { margin = 6 } = {}) {
 }
 
 async function expectMobileTouchTargets(locator, label, { minHeight = 40 } = {}) {
-  const targets = await locator.locator("button, a").evaluateAll((elements) => elements
-    .filter((element) => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
-    })
-    .map((element) => {
-      const rect = element.getBoundingClientRect();
-      return {
-        label: element.getAttribute("aria-label") || element.textContent.replace(/\s+/g, " ").trim(),
-        width: rect.width,
-        height: rect.height,
-      };
-    }));
+  const targets = await locator.evaluateAll(async (roots) => {
+    const animations = [...new Set(roots.flatMap((root) => (
+      root.closest("[role='menu']")?.getAnimations({ subtree: true }) || []
+    )))];
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => {})));
+    return [...new Set(roots.flatMap((root) => {
+      const selector = "button, a, [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio']";
+      return [
+        ...(root.matches(selector) ? [root] : []),
+        ...root.querySelectorAll(selector),
+      ];
+    }))]
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          label: element.getAttribute("aria-label") || element.textContent.replace(/\s+/g, " ").trim(),
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+  });
   assert(targets.length > 0, `${label} has no visible interactive targets`);
   for (const target of targets) {
     assert(
@@ -1140,6 +2007,21 @@ async function waitForFocused(page, locator, label) {
   await handle.dispose();
 }
 
+async function expectMenuFocus(page, menu, label) {
+  const focused = await menu.evaluate((element) => {
+    const active = document.activeElement;
+    return active && element.contains(active)
+      ? { role: active.getAttribute("role"), focusVisible: active.matches(":focus-visible") }
+      : null;
+  });
+  assert(focused, `${label} did not move keyboard focus into the menu`);
+  assert(
+    focused.role === "menuitem" || focused.role === "menuitemcheckbox" || focused.role === "menuitemradio",
+    `${label} focused a non-menu element (${focused.role || "no role"})`,
+  );
+  assert(focused.focusVisible, `${label} focused item has no visible keyboard focus`);
+}
+
 async function openOwnerWishCardMenu(page, card, wish, { keyboard = false } = {}) {
   const trigger = card.getByRole("button", { name: `Опции желания «${wish.title}»`, exact: true });
   if (keyboard) {
@@ -1148,35 +2030,66 @@ async function openOwnerWishCardMenu(page, card, wish, { keyboard = false } = {}
   } else {
     await trigger.click();
   }
-  const menu = page.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  const menuId = `wish-menu-${wish.id}`;
+  const menu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await menu.waitFor({ state: "visible" });
   assert(await trigger.getAttribute("aria-haspopup") === "menu", `Wish menu trigger for "${wish.title}" does not advertise a menu`);
   assert(await trigger.getAttribute("aria-expanded") === "true", `Wish menu trigger for "${wish.title}" is not expanded`);
   const controlsId = await trigger.getAttribute("aria-controls");
-  const menuId = await menu.getAttribute("id");
   assert(
-    Boolean(controlsId) && Boolean(menuId) && controlsId === menuId,
-    `Wish menu trigger for "${wish.title}" is not linked to its portal`,
+    controlsId === menuId,
+    `Wish menu trigger for "${wish.title}" is not linked to ${menuId}`,
   );
-  assert((await card.locator(".card-menu").count()) === 0, `Wish menu for "${wish.title}" is not rendered through the portal`);
+  assert(await menu.getAttribute("role") === "menu", `Wish menu for "${wish.title}" does not expose role=menu`);
+  assert(await menu.getAttribute("data-slot") === "dropdown-menu-content", `Wish menu for "${wish.title}" is not the official DropdownMenu content`);
+  assert(await menu.getAttribute("aria-labelledby") === await trigger.getAttribute("id"), `Wish menu for "${wish.title}" is not labelled by its trigger`);
+  assert(
+    await page.getByRole("menu", { name: `Опции желания «${wish.title}»`, exact: true }).count() === 1,
+    `Wish menu for "${wish.title}" has the wrong accessible name`,
+  );
+  assert((await card.locator(`[id=${JSON.stringify(menuId)}]`).count()) === 0, `Wish menu for "${wish.title}" is not rendered through the official portal`);
   return { trigger, menu };
 }
 
-async function openOwnerWishListMenu(page, menu, wish, { keyboard = false } = {}) {
-  const listTrigger = menu.locator(".card-menu__submenu-trigger");
+async function openOwnerWishListMenu(page, menu, wish, { keyboard = false, menuId = `wish-lists-${wish.id}` } = {}) {
+  const listTrigger = menu.getByRole("menuitem", { name: "Добавить в список", exact: true });
   assert(await listTrigger.getAttribute("role") === "menuitem", `List submenu trigger for "${wish.title}" is not a menu item`);
   assert(await listTrigger.getAttribute("aria-haspopup") === "menu", `List submenu trigger for "${wish.title}" does not advertise a menu`);
-  if (keyboard) await page.keyboard.press("ArrowRight");
-  else await listTrigger.click();
-  const listMenu = page.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
+  if (!(await listTrigger.evaluate((element) => element.hasAttribute("data-popup-open")))) {
+    if (keyboard) await page.keyboard.press("Enter");
+    else {
+      await menu.evaluate(async (element) => {
+        await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+      });
+      await listTrigger.hover();
+    }
+  }
+  const listMenu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await listMenu.waitFor({ state: "visible" });
-  assert(await listTrigger.getAttribute("aria-expanded") === "true", `List submenu trigger for "${wish.title}" is not expanded`);
-  const controlsId = await listTrigger.getAttribute("aria-controls");
-  const menuId = await listMenu.getAttribute("id");
-  assert(
-    Boolean(controlsId) && Boolean(menuId) && controlsId === menuId,
-    `List submenu trigger for "${wish.title}" is not linked to its portal`,
+  const listTriggerHandle = await listTrigger.elementHandle();
+  assert(listTriggerHandle, `List submenu trigger for "${wish.title}" disappeared while opening`);
+  await page.waitForFunction(
+    (element) => element.hasAttribute("data-popup-open") && Boolean(element.getAttribute("aria-controls")),
+    listTriggerHandle,
   );
+  await listTriggerHandle.dispose();
+  assert(await listTrigger.evaluate((element) => element.hasAttribute("data-popup-open")), `List submenu trigger for "${wish.title}" is not expanded`);
+  const controlsId = await listTrigger.getAttribute("aria-controls");
+  assert(
+    controlsId === menuId,
+    `List submenu trigger for "${wish.title}" is not linked to ${menuId}`,
+  );
+  assert(await listMenu.getAttribute("role") === "menu", `List submenu for "${wish.title}" does not expose role=menu`);
+  assert(await listMenu.getAttribute("data-slot") === "dropdown-menu-sub-content", `List submenu for "${wish.title}" is not the official DropdownMenu sub-content`);
+  assert(await listMenu.getAttribute("aria-labelledby") === await listTrigger.getAttribute("id"), `List submenu for "${wish.title}" is not labelled by its trigger`);
+  assert(
+    await page.getByRole("menu", { name: "Добавить в список", exact: true }).count() === 1,
+    `List submenu for "${wish.title}" has the wrong accessible name`,
+  );
+  if (keyboard && !(await listMenu.evaluate((element) => element.contains(document.activeElement)))) {
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction((id) => document.getElementById(id)?.contains(document.activeElement), menuId);
+  }
   return { listTrigger, listMenu };
 }
 
@@ -1191,21 +2104,20 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
       "Добавить в список",
       "Поделиться",
       "Удалить",
-    ];
+  ];
   const { trigger, menu } = await openOwnerWishCardMenu(page, card, wish, { keyboard: true });
-  const main = menu.locator(".card-menu__main");
-  const rootItems = main.locator(":scope > [role='menuitem']");
+  const rootItems = menu.getByRole("menuitem");
   const actualRootLabels = (await rootItems.allInnerTexts()).map(normalizeMenuLabel);
   assert(
     JSON.stringify(actualRootLabels) === JSON.stringify(expectedRootLabels),
     `${label} root menu order differs: ${actualRootLabels.join(" | ")}`,
   );
-  assert((await main.getByRole("menuitem", { name: "Забронировать", exact: true }).count()) === 0, `${label} owner menu exposes a reservation action`);
-  assert((await main.getByRole("menuitem", { name: "Сохранить к себе", exact: true }).count()) === 0, `${label} owner menu exposes a copy action`);
-  assert(await main.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
-  assert(await main.getByRole("menuitem", { name: "Удалить", exact: true }).evaluate((element) => element.classList.contains("danger")), `${label} delete action is not marked as dangerous`);
+  assert((await menu.getByRole("menuitem", { name: "Забронировать", exact: true }).count()) === 0, `${label} owner menu exposes a reservation action`);
+  assert((await menu.getByRole("menuitem", { name: "Сохранить к себе", exact: true }).count()) === 0, `${label} owner menu exposes a copy action`);
+  assert(await menu.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
+  assert(await menu.getByRole("menuitem", { name: "Удалить", exact: true }).getAttribute("data-variant") === "destructive", `${label} delete action is not the destructive DropdownMenu item`);
   await expectNoWishDetail(page, `${label} root menu`);
-  const rootGeometry = await expectFixedPopoverGeometry(menu, `${label} root menu`);
+  await expectFixedPopoverGeometry(menu, `${label} root menu`);
   const triggerGeometry = await trigger.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
@@ -1215,7 +2127,6 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
       bottom: rect.bottom,
       width: rect.width,
       height: rect.height,
-      viewportWidth: window.innerWidth,
       hitInset: {
         left: parseFloat(getComputedStyle(element, "::before").left) || 0,
         right: parseFloat(getComputedStyle(element, "::before").right) || 0,
@@ -1224,49 +2135,12 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
       },
     };
   });
-  const expectedRootLeft = Math.min(
-    Math.max(6, triggerGeometry.left),
-    triggerGeometry.viewportWidth - rootGeometry.width - 6,
-  );
-  assert(Math.abs(rootGeometry.left - expectedRootLeft) <= 1, `${label} root menu is not anchored to the trigger start edge`);
-  assert(
-    Math.abs(rootGeometry.top - triggerGeometry.bottom - 10) <= 1
-      || Math.abs(triggerGeometry.top - rootGeometry.bottom - 10) <= 1,
-    `${label} root menu does not keep the reference 10px trigger gap`,
-  );
-  const dismissLayer = page.locator(".card-menu__dismiss-layer");
-  await dismissLayer.waitFor({ state: "visible" });
-  const dismissGeometry = await dismissLayer.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-      position: getComputedStyle(element).position,
-    };
-  });
-  assert(dismissGeometry.position === "fixed", `${label} dismiss layer is not fixed`);
-  assert(
-    Math.abs(dismissGeometry.left) <= 1
-      && Math.abs(dismissGeometry.top) <= 1
-      && Math.abs(dismissGeometry.width - dismissGeometry.viewportWidth) <= 1
-      && Math.abs(dismissGeometry.height - dismissGeometry.viewportHeight) <= 1,
-    `${label} dismiss layer does not cover the viewport`,
-  );
-  await waitForFocused(page, rootItems.first(), `${label} first root action`);
-  assert(await rootItems.first().evaluate((element) => element.matches(":focus-visible")), `${label} first root action has no visible keyboard focus`);
+  await expectMenuFocus(page, menu, `${label} root menu`);
   if (mobile) {
-    assert(
-      triggerGeometry.width >= 35 && triggerGeometry.width <= 37 && triggerGeometry.height >= 35 && triggerGeometry.height <= 37,
-      `${label} menu trigger does not match the 36px reference (${triggerGeometry.width}x${triggerGeometry.height})`,
-    );
     const effectiveHitWidth = triggerGeometry.width - triggerGeometry.hitInset.left - triggerGeometry.hitInset.right;
     const effectiveHitHeight = triggerGeometry.height - triggerGeometry.hitInset.top - triggerGeometry.hitInset.bottom;
     assert(effectiveHitWidth >= 44 && effectiveHitHeight >= 44, `${label} menu trigger has no 44px touch hit area`);
-    await expectMobileTouchTargets(main, `${label} root menu`);
+    await expectMobileTouchTargets(rootItems, `${label} root menu`, { minHeight: 44 });
     await expectNoRootOverflow(page, `${label} root menu`);
   }
   const menuScreenshot = wish.status === "fulfilled"
@@ -1275,15 +2149,15 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
   await page.screenshot({ path: menuScreenshot });
 
   if (wish.status === "fulfilled") {
-    assert((await main.getByRole("menuitem", { name: "Добавить в список", exact: true }).count()) === 0, `${label} fulfilled menu exposes list assignment`);
-    assert((await main.getByRole("menuitem", { name: "Поделиться", exact: true }).count()) === 0, `${label} fulfilled menu exposes sharing`);
+    assert((await menu.getByRole("menuitem", { name: "Добавить в список", exact: true }).count()) === 0, `${label} fulfilled menu exposes list assignment`);
+    assert((await menu.getByRole("menuitem", { name: "Поделиться", exact: true }).count()) === 0, `${label} fulfilled menu exposes sharing`);
     await page.keyboard.press("Escape");
     await menu.waitFor({ state: "detached" });
     await waitForFocused(page, trigger, `${label} fulfilled trigger`);
     assert(await trigger.getAttribute("aria-expanded") === "false", `${label} fulfilled trigger remained expanded after Escape`);
     assert(await trigger.evaluate((element) => element.matches(":focus-visible")), `${label} fulfilled trigger has no visible focus after Escape`);
     const pointerMenu = await openOwnerWishCardMenu(page, card, wish);
-    await page.locator(".card-menu__dismiss-layer").click({ position: { x: 2, y: 2 } });
+    await page.mouse.click(4, 4);
     await pointerMenu.menu.waitFor({ state: "detached" });
     assert(await pointerMenu.trigger.getAttribute("aria-expanded") === "false", `${label} fulfilled outside dismissal left the trigger expanded`);
     await expectNoWishDetail(page, `${label} fulfilled outside dismissal`);
@@ -1292,38 +2166,12 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
 
   const listTriggerIndex = expectedRootLabels.indexOf("Добавить в список");
   for (let index = 0; index < listTriggerIndex; index += 1) await page.keyboard.press("ArrowDown");
-  const listTrigger = main.getByRole("menuitem", { name: "Добавить в список", exact: true });
+  const listTrigger = menu.getByRole("menuitem", { name: "Добавить в список", exact: true });
   assert(await listTrigger.evaluate((element) => document.activeElement === element), `${label} list submenu trigger is not keyboard reachable`);
   const { listMenu } = await openOwnerWishListMenu(page, menu, wish, { keyboard: true });
   await expectNoWishDetail(page, `${label} list submenu`);
-  const listGeometry = await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
-  const listTriggerGeometry = await listTrigger.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
-  });
-  if (!mobile) {
-    assert(
-      Math.abs(listGeometry.left - listTriggerGeometry.right + 8) <= 1
-        || Math.abs(listTriggerGeometry.left - listGeometry.right + 8) <= 1,
-      `${label} desktop list submenu does not use the reference 8px overlap`,
-    );
-    assert(
-      Math.abs(listGeometry.top - listTriggerGeometry.top + 8) <= 1
-        || Math.abs(listGeometry.bottom - listTriggerGeometry.bottom - 8) <= 1,
-      `${label} desktop list submenu is not anchored to the list action`,
-    );
-  } else {
-    assert(
-      Math.abs(listGeometry.left - rootGeometry.left) <= 1
-        && Math.abs(listGeometry.width - rootGeometry.width) <= 1,
-      `${label} mobile list submenu is not shifted into the root-menu viewport lane`,
-    );
-    assert(
-      Math.abs(listGeometry.top - listTriggerGeometry.top + 8) <= 1
-        || Math.abs(listGeometry.bottom - listTriggerGeometry.bottom - 8) <= 1,
-      `${label} mobile list submenu is not anchored to the list action`,
-    );
-  }
+  await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
+  await expectMenuFocus(page, listMenu, `${label} list submenu`);
   const options = listMenu.getByRole("menuitemcheckbox");
   const actualListLabels = (await options.allInnerTexts()).map(normalizeMenuLabel);
   const expectedListLabels = categoryLists.map((list) => list.title);
@@ -1339,12 +2187,8 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
       `${label} list "${list.title}" has the wrong initial checked state`,
     );
   }
-  if (categoryLists.length) {
-    await waitForFocused(page, options.first(), `${label} first list option`);
-    assert(await options.first().evaluate((element) => element.matches(":focus-visible")), `${label} first list option has no visible keyboard focus`);
-  }
   if (mobile) {
-    await expectMobileTouchTargets(listMenu.locator(".card-menu__list-scroll"), `${label} list submenu`, { minHeight: 44 });
+    await expectMobileTouchTargets(options, `${label} list submenu`, { minHeight: 44 });
     await expectNoRootOverflow(page, `${label} list submenu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-card-lists.png" : "/tmp/rollapp-desktop-wish-card-lists.png" });
@@ -1362,17 +2206,14 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
   assert(await trigger.evaluate((element) => element.matches(":focus-visible")), `${label} card trigger has no visible focus after Escape`);
 
   const pointerMenu = await openOwnerWishCardMenu(page, card, wish);
-  const pointerDismissLayer = page.locator(".card-menu__dismiss-layer");
   if (!mobile) {
-    await pointerMenu.menu.locator(".card-menu__submenu-trigger").hover();
-    const hoverListMenu = page.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
+    await pointerMenu.menu.getByRole("menuitem", { name: "Добавить в список", exact: true }).hover();
+    const hoverListMenu = page.locator(`[id=${JSON.stringify(`wish-lists-${wish.id}`)}]`);
     await hoverListMenu.waitFor({ state: "visible" });
-    await page.mouse.move(2, 2);
-    await hoverListMenu.waitFor({ state: "detached" });
-    await pointerMenu.menu.waitFor({ state: "visible" });
   }
-  await pointerDismissLayer.click({ position: { x: 2, y: 2 } });
+  await page.mouse.click(4, 4);
   await pointerMenu.menu.waitFor({ state: "detached" });
+  await page.locator(`[id=${JSON.stringify(`wish-lists-${wish.id}`)}]`).waitFor({ state: "detached" });
   assert(await pointerMenu.trigger.getAttribute("aria-expanded") === "false", `${label} outside pointer dismissal left the trigger expanded`);
   await expectNoWishDetail(page, `${label} outside dismissal`);
   if (!mobile) {
@@ -1395,8 +2236,23 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   await opener.click();
   const dialog = page.getByRole("dialog", { name: `Желание: ${title}` });
   await dialog.waitFor({ state: "visible" });
+  assert(await dialog.getAttribute("data-slot") === "dialog-content", `${label} detail does not use the official shadcn DialogContent`);
+  const dialogTitle = dialog.locator(":scope > [data-slot='dialog-title']");
+  assert(await dialogTitle.count() === 1, `${label} detail is missing its direct official DialogTitle`);
+  assert((await dialogTitle.innerText()).trim() === `Желание: ${title}`, `${label} detail has the wrong DialogTitle`);
+  const titleId = await dialogTitle.getAttribute("id");
+  const labelledBy = (await dialog.getAttribute("aria-labelledby") || "").split(/\s+/);
+  assert(titleId && labelledBy.includes(titleId), `${label} detail is not labelled by its official DialogTitle`);
+  const close = dialog.getByRole("button", { name: "Закрыть диалог", exact: true });
+  assert(await close.count() === 1, `${label} detail must expose exactly one close action`);
+  assert(await close.getAttribute("data-slot") === "dialog-close", `${label} detail close action is not the official DialogClose`);
+  const overlays = page.locator("[data-slot='dialog-overlay'][data-open]");
+  assert(await overlays.count() === 1 && await overlays.first().isVisible(), `${label} detail is missing the official Dialog overlay`);
+  assert(await overlays.first().getAttribute("role") === "presentation", `${label} detail overlay is not the official presentation backdrop`);
+  assert(await dialog.evaluate((element) => element.contains(document.activeElement)), `${label} detail did not move focus inside the Dialog`);
+  assert(await page.locator("html").evaluate((element) => getComputedStyle(element).overflowY === "hidden"), `${label} detail did not lock page scrolling`);
   if (!fullscreen) {
-    assert((await dialog.getByRole("heading", { name: title }).count()) === 1, `${label} detail does not show the selected wish title`);
+    assert((await dialog.getByRole("heading", { name: title, exact: true }).count()) === 1, `${label} detail does not show the selected wish title`);
   }
   assert(await dialog.locator(".wish-detail__price").isVisible(), `${label} detail does not show the selected wish price`);
   assert((await dialog.locator(".wish-detail__meta").count()) === 0, `${label} detail still shows the removed metadata pills`);
@@ -1412,6 +2268,64 @@ async function expectWishDetailsOpen(page, label, { fullscreen = false } = {}) {
   return { card, title, opener, dialog };
 }
 
+async function expectStandaloneBuyAction(dialog, expectedUrl, label) {
+  const buyLink = dialog.getByRole("button", { name: "Где купить", exact: true });
+  await buyLink.waitFor({ state: "visible" });
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+  });
+  const state = await buyLink.evaluate((link, url) => {
+    const rect = link.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    const shell = link.closest(".wish-detail__price-bar");
+    const style = shell ? getComputedStyle(shell) : null;
+    const backgroundAlpha = (() => {
+      if (!style) return 0;
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = style.backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      return context.getImageData(0, 0, 1, 1).data[3] / 255;
+    })();
+    return {
+      isAnchor: link.tagName === "A",
+      isShadcnButton: link.getAttribute("data-slot") === "button",
+      href: link.href,
+      expectedHref: new URL(url).href,
+      target: link.target,
+      rel: link.rel.split(/\s+/),
+      width: rect.width,
+      height: rect.height,
+      hittable: hit === link || link.contains(hit),
+      shell: style && {
+        backgroundAlpha,
+        backgroundImage: style.backgroundImage,
+        borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].map(Number.parseFloat),
+        padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(Number.parseFloat),
+        boxShadow: style.boxShadow,
+      },
+    };
+  }, expectedUrl);
+  assert(
+    state.isAnchor && state.isShadcnButton && state.href === state.expectedHref && state.target === "_blank" && state.rel.includes("noreferrer"),
+    `${label} lost its official shadcn external-link button semantics`,
+  );
+  assert(state.width >= 44 && state.height >= 44 && state.hittable, `${label} is not a usable 44px touch target (${JSON.stringify({ width: state.width, height: state.height, hittable: state.hittable })})`);
+  assert(
+    !state.shell || (
+      state.shell.backgroundAlpha === 0
+      && state.shell.backgroundImage === "none"
+      && state.shell.borderWidths.every((value) => value === 0)
+      && state.shell.padding.every((value) => value === 0)
+      && state.shell.boxShadow === "none"
+    ),
+    `${label} is still wrapped in a visible outer surface`,
+  );
+}
+
 async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mobile = false } = {}) {
   assert(wish?.status === "active", `${label} requires an active owner wish`);
   await page.waitForTimeout(280);
@@ -1419,17 +2333,21 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   const trigger = detail.dialog.getByRole("button", { name: `Опции желания «${wish.title}»`, exact: true });
   await trigger.focus();
   await page.keyboard.press("ArrowDown");
-  const menu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  const menuId = `wish-detail-menu-${wish.id}`;
+  const menu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await menu.waitFor({ state: "visible" });
   assert(await trigger.getAttribute("aria-haspopup") === "menu", `${label} trigger does not advertise a menu`);
   assert(await trigger.getAttribute("aria-expanded") === "true", `${label} trigger is not expanded`);
-  const controlsId = await trigger.getAttribute("aria-controls");
-  const menuId = await menu.getAttribute("id");
-  assert(Boolean(controlsId) && controlsId === menuId, `${label} trigger is not linked to the action menu`);
-  assert((await detail.dialog.locator(`#${menuId}`).count()) === 1, `${label} menu must stay inside the detail dialog focus trap`);
+  assert(await trigger.getAttribute("aria-controls") === menuId, `${label} trigger is not linked to the action menu`);
+  assert(await menu.getAttribute("role") === "menu", `${label} action popup does not expose role=menu`);
+  assert(await menu.getAttribute("data-slot") === "dropdown-menu-content", `${label} action popup is not official DropdownMenu content`);
+  assert(await menu.getAttribute("aria-labelledby") === await trigger.getAttribute("id"), `${label} action menu is not labelled by its trigger`);
+  assert(
+    await page.getByRole("menu", { name: `Опции желания «${wish.title}»`, exact: true }).count() === 1,
+    `${label} action menu has the wrong accessible name`,
+  );
 
-  const main = menu.locator(".card-menu__main");
-  const rootItems = main.locator(":scope > [role='menuitem']");
+  const rootItems = menu.getByRole("menuitem");
   const expectedRootLabels = [
     "Исполнено",
     "Редактировать",
@@ -1443,83 +2361,77 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
     JSON.stringify(actualRootLabels) === JSON.stringify(expectedRootLabels),
     `${label} action order differs: ${actualRootLabels.join(" | ")}`,
   );
-  assert(await main.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
-  assert(await main.getByRole("menuitem", { name: "Удалить", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} delete action does not advertise its confirmation`);
+  assert(await menu.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
+  const deleteItem = menu.getByRole("menuitem", { name: "Удалить", exact: true });
+  assert(await deleteItem.getAttribute("aria-haspopup") === "dialog", `${label} delete action does not advertise its confirmation`);
+  assert(await deleteItem.getAttribute("data-variant") === "destructive", `${label} delete action is not the destructive DropdownMenu item`);
 
-  const rootGeometry = await expectFixedPopoverGeometry(menu, `${label} root menu`);
+  await expectFixedPopoverGeometry(menu, `${label} root menu`);
+
   const triggerGeometry = await trigger.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return {
-      left: rect.left,
-      top: rect.top,
-      right: rect.right,
-      bottom: rect.bottom,
       width: rect.width,
       height: rect.height,
-      viewportWidth: window.innerWidth,
     };
   });
-  const expectedRootLeft = Math.min(
-    Math.max(6, triggerGeometry.left),
-    triggerGeometry.viewportWidth - rootGeometry.width - 6,
-  );
-  assert(Math.abs(rootGeometry.left - expectedRootLeft) <= 1, `${label} root menu is not anchored to the trigger`);
-  assert(
-    Math.abs(rootGeometry.top - triggerGeometry.bottom - 10) <= 1
-      || Math.abs(triggerGeometry.top - rootGeometry.bottom - 10) <= 1,
-    `${label} root menu does not keep the reference 10px trigger gap`,
-  );
   const menuSurface = await menu.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + Math.min(24, rect.height / 2));
-    const channels = getComputedStyle(element).backgroundColor.match(/[\d.]+/g)?.map(Number) || [];
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.fillStyle = getComputedStyle(element).backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    const channels = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
     return {
       hittable: element.contains(hit),
-      background: channels.slice(0, 3),
+      background: channels,
     };
   });
   assert(menuSurface.hittable, `${label} root menu is covered by another layer`);
   assert(menuSurface.background.length === 3 && Math.max(...menuSurface.background) <= 70, `${label} root menu leaked a light surface`);
-  await waitForFocused(page, rootItems.first(), `${label} first action`);
-  assert(await rootItems.first().evaluate((element) => element.matches(":focus-visible")), `${label} first action has no visible keyboard focus`);
+  await expectMenuFocus(page, menu, `${label} root menu`);
   if (mobile) {
     assert(triggerGeometry.width >= 39 && triggerGeometry.height >= 39, `${label} trigger is too small for touch`);
-    await expectMobileTouchTargets(main, `${label} root menu`, { minHeight: 44 });
+    await expectMobileTouchTargets(rootItems, `${label} root menu`, { minHeight: 44 });
     await expectNoRootOverflow(page, `${label} root menu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-menu.png" : "/tmp/rollapp-desktop-wish-detail-menu.png" });
 
   const listTriggerIndex = expectedRootLabels.indexOf("Добавить в список");
   for (let index = 0; index < listTriggerIndex; index += 1) await page.keyboard.press("ArrowDown");
-  const listTrigger = main.getByRole("menuitem", { name: "Добавить в список", exact: true });
+  const listTrigger = menu.getByRole("menuitem", { name: "Добавить в список", exact: true });
   assert(await listTrigger.evaluate((element) => document.activeElement === element), `${label} list submenu trigger is not keyboard reachable`);
-  await page.keyboard.press("ArrowRight");
-  const listMenu = detail.dialog.getByRole("menu", { name: `Списки желания «${wish.title}»`, exact: true });
-  await listMenu.waitFor({ state: "visible" });
-  assert(await listTrigger.getAttribute("aria-expanded") === "true", `${label} list submenu is not expanded`);
-  assert(await listTrigger.getAttribute("aria-controls") === await listMenu.getAttribute("id"), `${label} list submenu is not linked to its trigger`);
-  const listGeometry = await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
-  const listTriggerGeometry = await listTrigger.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+  const { listMenu } = await openOwnerWishListMenu(page, menu, wish, {
+    keyboard: true,
+    menuId: `wish-detail-action-lists-${wish.id}`,
   });
-  if (mobile) {
-    assert(
-      Math.abs(listGeometry.left - rootGeometry.left) <= 1
-        && Math.abs(listGeometry.top - rootGeometry.top) <= 1
-        && Math.abs(listGeometry.width - rootGeometry.width) <= 1,
-      `${label} mobile list submenu is not using the same drill-in lane`,
-    );
-  } else {
-    assert(
-      Math.abs(listGeometry.left - listTriggerGeometry.right + 8) <= 1
-        || Math.abs(listTriggerGeometry.left - listGeometry.right + 8) <= 1,
-      `${label} desktop list submenu does not use the reference 8px overlap`,
-    );
-  }
+  await expectFixedPopoverGeometry(listMenu, `${label} list submenu`);
+  await expectMenuFocus(page, listMenu, `${label} list submenu`);
   const options = listMenu.getByRole("menuitemcheckbox");
   const actualListLabels = (await options.allInnerTexts()).map(normalizeMenuLabel);
   const expectedListLabels = categoryLists.map((list) => list.title);
+  assert(await options.locator("img, .card-menu__list-thumb").count() === 0, `${label} list submenu renders wish imagery`);
+  const listOptionGeometry = await options.evaluateAll((items) => items.map((item) => {
+    const rect = item.getBoundingClientRect();
+    const title = item.querySelector(":scope > .card-menu__list-title");
+    const titleRect = title?.getBoundingClientRect();
+    return {
+      height: rect.height,
+      titleLeft: titleRect?.left ?? null,
+      titleRight: titleRect?.right ?? null,
+      rowLeft: rect.left,
+      rowRight: rect.right,
+      backgroundImage: getComputedStyle(item).backgroundImage,
+    };
+  }));
+  assert(listOptionGeometry.every((item) => item.backgroundImage === "none"), `${label} list submenu renders a background image`);
+  assert(
+    listOptionGeometry.every((item) => item.titleLeft !== null && item.titleLeft >= item.rowLeft && item.titleRight <= item.rowRight + 1),
+    `${label} list submenu titles overflow their choices`,
+  );
   assert(
     JSON.stringify(actualListLabels) === JSON.stringify(expectedListLabels),
     `${label} list submenu differs: ${actualListLabels.join(" | ")}`,
@@ -1530,11 +2442,8 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
       `${label} list "${list.title}" has the wrong checked state`,
     );
   }
-  const focusedListOption = listMenu.locator("[role='menuitemcheckbox'][aria-checked='true']").first();
-  if (await focusedListOption.count()) await waitForFocused(page, focusedListOption, `${label} selected list option`);
-  else if (await options.count()) await waitForFocused(page, options.first(), `${label} first list option`);
   if (mobile) {
-    await expectMobileTouchTargets(listMenu.locator(".card-menu__list-scroll"), `${label} list submenu`, { minHeight: 44 });
+    await expectMobileTouchTargets(options, `${label} list submenu`, { minHeight: 44 });
     await expectNoRootOverflow(page, `${label} list submenu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-lists.png" : "/tmp/rollapp-desktop-wish-detail-lists.png" });
@@ -1549,11 +2458,11 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   await waitForFocused(page, trigger, `${label} detail trigger after Escape`);
 
   await trigger.click();
-  const pointerMenu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  const pointerMenu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await pointerMenu.waitFor({ state: "visible" });
   if (mobile) {
     const viewport = page.viewportSize();
-    await page.mouse.click(viewport.width - 8, Math.min(viewport.height - 8, rootGeometry.bottom + 20));
+    await page.mouse.click(viewport.width - 8, viewport.height - 8);
   } else {
     await detail.dialog.locator(".wish-detail__media").click({ position: { x: 32, y: 32 } });
   }
@@ -1562,7 +2471,7 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   assert(await trigger.getAttribute("aria-expanded") === "false", `${label} outside dismissal left the trigger expanded`);
 
   await trigger.click();
-  const deleteMenu = detail.dialog.getByRole("menu", { name: `Действия с желанием «${wish.title}»`, exact: true });
+  const deleteMenu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await deleteMenu.getByRole("menuitem", { name: "Удалить", exact: true }).click();
   await deleteMenu.waitFor({ state: "detached" });
   const deleteDialog = page.getByRole("dialog", { name: `Удаление желания «${wish.title}»`, exact: true });
@@ -1580,8 +2489,15 @@ async function expectFulfilledActionContrast(page, dialog, label) {
   assert(await action.isEnabled(), `${label} fulfilled action is disabled`);
   const readState = () => action.evaluate((element) => {
     const parse = (value) => {
-      const numbers = value.match(/[\d.]+/g)?.map(Number) || [];
-      return { red: numbers[0] || 0, green: numbers[1] || 0, blue: numbers[2] || 0, alpha: numbers[3] ?? 1 };
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+      return { red, green, blue, alpha: alpha / 255 };
     };
     const blend = (front, back) => ({
       red: front.red * front.alpha + back.red * (1 - front.alpha),
@@ -1612,6 +2528,7 @@ async function expectFulfilledActionContrast(page, dialog, label) {
       backgroundColor: style.backgroundColor,
       outlineStyle: style.outlineStyle,
       outlineWidth: parseFloat(style.outlineWidth),
+      boxShadow: style.boxShadow,
       backgroundLuminance,
       contrast: (Math.max(foregroundLuminance, backgroundLuminance) + .05) / (Math.min(foregroundLuminance, backgroundLuminance) + .05),
     };
@@ -1642,7 +2559,10 @@ async function expectFulfilledActionContrast(page, dialog, label) {
   }
   assert(hoverState.hovered, `${label} completion action did not enter its hover state`);
   assert(focusState.focusVisible, `${label} completion action has no visible keyboard focus`);
-  assert(focusState.outlineStyle !== "none" && focusState.outlineWidth >= 2, `${label} completion action focus outline is missing`);
+  assert(
+    (focusState.outlineStyle !== "none" && focusState.outlineWidth >= 2) || focusState.boxShadow !== "none",
+    `${label} completion action focus ring is missing`,
+  );
   assert(disabledState.disabled, `${label} completion action did not enter its disabled state`);
   await action.hover();
   await page.waitForTimeout(240);
@@ -1679,6 +2599,123 @@ async function expectNoListEventDate(dialog, label) {
   assert((await dialog.locator('input[type="date"]').count()) === 0, `${label} still renders an event-date input`);
 }
 
+async function expectNoListCoverColor(dialog, label) {
+  assert((await dialog.getByText("Цвет обложки", { exact: true }).count()) === 0, `${label} still exposes cover-color copy`);
+  assert((await dialog.locator(".color-picker").count()) === 0, `${label} still renders the removed cover-color picker`);
+  for (const colorName of ["Коралловый", "Синий", "Лаймовый", "Солнечный", "Графитовый"]) {
+    assert((await dialog.getByRole("button", { name: colorName, exact: true }).count()) === 0, `${label} still exposes the ${colorName.toLowerCase()} cover-color choice`);
+  }
+}
+
+async function expectListPrivacySelect(page, dialog, label, { selectOption = null } = {}) {
+  const trigger = dialog.getByRole("combobox", { name: "Кто увидит" });
+  await trigger.waitFor({ state: "visible" });
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+  });
+  assert(await trigger.getAttribute("data-slot") === "select-trigger", `${label} does not use the official shadcn Select trigger`);
+  assert(await trigger.evaluate((element) => element.tagName === "BUTTON"), `${label} still uses a native select`);
+  const originalValue = (await trigger.innerText()).trim();
+  assert(["Все", "Подписчики", "Только по ссылке", "Только я"].includes(originalValue), `${label} has an unexpected privacy value: ${originalValue}`);
+  assert(Number.parseFloat(await trigger.evaluate((element) => getComputedStyle(element).fontSize)) >= 13, `${label} trigger text is smaller than 13px`);
+
+  await trigger.focus();
+  await trigger.press("Enter");
+  const listbox = page.getByRole("listbox");
+  await listbox.waitFor({ state: "visible" });
+  await listbox.evaluate(async (element) => {
+    const popup = element.closest("[data-slot='select-content']");
+    await Promise.all((popup?.parentElement || element).getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+  });
+  assert(await trigger.getAttribute("aria-expanded") === "true", `${label} trigger does not expose its expanded state`);
+  assert(await trigger.getAttribute("aria-controls") === await listbox.getAttribute("id"), `${label} listbox is not linked to its trigger`);
+  const options = listbox.getByRole("option");
+  assert(await options.count() === 4, `${label} must expose all four privacy options`);
+  assert(
+    JSON.stringify(await options.allInnerTexts()) === JSON.stringify(["Все", "Подписчики", "Только по ссылке", "Только я"]),
+    `${label} privacy options are missing or out of order`,
+  );
+  const visual = await listbox.evaluate((element) => {
+    const popup = element.closest("[data-slot='select-content']");
+    const positioner = popup?.parentElement;
+    const triggerElement = document.querySelector(`[aria-controls=${JSON.stringify(element.id)}]`);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const resolveColor = (value) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+      return { red, green, blue, alpha: alpha / 255 };
+    };
+    const blend = (foreground, background) => ({
+      red: (foreground.red * foreground.alpha) + (background.red * (1 - foreground.alpha)),
+      green: (foreground.green * foreground.alpha) + (background.green * (1 - foreground.alpha)),
+      blue: (foreground.blue * foreground.alpha) + (background.blue * (1 - foreground.alpha)),
+      alpha: 1,
+    });
+    const luminance = (color) => {
+      const channel = (value) => {
+        const normalized = value / 255;
+        return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+      };
+      return (.2126 * channel(color.red)) + (.7152 * channel(color.green)) + (.0722 * channel(color.blue));
+    };
+    const contrast = (foreground, background) => {
+      const foregroundLuminance = luminance(foreground);
+      const backgroundLuminance = luminance(background);
+      return (Math.max(foregroundLuminance, backgroundLuminance) + .05) / (Math.min(foregroundLuminance, backgroundLuminance) + .05);
+    };
+    const rect = (node) => {
+      const bounds = node.getBoundingClientRect();
+      return { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom, width: bounds.width, height: bounds.height };
+    };
+    const popupStyle = getComputedStyle(popup);
+    const popupBackground = resolveColor(popupStyle.backgroundColor);
+    return {
+      popup: rect(popup),
+      trigger: rect(triggerElement),
+      viewport: { width: innerWidth, height: innerHeight },
+      popupLuminance: luminance(popupBackground),
+      positionerZIndex: Number.parseFloat(getComputedStyle(positioner).zIndex),
+      options: [...element.querySelectorAll("[role='option']")].map((option) => {
+        const style = getComputedStyle(option);
+        const optionBackground = blend(resolveColor(style.backgroundColor), popupBackground);
+        const bounds = option.getBoundingClientRect();
+        const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+        return {
+          fontSize: Number.parseFloat(style.fontSize),
+          height: bounds.height,
+          contrast: contrast(resolveColor(style.color), optionBackground),
+          hittable: hit === option || option.contains(hit),
+        };
+      }),
+    };
+  });
+  assert(Math.abs(visual.popup.width - visual.trigger.width) <= 2, `${label} popup width does not match its trigger (${JSON.stringify({ popup: visual.popup, trigger: visual.trigger, viewport: visual.viewport })})`);
+  assert(visual.popup.left >= 4 && visual.popup.right <= visual.viewport.width - 4, `${label} popup escapes the viewport horizontally`);
+  assert(visual.popup.top >= 4 && visual.popup.bottom <= visual.viewport.height - 4, `${label} popup escapes the viewport vertically`);
+  assert(visual.popupLuminance <= .2, `${label} popup is not using the dark theme`);
+  assert(visual.positionerZIndex >= 250, `${label} popup is layered under the modal`);
+  assert(visual.options.every((option) => option.fontSize >= 13), `${label} contains an option smaller than 13px`);
+  assert(visual.options.every((option) => option.height >= 44), `${label} contains an option smaller than the 44px touch target`);
+  assert(visual.options.every((option) => option.contrast >= 4.5), `${label} contains an unreadable option`);
+  assert(visual.options.every((option) => option.hittable), `${label} contains an option covered by another layer`);
+
+  if (selectOption) {
+    await listbox.getByRole("option", { name: selectOption, exact: true }).click();
+    await listbox.waitFor({ state: "detached" });
+    assert((await trigger.innerText()).trim() === selectOption, `${label} did not commit ${selectOption}`);
+  } else {
+    await page.keyboard.press("Escape");
+    await listbox.waitFor({ state: "detached" });
+    assert((await trigger.innerText()).trim() === originalValue, `${label} changed its value after Escape`);
+  }
+  assert(await trigger.getAttribute("aria-expanded") === "false", `${label} trigger remains expanded after closing`);
+}
+
 async function expectCenteredAuthForm(page, label) {
   assert(await page.locator(".auth-art").count() === 0, `${label} still renders the removed promotional panel`);
   const geometry = await page.locator(".auth-form").evaluate((element) => {
@@ -1706,9 +2743,16 @@ try {
   await expectNoRootOverflow(guestRoot, "Desktop login page");
   await guestRoot.screenshot({ path: "/tmp/rollapp-desktop-login.png", fullPage: true });
   await expectUnauthenticatedDarkRoutes(guestRoot, "Desktop unauthenticated");
+  await guestRoot.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
+  await guestRoot.waitForURL((url) => url.pathname === "/login");
+  await guestRoot.getByRole("heading", { name: "Войти в Rollapp" }).waitFor();
 
   const loginResponse = await desktop.request.post(`${baseUrl}/api/auth/demo`, { data: {} });
   assert(loginResponse.ok(), `Demo login failed: ${loginResponse.status()}`);
+  const retiredIdeasApi = await desktop.request.get(`${baseUrl}/api/ideas`);
+  assert(retiredIdeasApi.status() === 404, `Retired ideas API should return 404, received ${retiredIdeasApi.status()}`);
+  const retiredIdeaSaveApi = await desktop.request.post(`${baseUrl}/api/ideas/idea-film/save`, { data: { listId: "retired" } });
+  assert(retiredIdeaSaveApi.status() === 404, `Retired idea-save API should return 404, received ${retiredIdeaSaveApi.status()}`);
 
   const dashboard = await desktop.newPage();
   await dashboard.goto(`${baseUrl}/app`, { waitUntil: "domcontentloaded" });
@@ -1717,11 +2761,13 @@ try {
   await dashboard.getByRole("heading", { name: "Мои желания" }).waitFor();
   assert(!(await dashboard.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible in the authenticated app");
   assert(await dashboard.locator(".sidebar").isVisible(), "Desktop app sidebar is not visible");
-  assert(await dashboard.locator(".sidebar__nav a").count() === 3, "Desktop app navigation should contain the three primary sections");
-  assert(await dashboard.locator(".mobile-bottom-nav a").count() === 3, "Mobile app navigation should contain the three primary sections");
+  assert(await dashboard.locator(".sidebar__nav a").count() === 2, "Desktop app navigation should contain the two primary sections");
+  assert(await dashboard.locator(".mobile-bottom-nav a").count() === 2, "Mobile app navigation should contain the two primary sections");
   await expectDarkPage(dashboard, "Desktop /app/wishes", [".app-layout--dark", ".app-main", ".app-page"]);
+  await expectSquareAppMain(dashboard, "Desktop /app/wishes");
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
   await expectNewListTile(dashboard, "Desktop new-list tile");
+  await expectWishCardsUnframed(dashboard, "Desktop owner wishes");
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
 
   await waitForAppRoute(dashboard, "/app/wishes");
@@ -1751,6 +2797,18 @@ try {
   await dashboard.keyboard.press("Escape");
   await desktopDetail.dialog.waitFor({ state: "detached" });
   assert(await desktopDetail.opener.evaluate((element) => document.activeElement === element), "Closing wish detail should restore focus to its card");
+  const outsideDismissedDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish outside dismissal");
+  const detailOverlay = dashboard.locator("[data-slot='dialog-overlay'][data-open]");
+  assert(
+    await detailOverlay.evaluate((element) => document.elementFromPoint(4, 4) === element),
+    "Desktop wish detail overlay is not hittable outside the Dialog",
+  );
+  await dashboard.mouse.click(4, 4);
+  await outsideDismissedDetail.dialog.waitFor({ state: "detached" });
+  assert(
+    await outsideDismissedDetail.opener.evaluate((element) => document.activeElement === element),
+    "Outside dismissal should restore focus to the wish card",
+  );
 
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
   await dashboard.waitForURL((url) => url.pathname === "/app/wishes");
@@ -1806,6 +2864,13 @@ try {
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wishes-390.png", fullPage: true });
       const mobileMenuDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
       assert(mobileMenuDashboardResponse.ok, `390px wish menu dashboard failed: ${mobileMenuDashboardResponse.status}`);
+      const mobileListButtons = mobilePage.locator('.wishes-page .list-tabs [data-slot="toggle-group-item"]');
+      if ((await mobileListButtons.count()) > 1) {
+        await mobileListButtons.nth(1).click();
+        await mobilePage.getByRole("button", { name: "Настройки списка", exact: true }).waitFor({ state: "visible" });
+        await expectWishHeaderActionsContained(mobilePage, "390px selected-list actions");
+        await mobileListButtons.first().click();
+      }
       const mobileCards = mobilePage.locator(".wish-card");
       const mobileMenuCard = mobileCards.nth((await mobileCards.count()) > 1 ? 1 : 0);
       const mobileMenuWish = await wishRecordForCard(mobileMenuCard, mobileMenuDashboardResponse.data, "390px owner wish menu");
@@ -1850,30 +2915,26 @@ try {
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-settings-390.png", fullPage: true });
   await expectFriendsRegression(mobilePage, "390px friends", { mobile: true });
 
-  await mobilePage.goto(`${baseUrl}/ideas`, { waitUntil: "domcontentloaded" });
-  await mobilePage.waitForURL((url) => url.pathname === "/app/ideas");
-  const authenticatedIdeaCard = mobilePage.locator(".ideas-page .idea-card").first();
-  await authenticatedIdeaCard.waitFor({ state: "visible" });
-  await expectMobileAppShell(mobilePage, "390px ideas redirect");
-  await expectDarkPage(mobilePage, "390px authenticated ideas redirect", [".app-layout--dark", ".app-main", ".app-page"]);
-  await authenticatedIdeaCard.locator(".idea-card__image > button").click();
-  const authenticatedIdeaDialog = mobilePage.getByRole("dialog", { name: "Диалог Rollapp" });
-  await expectDarkAuthenticatedModal(authenticatedIdeaDialog, "390px authenticated ideas save modal");
-  await authenticatedIdeaDialog.getByRole("button", { name: "Закрыть диалог" }).click();
-  await authenticatedIdeaDialog.waitFor({ state: "detached" });
+  for (const retiredPath of ["/ideas", "/app/ideas"]) {
+    await mobilePage.goto(`${baseUrl}${retiredPath}`, { waitUntil: "domcontentloaded" });
+    await mobilePage.waitForURL((url) => url.pathname === "/app/wishes");
+    await mobilePage.getByRole("heading", { name: "Мои желания" }).waitFor();
+    assert((await mobilePage.getByRole("link", { name: "Идеи", exact: true }).count()) === 0, `${retiredPath} left an Ideas navigation link behind`);
+  }
 
   await waitForAppRoute(mobilePage, "/app/wishes");
   await expectMobileAppShell(mobilePage, "/app/wishes");
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-app.png", fullPage: true });
 
   await mobilePage.getByRole("button", { name: "Открыть меню" }).click();
-  const drawer = mobilePage.locator("#app-sidebar.is-open");
+  const drawer = mobilePage.getByRole("dialog", { name: "Меню приложения", exact: true });
   await drawer.waitFor({ state: "visible" });
-  await expectDarkPage(mobilePage, "390px application drawer", [".app-layout--dark", ".app-main", "#app-sidebar.is-open"]);
+  assert(await drawer.getAttribute("data-mobile") === "true", "390px application drawer is not the Sidebar Sheet");
+  await expectDarkPage(mobilePage, "390px application drawer", [".app-layout--dark", ".app-main", "[data-sidebar='sidebar'][data-mobile='true']"]);
   await waitForStableLayout(mobilePage);
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-app-drawer.png" });
   await drawer.getByRole("button", { name: "Закрыть меню" }).click();
-  await mobilePage.waitForFunction(() => !document.querySelector("#app-sidebar")?.classList.contains("is-open"));
+  await drawer.waitFor({ state: "detached" });
 
   await mobilePage.getByRole("button", { name: "Добавить", exact: true }).click();
   const wishDialog = mobilePage.getByRole("dialog", { name: "Создание желания", exact: true });
@@ -1913,11 +2974,13 @@ try {
     const mobileListOptions = mobilePage.getByRole("button", { name: "Опции списка" });
     assert(await mobileListOptions.isVisible(), "Mobile owner profile does not expose list management");
     await mobileListOptions.click();
-    await mobilePage.getByRole("button", { name: "Редактировать список" }).click();
+    await mobilePage.getByRole("menuitem", { name: "Редактировать список", exact: true }).click();
     const mobileListDialog = mobilePage.getByRole("dialog", { name: `Настройки списка: ${mobileSourceList.title}` });
     await mobileListDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileListDialog, "390px list editor");
     await expectNoListEventDate(mobileListDialog, "390px list editor");
+    await expectNoListCoverColor(mobileListDialog, "390px list editor");
+    await expectListPrivacySelect(mobilePage, mobileListDialog, "390px list privacy select");
     await mobileListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
     await mobileListDialog.waitFor({ state: "detached" });
     const mobileOwnerCard = mobilePage.locator(".wish-card").filter({ hasText: mobileWishToMove.title }).first();
@@ -1928,8 +2991,11 @@ try {
     await expectDarkAuthenticatedModal(mobileOwnerDetail, "390px profile owner wish detail");
     const mobileListTrigger = mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\./ });
     await mobileListTrigger.click();
-    const mobileListPicker = mobileOwnerDetail.getByRole("menu", { name: `Списки желания «${mobileWishToMove.title}»`, exact: true });
+    const mobileListPicker = mobilePage.locator(`[id=${JSON.stringify(`wish-detail-lists-${mobileWishToMove.id}`)}]`);
     await mobileListPicker.waitFor({ state: "visible" });
+    assert(await mobileListPicker.getAttribute("role") === "menu", "Quick list picker does not expose role=menu");
+    assert(await mobileListPicker.getAttribute("data-slot") === "dropdown-menu-content", "Quick list picker is not official DropdownMenu content");
+    assert(await mobileListTrigger.getAttribute("aria-controls") === await mobileListPicker.getAttribute("id"), "Quick list picker is not linked to its trigger");
     assert((await mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileWishToMove.title}»`, exact: true }).count()) === 0, "Quick list switch unexpectedly opened the full wish editor");
     assert(await mobileListTrigger.getAttribute("aria-expanded") === "true", "Quick list trigger did not expose its expanded state");
     assert(await mobileListPicker.getByRole("menuitem", { name: "Новый список", exact: true }).isVisible(), "Quick list picker does not expose new-list creation");
@@ -1939,29 +3005,11 @@ try {
     const mobileTargetChoice = mobileListPicker.getByRole("menuitemcheckbox", { name: mobileTargetList.title, exact: true });
     assert(await mobileSourceChoice.getAttribute("aria-checked") === "true", "Current wish list is not checked in the quick picker");
     assert(await mobileTargetChoice.getAttribute("aria-checked") === "false", "Unselected wish list is incorrectly checked in the quick picker");
-    await expectMobileTouchTargets(mobileListPicker.locator(".card-menu__list-scroll"), "390px wish quick-list picker", { minHeight: 44 });
-    const mobilePickerGeometry = await mobileListPicker.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return {
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-        width: rect.width,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-      };
-    });
-    assert(mobilePickerGeometry.width <= 280.5, `Quick list picker is wider than the reference (${mobilePickerGeometry.width}px)`);
-    assert(mobilePickerGeometry.left >= 9 && mobilePickerGeometry.right <= mobilePickerGeometry.viewportWidth - 9, "Quick list picker escapes the mobile viewport horizontally");
-    assert(mobilePickerGeometry.top >= 0 && mobilePickerGeometry.bottom <= mobilePickerGeometry.viewportHeight, "Quick list picker escapes the mobile viewport vertically");
+    await expectMobileTouchTargets(mobileListPicker.getByRole("menuitemcheckbox"), "390px wish quick-list picker", { minHeight: 44 });
+    await expectFixedPopoverGeometry(mobileListPicker, "390px wish quick-list picker");
     await mobilePage.setViewportSize({ width: 844, height: 390 });
-    const landscapePickerGeometry = await mobileListPicker.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, viewportWidth: window.innerWidth, viewportHeight: window.innerHeight };
-    });
-    assert(landscapePickerGeometry.left >= 5 && landscapePickerGeometry.right <= landscapePickerGeometry.viewportWidth - 5, "Quick list picker escapes the landscape viewport horizontally");
-    assert(landscapePickerGeometry.top >= 5 && landscapePickerGeometry.bottom <= landscapePickerGeometry.viewportHeight - 5, "Quick list picker escapes the landscape viewport vertically");
+    await waitForStableLayout(mobilePage);
+    await expectFixedPopoverGeometry(mobileListPicker, "844x390 wish quick-list picker");
     await mobilePage.setViewportSize({ width: 390, height: 844 });
     const mobileRemoveResponsePromise = mobilePage.waitForResponse((response) => (
       response.request().method() === "PATCH"
@@ -2099,6 +3147,13 @@ try {
   await tabletOwnerDetail.dialog.waitFor({ state: "detached" });
   await waitForAppRoute(tabletAppPage, "/app/wishes");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-app-768.png", fullPage: true });
+  await tabletAppPage.setViewportSize({ width: 814, height: 900 });
+  await expectWishGridContained(tabletAppPage, "814px wishes grid", 2);
+  await expectNoRootOverflow(tabletAppPage, "814px wishes grid");
+  await tabletAppPage.setViewportSize({ width: 842, height: 900 });
+  await expectWishGridContained(tabletAppPage, "842px wishes grid", 3);
+  await expectSquareAppMain(tabletAppPage, "842px wishes grid");
+  await expectNoRootOverflow(tabletAppPage, "842px wishes grid");
   await tabletApp.close();
 
   const publicMobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: "light" });
@@ -2150,6 +3205,7 @@ try {
   assert(await publicMobilePage.locator(".wish-card").count() > 0, "A public list deep link did not render its wishes");
   await publicMobilePage.reload({ waitUntil: "domcontentloaded" });
   await publicMobilePage.locator(".public-wishes-head h2").filter({ hasText: directList.title }).waitFor({ state: "visible" });
+  await expectWishCardsUnframed(publicMobilePage, "390px public wishes");
   const listPath = `/alisa/lists/${directList.id}`;
   const listCard = publicMobilePage.locator(".wish-card").first();
   const listWishTitle = (await listCard.locator("h3").innerText()).trim();
@@ -2174,21 +3230,31 @@ try {
 
   await publicMobilePage.goto(`${baseUrl}/alisa/wishes/not-a-real-wish`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.getByRole("heading", { name: "Желание не найдено" }).waitFor({ state: "visible" });
-  assert(await publicMobilePage.getByRole("link", { name: "Вернуться к профилю" }).getAttribute("href") === "/alisa", "Invalid wish return link is not canonical");
+  const invalidWishReturn = publicMobilePage.getByRole("button", { name: "Вернуться к профилю", exact: true });
+  assert(
+    await invalidWishReturn.evaluate((element) => element.tagName === "A")
+    && await invalidWishReturn.getAttribute("data-slot") === "button"
+    && await invalidWishReturn.getAttribute("href") === "/alisa",
+    "Invalid wish return action is not a canonical link rendered with the official Button",
+  );
   await publicMobilePage.goto(`${baseUrl}/alisa/lists/not-a-real-list`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.getByRole("heading", { name: "Список не найден" }).waitFor({ state: "visible" });
-  assert(await publicMobilePage.getByRole("link", { name: "Вернуться к профилю" }).getAttribute("href") === "/alisa", "Invalid list return link is not canonical");
+  const invalidListReturn = publicMobilePage.getByRole("button", { name: "Вернуться к профилю", exact: true });
+  assert(
+    await invalidListReturn.evaluate((element) => element.tagName === "A")
+    && await invalidListReturn.getAttribute("data-slot") === "button"
+    && await invalidListReturn.getAttribute("href") === "/alisa",
+    "Invalid list return action is not a canonical link rendered with the official Button",
+  );
   await publicMobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.locator(".public-profile.is-guest").waitFor({ state: "visible" });
   assert(await publicMobilePage.locator('a[href^="/u/"], a[href^="/users/"]').count() === 0, "Public profile still renders legacy profile links");
   await publicMobilePage.locator(".profile-mobile-menu").click();
-  const publicMenu = publicMobilePage.locator("#profile-mobile-navigation.is-open");
+  const publicMenu = publicMobilePage.getByRole("dialog", { name: "Меню профиля", exact: true });
   await publicMenu.waitFor({ state: "visible" });
-  await publicMobilePage.waitForFunction(() => {
-    const rect = document.querySelector("#profile-mobile-navigation.is-open")?.getBoundingClientRect();
-    return rect && Math.abs(window.innerHeight - rect.bottom) <= 1;
-  });
-  await expectDarkPage(publicMobilePage, "390px public profile menu", [".public-profile--dark", "#profile-mobile-navigation.is-open"]);
+  assert(await publicMenu.getAttribute("id") === "profile-mobile-navigation", "390px public profile menu lost its stable Sheet id");
+  assert(await publicMenu.getAttribute("data-slot") === "sheet-content", "390px public profile menu is not official Sheet content");
+  await expectDarkPage(publicMobilePage, "390px public profile menu", [".public-profile--dark", "#profile-mobile-navigation"]);
   await waitForStableLayout(publicMobilePage);
   const publicMenuGeometry = await publicMenu.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -2196,8 +3262,14 @@ try {
   });
   assert(publicMenuGeometry.top <= 1 && publicMenuGeometry.bottom <= 1 && Math.abs(publicMenuGeometry.width - 390) <= 1, "390px public profile menu is not a full-screen mobile sheet");
   await publicMobilePage.screenshot({ path: "/tmp/rollapp-public-profile-390-menu.png" });
-  await publicMenu.getByRole("button", { name: "Закрыть меню" }).click();
-  await publicMenu.waitFor({ state: "hidden" });
+  const publicMenuClose = publicMenu.getByRole("button", { name: "Закрыть меню" });
+  assert(await publicMenuClose.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hit === element || element.contains(hit);
+  }), "390px public profile Sheet close action is covered");
+  await publicMenuClose.click();
+  await publicMenu.waitFor({ state: "detached" });
   await publicMobilePage.evaluate(() => window.scrollTo(0, 300));
   await publicMobilePage.waitForFunction(() => document.querySelector(".profile-header")?.classList.contains("is-compact"));
   assert(await publicMobilePage.locator(".profile-header__compact").isVisible(), "390px public profile compact header is not visible after scrolling");
@@ -2299,16 +3371,22 @@ try {
   await expectDarkPage(ownerWidePage, "Desktop shared owner profile", [".public-profile--dark", ".public-profile__layout > main"]);
   await ownerWidePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
-  await ownerWidePage.locator(".profile-desktop-menu").click();
-  await ownerWidePage.locator(".profile-desktop-panel.is-open").waitFor({ state: "visible" });
-  assert(!(await ownerWidePage.locator("body").evaluate((element) => element.classList.contains("profile-menu-open"))), "Desktop account menu should not lock page scrolling");
+  const profileMenuTrigger = ownerWidePage.locator(".profile-desktop-menu");
+  await profileMenuTrigger.click();
+  const profileMenu = ownerWidePage.locator(".profile-desktop-panel");
+  await profileMenu.waitFor({ state: "visible" });
+  assert(await profileMenu.getAttribute("role") === "menu", "Desktop account popup does not expose role=menu");
+  assert(await profileMenuTrigger.getAttribute("aria-controls") === await profileMenu.getAttribute("id"), "Desktop account popup is not linked to its trigger");
+  assert(await ownerWidePage.locator("body").evaluate((element) => getComputedStyle(element).overflow !== "hidden"), "Desktop account menu should not lock page scrolling");
   await ownerWidePage.locator(".public-wishes-head h2").click();
-  await ownerWidePage.waitForFunction(() => !document.querySelector(".profile-desktop-panel")?.classList.contains("is-open"));
+  await profileMenu.waitFor({ state: "detached" });
   await ownerWidePage.getByRole("button", { name: "Создать новый список" }).click();
   const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка" });
   await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
   await expectDarkAuthenticatedModal(ownerListDialog, "Desktop create-list modal");
   await expectNoListEventDate(ownerListDialog, "Desktop create-list modal");
+  await expectNoListCoverColor(ownerListDialog, "Desktop create-list modal");
+  await expectListPrivacySelect(ownerWidePage, ownerListDialog, "Desktop create-list privacy select");
   await ownerListDialog.getByLabel("Название").fill("Smoke list");
   await ownerListDialog.getByLabel("Описание").fill("Проверка полного цикла списка");
   const createListResponsePromise = ownerWidePage.waitForResponse((response) => (
@@ -2318,41 +3396,70 @@ try {
   const createListResponse = await createListResponsePromise;
   assert(createListResponse.ok(), `List creation failed: ${createListResponse.status()}`);
   const createdList = (await createListResponse.json()).list;
+  assert(createdList.color === "coral", `List creation did not retain the server default color: ${createdList.color}`);
   await ownerListDialog.waitFor({ state: "detached" });
   await ownerWidePage.waitForURL((url) => url.pathname === `/alisa/lists/${createdList.id}`);
   await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list" }).waitFor({ state: "visible" });
   await ownerWidePage.getByRole("button", { name: "Опции списка" }).click();
-  await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
+  await ownerWidePage.getByRole("menuitem", { name: "Редактировать список", exact: true }).click();
   const editListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list" });
   await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(editListDialog, "Desktop edit-list modal");
   await expectNoListEventDate(editListDialog, "Desktop edit-list modal");
+  await expectNoListCoverColor(editListDialog, "Desktop edit-list modal");
   await editListDialog.getByLabel("Название").fill("Smoke list edited");
-  await editListDialog.getByLabel("Кто увидит").selectOption("private");
+  await expectListPrivacySelect(ownerWidePage, editListDialog, "Desktop edit-list privacy select", { selectOption: "Только я" });
   const editListResponsePromise = ownerWidePage.waitForResponse((response) => (
     response.request().method() === "PATCH" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
   ));
   await editListDialog.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
   const editListResponse = await editListResponsePromise;
   assert(editListResponse.ok(), `List editing failed: ${editListResponse.status()}`);
+  const editedList = (await editListResponse.json()).list;
+  assert(editedList.color === createdList.color, `List editing changed the preserved cover color from ${createdList.color} to ${editedList.color}`);
   await editListDialog.waitFor({ state: "detached" });
   await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).waitFor({ state: "visible" });
   await ownerWidePage.locator(".public-wishes-head .button").filter({ hasText: "Поделиться" }).click();
   await ownerWidePage.getByText("Приватный список виден только вам", { exact: true }).waitFor({ state: "visible" });
   await ownerWidePage.getByRole("button", { name: "Опции списка" }).click();
-  await ownerWidePage.getByRole("button", { name: "Редактировать список" }).click();
+  await ownerWidePage.getByRole("menuitem", { name: "Редактировать список", exact: true }).click();
   const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list edited" });
   await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(deleteListDialog, "Desktop delete-list modal");
   await expectNoListEventDate(deleteListDialog, "Desktop delete-list modal");
-  ownerWidePage.once("dialog", (dialog) => dialog.accept());
+  await expectNoListCoverColor(deleteListDialog, "Desktop delete-list modal");
+  const deleteListDialogId = await deleteListDialog.getAttribute("id");
+  assert(deleteListDialogId, "List editor Dialog does not expose a stable Base UI id");
+  await deleteListDialog.getByRole("button", { name: "Удалить", exact: true }).click();
+  const deleteListConfirmation = ownerWidePage.getByRole("alertdialog", { name: "Удалить «Smoke list edited»?", exact: true });
+  await deleteListConfirmation.waitFor({ state: "visible" });
+  assert(
+    await deleteListConfirmation.getAttribute("data-slot") === "alert-dialog-content",
+    "List deletion confirmation is not official AlertDialog content",
+  );
+  assert(
+    await deleteListConfirmation.locator("[data-slot='alert-dialog-title']").getByText("Удалить «Smoke list edited»?", { exact: true }).count() === 1,
+    "List deletion confirmation does not expose an official AlertDialogTitle",
+  );
+  assert(
+    await deleteListConfirmation.locator("[data-slot='alert-dialog-description']").count() === 1,
+    "List deletion confirmation does not expose an official AlertDialogDescription",
+  );
+  const mountedDeleteListDialog = ownerWidePage.locator(`[id=${JSON.stringify(deleteListDialogId)}]`);
+  assert(await mountedDeleteListDialog.isVisible(), "Opening list deletion confirmation unmounted the list editor");
+  const deleteListAction = deleteListConfirmation.getByRole("button", { name: "Удалить", exact: true });
+  assert(
+    await deleteListAction.getAttribute("data-slot") === "alert-dialog-action",
+    "List deletion confirmation does not use the official AlertDialogAction",
+  );
   const deleteListResponsePromise = ownerWidePage.waitForResponse((response) => (
     response.request().method() === "DELETE" && new URL(response.url()).pathname === `/api/lists/${createdList.id}`
   ));
-  await deleteListDialog.getByRole("button", { name: "Удалить", exact: true }).click();
+  await deleteListAction.click();
   const deleteListResponse = await deleteListResponsePromise;
   assert(deleteListResponse.ok(), `List deletion failed: ${deleteListResponse.status()}`);
-  await deleteListDialog.waitFor({ state: "detached" });
+  await deleteListConfirmation.waitFor({ state: "detached" });
+  await mountedDeleteListDialog.waitFor({ state: "detached" });
   await ownerWidePage.waitForURL((url) => url.pathname === "/alisa");
   assert((await ownerWidePage.locator(".profile-list-rail__lists > button").filter({ hasText: "Smoke list edited" }).count()) === 0, "Deleted list is still visible in the owner rail");
   await ownerWidePage.getByRole("button", { name: "Загадать желание" }).click();
@@ -2402,7 +3509,7 @@ try {
       await ownerWidePage.waitForTimeout(100);
       assert(wishPatchRequests.length === 0, "Changing draft list rows sent a PATCH before Save");
 
-      const saveDraft = listMenu.getByRole("menuitem", { name: "Сохранить", exact: true });
+      const saveDraft = listMenu.getByRole("menuitem", { name: "Сохранить списки", exact: true });
       await saveDraft.waitFor({ state: "visible" });
       const updateResponsePromise = ownerWidePage.waitForResponse((response) => (
         response.request().method() === "PATCH"
@@ -2534,31 +3641,54 @@ try {
     await expectWishEditorLayout(editorDialog, "1912px disposable desktop wish editor");
     const createListFromEditor = editorDialog.getByRole("button", { name: "Новый список", exact: true });
     assert(await createListFromEditor.isVisible(), "Desktop wish editor does not expose list creation");
+    const editorDialogId = await editorDialog.getAttribute("id");
+    assert(editorDialogId, "Disposable wish editor Dialog does not expose a stable Base UI id");
+    const mountedEditorDialog = ownerWidePage.locator(`[id=${JSON.stringify(editorDialogId)}]`);
 
     const draftProbeTitle = `${initialTitle} · draft`;
-    const draftProbeInput = editorDialog.getByLabel("Название", { exact: true });
+    const draftProbeInput = mountedEditorDialog.getByLabel("Название", { exact: true });
     assert(await draftProbeInput.inputValue() === initialTitle, "Disposable editor did not prefill the wish title");
     await draftProbeInput.fill(draftProbeTitle);
     await createListFromEditor.click();
     const nestedListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка", exact: true });
     await nestedListDialog.waitFor({ state: "visible" });
-    assert(await editorDialog.isVisible(), "Opening list creation unmounted the wish editor");
+    await expectNoListCoverColor(nestedListDialog, "Nested create-list modal");
+    assert(await mountedEditorDialog.isVisible(), "Opening list creation unmounted the wish editor");
     assert(await draftProbeInput.inputValue() === draftProbeTitle, "Opening list creation discarded the wish editor draft");
     await nestedListDialog.getByRole("button", { name: "Отмена", exact: true }).click();
     await nestedListDialog.waitFor({ state: "detached" });
     assert(await editorDialog.isVisible(), "Cancelling list creation did not return to the wish editor");
     assert(await draftProbeInput.inputValue() === draftProbeTitle, "Cancelling list creation discarded the wish editor draft");
     assert(
-      await ownerWidePage.locator("body").evaluate((element) => element.classList.contains("modal-open")),
-      "Closing a stacked list modal unlocked the page while the wish editor remained open",
+      await editorDialog.getAttribute("data-slot") === "dialog-content"
+      && await editorDialog.locator("[data-slot='dialog-title']").count() === 1,
+      "Wish editor does not remain official Dialog content after closing its nested dialog",
+    );
+    assert(
+      await ownerWidePage.locator("body").evaluate((element) => getComputedStyle(element).overflow === "hidden"),
+      "Closing a stacked list dialog unlocked the page while the wish editor remained open",
     );
 
     const sourceChoice = editorDialog.locator(".wish-editor__list-row").filter({ hasText: sourceList.title });
     const targetChoice = editorDialog.locator(".wish-editor__list-row").filter({ hasText: targetList.title });
-    assert(await sourceChoice.locator("input[type='checkbox']").isChecked(), "Disposable editor wish did not preselect its source list");
-    assert(!(await targetChoice.locator("input[type='checkbox']").isChecked()), "Disposable editor wish unexpectedly preselected its target list");
-    await sourceChoice.click();
-    await targetChoice.click();
+    const sourceSwitch = sourceChoice.getByRole("switch", { name: sourceList.title, exact: true });
+    const targetSwitch = targetChoice.getByRole("switch", { name: targetList.title, exact: true });
+    assert(await sourceSwitch.count() === 1 && await targetSwitch.count() === 1, "Disposable editor list rows do not expose official switches");
+    assert(
+      await sourceSwitch.getAttribute("data-slot") === "switch"
+      && await targetSwitch.getAttribute("data-slot") === "switch",
+      "Disposable editor list rows do not use official Switch controls",
+    );
+    assert(await sourceSwitch.getAttribute("aria-checked") === "true", "Disposable editor wish did not preselect its source list");
+    assert(await targetSwitch.getAttribute("aria-checked") === "false", "Disposable editor wish unexpectedly preselected its target list");
+    await sourceSwitch.click();
+    await targetChoice.locator(".wish-editor__list-title").click();
+    assert(await sourceSwitch.getAttribute("aria-checked") === "false", "Disposable editor source list switch did not clear");
+    assert(await targetSwitch.getAttribute("aria-checked") === "true", "Disposable editor target list switch did not select");
+    await targetSwitch.press("Space");
+    assert(await targetSwitch.getAttribute("aria-checked") === "false", "Disposable editor target list switch did not respond to Space");
+    await targetSwitch.press("Space");
+    assert(await targetSwitch.getAttribute("aria-checked") === "true", "Disposable editor target list switch did not restore via Space");
 
     assert(
       await editorDialog.locator("input[type='file'][accept*='image/jpeg']").count() === 1,
@@ -2649,6 +3779,12 @@ try {
     await ownerWidePage.locator(".public-profile.is-owner").waitFor({ state: "visible" });
     const updatedEditorCard = ownerWidePage.locator(".wish-card").filter({ hasText: editedTitle }).first();
     await updatedEditorCard.waitFor({ state: "visible" });
+    await updatedEditorCard.getByRole("button", { name: `Открыть желание «${editedTitle}»`, exact: true }).click();
+    const updatedEditorDetail = ownerWidePage.getByRole("dialog", { name: `Желание: ${editedTitle}`, exact: true });
+    await updatedEditorDetail.waitFor({ state: "visible" });
+    await expectStandaloneBuyAction(updatedEditorDetail, editedUrl, "Disposable wish buy action");
+    await updatedEditorDetail.getByRole("button", { name: "Закрыть диалог" }).click();
+    await updatedEditorDetail.waitFor({ state: "detached" });
     const updatedEditorMenu = await openOwnerWishCardMenu(ownerWidePage, updatedEditorCard, updatedEditorWish);
     await updatedEditorMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
     const deleteEditorDialog = ownerWidePage.getByRole("dialog", { name: `Редактирование желания «${editedTitle}»`, exact: true });

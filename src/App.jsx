@@ -1,19 +1,50 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, AtSign, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, EyeOff, Flame, Gift, Hand, Heart, Image, Link2, ListPlus,
+  Archive, ArrowLeft, ArrowRight, AtSign, Bell, CalendarDays, Check, CheckCircle2, ChevronDown,
+  CircleUserRound, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Mail, Menu, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   RotateCcw, Search, Settings, Share2, Sparkles, Star, Trash2, Upload, UserPlus,
-  Users, WandSparkles, X,
+  Users, X,
 } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button as ShadcnButton } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarInset, SidebarMenu,
+  SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
 const APP_HOME = "/app/wishes";
-const modalStack = [];
 
 const formatMoney = (value, currency = "RUB") => value == null ? "Цена не указана" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const formatDate = (value, options = {}) => value ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", ...options }).format(new Date(value)) : "Без даты";
@@ -30,6 +61,7 @@ const formatCountdown = (seconds) => {
 };
 const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
 const WISH_CURRENCY_SYMBOLS = { RUB: "₽", USD: "$", EUR: "€", KZT: "₸", BYN: "Br" };
+const LIST_PRIVACY_LABELS = { public: "Все", followers: "Подписчики", link: "Только по ссылке", private: "Только я" };
 const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
 const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 const wishFormFrom = (wish) => ({
@@ -87,18 +119,22 @@ function useAsync(load, dependencies = []) {
 }
 
 function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
   const show = useCallback((message, tone = "default") => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((items) => [...items, { id, message, tone }]);
-    window.setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 3500);
+    if (tone === "error") return sonnerToast.error(message);
+    if (tone === "success") return sonnerToast.success(message);
+    return sonnerToast(message);
   }, []);
   return (
     <ToastContext.Provider value={show}>
       {children}
-      <div className="toast-stack" aria-live="polite">
-        {toasts.map((toast) => <div key={toast.id} className={`toast toast--${toast.tone}`}><CheckCircle2 size={17} />{toast.message}</div>)}
-      </div>
+      <Toaster
+        theme="dark"
+        position="bottom-left"
+        offset={16}
+        mobileOffset={{ bottom: "calc(96px + env(safe-area-inset-bottom))", left: 12, right: 12 }}
+        richColors
+        closeButton
+      />
     </ToastContext.Provider>
   );
 }
@@ -133,48 +169,26 @@ function Logo({ compact = false }) {
 
 function Avatar({ user, size = "md", className = "" }) {
   const avatarUrl = user?.avatarUrl || user?.avatar_url || "";
-  const [imageError, setImageError] = useState(false);
-  useEffect(() => { setImageError(false); }, [avatarUrl]);
-  return avatarUrl && !imageError
-    ? <img className={`avatar avatar--${size} ${className}`} src={avatarUrl} alt="" onError={() => setImageError(true)} />
-    : <span className={`avatar avatar--${size} avatar--fallback ${className}`}>{initials(user?.name)}</span>;
+  const shadcnSize = size === "sm" ? "sm" : size === "xl" ? "xl" : "default";
+  return (
+    <ShadcnAvatar size={shadcnSize} className={`avatar avatar--${size} ${className}`}>
+      {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
+      <AvatarFallback className="avatar--fallback">{initials(user?.name)}</AvatarFallback>
+    </ShadcnAvatar>
+  );
 }
 
 function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
-  return <button className={`button button--${variant} ${className}`} disabled={loading || props.disabled} {...props}>{loading ? <LoaderCircle className="spin" size={18} /> : Icon ? <Icon size={18} /> : null}<span>{children}</span></button>;
+  const shadcnVariant = { primary: "default", soft: "secondary", reserved: "secondary" }[variant] || variant;
+  return <ShadcnButton variant={shadcnVariant} className={`button button--${variant} ${className}`} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner /> : Icon ? <Icon size={18} /> : null}<span>{children}</span></ShadcnButton>;
 }
 
 function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
-  return <div className="empty-state"><span className="empty-state__icon"><Icon size={28} /></span><h3>{title}</h3><p>{text}</p>{action}</div>;
+  return <Empty className="empty-state"><EmptyHeader><EmptyMedia className="empty-state__icon" variant="icon"><Icon size={28} /></EmptyMedia><EmptyTitle><h3>{title}</h3></EmptyTitle><EmptyDescription><p>{text}</p></EmptyDescription></EmptyHeader>{action && <EmptyContent>{action}</EmptyContent>}</Empty>;
 }
 
 function LoadingScreen({ compact = false }) {
-  return <div className={compact ? "inline-loader" : "page-loader"}><span className="gift-loader"><Gift size={22} /></span><span>Собираем желания…</span></div>;
-}
-
-function LandingHeader() {
-  const { user } = useSession();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = (event) => event.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", close);
-    document.body.classList.add("nav-open");
-    return () => { document.removeEventListener("keydown", close); document.body.classList.remove("nav-open"); };
-  }, [open]);
-  return (
-    <header className="landing-header">
-      <Logo />
-      <nav id="landing-navigation" className={open ? "landing-nav is-open" : "landing-nav"}>
-        <Link to={user ? "/app/wishes" : "/login?next=%2Fapp%2Fwishes"} onClick={() => setOpen(false)}>Мои желания</Link><Link to={user ? "/app/friends" : "/login?next=%2Fapp%2Ffriends"} onClick={() => setOpen(false)}>Друзья</Link><Link to="/ideas" onClick={() => setOpen(false)}>Идеи подарков</Link>
-        <div className="landing-nav__mobile-actions">{user ? <Link className="button button--primary" to={APP_HOME} onClick={() => setOpen(false)}><span>Открыть мой вишлист</span></Link> : <><Link className="button button--primary" to="/register" onClick={() => setOpen(false)}><span>Создать вишлист</span></Link><Link className="button button--outline" to="/login" onClick={() => setOpen(false)}><span>Войти</span></Link></>}</div>
-      </nav>
-      <div className="landing-header__actions">
-        {user ? <Link className="button button--primary" to={APP_HOME}><span>Мой вишлист</span><ArrowRight size={18} /></Link> : <><Link className="text-link desktop-only" to="/login">Войти</Link><Link className="button button--primary" to="/register"><span>Создать вишлист</span></Link></>}
-      </div>
-      <button className="mobile-menu" onClick={() => setOpen(!open)} aria-label={open ? "Закрыть меню" : "Открыть меню"} aria-expanded={open} aria-controls="landing-navigation">{open ? <X /> : <Menu />}</button>
-    </header>
-  );
+  return <div className={compact ? "inline-loader" : "page-loader"}><Spinner className="gift-loader" /><span>Собираем желания…</span></div>;
 }
 
 function RootRoute() {
@@ -320,7 +334,7 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
     return <>
       <label htmlFor={`${fieldId}-phone`}>
         <span>Номер телефона</span>
-        <input
+        <Input
           ref={flow.phoneInputRef}
           id={`${fieldId}-phone`}
           data-modal-initial-focus={initialFocus ? "" : undefined}
@@ -347,11 +361,11 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
   return <>
     <div className="phone-otp__summary" id={codeHintId}>
       <span><Phone aria-hidden="true" /><span>Код отправлен на <strong>{flow.phoneMasked}</strong></span></span>
-      <button type="button" disabled={flow.loading} onClick={flow.changePhone}>Изменить</button>
+      <ShadcnButton variant="ghost" size="sm" type="button" disabled={flow.loading} onClick={flow.changePhone}>Изменить</ShadcnButton>
     </div>
     <label htmlFor={`${fieldId}-code`}>
       <span>Код из SMS</span>
-      <input
+      <Input
         ref={flow.codeInputRef}
         id={`${fieldId}-code`}
         className="phone-otp__code"
@@ -372,9 +386,9 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
     </label>
     {flow.error && <p id={phoneErrorId} className="phone-otp__error" role="alert">{flow.error}</p>}
     <Button type="submit" loading={flow.loading} className="auth-submit">{verifyLabel}</Button>
-    <button className="phone-otp__resend" type="button" disabled={flow.loading || !readyToResend} onClick={flow.requestCode}>
+    <ShadcnButton variant="link" className="phone-otp__resend" type="button" disabled={flow.loading || !readyToResend} onClick={flow.requestCode}>
       {readyToResend ? "Отправить код снова" : `Отправить снова через ${formatCountdown(flow.retrySeconds)}`}
-    </button>
+    </ShadcnButton>
     <span className="visually-hidden" aria-live="polite">{readyToResend ? "Код можно отправить снова" : ""}</span>
   </>;
 }
@@ -452,7 +466,6 @@ function AuthPage({ mode }) {
   return (
     <div className="auth-page">
       <div className="auth-panel">
-        <Link className="auth-back" to="/ideas"><ArrowLeft size={17} /> Идеи подарков</Link>
         <form className="auth-form" aria-busy={!phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={usingPhone ? phoneFlow.submit : submitCredentials}>
           <div>
             <span className="eyebrow">{usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : mode === "register" ? "Новый аккаунт" : "С возвращением"}</span>
@@ -464,16 +477,16 @@ function AuthPage({ mode }) {
             : usingPhone
             ? <PhoneOtpFields flow={phoneFlow} />
             : <>
-              {mode === "register" && <label><span>Как вас зовут</span><input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}
-              <label><span>Email</span><input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></label>
-              <label><span>Пароль</span><input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></label>
+              {mode === "register" && <label><span>Как вас зовут</span><Input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}
+              <label><span>Email</span><Input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></label>
+              <label><span>Пароль</span><Input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></label>
               <Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button>
             </>}
           {mode === "login" && phoneConfigLoaded && phoneEnabled && (
-            <button className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
+            <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
               {usingPhone ? <Mail aria-hidden="true" /> : <Phone aria-hidden="true" />}
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
-            </button>
+            </ShadcnButton>
           )}
           <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p>
         </form>
@@ -484,89 +497,109 @@ function AuthPage({ mode }) {
 
 const shellNav = [
   { to: "/app/wishes", icon: Heart, label: "Мои желания" },
-  { to: "/app/ideas", icon: Sparkles, label: "Идеи" },
   { to: "/app/friends/subscriptions", icon: Users, label: "Друзья" },
 ];
 
 function FriendsTopbar({ unreadCount, onLogout }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const accountRef = useRef(null);
-  const menuButtonRef = useRef(null);
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") return;
-      if (event.type === "pointerdown" && accountRef.current?.contains(event.target)) return;
-      setMenuOpen(false);
-      if (event.type === "keydown") window.requestAnimationFrame(() => menuButtonRef.current?.focus());
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [menuOpen]);
-
   return (
     <header className="friends-topbar">
       <nav className="friends-topbar__dock" aria-label="Основные разделы">
-        <NavLink to="/app/ideas" aria-label="Идеи" title="Идеи"><Flame fill="currentColor" /></NavLink>
         <NavLink to="/app/wishes" aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></NavLink>
         <Link className="active" to="/app/friends/subscriptions" aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
         <Link className="friends-topbar__search" to="/app/friends/search" aria-label="Найти друзей" title="Найти друзей"><Search /></Link>
       </nav>
-      <div className="friends-topbar__account" ref={accountRef}>
-        <button ref={menuButtonRef} type="button" className="friends-topbar__menu" aria-label={menuOpen ? "Закрыть меню аккаунта" : "Открыть меню аккаунта"} aria-expanded={menuOpen} aria-controls="friends-account-menu" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
-        {menuOpen && (
-          <div className="friends-topbar__panel" id="friends-account-menu">
-            <Link to="/app/notifications" onClick={() => setMenuOpen(false)}><Bell />Уведомления{unreadCount > 0 && <i>{unreadCount}</i>}</Link>
-            <Link to="/app/settings" onClick={() => setMenuOpen(false)}><Settings />Настройки</Link>
-            <button type="button" onClick={onLogout}><LogOut />Выйти</button>
-          </div>
-        )}
+      <div className="friends-topbar__account">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="friends-topbar__menu" aria-label="Открыть меню аккаунта"><Menu /></DropdownMenuTrigger>
+          <DropdownMenuContent className="friends-topbar__panel static w-[220px]" align="end" sideOffset={8}>
+            <DropdownMenuItem nativeButton={false} className="min-h-10 gap-2 px-3" render={<Link to="/app/notifications" />}><Bell />Уведомления{unreadCount > 0 && <i>{unreadCount}</i>}</DropdownMenuItem>
+            <DropdownMenuItem nativeButton={false} className="min-h-10 gap-2 px-3" render={<Link to="/app/settings" />}><Settings />Настройки</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="min-h-10 gap-2 px-3" onClick={onLogout}><LogOut />Выйти</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
 }
 
+function AppSidebar({ user, unreadCount, friendsRoute, pathname, onAddWish, onLogout }) {
+  const { setOpenMobile } = useSidebar();
+  const closeMobile = () => setOpenMobile(false);
+  const isActive = (to) => to.startsWith("/app/friends") ? friendsRoute : pathname === to || pathname.startsWith(`${to}/`);
+  return (
+    <Sidebar id="app-sidebar" collapsible="offcanvas" aria-label="Меню приложения">
+      <div className="sidebar !static !inset-auto !h-full !max-h-full !w-full !translate-x-0 !transform-none">
+        <SidebarHeader className="sidebar__head">
+          <Logo />
+          <SidebarTrigger className="sidebar-close min-[821px]:hidden" aria-label="Закрыть меню" />
+        </SidebarHeader>
+        <Button icon={Plus} onClick={() => { closeMobile(); onAddWish(); }} className="sidebar__add">Добавить желание</Button>
+        <SidebarContent>
+          <nav aria-label="Основные разделы">
+            <SidebarMenu className="sidebar__nav">
+              {shellNav.map(({ to, icon: Icon, label, end }) => (
+                <SidebarMenuItem key={to}>
+                  <SidebarMenuButton nativeButton={false} render={<NavLink to={to} end={end} onClick={closeMobile} />} isActive={isActive(to)}>
+                    <Icon size={19} /><span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </nav>
+        </SidebarContent>
+        <SidebarFooter className="sidebar__bottom">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton nativeButton={false} render={<NavLink to="/app/notifications" onClick={closeMobile} />} isActive={pathname === "/app/notifications"}>
+                <Bell size={19} /><span>Уведомления</span>
+              </SidebarMenuButton>
+              {unreadCount > 0 && <SidebarMenuBadge className="bg-primary text-primary-foreground">{unreadCount}</SidebarMenuBadge>}
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton nativeButton={false} render={<NavLink to="/app/settings" onClick={closeMobile} />} isActive={pathname === "/app/settings"}>
+                <Settings size={19} /><span>Настройки</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <div className="sidebar__user">
+            <Avatar user={user} size="sm" />
+            <div><strong>{user.name}</strong><span>@{user.username}</span></div>
+            <ShadcnButton variant="ghost" size="icon-sm" onClick={onLogout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></ShadcnButton>
+          </div>
+        </SidebarFooter>
+      </div>
+    </Sidebar>
+  );
+}
+
 function AppShell({ children, onAddWish }) {
   const { user, unreadCount, refresh } = useSession();
-  const navigate = useNavigate(); const location = useLocation(); const toast = useToast(); const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate(); const location = useLocation(); const toast = useToast();
   const friendsRoute = location.pathname.startsWith("/app/friends");
-  const sidebarRef = useRef(null); const mobileMenuButtonRef = useRef(null);
-  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
-  useEffect(() => {
-    if (!mobileOpen) return undefined;
-    const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
-    const closeButton = sidebarRef.current?.querySelector(".sidebar-close");
-    window.requestAnimationFrame(() => closeButton?.focus());
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") { setMobileOpen(false); return; }
-      if (event.key !== "Tab") return;
-      const focusable = [...(sidebarRef.current?.querySelectorAll(focusableSelector) || [])].filter((element) => element.getClientRects().length > 0);
-      if (!focusable.length) return;
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    document.body.classList.add("drawer-open");
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.classList.remove("drawer-open");
-      if (mobileMenuButtonRef.current?.isConnected) mobileMenuButtonRef.current.focus();
-    };
-  }, [mobileOpen]);
   const logout = async () => { await api.post("/auth/logout", {}); await refresh(); navigate("/"); toast("Вы вышли из аккаунта"); };
-  return <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}><aside ref={sidebarRef} id="app-sidebar" aria-label="Меню приложения" className={`sidebar ${mobileOpen ? "is-open" : ""}`}><div className="sidebar__head"><Logo /><button className="sidebar-close" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)}><X /></button></div><Button icon={Plus} onClick={onAddWish} className="sidebar__add">Добавить желание</Button><nav className="sidebar__nav">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} onClick={() => setMobileOpen(false)}><Icon size={19} /><span>{label}</span></NavLink>)}</nav><div className="sidebar__bottom"><NavLink to="/app/notifications"><Bell size={19} /><span>Уведомления</span>{unreadCount > 0 && <i>{unreadCount}</i>}</NavLink><NavLink to="/app/settings"><Settings size={19} /><span>Настройки</span></NavLink><div className="sidebar__user"><Avatar user={user} size="sm" /><div><strong>{user.name}</strong><span>@{user.username}</span></div><button onClick={logout} aria-label="Выйти" title="Выйти"><LogOut size={18} /></button></div></div></aside><button className="mobile-overlay" aria-label="Закрыть меню" onClick={() => setMobileOpen(false)} /><main className="app-main"><header className="mobile-app-head"><button ref={mobileMenuButtonRef} onClick={() => setMobileOpen(true)} aria-label="Открыть меню" aria-expanded={mobileOpen} aria-controls="app-sidebar"><Menu /></button><Logo /><Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link></header>{friendsRoute && <FriendsTopbar unreadCount={unreadCount} onLogout={logout} />}{children}</main><nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => isActive || (friendsRoute && to.startsWith("/app/friends")) ? "active" : ""}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></NavLink>)}</nav></div>;
+  return (
+    <SidebarProvider className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`} style={{ "--sidebar-width": "236px" }}>
+      <AppSidebar user={user} unreadCount={unreadCount} friendsRoute={friendsRoute} pathname={location.pathname} onAddWish={onAddWish} onLogout={logout} />
+      <SidebarInset className="app-main">
+        <header className="mobile-app-head">
+          <SidebarTrigger aria-label="Открыть меню" />
+          <Logo />
+          <Link to="/app/notifications" aria-label="Уведомления"><Bell />{unreadCount > 0 && <i />}</Link>
+        </header>
+        {friendsRoute && <FriendsTopbar unreadCount={unreadCount} onLogout={logout} />}
+        {children}
+        <nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label, end }) => <NavLink key={to} to={to} end={end} className={({ isActive: navActive }) => navActive || (friendsRoute && to.startsWith("/app/friends")) ? "active" : ""}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></NavLink>)}</nav>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
 
 function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<IdeasPage appMode />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell onAddWish={() => setWishModal(true)}><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<NotificationsPage />} /><Route path="settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function PageTitle({ eyebrow, title, text, action }) { return <div className="app-page-title"><div>{eyebrow && <span className="eyebrow">{eyebrow}</span>}<h1>{title}</h1>{text && <p>{text}</p>}</div>{action}</div>; }
@@ -711,18 +744,8 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
 
 function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, profile, lists = [], shareToken = "", variant = "" }) {
   const [menu, setMenu] = useState(false);
-  const [listsOpen, setListsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState(null);
-  const [listPanelPosition, setListPanelPosition] = useState(null);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
-  const listTriggerRef = useRef(null);
-  const listPanelRef = useRef(null);
-  const focusMenuOnOpenRef = useRef(false);
-  const focusListsOnOpenRef = useRef(false);
-  const listCloseTimerRef = useRef(null);
   const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
@@ -730,323 +753,129 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
 
   useEffect(() => {
-    if (!listsOpen) setSelectedListIds([...(wish.listIds || [])]);
-  }, [wish.id, wish.listIds, listsOpen]);
+    if (!menu) setSelectedListIds([...(wish.listIds || [])]);
+  }, [wish.id, wish.listIds, menu]);
 
-  const closeMenu = (restoreFocus = false) => {
-    window.clearTimeout(listCloseTimerRef.current);
-    if (restoreFocus) triggerRef.current?.focus();
+  const closeMenu = () => {
     setMenu(false);
-    setListsOpen(false);
     setSelectedListIds([...(wish.listIds || [])]);
-    setMenuPosition(null);
-    setListPanelPosition(null);
   };
 
-  useEffect(() => {
-    if (!menu) return undefined;
-    const position = () => {
-      const trigger = triggerRef.current;
-      const popover = menuRef.current;
-      if (!trigger || !popover) return;
-      const margin = 6;
-      const gap = 10;
-      const triggerRect = trigger.getBoundingClientRect();
-      const width = Math.min(280, window.innerWidth - margin * 2);
-      const height = popover.offsetHeight;
-      const left = Math.min(Math.max(margin, triggerRect.left), window.innerWidth - width - margin);
-      const below = triggerRect.bottom + gap;
-      const top = below + height <= window.innerHeight - margin
-        ? below
-        : Math.max(margin, triggerRect.top - height - gap);
-      setMenuPosition({ left, top, width });
-    };
-    const frame = window.requestAnimationFrame(position);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-    };
-  }, [menu, owner]);
-
-  useEffect(() => {
-    if (!menu || !menuPosition || !focusMenuOnOpenRef.current) return;
-    menuRef.current?.querySelector(".card-menu__main [role='menuitem']:not(:disabled)")?.focus();
-    focusMenuOnOpenRef.current = false;
-  }, [menu, menuPosition]);
-
-  useEffect(() => {
-    if (!menu || !listsOpen) return undefined;
-    const position = () => {
-      const popover = menuRef.current;
-      const panel = listPanelRef.current;
-      if (!popover || !panel) return;
-      const margin = 6;
-      const popoverRect = popover.getBoundingClientRect();
-      const anchorRect = listTriggerRef.current?.getBoundingClientRect() || popoverRect;
-      const mobile = window.innerWidth <= 640;
-      const width = window.innerWidth <= 640
-        ? popoverRect.width
-        : Math.min(280, window.innerWidth - margin * 2);
-      const height = panel.offsetHeight;
-      let left;
-      if (mobile) left = popoverRect.left;
-      else if (anchorRect.right - 8 + width <= window.innerWidth - margin) left = anchorRect.right - 8;
-      else left = Math.max(margin, anchorRect.left - width + 8);
-      const preferredTop = anchorRect.top - 8 + height <= window.innerHeight - margin
-        ? anchorRect.top - 8
-        : anchorRect.bottom - height + 8;
-      const top = Math.min(Math.max(margin, preferredTop), Math.max(margin, window.innerHeight - height - margin));
-      setListPanelPosition({ left, top, width });
-    };
-    const frame = window.requestAnimationFrame(position);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-    };
-  }, [menu, listsOpen, menuPosition, categoryLists.length, listSelectionChanged]);
-
-  useEffect(() => () => window.clearTimeout(listCloseTimerRef.current), []);
-
-  useEffect(() => {
-    if (!listsOpen || !listPanelPosition || !focusListsOnOpenRef.current) return;
-    const firstList = listPanelRef.current?.querySelector("[role='menuitemcheckbox']:not(:disabled)")
-      || listPanelRef.current?.querySelector("[role='menuitem']:not(:disabled)");
-    firstList?.focus();
-    focusListsOnOpenRef.current = false;
-  }, [listsOpen, listPanelPosition]);
-
-  useEffect(() => {
-    if (!menu) return undefined;
-    const handlePointerDown = (event) => {
-      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
-      closeMenu(false);
-    };
-    const handleKeyDown = (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      if (listsOpen) {
-        setListsOpen(false);
-        setSelectedListIds([...(wish.listIds || [])]);
-        setListPanelPosition(null);
-        window.requestAnimationFrame(() => listTriggerRef.current?.focus());
-      } else {
-        closeMenu(true);
-      }
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menu, listsOpen]);
-
-  const toggleList = (list) => {
+  const toggleList = (list, selected) => {
     if (busy) return;
-    const selected = selectedListIds.includes(list.id);
-    const nextListIds = selected
-      ? selectedListIds.filter((id) => id !== list.id)
-      : [...selectedListIds, list.id];
-    setSelectedListIds(nextListIds);
+    setSelectedListIds((current) => selected
+      ? [...new Set([...current, list.id])]
+      : current.filter((id) => id !== list.id));
   };
 
   const saveLists = async () => {
     if (!listSelectionChanged || busy) return;
     const updatedWish = await update({ listIds: selectedListIds }, "Списки желания обновлены");
-    if (updatedWish) closeMenu(true);
+    if (updatedWish) closeMenu();
   };
-
-  const cancelListClose = () => window.clearTimeout(listCloseTimerRef.current);
-  const scheduleListClose = () => {
-    if (listSelectionChanged) return;
-    cancelListClose();
-    listCloseTimerRef.current = window.setTimeout(() => {
-      setListsOpen(false);
-      setSelectedListIds([...(wish.listIds || [])]);
-      setListPanelPosition(null);
-    }, 140);
-  };
-  const openListsOnHover = () => {
-    if (!window.matchMedia("(hover: hover)").matches) return;
-    cancelListClose();
-    if (!listsOpen) {
-      setListsOpen(true);
-      setListPanelPosition(null);
-    }
-  };
-
-  const handleMenuKeyDown = (event) => {
-    const inListPanel = Boolean(listPanelRef.current?.contains(event.target));
-    const container = inListPanel ? listPanelRef.current : menuRef.current?.querySelector(".card-menu__main");
-    const items = [...(container?.querySelectorAll("[role='menuitem']:not(:disabled), [role='menuitemcheckbox']:not(:disabled)") || [])]
-      .filter((item) => item.getClientRects().length > 0);
-    const currentIndex = items.indexOf(document.activeElement);
-    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length) {
-      event.preventDefault();
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : event.key === "ArrowDown"
-            ? (currentIndex + 1 + items.length) % items.length
-            : (currentIndex - 1 + items.length) % items.length;
-      items[nextIndex]?.focus();
-      return;
-    }
-    if (event.key === "ArrowRight" && event.target === listTriggerRef.current && !listsOpen) {
-      event.preventDefault();
-      focusListsOnOpenRef.current = true;
-      setListsOpen(true);
-      setListPanelPosition(null);
-      return;
-    }
-    if (event.key === "ArrowLeft" && inListPanel) {
-      event.preventDefault();
-      setListsOpen(false);
-      setSelectedListIds([...(wish.listIds || [])]);
-      setListPanelPosition(null);
-      window.requestAnimationFrame(() => listTriggerRef.current?.focus());
-      return;
-    }
-    if (event.key === "Tab") closeMenu(true);
-  };
-
-  const menuContent = menu ? createPortal(
-    <>
-      <div className="card-menu__dismiss-layer" aria-hidden="true" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); closeMenu(false); }} />
-      <div
-        ref={menuRef}
-        id={`wish-menu-${wish.id}`}
-        className={`card-menu card-menu--popover ${owner ? "card-menu--owner" : ""} ${listsOpen ? "is-showing-lists" : ""}`}
-        style={menuPosition || { left: 0, top: 0, visibility: "hidden" }}
-        role="menu"
-        aria-label={`Действия с желанием «${wish.title}»`}
-        onKeyDown={handleMenuKeyDown}
-      >
-      <div className="card-menu__main" role="group">
-        {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); reserve(); }}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}
-        {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); save(); }}><Archive /> Сохранить к себе</button>}
-        {owner && wish.status === "fulfilled" ? <>
-          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); fulfilled(); }}><RotateCcw /> Не исполнено</button>
-          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); repeat(); }}><Plus /> Загадать ещё раз</button>
-          {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeMenu(true); onEdit(); }}><Pencil /> Редактировать</button>}
-        </> : owner && <>
-          <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); fulfilled(); }}><Check /> Исполнено</button>
-          {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeMenu(true); onEdit(); }}><Pencil /> Редактировать</button>}
-          <button
-            role="menuitem"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
-              closeMenu(true);
-              update(
-                { privacy: nextPrivacy },
-                nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
-              );
-            }}
-          >
-            {wish.privacy === "private" ? <Eye /> : <EyeOff />}
-            {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
-          </button>
-          <button
-            ref={listTriggerRef}
-            role="menuitem"
-            type="button"
-            className="card-menu__submenu-trigger"
-            disabled={busy}
-            aria-haspopup="menu"
-            aria-expanded={listsOpen}
-            aria-controls={`wish-lists-${wish.id}`}
-            onMouseEnter={openListsOnHover}
-            onMouseLeave={scheduleListClose}
-            onClick={(event) => {
-              if (event.detail === 0 && !listsOpen) focusListsOnOpenRef.current = true;
-              const hoverCapable = window.matchMedia("(hover: hover)").matches;
-              setListsOpen((open) => {
-                const nextOpen = event.detail > 0 && hoverCapable ? true : !open;
-                if (!nextOpen) setSelectedListIds([...(wish.listIds || [])]);
-                return nextOpen;
-              });
-              setListPanelPosition(null);
-            }}
-          >
-            <ListPlus /> <span>Добавить в список</span><ArrowRight className="card-menu__chevron" />
-          </button>
-        </>}
-        {(!owner || wish.status !== "fulfilled") && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); share(); }}><Share2 /> Поделиться</button>}
-        {!owner && wish.url && <a role="menuitem" href={wish.url} target="_blank" rel="noreferrer" onClick={() => closeMenu(true)}><ExternalLink /> Открыть магазин</a>}
-        {owner && <button role="menuitem" type="button" className="danger" disabled={busy} onClick={() => { closeMenu(true); setDeleteOpen(true); }}><Trash2 /> Удалить</button>}
-      </div>
-
-        {owner && listsOpen && <section
-          ref={listPanelRef}
-          id={`wish-lists-${wish.id}`}
-          className="card-menu__lists"
-          style={listPanelPosition || { left: 0, top: 0, visibility: "hidden" }}
-          role="menu"
-          aria-label={`Списки желания «${wish.title}»`}
-          onMouseEnter={cancelListClose}
-          onMouseLeave={scheduleListClose}
-        >
-        <div className="card-menu__lists-head">
-          <strong>Списки</strong>
-          {onCreateList && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeMenu(true); onCreateList(); }}><ListPlus /> Новый список</button>}
-        </div>
-        <div className="card-menu__list-scroll">
-          {categoryLists.length ? categoryLists.map((list) => {
-            const selected = selectedListIds.includes(list.id);
-            return <button
-              type="button"
-              key={list.id}
-              className={`card-menu__list-row ${selected ? "is-selected" : ""}`}
-              role="menuitemcheckbox"
-              aria-checked={selected}
-              disabled={busy}
-              onClick={() => toggleList(list)}
-            >
-              <span className={`card-menu__list-thumb list-dot--${list.color}`}>
-                <ListPlus />
-              </span>
-              <span>
-                {list.title}
-                {list.privacy !== "public" && <small className="card-menu__list-privacy" aria-hidden="true">
-                  {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
-                </small>}
-              </span>
-              <span className="card-menu__list-state">{selected ? <Check /> : <Plus />}</span>
-            </button>;
-          }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
-        </div>
-        {listSelectionChanged && <div className="card-menu__lists-actions">
-          <button role="menuitem" type="button" disabled={busy} onClick={() => setSelectedListIds([...(wish.listIds || [])])}>Отменить</button>
-          <button role="menuitem" type="button" className="is-primary" disabled={busy} onClick={saveLists}>{busy ? <LoaderCircle className="spin" /> : <Check />} Сохранить</button>
-        </div>}
-      </section>}
-      </div>
-    </>,
-    document.body,
-  ) : null;
 
   return (
     <>
-    <article className={`wish-card ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}>
-      {onOpen && <button type="button" className="wish-card__open" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
-      <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <div className="fulfilled-badge"><Check /> Исполнено</div>}</div>
+    <Card className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""}`}>
+      {onOpen && <ShadcnButton type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
+      <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}<Priority value={wish.priority} />{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
-        <div className="wish-card__top"><span>{formatMoney(wish.price, wish.currency)}</span><button ref={triggerRef} type="button" aria-label={`Опции желания «${wish.title}»`} aria-haspopup="menu" aria-expanded={menu} aria-controls={`wish-menu-${wish.id}`} onKeyDown={(event) => { if (event.key === "ArrowDown" && !menu) { event.preventDefault(); focusMenuOnOpenRef.current = true; setMenu(true); } }} onClick={(event) => { if (!menu && event.detail === 0) focusMenuOnOpenRef.current = true; setMenu((open) => !open); setListsOpen(false); setMenuPosition(null); setListPanelPosition(null); }}><MoreHorizontal /></button></div>
+        <div className="wish-card__top">
+          <span>{formatMoney(wish.price, wish.currency)}</span>
+          <DropdownMenu open={menu} onOpenChange={(open) => {
+            setMenu(open);
+            if (!open) setSelectedListIds([...(wish.listIds || [])]);
+          }}>
+            <DropdownMenuTrigger className="wish-card__menu-trigger" aria-label={`Опции желания «${wish.title}»`} aria-controls={`wish-menu-${wish.id}`}>
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              id={`wish-menu-${wish.id}`}
+              align="end"
+              sideOffset={8}
+              className="wish-card-actions-menu w-70 rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-[44px] [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-[44px]"
+              aria-label={`Действия с желанием «${wish.title}»`}
+            >
+              {!owner && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
+              {!owner && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
+              {owner && wish.status === "fulfilled" ? <>
+                <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
+                {onEdit && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+              </> : owner && <>
+                <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
+                {onEdit && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+                <DropdownMenuItem
+                  className="min-h-9 gap-2 px-2 py-2 text-base"
+                  disabled={busy}
+                  onClick={() => {
+                    const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
+                    update(
+                      { privacy: nextPrivacy },
+                      nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
+                    );
+                  }}
+                >
+                  {wish.privacy === "private" ? <Eye /> : <EyeOff />}
+                  {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
+                </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="card-menu__submenu-trigger min-h-9 gap-2 px-2 py-2 text-base" disabled={busy}>
+                    <ListPlus /> <span>Добавить в список</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    id={`wish-lists-${wish.id}`}
+                    className="wish-card-lists-menu w-70 rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-[44px] [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-[44px]"
+                    aria-label={`Списки желания «${wish.title}»`}
+                  >
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="px-2 py-2 text-sm">Списки</DropdownMenuLabel>
+                      {onCreateList && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-sm" disabled={busy} onClick={onCreateList}><ListPlus /> Новый список</DropdownMenuItem>}
+                    </DropdownMenuGroup>
+                    {(onCreateList || categoryLists.length > 0) && <DropdownMenuSeparator />}
+                    <div className="max-h-[22.75rem] overflow-y-auto overscroll-contain">
+                      {categoryLists.length ? categoryLists.map((list) => {
+                        const selected = selectedListIds.includes(list.id);
+                        return <DropdownMenuCheckboxItem
+                          key={list.id}
+                          className={`wish-card-list-item min-h-14 gap-2.5 px-2 py-1.5 pr-8 text-base ${selected ? "is-selected" : ""}`}
+                          checked={selected}
+                          disabled={busy}
+                          closeOnClick={false}
+                          onCheckedChange={(checked) => toggleList(list, checked)}
+                        >
+                          <span className={`grid size-10 shrink-0 place-items-center rounded-xl bg-muted list-dot--${list.color}`} aria-hidden="true"><ListPlus /></span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {list.title}
+                            {list.privacy !== "public" && <small className="ml-1 inline-flex align-middle text-muted-foreground" aria-hidden="true">
+                              {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
+                            </small>}
+                          </span>
+                        </DropdownMenuCheckboxItem>;
+                      }) : <p className="px-2 py-6 text-center text-xs text-muted-foreground">Создайте первый тематический список.</p>}
+                    </div>
+                    {listSelectionChanged && <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-sm" disabled={busy} closeOnClick={false} onClick={() => setSelectedListIds([...(wish.listIds || [])])}><RotateCcw /> Отменить изменения</DropdownMenuItem>
+                      <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-sm font-medium" disabled={busy} closeOnClick={false} onClick={saveLists}>{busy ? <LoaderCircle className="spin" /> : <Check />} Сохранить списки</DropdownMenuItem>
+                    </>}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </>}
+              {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
+              {!owner && wish.url && <DropdownMenuItem nativeButton={false} className="min-h-9 gap-2 px-2 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
+              {owner && <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" className="danger min-h-9 gap-2 px-2 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
+              </>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <h3>{wish.title}</h3>
         <p>{wish.description || "Без дополнительного описания"}</p>
         {owner ? <div className="wish-card__owner-meta">{wish.privacy === "private" ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
       </div>
-      {menuContent}
-    </article>
+    </Card>
     {deleteOpen && <Modal
       onClose={() => { if (!busy) setDeleteOpen(false); }}
       className="modal--wish-delete"
@@ -1112,84 +941,57 @@ function WishesPage({ onAdd, version }) {
     await reload();
     if (saved?.id && attached) setSelected(saved.id);
   };
-  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><button className={selected === "all" ? "active" : ""} onClick={() => setSelected("all")}><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></button>{categoryLists.map((list) => <button className={selected === list.id ? "active" : ""} key={list.id} onClick={() => setSelected(list.id)}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></button>)}<button className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></button></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><PageTitle eyebrow="Личная коллекция" title="Мои желания" text={`${activeWishes.length} активных · ${data.wishes.filter((wish) => wish.status === "fulfilled").length} исполнено`} action={<div className="page-actions">{selectedList && <Button variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}<Button variant="outline" icon={Share2} onClick={share}>Поделиться</Button><Button icon={Plus} onClick={onAdd}>Добавить</Button></div>} /><div className="list-tabs"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) setSelected(values[0]); }} aria-label="Списки желаний"><ToggleGroupItem value="all"><Heart size={16} /> Мои желания <span>{activeWishes.length}</span></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
-function Modal({ children, onClose, onEscape, wide = false, className = "", ariaLabel = "Диалог Rollapp", portal = true, backdropClassName = "" }) {
-  const dialogRef = useRef(null);
+function Modal({ children, onClose, onEscape, finalFocus, wide = false, className = "", ariaLabel = "Диалог Rollapp", backdropClassName = "" }) {
+  const contentRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const onEscapeRef = useRef(onEscape);
-  const modalTokenRef = useRef(Symbol("modal"));
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => { onEscapeRef.current = onEscape; }, [onEscape]);
   useEffect(() => {
-    const modalToken = modalTokenRef.current;
-    const previousFocus = document.activeElement;
-    modalStack.push(modalToken);
     document.body.classList.add("modal-open");
-    const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
-    const focusDialog = window.requestAnimationFrame(() => {
-      if (modalStack.at(-1) !== modalToken) return;
-      if (dialogRef.current?.contains(document.activeElement)) return;
-      const target = dialogRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || dialogRef.current;
-      target?.focus();
-    });
-    const handleKeyDown = (event) => {
-      if (modalStack.at(-1) !== modalToken) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (onEscapeRef.current?.(event)) return;
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = [...dialogRef.current.querySelectorAll(focusableSelector)].filter((element) => element.getClientRects().length > 0);
-      if (!focusable.length) { event.preventDefault(); dialogRef.current.focus(); return; }
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      if (active === dialogRef.current || !dialogRef.current.contains(active)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-        return;
-      }
-      if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(focusDialog);
-      document.removeEventListener("keydown", handleKeyDown);
-      const wasTopModal = modalStack.at(-1) === modalToken;
-      const stackIndex = modalStack.lastIndexOf(modalToken);
-      if (stackIndex >= 0) modalStack.splice(stackIndex, 1);
-      if (!modalStack.length) document.body.classList.remove("modal-open");
-      if (wasTopModal && previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      window.requestAnimationFrame(() => {
+        if (!document.querySelector('[data-slot="dialog-content"]')) document.body.classList.remove("modal-open");
+      });
     };
   }, []);
-  const modal = <div className={`modal-backdrop ${backdropClassName}`} onMouseDown={(event) => event.target === event.currentTarget && onCloseRef.current()}><div ref={dialogRef} className={`modal ${wide ? "modal--wide" : ""} ${className}`} role="dialog" aria-modal="true" aria-label={ariaLabel} tabIndex={-1}>{children}<button type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог" onClick={() => onCloseRef.current()}><X /></button></div></div>;
-  return portal ? createPortal(modal, document.body) : modal;
+  const handleOpenChange = (open, details) => {
+    if (open) return;
+    if (details.reason === "escape-key" && onEscapeRef.current?.(details.event)) {
+      details.cancel();
+      return;
+    }
+    onCloseRef.current();
+  };
+  return <Dialog open onOpenChange={handleOpenChange}>
+    <DialogContent
+      ref={contentRef}
+      initialFocus={() => contentRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || true}
+      showCloseButton={false}
+      viewportClassName={`modal-backdrop ${backdropClassName}`}
+      className={`modal ${wide ? "modal--wide" : ""} ${className}`}
+      aria-label={ariaLabel}
+      finalFocus={finalFocus}
+    >
+      <DialogTitle className="visually-hidden">{ariaLabel}</DialogTitle>
+      {children}
+      <DialogClose type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог"><X /></DialogClose>
+    </DialogContent>
+  </Dialog>;
 }
 
-function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], wishes = [], onChanged, onEdit, onCreateList, onClose }) {
+function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onCreateList, onClose }) {
   const categoryLists = useMemo(() => lists.filter((list) => !isGeneralList(list)), [lists]);
   const normalizeListIds = useCallback((ids = []) => categoryLists.filter((list) => ids.includes(list.id)).map((list) => list.id), [categoryLists]);
+  const detailContentRef = useRef(null);
   const [listsOpen, setListsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuListsOpen, setMenuListsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => normalizeListIds(wish.listIds));
-  const [menuPosition, setMenuPosition] = useState(null);
-  const [menuListsPosition, setMenuListsPosition] = useState(null);
-  const listTriggerRef = useRef(null);
-  const listPanelRef = useRef(null);
-  const menuTriggerRef = useRef(null);
-  const menuRef = useRef(null);
-  const menuListsTriggerRef = useRef(null);
-  const menuListsPanelRef = useRef(null);
   const listMutationRef = useRef(false);
-  const focusListOnOpenRef = useRef(false);
-  const focusMenuOnOpenRef = useRef(false);
-  const focusMenuListsOnOpenRef = useRef(false);
   const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({
     wish,
     profile,
@@ -1208,126 +1010,6 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     if (!listMutationRef.current) setSelectedListIds(normalizeListIds(wish.listIds));
   }, [wish.id, wish.listIds, normalizeListIds]);
 
-  const closeListPicker = useCallback((restoreFocus = false) => {
-    setListsOpen(false);
-    if (restoreFocus) window.requestAnimationFrame(() => listTriggerRef.current?.focus());
-  }, []);
-
-  const closeActionMenu = useCallback((restoreFocus = false) => {
-    setMenuOpen(false);
-    setMenuListsOpen(false);
-    setMenuPosition(null);
-    setMenuListsPosition(null);
-    if (restoreFocus) window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
-  }, []);
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const position = () => {
-      const trigger = menuTriggerRef.current;
-      const menu = menuRef.current;
-      if (!trigger || !menu) return;
-      const margin = 6;
-      const gap = 10;
-      const triggerRect = trigger.getBoundingClientRect();
-      const width = Math.min(280, window.innerWidth - margin * 2);
-      const height = menu.offsetHeight;
-      const left = Math.min(
-        Math.max(margin, triggerRect.left),
-        window.innerWidth - width - margin,
-      );
-      const below = triggerRect.bottom + gap;
-      const top = below + height <= window.innerHeight - margin
-        ? below
-        : Math.max(margin, triggerRect.top - height - gap);
-      setMenuPosition({ left, top, width });
-    };
-    const frame = window.requestAnimationFrame(position);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-    };
-  }, [menuOpen, owner, wish.status]);
-
-  useEffect(() => {
-    if (!menuOpen || !menuPosition || !focusMenuOnOpenRef.current) return;
-    menuRef.current?.querySelector(".card-menu__main [role='menuitem']:not(:disabled)")?.focus();
-    focusMenuOnOpenRef.current = false;
-  }, [menuOpen, menuPosition]);
-
-  useEffect(() => {
-    if (!menuOpen || !menuListsOpen) return undefined;
-    const position = () => {
-      const menu = menuRef.current;
-      const panel = menuListsPanelRef.current;
-      if (!menu || !panel) return;
-      const margin = 6;
-      const menuRect = menu.getBoundingClientRect();
-      const anchorRect = menuListsTriggerRef.current?.getBoundingClientRect() || menuRect;
-      const mobile = window.innerWidth <= 640;
-      const width = mobile ? menuRect.width : Math.min(280, window.innerWidth - margin * 2);
-      const height = panel.offsetHeight;
-      let left;
-      if (mobile) left = menuRect.left;
-      else if (anchorRect.right - 8 + width <= window.innerWidth - margin) left = anchorRect.right - 8;
-      else left = Math.max(margin, anchorRect.left - width + 8);
-      const preferredTop = anchorRect.top - 8 + height <= window.innerHeight - margin
-        ? anchorRect.top - 8
-        : anchorRect.bottom - height + 8;
-      const top = mobile
-        ? Math.min(Math.max(margin, menuRect.top), Math.max(margin, window.innerHeight - height - margin))
-        : Math.min(Math.max(margin, preferredTop), Math.max(margin, window.innerHeight - height - margin));
-      setMenuListsPosition({ left, top, width });
-    };
-    const frame = window.requestAnimationFrame(position);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
-    };
-  }, [menuOpen, menuListsOpen, menuPosition, categoryLists.length]);
-
-  useEffect(() => {
-    if (!menuListsOpen || !menuListsPosition || !focusMenuListsOnOpenRef.current) return;
-    const selected = menuListsPanelRef.current?.querySelector("[role='menuitemcheckbox'][aria-checked='true']:not(:disabled)");
-    const first = menuListsPanelRef.current?.querySelector("[role='menuitemcheckbox']:not(:disabled), [role='menuitem']:not(:disabled)");
-    (selected || first)?.focus();
-    focusMenuListsOnOpenRef.current = false;
-  }, [menuListsOpen, menuListsPosition]);
-
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const handlePointerDown = (event) => {
-      if (menuTriggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
-      closeActionMenu(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [menuOpen, closeActionMenu]);
-
-  useEffect(() => {
-    if (!listsOpen) return undefined;
-    const handlePointerDown = (event) => {
-      if (listTriggerRef.current?.contains(event.target) || listPanelRef.current?.contains(event.target)) return;
-      closeListPicker(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [listsOpen, closeListPicker]);
-
-  useEffect(() => {
-    if (!listsOpen || !focusListOnOpenRef.current) return;
-    const selected = listPanelRef.current?.querySelector("[role='menuitemcheckbox'][aria-checked='true']:not(:disabled)");
-    const first = listPanelRef.current?.querySelector("[role='menuitemcheckbox']:not(:disabled), [role='menuitem']:not(:disabled)");
-    (selected || first)?.focus();
-    focusListOnOpenRef.current = false;
-  }, [listsOpen]);
-
   const toggleList = async (list) => {
     if (busy || listMutationRef.current) return;
     const previousIds = [...selectedListIds];
@@ -1345,204 +1027,46 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     listMutationRef.current = false;
   };
 
-  const handleListPickerKeyDown = (event) => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const items = [...(listPanelRef.current?.querySelectorAll("[role='menuitemcheckbox']:not(:disabled), [role='menuitem']:not(:disabled)") || [])]
-      .filter((item) => item.getClientRects().length > 0);
-    if (!items.length) return;
-    event.preventDefault();
-    const currentIndex = items.indexOf(document.activeElement);
-    const nextIndex = event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? items.length - 1
-        : event.key === "ArrowDown"
-          ? (currentIndex + 1 + items.length) % items.length
-          : (currentIndex - 1 + items.length) % items.length;
-    items[nextIndex]?.focus();
-  };
-
-  const renderListPickerBody = (createList) => <>
+  const renderListPickerBody = () => <>
     <div className="card-menu__lists-head">
       <strong>Списки</strong>
-      {onCreateList && <button role="menuitem" type="button" disabled={busy} onClick={createList}><ListPlus /> Новый список</button>}
+      {onCreateList && <DropdownMenuItem className="card-menu__create-list" disabled={busy} onClick={onCreateList}><ListPlus /> Новый список</DropdownMenuItem>}
     </div>
     <div className="card-menu__list-scroll">
       {categoryLists.length ? categoryLists.map((list) => {
         const selected = selectedListIds.includes(list.id);
-        const cover = wishes.find((item) => item.imageUrl && item.listIds?.includes(list.id))?.imageUrl || "";
-        return <button
-          type="button"
+        return <DropdownMenuCheckboxItem
           key={list.id}
-          className={`card-menu__list-row ${selected ? "is-selected" : ""}`}
-          role="menuitemcheckbox"
-          aria-checked={selected}
+          className={`card-menu__list-row min-h-[44px] [&_[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden ${selected ? "is-selected" : ""}`}
+          checked={selected}
           disabled={busy}
-          onClick={() => toggleList(list)}
+          closeOnClick={false}
+          onCheckedChange={() => toggleList(list)}
         >
-          <span className={`card-menu__list-thumb list-dot--${list.color}`}>
-            {cover ? <img src={cover} alt="" /> : <ListPlus />}
-          </span>
-          <span>
+          <span className="card-menu__list-title">
             {list.title}
             {list.privacy !== "public" && <small className="card-menu__list-privacy" aria-hidden="true">
               {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
             </small>}
           </span>
           <span className="card-menu__list-state">{selected ? <Check /> : <Plus />}</span>
-        </button>;
+        </DropdownMenuCheckboxItem>;
       }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
     </div>
   </>;
 
-  const handleActionMenuKeyDown = (event) => {
-    const inListPanel = Boolean(menuListsPanelRef.current?.contains(event.target));
-    const container = inListPanel ? menuListsPanelRef.current : menuRef.current?.querySelector(".card-menu__main");
-    const items = [...(container?.querySelectorAll("[role='menuitem']:not(:disabled), [role='menuitemcheckbox']:not(:disabled)") || [])]
-      .filter((item) => item.getClientRects().length > 0);
-    const currentIndex = items.indexOf(document.activeElement);
-    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) && items.length) {
-      event.preventDefault();
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? items.length - 1
-          : event.key === "ArrowDown"
-            ? (currentIndex + 1 + items.length) % items.length
-            : (currentIndex - 1 + items.length) % items.length;
-      items[nextIndex]?.focus();
-      return;
-    }
-    if (event.key === "ArrowRight" && event.target === menuListsTriggerRef.current && !menuListsOpen) {
-      event.preventDefault();
-      focusMenuListsOnOpenRef.current = true;
-      setMenuListsOpen(true);
-      setMenuListsPosition(null);
-      return;
-    }
-    if (event.key === "ArrowLeft" && inListPanel) {
-      event.preventDefault();
-      setMenuListsOpen(false);
-      setMenuListsPosition(null);
-      window.requestAnimationFrame(() => menuListsTriggerRef.current?.focus());
-      return;
-    }
-    if (event.key === "Tab") closeActionMenu(false);
-  };
-
-  const listPicker = owner && listsOpen ? <section
-    ref={listPanelRef}
-    id={`wish-detail-lists-${wish.id}`}
-    className="card-menu--popover wish-detail__list-popover"
-    role="menu"
-    aria-label={`Списки желания «${wish.title}»`}
-    onKeyDown={handleListPickerKeyDown}
-  >
-    {renderListPickerBody(() => { closeListPicker(false); onCreateList?.(); })}
-  </section> : null;
-
-  const actionMenu = menuOpen ? <div
-    ref={menuRef}
-    id={`wish-detail-menu-${wish.id}`}
-    className={`card-menu card-menu--popover wish-detail__actions-menu ${owner ? "card-menu--owner" : ""} ${menuListsOpen ? "is-showing-lists" : ""}`}
-    style={menuPosition || { left: 0, top: 0, visibility: "hidden" }}
-    role="menu"
-    aria-label={`Действия с желанием «${wish.title}»`}
-    onKeyDown={handleActionMenuKeyDown}
-  >
-    <div className="card-menu__main" role="group">
-      {!owner && <button role="menuitem" type="button" disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={() => { closeActionMenu(true); reserve(); }}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</button>}
-      {!owner && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); save(); }}><Archive /> Сохранить к себе</button>}
-      {owner && wish.status === "fulfilled" ? <>
-        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); fulfilled(); }}><RotateCcw /> Не исполнено</button>
-        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); repeat(); }}><Plus /> Загадать ещё раз</button>
-        {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}
-      </> : owner && <>
-        <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); fulfilled(); }}><Check /> Исполнено</button>
-        {onEdit && <button role="menuitem" type="button" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); onEdit(); }}><Pencil /> Редактировать</button>}
-        <button
-          role="menuitem"
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
-            closeActionMenu(true);
-            update(
-              { privacy: nextPrivacy },
-              nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
-            );
-          }}
-        >
-          {wish.privacy === "private" ? <Eye /> : <EyeOff />}
-          {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
-        </button>
-        <button
-          ref={menuListsTriggerRef}
-          role="menuitem"
-          type="button"
-          className="card-menu__submenu-trigger"
-          disabled={busy}
-          aria-haspopup="menu"
-          aria-expanded={menuListsOpen}
-          aria-controls={`wish-detail-action-lists-${wish.id}`}
-          onMouseEnter={() => {
-            if (!window.matchMedia("(hover: hover)").matches || menuListsOpen) return;
-            setMenuListsOpen(true);
-            setMenuListsPosition(null);
-          }}
-          onClick={(event) => {
-            if (event.detail === 0 && !menuListsOpen) focusMenuListsOnOpenRef.current = true;
-            const hoverCapable = window.matchMedia("(hover: hover)").matches;
-            setMenuListsOpen((open) => event.detail > 0 && hoverCapable ? true : !open);
-            setMenuListsPosition(null);
-          }}
-        >
-          <ListPlus /> <span>Добавить в список</span><ArrowRight className="card-menu__chevron" />
-        </button>
-      </>}
-      {(!owner || wish.status !== "fulfilled") && <button role="menuitem" type="button" disabled={busy} onClick={() => { closeActionMenu(true); share(); }}><Share2 /> Поделиться</button>}
-      {!owner && wish.url && <a role="menuitem" href={wish.url} target="_blank" rel="noreferrer" onClick={() => closeActionMenu(true)}><ExternalLink /> Открыть магазин</a>}
-      {owner && <button role="menuitem" type="button" className="danger" disabled={busy} aria-haspopup="dialog" onClick={() => { closeActionMenu(false); setDeleteOpen(true); }}><Trash2 /> Удалить</button>}
-    </div>
-    {owner && menuListsOpen && <section
-      ref={menuListsPanelRef}
-      id={`wish-detail-action-lists-${wish.id}`}
-      className="card-menu__lists"
-      style={menuListsPosition || { left: 0, top: 0, visibility: "hidden" }}
-      role="menu"
-      aria-label={`Списки желания «${wish.title}»`}
-    >
-      {renderListPickerBody(() => { closeActionMenu(false); onCreateList?.(); })}
-    </section>}
-  </div> : null;
-
   return (
     <>
-      <Modal
-        portal
-        onClose={onClose}
-        onEscape={() => {
-          if (menuListsOpen) {
-            setMenuListsOpen(false);
-            setMenuListsPosition(null);
-            window.requestAnimationFrame(() => menuListsTriggerRef.current?.focus());
-            return true;
-          }
-          if (menuOpen) {
-            closeActionMenu(true);
-            return true;
-          }
-          if (listsOpen) {
-            closeListPicker(true);
-            return true;
-          }
-          return false;
-        }}
-        className="modal--wish-detail"
-        backdropClassName="modal-backdrop--wish-detail"
-        ariaLabel={`Желание: ${wish.title}`}
-      >
-        <article className="wish-detail">
+      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DialogContent
+          ref={detailContentRef}
+          initialFocus={() => detailContentRef.current?.querySelector("[data-modal-initial-focus]") || true}
+          showCloseButton={false}
+          viewportClassName="modal-backdrop modal-backdrop--wish-detail"
+          className="modal modal--wish-detail"
+        >
+          <DialogTitle className="visually-hidden">Желание: {wish.title}</DialogTitle>
+          <article className="wish-detail">
           <div className="wish-detail__media">
             {wish.imageUrl ? <img src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} /> : <span className="wish-detail__placeholder"><Gift /></span>}
             <Priority value={wish.priority} />
@@ -1552,60 +1076,84 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             <div className="wish-detail__toolbar">
               <div className={`wish-detail__list-control ${owner ? "is-editable" : ""} ${listsOpen ? "is-open" : ""}`} title={listTitleText}>
                 {owner
-                  ? <button
-                      ref={listTriggerRef}
-                      type="button"
-                      aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
-                      aria-haspopup="menu"
-                      aria-expanded={listsOpen}
-                      aria-controls={`wish-detail-lists-${wish.id}`}
-                      onKeyDown={(event) => {
-                        if (event.key !== "ArrowDown" || listsOpen) return;
-                        event.preventDefault();
-                        closeActionMenu(false);
-                        focusListOnOpenRef.current = true;
-                        setListsOpen(true);
-                      }}
-                      onClick={(event) => {
-                        closeActionMenu(false);
-                        if (!listsOpen && event.detail === 0) focusListOnOpenRef.current = true;
-                        setListsOpen((open) => !open);
-                      }}
-                    ><span>{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}</button>
+                  ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
+                      setListsOpen(open);
+                      if (open) setMenuOpen(false);
+                    }}>
+                      <DropdownMenuTrigger aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}>
+                        <span>{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        id={`wish-detail-lists-${wish.id}`}
+                        className="card-menu--popover wish-detail__list-popover static w-[280px] min-w-[280px] max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-[44px] [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-[44px]"
+                        align="start"
+                        sideOffset={10}
+                        aria-label={`Списки желания «${wish.title}»`}
+                      >
+                        {renderListPickerBody()}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   : <span><span>{listLabel}</span><ChevronDown /></span>}
-                {listPicker}
               </div>
-              <button
-                ref={menuTriggerRef}
-                className="wish-detail__share"
-                type="button"
-                aria-label={`Опции желания «${wish.title}»`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                aria-controls={`wish-detail-menu-${wish.id}`}
-                title="Опции желания"
-                onKeyDown={(event) => {
-                  if (event.key !== "ArrowDown" || menuOpen) return;
-                  event.preventDefault();
-                  closeListPicker(false);
-                  focusMenuOnOpenRef.current = true;
-                  setMenuOpen(true);
-                  setMenuPosition(null);
-                }}
-                onClick={(event) => {
-                  closeListPicker(false);
-                  if (menuOpen) {
-                    closeActionMenu(false);
-                    return;
-                  }
-                  if (event.detail === 0) focusMenuOnOpenRef.current = true;
-                  setMenuListsOpen(false);
-                  setMenuListsPosition(null);
-                  setMenuPosition(null);
-                  setMenuOpen(true);
-                }}
-              ><MoreHorizontal /></button>
-              {actionMenu}
+              <DropdownMenu open={menuOpen} onOpenChange={(open) => {
+                setMenuOpen(open);
+                if (open) setListsOpen(false);
+              }}>
+                <DropdownMenuTrigger
+                  className="wish-detail__share"
+                  aria-label={`Опции желания «${wish.title}»`}
+                  title="Опции желания"
+                ><MoreHorizontal /></DropdownMenuTrigger>
+                <DropdownMenuContent
+                  id={`wish-detail-menu-${wish.id}`}
+                  className={`card-menu card-menu--popover wish-detail__actions-menu static w-[280px] min-w-[280px] max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-[44px] [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-[44px] ${owner ? "card-menu--owner" : ""}`}
+                  align="end"
+                  sideOffset={10}
+                  aria-label={`Действия с желанием «${wish.title}»`}
+                >
+                  <div className="card-menu__main">
+                    {!owner && <DropdownMenuItem disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
+                    {!owner && <DropdownMenuItem disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
+                    {owner && wish.status === "fulfilled" ? <>
+                      <DropdownMenuItem disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
+                      <DropdownMenuItem disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
+                      {onEdit && <DropdownMenuItem disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+                    </> : owner && <>
+                      <DropdownMenuItem disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
+                      {onEdit && <DropdownMenuItem disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+                      <DropdownMenuItem
+                        disabled={busy}
+                        onClick={() => {
+                          const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
+                          update(
+                            { privacy: nextPrivacy },
+                            nextPrivacy === "private" ? "Желание стало секретным" : "Желание снова видно друзьям",
+                          );
+                        }}
+                      >
+                        {wish.privacy === "private" ? <Eye /> : <EyeOff />}
+                        {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="card-menu__submenu-trigger" disabled={busy}>
+                          <ListPlus /> <span>Добавить в список</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent
+                          id={`wish-detail-action-lists-${wish.id}`}
+                          className="card-menu__lists static w-[280px] min-w-[280px] max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-[44px] [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-[44px]"
+                          sideOffset={8}
+                          aria-label={`Списки желания «${wish.title}»`}
+                        >
+                          {renderListPickerBody()}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </>}
+                    {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
+                    {!owner && wish.url && <DropdownMenuItem nativeButton={false} render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
+                    {owner && <DropdownMenuItem variant="destructive" className="danger" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {!owner && <div className="wish-detail__notice"><Hand /><p>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</p></div>}
             <div className="wish-detail__content">
@@ -1614,7 +1162,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               <p className={`wish-detail__description ${wish.description ? "" : "is-muted"}`}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</p>
               <div className="wish-detail__price-bar">
                 <strong className="wish-detail__price">{formatMoney(wish.price, wish.currency)}</strong>
-                {wish.url && <a href={wish.url} target="_blank" rel="noreferrer">Где купить <ExternalLink /></a>}
+                {wish.url && <ShadcnButton nativeButton={false} render={<a href={wish.url} target="_blank" rel="noreferrer" />} className="wish-detail__store-button h-[44px] min-w-[140px] rounded-full px-4 text-base">Где купить <ExternalLink /></ShadcnButton>}
               </div>
               <div className="wish-detail__actions">
                 {!owner && <Button variant={wish.reservedByMe ? "reserved" : "primary"} loading={busy} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
@@ -1622,13 +1170,14 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               </div>
             </div>
           </div>
-        </article>
-      </Modal>
+          </article>
+          <DialogClose type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог"><X /></DialogClose>
+        </DialogContent>
+      </Dialog>
       {deleteOpen && <Modal
         onClose={() => {
           if (busy) return;
           setDeleteOpen(false);
-          window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
         }}
         className="modal--wish-delete"
         backdropClassName="modal-backdrop--detail-delete"
@@ -1640,10 +1189,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           <h2>Удалить «{wish.title}»?</h2>
           <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
           <div className="modal-actions">
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => {
-              setDeleteOpen(false);
-              window.requestAnimationFrame(() => menuTriggerRef.current?.focus());
-            }}>Отмена</Button>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>Отмена</Button>
             <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={busy} onClick={async () => { if (await remove()) setDeleteOpen(false); }}>Удалить</Button>
           </div>
         </div>
@@ -1652,17 +1198,25 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   );
 }
 
-function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted }) {
+function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, returnFocusRef }) {
   const editing = Boolean(list?.id);
   const toast = useToast();
+  const privacyLabelId = useId();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState(() => ({
     title: list?.title || "",
     description: list?.description || "",
     privacy: list?.privacy || "public",
-    color: list?.color || "coral",
   }));
+  useEffect(() => () => {
+    const target = returnFocusRef?.current;
+    if (!target) return;
+    window.requestAnimationFrame(() => {
+      if (target.isConnected) target.focus();
+    });
+  }, [returnFocusRef]);
   const submit = async (event) => {
     event.preventDefault();
     setLoading(true);
@@ -1677,11 +1231,12 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted })
     }
   };
   const remove = async () => {
-    if (!editing || !window.confirm(`Удалить список «${list.title}»? Желания из него останутся в вашем общем списке.`)) return;
+    if (!editing || deleting) return;
     setDeleting(true);
     try {
       const result = await api.delete(`/lists/${list.id}`);
       toast(result.reassignedCount ? `Список удалён, ${result.reassignedCount} желаний сохранено` : "Список удалён");
+      setDeleteOpen(false);
       await onDeleted?.(result);
     } catch (error) {
       toast(error.message, "error");
@@ -1689,24 +1244,11 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted })
       setDeleting(false);
     }
   };
-  return <Modal onClose={onClose} className="modal--list" ariaLabel={editing ? `Настройки списка: ${list.title}` : "Создание списка"}><form className="modal-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <ListPlus />}</span><div><span className="eyebrow">{editing ? "Настройки списка" : "Новая глава"}</span><h2>{editing ? "Изменить список" : "Создать список"}</h2><p>{editing ? "Название, доступ и оформление можно менять в любое время." : "Для отдельной темы, настроения или большой мечты."}</p></div></div><label><span>Название</span><input autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Описание</span><textarea rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label><span>Кто увидит</span><select value={form.privacy} onChange={(event) => setForm({ ...form, privacy: event.target.value })}><option value="public">Все</option><option value="followers">Подписчики</option><option value="link">Только по ссылке</option><option value="private">Только я</option></select></label><fieldset className="color-picker"><legend>Цвет обложки</legend>{["coral", "blue", "lime", "sun", "ink"].map((color) => <button type="button" aria-label={`Цвет ${color}`} aria-pressed={form.color === color} className={`${color} ${form.color === color ? "active" : ""}`} onClick={() => setForm({ ...form, color })} key={color}>{form.color === color && <Check />}</button>)}</fieldset>{editing && <div className="list-danger"><div><strong>Удалить список</strong><span>Желания не пропадут и будут перенесены в оставшийся список.</span></div><Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} disabled={listsCount <= 1} onClick={remove}>Удалить</Button></div>}<div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Отмена</Button><Button type="submit" loading={loading}>{editing ? "Сохранить изменения" : "Создать список"}</Button></div></form></Modal>;
+  return <><Modal onClose={onClose} className="modal--list" ariaLabel={editing ? `Настройки списка: ${list.title}` : "Создание списка"}><form className="modal-form" onSubmit={submit}><div className="modal-heading"><span className="modal-icon">{editing ? <Pencil /> : <ListPlus />}</span><div><span className="eyebrow">{editing ? "Настройки списка" : "Новая глава"}</span><h2>{editing ? "Изменить список" : "Создать список"}</h2><p>{editing ? "Название, описание и доступ можно менять в любое время." : "Для отдельной темы, настроения или большой мечты."}</p></div></div><label><span>Название</span><Input autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Описание</span><Textarea rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><Field className="gap-[7px]"><FieldLabel className="items-start" id={privacyLabelId}>Кто увидит</FieldLabel><Select value={form.privacy} onValueChange={(privacy) => setForm((current) => ({ ...current, privacy }))}><SelectTrigger className="h-11 w-full px-3.5 text-base md:text-base data-[size=default]:h-11" aria-labelledby={privacyLabelId}><SelectValue>{(privacy) => LIST_PRIVACY_LABELS[privacy] || ""}</SelectValue></SelectTrigger><SelectContent align="start" alignItemWithTrigger={false}><SelectItem className="min-h-[44px] px-3 text-base" value="public">Все</SelectItem><SelectItem className="min-h-[44px] px-3 text-base" value="followers">Подписчики</SelectItem><SelectItem className="min-h-[44px] px-3 text-base" value="link">Только по ссылке</SelectItem><SelectItem className="min-h-[44px] px-3 text-base" value="private">Только я</SelectItem></SelectContent></Select></Field>{editing && <div className="list-danger"><div><strong>Удалить список</strong><span>Желания не пропадут и будут перенесены в оставшийся список.</span></div><Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} disabled={listsCount <= 1} onClick={() => setDeleteOpen(true)}>Удалить</Button></div>}<div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Отмена</Button><Button type="submit" loading={loading}>{editing ? "Сохранить изменения" : "Создать список"}</Button></div></form></Modal>{deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogMedia><Trash2 /></AlertDialogMedia><AlertDialogTitle>Удалить «{list.title}»?</AlertDialogTitle><AlertDialogDescription>Желания из этого списка останутся в вашем общем списке. Отменить удаление списка не получится.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction className="bg-destructive/10 text-destructive hover:bg-destructive/20" disabled={deleting} onClick={remove}>{deleting ? <Spinner /> : <Trash2 />} Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}</>;
 }
 
 function ListActionsMenu({ list = null, onEdit, onShare, onCreate, compact = false }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") return;
-      if (event.type === "pointerdown" && rootRef.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("keydown", close);
-    document.addEventListener("pointerdown", close);
-    return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", close); };
-  }, [open]);
-  return <div className={`list-actions-menu ${compact ? "is-compact" : ""}`} ref={rootRef}><button className="public-wishes-head__options" type="button" aria-label="Опции списка" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal /></button>{open && <div className="list-actions-menu__panel">{list && <button type="button" onClick={() => { setOpen(false); onEdit?.(); }}><Pencil /> Редактировать список</button>}<button type="button" onClick={() => { setOpen(false); onShare?.(); }}><Share2 /> {list ? "Поделиться списком" : "Поделиться профилем"}</button><button type="button" onClick={() => { setOpen(false); onCreate?.(); }}><Plus /> Создать новый список</button></div>}</div>;
+  return <div className={`list-actions-menu ${compact ? "is-compact" : ""}`}><DropdownMenu><DropdownMenuTrigger className="public-wishes-head__options" aria-label="Опции списка"><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent className="list-actions-menu__panel static w-[232px]" align="end" sideOffset={8}>{list && <DropdownMenuItem className="min-h-10 gap-2 px-3" onClick={onEdit}><Pencil /> Редактировать список</DropdownMenuItem>}<DropdownMenuItem className="min-h-10 gap-2 px-3" onClick={onShare}><Share2 /> {list ? "Поделиться списком" : "Поделиться профилем"}</DropdownMenuItem><DropdownMenuItem className="min-h-10 gap-2 px-3" onClick={onCreate}><Plus /> Создать новый список</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div>;
 }
 
 function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
@@ -1729,6 +1271,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   const uploadedImageIdsRef = useRef(new Set());
   const mutationRef = useRef(null);
   const deleteTriggerRef = useRef(null);
+  const listCreatorTriggerRef = useRef(null);
   const deleteConfirmRef = useRef(null);
   const restoreDeleteFocusRef = useRef(false);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
@@ -1867,11 +1410,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       setDeleting(false);
     }
   };
-  const toggleList = (id) => setForm((current) => ({
+  const setListSelected = (id, selected) => setForm((current) => ({
     ...current,
-    listIds: current.listIds.includes(id) ? current.listIds.filter((item) => item !== id) : [...current.listIds, id],
+    listIds: selected
+      ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
+      : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <button type="button" onClick={() => recognize(form.url)}>Повторить</button>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" size="sm" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -1923,7 +1468,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   }
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
-  const coverForList = (listId) => data?.wishes?.find((item) => item.imageUrl && item.listIds.includes(listId))?.imageUrl || "";
   return <>
     <Modal
       onClose={requestClose}
@@ -1952,68 +1496,72 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
             >
               {form.imageUrl
                 ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} />
-                : <button type="button" className="wish-editor__image-empty" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}>
+                : <ShadcnButton
+                  type="button"
+                  variant="ghost"
+                  className="wish-editor__image-empty h-full w-full max-w-none flex-col gap-2.5 overflow-hidden rounded-[inherit] border-0 bg-transparent p-6 text-center whitespace-normal shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent [&_svg:not([class*='size-'])]:size-12"
+                  disabled={imageUploading}
+                  onClick={() => imageFileRef.current?.click()}
+                >
                   {imageUploading ? <LoaderCircle className="spin" /> : <Image />}
                   <strong>{imageUploading ? "Загружаем изображение…" : "Перетащите изображение или нажмите для загрузки"}</strong>
                   <span>JPG, PNG, WEBP · НЕ БОЛЕЕ 8 МБ</span>
-                </button>}
-              <input
+                </ShadcnButton>}
+              <Input
                 ref={imageFileRef}
-                className="visually-hidden"
+                className="sr-only !size-px"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 aria-label="Загрузить фотографию желания"
                 onChange={(event) => uploadImage(event.target.files?.[0])}
               />
-              {editing && <button ref={deleteTriggerRef} type="button" className="wish-editor__delete" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /></button>}
-              {form.imageUrl && <button type="button" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</button>}
+              {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="ghost" size="icon" className="wish-editor__delete" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /></ShadcnButton>}
+              {form.imageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</ShadcnButton>}
             </div>
             {imageError && <p className="wish-editor__image-error" role="alert">{imageError}</p>}
           </section>
 
           <section className="wish-editor__panel">
             <div className="wish-editor__scroll">
-              <label className="wish-editor__field" htmlFor={fieldId("title")}>
-                <span>Название</span>
-                <input id={fieldId("title")} data-modal-initial-focus={editing ? "" : undefined} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
-              </label>
+              <Field className="wish-editor__field">
+                <FieldLabel htmlFor={fieldId("title")}>Название</FieldLabel>
+                <Input className="h-11 text-base md:text-base" id={fieldId("title")} data-modal-initial-focus={editing ? "" : undefined} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+              </Field>
 
-              <div className="wish-editor__field wish-editor__field--link">
-                <label htmlFor={fieldId("url")}>Ссылка</label>
-                <input id={fieldId("url")} data-modal-initial-focus={!editing ? "" : undefined} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
-                <button type="button" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
+              <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
+                <FieldLabel htmlFor={fieldId("url")}>Ссылка</FieldLabel>
+                <Input className="h-11 text-base md:text-base" id={fieldId("url")} data-modal-initial-focus={!editing ? "" : undefined} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <ShadcnButton className="wish-editor__link-action h-8 px-2" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
+                  {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
-                  <i>{metadata.status === "loading" ? <LoaderCircle className="spin" /> : <ArrowRight />}</i>
-                </button>
-              </div>
+                </ShadcnButton>
+              </Field>
 
               {metadataNotice}
 
-              <label className="wish-editor__field wish-editor__field--description" htmlFor={fieldId("description")}>
-                <span className="visually-hidden">Описание желания</span>
-                <textarea id={fieldId("description")} rows={2} value={form.description} placeholder="Опишите желание" onChange={(event) => updateMetadataField("description", event.target.value)} />
-              </label>
+              <Field className="wish-editor__field wish-editor__field--description">
+                <FieldLabel className="sr-only" htmlFor={fieldId("description")}>Описание желания</FieldLabel>
+                <Textarea className="min-h-24 resize-none text-base md:text-base" id={fieldId("description")} rows={3} value={form.description} placeholder="Опишите желание" onChange={(event) => updateMetadataField("description", event.target.value)} />
+              </Field>
 
-              <label className="wish-editor__field wish-editor__field--price" htmlFor={fieldId("price")}>
-                <span>Цена</span>
-                <input id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
-                <select aria-label="Валюта" value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>
+              <Field className="wish-editor__field wish-editor__field--price grid grid-cols-[minmax(0,1fr)_84px] grid-rows-[auto_auto] items-center gap-2">
+                <FieldLabel htmlFor={fieldId("price")}>Цена</FieldLabel>
+                <Input className="h-11 text-base md:text-base" id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
+                <NativeSelect className="wish-editor__currency w-full [&>select]:h-11 [&>select]:text-base" aria-label="Валюта" value={form.currency} onChange={(event) => updateMetadataField("currency", event.target.value)}>
                   {WISH_CURRENCIES.map((currency) => <option value={currency} key={currency}>{WISH_CURRENCY_SYMBOLS[currency]}</option>)}
-                </select>
-              </label>
+                </NativeSelect>
+              </Field>
 
               <div className="wish-editor__settings" role="group" aria-label="Настройки желания">
                 <label className="wish-editor__switch-row">
                   <EyeOff />
-                  <span><strong>Секретное желание <i title="Такое желание видно только вам">?</i></strong></span>
-                  <input type="checkbox" role="switch" aria-label="Секретное желание" checked={form.privacy === "private"} onChange={(event) => setForm({ ...form, privacy: event.target.checked ? "private" : "inherit" })} />
-                  <span className="wish-editor__switch" aria-hidden="true"><i /></span>
+                  <span><strong>Секретное желание <i aria-hidden="true" title="Такое желание видно только вам">?</i></strong></span>
+                  <Switch className="wish-editor__switch" checked={form.privacy === "private"} onCheckedChange={(checked) => setForm({ ...form, privacy: checked ? "private" : "inherit" })} />
                 </label>
                 <label className="wish-editor__switch-row">
                   <LockKeyhole />
-                  <span><strong>Многократное бронирование <i title="Разрешает нескольким друзьям забронировать одинаковый подарок">?</i></strong></span>
-                  <input type="checkbox" role="switch" aria-label="Многократное бронирование" checked={form.allowMultiple} onChange={(event) => setForm({ ...form, allowMultiple: event.target.checked })} />
-                  <span className="wish-editor__switch" aria-hidden="true"><i /></span>
+                  <span><strong>Многократное бронирование <i aria-hidden="true" title="Разрешает нескольким друзьям забронировать одинаковый подарок">?</i></strong></span>
+                  <Switch className="wish-editor__switch" checked={form.allowMultiple} onCheckedChange={(checked) => setForm({ ...form, allowMultiple: checked })} />
                 </label>
               </div>
 
@@ -2021,17 +1569,18 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
                 <legend className="visually-hidden">Списки желания</legend>
                 <div className="wish-editor__lists-head">
                   <strong>Списки</strong>
-                  <button type="button" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}><ListPlus /> Новый список</button>
+                  <ShadcnButton ref={listCreatorTriggerRef} type="button" variant="ghost" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}><ListPlus /> Новый список</ShadcnButton>
                 </div>
                 {listsLoading ? <LoadingScreen compact /> : <div className="wish-editor__list-rows">
                   {selectableLists.map((list) => {
                     const selected = form.listIds.includes(list.id);
-                    const cover = coverForList(list.id);
                     return <label className={`wish-editor__list-row ${selected ? "is-selected" : ""}`} key={list.id}>
-                      <input type="checkbox" checked={selected} onChange={() => toggleList(list.id)} />
-                      <span className={`wish-editor__list-thumb list-dot--${list.color}`}>{cover ? <img src={cover} alt="" /> : <ListPlus />}</span>
-                      <span>{list.title}</span>
-                      <span className="wish-editor__list-state" aria-hidden="true">{selected ? <Check /> : <Plus />}</span>
+                      <span className="wish-editor__list-title">{list.title}</span>
+                      <Switch
+                        className="wish-editor__list-switch"
+                        checked={selected}
+                        onCheckedChange={(checked) => setListSelected(list.id, checked)}
+                      />
                     </label>;
                   })}
                 </div>}
@@ -2043,6 +1592,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       </Modal>
       {listCreatorOpen && <ListModal
         listsCount={data?.lists?.length || 0}
+        returnFocusRef={listCreatorTriggerRef}
         onClose={() => setListCreatorOpen(false)}
         onSaved={async (saved) => {
           if (saved?.id) {
@@ -2060,44 +1610,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       />}
     </>;
 }
-
-function IdeasPage({ appMode = false }) {
-  const { user } = useSession();
-  const toast = useToast();
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
-  const [selectedIdea, setSelectedIdea] = useState(null);
-  const { data, loading } = useAsync(
-    () => api.get(`/ideas?category=${encodeURIComponent(category)}&search=${encodeURIComponent(search)}`),
-    [category, search],
-  );
-  const searchControl = <label className="ideas-search"><Search /><input aria-label="Поиск идей" placeholder="Керамика, музыка, впечатления…" value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>⌘ K</kbd></label>;
-  const content = <>
-    {appMode
-      ? <div className="ideas-catalog-head"><PageTitle eyebrow="Подборка идей" title="Идеи подарков" text="Найдите то, что действительно захочется добавить в свой список." />{searchControl}</div>
-      : <div className="ideas-hero"><span className="eyebrow"><WandSparkles size={15} /> Отобрано с любопытством</span><h1>Идеи, от которых<br /><em>что-то ёкает</em></h1><p>Не безликий каталог товаров, а поводы заметить: «Да, вот этого мне и хотелось».</p>{searchControl}</div>}
-    {loading ? <LoadingScreen compact /> : <>
-      <div className="category-row">
-        <button className={!category ? "active" : ""} onClick={() => setCategory("")}>Всё <span>{data.categories.reduce((sum, item) => sum + item.count, 0)}</span></button>
-        {data.categories.map((item) => <button className={category === item.name ? "active" : ""} onClick={() => setCategory(item.name)} key={item.name}>{item.name} <span>{item.count}</span></button>)}
-      </div>
-      <div className="ideas-grid">
-        {data.ideas.map((idea, index) => <article className={`idea-card idea-card--${index % 5}`} key={idea.id}><div className="idea-card__image"><img src={idea.imageUrl} alt="" /><span>{idea.badge}</span><button aria-label={`Сохранить идею «${idea.title}»`} onClick={() => user ? setSelectedIdea(idea) : toast("Войдите, чтобы сохранить идею", "error")}><Heart /></button></div><div className="idea-card__copy"><small>{idea.category}</small><h3>{idea.title}</h3><p>{idea.description}</p><strong>{formatMoney(idea.price, idea.currency)}</strong></div></article>)}
-      </div>
-    </>}
-    {selectedIdea && <SaveIdeaModal idea={selectedIdea} onClose={() => setSelectedIdea(null)} />}
-  </>;
-  if (appMode) return <div className="app-page ideas-page">{content}</div>;
-  return <div className="public-ideas"><LandingHeader /><main>{content}</main><footer className="landing-footer"><Logo /><p>Списки желаний, которые приятно исполнять.</p><span>© 2026 Rollapp</span></footer></div>;
-}
-
-function IdeasRoute() {
-  const { user, loading } = useSession();
-  if (loading) return <LoadingScreen />;
-  return user ? <Navigate to="/app/ideas" replace /> : <IdeasPage />;
-}
-
-function SaveIdeaModal({ idea, onClose }) { const toast = useToast(); const { data, loading } = useAsync(() => api.get("/dashboard"), []); const [listId, setListId] = useState(""); const [busy, setBusy] = useState(false); useEffect(() => { if (data?.lists?.[0]) setListId(data.lists[0].id); }, [data]); const save = async () => { setBusy(true); try { await api.post(`/ideas/${idea.id}/save`, { listId }); toast("Идея сохранена в ваш список"); onClose(); } catch (error) { toast(error.message, "error"); } finally { setBusy(false); } }; return <Modal onClose={onClose}><div className="save-idea"><img src={idea.imageUrl} alt="" /><span className="eyebrow">Сохранить идею</span><h2>{idea.title}</h2><p>{idea.description}</p>{loading ? <LoadingScreen compact /> : <label><span>Выберите список</span><select value={listId} onChange={(event) => setListId(event.target.value)}>{data.lists.map((list) => <option value={list.id} key={list.id}>{list.title}</option>)}</select></label>}<div className="modal-actions"><Button variant="ghost" onClick={onClose}>Отмена</Button><Button icon={Heart} onClick={save} loading={busy}>Сохранить</Button></div></div></Modal>; }
 
 const friendSections = {
   subscriptions: {
@@ -2126,12 +1638,11 @@ const friendSections = {
 
 function FriendsPage() {
   const { section: requestedSection } = useParams();
+  const navigate = useNavigate();
   const section = friendSections[requestedSection] ? requestedSection : null;
   const config = section ? friendSections[section] : null;
   const [search, setSearch] = useState("");
-  const [openPersonId, setOpenPersonId] = useState(null);
   const [busyPersonId, setBusyPersonId] = useState(null);
-  const menuRef = useRef(null);
   const toast = useToast();
   const EmptyIcon = config?.icon || Users;
   const scope = config?.scope || section;
@@ -2142,29 +1653,7 @@ function FriendsPage() {
 
   useEffect(() => {
     setSearch("");
-    setOpenPersonId(null);
   }, [section]);
-
-  useEffect(() => {
-    if (!openPersonId) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown") {
-        if (event.key !== "Escape") return;
-        const trigger = document.querySelector(`[aria-controls="friend-actions-${CSS.escape(openPersonId)}"]`);
-        setOpenPersonId(null);
-        window.requestAnimationFrame(() => trigger?.focus());
-        return;
-      }
-      if (event.type === "pointerdown" && menuRef.current?.contains(event.target)) return;
-      setOpenPersonId(null);
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [openPersonId]);
 
   if (!section) return <Navigate to="/app/friends/subscriptions" replace />;
 
@@ -2173,7 +1662,6 @@ function FriendsPage() {
     try {
       const result = await api.post(`/profile/${person.username}/follow`, {});
       toast(result.following ? `Вы подписались на ${person.name}` : `Вы отписались от ${person.name}`);
-      setOpenPersonId(null);
       await reload();
     } catch (followError) {
       toast(followError.message, "error");
@@ -2188,15 +1676,24 @@ function FriendsPage() {
         <section className="friends-directory" aria-labelledby="friends-title">
           <h1 id="friends-title">{config.label}</h1>
           <nav className="friends-section-nav" aria-label="Разделы друзей">
-            {Object.entries(friendSections).map(([key, item]) => {
-              const Icon = item.icon;
-              return <NavLink key={key} to={`/app/friends/${key}`}><Icon /><span>{item.label}</span></NavLink>;
-            })}
+            <ToggleGroup className="w-full" value={[section]} onValueChange={(values) => { if (values[0] && values[0] !== section) navigate(`/app/friends/${values[0]}`); }} aria-label="Разделы друзей">
+              {Object.entries(friendSections).map(([key, item]) => {
+                const Icon = item.icon;
+                return <ToggleGroupItem className="min-h-[44px] flex-1" value={key} key={key}><Icon /><span>{item.label}</span></ToggleGroupItem>;
+              })}
+            </ToggleGroup>
           </nav>
           <label className="friends-search">
             <Search aria-hidden="true" />
             <span className="visually-hidden">{config.placeholder}</span>
-            <input type="search" aria-label={config.placeholder} placeholder={config.placeholder} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input
+              className="h-full rounded-full border-0 bg-transparent px-6 py-0 pl-[60px] text-[19px] font-semibold shadow-none dark:bg-transparent md:text-[19px] max-[820px]:pl-[50px] max-[820px]:!text-base"
+              type="search"
+              aria-label={config.placeholder}
+              placeholder={config.placeholder}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </label>
           {loading ? <LoadingScreen compact /> : error ? (
             <div className="friends-empty" role="alert">
@@ -2216,19 +1713,17 @@ function FriendsPage() {
                     </span>
                   </Link>
                   {person.isFollowing && person.isFollower && <span className="friend-row__mutual" title="Взаимная подписка" aria-label="Взаимная подписка"><Star fill="currentColor" /></span>}
-                  <div className="friend-row__actions" ref={openPersonId === person.id ? menuRef : null}>
-                    <button type="button" className="friend-row__more" aria-label={`Действия для ${person.name}`} aria-expanded={openPersonId === person.id} aria-controls={`friend-actions-${person.id}`} onClick={() => setOpenPersonId((current) => current === person.id ? null : person.id)}>
-                      <MoreHorizontal />
-                    </button>
-                    {openPersonId === person.id && (
-                      <div className="friend-row__menu" id={`friend-actions-${person.id}`}>
-                        <Link to={publicProfilePath(person.username)}><CircleUserRound />Открыть профиль</Link>
-                        <button type="button" disabled={busyPersonId === person.id} onClick={() => toggleFollow(person)}>
+                  <div className="friend-row__actions">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="friend-row__more" aria-label={`Действия для ${person.name}`}><MoreHorizontal /></DropdownMenuTrigger>
+                      <DropdownMenuContent className="friend-row__menu static w-[210px]" align="end" sideOffset={8}>
+                        <DropdownMenuItem nativeButton={false} className="min-h-10 gap-2 px-3" render={<Link to={publicProfilePath(person.username)} />}><CircleUserRound />Открыть профиль</DropdownMenuItem>
+                        <DropdownMenuItem className="min-h-10 gap-2 px-3" disabled={busyPersonId === person.id} onClick={() => toggleFollow(person)}>
                           {busyPersonId === person.id ? <LoaderCircle className="spin" /> : person.isFollowing ? <X /> : <UserPlus />}
                           {person.isFollowing ? "Отписаться" : "Подписаться"}
-                        </button>
-                      </div>
-                    )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </li>
               ))}
@@ -2238,7 +1733,7 @@ function FriendsPage() {
               <span className="friends-empty__icon"><EmptyIcon /></span>
               <strong>{config.emptyTitle}</strong>
               <span>{config.emptyText}</span>
-              {section !== "search" && <Link className="button button--primary" to="/app/friends/search">Найти друзей</Link>}
+              {section !== "search" && <ShadcnButton nativeButton={false} render={<Link to="/app/friends/search" />} className="button button--primary"><span>Найти друзей</span></ShadcnButton>}
             </div>
           )}
         </section>
@@ -2341,16 +1836,38 @@ function ProfileSettingsModal({ user, onClose, onSaved }) {
       <div className="settings-editor__avatar">
         <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="xl" />
         <div><strong>Фото профиля</strong><span>JPG, PNG или WEBP · до 8 МБ</span><Button type="button" variant="outline" icon={Upload} loading={imageUploading} onClick={() => imageFileRef.current?.click()}>Загрузить фото</Button></div>
-        <input ref={imageFileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+        <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
       </div>
       {imageError && <p className="settings-editor__error" role="alert">{imageError}</p>}
-      <label><span>Ссылка на фото</span><input type="text" inputMode="url" value={form.avatarUrl} placeholder="https://… или /api/media/…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label>
+      <label><span>Ссылка на фото</span><Input type="text" inputMode="url" value={form.avatarUrl} placeholder="https://… или /api/media/…" onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} /></label>
       <div className="form-row">
-        <label><span>Имя</span><input data-modal-initial-focus required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-        <label><span>Адрес профиля</span><div className="input-prefix"><span>роллапп.рф/</span><input required pattern="[a-z0-9-]{3,32}" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })} /></div></label>
+        <Field className="gap-[7px]">
+          <FieldLabel className="text-xs font-[760]" htmlFor="settings-profile-name">Имя</FieldLabel>
+          <Input id="settings-profile-name" className="h-[52px] text-base md:text-base" data-modal-initial-focus required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        </Field>
+        <Field className="gap-[7px]">
+          <FieldLabel className="text-xs font-[760]" htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
+          <InputGroup className="h-[52px] min-w-0">
+            <InputGroupAddon align="inline-start" className="shrink-0 pl-4 pr-1">
+              <InputGroupText aria-hidden="true">роллапп.рф/</InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              id="settings-profile-address"
+              className="h-full min-w-0 text-base md:text-base"
+              required
+              pattern="[a-z0-9-]{3,32}"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="username"
+              spellCheck={false}
+              value={form.username}
+              onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+            />
+          </InputGroup>
+        </Field>
       </div>
-      <label><span>О себе</span><textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label>
-      <label className="short-field"><span>День рождения</span><input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label>
+      <label><span>О себе</span><Textarea rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label>
+      <label className="short-field"><span>День рождения</span><Input type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} /></label>
       <div className="modal-actions"><Button type="button" variant="ghost" onClick={close}>Отмена</Button><Button type="submit" loading={loading} disabled={!changed || imageUploading}>Сохранить</Button></div>
     </form>
   </Modal>;
@@ -2367,7 +1884,7 @@ function SettingsRow({ icon: Icon, label, detail = "", action = null, to = "", o
     {action || ((to || onClick) && <span className="settings-row__arrow"><ArrowRight /></span>)}
   </>;
   if (to) return <Link className="settings-row" to={to}>{content}</Link>;
-  if (onClick) return <button className="settings-row" type="button" onClick={onClick}>{content}</button>;
+  if (onClick) return <ShadcnButton variant="ghost" className="settings-row grid h-auto justify-normal gap-[11px] rounded-[14px] border-0 p-0 [&_svg:not([class*='size-'])]:size-6 max-[561px]:gap-2.5" type="button" onClick={onClick}>{content}</ShadcnButton>;
   return <div className="settings-row">{content}</div>;
 }
 
@@ -2437,27 +1954,27 @@ function SettingsPage() {
   const birthday = user.birthday ? formatDate(user.birthday, { year: "numeric" }) : "Не указан";
   return <div className="app-page settings-page">
     <SettingsSection title="Общие сведения">
-      <article className="settings-profile-card">
+      <Card className="settings-profile-card grid gap-[30px] overflow-visible p-5 max-[820px]:gap-5 max-[390px]:gap-3">
         <Avatar user={user} size="xl" />
         <div><strong>{user.name}</strong><span>@{user.username}</span><small>{user.bio || "Расскажите немного о себе"}</small></div>
-        <button type="button" aria-label="Редактировать общие сведения" onClick={() => setEditorOpen(true)}><Pencil /></button>
-      </article>
+        <ShadcnButton variant="ghost" size="icon" type="button" aria-label="Редактировать общие сведения" onClick={() => setEditorOpen(true)}><Pencil /></ShadcnButton>
+      </Card>
     </SettingsSection>
 
     <SettingsSection title="Управление данными">
-      <div className="settings-card">
-        <SettingsRow icon={Mail} label={user.email} detail="Email для входа" action={<span className="settings-row__badge">Основной</span>} />
+      <Card className="settings-card gap-0 overflow-visible p-5 max-[820px]:px-3 max-[820px]:py-2">
+        <SettingsRow icon={Mail} label={user.email} detail="Email для входа" action={<Badge className="settings-row__badge">Основной</Badge>} />
         <SettingsRow icon={Phone} label={user.phoneMasked || "Номер телефона"} detail={user.hasPhone ? "Вход по коду из SMS" : "Не привязан"} onClick={() => setPhoneEditorOpen(true)} />
         <SettingsRow icon={CalendarDays} label="День рождения" detail={birthday} onClick={() => setEditorOpen(true)} />
         <SettingsRow icon={AtSign} label="Адрес профиля" detail={`роллапп.рф/${user.username}`} to={publicProfilePath(user.username)} />
-      </div>
+      </Card>
     </SettingsSection>
 
     <SettingsSection title="Приватность">
-      <div className="settings-card">
+      <Card className="settings-card gap-0 overflow-visible p-5 max-[820px]:px-3 max-[820px]:py-2">
         <SettingsRow icon={ListPlus} label="Доступ к спискам" detail="Настройте видимость каждого списка" to="/app/wishes" />
         <SettingsRow icon={EyeOff} label="Секретные желания" detail="Видны только вам" to={`${publicProfilePath(user.username)}?view=secret`} />
-      </div>
+      </Card>
     </SettingsSection>
 
     {editorOpen && <ProfileSettingsModal
@@ -2493,8 +2010,6 @@ function PublicProfile({ shared = false }) {
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [wishModalOpen, setWishModalOpen] = useState(false);
-  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileCompact, setProfileCompact] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(20);
   const loadMoreRef = useRef(null);
@@ -2521,26 +2036,6 @@ function PublicProfile({ shared = false }) {
   }, [visibleLimit, data?.wishes?.length, selected]);
 
   useEffect(() => {
-    if (!mobileMenuOpen) return undefined;
-    const close = (event) => event.key === "Escape" && setMobileMenuOpen(false);
-    document.addEventListener("keydown", close);
-    document.body.classList.add("profile-menu-open");
-    return () => { document.removeEventListener("keydown", close); document.body.classList.remove("profile-menu-open"); };
-  }, [mobileMenuOpen]);
-
-  useEffect(() => {
-    if (!desktopMenuOpen) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") return;
-      if (event.type === "pointerdown" && event.target instanceof Element && event.target.closest(".profile-header__actions")) return;
-      setDesktopMenuOpen(false);
-    };
-    document.addEventListener("keydown", close);
-    document.addEventListener("pointerdown", close);
-    return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", close); };
-  }, [desktopMenuOpen]);
-
-  useEffect(() => {
     const updateHeader = () => setProfileCompact(window.scrollY > 220);
     updateHeader();
     window.addEventListener("scroll", updateHeader, { passive: true });
@@ -2548,7 +2043,7 @@ function PublicProfile({ shared = false }) {
   }, []);
 
   if (loading) return <div className="public-profile public-profile--dark public-profile--state"><LoadingScreen /></div>;
-  if (error && !data) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div></div>;
+  if (error && !data) return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>Такой список не нашёлся</h1><p>{error.message}</p><ShadcnButton nativeButton={false} render={<Link to={APP_HOME} />} className="button button--primary"><span>В приложение</span></ShadcnButton></div></div>;
 
   const lists = shared ? [data.list] : data.lists;
   const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
@@ -2570,7 +2065,7 @@ function PublicProfile({ shared = false }) {
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
   if ((!shared && params.listId && !selectedList) || (params.wishId && !selectedWish)) {
-    return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>{params.wishId ? "Желание не найдено" : "Список не найден"}</h1><p>Ссылка устарела или доступ к этой странице ограничен.</p><Link className="button button--primary" to={shared ? `/s/${params.token}` : publicProfilePath(data.profile.username)}><span>Вернуться к профилю</span></Link></div></div>;
+    return <div className="public-profile public-profile--dark public-profile--state"><div className="not-found"><Logo /><Gift /><h1>{params.wishId ? "Желание не найдено" : "Список не найден"}</h1><p>Ссылка устарела или доступ к этой странице ограничен.</p><ShadcnButton nativeButton={false} render={<Link to={shared ? `/s/${params.token}` : publicProfilePath(data.profile.username)} />} className="button button--primary"><span>Вернуться к профилю</span></ShadcnButton></div></div>;
   }
   const sectionTitle = shared ? data.list.title : selected === "secret" ? "Секретные желания" : selected === "fulfilled" ? "Исполнено" : selectedList?.title || (data.isOwner ? "Мои желания" : "Все желания");
   const appTarget = user ? APP_HOME : "/register";
@@ -2678,43 +2173,44 @@ function PublicProfile({ shared = false }) {
           <div><strong>{data.profile.name}</strong><span>@{data.profile.username}</span></div>
         </div>
         <nav className="profile-header__dock" aria-label="Основная навигация">
-          <Link className={!data.isOwner ? "profile-header__ideas is-active" : "profile-header__ideas"} to={user ? "/app/ideas" : "/ideas"} aria-label="Идеи подарков" title="Идеи подарков"><Flame fill="currentColor" /></Link>
-          <Link className={data.isOwner ? "is-active" : ""} to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
+          <Link className="is-active" to={appTarget} aria-label="Мои желания" title="Мои желания"><Heart fill="currentColor" /></Link>
           <Link to={friendsTarget} aria-label="Друзья" title="Друзья"><Users fill="currentColor" /></Link>
           <Link className="profile-header__search" to={friendsTarget} aria-label="Поиск" title="Поиск"><Search /></Link>
         </nav>
         <div className="profile-header__actions">
-          {user ? <button className="profile-desktop-menu" type="button" aria-label={desktopMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen((value) => !value)}>{desktopMenuOpen ? <X /> : <Menu />}</button> : <Link className="button button--primary" to={`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`}><span>Вход</span></Link>}
-          {user && <nav className={`profile-desktop-panel ${desktopMenuOpen ? "is-open" : ""}`} aria-label="Меню аккаунта" aria-hidden={!desktopMenuOpen}><Link to={APP_HOME} onClick={() => setDesktopMenuOpen(false)}><Heart /> Мои желания</Link><Link to="/app/settings" onClick={() => setDesktopMenuOpen(false)}><Settings /> Настройки</Link></nav>}
+          {user ? <DropdownMenu><DropdownMenuTrigger className="profile-desktop-menu" aria-label="Открыть меню"><Menu /></DropdownMenuTrigger><DropdownMenuContent className="profile-desktop-panel static visible w-[220px] translate-y-0 opacity-100 pointer-events-auto" align="end" sideOffset={8}><DropdownMenuItem nativeButton={false} className="min-h-10 gap-2 px-3" render={<Link to={APP_HOME} />}><Heart /> Мои желания</DropdownMenuItem><DropdownMenuItem nativeButton={false} className="min-h-10 gap-2 px-3" render={<Link to="/app/settings" />}><Settings /> Настройки</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : <ShadcnButton nativeButton={false} render={<Link to={`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />} className="button button--primary"><span>Вход</span></ShadcnButton>}
         </div>
-        {!data.isOwner && !shared && <button className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</button>}
-        <button className="profile-mobile-menu" type="button" aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} aria-expanded={mobileMenuOpen} aria-controls="profile-mobile-navigation" onClick={() => setMobileMenuOpen((value) => !value)}>{mobileMenuOpen ? <X /> : <Menu />}</button>
-        <button className={`profile-mobile-overlay ${mobileMenuOpen ? "is-open" : ""}`} type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)} />
-        <nav id="profile-mobile-navigation" className={`profile-mobile-panel ${mobileMenuOpen ? "is-open" : ""}`} aria-label="Меню профиля">
-          <div className="profile-mobile-panel__head"><Logo /><button type="button" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)}><X /></button></div>
-          <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><Link className="button button--primary" to={user ? APP_HOME : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} onClick={() => setMobileMenuOpen(false)}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></Link></div><img src="/art/gift-3d.png" alt="" /></div>
-          <div className="profile-mobile-panel__about"><p>Rollapp — это бесплатный онлайн-сервис вишлистов. Создайте персональный список желаний, добавьте ссылки на товары из любых магазинов с ценами и поделитесь списком с друзьями или семьёй.</p><p>Друзья бронируют подарки через быстрое бронирование без долгой регистрации — система исключает повторы. Встроенный каталог содержит идеи для дня рождения, Нового года, свадьбы и других праздников: от электроники до впечатлений.</p><p>Вишлист работает в браузере и в приложениях для iOS и Android. Регистрация занимает секунды через электронную почту, а функция многократного бронирования идеально подходит для подарочных сертификатов.</p></div>
-          <div className="profile-mobile-panel__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
-        </nav>
+        {!data.isOwner && !shared && <ShadcnButton variant={data.isFollowing ? "secondary" : "default"} className="profile-header__compact-follow" type="button" onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</ShadcnButton>}
+        <Sheet>
+          <SheetTrigger className="profile-mobile-menu" aria-label="Открыть меню"><Menu /></SheetTrigger>
+          <SheetContent id="profile-mobile-navigation" side="top" showCloseButton={false} className="profile-mobile-panel !fixed !inset-0 !flex !h-dvh !max-h-dvh !w-full !max-w-none !gap-0 !overflow-y-auto !border-0 !bg-popover !text-popover-foreground" aria-label="Меню профиля">
+          <SheetTitle className="sr-only">Меню профиля</SheetTitle>
+          <SheetDescription className="sr-only">Информация о Rollapp и ссылка на ваш вишлист</SheetDescription>
+          <div className="profile-mobile-panel__head"><Logo /><SheetClose aria-label="Закрыть меню"><X /></SheetClose></div>
+          <div className="profile-mobile-panel__promo"><div><strong>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</strong><SheetClose nativeButton={false} render={<Link className="button button--primary bg-primary text-primary-foreground hover:bg-primary/80" to={user ? APP_HOME : `/register?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} />}><span>{user ? "Открыть мой вишлист" : "Создать вишлист"}</span></SheetClose></div><img src="/art/gift-3d.png" alt="" /></div>
+          <div className="profile-mobile-panel__about"><p>Rollapp — это бесплатный онлайн-сервис вишлистов. Создайте персональный список желаний, добавьте ссылки на товары из любых магазинов с ценами и поделитесь списком с друзьями или семьёй.</p><p>Друзья бронируют подарки через быстрое бронирование без долгой регистрации — система исключает повторы.</p><p>Вишлист работает в браузере и в приложениях для iOS и Android. Регистрация занимает секунды через электронную почту, а функция многократного бронирования идеально подходит для подарочных сертификатов.</p></div>
+          <div className="profile-mobile-panel__legal"><span>© Rollapp</span><span>Россия</span><ShadcnButton variant="link" className="h-auto justify-start p-0 text-inherit" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</ShadcnButton><ShadcnButton variant="link" className="h-auto justify-start p-0 text-inherit" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</ShadcnButton></div>
+          </SheetContent>
+        </Sheet>
       </header>
 
       <div className="public-profile__layout">
         {data.isOwner && !shared ? <aside className="profile-rail profile-list-rail">
           <nav className="profile-list-rail__lists" aria-label="Списки желаний">
-            <button className="profile-list-rail__create" type="button" onClick={() => setListModal({})}><i aria-hidden="true"><Plus /></i> Создать новый список</button>
-            <button className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></button>
-            {navigationLists.map((list) => <button className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></button>)}
-            <button className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><EyeOff /><span>Секретные желания</span></button>
-            <button className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><Check /><span>Исполнено</span></button>
+            <ShadcnButton variant="ghost" className="profile-list-rail__create" type="button" onClick={() => setListModal({})}><i aria-hidden="true"><Plus /></i> Создать новый список</ShadcnButton>
+            <ShadcnButton variant="ghost" className={selected === "all" ? "active" : ""} type="button" aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><Heart fill={selected === "all" ? "currentColor" : "none"} /><span>Мои желания</span></ShadcnButton>
+            {navigationLists.map((list) => <ShadcnButton variant="ghost" className={selected === list.id ? "active" : ""} type="button" aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{wishCountForList(list.id)}</strong><span>{list.title}</span></ShadcnButton>)}
+            <ShadcnButton variant="ghost" className={selected === "secret" ? "active" : ""} type="button" aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><EyeOff /><span>Секретные желания</span></ShadcnButton>
+            <ShadcnButton variant="ghost" className={selected === "fulfilled" ? "active" : ""} type="button" aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><Check /><span>Исполнено</span></ShadcnButton>
           </nav>
           <small>© 2026 Rollapp</small>
         </aside> : <aside className="profile-rail profile-guest-rail">
           <div className="profile-rail__intro">
             <p>Rollapp — бесплатный сервис для создания вишлистов и списков желаний</p>
-            <Link className="button button--primary" to={appTarget}>{user ? "Открыть мой список" : "Создать вишлист"}</Link>
+            <ShadcnButton nativeButton={false} render={<Link to={appTarget} />} className="button button--primary"><span>{user ? "Открыть мой список" : "Создать вишлист"}</span></ShadcnButton>
           </div>
           <nav className="profile-guest-rail__people" aria-label="Люди в Rollapp"><Link to={friendsTarget}><Users /> Подписки</Link><Link to={friendsTarget}><UserPlus /> Подписчики</Link><Link to={friendsTarget}><CircleUserRound /> Найти друзей</Link></nav>
-          <div className="profile-guest-rail__legal"><span>© Rollapp</span><span>Россия</span><button type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</button><button type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</button></div>
+          <div className="profile-guest-rail__legal"><span>© Rollapp</span><span>Россия</span><ShadcnButton variant="link" size="xs" type="button" onClick={() => toast("Политика конфиденциальности готовится к публикации")}>Конфиденциальность</ShadcnButton><ShadcnButton variant="link" size="xs" type="button" onClick={() => toast("Пользовательское соглашение готовится к публикации")}>Пользовательское соглашение</ShadcnButton></div>
         </aside>}
 
         <main>
@@ -2735,16 +2231,18 @@ function PublicProfile({ shared = false }) {
                 : <Button className="profile-cover__wish-action" icon={Plus} onClick={() => setWishModalOpen(true)}>Загадать желание</Button> : <>
                 <Button variant={data.isFollowing ? "soft" : "primary"} onClick={follow}>{data.isFollowing ? "Вы подписаны" : "Подписаться"}</Button>
                 <span className="profile-cover__metric"><Users />{shared ? `${data.wishes.length} желаний` : `${data.followersCount} друзей`}</span>
-                <button type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></button>
+                <ShadcnButton variant="ghost" size="icon" type="button" className="profile-cover__options" aria-label="Опции профиля" onClick={share}><MoreHorizontal /></ShadcnButton>
               </>}
             </div>
           </section>
 
           {!shared && <div className="public-list-tabs" aria-label="Списки желаний">
-            <button className={selected === "all" ? "active" : ""} aria-pressed={selected === "all"} onClick={() => selectCollection("all")}><strong>{data.isOwner ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></button>
-            {tabLists.map((list) => <button className={selected === list.id ? "active" : ""} aria-pressed={selected === list.id} onClick={() => selectCollection(list.id)} key={list.id}><strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></button>)}
-            {data.isOwner && <button className={selected === "secret" ? "active" : ""} aria-pressed={selected === "secret"} onClick={() => selectCollection("secret")}><strong>Секретные</strong><span>{secretWishes.length}</span></button>}
-            {data.isOwner && <button className={selected === "fulfilled" ? "active" : ""} aria-pressed={selected === "fulfilled"} onClick={() => selectCollection("fulfilled")}><strong>Исполнено</strong><span>{fulfilledWishes.length}</span></button>}
+            <ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
+              <ToggleGroupItem value="all"><strong>{data.isOwner ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></ToggleGroupItem>
+              {tabLists.map((list) => <ToggleGroupItem value={list.id} key={list.id}><strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></ToggleGroupItem>)}
+              {data.isOwner && <ToggleGroupItem value="secret"><strong>Секретные</strong><span>{secretWishes.length}</span></ToggleGroupItem>}
+              {data.isOwner && <ToggleGroupItem value="fulfilled"><strong>Исполнено</strong><span>{fulfilledWishes.length}</span></ToggleGroupItem>}
+            </ToggleGroup>
           </div>}
 
           {shared && <div className={"shared-list-head shared-list-head--" + data.list.color}><ListPlus /><div><span>Отдельный список</span><h2>{data.list.title}</h2><p>{data.list.description}</p></div></div>}
@@ -2767,7 +2265,7 @@ function PublicProfile({ shared = false }) {
   );
 }
 
-function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link className="button button--primary" to={APP_HOME}><span>В приложение</span></Link></div>; }
+function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><ShadcnButton nativeButton={false} render={<Link to={APP_HOME} />} className="button button--primary"><span>В приложение</span></ShadcnButton></div>; }
 
 function LegacyProfileRedirect() {
   const params = useParams();
@@ -2777,4 +2275,4 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<IdeasRoute />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></SessionProvider></ToastProvider>; }
