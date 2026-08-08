@@ -624,7 +624,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
     );
     await client.query(
       "INSERT INTO notifications (id,user_id,type,title,body,href) VALUES ($1,$2,$3,$4,$5,$6)",
-      [randomUUID(), userId, "welcome", "Добро пожаловать в Rollapp", "Добавьте первое желание или сохраните идею из каталога.", "/app/ideas"],
+      [randomUUID(), userId, "welcome", "Добро пожаловать в Rollapp", "Добавьте первое желание и поделитесь списком с близкими.", "/app/wishes"],
     );
   });
   await createSession(res, userId);
@@ -1379,36 +1379,6 @@ app.get("/api/people", asyncRoute(async (req, res) => {
     ? (a, b) => b.wishCount - a.wishCount || a.name.localeCompare(b.name, "ru")
     : (a, b) => a.name.localeCompare(b.name, "ru"));
   res.json({ people, scope });
-}));
-
-app.get("/api/ideas", asyncRoute(async (req, res) => {
-  const category = String(req.query.category || "");
-  const search = String(req.query.search || "").trim().toLowerCase();
-  const result = await query(
-    `SELECT * FROM ideas WHERE ($1='' OR category=$1) AND ($2='' OR LOWER(title) LIKE $3 OR LOWER(description) LIKE $3)
-     ORDER BY category,title`,
-    [category, search, `%${search}%`],
-  );
-  const categories = await query("SELECT category,COUNT(*) AS count FROM ideas GROUP BY category ORDER BY category");
-  res.json({ ideas: result.rows.map((row) => ({ id: row.id, title: row.title, description: row.description, category: row.category, imageUrl: row.image_url, url: row.url, price: row.price === null ? null : Number(row.price), currency: row.currency, badge: row.badge })), categories: categories.rows.map((row) => ({ name: row.category, count: Number(row.count) })) });
-}));
-
-app.post("/api/ideas/:id/save", requireAuth, asyncRoute(async (req, res) => {
-  const idea = await query("SELECT * FROM ideas WHERE id=$1", [req.params.id]);
-  if (!idea.rowCount) return res.status(404).json({ error: "Идея не найдена" });
-  const listId = z.string().parse(req.body?.listId);
-  const list = await query("SELECT id FROM wishlists WHERE id=$1 AND user_id=$2", [listId, req.user.id]);
-  if (!list.rowCount) return res.status(403).json({ error: "Выберите свой список" });
-  const row = idea.rows[0];
-  const id = randomUUID();
-  await transaction(async (client) => {
-    await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,2)`,
-      [id, req.user.id, row.title, row.description, row.url, row.image_url, row.price, row.currency],
-    );
-    await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
-  });
-  res.status(201).json({ id });
 }));
 
 app.get("/api/notifications", requireAuth, asyncRoute(async (req, res) => {

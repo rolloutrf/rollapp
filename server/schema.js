@@ -129,18 +129,6 @@ const schema = `
   ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
   CREATE INDEX IF NOT EXISTS notifications_reference_idx ON notifications(reference_id);
 
-  CREATE TABLE IF NOT EXISTS ideas (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    category TEXT NOT NULL,
-    image_url TEXT NOT NULL,
-    url TEXT NOT NULL DEFAULT '',
-    price NUMERIC(12, 2),
-    currency TEXT NOT NULL DEFAULT 'RUB',
-    badge TEXT NOT NULL DEFAULT ''
-  );
-
   CREATE TABLE IF NOT EXISTS rollapp_data_migrations (
     id TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -161,21 +149,6 @@ const schema = `
   WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 `;
-
-const ideaRows = [
-  ["idea-film", "Плёночная камера", "Чтобы лето осталось не только в телефоне", "Впечатления", "/art/camera.svg", "https://market.yandex.ru/search?text=пленочная%20камера", 8990, "RUB", "выбор редакции"],
-  ["idea-ceramics", "Мастер-класс по керамике", "Сделать чашку, которую невозможно купить", "Впечатления", "/art/pottery.svg", "", 4500, "RUB", "для двоих"],
-  ["idea-headphones", "Виниловый проигрыватель", "Ритуал для вечеров без уведомлений", "Техника", "/art/vinyl.svg", "", 21990, "RUB", "мечта"],
-  ["idea-blanket", "Шерстяной плед", "Тактильный уют для длинных выходных", "Дом", "/art/cozy.svg", "", 6990, "RUB", "уют"],
-  ["idea-book", "Альбом по архитектуре", "Большая красивая книга для кофейного столика", "Книги", "/art/book.svg", "", 3490, "RUB", "новинка"],
-  ["idea-coffee", "Набор спешелти-кофе", "Путешествие по вкусам на шесть воскресений", "Гурманам", "/art/coffee.svg", "", 2890, "RUB", "локальный бренд"],
-  ["idea-bag", "Сумка ручной работы", "Вещь с характером и красивой историей", "Стиль", "/art/style.svg", "", 12900, "RUB", "малый бизнес"],
-  ["idea-plant", "Редкое комнатное растение", "Живой арт-объект, который становится больше", "Дом", "/art/plant.svg", "", 3200, "RUB", "зелёный подарок"],
-  ["idea-sneakers", "Кроссовки для долгих прогулок", "Новый маршрут начинается с удобной пары", "Стиль", "/art/style.svg", "", 13990, "RUB", "популярное"],
-  ["idea-projector", "Карманный проектор", "Кинотеатр на белой стене где угодно", "Техника", "/art/tech.svg", "", 28990, "RUB", "вау"],
-  ["idea-picnic", "Корзина для пикника", "Повод собрать любимых в парке", "Впечатления", "/art/gift.svg", "", 7490, "RUB", "на компанию"],
-  ["idea-perfume", "Авторский аромат", "Запах как личная подпись", "Красота", "/art/style.svg", "", 9900, "RUB", "особенное"]
-];
 
 const koloskofWishOrder = [
   "omw-wish-8269522345b446b528121881",
@@ -341,6 +314,15 @@ const dataMigrations = [
       );
     },
   },
+  {
+    id: "2026-08-08-retire-ideas-welcome-notification",
+    run: (client) => client.query(
+      `UPDATE notifications
+       SET body = 'Добавьте первое желание и поделитесь списком с близкими.',
+           href = '/app/wishes'
+       WHERE type = 'welcome' AND href = '/app/ideas'`,
+    ),
+  },
 ];
 
 async function runDataMigrations(client) {
@@ -350,17 +332,6 @@ async function runDataMigrations(client) {
     const result = await migration.run(client);
     if (migration.requireMatch && result.rowCount < (migration.requiredRows || 1)) continue;
     await client.query("INSERT INTO rollapp_data_migrations (id) VALUES ($1)", [migration.id]);
-  }
-}
-
-async function insertIdeas(client) {
-  for (const row of ideaRows) {
-    await client.query(
-      `INSERT INTO ideas (id, title, description, category, image_url, url, price, currency, badge)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (id) DO NOTHING`,
-      row,
-    );
   }
 }
 
@@ -446,7 +417,6 @@ export async function initializeDatabase() {
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_one_exclusive ON reservations(wish_id) WHERE status='reserved'",
   );
   await transaction(async (client) => {
-    await insertIdeas(client);
     await runDataMigrations(client);
     if (isMemoryDatabase || process.env.SEED_DEMO === "true") {
       await seedDemo(client);
