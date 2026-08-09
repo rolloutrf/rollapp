@@ -112,23 +112,6 @@ const schema = `
     PRIMARY KEY (follower_id, following_id)
   );
 
-  CREATE TABLE IF NOT EXISTS notifications (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL DEFAULT '',
-    href TEXT NOT NULL DEFAULT '',
-    reference_id TEXT,
-    read_at TIMESTAMPTZ,
-    available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
-  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS available_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
-  ALTER TABLE notifications ADD COLUMN IF NOT EXISTS reference_id TEXT;
-  CREATE INDEX IF NOT EXISTS notifications_reference_idx ON notifications(reference_id);
-
   CREATE TABLE IF NOT EXISTS rollapp_data_migrations (
     id TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -140,6 +123,7 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_phone_auth_expires ON phone_auth_challenges(expires_at);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_wishlist_wishes_wish ON wishlist_wishes(wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
@@ -147,7 +131,6 @@ const schema = `
   UPDATE reservations
   SET status='multiple'
   WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
-  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at);
 `;
 
 const koloskofWishOrder = [
@@ -314,15 +297,6 @@ const dataMigrations = [
       );
     },
   },
-  {
-    id: "2026-08-08-retire-ideas-welcome-notification",
-    run: (client) => client.query(
-      `UPDATE notifications
-       SET body = 'Добавьте первое желание и поделитесь списком с близкими.',
-           href = '/app/wishes'
-       WHERE type = 'welcome' AND href = '/app/ideas'`,
-    ),
-  },
 ];
 
 async function runDataMigrations(client) {
@@ -410,7 +384,6 @@ export async function initializeDatabase() {
       occupiedWishIds.add(reservation.wish_id);
       continue;
     }
-    await query("DELETE FROM notifications WHERE reference_id=$1 AND type='reservation'", [reservation.id]);
     await query("DELETE FROM reservations WHERE id=$1", [reservation.id]);
   }
   await query(

@@ -48,7 +48,3 @@ export function legacyProfileTarget(params, originalUrl = "") {
   const queryIndex = originalUrl.indexOf("?");
   return `${path}${queryIndex >= 0 ? originalUrl.slice(queryIndex) : ""}`;
 }
-
-export function normalizePublicProfileHref(value) {
-  return String(value || "").replace(/^\/(?:u|users)\//, "/");
-}
