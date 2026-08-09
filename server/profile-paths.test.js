@@ -3,7 +3,6 @@ import test from "node:test";
 import {
   isReservedProfileUsername,
   legacyProfileTarget,
-  normalizePublicProfileHref,
   profileUsernameCandidates,
   publicListPath,
   publicProfilePath,
@@ -22,14 +21,11 @@ test("legacy profile targets preserve queries and remove the namespace", () => {
   assert.equal(legacyProfileTarget({ username: "alisa", wishId: "wish-1" }, "/u/alisa/wishes/wish-1?from=share"), "/alisa/wishes/wish-1?from=share");
 });
 
-test("system routes are reserved and old stored links are normalized", () => {
+test("system routes are reserved", () => {
   for (const username of ["api", "app", "login", "register", "ideas", "s", "u", "users", "assets", "art", "avatars"]) {
     assert.equal(isReservedProfileUsername(username), true, `${username} must stay reserved`);
   }
   assert.equal(isReservedProfileUsername("example-owner"), false);
   assert.deepEqual(profileUsernameCandidates("app", 3), ["app-2", "app-3"]);
   assert.deepEqual(profileUsernameCandidates("example-owner", 3), ["example-owner", "example-owner-2", "example-owner-3"]);
-  assert.equal(normalizePublicProfileHref("/u/example-owner"), "/example-owner");
-  assert.equal(normalizePublicProfileHref("/users/example-owner/wishes/1"), "/example-owner/wishes/1");
-  assert.equal(normalizePublicProfileHref("/app/wishes"), "/app/wishes");
 });

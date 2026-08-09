@@ -95,7 +95,7 @@ test("private lists stay private while link lists remain reservable", async (t) 
 
   const meResponse = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
   assert.equal(meResponse.status, 200);
-  assert.equal(typeof (await meResponse.json()).unreadCount, "number");
+  assert.ok((await meResponse.json()).user);
 
   const reservedUsernameResponse = await patch("/me", { username: "app" }, ownerCookie);
   assert.equal(reservedUsernameResponse.status, 409);
@@ -173,11 +173,10 @@ test("private lists stay private while link lists remain reservable", async (t) 
   assert.equal(deletedMediaResponse.status, 404);
 
   const notificationsResponse = await fetch(`${baseUrl}/notifications`, { headers: { Cookie: ownerCookie } });
-  assert.equal(notificationsResponse.status, 200);
-  assert.ok(Array.isArray((await notificationsResponse.json()).notifications));
+  assert.equal(notificationsResponse.status, 404);
 
   const readNotificationsResponse = await post("/notifications/read", {}, ownerCookie);
-  assert.equal(readNotificationsResponse.status, 200);
+  assert.equal(readNotificationsResponse.status, 404);
 
   const dashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
   assert.equal(dashboardResponse.status, 200);
@@ -286,7 +285,20 @@ test("private lists stay private while link lists remain reservable", async (t) 
   assert.equal(anonymousMixedProfileResponse.status, 200);
   const anonymousMixedProfile = await anonymousMixedProfileResponse.json();
   assert.equal(anonymousMixedProfile.lists.some((list) => list.id === privateList.id), false);
-  assert.deepEqual(anonymousMixedProfile.wishes.find((wish) => wish.id === mixedWish.id).listIds, [mixedPublicList.id]);
+  assert.equal(anonymousMixedProfile.wishes.some((wish) => wish.id === mixedWish.id), false);
+  const followerMixedProfileResponse = await fetch(`${baseUrl}/profile/alisa`, { headers: { Cookie: viewerCookie } });
+  assert.equal(followerMixedProfileResponse.status, 200);
+  assert.equal((await followerMixedProfileResponse.json()).wishes.some((wish) => wish.id === mixedWish.id), false);
+  const mixedPublicShareResponse = await fetch(`${baseUrl}/shared/${mixedPublicList.shareToken}`, { headers: { Cookie: viewerCookie } });
+  assert.equal(mixedPublicShareResponse.status, 200);
+  assert.equal((await mixedPublicShareResponse.json()).wishes.some((wish) => wish.id === mixedWish.id), false);
+  const mixedReserveResponse = await post(`/wishes/${mixedWish.id}/reserve`, {}, viewerCookie);
+  assert.equal(mixedReserveResponse.status, 404);
+  const mixedCopyResponse = await post(`/wishes/${mixedWish.id}/copy`, {}, viewerCookie);
+  assert.equal(mixedCopyResponse.status, 404);
+  const mixedOwnerDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
+  assert.equal(mixedOwnerDashboardResponse.status, 200);
+  assert.equal((await mixedOwnerDashboardResponse.json()).wishes.find((wish) => wish.id === mixedWish.id).privacy, "inherit");
 
   const linkListResponse = await post("/lists", { title: "By link", privacy: "link" }, ownerCookie);
   assert.equal(linkListResponse.status, 201);
@@ -315,7 +327,7 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const privacyTransitionListResponse = await post("/lists", { title: "Privacy transition", privacy: "public" }, ownerCookie);
   assert.equal(privacyTransitionListResponse.status, 201);
   const privacyTransitionList = (await privacyTransitionListResponse.json()).list;
-  const privacyTransitionWishResponse = await post("/wishes", { title: "Hidden reservation", listIds: [privacyTransitionList.id] }, ownerCookie);
+  const privacyTransitionWishResponse = await post("/wishes", { title: "Hidden reservation", listIds: [privacyTransitionList.id, mixedPublicList.id] }, ownerCookie);
   assert.equal(privacyTransitionWishResponse.status, 201);
   const privacyTransitionWish = (await privacyTransitionWishResponse.json()).wish;
   const privacyTransitionReserve = await post(`/wishes/${privacyTransitionWish.id}/reserve`, {}, viewerCookie);
@@ -325,6 +337,9 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const viewerDashboardAfterListPrivacyChange = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: viewerCookie } });
   assert.equal(viewerDashboardAfterListPrivacyChange.status, 200);
   assert.equal((await viewerDashboardAfterListPrivacyChange.json()).reservations.some((item) => item.wish_id === privacyTransitionWish.id), false);
+  const viewerProfileAfterListPrivacyChange = await fetch(`${baseUrl}/profile/alisa`, { headers: { Cookie: viewerCookie } });
+  assert.equal(viewerProfileAfterListPrivacyChange.status, 200);
+  assert.equal((await viewerProfileAfterListPrivacyChange.json()).wishes.some((wish) => wish.id === privacyTransitionWish.id), false);
 
   const exclusiveWishResponse = await post("/wishes", {
     title: "Exclusive race",
@@ -344,9 +359,6 @@ test("private lists stay private while link lists remain reservable", async (t) 
   const ownerReservedWish = (await ownerAfterReservation.json()).wishes.find((wish) => wish.id === exclusiveWish.id);
   assert.equal(ownerReservedWish.reservationCount, 0);
   assert.equal(ownerReservedWish.reservedByMe, false);
-  const ownerAfterReservationMe = await fetch(`${baseUrl}/me`, { headers: { Cookie: ownerCookie } });
-  assert.equal((await ownerAfterReservationMe.json()).unreadCount, 0);
-
   const unfollowRaceWishResponse = await post("/wishes", {
     title: "Reserve while unfollowing",
     listIds: [sourceList.id],

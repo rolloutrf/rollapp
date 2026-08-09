@@ -13,7 +13,7 @@ The product is an independent functional alternative to popular wishlist service
 - Product metadata recognition from Open Graph tags with SSRF protection.
 - Prices, priorities, private wishes, multiple reservations, and fulfilled archive.
 - Anonymous reservations that never expose the giver to the wish owner.
-- Follows, friend search, birthdays, and in-app notifications.
+- Follows, friend search, and birthdays.
 - Responsive desktop and mobile UI.
 
 ## Local development

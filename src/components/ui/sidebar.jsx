@@ -169,7 +169,7 @@ function Sidebar({
           side={side}>
           <SheetHeader className="sr-only">
             <SheetTitle>Меню приложения</SheetTitle>
-            <SheetDescription>Основные разделы и настройки приложения.</SheetDescription>
+            <SheetDescription>Основные разделы приложения.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

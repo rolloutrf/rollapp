@@ -128,5 +128,34 @@
     }
   html {
     @apply font-sans;
-    }
+  }
+}
+
+@layer utilities {
+  .wishes-page .list-tabs [data-slot="toggle-group-item"] {
+    color: var(--secondary-foreground);
+    background-color: var(--secondary);
+    background-image: none;
+  }
+
+  .wishes-page .list-tabs [data-slot="toggle-group-item"]:hover {
+    background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
+  }
+
+  .wishes-page .list-tabs [data-slot="toggle-group-item"]:active {
+    transform: translateY(1px);
+  }
+
+  .wishes-page .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"] {
+    color: var(--primary-foreground);
+    background-color: var(--primary);
+  }
+
+  .wishes-page .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"]:hover {
+    background-color: color-mix(in oklch, var(--primary) 80%, transparent);
+  }
+
+  .wishes-page .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"] > span {
+    color: color-mix(in oklch, var(--primary-foreground) 72%, transparent);
+  }
 }
