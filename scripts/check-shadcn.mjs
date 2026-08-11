@@ -173,6 +173,32 @@ assert.match(logoSource, /fill="currentColor"/, "The vector logo must inherit th
 assert.match(logoSource, /fillRule="evenodd"/, "The vector logo must preserve its transparent square cutout");
 assert.doesNotMatch(logoSource, /<(?:img|image|foreignObject)\b/, "The vector logo must not embed a raster image");
 assert.doesNotMatch(logoSource, /<span\b|className="logo__word"|>\s*rollapp\s*</i, "Logo must render only the vector mark, without a visible wordmark");
+const topbarShareButtons = [...app.matchAll(/<ShadcnButton\b([^>]*\bwishes-page__topbar-share\b[^>]*)>([\s\S]*?)<\/ShadcnButton>/g)];
+assert.equal(topbarShareButtons.length, 2, "The personal and public collection headers must both render the canonical Share icon button");
+for (const [, attributes, children] of topbarShareButtons) {
+  assert(/\bvariant="outline"/.test(attributes), "The topbar Share action must keep its outline treatment");
+  assert(/\bsize="icon"/.test(attributes), "The topbar Share action must use the 48px shadcn icon-button size");
+  assert(/\btype="button"/.test(attributes), "The topbar Share action must not submit a surrounding form");
+  assert(/\bclassName="[^"]*\brounded-full\b[^"]*"/.test(attributes), "The topbar Share action must be circular");
+  assert(/\baria-label="Поделиться"/.test(attributes), "The icon-only Share action must keep its accessible name");
+  assert(/\btitle="Поделиться"/.test(attributes), "The icon-only Share action must keep its native tooltip");
+  assert(/^\s*<Share2\s+aria-hidden="true"\s*\/>\s*$/.test(children), "The topbar Share action must render only its decorative icon, without visible text");
+}
+assert(
+  /\.app-layout--dark\s+\.wishes-page__topbar-share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
+  "The topbar Share action must keep its circular 48x48 geometry",
+);
+const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileHero"), app.indexOf("function ProtectedApp"));
+const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
+for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
+  assert.match(source, /<Users aria-hidden="true"\s*\/>\s*Подписки/, `The ${label} subscriptions link must keep its decorative Users icon`);
+  assert.match(source, /<CircleUserRound aria-hidden="true"\s*\/>\s*Подписчики/, `The ${label} followers link must keep its decorative profile icon`);
+}
+assert(
+  /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*\{[^}]*\bgap:\s*8px;/s.test(legacyStyles)
+    && /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*>\s*svg\s*\{[^}]*\bwidth:\s*20px;[^}]*\bheight:\s*20px;/s.test(legacyStyles),
+  "Relationship links must keep their 8px icon gap and 20x20 icon geometry",
+);
 const listColorTokens = Object.fromEntries(
   [...legacyStyles.matchAll(/^\s*--list-color-(coral|blue|lime|sun|ink):\s*([^;]+);/gm)]
     .map((match) => [match[1], match[2].trim()]),
@@ -211,6 +237,7 @@ const requiredUiFiles = [
   "card.jsx",
   "checkbox.jsx",
   "dialog.jsx",
+  "drawer.jsx",
   "dropdown-menu.jsx",
   "input.jsx",
   "native-select.jsx",
@@ -236,6 +263,7 @@ const expectedBaseUiImports = {
   "button.jsx": "@base-ui/react/button",
   "checkbox.jsx": "@base-ui/react/checkbox",
   "dialog.jsx": "@base-ui/react/dialog",
+  "drawer.jsx": "@base-ui/react/drawer",
   "dropdown-menu.jsx": "@base-ui/react/menu",
   "input.jsx": "@base-ui/react/input",
   "popover.jsx": "@base-ui/react/popover",
@@ -258,25 +286,65 @@ for (const [file, expectedImport] of Object.entries(expectedBaseUiImports)) {
   assert(!source.includes("@radix-ui/"), `${file} must not mix Base UI and Radix primitives`);
 }
 
-const largeButtonSource = await readFile(path.join(uiDir, "button.jsx"), "utf8");
-const largeInputSource = await readFile(path.join(uiDir, "input.jsx"), "utf8");
-const largeSelectSource = await readFile(path.join(uiDir, "select.jsx"), "utf8");
-const largeSwitchSource = await readFile(path.join(uiDir, "switch.jsx"), "utf8");
-const largeDropdownSource = await readFile(path.join(uiDir, "dropdown-menu.jsx"), "utf8");
-assert(/size = "lg"/.test(largeButtonSource) && /lg: "h-12\b/.test(largeButtonSource), "Button must default to the 48px Large size");
-assert(/icon: "size-12"/.test(largeButtonSource) && /data-size=\{size\}/.test(largeButtonSource), "Icon buttons must expose and use the 48px Large size");
-assert(/"h-12 w-full/.test(largeInputSource) && /text-base/.test(largeInputSource), "Input must use the 48px Large geometry and 16px text");
-assert(/size = "lg"/.test(largeSelectSource) && /data-\[size=lg\]:h-12/.test(largeSelectSource), "SelectTrigger must default to the 48px Large size");
-assert(/min-h-12/.test(largeSelectSource) && /text-base/.test(largeSelectSource), "Select options must use Large rows");
-assert(/data-\[size=default\]:h-6/.test(largeSwitchSource) && /data-\[size=default\]:w-11/.test(largeSwitchSource), "Switch must use the Large 44x24 track");
-assert((largeDropdownSource.match(/min-h-12/g) || []).length >= 4, "Dropdown menu controls must use Large rows");
+const buttonSource = await readFile(path.join(uiDir, "button.jsx"), "utf8");
+const inputSource = await readFile(path.join(uiDir, "input.jsx"), "utf8");
+const inputGroupSource = await readFile(path.join(uiDir, "input-group.jsx"), "utf8");
+const selectSource = await readFile(path.join(uiDir, "select.jsx"), "utf8");
+const switchSource = await readFile(path.join(uiDir, "switch.jsx"), "utf8");
+const textareaSource = await readFile(path.join(uiDir, "textarea.jsx"), "utf8");
+const checkboxSource = await readFile(path.join(uiDir, "checkbox.jsx"), "utf8");
+const radioSource = await readFile(path.join(uiDir, "radio-group.jsx"), "utf8");
+const dropdownSource = await readFile(path.join(uiDir, "dropdown-menu.jsx"), "utf8");
+assert(/size = "default"/.test(buttonSource) && /default:\s*"h-8\b/.test(buttonSource) && /lg: "h-9\b/.test(buttonSource), "Button must keep the official base-nova sizes");
+assert(/icon: "size-8"/.test(buttonSource) && /"icon-lg": "size-9"/.test(buttonSource), "Icon buttons must keep the official base-nova sizes");
+assert(/"h-8 w-full/.test(inputSource) && /text-base/.test(inputSource) && /md:text-sm/.test(inputSource), "Input must keep the official base-nova geometry");
+assert(/relative flex h-8 w-full/.test(inputGroupSource), "InputGroup must keep the official base-nova 32px source geometry");
+assert(/size = "default"/.test(selectSource) && /data-\[size=default\]:h-8/.test(selectSource) && /data-\[size=sm\]:h-7/.test(selectSource), "SelectTrigger must keep the official base-nova sizes");
+assert(/select-item[\s\S]*?py-1[^"\n]*text-sm/.test(selectSource), "Select items must keep the official compact rows");
+assert(/data-\[size=default\]:h-\[18\.4px\]/.test(switchSource) && /data-\[size=default\]:w-\[32px\]/.test(switchSource) && /group-data-\[size=default\]\/switch:size-4/.test(switchSource), "Switch must keep the official base-nova geometry");
+assert(/min-h-16/.test(textareaSource) && /text-base/.test(textareaSource) && /md:text-sm/.test(textareaSource), "Textarea must keep the official base-nova source geometry");
+assert(/\bsize-4\b/.test(checkboxSource) && /\[&>svg\]:size-3\.5/.test(checkboxSource), "Checkbox must keep the official base-nova source geometry");
+assert(/radio-group-item[\s\S]*?\bsize-4\b/.test(radioSource) && /radio-group-indicator[\s\S]*?\bsize-4\b/.test(radioSource), "RadioGroupItem must keep the official base-nova source geometry");
+assert((dropdownSource.match(/py-1[^"\n]*text-sm/g) || []).length >= 4 && !/min-h-12/.test(dropdownSource), "Dropdown rows must keep the official compact geometry");
+assert(/\bw-\(--anchor-width\)/.test(dropdownSource), "DropdownMenuContent must keep the official Base UI anchor-width geometry");
+
+assert(theme.includes("Rollapp's product-level Large control contract"), "The app-level Large control policy must remain documented separately from the official primitives");
+const largePolicyStart = theme.indexOf("Rollapp's product-level Large control contract");
+const largePolicyEnd = theme.indexOf(".wishes-page .list-tabs", largePolicyStart);
+const largePolicy = theme.slice(largePolicyStart, largePolicyEnd < 0 ? undefined : largePolicyEnd);
+assert(/\[class~="group\/button"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "App buttons must keep a minimum 48px Large height");
+for (const slot of ["toggle", "toggle-group-item", "tabs-trigger"]) {
+  assert(largePolicy.includes(`[data-slot="${slot}"]`), `App ${slot} controls must participate in the 48px Large policy`);
+}
+assert(/\[data-slot="input"\]:not\(\.sr-only\)/.test(largePolicy) && /\[data-slot="input-group"\]/.test(largePolicy), "App Input and InputGroup sizing must exclude hidden file inputs");
+assert(/\[data-slot="input-otp-slot"\]\s*\{[^}]*width:\s*3rem;[^}]*height:\s*3rem;/s.test(largePolicy), "App OTP cells must keep the 48px Large geometry");
+assert(largePolicy.includes('[data-slot="native-select"]'), "App NativeSelect controls must participate in the 48px Large policy");
+assert(/\[data-slot="select-trigger"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "App Select triggers must keep a minimum 48px Large height");
+assert(/\[data-slot="textarea"\][\s\S]*?min-(?:block-size|height):\s*6rem/.test(largePolicy), "App Textareas must keep a minimum 96px Large height");
+assert(/\[data-slot="dropdown-menu-item"\][\s\S]*?\[data-slot="select-item"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "Portalled menu and Select rows must keep a minimum 48px Large height");
+assert(/\[data-slot="switch"\]\s*\{[^}]*width:\s*2\.75rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Switches must keep the 44x24 Large track");
+assert(/\[data-slot="switch"\]\s*>\s*\[data-slot="switch-thumb"\]\s*\{[^}]*width:\s*1\.25rem;[^}]*height:\s*1\.25rem;/s.test(largePolicy), "App Switches must keep the 20px Large thumb");
+assert(/\[data-slot="checkbox"\]\s*\{[^}]*width:\s*1\.5rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Checkboxes must keep the 24px Large geometry");
+assert(/\[data-slot="checkbox-indicator"\]\s*>\s*svg\s*\{[^}]*width:\s*1\.25rem;[^}]*height:\s*1\.25rem;/s.test(largePolicy), "App Checkbox indicators must keep the 20px Large geometry");
+assert(/\[data-slot="radio-group-item"\][\s\S]*?width:\s*1\.5rem;[\s\S]*?height:\s*1\.5rem;/.test(largePolicy), "App Radio controls must keep the 24px Large geometry");
+assert((app.match(/className="sr-only !size-px"\s+type="file"/g) || []).length === 2, "Hidden file inputs must stay outside the visible Large-control geometry contract");
+for (const className of ["data-[variant=destructive]:text-destructive", "data-[variant=destructive]:focus:bg-destructive/10", "dark:data-[variant=destructive]:focus:bg-destructive/20", "data-[variant=destructive]:*:[svg]:text-destructive"]) {
+  assert(dropdownSource.includes(className), `DropdownMenuItem must keep the official ${className} destructive state`);
+}
+assert((app.match(/\bapp-destructive-menu-item\b/g) || []).length >= 2, "Wish card and detail delete items must share the clean destructive hover treatment");
+assert(theme.includes("--app-destructive-menu-surface: oklch(0.53 0.2 25)"), "Destructive menu hover must use the app's clean red surface token");
+assert(theme.includes("--app-destructive-menu-surface-foreground: oklch(0.985 0 0)"), "Destructive menu hover must use a contrast-safe foreground token");
+assert(/\.app-destructive-menu-item:is\(:hover, :focus\)[\s\S]*?background-color:\s*var\(--app-destructive-menu-surface\)/.test(theme), "Destructive menu hover and keyboard focus must share the same clean red surface");
+assert(/\.app-destructive-menu-item:is\(:hover, :focus\)\s*>\s*svg[\s\S]*?color:\s*var\(--app-destructive-menu-surface-foreground\)/.test(theme), "Destructive menu hover must keep its icon legible");
+assert(!/dark:data-\[variant=destructive\]:focus:bg-destructive\/30/.test(app), "Destructive menu items must not use the low-contrast translucent red override");
+assert(!/variant="destructive"\s+className="[^"]*\bdanger\b/.test(app), "Destructive menu items must not restore the legacy danger class");
 
 for (const component of [
   "avatar",
   "badge",
   "button",
   "card",
-  "dialog",
+  "drawer",
   "dropdown-menu",
   "input",
   "scroll-area",
@@ -319,29 +387,49 @@ const profileEditorProviderSource = app.slice(app.indexOf("function ProfileEdito
 assert(/<ProfileSettingsModal\b/.test(profileEditorProviderSource), "ProfileEditorProvider must own the profile editor modal");
 assert(/returnFocusRef/.test(profileEditorProviderSource), "ProfileEditorProvider must retain the opener for focus restoration");
 const profileSettingsSource = app.slice(app.indexOf("function ProfileSettingsModal"), app.indexOf("function PublicProfile"));
-for (const component of ["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "ScrollArea", "DialogFooter", "FieldGroup"]) {
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "ScrollArea", "DrawerFooter", "FieldGroup"]) {
   assert(new RegExp(`<${component}\\b`).test(profileSettingsSource), `ProfileSettingsModal must compose the official shadcn ${component} directly`);
 }
 assert(!/<Modal\b/.test(profileSettingsSource), "ProfileSettingsModal must not use the legacy Modal adapter");
-assert(!/<DialogClose\b/.test(profileSettingsSource), "ProfileSettingsModal must use the native DialogContent close action");
-assert(!/viewportClassName=|showCloseButton=|ariaLabel=/.test(profileSettingsSource), "ProfileSettingsModal must use the native shadcn dialog shell");
+assert(/<DrawerClose\b/.test(profileSettingsSource), "ProfileSettingsModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
+assert(!/<DialogClose\b/.test(profileSettingsSource), "ProfileSettingsModal must use DrawerClose instead of the retired DialogClose");
+assert(!/viewportClassName=|showCloseButton=|ariaLabel=/.test(profileSettingsSource), "ProfileSettingsModal must use the native shadcn drawer shell");
 assert(!/modal-(?:backdrop|heading|actions)|data-modal-initial-focus|settings-editor/.test(profileSettingsSource), "ProfileSettingsModal must not restore legacy modal hooks");
-assert(/<Dialog open onOpenChange=/.test(profileSettingsSource), "ProfileSettingsModal must keep the native Dialog controlled");
+const profileDrawerTag = profileSettingsSource.match(/<Drawer\b[^>]*>/)?.[0] || "";
+assert(profileDrawerTag.includes("open") && profileDrawerTag.includes("onOpenChange="), "ProfileSettingsModal must keep the native Drawer controlled");
+assert(profileDrawerTag.includes('swipeDirection="right"'), "ProfileSettingsModal must stay a right-side drawer");
+assert(profileDrawerTag.includes("showSwipeHandle"), "ProfileSettingsModal drawer must show the swipe handle");
 assert(/finalFocus=\{finalFocus\}/.test(profileSettingsSource), "ProfileSettingsModal must restore focus to its opener");
-assert(/<DialogTitle>Изменить профиль<\/DialogTitle>/.test(profileSettingsSource), "ProfileSettingsModal must expose its visible title through DialogTitle");
+assert(/<DrawerTitle>Изменить профиль<\/DrawerTitle>/.test(profileSettingsSource), "ProfileSettingsModal must expose its visible title through DrawerTitle");
 assert(/<form\b[^>]*onSubmit=\{submit\}/.test(profileSettingsSource), "ProfileSettingsModal must keep one native form submission path");
 assert(!/Ссылка на фото|settings-profile-avatar-url/.test(profileSettingsSource), "ProfileSettingsModal must not expose the retired avatar URL field");
-assert(!/sm:max-w-2xl/.test(profileSettingsSource) && /max-h-\[min\(calc\(100dvh-2rem\),44rem\)\]/.test(profileSettingsSource), "ProfileSettingsModal must use the viewport-wide shadcn dialog geometry");
+const profileLogoutLabel = profileSettingsSource.indexOf("<span>Выйти из аккаунта</span>");
+const profileLogoutStart = profileSettingsSource.lastIndexOf("<ShadcnButton", profileLogoutLabel);
+const profileLogoutEnd = profileSettingsSource.indexOf("</ShadcnButton>", profileLogoutLabel);
+const profileLogoutSource = profileSettingsSource.slice(profileLogoutStart, profileLogoutEnd + "</ShadcnButton>".length);
+assert(profileLogoutLabel >= 0 && profileLogoutStart >= 0 && profileLogoutEnd >= 0, "ProfileSettingsModal must keep its logout action");
+assert(/type="button"/.test(profileLogoutSource) && /variant="destructive"/.test(profileLogoutSource), "Profile logout must remain a native destructive shadcn Button");
+assert(!/\bw-full\b|\bjustify-start\b/.test(profileLogoutSource), "Profile logout must render as a compact button, not a full-width action row");
+const profileSettingsContentTag = profileSettingsSource.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
+assert(profileSettingsContentTag.includes("profile-settings-dialog"), "ProfileSettingsModal must mark its DrawerContent with the profile-settings-dialog class");
+assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(profileSettingsContentTag), "ProfileSettingsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
+assert(!/max-h-\[min\(calc\(100dvh-2rem\),44rem\)\]/.test(profileSettingsContentTag), "ProfileSettingsModal must not restore the compact viewport height cap");
+for (const component of ["DrawerHeader", "ScrollArea", "DrawerFooter"]) {
+  const tag = profileSettingsSource.match(new RegExp(`<${component}\\b[^>]*>`))?.[0] || "";
+  for (const className of ["mx-auto", "w-full", "max-w-md"]) {
+    assert(tag.includes(className), `ProfileSettingsModal ${component} must align to the shared 448px rail with ${className}`);
+  }
+}
 const [dialogSource, alertDialogSource] = await Promise.all([
   read("src/components/ui/dialog.jsx"),
   read("src/components/ui/alert-dialog.jsx"),
 ]);
-assert(/w-full max-w-none/.test(dialogSource), "DialogContent must fill the viewport width without a max-width cap");
-assert(!/max-w-\[calc\(100%-2rem\)\]|sm:max-w-sm/.test(dialogSource), "DialogContent must not restore compact width caps");
-assert(/w-full max-w-none/.test(alertDialogSource), "AlertDialogContent must fill the viewport width without a max-width cap");
-assert(!/max-w-xs|sm:max-w-sm/.test(alertDialogSource), "AlertDialogContent must not restore compact width caps");
-assert(/\.modal-backdrop\s*\{[^}]*padding:\s*25px 0;/.test(legacyStyles), "Legacy modal backdrops must not reserve horizontal gutters");
-assert(/\.modal\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;/.test(legacyStyles), "Legacy modal surfaces must fill the viewport width");
+assert(/w-full max-w-\[calc\(100%-2rem\)\]/.test(dialogSource) && /sm:max-w-sm/.test(dialogSource), "DialogContent must keep the official base-nova width and viewport gutters");
+assert(!/max-w-none|viewportClassName/.test(dialogSource), "DialogContent must not contain app-specific fullscreen APIs");
+assert(/data-\[size=default\]:max-w-xs/.test(alertDialogSource) && /data-\[size=default\]:sm:max-w-sm/.test(alertDialogSource), "AlertDialogContent must keep the official base-nova widths");
+assert(!/max-w-none/.test(alertDialogSource), "AlertDialogContent must not contain app-specific fullscreen geometry");
+assert(!/function Modal\b|viewportClassName=/.test(app), "App.jsx must not restore the legacy modal adapter");
+assert(!/nativeButton=\{false\}/.test(app), "Styled links must use native Link/a elements with buttonVariants");
 const appProfileButtonSource = app.slice(app.indexOf("function AppProfileButton"), app.indexOf("function FriendsTopbar"));
 assert(/<ShadcnButton\b/.test(appProfileButtonSource), "AppProfileButton must use the official shadcn Button");
 assert(/type="button"/.test(appProfileButtonSource) && /onClick=\{openProfileEditor\}/.test(appProfileButtonSource), "AppProfileButton must open profile editing in place");
@@ -349,25 +437,86 @@ assert(!/<(?:Link|NavLink)\b/.test(appProfileButtonSource), "AppProfileButton mu
 const wishesProfileHeroSource = app.slice(app.indexOf("function WishesProfileHero"), app.indexOf("function ProtectedApp"));
 assert(/<button\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "WishesProfileHero must expose a native profile button");
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "WishesProfileHero must open profile editing in place");
+const listTileContentSource = app.slice(app.indexOf("function ListTileContent"), app.indexOf("function useAsync"));
+assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
+assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
+assert((app.match(/<ListTileContent\b/g) || []).length >= 4, "Personal and public collection tiles must share the overlap-safe list-tile composition");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
+const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
+assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");
+assert(!/\breserve\b/.test(wishCardSource), "WishCard must keep reservation mutations inside WishDetailsModal");
 const primaryWishDetailsDialog = wishDetailsSource.slice(0, wishDetailsSource.indexOf("{deleteOpen &&"));
-for (const component of ["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "DialogFooter"]) {
+assert((primaryWishDetailsDialog.match(/onClick=\{reserve\}/g) || []).length >= 2, "WishDetailsModal must retain its primary and overflow-menu reservation actions");
+assert(/Забронировать/.test(primaryWishDetailsDialog) && /Снять бронь/.test(primaryWishDetailsDialog), "WishDetailsModal must retain reserve and unreserve labels");
+assert(/import \{ Checkbox \} from "@\/components\/ui\/checkbox";/.test(app), "WishDetailsModal must import the official shadcn Checkbox primitive");
+const detailListPickerStart = primaryWishDetailsDialog.indexOf("const renderListPickerBody");
+const detailListPickerEnd = primaryWishDetailsDialog.indexOf("\n\n  return (", detailListPickerStart);
+const detailListPickerSource = detailListPickerStart < 0 || detailListPickerEnd < 0
+  ? ""
+  : primaryWishDetailsDialog.slice(detailListPickerStart, detailListPickerEnd);
+assert(/<Checkbox\b/.test(detailListPickerSource), "WishDetails list picker must render the official shadcn Checkbox");
+for (const prop of ["checked={selected}", "readOnly", "tabIndex={-1}", 'role="presentation"', 'aria-hidden="true"']) {
+  assert(detailListPickerSource.includes(prop), `WishDetails list picker Checkbox is missing ${prop}`);
+}
+assert(/className="[^"]*\bpointer-events-none\b[^"]*\bml-auto\b[^"]*"/.test(detailListPickerSource), "WishDetails list picker Checkbox must remain presentational and right-aligned");
+assert(/\[&_\[data-slot=dropdown-menu-checkbox-item-indicator\]\]:hidden/.test(detailListPickerSource), "WishDetails list picker must hide the duplicate DropdownMenu checkbox indicator");
+assert(!/card-menu__list-state|selected\s*\?\s*<Check\s*\/>\s*:\s*<Plus\s*\/>/.test(detailListPickerSource), "WishDetails list picker must not restore the legacy circular plus/check state");
+assert(!/\.card-menu__list-state\b/.test(legacyStyles), "Legacy styles must not restore the circular WishDetails list state");
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription"]) {
   assert(new RegExp(`<${component}\\b`).test(primaryWishDetailsDialog), `WishDetailsModal must compose the official shadcn ${component} directly`);
 }
+assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
+assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
+const wishActionsTag = primaryWishDetailsDialog.match(/<div\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
+for (const className of ["flex", "w-full", "max-w-md", "flex-nowrap", "gap-2"]) {
+  assert(wishActionsTag.includes(className), `WishDetailsModal action group is missing ${className}`);
+}
+assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с желанием"/.test(wishActionsTag), "WishDetailsModal action group must keep its accessible group name");
+assert(!/(?:border-t|bg-muted\/50|p-4|rounded-b-xl|-mx-4|-mb-4)/.test(wishActionsTag), "WishDetailsModal action group must not restore footer chrome");
+assert(
+  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf('data-slot="wish-actions"')
+    && primaryWishDetailsDialog.indexOf('data-slot="wish-actions"') < primaryWishDetailsDialog.indexOf("<Alert"),
+  "WishDetailsModal actions must follow the buy action and precede the guest notice",
+);
 assert(!/<Modal\b/.test(primaryWishDetailsDialog), "WishDetailsModal must not wrap its primary detail view in the legacy Modal adapter");
-assert(!/<DialogClose\b/.test(primaryWishDetailsDialog), "WishDetailsModal must use the native shadcn DialogContent close action");
-assert(!/viewportClassName=/.test(primaryWishDetailsDialog), "WishDetailsModal must use the native shadcn Dialog overlay and positioning");
-assert(!/showCloseButton=/.test(primaryWishDetailsDialog), "WishDetailsModal must keep the native shadcn Dialog close action enabled");
-const primaryWishDetailsContentTag = primaryWishDetailsDialog.match(/<DialogContent\b[^>]*>/)?.[0] || "";
-assert(primaryWishDetailsContentTag === "<DialogContent>", "WishDetailsModal must use the base shadcn DialogContent shell without custom classes or adapters");
+assert(/<DrawerClose\b/.test(primaryWishDetailsDialog), "WishDetailsModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
+assert(!/<DialogClose\b/.test(primaryWishDetailsDialog), "WishDetailsModal must use DrawerClose instead of the retired DialogClose");
+assert(!/viewportClassName=/.test(primaryWishDetailsDialog), "WishDetailsModal must use the native shadcn Drawer overlay and positioning");
+assert(!/showCloseButton=/.test(primaryWishDetailsDialog), "WishDetailsModal must not re-enable the retired Dialog close API");
+const primaryWishDetailsContentTag = primaryWishDetailsDialog.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
+assert(/className="[^"]*\bwish-details-dialog\b/.test(primaryWishDetailsContentTag), "WishDetailsModal must mark its DrawerContent with the wish-details-dialog class");
+const wishPriceTag = primaryWishDetailsDialog.match(/<strong\b[^>]*data-slot="wish-price"[^>]*>/)?.[0] || "";
+for (const className of ["whitespace-nowrap", "tabular-nums", "text-3xl", "leading-none", "font-semibold", "sm:text-4xl"]) {
+  assert(wishPriceTag.includes(className), `WishDetailsModal price must keep its enlarged ${className} typography`);
+}
+assert(!/\btext-lg\b/.test(wishPriceTag), "WishDetailsModal price must not return to the small text-lg size");
+assert(
+  /\.wish-details-dialog\s+\[data-slot="drawer-close"\]\s*,\s*\.profile-settings-dialog\s+\[data-slot="drawer-close"\]\s*\{[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*\}/s.test(theme),
+  "Drawer close actions must stay inside the viewport safe area",
+);
+assert(!/\[data-slot="dialog-close"\]/.test(theme), "Theme must not keep retired Dialog close-action overrides");
+const quickListPickerId = 'id={`wish-detail-lists-${wish.id}`}';
+const quickListPickerStart = primaryWishDetailsDialog.indexOf(quickListPickerId);
+const quickListPickerTag = quickListPickerStart < 0 ? "" : primaryWishDetailsDialog.slice(quickListPickerStart, primaryWishDetailsDialog.indexOf(">", quickListPickerStart) + 1);
+assert(quickListPickerTag && !/\bw-64\b/.test(quickListPickerTag), "WishDetails quick-list popup must not override the trigger-width primitive with a fixed width");
+assert(/\bmax-w-\(--available-width\)/.test(quickListPickerTag), "WishDetails quick-list popup must stay inside the Base UI available width");
+assert((primaryWishDetailsDialog.match(/\bmax-w-md\b/g) || []).length === 6, "WishDetailsModal must align all six content sections to the 448px shadcn rail");
+assert(!/max-w-\[35rem\]/.test(primaryWishDetailsDialog), "WishDetailsModal must not restore the oversized 560px content rail");
+assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|auto-rows-max|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(primaryWishDetailsContentTag), "WishDetailsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
+const wishDetailsDrawerTag = primaryWishDetailsDialog.match(/<Drawer\b[^>]*>/)?.[0] || "";
+assert(wishDetailsDrawerTag.includes('swipeDirection="right"'), "WishDetailsModal must stay a right-side drawer");
+assert(wishDetailsDrawerTag.includes("showSwipeHandle"), "WishDetailsModal drawer must show the swipe handle");
 const wishMediaTag = primaryWishDetailsDialog.match(/<Card\b[^>]*data-slot="wish-media"[^>]*>/)?.[0] || "";
 const wishMediaImageTag = primaryWishDetailsDialog.match(/<img\b[^>]*className="[^"]*"[^>]*>/)?.[0] || "";
 assert(wishMediaTag && !/aspect-\[/.test(wishMediaTag), "WishDetailsModal must not force photos into a fixed aspect ratio");
 assert(/\bw-full\b/.test(wishMediaImageTag) && /\bh-auto\b/.test(wishMediaImageTag), "WishDetailsModal photos must fill the container width and keep their intrinsic height");
 const listModalSource = app.slice(app.indexOf("function ListModal"), app.indexOf("function WishModal"));
-for (const component of ["Field", "FieldLabel", "FieldDescription", "Switch"]) {
-  assert(new RegExp(`<${component}\\b`).test(listModalSource), `ListModal must compose the secret-list control with shadcn ${component}`);
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerFooter", "Field", "FieldLabel", "FieldDescription", "Switch"]) {
+  assert(new RegExp(`<${component}\\b`).test(listModalSource), `ListModal must compose the official shadcn ${component} directly`);
 }
+assert(/<DrawerClose\b/.test(listModalSource), "ListModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
+assert(/<Drawer open onOpenChange=\{\(open\) => \{ if \(!open && !loading && !deleting\) onClose\(\); \}\}/.test(listModalSource), "ListModal must keep its Drawer close guard while saving or deleting");
+assert(/<DrawerContent\b[^>]*finalFocus=\{returnFocusRef\}/.test(listModalSource), "ListModal DrawerContent must restore focus to its opener");
 assert(!/<Select\b|<SelectTrigger\b/.test(listModalSource), "ListModal must not restore the multi-option privacy Select");
 assert(!listModalSource.includes("Кто увидит"), "ListModal must not restore the retired privacy label");
 assert(/>Секретный список<\//.test(listModalSource), "ListModal must label its privacy switch as Секретный список");
@@ -375,16 +524,18 @@ assert(/checked=\{form\.privacy === "private"\}/.test(listModalSource), "ListMod
 assert(/privacy: checked \? "private" : "public"/.test(listModalSource), "ListModal switch must map directly to private/public privacy");
 const wishModalSource = app.slice(app.indexOf("function WishModal"), app.indexOf("function FriendsPage"));
 const primaryWishEditorDialog = wishModalSource.slice(wishModalSource.indexOf("const fieldId"), wishModalSource.indexOf("{listCreatorOpen &&"));
-for (const component of ["Dialog", "DialogContent", "DialogHeader", "DialogTitle", "DialogDescription", "DialogFooter"]) {
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerFooter"]) {
   assert(new RegExp(`<${component}\\b`).test(primaryWishEditorDialog), `WishModal must compose the official shadcn ${component} directly`);
 }
 assert(!/<Modal\b/.test(primaryWishEditorDialog), "WishModal must not wrap its primary editor in the legacy Modal adapter");
-assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use the native shadcn DialogContent close action");
-assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Dialog overlay and positioning");
-assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must keep the native shadcn Dialog close action enabled");
+assert(/<DrawerClose\b/.test(primaryWishEditorDialog), "WishModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
+assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use DrawerClose instead of the retired DialogClose");
+assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
+assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must not re-enable the retired Dialog close API");
 assert(!/modal(?:-backdrop)?--wish-editor/.test(primaryWishEditorDialog), "WishModal must not restore the legacy fullscreen editor shell");
-const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DialogContent\b[^>]*>/)?.[0] || "";
-assert(primaryWishEditorContentTag === "<DialogContent>", "WishModal must use the base shadcn DialogContent shell without custom classes or adapters");
+assert(/<Drawer open onOpenChange=\{\(open\) => \{ if \(!open\) requestClose\(\); \}\}/.test(primaryWishEditorDialog), "WishModal must keep its requestClose-guarded Drawer");
+const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
+assert(primaryWishEditorContentTag === "<DrawerContent>", "WishModal must use the base shadcn DrawerContent shell without custom classes or adapters");
 assert(
   !/<Tabs\b/.test(app) || /<TabsContent\b/.test(app),
   "Tabs must render associated TabsContent panels; use ToggleGroup for filters and route selectors",
@@ -407,6 +558,7 @@ for (const file of sourceFiles) {
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }
+  if (file.startsWith(`${uiDir}${path.sep}`)) continue;
   for (const match of source.matchAll(/font-size\s*:\s*([0-9]*\.?[0-9]+)(px|rem)/g)) {
     const pixels = match[2] === "rem" ? Number(match[1]) * 16 : Number(match[1]);
     assert(pixels === 0 || pixels >= 13, `${relativeFile} declares a font size below 13px: ${match[0]}`);

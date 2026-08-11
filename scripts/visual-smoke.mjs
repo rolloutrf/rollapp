@@ -103,6 +103,148 @@ async function expectMinimumReadableText(page, label, minimum = 13) {
   );
 }
 
+async function expectLargeAppControls(root, label) {
+  await root.evaluate(async (scope) => {
+    const finiteAnimations = scope.getAnimations({ subtree: true }).filter((animation) => {
+      const iterations = animation.effect?.getTiming?.().iterations;
+      return iterations !== Infinity;
+    });
+    await Promise.all(finiteAnimations.map((animation) => animation.finished.catch(() => {})));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const controls = await root.evaluate((scope) => {
+    const selector = [
+      '[class~="group/button"]',
+      '[data-slot="button"]',
+      '[data-slot="input"]',
+      '[data-slot="input-group"]',
+      '[data-slot="input-otp-slot"]',
+      '[data-slot="native-select"]',
+      '[data-slot="select-trigger"]',
+      '[data-slot="textarea"]',
+      '[data-slot="toggle"]',
+      '[data-slot="toggle-group-item"]',
+      '[data-slot="tabs-trigger"]',
+      '[data-slot="switch"]',
+      '[data-slot="checkbox"]',
+      '[data-slot="radio-group-item"]',
+      '[data-slot="dialog-close"]',
+      '[data-slot="dropdown-menu-trigger"]',
+      '[data-slot="alert-dialog-action"]',
+      '[data-slot="alert-dialog-cancel"]',
+      '[data-slot="select-scroll-up-button"]',
+      '[data-slot="select-scroll-down-button"]',
+      '[role="menuitem"]',
+      '[role="menuitemcheckbox"]',
+      '[role="menuitemradio"]',
+      '[role="option"]',
+    ].join(", ");
+    const candidates = [...new Set([
+      ...(scope.matches(selector) ? [scope] : []),
+      ...scope.querySelectorAll(selector),
+    ])];
+    const isVisible = (element) => {
+      if (element.matches('input[type="file"], input[type="hidden"]')) return false;
+      if (element.closest(".sr-only, .visually-hidden, [hidden]")) return false;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return rect.width > .5
+        && rect.height > .5
+        && style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity) !== 0;
+    };
+    const visibleText = (element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const parts = [];
+      while (walker.nextNode()) {
+        const parent = walker.currentNode.parentElement;
+        const text = walker.currentNode.textContent.trim();
+        if (!text || parent?.closest(".sr-only, .visually-hidden, [hidden]")) continue;
+        const style = parent ? getComputedStyle(parent) : null;
+        if (!style || (style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0)) parts.push(text);
+      }
+      return parts.join(" ");
+    };
+    const rectOf = (element) => {
+      const rect = element.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    };
+    return candidates.filter(isVisible).map((element) => {
+      const slot = element.getAttribute("data-slot");
+      const role = element.getAttribute("role");
+      const thumb = element.querySelector(':scope > [data-slot="switch-thumb"]');
+      const checkboxIndicator = element.querySelector(':scope > [data-slot="checkbox-indicator"]');
+      const indicatorStyle = checkboxIndicator ? getComputedStyle(checkboxIndicator) : null;
+      const indicatorRect = checkboxIndicator?.getBoundingClientRect();
+      const indicatorVisible = Boolean(checkboxIndicator
+        && indicatorStyle
+        && indicatorRect
+        && indicatorRect.width > .5
+        && indicatorRect.height > .5
+        && indicatorStyle.display !== "none"
+        && indicatorStyle.visibility !== "hidden");
+      return {
+        slot,
+        role,
+        tag: element.tagName,
+        label: element.getAttribute("aria-label") || visibleText(element).replace(/\s+/g, " ").trim().slice(0, 80),
+        ...rectOf(element),
+        iconOnly: element.querySelector("svg") !== null && visibleText(element).trim() === "",
+        thumb: thumb ? rectOf(thumb) : null,
+        checkboxIndicator: indicatorVisible ? rectOf(checkboxIndicator) : null,
+      };
+    });
+  });
+
+  for (const control of controls) {
+    const identity = `${control.slot || control.role || control.tag}${control.label ? ` “${control.label}”` : ""}`;
+    if (control.slot === "textarea") {
+      assert(control.height >= 95, `${label} ${identity} is ${control.height}px tall instead of at least 96px`);
+      continue;
+    }
+    if (control.slot === "switch") {
+      assert(
+        control.width >= 43 && control.width <= 45
+          && control.height >= 23 && control.height <= 25
+          && control.thumb
+          && control.thumb.width >= 19 && control.thumb.width <= 21
+          && control.thumb.height >= 19 && control.thumb.height <= 21,
+        `${label} ${identity} is not the app-level 44x24 Switch with a 20px thumb (${JSON.stringify(control)})`,
+      );
+      continue;
+    }
+    if (control.slot === "checkbox" || control.slot === "radio-group-item") {
+      assert(
+        control.width >= 23 && control.width <= 25 && control.height >= 23 && control.height <= 25,
+        `${label} ${identity} is not a 24px ${control.slot === "checkbox" ? "Checkbox" : "Radio"} (${control.width}x${control.height})`,
+      );
+      if (control.slot === "checkbox" && control.checkboxIndicator) {
+        assert(
+          control.checkboxIndicator.width >= 19 && control.checkboxIndicator.width <= 21
+            && control.checkboxIndicator.height >= 19 && control.checkboxIndicator.height <= 21,
+          `${label} ${identity} does not use a 20px Checkbox indicator (${JSON.stringify(control.checkboxIndicator)})`,
+        );
+      }
+      continue;
+    }
+    if (["input", "input-group", "input-otp-slot", "native-select", "select-trigger", "toggle", "toggle-group-item", "tabs-trigger"].includes(control.slot)) {
+      assert(
+        control.height >= 47,
+        `${label} ${identity} is ${control.height}px tall instead of at least the 48px Large size`,
+      );
+      continue;
+    }
+    assert(control.height >= 47, `${label} ${identity} is ${control.height}px tall instead of at least 48px`);
+    if (control.iconOnly) {
+      assert(
+        control.width >= 47,
+        `${label} icon control ${identity} is ${control.width}x${control.height} instead of at least 48x48`,
+      );
+    }
+  }
+}
+
 async function expectNoRootOverflow(page, label) {
   await waitForStableLayout(page);
   const dimensions = await page.evaluate(() => ({
@@ -129,6 +271,52 @@ async function expectSquareAppMain(page, label) {
     ].map((value) => Number.parseFloat(value));
   });
   assert(radii.every((radius) => radius === 0), `${label} app main still has rounded corners: ${radii.join(", ")}`);
+}
+
+async function expectTopbarShareIconButton(topbar, label) {
+  const share = topbar.locator(":scope > .wishes-page__topbar-share");
+  await share.waitFor({ state: "visible" });
+  assert(
+    await topbar.getByRole("button", { name: "Поделиться", exact: true }).count() === 1,
+    `${label} is missing the accessible Share action`,
+  );
+  const contract = await share.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      tag: element.tagName,
+      ariaLabel: element.getAttribute("aria-label"),
+      title: element.getAttribute("title"),
+      visibleText: element.innerText.trim(),
+      iconCount: element.querySelectorAll(":scope > svg").length,
+      width: rect.width,
+      height: rect.height,
+      borderRadii: [
+        style.borderTopLeftRadius,
+        style.borderTopRightRadius,
+        style.borderBottomRightRadius,
+        style.borderBottomLeftRadius,
+      ].map(Number.parseFloat),
+      hittable: hit === element || element.contains(hit),
+    };
+  });
+  assert(contract.tag === "BUTTON", `${label} Share action is not a native button`);
+  assert(
+    contract.ariaLabel === "Поделиться" && contract.title === "Поделиться",
+    `${label} icon-only Share action lost its accessible name or tooltip`,
+  );
+  assert(contract.visibleText === "", `${label} Share action still renders a visible text label`);
+  assert(contract.iconCount === 1, `${label} Share action must render exactly one direct icon`);
+  assert(
+    Math.abs(contract.width - 48) <= 1 && Math.abs(contract.height - 48) <= 1,
+    `${label} Share action is ${contract.width}x${contract.height} instead of 48x48`,
+  );
+  assert(
+    contract.borderRadii.every((radius) => radius >= contract.height / 2 - 1),
+    `${label} Share action is not circular`,
+  );
+  assert(contract.hittable, `${label} Share action is covered by another element`);
 }
 
 async function expectWishesProfileComposition(page, label) {
@@ -160,6 +348,7 @@ async function expectWishesProfileComposition(page, label) {
     const avatarRect = rect(avatar);
     const headingRect = rect(heading);
     const shareRect = rect(share);
+    const shareStyle = share ? getComputedStyle(share) : null;
     const topbarStyle = topbar ? getComputedStyle(topbar) : null;
     const shareHit = shareRect ? document.elementFromPoint(shareRect.centerX, shareRect.top + shareRect.height / 2) : null;
     const friendLinksRect = rect(friendLinks);
@@ -191,6 +380,11 @@ async function expectWishesProfileComposition(page, label) {
         slot: link.dataset.slot,
         current: link.getAttribute("aria-current"),
         iconCount: link.querySelectorAll(":scope > svg").length,
+        iconHidden: [...link.querySelectorAll(":scope > svg")].every((icon) => icon.getAttribute("aria-hidden") === "true"),
+        iconSizes: [...link.querySelectorAll(":scope > svg")].map((icon) => {
+          const iconRect = icon.getBoundingClientRect();
+          return { width: iconRect.width, height: iconRect.height };
+        }),
         nestedInteractiveCount: link.querySelectorAll("a[href], button, input, select, textarea").length,
         fontSize: Number.parseFloat(style.fontSize),
         lineHeight: Number.parseFloat(style.lineHeight),
@@ -232,7 +426,16 @@ async function expectWishesProfileComposition(page, label) {
       usernameCount,
       share: shareRect && {
         ...shareRect,
-        name: share.innerText.trim(),
+        visibleText: share.innerText.trim(),
+        ariaLabel: share.getAttribute("aria-label"),
+        title: share.getAttribute("title"),
+        iconCount: share.querySelectorAll(":scope > svg").length,
+        borderRadii: [
+          shareStyle.borderTopLeftRadius,
+          shareStyle.borderTopRightRadius,
+          shareStyle.borderBottomRightRadius,
+          shareStyle.borderBottomLeftRadius,
+        ].map(Number.parseFloat),
         tag: share.tagName,
         hittable: shareHit === share || share.contains(shareHit),
         clientWidth: share.clientWidth,
@@ -289,7 +492,11 @@ async function expectWishesProfileComposition(page, label) {
     assert(link.tag === "A" && link.role === null && link.slot === undefined, `${label} ${link.name} still uses button semantics`);
     assert(new URL(link.href, baseUrl).pathname === expectedFriendPaths[link.name], `${label} ${link.name} points to the wrong route`);
     assert(link.current === null, `${label} ${link.name} is incorrectly marked current on the wishes page`);
-    assert(link.iconCount === 0, `${label} ${link.name} still renders a button-like icon`);
+    assert(link.iconCount === 1 && link.iconHidden, `${label} ${link.name} is missing its decorative relationship icon`);
+    assert(
+      link.iconSizes.every(({ width, height }) => Math.abs(width - 20) <= 1 && Math.abs(height - 20) <= 1),
+      `${label} ${link.name} relationship icon has the wrong size`,
+    );
     assert(link.fontSize >= 14 && link.lineHeight >= 19, `${label} ${link.name} lost its readable link typography`);
     assert(
       ["transparent", "rgba(0, 0, 0, 0)"].includes(link.backgroundColor)
@@ -307,8 +514,21 @@ async function expectWishesProfileComposition(page, label) {
     assert(link.scrollWidth <= link.clientWidth + 1, `${label} ${link.name} content overflows`);
   }
   assert(contract.actions.bottom <= contract.hero.bottom + 1, `${label} actions escape the profile composition`);
-  assert(contract.share.tag === "BUTTON" && contract.share.name === "Поделиться", `${label} header share action has the wrong semantics or label`);
-  assert(contract.share.height >= 44 && contract.share.hittable, `${label} header share action is too small or covered`);
+  assert(
+    contract.share.tag === "BUTTON"
+      && contract.share.ariaLabel === "Поделиться"
+      && contract.share.title === "Поделиться",
+    `${label} header share action has the wrong semantics or accessible label`,
+  );
+  assert(contract.share.visibleText === "", `${label} header share action still renders a visible text label`);
+  assert(contract.share.iconCount === 1, `${label} header share action is not an icon-only shadcn button`);
+  assert(
+    Math.abs(contract.share.width - 48) <= 1
+      && Math.abs(contract.share.height - 48) <= 1
+      && contract.share.borderRadii.every((radius) => radius >= contract.share.height / 2 - 1)
+      && contract.share.hittable,
+    `${label} header share action is not a hittable circular 48px control`,
+  );
   assert(
     Math.abs(contract.logo.centerY - contract.share.centerY) <= 2,
     `${label} logo and share action are not aligned on one horizontal line`,
@@ -320,19 +540,20 @@ async function expectWishesProfileComposition(page, label) {
     `${label} logo and share action are not aligned to the header edges`,
   );
   assert(contract.topbar.bottom <= contract.hero.top + 1, `${label} wishes header overlaps the centered profile`);
-  assert(contract.share.scrollWidth <= contract.share.clientWidth + 1, `${label} share action text overflows`);
+  assert(contract.share.scrollWidth <= contract.share.clientWidth + 1, `${label} share action content overflows`);
   assert(contract.buttons.length >= 1 && contract.buttons.some(({ name }) => name === "Добавить"), `${label} lost the add action`);
   assert(!contract.buttons.some(({ name }) => name === "Поделиться"), `${label} still renders the share action in the centered button group`);
   if (contract.buttons.length === 1) {
     assert(Math.abs(contract.buttons[0].centerX - contract.actions.centerX) <= 2, `${label} sole add action is not centered`);
   }
   for (const button of contract.buttons) {
-    assert(button.height >= 44 && button.hittable, `${label} action ${button.name} is too small or covered`);
+    assert(button.height >= 47 && button.hittable, `${label} action ${button.name} is smaller than the 48px Large size or covered`);
     assert(button.borderRadii.every((radius) => radius >= button.height / 2 - 1), `${label} action ${button.name} is not fully rounded`);
     assert(button.left >= contract.hero.left - 1 && button.right <= contract.hero.right + 1, `${label} action ${button.name} escapes the profile composition`);
     assert(button.scrollWidth <= button.clientWidth + 1, `${label} action ${button.name} text overflows`);
   }
   assert(contract.rootScrollWidth <= contract.rootClientWidth + 1, `${label} centered composition causes horizontal page overflow`);
+  await expectLargeAppControls(page.locator(".wishes-page"), `${label} app controls`);
 }
 
 async function expectWishGridContained(page, label, expectedColumns) {
@@ -411,6 +632,10 @@ async function expectWishCardsUnframed(page, label, selector = ".wish-card") {
   assert(
     await cards.locator('.wish-card__image .priority, .wish-card__image [title^="Важность:"]').count() === 0,
     `${label} wish photos still render the unexplained priority indicator`,
+  );
+  assert(
+    await cards.getByText(/^(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)$/).count() === 0,
+    `${label} wish snippets still expose reservation information`,
   );
   const chrome = await cards.evaluateAll((nodes) => nodes.slice(0, 4).map((card) => {
     const style = getComputedStyle(card);
@@ -697,6 +922,9 @@ async function expectUnauthenticatedDarkRoutes(page, label) {
     await page.goto(`${baseUrl}${route.pathname}`, { waitUntil: "domcontentloaded" });
     await page.locator(route.ready).waitFor({ state: "visible" });
     await expectDarkPage(page, `${label} ${route.pathname}`, route.surfaces);
+    if (route.ready === ".auth-form") {
+      await expectLargeAppControls(page.locator(route.ready), `${label} ${route.pathname} controls`);
+    }
   }
 }
 
@@ -711,32 +939,13 @@ async function expectMobileAppShell(page, label) {
   const header = page.locator(usesCollectionHeader ? ".wishes-page__topbar" : ".mobile-app-head");
   const navigation = page.locator(".mobile-bottom-nav");
   await header.waitFor({ state: "visible" });
-  await navigation.waitFor({ state: "visible" });
 
   await expectSidebarRemoved(page, label);
+  assert(await navigation.count() === 0, `${label} still renders the retired mobile bottom navigation`);
   assert(await header.locator(":scope > a:visible").count() === 1, `${label} mobile header exposes the wrong number of links`);
   assert(await header.locator(":scope > .app-user-profile:visible").count() === (usesCollectionHeader ? 0 : 1), `${label} mobile header has the wrong profile-action state`);
   assert(await header.locator(":scope > .app-shell-logo:visible").count() === 1, `${label} mobile header is missing the Rollapp logo`);
   assert(await header.getByRole("button", { name: "Поделиться", exact: true }).count() === (usesCollectionHeader ? 1 : 0), `${label} mobile header has the wrong share-action state`);
-
-  const items = navigation.locator("a");
-  assert(await items.count() === 2, `${label} should expose two primary mobile navigation items`);
-  for (let index = 0; index < 2; index += 1) {
-    assert(await items.nth(index).isVisible(), `${label} mobile navigation item ${index + 1} is not visible`);
-  }
-
-  const geometry = await navigation.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      position: getComputedStyle(element).position,
-      left: rect.left,
-      right: window.innerWidth - rect.right,
-      bottom: window.innerHeight - rect.bottom,
-    };
-  });
-  assert(geometry.position === "fixed", `${label} primary mobile navigation is not fixed`);
-  assert(geometry.left > 4 && geometry.right > 4, `${label} primary mobile navigation is not floating inside the viewport`);
-  assert(geometry.bottom >= 0, `${label} primary mobile navigation is outside the viewport`);
   await expectAppLogoPlacement(page, label);
 }
 
@@ -752,12 +961,14 @@ async function expectSidebarRemoved(page, label) {
 async function expectAppLogoPlacement(page, label) {
   const logo = page.locator(".app-main .app-shell-logo:visible");
   const usesCollectionHeader = await page.locator(".app-main .wishes-page__topbar").count() === 1;
+  const friendsContext = await page.locator(".app-layout--friends").count() === 1;
   assert(await page.locator(".app-main .app-wishes-link").count() === 0, `${label} still renders the retired My Wishes header button`);
   const wishesHeader = page.locator(".app-main .wishes-page__topbar");
   if (await wishesHeader.count()) {
     assert(await wishesHeader.locator(":scope > .app-shell-logo").count() === 1, `${label} wishes header is missing the Rollapp logo`);
     assert(await wishesHeader.locator(":scope > .wishes-page__topbar-share").count() === 1, `${label} wishes header is missing the Share action`);
     assert(await wishesHeader.locator(":scope > *").count() === 2, `${label} wishes header contains an unexpected extra action`);
+    await expectTopbarShareIconButton(wishesHeader, `${label} wishes header`);
   }
   assert(await logo.count() === 1, `${label} should expose one visible Rollapp logo in the main content`);
   assert(await logo.evaluate((element) => element.tagName === "A"), `${label} Rollapp logo is not a native link`);
@@ -766,8 +977,8 @@ async function expectAppLogoPlacement(page, label) {
   assert(await logo.locator("a[href], button, input, select, textarea").count() === 0, `${label} Rollapp logo contains a nested interactive control`);
   const geometry = await logo.evaluate((element) => {
     const main = element.closest(".app-main");
-    const host = element.closest(".wishes-page__topbar, .app-main__profile, .friends-topbar__account, .mobile-app-head");
-    const profile = host?.querySelector(":scope > .app-user-profile");
+    const host = element.closest(".wishes-page__topbar, .app-main__profile, .friends-topbar, .mobile-app-head");
+    const profile = host?.querySelector(".app-user-profile");
     const share = host?.querySelector(":scope > .wishes-page__topbar-share");
     const mark = element.querySelector(".logo__mark");
     const rect = element.getBoundingClientRect();
@@ -782,8 +993,8 @@ async function expectAppLogoPlacement(page, label) {
       ? "mobile-head"
       : host?.classList.contains("wishes-page__topbar")
         ? "wishes-topbar"
-      : host?.classList.contains("friends-topbar__account")
-        ? "friends-account"
+      : host?.classList.contains("friends-topbar")
+        ? "friends-topbar"
         : host?.classList.contains("app-main__profile")
           ? "utility"
           : "unknown";
@@ -797,6 +1008,9 @@ async function expectAppLogoPlacement(page, label) {
       leftmost: Boolean(host && host.firstElementChild === element),
       rightmost: Boolean(host && host.lastElementChild === element),
       afterProfile: !profileRect || Boolean(profile?.nextElementSibling === element && profileRect.right <= rect.left + 1),
+      profileOnRight: !profile || Boolean(host?.lastElementChild === profile || host?.lastElementChild?.contains(profile)),
+      profileRightGap: hostRect && profileRect ? hostRect.right - profileRect.right : null,
+      logoProfileSeparated: !profileRect || rect.right <= profileRect.left + 1,
       alignedWithProfile: !profileRect || Math.abs((profileRect.top + profileRect.height / 2) - (rect.top + rect.height / 2)) <= 1,
       alignedWithShare: !shareRect || Math.abs((shareRect.top + shareRect.height / 2) - (rect.top + rect.height / 2)) <= 1,
       containedByHost: Boolean(hostRect && rect.left >= hostRect.left - 1 && rect.right <= hostRect.right + 1),
@@ -826,12 +1040,19 @@ async function expectAppLogoPlacement(page, label) {
   assert(geometry.width >= 44 && geometry.height >= 44, `${label} Rollapp logo link is smaller than 44px`);
   assert(geometry.insideMain && geometry.containedByHost && geometry.hittable, `${label} Rollapp logo is outside or covered in the main header: ${JSON.stringify(geometry)}`);
   assert(usesCollectionHeader ? geometry.alignedWithShare : geometry.alignedWithProfile, `${label} Rollapp logo is not vertically aligned with the header actions`);
-  if (usesCollectionHeader) {
-    assert(geometry.leftmost, `${label} Rollapp logo is not the leftmost item on the wishes screen`);
+  if (usesCollectionHeader || friendsContext) {
+    assert(geometry.leftmost, `${label} Rollapp logo is not the leftmost item in its header`);
     assert(
       geometry.hostLeftGap >= -1 && Math.abs(geometry.hostLeftGap - geometry.hostPaddingLeft) <= 1,
       `${label} Rollapp logo is not aligned to the left edge of its header`,
     );
+    if (friendsContext && !usesCollectionHeader) {
+      assert(geometry.profileOnRight && geometry.logoProfileSeparated, `${label} friends profile action is not separated on the right side of the header`);
+      assert(
+        geometry.profileRightGap >= -1 && Math.abs(geometry.profileRightGap - geometry.hostPaddingRight) <= 1,
+        `${label} friends profile action is not aligned to the right edge of its header`,
+      );
+    }
   } else {
     assert(geometry.rightmost && geometry.afterProfile, `${label} Rollapp logo is not the rightmost action after the profile`);
     assert(
@@ -861,8 +1082,8 @@ async function expectAppLogoPlacement(page, label) {
     ? "wishes-topbar"
     : geometry.viewportWidth <= 820
       ? "mobile-head"
-    : await page.locator(".app-layout--friends").count() === 1
-      ? "friends-account"
+    : friendsContext
+      ? "friends-topbar"
       : "utility";
   assert(geometry.hostKind === expectedHost, `${label} Rollapp logo is mounted in the wrong header (${geometry.hostKind})`);
   return logo;
@@ -873,12 +1094,12 @@ async function expectMainFriendsLink(page, label) {
   const viewport = page.viewportSize();
   const pathname = new URL(page.url()).pathname;
   const usesCollectionHeader = await page.locator(".app-main .wishes-page__topbar").count() === 1;
-  if (viewport.width > 820 && usesCollectionHeader) {
-    assert(await link.count() === 0, `${label} still renders the retired Friends button above the collection page`);
+  const friendsContext = pathname.startsWith("/app/friends") || await page.locator(".app-layout--friends").count() === 1;
+  if (viewport.width <= 820 || usesCollectionHeader || friendsContext) {
+    assert(await link.count() === 0, `${label} still renders a Friends link outside the desktop utility header`);
     return null;
   }
   assert(await link.count() === 1, `${label} should expose one visible Friends link in the main content`);
-  const friendsContext = pathname.startsWith("/app/friends") || await page.locator(".app-layout--friends").count() === 1;
   assert(await link.evaluate((element) => element.tagName === "A"), `${label} Friends action is not a native link`);
   assert(new URL(await link.getAttribute("href"), baseUrl).pathname === friendsRoutes.subscriptions, `${label} Friends action points to the wrong route`);
   assert(/Друзья/.test(await link.getAttribute("aria-label") || await link.innerText()), `${label} Friends action has the wrong accessible name`);
@@ -892,9 +1113,7 @@ async function expectMainFriendsLink(page, label) {
     const profile = toolbar?.querySelector(":scope > .app-user-profile");
     const profileRect = profile?.getBoundingClientRect();
     const iconRect = element.querySelector("svg")?.getBoundingClientRect();
-    const host = element.closest(".mobile-bottom-nav")
-      ? "mobile-bottom"
-      : element.closest(".friends-topbar__account")
+    const host = element.closest(".friends-topbar__account")
         ? "friends-account"
         : element.closest(".app-main__profile")
           ? "utility"
@@ -910,7 +1129,7 @@ async function expectMainFriendsLink(page, label) {
       host,
       insideMain: Boolean(mainRect && rect.left >= mainRect.left - 1 && rect.right <= mainRect.right + 1 && rect.top >= mainRect.top - 1 && rect.bottom <= mainRect.bottom + 1),
       hittable: hit === element || element.contains(hit),
-      shadcn: host === "mobile-bottom" || element.dataset.slot === "button",
+      shadcn: element.classList.contains("group/button"),
       beforeProfile: !toolbar || !profileRect || (
         element.nextElementSibling === profile
           && rect.right <= profileRect.left + 1
@@ -922,25 +1141,15 @@ async function expectMainFriendsLink(page, label) {
       scrollWidth: element.scrollWidth,
     };
   });
-  assert(geometry.width >= 44 && geometry.height >= 44, `${label} Friends action is smaller than 44px`);
+  assert(geometry.width >= 47 && geometry.height >= 47, `${label} Friends action is smaller than the 48px Large size`);
   assert(geometry.insideMain && geometry.hittable, `${label} Friends action is outside or covered in the main content`);
   assert(geometry.shadcn, `${label} desktop Friends action is not an official shadcn link-button`);
   assert(geometry.beforeProfile, `${label} Friends action is not aligned before the profile action`);
   assert(geometry.overlapArea <= 1, `${label} Friends and profile actions overlap`);
   assert(geometry.icon && geometry.icon.width > 0 && geometry.icon.height > 0, `${label} Friends action is missing its icon`);
   assert(geometry.scrollWidth <= geometry.clientWidth + 1, `${label} Friends action content overflows`);
-  if (geometry.viewportWidth <= 820) {
-    assert(geometry.host === "mobile-bottom", `${label} mobile Friends action is outside the bottom navigation`);
-  } else if (friendsContext) {
-    assert(geometry.host === "friends-account", `${label} desktop Friends action is outside the friends topbar account area`);
-  } else {
-    assert(geometry.host === "utility", `${label} desktop Friends action is outside the main utility row`);
-  }
-  if (friendsContext) {
-    assert(await link.getAttribute("aria-current") === "page", `${label} does not expose Friends as the current section`);
-  } else {
-    assert(await link.getAttribute("aria-current") === null, `${label} marks Friends current outside the section`);
-  }
+  assert(geometry.host === "utility", `${label} desktop Friends action is outside the main utility row`);
+  assert(await link.getAttribute("aria-current") === null, `${label} marks Friends current outside the section`);
   return link;
 }
 
@@ -983,7 +1192,7 @@ async function expectMainUserProfile(page, label) {
         : 0,
     };
   }, wishesRoute);
-  assert(geometry.width >= 44 && geometry.height >= 44, `${label} main user profile is smaller than 44px`);
+  assert(geometry.width >= 47 && geometry.height >= 47, `${label} main user profile is smaller than the 48px Large size`);
   assert(geometry.insideMain && geometry.avatar.hittable, `${label} main user profile is outside or covered in the content area`);
   if (geometry.hero) {
     const minimumAvatar = geometry.viewportWidth <= 560 ? 92 : geometry.viewportWidth <= 820 ? 108 : geometry.viewportWidth <= 1180 ? 130 : 154;
@@ -1091,17 +1300,6 @@ async function expectMainUserSettingsNavigation(page, label, { mobile = false } 
   await waitForFocused(page, profileButton, `${label} profile button after editor close`);
 }
 
-async function expectMobileFriendsNavigation(page, label) {
-  assert(page.viewportSize().width <= 820, `${label} must exercise the mobile Friends navigation`);
-  const originalPathname = new URL(page.url()).pathname;
-  const friendsLink = await expectMainFriendsLink(page, label);
-  await friendsLink.click();
-  await page.waitForURL((url) => url.pathname === friendsRoutes.subscriptions);
-  await page.locator(".friends-page").waitFor({ state: "visible" });
-  await expectMainFriendsLink(page, `${label} destination`);
-  await waitForAppRoute(page, originalPathname);
-}
-
 async function expectWishesFriendShortcutsNavigation(page, label) {
   const originalPathname = new URL(page.url()).pathname;
   assert(originalPathname === "/app/wishes", `${label} must start on the wishes page`);
@@ -1146,15 +1344,18 @@ async function expectStableDesktopChromeAcrossRoutes(page, label, viewport) {
   }
 }
 
-async function expectFullViewportModalWidth(dialog, label) {
+async function expectCanonicalModalGeometry(dialog, label) {
   await dialog.waitFor({ state: "visible" });
   const geometry = await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const rect = element.getBoundingClientRect();
     return {
+      slot: element.getAttribute("data-slot"),
       left: rect.left,
+      top: rect.top,
       right: rect.right,
+      bottom: rect.bottom,
       width: rect.width,
       viewportWidth: window.innerWidth,
       clientWidth: element.clientWidth,
@@ -1164,21 +1365,264 @@ async function expectFullViewportModalWidth(dialog, label) {
     };
   });
   assert(
-    Math.abs(geometry.left) <= 2
-      && Math.abs(geometry.right - geometry.viewportWidth) <= 2
-      && Math.abs(geometry.width - geometry.viewportWidth) <= 2,
-    `${label} does not fill the viewport width (${JSON.stringify(geometry)})`,
+    geometry.slot === "dialog-content" || geometry.slot === "alert-dialog-content",
+    `${label} is not an official Dialog or AlertDialog surface (${geometry.slot})`,
+  );
+  const desktop = geometry.viewportWidth >= 640;
+  const widthCap = geometry.slot === "alert-dialog-content"
+    ? (desktop ? 384 : 320)
+    : (desktop ? 384 : geometry.viewportWidth - 32);
+  const expectedWidth = Math.min(geometry.viewportWidth, widthCap);
+  assert(
+    Math.abs(geometry.width - expectedWidth) <= 2
+      && Math.abs((geometry.left + geometry.right) / 2 - geometry.viewportWidth / 2) <= 2
+      && geometry.left >= -1
+      && geometry.right <= geometry.viewportWidth + 1,
+    `${label} does not use the canonical centered ${expectedWidth}px surface (${JSON.stringify(geometry)})`,
   );
   assert(
     geometry.scrollWidth <= geometry.clientWidth + 1
       && geometry.rootScrollWidth <= geometry.rootClientWidth + 1,
     `${label} causes horizontal overflow (${JSON.stringify(geometry)})`,
   );
+  await expectLargeAppControls(dialog, `${label} controls`);
+}
+
+async function expectEdgeToEdgeWishDetailGeometry(dialog, label) {
+  await dialog.waitFor({ state: "visible" });
+  const geometry = await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const close = element.querySelector("[data-slot='dialog-close']");
+    const closeStyle = close ? getComputedStyle(close) : null;
+    const rectOf = (node) => {
+      const bounds = node?.getBoundingClientRect();
+      return bounds && {
+        left: bounds.left,
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    const closeBeforeScroll = rectOf(close);
+    const previousScrollTop = element.scrollTop;
+    const maxScroll = Math.max(0, element.scrollHeight - element.clientHeight);
+    element.scrollTop = element.scrollHeight;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const reachedScroll = element.scrollTop;
+    const closeAfterScroll = rectOf(close);
+    const closeHit = closeAfterScroll
+      ? document.elementFromPoint(
+        closeAfterScroll.left + closeAfterScroll.width / 2,
+        closeAfterScroll.top + closeAfterScroll.height / 2,
+      )
+      : null;
+    element.scrollTop = previousScrollTop;
+    return {
+      slot: element.getAttribute("data-slot"),
+      fullscreenClass: element.classList.contains("wish-details-dialog"),
+      position: style.position,
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      maxWidth: style.maxWidth,
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
+      radii: [
+        style.borderTopLeftRadius,
+        style.borderTopRightRadius,
+        style.borderBottomRightRadius,
+        style.borderBottomLeftRadius,
+      ].map(Number.parseFloat),
+      padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(Number.parseFloat),
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      maxScroll,
+      reachedScroll,
+      close: {
+        position: closeStyle?.position || null,
+        zIndex: Number.parseFloat(closeStyle?.zIndex || "0"),
+        beforeScroll: closeBeforeScroll,
+        afterScroll: closeAfterScroll,
+        hittable: Boolean(close && (closeHit === close || close.contains(closeHit))),
+      },
+      rootClientWidth: document.documentElement.clientWidth,
+      rootScrollWidth: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0),
+    };
+  });
+  assert(
+    geometry.slot === "dialog-content" && geometry.fullscreenClass && geometry.position === "fixed",
+    `${label} is not the local fullscreen shadcn Dialog variant (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    Math.abs(geometry.left) <= 1
+      && Math.abs(geometry.top) <= 1
+      && Math.abs(geometry.right - geometry.viewportWidth) <= 1
+      && Math.abs(geometry.bottom - geometry.viewportHeight) <= 1
+      && Math.abs(geometry.width - geometry.viewportWidth) <= 1
+      && Math.abs(geometry.height - geometry.viewportHeight) <= 1,
+    `${label} leaves a gap around the viewport (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.maxWidth === "none"
+      && geometry.maxHeight === "none"
+      && geometry.radii.every((radius) => Math.abs(radius) <= .5),
+    `${label} retains a compact width cap or rounded outer corner (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.padding.every((value) => value === 16)
+      && ["auto", "scroll"].includes(geometry.overflowY)
+      && geometry.scrollWidth <= geometry.clientWidth + 1
+      && geometry.rootScrollWidth <= geometry.rootClientWidth + 1
+      && (geometry.maxScroll <= 1 || geometry.reachedScroll >= geometry.maxScroll - 2),
+    `${label} content is not safely scrollable inside the edge-to-edge surface (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.close.position === "fixed"
+      && geometry.close.zIndex >= 20
+      && geometry.close.beforeScroll
+      && geometry.close.afterScroll
+      && Math.abs(geometry.close.beforeScroll.left - geometry.close.afterScroll.left) <= 1
+      && Math.abs(geometry.close.beforeScroll.top - geometry.close.afterScroll.top) <= 1
+      && geometry.close.afterScroll.top >= -1
+      && geometry.close.afterScroll.right <= geometry.viewportWidth + 1
+      && geometry.close.afterScroll.width >= 47
+      && geometry.close.afterScroll.height >= 47
+      && geometry.close.hittable,
+    `${label} close action does not stay fixed and usable while the modal scrolls (${JSON.stringify(geometry.close)})`,
+  );
+  await expectLargeAppControls(dialog, `${label} controls`);
+}
+
+async function expectEdgeToEdgeProfileEditorGeometry(dialog, label) {
+  await dialog.waitFor({ state: "visible" });
+  const geometry = await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    const close = element.querySelector("[data-slot='dialog-close']");
+    const closeStyle = close ? getComputedStyle(close) : null;
+    const scrollViewport = element.querySelector("[data-slot='scroll-area-viewport']");
+    const rectOf = (node) => {
+      const bounds = node?.getBoundingClientRect();
+      return bounds && { left: bounds.left, top: bounds.top, right: bounds.right, bottom: bounds.bottom, width: bounds.width, height: bounds.height };
+    };
+    const closeBeforeScroll = rectOf(close);
+    const previousScrollTop = scrollViewport?.scrollTop || 0;
+    const maxScroll = scrollViewport ? Math.max(0, scrollViewport.scrollHeight - scrollViewport.clientHeight) : 0;
+    if (scrollViewport) scrollViewport.scrollTop = scrollViewport.scrollHeight;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const reachedScroll = scrollViewport?.scrollTop || 0;
+    const closeAfterScroll = rectOf(close);
+    const closeHit = closeAfterScroll
+      ? document.elementFromPoint(closeAfterScroll.left + closeAfterScroll.width / 2, closeAfterScroll.top + closeAfterScroll.height / 2)
+      : null;
+    if (scrollViewport) scrollViewport.scrollTop = previousScrollTop;
+    return {
+      slot: element.getAttribute("data-slot"),
+      fullscreenClass: element.classList.contains("profile-settings-dialog"),
+      position: style.position,
+      translate: style.translate,
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      maxWidth: style.maxWidth,
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
+      radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(Number.parseFloat),
+      padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(Number.parseFloat),
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      scroll: scrollViewport ? {
+        overflowY: getComputedStyle(scrollViewport).overflowY,
+        clientWidth: scrollViewport.clientWidth,
+        scrollWidth: scrollViewport.scrollWidth,
+        maxScroll,
+        reachedScroll,
+      } : null,
+      close: {
+        position: closeStyle?.position || null,
+        zIndex: Number.parseFloat(closeStyle?.zIndex || "0"),
+        beforeScroll: closeBeforeScroll,
+        afterScroll: closeAfterScroll,
+        hittable: Boolean(close && (closeHit === close || close.contains(closeHit))),
+      },
+      rootClientWidth: document.documentElement.clientWidth,
+      rootScrollWidth: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0),
+    };
+  });
+  assert(
+    geometry.slot === "dialog-content" && geometry.fullscreenClass && geometry.position === "fixed",
+    `${label} is not the local fullscreen profile Dialog variant (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    Math.abs(geometry.left) <= 1
+      && Math.abs(geometry.top) <= 1
+      && Math.abs(geometry.right - geometry.viewportWidth) <= 1
+      && Math.abs(geometry.bottom - geometry.viewportHeight) <= 1
+      && Math.abs(geometry.width - geometry.viewportWidth) <= 1
+      && Math.abs(geometry.height - geometry.viewportHeight) <= 1,
+    `${label} leaves a gap around the viewport (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.maxWidth === "none"
+      && geometry.maxHeight === "none"
+      && geometry.translate === "none"
+      && geometry.radii.every((radius) => Math.abs(radius) <= .5)
+      && geometry.padding.every((value) => value === 16),
+    `${label} retains compact Dialog geometry (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.overflowY === "hidden"
+      && geometry.scroll
+      && ["auto", "scroll"].includes(geometry.scroll.overflowY)
+      && geometry.scroll.scrollWidth <= geometry.scroll.clientWidth + 1
+      && (geometry.scroll.maxScroll <= 1 || geometry.scroll.reachedScroll >= geometry.scroll.maxScroll - 2)
+      && geometry.scrollWidth <= geometry.clientWidth + 1
+      && geometry.rootScrollWidth <= geometry.rootClientWidth + 1,
+    `${label} does not keep one safe inner scrolling region (${JSON.stringify(geometry)})`,
+  );
+  assert(
+    geometry.close.position === "fixed"
+      && geometry.close.zIndex >= 20
+      && geometry.close.beforeScroll
+      && geometry.close.afterScroll
+      && Math.abs(geometry.close.beforeScroll.left - geometry.close.afterScroll.left) <= 1
+      && Math.abs(geometry.close.beforeScroll.top - geometry.close.afterScroll.top) <= 1
+      && geometry.close.afterScroll.top >= -1
+      && geometry.close.afterScroll.right <= geometry.viewportWidth + 1
+      && geometry.close.afterScroll.width >= 47
+      && geometry.close.afterScroll.height >= 47
+      && geometry.close.hittable,
+    `${label} close action does not stay fixed and usable while the profile form scrolls (${JSON.stringify(geometry.close)})`,
+  );
+  await expectLargeAppControls(dialog, `${label} controls`);
 }
 
 async function expectDarkAuthenticatedModal(dialog, label) {
   await dialog.waitFor({ state: "visible" });
-  await expectFullViewportModalWidth(dialog, label);
+  if (await dialog.evaluate((element) => element.classList.contains("wish-details-dialog"))) {
+    await expectEdgeToEdgeWishDetailGeometry(dialog, label);
+  } else if (await dialog.evaluate((element) => element.classList.contains("profile-settings-dialog"))) {
+    await expectEdgeToEdgeProfileEditorGeometry(dialog, label);
+  } else {
+    await expectCanonicalModalGeometry(dialog, label);
+  }
   assert(
     await dialog.locator('.modal-icon, [data-slot="alert-dialog-media"], .modal-heading > svg').count() === 0,
     `${label} still renders a decorative leading icon tile`,
@@ -1490,6 +1934,10 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       switchRowsWithControl: switchRows.filter((row) => row.querySelector(":scope [role='switch']")).length,
       switchSemantics: roleSwitches.map((control) => ({
         ...rectOf(control),
+        className: control.className,
+        computedWidth: getComputedStyle(control).width,
+        flex: getComputedStyle(control).flex,
+        flexShrink: getComputedStyle(control).flexShrink,
         slot: control.getAttribute("data-slot"),
         size: control.getAttribute("data-size"),
         legacyClass: control.classList.contains("wish-editor__switch"),
@@ -1551,7 +1999,7 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
     };
   });
 
-  for (const className of ["fixed", "top-1/2", "left-1/2", "rounded-xl", "bg-popover", "p-4", "max-w-none"]) {
+  for (const className of ["fixed", "top-1/2", "left-1/2", "rounded-xl", "bg-popover", "p-4", "max-w-[calc(100%-2rem)]", "sm:max-w-sm"]) {
     assert(geometry.dialog.classes.includes(className), `${label} editor lost the native shadcn ${className} shell class`);
   }
   assert(
@@ -1563,12 +2011,13 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       && geometry.dialog.padding.every((value) => value === 16),
     `${label} editor does not use the base shadcn DialogContent shell (${JSON.stringify(geometry.dialog)})`,
   );
-  const expectedDialogWidth = geometry.viewport.width;
-  assert(Math.abs(geometry.dialog.width - expectedDialogWidth) <= 2, `${label} editor does not fill the viewport width (${geometry.dialog.width}px instead of ${expectedDialogWidth}px)`);
+  const expectedDialogWidth = geometry.viewport.width >= 640 ? 384 : geometry.viewport.width - 32;
+  assert(Math.abs(geometry.dialog.width - expectedDialogWidth) <= 2, `${label} editor does not use the canonical ${expectedDialogWidth}px width (${geometry.dialog.width}px)`);
   assert(
-    Math.abs(geometry.dialog.left) <= 2
+    Math.abs((geometry.dialog.left + geometry.dialog.right) / 2 - geometry.viewport.width / 2) <= 2
       && geometry.dialog.top >= 15
-      && Math.abs(geometry.dialog.right - geometry.viewport.width) <= 2
+      && geometry.dialog.left >= 15
+      && geometry.dialog.right <= geometry.viewport.width - 15
       && geometry.dialog.bottom <= geometry.viewport.height - 15,
     `${label} native editor escapes the viewport (${JSON.stringify(geometry.dialog)})`,
   );
@@ -1592,7 +2041,7 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
   assert(await dialog.locator("[data-slot='dialog-header']").count() === 1, `${label} editor is missing DialogHeader`);
   assert(await dialog.locator("[data-slot='dialog-description']").count() === 1, `${label} editor is missing DialogDescription`);
   assert(await dialog.locator("[data-slot='dialog-footer']").count() === 1, `${label} editor is missing DialogFooter`);
-  assert(await dialog.getByRole("button", { name: "Закрыть диалог", exact: true }).getAttribute("data-slot") === "dialog-close", `${label} editor close action is not the official DialogClose`);
+  assert(await dialog.getByRole("button", { name: "Close", exact: true }).getAttribute("data-slot") === "dialog-close", `${label} editor close action is not the official DialogClose`);
 
   assert(geometry.fieldCount === 4, `${label} should expose the four field groups`);
   assert(
@@ -1610,7 +2059,9 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       && !["transparent", "rgba(0, 0, 0, 0)"].includes(control.background)
       && control.borderWidths.every((width) => width >= 1)
       && control.borderRadius > 0
-      && control.height >= 44),
+      && (expectedSlot === "textarea"
+        ? control.height >= 95
+        : control.height >= 47 && control.height <= 49)),
     `${label} shadcn controls do not own the visible field surfaces`,
   );
   assert(
@@ -1626,8 +2077,9 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       && geometry.currency.slot === "select-trigger"
       && Math.abs(geometry.currency.control.right - geometry.fieldSurfaces.find(({ name }) => name === "price").wrapper.right) <= 1
       && Math.abs(geometry.currency.control.bottom - geometry.fieldSurfaces.find(({ name }) => name === "price").wrapper.bottom) <= 1
-      && geometry.currency.control.height >= 48,
-    `${label} currency control is not aligned beside price`,
+      && geometry.currency.control.height >= 47
+      && geometry.currency.control.height <= 49,
+    `${label} currency control is not aligned beside price (${JSON.stringify({ currency: geometry.currency, price: geometry.fieldSurfaces.find(({ name }) => name === "price") })})`,
   );
   assert(geometry.switchCount === 2, `${label} should expose the two reference switch rows`);
   const switches = dialog.locator(".wish-editor__switch-row").getByRole("switch");
@@ -1663,7 +2115,7 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
       && control.thumb.width >= 19 && control.thumb.width <= 21
       && control.thumb.height >= 19 && control.thumb.height <= 21
       && control.dataChecked !== control.dataUnchecked),
-    `${label} setting toggles do not retain the base shadcn Switch geometry (${JSON.stringify(geometry.switchSemantics)})`,
+    `${label} setting toggles do not use the app-level 44x24 Large Switch geometry (${JSON.stringify(geometry.switchSemantics)})`,
   );
   for (const name of ["Секретное желание", "Многократное бронирование"]) {
     assert(await dialog.getByRole("switch", { name, exact: true }).count() === 1, `${label} does not expose the accessible “${name}” switch`);
@@ -1705,7 +2157,9 @@ async function expectWishEditorLayout(dialog, label, { mobile = false, mode = "e
     geometry.listRows.every((row) => (
       Math.abs((row.listSwitch.top + row.listSwitch.height / 2) - (row.row.top + row.row.height / 2)) <= 1
       && row.listSwitch.width >= 43
+      && row.listSwitch.width <= 45
       && row.listSwitch.height >= 23
+      && row.listSwitch.height <= 25
       && row.title.right < row.listSwitch.left
       && row.listSwitch.right <= row.row.right + 1
       && row.title.width > 0
@@ -1871,7 +2325,8 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
     addressGeometry.group.role === "group"
       && !transparentSurface(addressGeometry.group.background)
       && addressGeometry.group.borderWidth >= 1
-      && addressGeometry.group.height >= 30,
+      && addressGeometry.group.height >= 47
+      && addressGeometry.group.height <= 49,
     `${label} InputGroup does not own the profile-address surface (${JSON.stringify(addressGeometry)})`,
   );
   assert(
@@ -1937,10 +2392,12 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
       type: element.type,
       slot: element.dataset.slot,
       height: rect.height,
+      width: rect.width,
       left: rect.left,
       right: rect.right,
       sectionLeft: sectionRect?.left,
       sectionRight: sectionRect?.right,
+      sectionWidth: sectionRect?.width,
       icon: iconRect ? { width: iconRect.width, height: iconRect.height } : null,
     };
   });
@@ -1949,13 +2406,14 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
     `${label} logout is not a native shadcn Button`,
   );
   assert(
-    logoutGeometry.height >= 44
+    logoutGeometry.height >= 47
       && Math.abs(logoutGeometry.left - logoutGeometry.sectionLeft) <= 1
-      && Math.abs(logoutGeometry.right - logoutGeometry.sectionRight) <= 1
+      && logoutGeometry.right < logoutGeometry.sectionRight - 8
+      && logoutGeometry.width < logoutGeometry.sectionWidth - 8
       && logoutGeometry.icon
       && Math.abs(logoutGeometry.icon.width - 20) <= 1
       && Math.abs(logoutGeometry.icon.height - 20) <= 1,
-    `${label} profile logout action does not fill its section or use the expected scale (${JSON.stringify(logoutGeometry)})`,
+    `${label} profile logout action is not a left-aligned Large button with the expected scale (${JSON.stringify(logoutGeometry)})`,
   );
 
   await waitForStableLayout(page);
@@ -1988,7 +2446,10 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
       slot: element.dataset.slot,
       classes: [...element.classList],
       position: style.position,
-      borderRadius: Number.parseFloat(style.borderTopLeftRadius),
+      maxWidth: style.maxWidth,
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
+      radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(Number.parseFloat),
       padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(Number.parseFloat),
       header: rectOf(header),
       scroll: scroll && scrollViewport ? {
@@ -2007,36 +2468,51 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
       legacyCount: element.querySelectorAll(".modal, .modal-heading, .modal-actions, .settings-editor").length,
     };
   });
-  const expectedWidth = modalGeometry.viewportWidth;
-  const expectedMaximumHeight = Math.min(704, modalGeometry.viewportHeight - 32);
-  for (const className of ["fixed", "top-1/2", "left-1/2", "rounded-xl", "bg-popover", "p-4", "max-w-none"]) {
-    assert(modalGeometry.classes.includes(className), `${label} profile editor lost the native shadcn ${className} shell class`);
+  const expectedRailWidth = Math.min(448, modalGeometry.viewportWidth - 32);
+  for (const className of ["fixed", "top-0", "left-0", "profile-settings-dialog", "h-dvh", "max-h-none", "w-screen", "max-w-none", "translate-x-0", "translate-y-0", "overflow-hidden", "rounded-none", "bg-popover", "p-4", "sm:max-w-none"]) {
+    assert(modalGeometry.classes.includes(className), `${label} profile editor lost the fullscreen ${className} shell class`);
   }
   assert(
     modalGeometry.slot === "dialog-content"
       && modalGeometry.position === "fixed"
       && modalGeometry.legacyCount === 0
-      && modalGeometry.borderRadius >= 10
+      && modalGeometry.maxWidth === "none"
+      && modalGeometry.maxHeight === "none"
+      && modalGeometry.overflowY === "hidden"
+      && modalGeometry.radii.every((radius) => Math.abs(radius) <= .5)
       && modalGeometry.padding.every((value) => value === 16),
-    `${label} profile editor does not use the native shadcn DialogContent shell`,
+    `${label} profile editor does not use the local edge-to-edge shadcn DialogContent shell`,
   );
-  assert(Math.abs(modalGeometry.width - expectedWidth) <= 2, `${label} profile editor width is ${modalGeometry.width}px instead of ${expectedWidth}px`);
-  assert(Math.abs((modalGeometry.left + modalGeometry.right) / 2 - modalGeometry.viewportWidth / 2) <= 2, `${label} profile editor is not horizontally centered`);
-  assert(modalGeometry.height <= expectedMaximumHeight + 2, `${label} profile editor is taller than the native viewport cap`);
-  assert(Math.abs(modalGeometry.left) <= 2 && modalGeometry.top >= 15 && Math.abs(modalGeometry.right - modalGeometry.viewportWidth) <= 2 && modalGeometry.bottom <= modalGeometry.viewportHeight - 15, `${label} profile editor escapes the viewport`);
+  assert(
+    Math.abs(modalGeometry.left) <= 1
+      && Math.abs(modalGeometry.top) <= 1
+      && Math.abs(modalGeometry.right - modalGeometry.viewportWidth) <= 1
+      && Math.abs(modalGeometry.bottom - modalGeometry.viewportHeight) <= 1
+      && Math.abs(modalGeometry.width - modalGeometry.viewportWidth) <= 1
+      && Math.abs(modalGeometry.height - modalGeometry.viewportHeight) <= 1,
+    `${label} profile editor leaves a gap around the viewport`,
+  );
   assert(modalGeometry.scrollWidth <= modalGeometry.clientWidth + 1, `${label} profile editor has horizontal overflow`);
   assert(
     modalGeometry.header && modalGeometry.scroll && modalGeometry.footer
+      && Math.abs(modalGeometry.header.width - expectedRailWidth) <= 2
+      && Math.abs(modalGeometry.scroll.width - expectedRailWidth) <= 2
+      && Math.abs(modalGeometry.footer.width - expectedRailWidth) <= 2
+      && Math.abs(modalGeometry.header.left - modalGeometry.scroll.left) <= 1
+      && Math.abs(modalGeometry.header.right - modalGeometry.scroll.right) <= 1
+      && Math.abs(modalGeometry.scroll.left - modalGeometry.footer.left) <= 1
+      && Math.abs(modalGeometry.scroll.right - modalGeometry.footer.right) <= 1
+      && Math.abs((modalGeometry.header.left + modalGeometry.header.right) / 2 - modalGeometry.viewportWidth / 2) <= 1
       && modalGeometry.header.bottom <= modalGeometry.scroll.top + 1
       && modalGeometry.scroll.bottom <= modalGeometry.footer.top + 1
       && ["auto", "scroll"].includes(modalGeometry.scroll.overflowY)
       && modalGeometry.scroll.scrollWidth <= modalGeometry.scroll.clientWidth + 1,
-    `${label} profile editor does not keep a scrollable body between its header and footer`,
+    `${label} profile editor does not keep one centered 448px rail with a scrollable body`,
   );
   assert(modalGeometry.overlay?.visible && modalGeometry.overlay.classes.includes("fixed") && modalGeometry.overlay.classes.includes("inset-0") && !modalGeometry.overlay.classes.includes("modal-backdrop"), `${label} profile editor does not use the native shadcn overlay`);
-  assert(modalGeometry.close?.width >= 44 && modalGeometry.close?.height >= 44 && modalGeometry.close?.hittable, `${label} native close action is too small or covered`);
+  assert(modalGeometry.close?.width >= 47 && modalGeometry.close?.height >= 47 && modalGeometry.close?.hittable, `${label} native close action is smaller than 48px or covered`);
   assert(modalGeometry.cancel?.type === "button" && modalGeometry.cancel?.slot === "button" && modalGeometry.cancel?.hittable, `${label} cancel is not a native footer button`);
-  assert(modalGeometry.submit?.type === "submit" && modalGeometry.submit?.slot === "button" && modalGeometry.submit?.form === "profile-editor-form" && modalGeometry.submit?.height >= 44, `${label} save is not the native form submit in DialogFooter`);
+  assert(modalGeometry.submit?.type === "submit" && modalGeometry.submit?.slot === "button" && modalGeometry.submit?.form === "profile-editor-form" && modalGeometry.submit?.height >= 47, `${label} save is not the 48px native form submit in DialogFooter`);
   assert(await dialog.locator("[data-slot='dialog-header']").count() === 1, `${label} profile editor is missing DialogHeader`);
   assert(await dialog.locator("[data-slot='dialog-title']").count() === 1, `${label} profile editor is missing DialogTitle`);
   assert(await dialog.locator("[data-slot='dialog-description']").count() === 1, `${label} profile editor is missing DialogDescription`);
@@ -2152,7 +2628,7 @@ async function expectFriendsNavigation(page, activeTab, label) {
   for (const tab of Object.keys(friendsRoutes)) {
     const tabControl = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
     assert(await tabControl.evaluate((element) => element.tagName === "A"), `${label} ${friendsLabels[tab]} is not a native link`);
-    assert(await tabControl.getAttribute("data-slot") === "button", `${label} ${friendsLabels[tab]} is not styled by the design system`);
+    assert(await tabControl.evaluate((element) => element.classList.contains("group/button")), `${label} ${friendsLabels[tab]} is not styled with buttonVariants`);
     assert(new URL(await tabControl.getAttribute("href"), baseUrl).pathname === friendsRoutes[tab], `${label} ${friendsLabels[tab]} points to the wrong route`);
     assert(
       await tabControl.getAttribute("aria-current") === (tab === activeTab ? "page" : null),
@@ -2189,7 +2665,16 @@ async function expectFriendsLayout(page, label, { mobile }) {
     const rowNode = document.querySelector(".friend-row");
     const navigationRect = navigationNode?.getBoundingClientRect();
     const rowRect = rowNode?.getBoundingClientRect();
-    const linkRects = [...(navigationNode?.querySelectorAll(":scope > a[data-slot='button']") || [])].map((control) => {
+    const profileNode = rowNode?.querySelector(":scope > .friend-row__profile");
+    const avatarNode = profileNode?.querySelector(":scope > .avatar");
+    const identityNode = profileNode?.querySelector(":scope > .friend-row__identity");
+    const nameNode = identityNode?.querySelector(":scope > strong");
+    const profileRect = profileNode?.getBoundingClientRect();
+    const avatarRect = avatarNode?.getBoundingClientRect();
+    const identityRect = identityNode?.getBoundingClientRect();
+    const nameRect = nameNode?.getBoundingClientRect();
+    const profileStyle = profileNode ? getComputedStyle(profileNode) : null;
+    const linkRects = [...(navigationNode?.querySelectorAll(":scope > a") || [])].map((control) => {
       const rect = control.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     });
@@ -2197,13 +2682,25 @@ async function expectFriendsLayout(page, label, { mobile }) {
       viewportWidth: document.documentElement.clientWidth,
       navigation: navigationRect && { left: navigationRect.left, right: navigationRect.right, top: navigationRect.top, bottom: navigationRect.bottom, width: navigationRect.width },
       row: rowRect && { left: rowRect.left, right: rowRect.right, top: rowRect.top, width: rowRect.width },
+      profile: profileRect && { left: profileRect.left, top: profileRect.top, right: profileRect.right, bottom: profileRect.bottom, width: profileRect.width, height: profileRect.height },
+      avatar: avatarRect && { left: avatarRect.left, top: avatarRect.top, right: avatarRect.right, bottom: avatarRect.bottom, width: avatarRect.width, height: avatarRect.height, hidden: avatarNode.getAttribute("aria-hidden") },
+      identity: identityRect && { left: identityRect.left, top: identityRect.top, right: identityRect.right, bottom: identityRect.bottom, width: identityRect.width, height: identityRect.height },
+      name: nameRect && { left: nameRect.left, right: nameRect.right, width: nameRect.width },
+      profileGap: profileStyle ? Number.parseFloat(profileStyle.columnGap) : null,
       linkRects,
     };
   }, ".friends-section-nav");
   assert(geometry.navigation && geometry.row, `${label} is missing its friend navigation or list geometry`);
+  assert(geometry.profile && geometry.avatar && geometry.identity && geometry.name, `${label} is missing its friend profile geometry`);
   assert(geometry.linkRects.length === 3, `${label} is missing friend-section navigation targets`);
   assert(geometry.row.right <= geometry.viewportWidth + 1, `${label} friend rows extend beyond the viewport`);
   assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the list`);
+  assert(Math.abs(geometry.avatar.width - 48) <= 1 && Math.abs(geometry.avatar.height - 48) <= 1, `${label} friend avatar is not 48px (${JSON.stringify(geometry.avatar)})`);
+  assert(Math.abs(geometry.identity.left - geometry.avatar.right - 12) <= 1 && Math.abs(geometry.profileGap - 12) <= 1, `${label} avatar and name do not use the compact 12px gap`);
+  assert(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.identity.top + geometry.identity.bottom) / 2) <= 1, `${label} avatar and identity are not vertically centered`);
+  assert(geometry.profile.left <= geometry.avatar.left + 1 && geometry.profile.right >= geometry.identity.right - 1 && geometry.profile.height >= 48, `${label} profile link does not enclose the avatar and identity`);
+  assert(geometry.name.left >= geometry.identity.left - 1 && geometry.name.right <= geometry.identity.right + 1, `${label} friend name escapes its identity column`);
+  assert(geometry.avatar.hidden === "true", `${label} decorative avatar pollutes the profile link accessible name`);
   const searchSurface = await search.evaluate((wrapper) => {
     const input = wrapper.querySelector("[data-slot='input']");
     const icon = wrapper.querySelector(":scope > svg");
@@ -2236,37 +2733,74 @@ async function expectFriendsLayout(page, label, { mobile }) {
   assert(searchSurface.shadow === "none" || shadowLengths.every((length) => length === 0), `${label} search Input has a second shadow (${searchSurface.shadow})`);
   if (mobile) {
     assert(geometry.navigation.width <= geometry.viewportWidth + 1, `${label} mobile friend navigation overflows the viewport`);
-    assert(geometry.linkRects.every((rect) => rect.height >= 44), `${label} mobile friend navigation has undersized touch targets`);
+    assert(geometry.linkRects.every((rect) => rect.height >= 47), `${label} mobile friend navigation has controls below the 48px Large size`);
     const pageHeight = await page.evaluate(() => ({ viewport: window.innerHeight, document: document.documentElement.scrollHeight }));
     assert(pageHeight.document <= pageHeight.viewport + 1, `${label} adds empty mobile scrolling (${pageHeight.document}px document inside ${pageHeight.viewport}px viewport)`);
   } else {
     assert(geometry.navigation.left >= geometry.row.left - 1, `${label} desktop friend navigation is not aligned with the directory`);
     assert(
-      geometry.linkRects.every((rect) => rect.height >= 44),
+      geometry.linkRects.every((rect) => rect.height >= 47),
       `${label} desktop friend navigation has undersized targets (${JSON.stringify(geometry.linkRects)})`,
     );
     const topbar = page.locator(".friends-topbar");
     await topbar.waitFor({ state: "visible" });
+    assert(await topbar.locator(".app-friends-link").count() === 0, `${label} still renders the duplicate Friends action in the upper header`);
     assert(await topbar.locator(".friends-topbar__dock, .friends-topbar__search").count() === 0, `${label} still renders the retired floating navigation dock`);
     assert(await topbar.locator(".app-wishes-link").count() === 0, `${label} still renders the retired floating wishes shortcut`);
-    assert(await topbar.getByRole("link", { name: "Найти друзей", exact: true }).count() === 0, `${label} still renders the retired floating search shortcut`);
+      assert(await topbar.getByRole("link", { name: "Найти друзей", exact: true }).count() === 0, `${label} still renders the retired floating search shortcut`);
   }
+  await expectLargeAppControls(page.locator(".friends-page"), `${label} app controls`);
 }
 
 async function expectWideFriendsLayout(page, label) {
-  await page.setViewportSize({ width: 1912, height: 991 });
   try {
-    await page.goto(`${baseUrl}${friendsRoutes.subscriptions}`, { waitUntil: "domcontentloaded" });
-    await page.locator(".friends-page").waitFor({ state: "visible" });
-    await friendRow(page, "max").waitFor({ state: "visible" });
+    const viewports = [
+      { width: 390, height: 844 },
+      { width: 820, height: 1000 },
+      { width: 1024, height: 1000 },
+      { width: 1440, height: 1000 },
+      { width: 1912, height: 991 },
+    ];
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${baseUrl}/app/wishes`, { waitUntil: "domcontentloaded" });
+      const wishesPage = page.locator(".app-page.wishes-page");
+      await wishesPage.waitFor({ state: "visible" });
+      const wishesRail = await wishesPage.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const left = rect.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+        const right = rect.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+        return { left, right, width: right - left };
+      });
+
+      await page.goto(`${baseUrl}${friendsRoutes.subscriptions}`, { waitUntil: "domcontentloaded" });
+      await page.locator(".friends-page").waitFor({ state: "visible" });
+      await friendRow(page, "max").waitFor({ state: "visible" });
+      const directoryGeometry = await page.evaluate(() => {
+        const selectors = [".friends-directory", ".friends-directory__heading", ".friends-section-nav", ".friends-search", ".friends-list", ".friend-row"];
+        const entries = Object.fromEntries(selectors.map((selector) => {
+          const element = document.querySelector(selector);
+          const rect = element?.getBoundingClientRect();
+          return [selector, rect && { left: rect.left, right: rect.right, width: rect.width }];
+        }));
+        return { viewportWidth: document.documentElement.clientWidth, entries };
+      });
+      const viewportLabel = `${label} at ${viewport.width}px`;
+      const directoryRect = directoryGeometry.entries[".friends-directory"];
+      assert(directoryRect, `${viewportLabel} is missing its directory container`);
+      assert(Math.abs(directoryRect.left - wishesRail.left) <= 1, `${viewportLabel} directory left edge differs from Wishes (${directoryRect.left}px vs ${wishesRail.left}px)`);
+      assert(Math.abs(directoryRect.right - wishesRail.right) <= 1, `${viewportLabel} directory right edge differs from Wishes (${directoryRect.right}px vs ${wishesRail.right}px)`);
+      assert(Math.abs(directoryRect.width - wishesRail.width) <= 1, `${viewportLabel} directory width differs from Wishes (${directoryRect.width}px vs ${wishesRail.width}px)`);
+      assert(Math.abs(directoryRect.left - (directoryGeometry.viewportWidth - directoryRect.right)) <= 2, `${viewportLabel} directory is not centered in the viewport`);
+      for (const selector of [".friends-directory__heading", ".friends-section-nav", ".friends-search", ".friends-list", ".friend-row"]) {
+        const rect = directoryGeometry.entries[selector];
+        assert(rect, `${viewportLabel} is missing ${selector} geometry`);
+        assert(Math.abs(rect.left - directoryRect.left) <= 1 && Math.abs(rect.right - directoryRect.right) <= 1, `${viewportLabel} ${selector} is not aligned to the shared rail`);
+      }
+      await expectNoRootOverflow(page, viewportLabel);
+    }
     await expectFriendsLayout(page, label, { mobile: false });
-    await expectNoRootOverflow(page, label);
-    const searchGeometry = await page.locator(".friends-search").evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      return { width: rect.width, rightGap: window.innerWidth - rect.right };
-    });
-    assert(searchGeometry.width >= 1200, `${label} search remains capped on a wide viewport (${searchGeometry.width}px)`);
-    assert(searchGeometry.rightGap <= 150, `${label} search is too far from the right edge (${searchGeometry.rightGap}px)`);
     await page.screenshot({ path: "/tmp/rollapp-wide-friends-1912.png", fullPage: true });
   } finally {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -2282,6 +2816,7 @@ async function expectFriendsMenus(page, label, { mobile = false } = {}) {
   assert(await rowPopover.getAttribute("data-slot") === "dropdown-menu-content", `${label} row popup is not official DropdownMenu content`);
   assert(await rowTrigger.getAttribute("aria-controls") === await rowPopover.getAttribute("id"), `${label} row popup is not linked to its trigger`);
   assert(await rowPopover.getByRole("menuitem").count() === 2, `${label} row popup should expose two menu items`);
+  await expectLargeAppControls(rowPopover, `${label} row menu controls`);
   await page.keyboard.press("Escape");
   await rowPopover.waitFor({ state: "detached" });
   assert(await rowTrigger.evaluate((element) => document.activeElement === element), `${label} row popover does not restore trigger focus after Escape`);
@@ -2514,9 +3049,6 @@ async function expectInAppFriendProfile(page, label, { mobile }) {
   await expectMainFriendsLink(page, label);
   if (mobile) {
     await expectMobileAppShell(page, label);
-    const mobileFriendsLink = page.locator(".mobile-bottom-nav a.active").filter({ hasText: "Друзья" });
-    assert(await mobileFriendsLink.count() === 1, `${label} does not mark Friends active in mobile navigation`);
-    assert(await mobileFriendsLink.getAttribute("aria-current") === "page", `${label} does not expose Friends as the current mobile section`);
   }
 
   await expectDarkPage(page, label, [".app-layout--dark", ".app-main", ".friend-profile-page", ".friend-profile-page__hero"]);
@@ -2620,7 +3152,28 @@ async function expectUnifiedPublicCollection(page, label, {
   if (owner) {
     assert(await identity.evaluate((element) => element.tagName === "BUTTON"), `${label} owner identity is not the profile-editor action`);
     assert(/^Редактировать профиль\s+/.test(await identity.getAttribute("aria-label") || ""), `${label} owner identity has the wrong accessible name`);
-    assert(await hero.locator(".wishes-page__friend-links a").count() === 2, `${label} owner profile is missing its relationship links`);
+    const relationshipLinks = hero.locator(".wishes-page__friend-links a");
+    assert(await relationshipLinks.count() === 2, `${label} owner profile is missing its relationship links`);
+    const relationshipIconContract = await relationshipLinks.evaluateAll((links) => links.map((link) => {
+      const icon = link.querySelector(":scope > svg");
+      const rect = icon?.getBoundingClientRect();
+      return {
+        name: link.innerText.trim(),
+        iconCount: link.querySelectorAll(":scope > svg").length,
+        iconHidden: icon?.getAttribute("aria-hidden"),
+        iconWidth: rect?.width || 0,
+        iconHeight: rect?.height || 0,
+      };
+    }));
+    for (const link of relationshipIconContract) {
+      assert(
+        link.iconCount === 1
+          && link.iconHidden === "true"
+          && Math.abs(link.iconWidth - 20) <= 1
+          && Math.abs(link.iconHeight - 20) <= 1,
+        `${label} ${link.name} is missing its decorative 20px relationship icon`,
+      );
+    }
     if (shared) {
       assert(await hero.getByRole("button", { name: "Открыть мой список", exact: true }).count() === 1, `${label} owner share view is missing its canonical list action`);
       assert(await carousel.locator(".list-tabs__add").count() === 0, `${label} shared owner view exposes list creation`);
@@ -2793,6 +3346,93 @@ async function expectFixedPopoverGeometry(locator, label, { margin = 6 } = {}) {
   return geometry;
 }
 
+async function expectPopupMatchesTriggerWidth(trigger, popup, label) {
+  await popup.waitFor({ state: "visible" });
+  await popup.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const triggerRect = await trigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, width: rect.width };
+  });
+  const popupRect = await popup.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      anchorWidth: Number.parseFloat(style.getPropertyValue("--anchor-width")),
+    };
+  });
+  assert(
+    Math.abs(popupRect.width - triggerRect.width) <= 1
+      && Math.abs(popupRect.left - triggerRect.left) <= 1
+      && Math.abs(popupRect.right - triggerRect.right) <= 1
+      && Math.abs(popupRect.anchorWidth - triggerRect.width) <= 1,
+    `${label} does not match its trigger width: ${JSON.stringify({ trigger: triggerRect, popup: popupRect })}`,
+  );
+}
+
+async function expectOfficialDetailListCheckboxes(options, lists, selectedListIds, label) {
+  await options.first().evaluate(async (item) => {
+    const surface = item.closest("[role='menu']") || item;
+    const finiteAnimations = surface.getAnimations({ subtree: true }).filter((animation) => {
+      const iterations = animation.effect?.getTiming?.().iterations;
+      return iterations !== Infinity;
+    });
+    await Promise.all(finiteAnimations.map((animation) => animation.finished.catch(() => {})));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const states = await options.evaluateAll((items) => items.map((item) => {
+    const checkboxes = item.querySelectorAll(":scope > [data-slot='checkbox']");
+    const checkbox = checkboxes[0] || null;
+    const indicator = checkbox?.querySelector("[data-slot='checkbox-indicator']") || null;
+    const checkboxRect = checkbox?.getBoundingClientRect();
+    const checkboxStyle = checkbox ? getComputedStyle(checkbox) : null;
+    const indicatorRect = indicator?.getBoundingClientRect();
+    const indicatorStyle = indicator ? getComputedStyle(indicator) : null;
+    return {
+      rowRole: item.getAttribute("role"),
+      rowChecked: item.getAttribute("aria-checked"),
+      checkboxCount: checkboxes.length,
+      checkboxRole: checkbox?.getAttribute("role") || null,
+      checkboxAriaHidden: checkbox?.getAttribute("aria-hidden") || null,
+      checkboxTabIndex: checkbox?.tabIndex ?? null,
+      checked: checkbox?.hasAttribute("data-checked") || false,
+      unchecked: checkbox?.hasAttribute("data-unchecked") || false,
+      width: checkboxRect?.width ?? null,
+      height: checkboxRect?.height ?? null,
+      borderRadius: checkboxStyle ? Number.parseFloat(checkboxStyle.borderRadius) : null,
+      pointerEvents: checkboxStyle?.pointerEvents || null,
+      indicatorVisible: Boolean(indicator
+        && indicatorRect
+        && indicatorStyle
+        && indicatorRect.width > 0
+        && indicatorRect.height > 0
+        && indicatorStyle.display !== "none"
+        && indicatorStyle.visibility !== "hidden"),
+      legacyStateCount: item.querySelectorAll(":scope > .card-menu__list-state").length,
+    };
+  }));
+  assert(states.length === lists.length, `${label} has ${states.length} checkbox rows instead of ${lists.length}`);
+  states.forEach((state, index) => {
+    const list = lists[index];
+    const expectedChecked = selectedListIds.includes(list.id);
+    assert(state.rowRole === "menuitemcheckbox", `${label} row "${list.title}" lost its menuitemcheckbox role`);
+    assert(state.rowChecked === String(expectedChecked), `${label} row "${list.title}" has the wrong aria-checked state`);
+    assert(state.checkboxCount === 1, `${label} row "${list.title}" must contain exactly one official Checkbox`);
+    assert(state.checkboxRole === "presentation" && state.checkboxAriaHidden === "true", `${label} row "${list.title}" Checkbox is not presentational`);
+    assert(state.checkboxTabIndex === -1 && state.pointerEvents === "none", `${label} row "${list.title}" Checkbox became a nested interactive target`);
+    assert(state.width >= 23 && state.width <= 25 && state.height >= 23 && state.height <= 25, `${label} row "${list.title}" Checkbox is not the app-level 24px size (${state.width}x${state.height})`);
+    assert(state.borderRadius !== null && state.borderRadius <= 5, `${label} row "${list.title}" Checkbox became circular (${state.borderRadius}px radius)`);
+    assert(state.checked === expectedChecked && state.unchecked === !expectedChecked, `${label} row "${list.title}" Checkbox data state is wrong`);
+    assert(state.indicatorVisible === expectedChecked, `${label} row "${list.title}" Checkbox indicator visibility is wrong`);
+    assert(state.legacyStateCount === 0, `${label} row "${list.title}" restored the legacy circular plus/check state`);
+  });
+}
+
 async function expectMobileTouchTargets(locator, label, { minHeight = 48 } = {}) {
   const targets = await locator.evaluateAll(async (roots) => {
     const animations = [...new Set(roots.flatMap((root) => (
@@ -2849,6 +3489,97 @@ async function expectMenuFocus(page, menu, label) {
     `${label} focused a non-menu element (${focused.role || "no role"})`,
   );
   assert(focused.focusVisible, `${label} focused item has no visible keyboard focus`);
+}
+
+async function expectCleanDestructiveMenuState(page, item, label, { checkHover = true } = {}) {
+  const readChrome = () => item.evaluate((element) => {
+    const toRgba = (color) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    };
+    const style = getComputedStyle(element);
+    const iconStyle = getComputedStyle(element.querySelector(":scope > svg"));
+    const probe = document.createElement("span");
+    probe.style.color = "var(--destructive)";
+    document.body.append(probe);
+    const destructive = toRgba(getComputedStyle(probe).color);
+    const elementStyle = getComputedStyle(element);
+    const surface = toRgba(elementStyle.getPropertyValue("--app-destructive-menu-surface"));
+    const surfaceForeground = toRgba(elementStyle.getPropertyValue("--app-destructive-menu-surface-foreground"));
+    probe.remove();
+    return {
+      active: document.activeElement === element,
+      focusVisible: element.matches(":focus-visible"),
+      opacity: Number.parseFloat(style.opacity),
+      color: toRgba(style.color),
+      iconColor: toRgba(iconStyle.color),
+      destructive,
+      surface,
+      surfaceForeground,
+      background: toRgba(style.backgroundColor),
+      backgroundImage: style.backgroundImage,
+      borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].map(Number.parseFloat),
+      boxShadow: style.boxShadow,
+      pseudoContent: [getComputedStyle(element, "::before").content, getComputedStyle(element, "::after").content],
+    };
+  });
+  const closeColor = (actual, expected, tolerance = 3) => actual.slice(0, 3).every((value, index) => Math.abs(value - expected[index]) <= tolerance);
+  const luminance = ([red, green, blue]) => {
+    const linear = [red, green, blue].map((channel) => {
+      const value = channel / 255;
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+  };
+  const contrast = (first, second) => {
+    const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+  const assertCleanChrome = (state, stateLabel) => {
+    assert(state.opacity === 1, `${label} ${stateLabel} destructive action is unexpectedly muted`);
+    assert(state.backgroundImage === "none" && state.borderWidths.every((value) => value === 0) && state.boxShadow === "none", `${label} ${stateLabel} destructive state has dirty extra chrome`);
+    assert(state.pseudoContent.every((content) => !content || ["none", "normal", '""', "''"].includes(content)), `${label} ${stateLabel} destructive state restored a legacy pseudo-element`);
+  };
+  const assertActive = (state, stateLabel) => {
+    assertCleanChrome(state, stateLabel);
+    assert(closeColor(state.color, state.surfaceForeground) && closeColor(state.iconColor, state.surfaceForeground), `${label} ${stateLabel} destructive text or icon is not legible on the red surface: ${JSON.stringify({ color: state.color, iconColor: state.iconColor, expected: state.surfaceForeground })}`);
+    assert(state.background[3] >= 254 && closeColor(state.background, state.surface, 3), `${label} ${stateLabel} destructive surface is not clean red: ${JSON.stringify(state.background)}`);
+    assert(state.background[0] > state.background[1] * 1.35 && state.background[0] > state.background[2] * 1.15, `${label} ${stateLabel} destructive surface still reads as muddy gray: ${JSON.stringify(state.background)}`);
+    assert(contrast(state.color, state.background) >= 4.5, `${label} ${stateLabel} destructive label contrast is below 4.5:1`);
+  };
+
+  const idle = await readChrome();
+  assertCleanChrome(idle, "idle");
+  assert(closeColor(idle.color, idle.destructive) && closeColor(idle.iconColor, idle.destructive), `${label} idle destructive text or icon lost its red token`);
+  assert(idle.background[3] <= 1, `${label} idle destructive action has an unexpected background`);
+
+  let hover = null;
+  if (checkHover) {
+    await item.hover();
+    await page.waitForTimeout(180);
+    await item.hover();
+    await page.waitForTimeout(50);
+    hover = await readChrome();
+    assertActive(hover, "hover");
+  }
+
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("End");
+  await waitForFocused(page, item, `${label} destructive keyboard state`);
+  const focused = await readChrome();
+  assertActive(focused, "focus");
+  assert(focused.active && focused.focusVisible, `${label} destructive keyboard state is not visibly focused`);
+  if (hover) {
+    assert(hover.background.every((value, index) => Math.abs(value - focused.background[index]) <= 2), `${label} destructive hover and focus surfaces differ`);
+    assert(hover.color.every((value, index) => Math.abs(value - focused.color[index]) <= 2), `${label} destructive hover and focus foregrounds differ`);
+  }
+  await page.keyboard.press("Home");
 }
 
 async function openOwnerWishCardMenu(page, card, wish, { keyboard = false } = {}) {
@@ -2944,7 +3675,8 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
   assert((await menu.getByRole("menuitem", { name: "Забронировать", exact: true }).count()) === 0, `${label} owner menu exposes a reservation action`);
   assert((await menu.getByRole("menuitem", { name: "Сохранить к себе", exact: true }).count()) === 0, `${label} owner menu exposes a copy action`);
   assert(await menu.getByRole("menuitem", { name: "Редактировать", exact: true }).getAttribute("aria-haspopup") === "dialog", `${label} edit action does not advertise its dialog`);
-  assert(await menu.getByRole("menuitem", { name: "Удалить", exact: true }).getAttribute("data-variant") === "destructive", `${label} delete action is not the destructive DropdownMenu item`);
+  const deleteItem = menu.getByRole("menuitem", { name: "Удалить", exact: true });
+  assert(await deleteItem.getAttribute("data-variant") === "destructive", `${label} delete action is not the destructive DropdownMenu item`);
   await expectNoWishDetail(page, `${label} root menu`);
   await expectFixedPopoverGeometry(menu, `${label} root menu`);
   const triggerGeometry = await trigger.evaluate((element) => {
@@ -2965,11 +3697,13 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
     };
   });
   await expectMenuFocus(page, menu, `${label} root menu`);
+  await expectCleanDestructiveMenuState(page, deleteItem, `${label} delete action`, { checkHover: !mobile });
+  await expectLargeAppControls(menu, `${label} root menu controls`);
   if (mobile) {
     const effectiveHitWidth = triggerGeometry.width - triggerGeometry.hitInset.left - triggerGeometry.hitInset.right;
     const effectiveHitHeight = triggerGeometry.height - triggerGeometry.hitInset.top - triggerGeometry.hitInset.bottom;
-    assert(effectiveHitWidth >= 44 && effectiveHitHeight >= 44, `${label} menu trigger has no 44px touch hit area`);
-    await expectMobileTouchTargets(rootItems, `${label} root menu`, { minHeight: 44 });
+    assert(effectiveHitWidth >= 47 && effectiveHitHeight >= 47, `${label} menu trigger has no 48px Large touch area`);
+    await expectMobileTouchTargets(rootItems, `${label} root menu`);
     await expectNoRootOverflow(page, `${label} root menu`);
   }
   const menuScreenshot = wish.status === "fulfilled"
@@ -3036,8 +3770,9 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
       `${label} list "${list.title}" has the wrong initial checked state`,
     );
   }
+  await expectLargeAppControls(listMenu, `${label} list submenu controls`);
   if (mobile) {
-    await expectMobileTouchTargets(options, `${label} list submenu`, { minHeight: 44 });
+    await expectMobileTouchTargets(options, `${label} list submenu`);
     await expectNoRootOverflow(page, `${label} list submenu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-card-lists.png" : "/tmp/rollapp-desktop-wish-card-lists.png" });
@@ -3067,7 +3802,7 @@ async function expectOwnerWishCardMenu(page, card, wish, lists, label, { mobile 
     const deleteMenu = await openOwnerWishCardMenu(page, card, wish);
     await deleteMenu.menu.getByRole("menuitem", { name: "Удалить", exact: true }).click();
     await deleteMenu.menu.waitFor({ state: "detached" });
-    const deleteDialog = page.getByRole("dialog", { name: `Удаление желания «${wish.title}»`, exact: true });
+    const deleteDialog = page.getByRole("alertdialog", { name: `Удалить «${wish.title}»?`, exact: true });
     await deleteDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(deleteDialog, `${label} delete confirmation`);
     await deleteDialog.getByRole("button", { name: "Отмена", exact: true }).click();
@@ -3084,6 +3819,7 @@ async function expectBuyActionBelowToolbar(dialog, label, { required = false } =
     return null;
   }
   assert(buyActionCount === 1 && await toolbar.count() === 1, `${label} has duplicate buy actions or toolbars`);
+  await buyAction.scrollIntoViewIfNeeded();
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
   });
@@ -3109,7 +3845,7 @@ async function expectBuyActionBelowToolbar(dialog, label, { required = false } =
     geometry.toolbar.bottom <= geometry.buy.top + 1
       && Math.abs(geometry.buy.left - geometry.toolbar.left) <= 1
       && Math.abs(geometry.buy.right - geometry.toolbar.right) <= 1
-      && geometry.buy.height >= 44
+      && geometry.buy.height >= 47
       && geometry.hittable,
     `${label} buy button is not a full-width usable control below the list selector (${JSON.stringify(geometry)})`,
   );
@@ -3183,8 +3919,8 @@ async function expectFluidWishMediaVariants(dialog, label) {
   assert(variants.landscape.image.height < variants.landscape.image.width, `${label} landscape photo is no longer landscape`);
   assert(variants.portrait.image.height > variants.portrait.image.width, `${label} portrait photo is no longer portrait`);
   assert(
-    variants.portrait.dialog.top >= 15
-      && variants.portrait.dialog.bottom <= variants.portrait.viewport.height - 15
+    Math.abs(variants.portrait.dialog.top) <= 1
+      && Math.abs(variants.portrait.dialog.bottom - variants.portrait.viewport.height) <= 1
       && variants.portrait.dialog.overflowY === "auto"
       && variants.portrait.dialog.scrollHeight > variants.portrait.dialog.clientHeight + 1
       && variants.portrait.dialog.reachedScroll > 1,
@@ -3204,11 +3940,12 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
   const dialogHeader = dialog.locator("[data-slot='dialog-header']");
   const dialogTitle = dialogHeader.locator("[data-slot='dialog-title']");
   const dialogDescription = dialogHeader.locator("[data-slot='dialog-description']");
-  const dialogFooter = dialog.locator("[data-slot='dialog-footer']");
+  const actionGroup = dialog.locator(":scope > [data-slot='wish-actions']");
   assert(await dialogHeader.count() === 1, `${label} detail is missing its official DialogHeader`);
   assert(await dialogTitle.count() === 1, `${label} detail is missing its official DialogTitle`);
   assert(await dialogDescription.count() === 1, `${label} detail is missing its official DialogDescription`);
-  assert(await dialogFooter.count() === 1, `${label} detail is missing its official DialogFooter`);
+  assert(await dialog.locator(":scope > [data-slot='dialog-footer']").count() === 0, `${label} detail restored the unwanted DialogFooter wrapper`);
+  assert(await actionGroup.count() === 1, `${label} detail is missing its unwrapped action group`);
 
   const priceRow = dialog.locator("[data-slot='wish-price-row']");
   const price = priceRow.locator("[data-slot='wish-price']");
@@ -3221,16 +3958,50 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
     const titleRect = title.getBoundingClientRect();
     const priceRect = priceElement.getBoundingClientRect();
     const descriptionRect = description.getBoundingClientRect();
+    const priceStyle = getComputedStyle(priceElement);
+    const originalPrice = priceElement.textContent;
+    const maxPriceCases = ["RUB", "USD", "EUR", "KZT", "BYN"].map((currency) => {
+      priceElement.textContent = new Intl.NumberFormat("ru-RU", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+      }).format(999999999);
+      const bounds = priceElement.getBoundingClientRect();
+      return {
+        currency,
+        text: priceElement.textContent,
+        oneLine: priceElement.getClientRects().length === 1,
+        contained: bounds.left >= priceRowElement.getBoundingClientRect().left - 1
+          && bounds.right <= priceRowElement.getBoundingClientRect().right + 1,
+        noOverflow: priceRowElement.scrollWidth <= priceRowElement.clientWidth + 1,
+      };
+    });
+    priceElement.textContent = originalPrice;
     return {
       immediateSequence: title.nextElementSibling === priceRowElement && priceRowElement.nextElementSibling === description,
       oneDirectPrice: priceRowElement.querySelectorAll(":scope > [data-slot='wish-price']").length === 1,
       visual: titleRect.bottom <= priceRect.top + 1 && priceRect.bottom <= descriptionRect.top + 1,
       priceVisible: priceRect.width > 0 && priceRect.height > 0,
       horizontallyUnder: Math.max(titleRect.left, priceRect.left) < Math.min(titleRect.right, priceRect.right),
+      fontSize: Number.parseFloat(priceStyle.fontSize),
+      fontWeight: Number.parseFloat(priceStyle.fontWeight),
+      whiteSpace: priceStyle.whiteSpace,
+      expectedFontSize: window.innerWidth >= 640 ? 36 : 30,
+      maxPriceCases,
     };
   });
   assert(priceOrder.immediateSequence && priceOrder.oneDirectPrice, `${label} price is not directly below the title in reading order`);
   assert(priceOrder.visual && priceOrder.priceVisible && priceOrder.horizontallyUnder, `${label} price is not visually below the title`);
+  assert(
+    Math.abs(priceOrder.fontSize - priceOrder.expectedFontSize) <= 1
+      && priceOrder.fontWeight >= 600
+      && priceOrder.whiteSpace === "nowrap",
+    `${label} price is not using the enlarged responsive typography (${JSON.stringify(priceOrder)})`,
+  );
+  assert(
+    priceOrder.maxPriceCases.every((probe) => probe.oneLine && probe.contained && probe.noOverflow),
+    `${label} enlarged maximum price overflows its content rail (${JSON.stringify(priceOrder.maxPriceCases)})`,
+  );
 
   const media = dialog.locator("[data-slot='wish-media']");
   assert(await media.count() === 1, `${label} detail is missing its wish photo`);
@@ -3305,7 +4076,7 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
   if (checkImageRatios && expectedImageCount === 1) await expectFluidWishMediaVariants(dialog, label);
 
   assert(await dialog.locator(':scope > [data-slot="wish-author"]').count() === 0, `${label} detail still renders the retired author block`);
-  assert(await dialog.locator(':scope > a:not([data-slot="button"])').count() === 0, `${label} detail retains an unlabelled author link`);
+  assert(await dialog.locator(":scope > a:not(.wish-buy-action)").count() === 0, `${label} detail retains an unlabelled author link`);
   assert(
     await dialog.evaluate((element) => {
       const header = element.querySelector(':scope > [data-slot="dialog-header"]');
@@ -3317,10 +4088,17 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
 
   await expectBuyActionBelowToolbar(dialog, label);
 
-  const optionsTrigger = dialogFooter.getByRole("button", { name: `Опции желания «${title}»`, exact: true });
-  const primaryAction = dialogFooter.locator(':scope > [data-slot="button"]:not([aria-label^="Опции желания"])');
-  assert(await optionsTrigger.count() === 1, `${label} options action is not in DialogFooter`);
-  assert(await primaryAction.count() === 1, `${label} DialogFooter does not expose exactly one primary action`);
+  const optionsTrigger = actionGroup.getByRole("button", { name: `Опции желания «${title}»`, exact: true });
+  const primaryAction = actionGroup.locator(':scope > [data-slot="button"]:not([aria-label^="Опции желания"])');
+  assert(await optionsTrigger.count() === 1, `${label} options action is not in the wish action group`);
+  assert(await primaryAction.count() === 1, `${label} wish action group does not expose exactly one primary action`);
+  if (!owner) {
+    const reservationLabel = (await primaryAction.innerText()).replace(/\s+/g, " ").trim();
+    assert(
+      /^(?:Забронировать|Забронировано вами|Уже забронировано)$/.test(reservationLabel),
+      `${label} detail lost its reservation action (${reservationLabel || "empty"})`,
+    );
+  }
   assert(await optionsTrigger.getAttribute("data-slot") === "dropdown-menu-trigger", `${label} options action is not the official dropdown trigger`);
   assert(await optionsTrigger.getAttribute("title") === "Опции желания", `${label} options action lost its tooltip`);
   assert(await optionsTrigger.locator(":scope > svg").count() === 1 && (await optionsTrigger.textContent()).trim() === "", `${label} options action is no longer icon-only`);
@@ -3328,19 +4106,25 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
     await dialog.locator('[data-slot="wish-toolbar"] [aria-label^="Опции желания"]').count() === 0,
     `${label} options action still renders in the wish toolbar`,
   );
-  await dialogFooter.scrollIntoViewIfNeeded();
+  await actionGroup.scrollIntoViewIfNeeded();
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => {})));
   });
   await page.mouse.move(0, 0);
   await page.waitForTimeout(240);
-  const footerGeometry = await dialogFooter.evaluate((footer, optionsName) => {
-    const options = [...footer.querySelectorAll(":scope > button")].find((button) => button.getAttribute("aria-label") === optionsName);
-    const primary = [...footer.querySelectorAll(":scope > button")].find((button) => button !== options);
-    const footerRect = footer.getBoundingClientRect();
+  const actionGeometry = await actionGroup.evaluate((group, { optionsName, ownerView }) => {
+    const options = [...group.querySelectorAll(":scope > button")].find((button) => button.getAttribute("aria-label") === optionsName);
+    const primary = [...group.querySelectorAll(":scope > button")].find((button) => button !== options);
+    const groupRect = group.getBoundingClientRect();
     const primaryRect = primary.getBoundingClientRect();
     const optionsRect = options.getBoundingClientRect();
-    const footerStyle = getComputedStyle(footer);
+    const groupStyle = getComputedStyle(group);
+    const toolbar = group.parentElement.querySelector(":scope > [data-slot='wish-toolbar']");
+    const buy = group.parentElement.querySelector(":scope > .wish-buy-action");
+    const previous = buy || toolbar;
+    const previousRect = previous.getBoundingClientRect();
+    const notice = group.parentElement.querySelector(":scope > [data-slot='alert']");
+    const noticeRect = notice?.getBoundingClientRect();
     const isHittable = (element, rect) => {
       const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
       return hit === element || element.contains(hit);
@@ -3358,28 +4142,61 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
       };
     };
     return {
-      footer: { left: footerRect.left, right: footerRect.right, clientWidth: footer.clientWidth, scrollWidth: footer.scrollWidth },
-      flexDirection: footerStyle.flexDirection,
-      flexWrap: footerStyle.flexWrap,
-      gap: Number.parseFloat(footerStyle.columnGap),
+      direct: group.parentElement?.getAttribute("data-slot") === "dialog-content",
+      sequence: previous.nextElementSibling === group && (ownerView ? !notice : group.nextElementSibling === notice),
+      group: { left: groupRect.left, top: groupRect.top, right: groupRect.right, bottom: groupRect.bottom, clientWidth: group.clientWidth, scrollWidth: group.scrollWidth },
+      previous: { left: previousRect.left, right: previousRect.right, bottom: previousRect.bottom },
+      notice: noticeRect ? { left: noticeRect.left, top: noticeRect.top, right: noticeRect.right } : null,
+      flexDirection: groupStyle.flexDirection,
+      flexWrap: groupStyle.flexWrap,
+      gap: Number.parseFloat(groupStyle.columnGap),
+      chrome: {
+        backgroundColor: groupStyle.backgroundColor,
+        backgroundImage: groupStyle.backgroundImage,
+        borderWidths: [groupStyle.borderTopWidth, groupStyle.borderRightWidth, groupStyle.borderBottomWidth, groupStyle.borderLeftWidth].map(Number.parseFloat),
+        borderRadii: [groupStyle.borderTopLeftRadius, groupStyle.borderTopRightRadius, groupStyle.borderBottomRightRadius, groupStyle.borderBottomLeftRadius].map(Number.parseFloat),
+        padding: [groupStyle.paddingTop, groupStyle.paddingRight, groupStyle.paddingBottom, groupStyle.paddingLeft].map(Number.parseFloat),
+        boxShadow: groupStyle.boxShadow,
+      },
       primary: { left: primaryRect.left, top: primaryRect.top, right: primaryRect.right, bottom: primaryRect.bottom, width: primaryRect.width, height: primaryRect.height, hittable: isHittable(primary, primaryRect), chrome: chrome(primary) },
       options: { left: optionsRect.left, top: optionsRect.top, right: optionsRect.right, bottom: optionsRect.bottom, width: optionsRect.width, height: optionsRect.height, hittable: isHittable(options, optionsRect), chrome: chrome(options) },
     };
-  }, `Опции желания «${title}»`);
-  assert(footerGeometry.flexDirection === "row" && footerGeometry.flexWrap === "nowrap", `${label} footer actions are not kept in one row`);
-  assert(Math.abs(footerGeometry.primary.top - footerGeometry.options.top) <= 1 && Math.abs(footerGeometry.primary.bottom - footerGeometry.options.bottom) <= 1, `${label} footer actions are not vertically aligned`);
-  assert(footerGeometry.gap >= 7 && footerGeometry.gap <= 9 && footerGeometry.primary.right <= footerGeometry.options.left - 7, `${label} footer actions have the wrong horizontal gap`);
-  assert(footerGeometry.primary.height >= 44 && footerGeometry.primary.width > footerGeometry.options.width * 2, `${label} primary footer action is not a usable full-width control`);
-  assert(footerGeometry.options.width >= 44 && footerGeometry.options.height >= 44 && Math.abs(footerGeometry.options.width - footerGeometry.options.height) <= 1, `${label} options action is not a square 44px touch target`);
-  assert(footerGeometry.primary.hittable && footerGeometry.options.hittable, `${label} footer action is covered by another element`);
+  }, { optionsName: `Опции желания «${title}»`, ownerView: owner });
+  assert(actionGeometry.direct && actionGeometry.sequence, `${label} actions are not directly below the buy action or list toolbar`);
   assert(
-    footerGeometry.primary.left >= footerGeometry.footer.left - 1
-      && footerGeometry.options.right <= footerGeometry.footer.right + 1
-      && footerGeometry.footer.scrollWidth <= footerGeometry.footer.clientWidth + 1,
-    `${label} footer actions overflow their row`,
+    actionGeometry.previous.bottom <= actionGeometry.group.top + 1
+      && Math.abs(actionGeometry.previous.left - actionGeometry.group.left) <= 1
+      && Math.abs(actionGeometry.previous.right - actionGeometry.group.right) <= 1
+      && (!actionGeometry.notice || (
+        actionGeometry.group.bottom <= actionGeometry.notice.top + 1
+        && Math.abs(actionGeometry.notice.left - actionGeometry.group.left) <= 1
+        && Math.abs(actionGeometry.notice.right - actionGeometry.group.right) <= 1
+      )),
+    `${label} actions are not aligned between the buy action and visitor notice`,
+  );
+  assert(
+    ["transparent", "rgba(0, 0, 0, 0)"].includes(actionGeometry.chrome.backgroundColor)
+      && actionGeometry.chrome.backgroundImage === "none"
+      && actionGeometry.chrome.borderWidths.every((value) => value === 0)
+      && actionGeometry.chrome.borderRadii.every((value) => value === 0)
+      && actionGeometry.chrome.padding.every((value) => value === 0)
+      && actionGeometry.chrome.boxShadow === "none",
+    `${label} actions retain the removed footer wrapper chrome: ${JSON.stringify(actionGeometry.chrome)}`,
+  );
+  assert(actionGeometry.flexDirection === "row" && actionGeometry.flexWrap === "nowrap", `${label} actions are not kept in one row`);
+  assert(Math.abs(actionGeometry.primary.top - actionGeometry.options.top) <= 1 && Math.abs(actionGeometry.primary.bottom - actionGeometry.options.bottom) <= 1, `${label} actions are not vertically aligned`);
+  assert(actionGeometry.gap >= 7 && actionGeometry.gap <= 9 && actionGeometry.primary.right <= actionGeometry.options.left - 7, `${label} actions have the wrong horizontal gap`);
+  assert(actionGeometry.primary.height >= 47 && actionGeometry.primary.width > actionGeometry.options.width * 2, `${label} primary action is not a usable 48px full-width control`);
+  assert(actionGeometry.options.width >= 47 && actionGeometry.options.height >= 47 && Math.abs(actionGeometry.options.width - actionGeometry.options.height) <= 1, `${label} options action is not a square 48px Large touch target`);
+  assert(actionGeometry.primary.hittable && actionGeometry.options.hittable, `${label} action is covered by another element`);
+  assert(
+    Math.abs(actionGeometry.primary.left - actionGeometry.group.left) <= 1
+      && Math.abs(actionGeometry.options.right - actionGeometry.group.right) <= 1
+      && actionGeometry.group.scrollWidth <= actionGeometry.group.clientWidth + 1,
+    `${label} actions overflow their row`,
   );
   if (owner) {
-    assert(JSON.stringify(footerGeometry.options.chrome) === JSON.stringify(footerGeometry.primary.chrome), `${label} options action does not match the neighboring outline button`);
+    assert(JSON.stringify(actionGeometry.options.chrome) === JSON.stringify(actionGeometry.primary.chrome), `${label} options action does not match the neighboring outline button`);
   }
   if (owner && checkHover) {
     const readChrome = (locator) => locator.evaluate((element) => {
@@ -3418,11 +4235,11 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
       };
     });
     assert(
-      listSelectGeometry.height >= 44
-        && Math.abs(listSelectGeometry.height - footerGeometry.primary.height) <= 1
-        && listSelectGeometry.width >= 44
+      listSelectGeometry.height >= 47
+        && Math.abs(listSelectGeometry.height - actionGeometry.primary.height) <= 1
+        && listSelectGeometry.width >= 47
         && listSelectGeometry.hittable,
-      `${label} list select is not the same usable height as the dialog buttons (${JSON.stringify({ listSelect: listSelectGeometry, buttonHeight: footerGeometry.primary.height })})`,
+      `${label} list select is not the same usable height as the dialog buttons (${JSON.stringify({ listSelect: listSelectGeometry, buttonHeight: actionGeometry.primary.height })})`,
     );
   }
   assert(
@@ -3435,7 +4252,7 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
   const descriptionId = await dialogDescription.getAttribute("id");
   const describedBy = (await dialog.getAttribute("aria-describedby") || "").split(/\s+/);
   assert(descriptionId && describedBy.includes(descriptionId), `${label} detail is not described by its official DialogDescription`);
-  const close = dialog.getByRole("button", { name: "Закрыть диалог", exact: true });
+  const close = dialog.getByRole("button", { name: "Close", exact: true });
   assert(await close.count() === 1, `${label} detail must expose exactly one close action`);
   assert(await close.getAttribute("data-slot") === "dialog-close", `${label} detail close action is not the official DialogClose`);
   const overlays = page.locator("[data-slot='dialog-overlay'][data-open]");
@@ -3449,6 +4266,12 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
   const nativeShell = await dialog.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const style = getComputedStyle(element);
+    const contentRails = [...element.children]
+      .filter((child) => child.getAttribute("data-slot") !== "dialog-close")
+      .map((child) => {
+        const childRect = child.getBoundingClientRect();
+        return { left: childRect.left, right: childRect.right, width: childRect.width };
+      });
     return {
       classes: element.className.split(/\s+/),
       rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
@@ -3460,22 +4283,27 @@ async function expectWishDetailsOpen(page, label, { owner = false, checkHover = 
       overflowY: style.overflowY,
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
+      contentRails,
     };
   });
-  for (const className of ["rounded-xl", "bg-popover", "p-4", "max-w-none"]) {
-    assert(nativeShell.classes.includes(className), `${label} detail lost the native shadcn ${className} shell class`);
+  for (const className of ["wish-details-dialog", "bg-popover", "p-4"]) {
+    assert(nativeShell.classes.includes(className), `${label} detail lost the shadcn-based ${className} shell class`);
   }
   assert(!nativeShell.classes.includes("modal") && !nativeShell.classes.includes("modal--wish-detail"), `${label} detail still uses the legacy modal shell`);
   assert(nativeShell.position === "fixed", `${label} detail is not using the native fixed Dialog position`);
-  assert(nativeShell.borderRadius > 0 && nativeShell.padding.every((value) => value === 16), `${label} detail does not retain the native Dialog radius and padding`);
+  assert(nativeShell.borderRadius === 0 && nativeShell.padding.every((value) => value === 16), `${label} detail does not use an edge-to-edge surface with a readable inner inset`);
   assert(nativeShell.overflowY === "auto", `${label} detail does not keep tall intrinsic photos scrollable`);
+  const expectedRailWidth = Math.min(448, nativeShell.rect.width - nativeShell.padding[1] - nativeShell.padding[3]);
+  const referenceRail = nativeShell.contentRails[0];
   assert(
-    Math.abs(nativeShell.rect.left) <= 2
-      && nativeShell.rect.top >= 15
-      && Math.abs(nativeShell.rect.right - nativeShell.viewport.width) <= 2
-      && nativeShell.rect.bottom <= nativeShell.viewport.height - 15,
-    `${label} native Dialog escapes the viewport: ${JSON.stringify(nativeShell)}`,
+    nativeShell.contentRails.length >= 4
+      && nativeShell.contentRails.every((rail) => Math.abs(rail.width - expectedRailWidth) <= 2
+        && Math.abs((rail.left + rail.right) / 2 - nativeShell.viewport.width / 2) <= 2
+        && Math.abs(rail.left - referenceRail.left) <= 1
+        && Math.abs(rail.right - referenceRail.right) <= 1),
+    `${label} detail content is not aligned inside its ${expectedRailWidth}px rail: ${JSON.stringify(nativeShell)}`,
   );
+  await expectEdgeToEdgeWishDetailGeometry(dialog, `${label} fullscreen detail`);
   if (nativeShell.scrollHeight > nativeShell.clientHeight + 1) {
     const scrollProbe = await dialog.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
@@ -3501,7 +4329,11 @@ async function expectStandaloneBuyAction(dialog, expectedUrl, label) {
     const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
     return {
       isAnchor: link.tagName === "A",
-      isShadcnButton: link.getAttribute("data-slot") === "button",
+      role: link.getAttribute("role"),
+      slot: link.getAttribute("data-slot"),
+      usesButtonVariants: link.classList.contains("inline-flex")
+        && link.classList.contains("rounded-lg")
+        && link.classList.contains("bg-primary"),
       href: link.href,
       expectedHref: new URL(url).href,
       target: link.target,
@@ -3514,10 +4346,16 @@ async function expectStandaloneBuyAction(dialog, expectedUrl, label) {
     };
   }, expectedUrl);
   assert(
-    state.isAnchor && state.isShadcnButton && state.href === state.expectedHref && state.target === "_blank" && state.rel.includes("noreferrer"),
-    `${label} lost its official shadcn external-link button semantics`,
+    state.isAnchor
+      && state.role === null
+      && state.slot === null
+      && state.usesButtonVariants
+      && state.href === state.expectedHref
+      && state.target === "_blank"
+      && state.rel.includes("noreferrer"),
+    `${label} must remain a native link styled with shadcn buttonVariants`,
   );
-  assert(state.width >= 44 && state.height >= 44 && state.hittable, `${label} is not a usable 44px touch target (${JSON.stringify({ width: state.width, height: state.height, hittable: state.hittable })})`);
+  assert(state.width >= 47 && state.height >= 47 && state.hittable, `${label} is not a usable 48px Large touch target (${JSON.stringify({ width: state.width, height: state.height, hittable: state.hittable })})`);
   assert(
     state.directDialogChild && !state.priceRowContainsBuyAction,
     `${label} is still wrapped with the price instead of following the list selector`,
@@ -3591,9 +4429,11 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   assert(menuSurface.hittable, `${label} root menu is covered by another layer`);
   assert(menuSurface.background.length === 3 && Math.max(...menuSurface.background) <= 70, `${label} root menu leaked a light surface`);
   await expectMenuFocus(page, menu, `${label} root menu`);
+  await expectCleanDestructiveMenuState(page, deleteItem, `${label} delete action`, { checkHover: !mobile });
+  await expectLargeAppControls(menu, `${label} root menu controls`);
   if (mobile) {
-    assert(triggerGeometry.width >= 39 && triggerGeometry.height >= 39, `${label} trigger is too small for touch`);
-    await expectMobileTouchTargets(rootItems, `${label} root menu`, { minHeight: 44 });
+    assert(triggerGeometry.width >= 47 && triggerGeometry.height >= 47, `${label} trigger is smaller than the 48px Large touch size`);
+    await expectMobileTouchTargets(rootItems, `${label} root menu`);
     await expectNoRootOverflow(page, `${label} root menu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-menu.png" : "/tmp/rollapp-desktop-wish-detail-menu.png" });
@@ -3612,11 +4452,12 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   const actualListLabels = (await options.allInnerTexts()).map(normalizeMenuLabel);
   const expectedListLabels = categoryLists.map((list) => list.title);
   assert(await options.locator("img, .card-menu__list-thumb").count() === 0, `${label} list submenu renders wish imagery`);
+  await expectOfficialDetailListCheckboxes(options, categoryLists, wish.listIds, `${label} list submenu`);
   const listOptionGeometry = await options.evaluateAll((items) => items.map((item) => {
     const rect = item.getBoundingClientRect();
     const title = item.querySelector(":scope > .card-menu__list-title");
     const titleRect = title?.getBoundingClientRect();
-    const state = item.querySelector(":scope > .card-menu__list-state");
+    const state = item.querySelector(":scope > [data-slot='checkbox']");
     const stateRect = state?.getBoundingClientRect();
     const style = getComputedStyle(item);
     return {
@@ -3658,8 +4499,9 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
       `${label} list "${list.title}" has the wrong checked state`,
     );
   }
+  await expectLargeAppControls(listMenu, `${label} list submenu controls`);
   if (mobile) {
-    await expectMobileTouchTargets(options, `${label} list submenu`, { minHeight: 44 });
+    await expectMobileTouchTargets(options, `${label} list submenu`);
     await expectNoRootOverflow(page, `${label} list submenu`);
   }
   await page.screenshot({ path: mobile ? "/tmp/rollapp-mobile-wish-detail-lists.png" : "/tmp/rollapp-desktop-wish-detail-lists.png" });
@@ -3685,7 +4527,7 @@ async function expectOwnerWishDetailMenu(page, detail, wish, lists, label, { mob
   const deleteMenu = page.locator(`[id=${JSON.stringify(menuId)}]`);
   await deleteMenu.getByRole("menuitem", { name: "Удалить", exact: true }).click();
   await deleteMenu.waitFor({ state: "detached" });
-  const deleteDialog = page.getByRole("dialog", { name: `Удаление желания «${wish.title}»`, exact: true });
+  const deleteDialog = page.getByRole("alertdialog", { name: `Удалить «${wish.title}»?`, exact: true });
   await deleteDialog.waitFor({ state: "visible" });
   await expectDarkAuthenticatedModal(deleteDialog, `${label} delete confirmation`);
   await deleteDialog.getByRole("button", { name: "Отмена", exact: true }).click();
@@ -3868,9 +4710,89 @@ async function expectWishListTileButtonStates(page, label, { checkHover = false 
   await page.evaluate(() => document.activeElement?.blur());
 }
 
+async function expectWishListTileContentGeometry(page, label) {
+  const tiles = page.locator('.wishes-page .list-tabs [data-slot="toggle-group-item"]');
+  await tiles.first().waitFor({ state: "visible" });
+  const assertGeometry = (geometry, geometryLabel) => {
+    assert(geometry.hasStructure, `${geometryLabel} does not expose separate title and count rows`);
+    assert(geometry.titleText && geometry.countText, `${geometryLabel} lost its visible title or count`);
+    assert(geometry.accessibleName.startsWith(geometry.titleText) && geometry.accessibleName.includes(geometry.countText), `${geometryLabel} accessible name does not preserve its full title and count`);
+    assert(geometry.title.left >= geometry.tile.left + geometry.padding.left - 1 && geometry.title.right <= geometry.tile.right - geometry.padding.right + 1, `${geometryLabel} title escapes the tile horizontally`);
+    assert(geometry.title.top >= geometry.tile.top + geometry.padding.top - 1, `${geometryLabel} title escapes the tile above`);
+    assert(geometry.meta.left >= geometry.tile.left + geometry.padding.left - 1 && geometry.meta.right <= geometry.tile.right - geometry.padding.right + 1, `${geometryLabel} count row escapes the tile horizontally`);
+    assert(
+      geometry.meta.bottom <= geometry.tile.bottom - geometry.padding.bottom + 1,
+      `${geometryLabel} count row escapes the tile below: ${JSON.stringify({ meta: geometry.meta, tile: geometry.tile, padding: geometry.padding })}`,
+    );
+    assert(geometry.title.bottom <= geometry.meta.top + 0.5, `${geometryLabel} title overlaps the count row: ${JSON.stringify({ title: geometry.title, meta: geometry.meta, tile: geometry.tile, padding: geometry.padding, lineHeight: geometry.titleLineHeight })}`);
+    assert(geometry.title.height <= geometry.titleLineHeight * 2 + 1, `${geometryLabel} title exceeds its two-line budget`);
+    assert(geometry.count.width > 0 && geometry.count.height > 0 && geometry.countFlexShrink === "0", `${geometryLabel} count can be clipped or collapsed`);
+    assert(geometry.scrollWidth <= geometry.clientWidth + 1, `${geometryLabel} content overflows its tile`);
+  };
+  const geometries = await tiles.evaluateAll((elements) => elements.map((element) => {
+    const title = element.querySelector(':scope > [data-slot="list-tile-label"]');
+    const meta = element.querySelector(':scope > [data-slot="list-tile-meta"]');
+    const count = meta?.querySelector('[data-slot="list-tile-count"]');
+    const tileRect = element.getBoundingClientRect();
+    const titleRect = title?.getBoundingClientRect();
+    const metaRect = meta?.getBoundingClientRect();
+    const countRect = count?.getBoundingClientRect();
+    const tileStyle = getComputedStyle(element);
+    const titleStyle = title ? getComputedStyle(title) : null;
+    const countStyle = count ? getComputedStyle(count) : null;
+    return {
+      hasStructure: Boolean(title && meta && count),
+      titleText: title?.textContent?.trim() || "",
+      countText: count?.textContent?.trim() || "",
+      accessibleName: element.getAttribute("aria-label") || "",
+      tile: { left: tileRect.left, top: tileRect.top, right: tileRect.right, bottom: tileRect.bottom },
+      title: titleRect ? { left: titleRect.left, top: titleRect.top, right: titleRect.right, bottom: titleRect.bottom, height: titleRect.height } : null,
+      meta: metaRect ? { left: metaRect.left, top: metaRect.top, right: metaRect.right, bottom: metaRect.bottom } : null,
+      count: countRect ? { width: countRect.width, height: countRect.height } : null,
+      padding: {
+        top: Number.parseFloat(tileStyle.paddingTop),
+        right: Number.parseFloat(tileStyle.paddingRight),
+        bottom: Number.parseFloat(tileStyle.paddingBottom),
+        left: Number.parseFloat(tileStyle.paddingLeft),
+      },
+      titleLineHeight: titleStyle ? Number.parseFloat(titleStyle.lineHeight) : 0,
+      countFlexShrink: countStyle?.flexShrink,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    };
+  }));
+  geometries.forEach((geometry, index) => assertGeometry(geometry, `${label} tile ${index + 1}`));
+
+  const stressed = await tiles.first().evaluate(async (element) => {
+    const title = element.querySelector(':scope > [data-slot="list-tile-label"]');
+    const meta = element.querySelector(':scope > [data-slot="list-tile-meta"]');
+    const previous = title.textContent;
+    title.textContent = "Очень длинное название списка желаний";
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const titleRect = title.getBoundingClientRect();
+    const metaRect = meta.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(getComputedStyle(title).lineHeight);
+    const result = {
+      titleBottom: titleRect.bottom,
+      titleHeight: titleRect.height,
+      metaTop: metaRect.top,
+      lineHeight,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    };
+    title.textContent = previous;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return result;
+  });
+  assert(stressed.titleBottom <= stressed.metaTop + 0.5, `${label} long title overlaps the count row`);
+  assert(stressed.titleHeight <= stressed.lineHeight * 2 + 1, `${label} long title exceeds its two-line budget`);
+  assert(stressed.scrollWidth <= stressed.clientWidth + 1, `${label} long title overflows its tile`);
+}
+
 async function expectWishListCarouselBleed(page, label) {
   const carousel = page.locator(".wishes-page > .list-tabs");
   await carousel.waitFor({ state: "visible" });
+  await expectWishListTileContentGeometry(page, label);
   const geometry = await carousel.evaluate(async (element) => {
     const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     const settle = async () => {
@@ -3888,17 +4810,22 @@ async function expectWishListCarouselBleed(page, label) {
     await settle();
     const content = document.querySelector(".wishes-page > .wish-grid")
       ?? document.querySelector(".wishes-page > .wishes-page__hero");
+    const track = element.querySelector(":scope > .list-tabs__track");
     const firstTile = element.querySelector('[data-slot="toggle-group-item"]');
     const terminalTile = element.querySelector(".list-tabs__add")
       ?? [...element.querySelectorAll('[data-slot="toggle-group-item"]')].at(-1);
     const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
     const elementRect = rect(element);
+    const trackRect = track ? rect(track) : null;
     const firstTileRect = rect(firstTile);
+    const initialTerminalTileRect = terminalTile ? rect(terminalTile) : null;
     const contentRect = rect(content);
     const leadingInset = firstTileRect.left - elementRect.left;
+    const tileSpan = initialTerminalTileRect ? initialTerminalTileRect.right - firstTileRect.left : 0;
+    const shouldCenter = tileSpan <= contentRect.width + 1;
     let leadingScroll = null;
     let leadingTileRect = null;
-    if (leadingInset > 1 && maxScroll >= leadingInset - 1) {
+    if (!shouldCenter && leadingInset > 1 && maxScroll >= leadingInset - 1) {
       element.scrollLeft = Math.min(leadingInset, maxScroll);
       await settle();
       leadingScroll = element.scrollLeft;
@@ -3914,8 +4841,10 @@ async function expectWishListCarouselBleed(page, label) {
     await settle();
     return {
       carousel: elementRect,
+      track: trackRect,
       content: contentRect,
       firstTile: firstTileRect,
+      initialTerminalTile: initialTerminalTileRect,
       leadingTile: leadingTileRect,
       terminalTile: terminalTileRect,
       overflowX: style.overflowX,
@@ -3923,6 +4852,8 @@ async function expectWishListCarouselBleed(page, label) {
       paddingRight: Number.parseFloat(style.paddingRight),
       initialScrollLeft,
       leadingInset,
+      tileSpan,
+      shouldCenter,
       leadingScroll,
       maxScroll,
       reachedScroll,
@@ -3930,20 +4861,30 @@ async function expectWishListCarouselBleed(page, label) {
       rootScrollWidth: Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0),
     };
   });
+  assert(geometry.track, `${label} is missing its centered tile track`);
   assert(Math.abs(geometry.initialScrollLeft) <= 1, `${label} does not start at its leading edge (${geometry.initialScrollLeft}px)`);
-  assert(
-    Math.abs(geometry.firstTile.left - geometry.content.left) <= 2,
-    `${label} does not start on the content grid (${geometry.firstTile.left}px vs ${geometry.content.left}px)`,
-  );
   assert(Math.abs(geometry.carousel.left) <= 2, `${label} stops before the left viewport edge`);
   assert(Math.abs(geometry.carousel.right - geometry.rootClientWidth) <= 2, `${label} stops before the viewport edge`);
-  assert(
-    Math.abs(geometry.paddingLeft - geometry.leadingInset) <= 2,
-    `${label} no longer preserves the content-grid inset at rest`,
-  );
   assert(["auto", "scroll"].includes(geometry.overflowX), `${label} lost horizontal scrolling`);
-  assert(geometry.paddingRight <= 0.5, `${label} still keeps a trailing inset inside the carousel`);
+  assert(geometry.paddingLeft <= 0.5 && geometry.paddingRight <= 0.5, `${label} still pads the viewport-wide scrollport`);
   assert(geometry.rootScrollWidth <= geometry.rootClientWidth + 1, `${label} causes page-level horizontal overflow`);
+  if (geometry.shouldCenter) {
+    const tileCenter = (geometry.firstTile.left + geometry.initialTerminalTile.right) / 2;
+    const contentCenter = (geometry.content.left + geometry.content.right) / 2;
+    assert(geometry.maxScroll <= 1, `${label} creates scrolling for a short tile row`);
+    assert(Math.abs(tileCenter - contentCenter) <= 2, `${label} does not center its short tile row`);
+    assert(geometry.firstTile.left >= geometry.carousel.left - 1, `${label} clips the first centered tile`);
+    assert(geometry.initialTerminalTile.right <= geometry.carousel.right + 1, `${label} clips the last centered tile`);
+  } else {
+    assert(
+      Math.abs(geometry.firstTile.left - geometry.content.left) <= 2,
+      `${label} does not start on the content grid (${geometry.firstTile.left}px vs ${geometry.content.left}px)`,
+    );
+    assert(
+      Math.abs(geometry.track.left - geometry.content.left) <= 2,
+      `${label} long tile track no longer starts on the content grid`,
+    );
+  }
   if (geometry.leadingScroll !== null) {
     assert(
       Math.abs(geometry.leadingScroll - geometry.leadingInset) <= 2,
@@ -4017,15 +4958,17 @@ async function expectListControlSizing(dialog, label) {
     };
   });
   assert(geometry.name && geometry.description && geometry.secretRow, `${label} is missing a canonical form control`);
-  assert(geometry.name.height >= 47.5, `${label} single-line controls are shorter than the 48px Large target`);
-  assert(geometry.description.height >= geometry.name.height * 2, `${label} description does not retain a useful multiline height`);
+  assert(geometry.name.height >= 47 && geometry.name.height <= 49, `${label} Input lost the app-level 48px Large geometry`);
+  assert(geometry.description.height >= 95, `${label} Textarea is shorter than the app-level 96px Large geometry`);
   assert(
     [geometry.description, geometry.secretRow].every((control) => Math.abs(control.width - geometry.name.width) <= 1),
     `${label} controls have different widths: ${JSON.stringify(geometry)}`,
   );
   assert(
     [geometry.name, geometry.description].every((control) => (
-      control.fontSize >= 16
+      control.fontSize >= 13.5
+      && control.fontSize <= 16.5
+      && Math.abs(control.fontSize - geometry.name.fontSize) <= .1
       && Math.abs(control.radius - geometry.name.radius) <= 1
       && Math.abs(control.paddingLeft - geometry.name.paddingLeft) <= 1
       && Math.abs(control.paddingRight - geometry.name.paddingRight) <= 1
@@ -4033,7 +4976,7 @@ async function expectListControlSizing(dialog, label) {
     )),
     `${label} controls do not share typography and chrome: ${JSON.stringify(geometry)}`,
   );
-  assert(geometry.secretRow.height >= 55.5, `${label} secret-list row is shorter than its touch target`);
+  assert(geometry.secretRow.height >= 48, `${label} secret-list row is shorter than its 48px touch target`);
 }
 
 async function expectListSecretSwitch(dialog, label, { checked = false, toggleTo = null } = {}) {
@@ -4058,7 +5001,11 @@ async function expectListSecretSwitch(dialog, label, { checked = false, toggleTo
       hittable: hit === element || element.contains(hit),
     };
   });
-  assert(geometry.width >= 43 && geometry.height >= 23, `${label} switch is visually undersized: ${JSON.stringify(geometry)}`);
+  assert(
+    geometry.width >= 43 && geometry.width <= 45
+      && geometry.height >= 23 && geometry.height <= 25,
+    `${label} switch does not use the app-level 44x24 Large geometry: ${JSON.stringify(geometry)}`,
+  );
   assert(geometry.rowHeight >= 55.5 && geometry.hittable, `${label} switch row is not a reliable touch target: ${JSON.stringify(geometry)}`);
   if (toggleTo !== null && toggleTo !== checked) {
     await control.focus();
@@ -4158,11 +5105,12 @@ async function expectListPrivacySelect(page, dialog, label, { selectOption = nul
   assert(visual.popup.left >= 4 && visual.popup.right <= visual.viewport.width - 4, `${label} popup escapes the viewport horizontally`);
   assert(visual.popup.top >= 4 && visual.popup.bottom <= visual.viewport.height - 4, `${label} popup escapes the viewport vertically`);
   assert(visual.popupLuminance <= .2, `${label} popup is not using the dark theme`);
-  assert(visual.positionerZIndex >= 250, `${label} popup is layered under the modal`);
-  assert(visual.options.every((option) => option.fontSize >= 13), `${label} contains an option smaller than 13px`);
-  assert(visual.options.every((option) => option.height >= 44), `${label} contains an option smaller than the 44px touch target`);
+  assert(visual.positionerZIndex >= 50, `${label} popup is layered under the modal`);
+  assert(visual.options.every((option) => option.fontSize >= 15.5), `${label} options do not use readable Large-control typography`);
+  assert(visual.options.every((option) => option.height >= 47), `${label} options are shorter than the 48px Large row height`);
   assert(visual.options.every((option) => option.contrast >= 4.5), `${label} contains an unreadable option`);
   assert(visual.options.every((option) => option.hittable), `${label} contains an option covered by another layer`);
+  await expectLargeAppControls(listbox, `${label} option controls`);
 
   if (selectOption) {
     await listbox.getByRole("option", { name: selectOption, exact: true }).click();
@@ -4238,10 +5186,17 @@ async function expectWishCurrencySelect(page, dialog, label, { selectValue = nul
   });
   assert(geometry.popup.left >= 4 && geometry.popup.right <= geometry.viewport.width - 4, `${label} popup escapes the viewport horizontally`);
   assert(geometry.popup.top >= 4 && geometry.popup.bottom <= geometry.viewport.height - 4, `${label} popup escapes the viewport vertically`);
-  assert(geometry.trigger && Math.abs(geometry.popup.width - geometry.trigger.width) <= 2, `${label} popup width does not match its trigger`);
-  assert(geometry.positionerZIndex >= 250, `${label} popup is layered under the wish editor`);
-  assert(geometry.optionMetrics.every(({ fontSize, height }) => fontSize >= 13 && height >= 44), `${label} currency options are too small`);
+  assert(
+    geometry.trigger && Math.abs(geometry.popup.width - Math.max(geometry.trigger.width, 144)) <= 2,
+    `${label} popup does not retain the official anchor width with min-w-36`,
+  );
+  assert(geometry.positionerZIndex >= 50, `${label} popup is layered under the wish editor`);
+  assert(
+    geometry.optionMetrics.every(({ fontSize, height }) => fontSize >= 15.5 && height >= 47),
+    `${label} currency options do not use the app-level Large geometry`,
+  );
   assert(geometry.backgroundLuminance <= .2 && geometry.colorScheme === "dark", `${label} popup is not using the dark theme (${geometry.backgroundColor}, ${geometry.colorScheme})`);
+  await expectLargeAppControls(popup, `${label} currency option controls`);
 
   if (selectValue) {
     const target = currencyOptions.find(({ value }) => value === selectValue);
@@ -4271,7 +5226,64 @@ async function expectCenteredAuthForm(page, label) {
   assert(Math.abs(geometry.centerY - geometry.viewportCenterY) <= 1, `${label} is not vertically centered`);
 }
 
+async function expectViewportCenteredPageLoader(browserInstance, viewport, label) {
+  const context = await browserInstance.newContext({ viewport, deviceScaleFactor: 1, colorScheme: "light", reducedMotion: "reduce" });
+  const page = await context.newPage();
+  let releaseRequest;
+  const requestGate = new Promise((resolve) => { releaseRequest = resolve; });
+  await page.route("**/api/me", async (route) => {
+    await requestGate;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${baseUrl}/app/wishes`, { waitUntil: "domcontentloaded" });
+    const loader = page.locator(".page-loader");
+    await loader.waitFor({ state: "visible" });
+    const geometry = await loader.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const children = [...element.children].filter((child) => child.checkVisibility());
+      const childRects = children.map((child) => child.getBoundingClientRect());
+      const group = {
+        left: Math.min(...childRects.map((child) => child.left)),
+        top: Math.min(...childRects.map((child) => child.top)),
+        right: Math.max(...childRects.map((child) => child.right)),
+        bottom: Math.max(...childRects.map((child) => child.bottom)),
+      };
+      const spinner = element.querySelector('[data-slot="spinner"]');
+      const spinnerRect = spinner?.getBoundingClientRect();
+      const textRect = element.querySelector(":scope > span")?.getBoundingClientRect();
+      return {
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+        viewport: { width: innerWidth, height: innerHeight },
+        groupCenter: { x: (group.left + group.right) / 2, y: (group.top + group.bottom) / 2 },
+        spinnerCenterY: spinnerRect ? spinnerRect.top + spinnerRect.height / 2 : null,
+        textCenterY: textRect ? textRect.top + textRect.height / 2 : null,
+        position: getComputedStyle(element).position,
+        role: element.getAttribute("role"),
+        live: element.getAttribute("aria-live"),
+        busy: element.getAttribute("aria-busy"),
+        spinnerHidden: spinner?.getAttribute("aria-hidden"),
+        tabbableChildren: element.querySelectorAll('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])').length,
+        rootWidth: document.documentElement.scrollWidth,
+      };
+    });
+    assert(geometry.position === "fixed", `${label} loader is not attached to the viewport`);
+    assert(Math.abs(geometry.rect.left) <= 1 && Math.abs(geometry.rect.top) <= 1, `${label} loader does not start at the viewport origin`);
+    assert(Math.abs(geometry.rect.right - geometry.viewport.width) <= 1 && Math.abs(geometry.rect.bottom - geometry.viewport.height) <= 1, `${label} loader does not cover the viewport`);
+    assert(Math.abs(geometry.groupCenter.x - geometry.viewport.width / 2) <= 1 && Math.abs(geometry.groupCenter.y - geometry.viewport.height / 2) <= 1, `${label} loader content is not centered in the viewport`);
+    assert(Math.abs(geometry.spinnerCenterY - geometry.textCenterY) <= 1, `${label} loader icon and text are not vertically aligned`);
+    assert(geometry.role === "status" && geometry.live === "polite" && geometry.busy === "true", `${label} loader does not expose one polite busy status`);
+    assert(geometry.spinnerHidden === "true" && geometry.tabbableChildren === 0, `${label} loader exposes duplicate or focusable controls`);
+    assert(geometry.rootWidth <= geometry.viewport.width + 1, `${label} loader creates horizontal page overflow`);
+  } finally {
+    releaseRequest?.();
+    await context.close();
+  }
+}
+
 try {
+  await expectViewportCenteredPageLoader(browser, { width: 1440, height: 1000 }, "Desktop bootstrap");
+  await expectViewportCenteredPageLoader(browser, { width: 390, height: 844 }, "Mobile bootstrap");
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, colorScheme: "light" });
   const guestRoot = await desktop.newPage();
   await guestRoot.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -4311,7 +5323,7 @@ try {
   assert(!(await dashboard.locator("body").innerText()).includes("Тайный Санта"), "Removed Secret Santa content is still visible in the authenticated app");
   await expectSidebarRemoved(dashboard, "Desktop /app/wishes");
   await expectAppLogoPlacement(dashboard, "Desktop /app/wishes");
-  assert(await dashboard.locator(".mobile-bottom-nav a").count() === 2, "Mobile app navigation should contain the two primary sections");
+  assert(await dashboard.locator(".mobile-bottom-nav").count() === 0, "Desktop app should not render the retired mobile bottom navigation");
   await expectDarkPage(dashboard, "Desktop /app/wishes", [".app-layout--dark", ".app-main", ".app-page"]);
   await expectSquareAppMain(dashboard, "Desktop /app/wishes");
   await expectNoRootOverflow(dashboard, "Desktop dashboard");
@@ -4353,14 +5365,20 @@ try {
   const outsideDismissedDetail = await expectWishDetailsOpen(dashboard, "Desktop owner wish outside dismissal", { owner: true });
   const detailOverlay = dashboard.locator("[data-slot='dialog-overlay'][data-open]");
   assert(
-    await detailOverlay.evaluate((element) => document.elementFromPoint(4, 4) === element),
-    "Desktop wish detail overlay is not hittable outside the Dialog",
+    await outsideDismissedDetail.dialog.evaluate((element) => {
+      const hit = document.elementFromPoint(4, 4);
+      return hit === element || element.contains(hit);
+    }),
+    "Desktop wish detail does not cover the top-left viewport edge",
   );
   await dashboard.mouse.click(4, 4);
+  assert(await outsideDismissedDetail.dialog.isVisible(), "Clicking the edge of a fullscreen wish detail unexpectedly dismissed it");
+  assert(await detailOverlay.count() === 1, "Fullscreen wish detail lost its shadcn overlay");
+  await outsideDismissedDetail.dialog.getByRole("button", { name: "Close", exact: true }).click();
   await outsideDismissedDetail.dialog.waitFor({ state: "detached" });
   assert(
     await outsideDismissedDetail.opener.evaluate((element) => document.activeElement === element),
-    "Outside dismissal should restore focus to the wish card",
+    "Fullscreen close should restore focus to the wish card",
   );
 
   await dashboard.goto(`${baseUrl}/app/santa`, { waitUntil: "domcontentloaded" });
@@ -4426,7 +5444,6 @@ try {
   await expectMainUserSettingsNavigation(mobilePage, "390px main-content user settings", { mobile: true });
   await expectProfileEditorForm(mobilePage, "390px in-place profile editor", { mobile: true });
   await expectRetiredSettingsRedirect(mobilePage, "390px retired settings route");
-  await expectMobileFriendsNavigation(mobilePage, "390px main-content Friends");
 
   for (const pathname of stableAppRoutes) {
     await waitForAppRoute(mobilePage, pathname);
@@ -4465,7 +5482,7 @@ try {
       await mobileEditDialog.waitFor({ state: "visible" });
       await expectDarkAuthenticatedModal(mobileEditDialog, "390px owner wish editor");
       await expectWishEditorLayout(mobileEditDialog, "390px owner wish editor", { mobile: true, mode: "edit" });
-      await mobileEditDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+      await mobileEditDialog.getByRole("button", { name: "Close" }).click();
       await mobileEditDialog.waitFor({ state: "detached" });
       await mobileMenuCard.waitFor({ state: "visible" });
       const mobileDetail = await expectWishDetailsOpen(mobilePage, "390px owner wish", { owner: true });
@@ -4483,7 +5500,7 @@ try {
       );
       await expectNoRootOverflow(mobilePage, "390px wish detail");
       await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-detail.png" });
-      await mobileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+      await mobileDetail.dialog.getByRole("button", { name: "Close" }).click();
       await mobileDetail.dialog.waitFor({ state: "detached" });
     }
   }
@@ -4520,7 +5537,7 @@ try {
   await expectWishEditorLayout(wishDialog, "320px add-wish editor", { mobile: true, mode: "create" });
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-editor-320.png" });
   await mobilePage.setViewportSize({ width: 390, height: 844 });
-  await wishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await wishDialog.getByRole("button", { name: "Close" }).click();
   await wishDialog.waitFor({ state: "detached" });
 
   const mobileDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
@@ -4542,7 +5559,7 @@ try {
     const mobileListOptions = mobilePage.getByRole("button", { name: "Настройки списка", exact: true });
     assert(await mobileListOptions.isVisible(), "Mobile owner profile does not expose list management");
     await mobileListOptions.click();
-    const mobileListDialog = mobilePage.getByRole("dialog", { name: `Настройки списка: ${mobileSourceList.title}` });
+    const mobileListDialog = mobilePage.getByRole("dialog", { name: "Изменить список", exact: true });
     await mobileListDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(mobileListDialog, "390px list editor");
     await expectNoListEventDate(mobileListDialog, "390px list editor");
@@ -4550,7 +5567,7 @@ try {
     await expectNoListHeadingIcon(mobileListDialog, "390px list editor");
     await expectListControlSizing(mobileListDialog, "390px list editor");
     await expectListSecretSwitch(mobileListDialog, "390px secret-list switch", { checked: mobileSourceList.privacy === "private" });
-    await mobileListDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+    await mobileListDialog.getByRole("button", { name: "Close" }).click();
     await mobileListDialog.waitFor({ state: "detached" });
     const mobileOwnerCard = mobilePage.locator(".wish-card").filter({ hasText: mobileWishToMove.title }).first();
     await mobileOwnerCard.waitFor({ state: "visible" });
@@ -4568,14 +5585,18 @@ try {
     assert((await mobilePage.getByRole("dialog", { name: `Редактирование желания «${mobileWishToMove.title}»`, exact: true }).count()) === 0, "Quick list switch unexpectedly opened the full wish editor");
     assert(await mobileListTrigger.getAttribute("aria-expanded") === "true", "Quick list trigger did not expose its expanded state");
     assert(await mobileListPicker.getByRole("menuitem", { name: "Новый список", exact: true }).isVisible(), "Quick list picker does not expose new-list creation");
-    assert((await mobileListPicker.getByRole("menuitemcheckbox").count()) === mobileCategoryLists.length, "Quick list picker does not expose every themed list");
+    const mobileListChoices = mobileListPicker.getByRole("menuitemcheckbox");
+    assert((await mobileListChoices.count()) === mobileCategoryLists.length, "Quick list picker does not expose every themed list");
     assert((await mobileListPicker.getByRole("menuitemcheckbox", { name: "Мои желания", exact: true }).count()) === 0, "Quick list picker exposed the aggregate system list");
     const mobileSourceChoice = mobileListPicker.getByRole("menuitemcheckbox", { name: mobileSourceList.title, exact: true });
     const mobileTargetChoice = mobileListPicker.getByRole("menuitemcheckbox", { name: mobileTargetList.title, exact: true });
     assert(await mobileSourceChoice.getAttribute("aria-checked") === "true", "Current wish list is not checked in the quick picker");
     assert(await mobileTargetChoice.getAttribute("aria-checked") === "false", "Unselected wish list is incorrectly checked in the quick picker");
-    await expectMobileTouchTargets(mobileListPicker.getByRole("menuitemcheckbox"), "390px wish quick-list picker", { minHeight: 44 });
+    await expectOfficialDetailListCheckboxes(mobileListChoices, mobileCategoryLists, mobileWishToMove.listIds, "390px wish quick-list picker");
+    await expectMobileTouchTargets(mobileListChoices, "390px wish quick-list picker");
+    await expectLargeAppControls(mobileListPicker, "390px wish quick-list picker controls");
     await expectFixedPopoverGeometry(mobileListPicker, "390px wish quick-list picker");
+    await expectPopupMatchesTriggerWidth(mobileListTrigger, mobileListPicker, "390px wish quick-list picker");
     await mobilePage.setViewportSize({ width: 844, height: 390 });
     await waitForStableLayout(mobilePage);
     await mobileListPicker.waitFor({ state: "detached" });
@@ -4585,6 +5606,7 @@ try {
     await mobileListTrigger.click();
     await mobileListPicker.waitFor({ state: "visible" });
     await expectFixedPopoverGeometry(mobileListPicker, "844x390 wish quick-list picker");
+    await expectPopupMatchesTriggerWidth(mobileListTrigger, mobileListPicker, "844x390 wish quick-list picker");
     await mobilePage.setViewportSize({ width: 390, height: 844 });
     await mobileListPicker.waitFor({ state: "detached" });
     await mobileListTrigger.scrollIntoViewIfNeeded();
@@ -4600,8 +5622,18 @@ try {
     const mobileRemovePayload = await mobileRemoveResponse.json();
     assert(mobileRemovePayload.wish && sameMembers(mobileRemovePayload.wish.listIds, []), "Quick list removal returned the wrong membership");
     await mobilePage.waitForFunction((id) => document.querySelector(`#wish-detail-lists-${CSS.escape(id)} [role="menuitemcheckbox"][aria-checked="true"]`) === null, mobileWishToMove.id);
+    await expectOfficialDetailListCheckboxes(mobileListChoices, mobileCategoryLists, [], "390px wish quick-list picker after removal");
     assert(await mobileOwnerDetail.getByRole("button", { name: /^Изменить списки желания\. Сейчас: Без списка$/ }).isVisible(), "Quick list trigger did not update to the empty-list state");
     assert(await mobileListPicker.isVisible(), "Quick list picker closed after an immediate removal");
+    await mobilePage.waitForFunction(
+      ({ wishId, listTitle }) => {
+        const root = document.querySelector(`#wish-detail-lists-${CSS.escape(wishId)}`);
+        const item = [...(root?.querySelectorAll('[role="menuitemcheckbox"]') || [])]
+          .find((candidate) => candidate.textContent.includes(listTitle));
+        return item && !item.hasAttribute("data-disabled") && item.getAttribute("aria-disabled") !== "true";
+      },
+      { wishId: mobileWishToMove.id, listTitle: mobileTargetList.title },
+    );
 
     const mobileAddResponsePromise = mobilePage.waitForResponse((response) => (
       response.request().method() === "PATCH"
@@ -4616,6 +5648,7 @@ try {
       ({ wishId, listTitle }) => document.querySelector(`#wish-detail-lists-${CSS.escape(wishId)} [role="menuitemcheckbox"][aria-checked="true"]`)?.textContent.includes(listTitle),
       { wishId: mobileWishToMove.id, listTitle: mobileTargetList.title },
     );
+    await expectOfficialDetailListCheckboxes(mobileListChoices, mobileCategoryLists, [mobileTargetList.id], "390px wish quick-list picker after addition");
     assert(await mobileListPicker.isVisible(), "Quick list picker closed after an immediate addition");
     await mobilePage.keyboard.press("Escape");
     await mobileListPicker.waitFor({ state: "detached" });
@@ -4627,6 +5660,7 @@ try {
     await mobileListPicker.waitFor({ state: "visible" });
     assert(await mobileTargetChoice.getAttribute("aria-checked") === "true", "Persisted target list is not checked after reopening the quick picker");
     assert(await mobileSourceChoice.getAttribute("aria-checked") === "false", "Removed source list is checked after reopening the quick picker");
+    await expectOfficialDetailListCheckboxes(mobileListChoices, mobileCategoryLists, [mobileTargetList.id], "390px reopened wish quick-list picker");
     await mobileListTrigger.click();
     await mobileListPicker.waitFor({ state: "detached" });
     assert(await mobileOwnerDetail.isVisible(), "Closing the quick list picker closed the wish detail");
@@ -4649,7 +5683,7 @@ try {
   await sharedOwnerDialog.waitFor({ state: "visible" });
   await expectDarkAuthenticatedModal(sharedOwnerDialog, "390px shared owner wish detail");
   assert(await sharedOwnerDialog.getByRole("button", { name: /^Изменить списки желания\./ }).isVisible(), "Owner shared wish does not expose editing");
-  await sharedOwnerDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await sharedOwnerDialog.getByRole("button", { name: "Close" }).click();
   await sharedOwnerDialog.waitFor({ state: "detached" });
   await mobile.close();
 
@@ -4683,7 +5717,7 @@ try {
   const compactPublicDetail = await expectWishDetailsOpen(compactPublicPage, "320px public wish");
   await expectDarkAuthenticatedModal(compactPublicDetail.dialog, "320px public wish detail");
   await expectNoRootOverflow(compactPublicPage, "320px public wish detail");
-  await compactPublicDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await compactPublicDetail.dialog.getByRole("button", { name: "Close" }).click();
   await compactPublic.close();
 
   const tabletApp = await browser.newContext({ viewport: { width: 768, height: 1024 }, deviceScaleFactor: 1, colorScheme: "light" });
@@ -4711,7 +5745,7 @@ try {
   await expectDarkAuthenticatedModal(tabletOwnerDetail.dialog, "768px owner wish detail");
   await expectNoRootOverflow(tabletAppPage, "768px owner wish detail");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-owner-wish-detail-768.png" });
-  await tabletOwnerDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await tabletOwnerDetail.dialog.getByRole("button", { name: "Close" }).click();
   await tabletOwnerDetail.dialog.waitFor({ state: "detached" });
   await waitForAppRoute(tabletAppPage, "/app/wishes");
   await tabletAppPage.screenshot({ path: "/tmp/rollapp-tablet-app-768.png", fullPage: true });
@@ -4754,7 +5788,7 @@ try {
   await reloadedPublicDetail.waitFor({ state: "visible" });
   await expectDarkAuthenticatedModal(reloadedPublicDetail, "390px reloaded public guest wish detail");
   assert(await reloadedPublicDetail.locator("[data-slot='wish-price']").isVisible(), "A public wish deep link did not survive reload");
-  await reloadedPublicDetail.getByRole("button", { name: "Закрыть диалог" }).click();
+  await reloadedPublicDetail.getByRole("button", { name: "Close" }).click();
   await reloadedPublicDetail.waitFor({ state: "detached" });
   await publicMobilePage.waitForURL((url) => url.pathname === "/alisa");
 
@@ -4799,21 +5833,21 @@ try {
 
   await publicMobilePage.goto(`${baseUrl}/alisa/wishes/not-a-real-wish`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.getByRole("heading", { name: "Желание не найдено" }).waitFor({ state: "visible" });
-  const invalidWishReturn = publicMobilePage.getByRole("button", { name: "Вернуться к профилю", exact: true });
+  const invalidWishReturn = publicMobilePage.getByRole("link", { name: "Вернуться к профилю", exact: true });
   assert(
     await invalidWishReturn.evaluate((element) => element.tagName === "A")
-    && await invalidWishReturn.getAttribute("data-slot") === "button"
+    && await invalidWishReturn.evaluate((element) => element.classList.contains("group/button"))
     && await invalidWishReturn.getAttribute("href") === "/alisa",
-    "Invalid wish return action is not a canonical link rendered with the official Button",
+    "Invalid wish return action is not a canonical link styled with buttonVariants",
   );
   await publicMobilePage.goto(`${baseUrl}/alisa/lists/not-a-real-list`, { waitUntil: "domcontentloaded" });
   await publicMobilePage.getByRole("heading", { name: "Список не найден" }).waitFor({ state: "visible" });
-  const invalidListReturn = publicMobilePage.getByRole("button", { name: "Вернуться к профилю", exact: true });
+  const invalidListReturn = publicMobilePage.getByRole("link", { name: "Вернуться к профилю", exact: true });
   assert(
     await invalidListReturn.evaluate((element) => element.tagName === "A")
-    && await invalidListReturn.getAttribute("data-slot") === "button"
+    && await invalidListReturn.evaluate((element) => element.classList.contains("group/button"))
     && await invalidListReturn.getAttribute("href") === "/alisa",
-    "Invalid list return action is not a canonical link rendered with the official Button",
+    "Invalid list return action is not a canonical link styled with buttonVariants",
   );
   await publicMobilePage.goto(`${baseUrl}/alisa`, { waitUntil: "domcontentloaded" });
   await expectUnifiedPublicCollection(publicMobilePage, "390px restored public guest profile", { mobile: true });
@@ -4843,11 +5877,11 @@ try {
   assert(tabletOwnerSections.tabsTop >= tabletOwnerSections.heroBottom, "768px owner profile hero overlaps the list tabs");
   await expectNoRootOverflow(publicTabletPage, "768px public profile");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-profile-768.png", fullPage: true });
-  const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish");
+  const publicTabletDetail = await expectWishDetailsOpen(publicTabletPage, "768px public wish", { owner: true });
   await expectDarkAuthenticatedModal(publicTabletDetail.dialog, "768px profile owner wish detail");
   await expectNoRootOverflow(publicTabletPage, "768px public wish detail");
   await publicTabletPage.screenshot({ path: "/tmp/rollapp-public-wish-detail-768.png" });
-  await publicTabletDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicTabletDetail.dialog.getByRole("button", { name: "Close" }).click();
   await publicTabletDetail.dialog.waitFor({ state: "detached" });
   await publicTablet.close();
 
@@ -4861,7 +5895,7 @@ try {
   await expectDarkAuthenticatedModal(publicLandscapeDetail.dialog, "1024px public wish detail");
   await expectNoRootOverflow(publicLandscapePage, "1024px public wish detail");
   await publicLandscapePage.screenshot({ path: "/tmp/rollapp-public-wish-detail-1024.png" });
-  await publicLandscapeDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await publicLandscapeDetail.dialog.getByRole("button", { name: "Close" }).click();
   await publicLandscape.close();
 
   const publicMedium = await browser.newContext({ viewport: { width: 1076, height: 800 }, deviceScaleFactor: 1, colorScheme: "light" });
@@ -4912,7 +5946,7 @@ try {
     ownerProfileMenuDashboardResponse.data.lists,
     "1912px owner profile wish detail menu",
   );
-  await ownerProfileDetail.dialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerProfileDetail.dialog.getByRole("button", { name: "Close" }).click();
   await ownerProfileDetail.dialog.waitFor({ state: "detached" });
   await ownerWidePage.goto(`${baseUrl}/s/${mobileSourceList.shareToken}`, { waitUntil: "domcontentloaded" });
   await expectUnifiedPublicCollection(ownerWidePage, "Desktop shared owner profile", { owner: true, shared: true, authenticated: true });
@@ -4927,7 +5961,7 @@ try {
   await publicProfileEditor.getByRole("button", { name: "Отмена", exact: true }).click();
   await publicProfileEditor.waitFor({ state: "detached" });
   await ownerWidePage.getByRole("button", { name: "Новый список", exact: true }).click();
-  const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка" });
+  const ownerListDialog = ownerWidePage.getByRole("dialog", { name: "Создать список", exact: true });
   await ownerListDialog.getByRole("heading", { name: "Создать список" }).waitFor();
   await expectDarkAuthenticatedModal(ownerListDialog, "Desktop create-list modal");
   await expectNoListEventDate(ownerListDialog, "Desktop create-list modal");
@@ -4950,7 +5984,7 @@ try {
   await ownerWidePage.waitForURL((url) => url.pathname === `/alisa/lists/${createdList.id}`);
   await ownerWidePage.locator('.list-tabs [data-slot="toggle-group-item"][aria-pressed="true"]').filter({ hasText: "Smoke list" }).waitFor({ state: "visible" });
   await ownerWidePage.getByRole("button", { name: "Настройки списка", exact: true }).click();
-  const editListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list" });
+  const editListDialog = ownerWidePage.getByRole("dialog", { name: "Изменить список", exact: true });
   await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(editListDialog, "Desktop edit-list modal");
   await expectNoListEventDate(editListDialog, "Desktop edit-list modal");
@@ -4973,7 +6007,7 @@ try {
   await ownerWidePage.locator(".wishes-page__topbar-share").click();
   await ownerWidePage.getByText("Приватный список виден только вам", { exact: true }).waitFor({ state: "visible" });
   await ownerWidePage.getByRole("button", { name: "Настройки списка", exact: true }).click();
-  const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Настройки списка: Smoke list edited" });
+  const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Изменить список", exact: true });
   await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(deleteListDialog, "Desktop delete-list modal");
   await expectNoListEventDate(deleteListDialog, "Desktop delete-list modal");
@@ -4986,7 +6020,7 @@ try {
   await deleteListDialog.getByRole("button", { name: "Удалить", exact: true }).click();
   const deleteListConfirmation = ownerWidePage.getByRole("alertdialog", { name: "Удалить «Smoke list edited»?", exact: true });
   await deleteListConfirmation.waitFor({ state: "visible" });
-  await expectFullViewportModalWidth(deleteListConfirmation, "Desktop delete-list confirmation");
+  await expectCanonicalModalGeometry(deleteListConfirmation, "Desktop delete-list confirmation");
   assert(
     await deleteListConfirmation.getAttribute("data-slot") === "alert-dialog-content",
     "List deletion confirmation is not official AlertDialog content",
@@ -5021,7 +6055,7 @@ try {
   await ownerWishDialog.getByRole("heading", { name: "Создание желания", exact: true }).waitFor();
   await expectDarkAuthenticatedModal(ownerWishDialog, "Desktop profile add-wish editor");
   await expectWishEditorLayout(ownerWishDialog, "1912px profile add-wish editor", { mode: "create" });
-  await ownerWishDialog.getByRole("button", { name: "Закрыть диалог" }).click();
+  await ownerWishDialog.getByRole("button", { name: "Close" }).click();
   await ownerWishDialog.waitFor({ state: "detached" });
 
   const dashboardBeforeMoveResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
@@ -5204,9 +6238,9 @@ try {
     assert(await draftProbeInput.inputValue() === initialTitle, "Disposable editor did not prefill the wish title");
     await draftProbeInput.fill(draftProbeTitle);
     await createListFromEditor.click();
-    const nestedListDialog = ownerWidePage.getByRole("dialog", { name: "Создание списка", exact: true });
+    const nestedListDialog = ownerWidePage.getByRole("dialog", { name: "Создать список", exact: true });
     await nestedListDialog.waitFor({ state: "visible" });
-    await expectFullViewportModalWidth(nestedListDialog, "Nested create-list modal");
+    await expectCanonicalModalGeometry(nestedListDialog, "Nested create-list modal");
     await expectNoListCoverColor(nestedListDialog, "Nested create-list modal");
     await expectNoListHeadingIcon(nestedListDialog, "Nested create-list modal");
     await expectListControlSizing(nestedListDialog, "Nested create-list modal");
@@ -5305,10 +6339,7 @@ try {
     assert(sameMembers(editorUpdateRequest.listIds, [targetList.id]), "Wish editor sent the wrong list membership");
     assert(editorUpdateRequest.priority === 2, "Wish editor changed the hidden priority");
     await editorDialog.waitFor({ state: "detached" });
-    await ownerWidePage.waitForFunction(() => (
-      getComputedStyle(document.documentElement).overflowY !== "hidden"
-      && !document.body.classList.contains("modal-open")
-    ));
+    await ownerWidePage.waitForFunction(() => getComputedStyle(document.documentElement).overflowY !== "hidden");
     await editorSmokeCard.waitFor({ state: "detached" });
 
     const afterUpdateResponse = await apiFromPage(ownerWidePage, "/api/dashboard");
@@ -5351,7 +6382,7 @@ try {
     await expectNoRootOverflow(ownerWidePage, "390px disposable wish detail");
     await ownerWidePage.setViewportSize({ width: 1912, height: 991 });
     await waitForStableLayout(ownerWidePage);
-    await updatedEditorDetail.getByRole("button", { name: "Закрыть диалог" }).click();
+    await updatedEditorDetail.getByRole("button", { name: "Close" }).click();
     await updatedEditorDetail.waitFor({ state: "detached" });
     const updatedEditorMenu = await openOwnerWishCardMenu(ownerWidePage, updatedEditorCard, updatedEditorWish);
     await updatedEditorMenu.menu.getByRole("menuitem", { name: "Редактировать", exact: true }).click();
@@ -5361,7 +6392,7 @@ try {
     assert(await deleteEditorDialog.getByRole("switch", { name: "Многократное бронирование", exact: true }).isChecked(), "Saved multiple-reservation switch did not survive reopening");
     await deleteEditorDialog.getByRole("button", { name: "Удалить желание", exact: true }).click();
 
-    const editorDeleteDialog = ownerWidePage.getByRole("dialog", { name: `Удаление желания «${editedTitle}»`, exact: true });
+    const editorDeleteDialog = ownerWidePage.getByRole("alertdialog", { name: `Удалить «${editedTitle}»?`, exact: true });
     await editorDeleteDialog.waitFor({ state: "visible" });
     await expectDarkAuthenticatedModal(editorDeleteDialog, "Disposable editor delete confirmation");
     const editorDeleteResponsePromise = ownerWidePage.waitForResponse((response) => (

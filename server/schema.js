@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { backfillDefaultFriend } from "./default-friend.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
@@ -24,6 +25,11 @@ const schema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
+
+  CREATE TABLE IF NOT EXISTS default_follow_targets (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -145,7 +151,10 @@ async function runDataMigrations(client) {
     if (applied.rowCount) continue;
     const result = await migration.run(client);
     if (migration.requireMatch && result.rowCount < (migration.requiredRows || 1)) continue;
-    await client.query("INSERT INTO rollapp_data_migrations (id) VALUES ($1)", [migration.id]);
+    await client.query(
+      "INSERT INTO rollapp_data_migrations (id) VALUES ($1) ON CONFLICT (id) DO NOTHING",
+      [migration.id],
+    );
   }
 }
 
@@ -230,9 +239,9 @@ export async function initializeDatabase() {
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_one_exclusive ON reservations(wish_id) WHERE status='reserved'",
   );
   await transaction(async (client) => {
-    await runDataMigrations(client);
     if (isMemoryDatabase || process.env.SEED_DEMO === "true") {
       await seedDemo(client);
     }
+    await runDataMigrations(client);
   });
 }

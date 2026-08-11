@@ -19,9 +19,10 @@ import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
@@ -74,6 +75,15 @@ const wishFormFrom = (wish) => ({
 });
 const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
 const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
+const wishCountNoun = (count) => {
+  const absolute = Math.abs(Number(count) || 0);
+  const lastTwo = absolute % 100;
+  const last = absolute % 10;
+  if (last === 1 && lastTwo !== 11) return "желание";
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "желания";
+  return "желаний";
+};
+const listTileAccessibleName = (title, count, privateList = false) => `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}`;
 const isWishSecret = (wish, lists = []) => wish?.privacy === "private" || lists.some((list) => (
   list.privacy === "private" && wish?.listIds?.includes(list.id)
 ));
@@ -88,6 +98,16 @@ const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
   if (!publiclyReachable && linkList) return `/s/${encodeURIComponent(linkList.shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
   return publicWishPath(profile?.username, wish.id);
 };
+
+function ListTileContent({ title, count, privateList = false }) {
+  return <>
+    <strong data-slot="list-tile-label">{title}</strong>
+    <div data-slot="list-tile-meta">
+      {privateList && <LockKeyhole size={14} aria-hidden="true" />}
+      <span data-slot="list-tile-count">{count}</span>
+    </div>
+  </>;
+}
 
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
@@ -130,7 +150,7 @@ function ToastProvider({ children }) {
         theme="dark"
         position="bottom-left"
         offset={16}
-        mobileOffset={{ bottom: "calc(96px + env(safe-area-inset-bottom))", left: 12, right: 12 }}
+        mobileOffset={{ bottom: "calc(12px + env(safe-area-inset-bottom))", left: 12, right: 12 }}
         richColors
         closeButton
       />
@@ -226,11 +246,12 @@ function Logo({ className = "" }) {
   );
 }
 
-function Avatar({ user, size = "md", className = "" }) {
+function Avatar({ user, size = "md", className = "", ...props }) {
   const avatarUrl = user?.avatarUrl || user?.avatar_url || "";
-  const shadcnSize = size === "sm" ? "sm" : size === "lg" ? "lg" : size === "xl" ? "xl" : "default";
+  const shadcnSize = size === "sm" ? "sm" : ["lg", "xl"].includes(size) ? "lg" : "default";
+  const appSizeClass = { sm: "!size-9", md: "!size-12", lg: "!size-[78px]", xl: "!size-[var(--avatar-xl-size)]" }[size] || "";
   return (
-    <ShadcnAvatar size={shadcnSize} className={`avatar avatar--${size} ${className}`}>
+    <ShadcnAvatar size={shadcnSize} className={`avatar avatar--${size} ${appSizeClass} ${className}`} {...props}>
       {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
       <AvatarFallback className="avatar--fallback">{initials(user?.name)}</AvatarFallback>
     </ShadcnAvatar>
@@ -238,8 +259,8 @@ function Avatar({ user, size = "md", className = "" }) {
 }
 
 function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
-  const shadcnVariant = { primary: "default", soft: "secondary", reserved: "secondary" }[variant] || variant;
-  return <ShadcnButton variant={shadcnVariant} className={`button button--${variant} ${className}`} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner /> : Icon ? <Icon size={20} /> : null}<span>{children}</span></ShadcnButton>;
+  const shadcnVariant = { primary: "default", soft: "secondary", paper: "secondary", reserved: "secondary" }[variant] || variant;
+  return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
 }
 
 function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
@@ -247,7 +268,7 @@ function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
 }
 
 function LoadingScreen({ compact = false }) {
-  return <div className={compact ? "inline-loader" : "page-loader"}><Spinner className="gift-loader" /><span>Собираем желания…</span></div>;
+  return <div className={compact ? "inline-loader" : "page-loader"} role="status" aria-live="polite" aria-atomic="true" aria-busy="true"><Spinner className="gift-loader" aria-hidden="true" /><span>Собираем желания…</span></div>;
 }
 
 function RootRoute() {
@@ -391,8 +412,8 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
   const readyToResend = flow.step === "otp" && flow.retrySeconds === 0;
   if (flow.step === "phone") {
     return <>
-      <label htmlFor={`${fieldId}-phone`}>
-        <span>Номер телефона</span>
+      <Field data-invalid={Boolean(flow.error)}>
+        <FieldLabel htmlFor={`${fieldId}-phone`}>Номер телефона</FieldLabel>
         <Input
           ref={flow.phoneInputRef}
           id={`${fieldId}-phone`}
@@ -412,9 +433,9 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
             if (flow.error) flow.clearError();
           }}
         />
-      </label>
-      {flow.error && <p id={phoneErrorId} className="phone-otp__error" role="alert">{flow.error}</p>}
-      <Button type="submit" loading={flow.loading} className="auth-submit">{requestLabel}</Button>
+        {flow.error && <FieldError id={phoneErrorId} className="phone-otp__error">{flow.error}</FieldError>}
+      </Field>
+      <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{flow.loading && <Spinner data-icon="inline-start" />}{requestLabel}</ShadcnButton>
     </>;
   }
   return <>
@@ -422,8 +443,8 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
       <span><Phone aria-hidden="true" /><span>Код отправлен на <strong>{flow.phoneMasked}</strong></span></span>
       <ShadcnButton variant="ghost" type="button" disabled={flow.loading} onClick={flow.changePhone}>Изменить</ShadcnButton>
     </div>
-    <label htmlFor={`${fieldId}-code`}>
-      <span>Код из SMS</span>
+    <Field data-invalid={Boolean(flow.error)}>
+      <FieldLabel htmlFor={`${fieldId}-code`}>Код из SMS</FieldLabel>
       <Input
         ref={flow.codeInputRef}
         id={`${fieldId}-code`}
@@ -442,9 +463,9 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
           if (flow.error) flow.clearError();
         }}
       />
-    </label>
-    {flow.error && <p id={phoneErrorId} className="phone-otp__error" role="alert">{flow.error}</p>}
-    <Button type="submit" loading={flow.loading} className="auth-submit">{verifyLabel}</Button>
+      {flow.error && <FieldError id={phoneErrorId} className="phone-otp__error">{flow.error}</FieldError>}
+    </Field>
+    <ShadcnButton type="submit" className="auth-submit" disabled={flow.loading} aria-busy={flow.loading || undefined}>{flow.loading && <Spinner data-icon="inline-start" />}{verifyLabel}</ShadcnButton>
     <ShadcnButton variant="link" className="phone-otp__resend" type="button" disabled={flow.loading || !readyToResend} onClick={flow.requestCode}>
       {readyToResend ? "Отправить код снова" : `Отправить снова через ${formatCountdown(flow.retrySeconds)}`}
     </ShadcnButton>
@@ -462,6 +483,7 @@ function AuthPage({ mode }) {
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
   const [authMethod, setAuthMethod] = useState("email");
+  const authId = useId();
   const methodTouchedRef = useRef(false);
   const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
   const phoneFlow = usePhoneOtp({
@@ -528,7 +550,7 @@ function AuthPage({ mode }) {
         <form className="auth-form" aria-busy={!phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={usingPhone ? phoneFlow.submit : submitCredentials}>
           <div>
             <span className="eyebrow">{usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : mode === "register" ? "Новый аккаунт" : "С возвращением"}</span>
-            <h2>{mode === "register" ? "Создать свой Rollapp" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h2>
+            <h1>{mode === "register" ? "Создать свой Rollapp" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h1>
             <p>{subtitle}</p>
           </div>
           {mode === "login" && !phoneConfigLoaded
@@ -536,10 +558,12 @@ function AuthPage({ mode }) {
             : usingPhone
             ? <PhoneOtpFields flow={phoneFlow} />
             : <>
-              {mode === "register" && <label><span>Как вас зовут</span><Input required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>}
-              <label><span>Email</span><Input required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></label>
-              <label><span>Пароль</span><Input required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></label>
-              <Button type="submit" loading={loading} className="auth-submit">{mode === "register" ? "Создать вишлист" : "Войти"}</Button>
+              <FieldGroup className="gap-4">
+                {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
+                <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
+                <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
+              </FieldGroup>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : "Войти"}</ShadcnButton>
             </>}
           {mode === "login" && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
@@ -554,23 +578,17 @@ function AuthPage({ mode }) {
   );
 }
 
-const shellNav = [
-  { to: "/app/wishes", icon: Heart, label: "Мои желания" },
-  { to: "/app/friends/subscriptions", icon: Users, label: "Друзья" },
-];
-
 function AppFriendsLink({ active = false }) {
   return (
-    <ShadcnButton
-      nativeButton={false}
-      render={<Link to="/app/friends/subscriptions" aria-current={active ? "page" : undefined} />}
-      variant={active ? "secondary" : "ghost"}
-      className="app-friends-link app-main__friends h-12 gap-2 rounded-xl px-4 active:translate-y-0"
+    <Link
+      to="/app/friends/subscriptions"
+      aria-current={active ? "page" : undefined}
+      className={buttonVariants({ variant: active ? "secondary" : "ghost", className: "app-friends-link app-main__friends h-12 gap-2 rounded-xl px-4 active:translate-y-0" })}
       aria-label="Открыть раздел Друзья"
     >
       <Users aria-hidden="true" />
       <span>Друзья</span>
-    </ShadcnButton>
+    </Link>
   );
 }
 
@@ -595,12 +613,11 @@ function AppProfileButton({ user, compact = false }) {
 
 function FriendsTopbar({ user }) {
   return (
-    <header className="friends-topbar">
-      <nav className="friends-topbar__account" aria-label="Быстрые переходы">
-        <AppFriendsLink active />
+    <header className="friends-topbar" aria-label="Панель приложения">
+      <Logo className="app-shell-logo" />
+      <div className="friends-topbar__account">
         <AppProfileButton user={user} compact />
-        <Logo className="app-shell-logo" />
-      </nav>
+      </div>
     </header>
   );
 }
@@ -610,20 +627,15 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const location = useLocation();
   const friendsRoute = friendsContext || location.pathname.startsWith("/app/friends");
   const wishesRoute = location.pathname.startsWith("/app/wishes");
-  const isShellNavActive = (to) => to.startsWith("/app/friends")
-    ? friendsRoute
-    : (!friendsRoute && collectionChrome) || location.pathname === to || location.pathname.startsWith(`${to}/`);
   return (
     <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
       <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
         {!wishesRoute && !collectionChrome && <header className="mobile-app-head">
-          <AppProfileButton user={user} compact />
-          <Logo className="app-shell-logo" />
+          {friendsRoute ? <><Logo className="app-shell-logo" /><AppProfileButton user={user} compact /></> : <><AppProfileButton user={user} compact /><Logo className="app-shell-logo" /></>}
         </header>}
         {friendsRoute && !collectionChrome && <FriendsTopbar user={user} />}
         {!friendsRoute && !wishesRoute && !collectionChrome && <nav className="app-main__profile" aria-label="Основные разделы"><AppFriendsLink /><AppProfileButton user={user} /><Logo className="app-shell-logo" /></nav>}
         {children}
-        <nav className="mobile-bottom-nav" aria-label="Основные разделы">{shellNav.map(({ to, icon: Icon, label }) => <Link key={to} to={to} aria-current={isShellNavActive(to) ? "page" : undefined} className={`${isShellNavActive(to) ? "active " : ""}${to.startsWith("/app/friends") ? "app-friends-link" : ""}`}><Icon /><span>{label === "Мои желания" ? "Желания" : label}</span></Link>)}</nav>
       </main>
     </div>
   );
@@ -650,12 +662,14 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
           to="/app/friends/subscriptions"
           className="wishes-page__friend-link"
         >
+          <Users aria-hidden="true" />
           Подписки
         </Link>
         <Link
           to="/app/friends/followers"
           className="wishes-page__friend-link"
         >
+          <CircleUserRound aria-hidden="true" />
           Подписчики
         </Link>
       </nav>
@@ -812,11 +826,10 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
-  const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
     || selectedListIds.some((id) => !(wish.listIds || []).includes(id));
-  const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
   const secret = isWishSecret(wish, lists);
 
@@ -854,7 +867,11 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
             setMenu(open);
             if (!open) setSelectedListIds([...(wish.listIds || [])]);
           }}>
-            <DropdownMenuTrigger className="wish-card__menu-trigger" aria-label={`Опции желания «${wish.title}»`} aria-controls={`wish-menu-${wish.id}`}>
+            <DropdownMenuTrigger
+              render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" />}
+              aria-label={`Опции желания «${wish.title}»`}
+              aria-controls={`wish-menu-${wish.id}`}
+            >
               <MoreHorizontal />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -864,7 +881,6 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
               className="wish-card-actions-menu w-70 rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
               aria-label={`Действия с желанием «${wish.title}»`}
             >
-              {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
               {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
               {owner && wish.status === "fulfilled" ? <>
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
@@ -933,34 +949,20 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                 </DropdownMenuSub>
               </>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-              {!owner && wish.url && <DropdownMenuItem nativeButton={false} className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
+              {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
               {owner && <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" className="danger min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
               </>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         <h3>{wish.title}</h3>
         <p>{wish.description || "Без дополнительного описания"}</p>
-        {owner ? <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div> : <Button variant={wish.reservedByMe ? "reserved" : "outline"} loading={busy} icon={wish.reservedByMe ? Check : Gift} onClick={reserve} disabled={wish.status !== "active" || reservationUnavailable}>{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</Button>}
+        {owner && <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div>}
       </div>
     </Card>
-    {deleteOpen && <Modal
-      onClose={() => { if (!busy) setDeleteOpen(false); }}
-      className="modal--wish-delete"
-      ariaLabel={`Удаление желания «${wish.title}»`}
-    >
-      <div className="wish-delete-confirm">
-        <span className="eyebrow">Удаление желания</span>
-        <h2>Удалить «{wish.title}»?</h2>
-        <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
-        <div className="modal-actions">
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>Отмена</Button>
-          <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={busy} onClick={async () => { if (await remove()) setDeleteOpen(false); }}>Удалить</Button>
-        </div>
-      </div>
-    </Modal>}
+    {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
     </>
   );
 }
@@ -1010,46 +1012,22 @@ function WishesPage({ onAdd, version }) {
     await reload();
     if (saved?.id && attached) setSelected(saved.id);
   };
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><Button className="wishes-page__topbar-share h-12 px-5 text-base" variant="outline" icon={Share2} onClick={share}>Поделиться</Button></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={onAdd} /><div className="list-tabs"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) setSelected(values[0]); }} aria-label="Списки желаний"><ToggleGroupItem value="all">Мои желания <span>{activeWishes.length}</span></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id}>{list.privacy === "private" && <LockKeyhole size={14} />}{list.title} <span>{list.wishCount}</span></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={onAdd} /><div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) setSelected(values[0]); }} aria-label="Списки желаний"><ToggleGroupItem value="all" aria-label={listTileAccessibleName("Мои желания", activeWishes.length)}><ListTileContent title="Мои желания" count={activeWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton></div></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
-function Modal({ children, onClose, onEscape, finalFocus, className = "", ariaLabel = "Диалог Rollapp", backdropClassName = "" }) {
-  const contentRef = useRef(null);
-  const onCloseRef = useRef(onClose);
-  const onEscapeRef = useRef(onEscape);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-  useEffect(() => { onEscapeRef.current = onEscape; }, [onEscape]);
-  useEffect(() => {
-    document.body.classList.add("modal-open");
-    return () => {
-      window.requestAnimationFrame(() => {
-        if (!document.querySelector('[data-slot="dialog-content"].modal')) document.body.classList.remove("modal-open");
-      });
-    };
-  }, []);
-  const handleOpenChange = (open, details) => {
-    if (open) return;
-    if (details.reason === "escape-key" && onEscapeRef.current?.(details.event)) {
-      details.cancel();
-      return;
-    }
-    onCloseRef.current();
-  };
-  return <Dialog open onOpenChange={handleOpenChange}>
-    <DialogContent
-      ref={contentRef}
-      initialFocus={() => contentRef.current?.querySelector("[autofocus], [data-modal-initial-focus]") || true}
-      showCloseButton={false}
-      viewportClassName={`modal-backdrop ${backdropClassName}`}
-      className={`modal ${className}`}
-      aria-label={ariaLabel}
-      finalFocus={finalFocus}
-    >
-      <DialogTitle className="visually-hidden">{ariaLabel}</DialogTitle>
-      {children}
-      <DialogClose type="button" className="modal__close" data-modal-initial-focus aria-label="Закрыть диалог"><X /></DialogClose>
-    </DialogContent>
-  </Dialog>;
+function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
+  return <AlertDialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !busy) onOpenChange?.(false); }}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Удалить «{wish.title}»?</AlertDialogTitle>
+        <AlertDialogDescription>Желание исчезнет из всех списков. Отменить это действие не получится.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
+        <AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={onConfirm}>{busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
 }
 
 function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onCreateList, onClose }) {
@@ -1128,7 +1106,14 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
             </small>}
           </span>
-          <span className="card-menu__list-state">{selected ? <Check /> : <Plus />}</span>
+          <Checkbox
+            checked={selected}
+            readOnly
+            tabIndex={-1}
+            role="presentation"
+            aria-hidden="true"
+            className="pointer-events-none ml-auto"
+          />
         </DropdownMenuCheckboxItem>;
       }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
     </div>
@@ -1136,24 +1121,31 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DialogContent>
-          <Card data-slot="wish-media" className="relative overflow-hidden p-0">
+      <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DrawerContent className="wish-details-dialog">
+          <DrawerClose
+            render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
+          >
+            <X />
+            <span className="sr-only">Закрыть</span>
+          </DrawerClose>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+          <Card data-slot="wish-media" className="mx-auto w-full max-w-md relative overflow-hidden p-0">
             {wish.imageUrl
               ? <img className="block h-auto w-full" src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
 
-          <DialogHeader>
-            <DialogTitle><span className="sr-only">Желание: </span>{wish.title}</DialogTitle>
+          <DrawerHeader className="mx-auto w-full max-w-md p-0 text-left">
+            <DrawerTitle><span className="sr-only">Желание: </span>{wish.title}</DrawerTitle>
             <div data-slot="wish-price-row" className="w-full">
-              <strong data-slot="wish-price" className="text-lg font-semibold">{formatMoney(wish.price, wish.currency)}</strong>
+              <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>
             </div>
-            <DialogDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DialogDescription>
-          </DialogHeader>
+            <DrawerDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DrawerDescription>
+          </DrawerHeader>
 
-          <div data-slot="wish-toolbar" className="flex min-w-0 items-center gap-2">
+          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-md min-w-0 items-center gap-2">
             {owner
               ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
                   setListsOpen(open);
@@ -1167,7 +1159,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     id={`wish-detail-lists-${wish.id}`}
-                    className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-12"
+                    className="max-h-[calc(100dvh-12px)] max-w-(--available-width) [&_[data-slot=dropdown-menu-item]]:min-h-12"
                     align="start"
                     sideOffset={4}
                     aria-label={`Списки желания «${wish.title}»`}
@@ -1179,11 +1171,14 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           </div>
 
-          {wish.url && <ShadcnButton nativeButton={false} render={<a href={wish.url} target="_blank" rel="noreferrer" />} className="wish-buy-action h-12 w-full">Где купить <ExternalLink /></ShadcnButton>}
+          {wish.url && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Где купить <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
-          {!owner && <Alert><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
-
-          <DialogFooter className="flex-row items-center justify-end">
+          <div
+            data-slot="wish-actions"
+            className="mx-auto flex w-full max-w-md min-w-0 flex-nowrap items-center gap-2"
+            role="group"
+            aria-label="Действия с желанием"
+          >
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : <Gift />}{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</ShadcnButton>}
             {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant="outline" disabled={busy} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</ShadcnButton>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
@@ -1191,7 +1186,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               if (open) setListsOpen(false);
             }}>
               <DropdownMenuTrigger
-                render={<ShadcnButton variant="outline" size="icon" className="size-12" />}
+                render={<ShadcnButton variant="outline" size="icon" className="size-12 shrink-0" />}
                 aria-label={`Опции желания «${wish.title}»`}
                 title="Опции желания"
               ><MoreHorizontal /></DropdownMenuTrigger>
@@ -1240,33 +1235,18 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                     </DropdownMenuSub>
                   </>}
                   {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-                  {!owner && wish.url && <DropdownMenuItem nativeButton={false} render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
-                  {owner && <DropdownMenuItem variant="destructive" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
+                  {!owner && wish.url && <DropdownMenuItem render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
+                  {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {deleteOpen && <Modal
-        onClose={() => {
-          if (busy) return;
-          setDeleteOpen(false);
-        }}
-        className="modal--wish-delete"
-        backdropClassName="modal-backdrop--detail-delete"
-        ariaLabel={`Удаление желания «${wish.title}»`}
-      >
-        <div className="wish-delete-confirm">
-          <span className="eyebrow">Удаление желания</span>
-          <h2>Удалить «{wish.title}»?</h2>
-          <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
-          <div className="modal-actions">
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setDeleteOpen(false)}>Отмена</Button>
-            <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={busy} onClick={async () => { if (await remove()) setDeleteOpen(false); }}>Удалить</Button>
           </div>
-        </div>
-      </Modal>}
+
+          {!owner && <Alert className="mx-auto w-full max-w-md"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
+          </div>
+        </DrawerContent>
+      </Drawer>
+      {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
     </>
   );
 }
@@ -1274,6 +1254,8 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, returnFocusRef }) {
   const editing = Boolean(list?.id);
   const toast = useToast();
+  const titleId = useId();
+  const descriptionId = useId();
   const secretListId = useId();
   const secretListDescriptionId = useId();
   const [loading, setLoading] = useState(false);
@@ -1284,13 +1266,6 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
     description: list?.description || "",
     privacy: list?.privacy || "public",
   }));
-  useEffect(() => () => {
-    const target = returnFocusRef?.current;
-    if (!target) return;
-    window.requestAnimationFrame(() => {
-      if (target.isConnected) target.focus();
-    });
-  }, [returnFocusRef]);
   const submit = async (event) => {
     event.preventDefault();
     setLoading(true);
@@ -1318,7 +1293,54 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
       setDeleting(false);
     }
   };
-  return <><Modal onClose={onClose} className="modal--list" ariaLabel={editing ? `Настройки списка: ${list.title}` : "Создание списка"}><form className="modal-form" onSubmit={submit}><div className="modal-heading"><div>{editing && <span className="eyebrow">Настройки списка</span>}<h2>{editing ? "Изменить список" : "Создать список"}</h2></div></div><label><span>Название</span><Input className="h-12 px-4 text-base md:text-base" autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Описание</span><Textarea className="min-h-24 px-4 py-3 text-base md:text-base" rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><Field orientation="horizontal" className="min-h-14 items-center gap-4 px-1"><div className="min-w-0 flex-1"><FieldLabel className="cursor-pointer text-base font-semibold" htmlFor={secretListId}>Секретный список</FieldLabel><FieldDescription className="mt-1" id={secretListDescriptionId}>Все желания в этом списке будут видны только вам.</FieldDescription></div><Switch id={secretListId} type="button" aria-describedby={secretListDescriptionId} checked={form.privacy === "private"} disabled={loading} onCheckedChange={(checked) => setForm((current) => ({ ...current, privacy: checked ? "private" : "public" }))} /></Field>{editing && <div className="list-danger"><div><strong>Удалить список</strong><span>Желания не пропадут и будут перенесены в оставшийся список.</span></div><Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} disabled={listsCount <= 1} onClick={() => setDeleteOpen(true)}>Удалить</Button></div>}<div className="modal-actions"><Button type="button" variant="ghost" onClick={onClose}>Отмена</Button><Button type="submit" loading={loading}>{editing ? "Сохранить изменения" : "Создать список"}</Button></div></form></Modal>{deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить «{list.title}»?</AlertDialogTitle><AlertDialogDescription>Желания из этого списка останутся в вашем общем списке. Отменить удаление списка не получится.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction className="bg-destructive/10 text-destructive hover:bg-destructive/20" disabled={deleting} onClick={remove}>{deleting ? <Spinner /> : <Trash2 />} Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}</>;
+  return <>
+    <Drawer open swipeDirection="right" onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
+      <DrawerContent finalFocus={returnFocusRef}>
+        <DrawerClose
+          render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
+        >
+          <X />
+          <span className="sr-only">Закрыть</span>
+        </DrawerClose>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>{editing ? "Изменить список" : "Создать список"}</DrawerTitle>
+            <DrawerDescription>{editing ? "Измените название, описание и приватность списка." : "Задайте название, описание и приватность нового списка."}</DrawerDescription>
+          </DrawerHeader>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={titleId}>Название</FieldLabel>
+              <Input id={titleId} autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={descriptionId}>Описание</FieldLabel>
+              <Textarea id={descriptionId} rows={3} placeholder="Расскажите друзьям о списке" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+            </Field>
+            <Field orientation="horizontal" className="items-center">
+              <div className="min-w-0 flex-1">
+                <FieldLabel className="cursor-pointer" htmlFor={secretListId}>Секретный список</FieldLabel>
+                <FieldDescription id={secretListDescriptionId}>Все желания в этом списке будут видны только вам.</FieldDescription>
+              </div>
+              <Switch id={secretListId} type="button" aria-describedby={secretListDescriptionId} checked={form.privacy === "private"} disabled={loading} onCheckedChange={(checked) => setForm((current) => ({ ...current, privacy: checked ? "private" : "public" }))} />
+            </Field>
+            {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
+          </FieldGroup>
+          </div>
+          <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row sm:justify-end">
+            <ShadcnButton type="button" variant="outline" disabled={loading || deleting} onClick={onClose}>Отмена</ShadcnButton>
+            <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
+          </DrawerFooter>
+        </form>
+      </DrawerContent>
+    </Drawer>
+    {deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Удалить «{list.title}»?</AlertDialogTitle><AlertDialogDescription>Желания из этого списка останутся в вашем общем списке. Отменить удаление списка не получится.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleting} aria-busy={deleting || undefined} onClick={remove}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>}
+  </>;
 }
 
 function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
@@ -1342,7 +1364,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   const mutationRef = useRef(null);
   const deleteTriggerRef = useRef(null);
   const listCreatorTriggerRef = useRef(null);
-  const deleteConfirmRef = useRef(null);
   const restoreDeleteFocusRef = useRef(false);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
   useEffect(() => {
@@ -1502,10 +1523,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     let settleFrame;
     const focusFrame = window.requestAnimationFrame(() => {
       settleFrame = window.requestAnimationFrame(() => {
-        if (deleteConfirm) {
-          deleteConfirmRef.current?.querySelector("button:not(:disabled)")?.focus();
-          return;
-        }
+        if (deleteConfirm) return;
         if (restoreDeleteFocusRef.current) {
           restoreDeleteFocusRef.current = false;
           deleteTriggerRef.current?.focus();
@@ -1519,37 +1537,29 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   }, [deleteConfirm, editing]);
 
   if (editing && deleteConfirm) {
-    return <Modal
-      onClose={cancelDelete}
-      className="modal--wish-delete"
-      ariaLabel={`Удаление желания «${wish.title}»`}
-    >
-      <div className="wish-delete-confirm" ref={deleteConfirmRef}>
-        <span className="eyebrow">Удаление желания</span>
-        <h2>Удалить «{wish.title}»?</h2>
-        <p>Желание исчезнет из всех списков. Отменить это действие не получится.</p>
-        <div className="modal-actions">
-          <Button type="button" variant="ghost" data-modal-initial-focus disabled={deleting} onClick={cancelDelete}>Отмена</Button>
-          <Button type="button" variant="ghost" className="button--danger" icon={Trash2} loading={deleting} onClick={remove}>Удалить</Button>
-        </div>
-      </div>
-    </Modal>;
+    return <WishDeleteAlert open wish={wish} busy={deleting} onOpenChange={cancelDelete} onConfirm={remove} />;
   }
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
   return <>
-    <Dialog open onOpenChange={(open) => { if (!open) requestClose(); }}>
-      <DialogContent>
-        <form className={`wish-editor contents ${editing ? "wish-editor--edit" : "wish-editor--create"}`} onSubmit={submit}>
-          <DialogHeader>
-            <DialogTitle>
+    <Drawer open swipeDirection="right" onOpenChange={(open) => { if (!open) requestClose(); }}>
+      <DrawerContent>
+        <DrawerClose
+          render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
+        >
+          <X />
+          <span className="sr-only">Закрыть</span>
+        </DrawerClose>
+        <form className={`wish-editor flex min-h-0 flex-1 flex-col ${editing ? "wish-editor--edit" : "wish-editor--create"}`} onSubmit={submit}>
+          <DrawerHeader>
+            <DrawerTitle>
               <span className="sr-only">{editing ? `Редактирование желания «${wish.title}»` : "Создание желания"}</span>
               <span aria-hidden="true">{editing ? "Редактировать желание" : "Новое желание"}</span>
-            </DialogTitle>
-            <DialogDescription>{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</DialogDescription>
-          </DialogHeader>
+            </DrawerTitle>
+            <DrawerDescription>{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</DrawerDescription>
+          </DrawerHeader>
 
-          <ScrollArea className="h-[calc(100dvh-18rem)] max-h-[32rem] min-h-0" aria-label="Поля желания">
+          <ScrollArea className="min-h-0 flex-1 px-4" aria-label="Поля желания">
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
@@ -1593,13 +1603,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
             <div className="wish-editor__scroll flex h-auto w-full flex-col gap-4 overflow-visible p-0 [scrollbar-gutter:auto]">
               <Field className="wish-editor__field">
                 <FieldLabel htmlFor={fieldId("title")}>Название</FieldLabel>
-                <Input className="h-12 text-base md:text-base" id={fieldId("title")} autoFocus={editing} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+                <Input id={fieldId("title")} autoFocus={editing} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
               </Field>
 
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>Ссылка</FieldLabel>
-                <Input className="col-span-2 row-start-2 h-12 text-base md:text-base" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
-                <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 h-12 justify-self-end px-4" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
+                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
@@ -1609,33 +1619,33 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
 
               <Field className="wish-editor__field wish-editor__field--description">
                 <FieldLabel className="sr-only" htmlFor={fieldId("description")}>Описание желания</FieldLabel>
-                <Textarea className="min-h-24 resize-none text-base md:text-base" id={fieldId("description")} rows={3} value={form.description} placeholder="Опишите желание" onChange={(event) => updateMetadataField("description", event.target.value)} />
+                <Textarea className="resize-none" id={fieldId("description")} rows={3} value={form.description} placeholder="Опишите желание" onChange={(event) => updateMetadataField("description", event.target.value)} />
               </Field>
 
               <Field className="wish-editor__field wish-editor__field--price grid grid-cols-[minmax(0,1fr)_84px] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-span-2 row-start-1" htmlFor={fieldId("price")}>Цена</FieldLabel>
-                <Input className="col-start-1 row-start-2 h-12 text-base md:text-base" id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
+                <Input className="col-start-1 row-start-2" id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
                 <Select value={form.currency} onValueChange={(currency) => updateMetadataField("currency", currency)}>
-                  <SelectTrigger className="wish-editor__currency col-start-2 row-start-2 h-12 w-full px-4 text-base md:text-base" aria-label="Валюта">
+                  <SelectTrigger className="wish-editor__currency col-start-2 row-start-2 w-full" aria-label="Валюта">
                     <SelectValue>{(currency) => WISH_CURRENCY_SYMBOLS[currency] || ""}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="min-w-0" align="end" alignItemWithTrigger={false}>
-                    {WISH_CURRENCIES.map((currency) => <SelectItem className="min-h-12 px-3 text-base" value={currency} key={currency} aria-label={`${WISH_CURRENCY_SYMBOLS[currency]} ${currency}`}>{WISH_CURRENCY_SYMBOLS[currency]}</SelectItem>)}
+                  <SelectContent align="end">
+                    {WISH_CURRENCIES.map((currency) => <SelectItem value={currency} key={currency} aria-label={`${WISH_CURRENCY_SYMBOLS[currency]} ${currency}`}>{WISH_CURRENCY_SYMBOLS[currency]}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>
 
               <div className="wish-editor__settings flex flex-col gap-2" role="group" aria-label="Настройки желания">
-                <label className="wish-editor__switch-row flex min-h-12 w-full items-center gap-3 px-1">
-                  <EyeOff />
-                  <span><strong>Секретное желание</strong></span>
-                  <Switch checked={form.privacy === "private"} onCheckedChange={(checked) => setForm({ ...form, privacy: checked ? "private" : "inherit" })} />
-                </label>
-                <label className="wish-editor__switch-row flex min-h-12 w-full items-center gap-3 px-1">
-                  <LockKeyhole />
-                  <span><strong>Многократное бронирование</strong></span>
-                  <Switch checked={form.allowMultiple} onCheckedChange={(checked) => setForm({ ...form, allowMultiple: checked })} />
-                </label>
+                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
+                  <EyeOff aria-hidden="true" />
+                  <FieldLabel className="min-w-0 flex-1 cursor-pointer" htmlFor={fieldId("private")}><strong>Секретное желание</strong></FieldLabel>
+                  <Switch id={fieldId("private")} checked={form.privacy === "private"} onCheckedChange={(checked) => setForm({ ...form, privacy: checked ? "private" : "inherit" })} />
+                </Field>
+                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
+                  <LockKeyhole aria-hidden="true" />
+                  <FieldLabel className="min-w-0 flex-1 cursor-pointer" htmlFor={fieldId("multiple")}><strong>Многократное бронирование</strong></FieldLabel>
+                  <Switch id={fieldId("multiple")} checked={form.allowMultiple} onCheckedChange={(checked) => setForm({ ...form, allowMultiple: checked })} />
+                </Field>
               </div>
 
               <fieldset className="wish-editor__lists">
@@ -1647,14 +1657,16 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
                 {listsLoading ? <LoadingScreen compact /> : <div className="wish-editor__list-rows">
                   {selectableLists.map((list) => {
                     const selected = form.listIds.includes(list.id);
-                    return <label className={`wish-editor__list-row flex min-h-12 w-full items-center gap-3 rounded-lg px-1.5 py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
-                      <span className="wish-editor__list-title">{list.title}</span>
+                    const listSwitchId = fieldId(`list-${list.id}`);
+                    return <Field orientation="horizontal" className={`wish-editor__list-row min-h-12 gap-3 rounded-lg px-1.5 py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
+                      <FieldLabel className="wish-editor__list-title min-w-0 flex-1 cursor-pointer" htmlFor={listSwitchId}>{list.title}</FieldLabel>
                       <Switch
+                        id={listSwitchId}
                         className="wish-editor__list-switch"
                         checked={selected}
                         onCheckedChange={(checked) => setListSelected(list.id, checked)}
                       />
-                    </label>;
+                    </Field>;
                   })}
                 </div>}
               </fieldset>
@@ -1663,15 +1675,15 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
             </div>
           </ScrollArea>
 
-          <DialogFooter>
+          <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row">
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto rounded-lg px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
             <ShadcnButton className="wish-editor__submit h-12" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
       {listCreatorOpen && <ListModal
         listsCount={data?.lists?.length || 0}
         returnFocusRef={listCreatorTriggerRef}
@@ -1765,7 +1777,6 @@ function FriendsPage() {
               return <Link
                 key={key}
                 to={`/app/friends/${key}`}
-                data-slot="button"
                 aria-current={active ? "page" : undefined}
                 className={buttonVariants({ variant: active ? "secondary" : "ghost", className: "h-12 gap-2 px-4 text-base" })}
               >
@@ -1797,7 +1808,7 @@ function FriendsPage() {
               {data.people.map((person) => (
                 <li className="friend-row" data-username={person.username} key={person.id}>
                   <Link className="friend-row__profile" to={publicProfilePath(person.username)}>
-                    <Avatar user={person} size="md" />
+                    <Avatar user={person} size="md" aria-hidden="true" />
                     <span className="friend-row__identity">
                       <strong>{person.name}</strong>
                       <small>@{person.username} · {person.wishCount} {person.wishCount === 1 ? "желание" : "желаний"}</small>
@@ -1806,9 +1817,12 @@ function FriendsPage() {
                   {person.isFollowing && person.isFollower && <span className="friend-row__mutual" title="Взаимная подписка" aria-label="Взаимная подписка"><Star fill="currentColor" /></span>}
                   <div className="friend-row__actions">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="friend-row__more" aria-label={`Действия для ${person.name}`}><MoreHorizontal /></DropdownMenuTrigger>
+                      <DropdownMenuTrigger
+                        render={<ShadcnButton type="button" variant="ghost" size="icon" className="friend-row__more size-12 active:translate-y-0 max-[820px]:size-11" />}
+                        aria-label={`Действия для ${person.name}`}
+                      ><MoreHorizontal /></DropdownMenuTrigger>
                       <DropdownMenuContent className="friend-row__menu static w-[210px]" align="end" sideOffset={8}>
-                        <DropdownMenuItem nativeButton={false} className="min-h-12 gap-2 px-3" render={<Link to={publicProfilePath(person.username)} />}><CircleUserRound />Открыть профиль</DropdownMenuItem>
+                        <DropdownMenuItem className="min-h-12 gap-2 px-3" render={<Link to={publicProfilePath(person.username)} />}><CircleUserRound />Открыть профиль</DropdownMenuItem>
                         <DropdownMenuItem className="min-h-12 gap-2 px-3" disabled={busyPersonId === person.id} onClick={() => toggleFollow(person)}>
                           {busyPersonId === person.id ? <LoaderCircle className="spin" /> : person.isFollowing ? <X /> : <UserPlus />}
                           {person.isFollowing ? "Отписаться" : "Подписаться"}
@@ -1824,7 +1838,7 @@ function FriendsPage() {
               <span className="friends-empty__icon"><EmptyIcon /></span>
               <strong>{config.emptyTitle}</strong>
               <span>{config.emptyText}</span>
-              {section !== "search" && <ShadcnButton nativeButton={false} render={<Link to="/app/friends/search" />} className="button button--primary"><span>Найти друзей</span></ShadcnButton>}
+              {section !== "search" && <Link to="/app/friends/search" className={buttonVariants({ className: "h-12" })}>Найти друзей</Link>}
             </div>
           )}
         </section>
@@ -1919,20 +1933,26 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       setLoading(false);
     }
   };
-  return <Dialog open onOpenChange={(open) => { if (!open) close(); }}>
-    <DialogContent
+  return <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) close(); }}>
+    <DrawerContent
       ref={contentRef}
-      className="max-h-[min(calc(100dvh-2rem),44rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden [&>[data-slot=dialog-close]]:size-12"
+      className="profile-settings-dialog"
       initialFocus={() => window.innerWidth <= 820 ? true : contentRef.current?.querySelector("#settings-profile-name") || true}
       finalFocus={finalFocus}
     >
-      <DialogHeader className="pr-8">
-        <DialogTitle>Изменить профиль</DialogTitle>
-        <DialogDescription>Эти данные видны рядом с вашими списками желаний.</DialogDescription>
-      </DialogHeader>
-      <ScrollArea className="-mx-1 min-h-0">
+      <DrawerClose
+        render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10 size-12" size="icon-sm" />}
+      >
+        <X />
+        <span className="sr-only">Закрыть</span>
+      </DrawerClose>
+      <DrawerHeader className="mx-auto w-full max-w-md pr-14 text-left">
+        <DrawerTitle>Изменить профиль</DrawerTitle>
+        <DrawerDescription>Эти данные видны рядом с вашими списками желаний.</DrawerDescription>
+      </DrawerHeader>
+      <ScrollArea className="mx-auto min-h-0 w-full max-w-md flex-1">
         <form id="profile-editor-form" className="flex flex-col gap-4 px-1 pb-1 pr-3" onSubmit={submit}>
-          <Card className="flex items-center gap-3 p-3">
+          <Card className="flex flex-row items-center gap-3 p-3">
             <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
             <div className="min-w-0 flex-1">
               <strong className="block text-sm font-medium">Фото профиля</strong>
@@ -1953,7 +1973,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </Card>
           {imageError && <FieldError>{imageError}</FieldError>}
           <FieldGroup className="gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4">
               <Field>
                 <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
                 <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
@@ -1993,7 +2013,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
             <ShadcnButton
               type="button"
               variant="destructive"
-              className="h-12 w-full justify-start gap-3 px-4"
+              className="h-12 gap-2 px-4"
               disabled={loading || imageUploading || loggingOut}
               aria-busy={loggingOut || undefined}
               onClick={async () => {
@@ -2010,7 +2030,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </div>
         </form>
       </ScrollArea>
-      <DialogFooter>
+      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-md rounded-none border-0 bg-transparent p-0 sm:flex-row">
         <ShadcnButton type="button" variant="outline" className="h-12" disabled={loading || imageUploading || loggingOut} onClick={close}>Отмена</ShadcnButton>
         <ShadcnButton
           type="submit"
@@ -2022,9 +2042,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           {loading && <Spinner />}
           Сохранить
         </ShadcnButton>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>;
+      </DrawerFooter>
+    </DrawerContent>
+  </Drawer>;
 }
 
 function PublicProfile({ shared = false }) {
@@ -2071,7 +2091,7 @@ function PublicProfile({ shared = false }) {
         icon={Gift}
         title={title}
         text={text}
-        action={<ShadcnButton nativeButton={false} render={<Link to={returnPath} />}>{returnLabel}</ShadcnButton>}
+        action={<Link to={returnPath} className={buttonVariants()}>{returnLabel}</Link>}
       />
     </div>;
     if (user) return <AppShell friendsContext={friendsContext} collectionChrome>{page}</AppShell>;
@@ -2198,8 +2218,8 @@ function PublicProfile({ shared = false }) {
   const profileVisitor = !data.isOwner;
   const relationshipBlock = data.isOwner
     ? <nav className="wishes-page__friend-links" aria-label="Связи профиля">
-      <Link to="/app/friends/subscriptions" className="wishes-page__friend-link">Подписки</Link>
-      <Link to="/app/friends/followers" className="wishes-page__friend-link">Подписчики</Link>
+      <Link to="/app/friends/subscriptions" className="wishes-page__friend-link"><Users aria-hidden="true" />Подписки</Link>
+      <Link to="/app/friends/followers" className="wishes-page__friend-link"><CircleUserRound aria-hidden="true" />Подписчики</Link>
     </nav>
     : !shared ? <dl className="wishes-page__friend-links friend-profile-page__stats" aria-label="Связи профиля">
       <div><dt>Подписки</dt><dd>{data.followingCount}</dd></div>
@@ -2223,7 +2243,7 @@ function PublicProfile({ shared = false }) {
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <header className="wishes-page__topbar">
       <Logo className="app-shell-logo" />
-      <Button className="wishes-page__topbar-share h-12 px-5 text-base" variant="outline" icon={Share2} onClick={share}>Поделиться</Button>
+      <ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
     </header>
 
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
@@ -2246,11 +2266,13 @@ function PublicProfile({ shared = false }) {
     </section>
 
     <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
-      <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-        <ToggleGroupItem value="all"><strong>{shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"}</strong><span>{activeWishes.length}</span></ToggleGroupItem>
-        {!shared && navigationLists.map((list) => <ToggleGroupItem value={list.id} key={list.id}>{ownerCollection && list.privacy === "private" && <LockKeyhole size={14} />}<strong>{list.title}</strong><span>{wishCountForList(list.id)}</span></ToggleGroupItem>)}
-      </ToggleGroup>
-      {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
+      <div className="list-tabs__track">
+        <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
+          <ToggleGroupItem value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", activeWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={activeWishes.length} /></ToggleGroupItem>
+          {!shared && navigationLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={list.title} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
+        </ToggleGroup>
+        {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
+      </div>
     </div>
 
     {wishes.length
@@ -2266,7 +2288,7 @@ function PublicProfile({ shared = false }) {
   return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{collectionPage}</main></div>;
 }
 
-function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><ShadcnButton nativeButton={false} render={<Link to={APP_HOME} />} className="button button--primary"><span>В приложение</span></ShadcnButton></div>; }
+function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link to={APP_HOME} className={buttonVariants()}>В приложение</Link></div>; }
 
 function LegacyProfileRedirect() {
   const params = useParams();

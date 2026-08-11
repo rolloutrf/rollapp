@@ -72,7 +72,7 @@ async function login(email) {
 test("private lists stay private while link lists remain reservable", async (t) => {
   const child = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: "test", DEMO_MODE: "true", PORT: String(port) },
+    env: { ...process.env, NODE_ENV: "test", DEMO_MODE: "true", DATABASE_URL: "", PGHOST: "", PORT: String(port) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   t.after(() => child.kill("SIGTERM"));
