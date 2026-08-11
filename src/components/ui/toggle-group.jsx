@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { toggleVariants } from "@/components/ui/toggle"
 
 const ToggleGroupContext = React.createContext({
-  size: "lg",
+  size: "default",
   variant: "default",
   spacing: 2,
   orientation: "horizontal",
@@ -48,7 +48,7 @@ function ToggleGroupItem({
   className,
   children,
   variant = "default",
-  size = "lg",
+  size = "default",
   ...props
 }) {
   const context = React.useContext(ToggleGroupContext)

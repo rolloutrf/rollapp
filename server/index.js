@@ -9,6 +9,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
+import { addDefaultFriend } from "./default-friend.js";
 import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
 import { parseProductMetadata } from "./metadata.js";
 import {
@@ -615,6 +616,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [randomUUID(), userId, "Мои желания", "Всё, чему я буду рад", "public", "coral", randomBytes(10).toString("base64url")],
     );
+    await addDefaultFriend(client, userId);
   });
   await createSession(res, userId);
   const result = await query("SELECT * FROM users WHERE id = $1", [userId]);
