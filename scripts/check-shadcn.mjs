@@ -515,7 +515,7 @@ for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle
   assert(new RegExp(`<${component}\\b`).test(listModalSource), `ListModal must compose the official shadcn ${component} directly`);
 }
 assert(/<DrawerClose\b/.test(listModalSource), "ListModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
-assert(/<Drawer open onOpenChange=\{\(open\) => \{ if \(!open && !loading && !deleting\) onClose\(\); \}\}/.test(listModalSource), "ListModal must keep its Drawer close guard while saving or deleting");
+assert(/<Drawer open\b[^>]*onOpenChange=\{\(open\) => \{ if \(!open && !loading && !deleting\) onClose\(\); \}\}/.test(listModalSource), "ListModal must keep its Drawer close guard while saving or deleting");
 assert(/<DrawerContent\b[^>]*finalFocus=\{returnFocusRef\}/.test(listModalSource), "ListModal DrawerContent must restore focus to its opener");
 assert(!/<Select\b|<SelectTrigger\b/.test(listModalSource), "ListModal must not restore the multi-option privacy Select");
 assert(!listModalSource.includes("Кто увидит"), "ListModal must not restore the retired privacy label");
@@ -533,7 +533,7 @@ assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use Draw
 assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
 assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must not re-enable the retired Dialog close API");
 assert(!/modal(?:-backdrop)?--wish-editor/.test(primaryWishEditorDialog), "WishModal must not restore the legacy fullscreen editor shell");
-assert(/<Drawer open onOpenChange=\{\(open\) => \{ if \(!open\) requestClose\(\); \}\}/.test(primaryWishEditorDialog), "WishModal must keep its requestClose-guarded Drawer");
+assert(/<Drawer open\b[^>]*onOpenChange=\{\(open\) => \{ if \(!open\) requestClose\(\); \}\}/.test(primaryWishEditorDialog), "WishModal must keep its requestClose-guarded Drawer");
 const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
 assert(primaryWishEditorContentTag === "<DrawerContent>", "WishModal must use the base shadcn DrawerContent shell without custom classes or adapters");
 assert(
