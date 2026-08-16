@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Mail, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
-  RotateCcw, Search, Share2, Sparkles, Star, Trash2, Upload, UserPlus,
-  Users, X,
+  Archive, CalendarDays, Check, CheckCircle2, ChevronDown,
+  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
+  LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
+  RotateCcw, Search, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
+  Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
@@ -39,6 +39,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
@@ -60,6 +61,16 @@ const formatCountdown = (seconds) => {
 const WISH_CURRENCIES = ["RUB", "USD", "EUR", "KZT", "BYN"];
 const WISH_CURRENCY_SYMBOLS = { RUB: "₽", USD: "$", EUR: "€", KZT: "₸", BYN: "Br" };
 const isProductUrl = (value) => { try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; } };
+const YANDEX_MAPS_HOSTS = ["yandex.ru", "yandex.com", "yandex.kz", "yandex.by", "yandex.ua", "ya.ru"];
+const isYandexMapsUrl = (value) => {
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase().replace(/^(www\.|maps\.)/, "");
+    if (!YANDEX_MAPS_HOSTS.includes(host)) return false;
+    return parsed.pathname.startsWith("/maps");
+  } catch { return false; }
+};
 const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 const wishFormFrom = (wish) => ({
   title: wish?.title || "",
@@ -72,7 +83,12 @@ const wishFormFrom = (wish) => ({
   privacy: wish?.privacy || "inherit",
   allowMultiple: Boolean(wish?.allowMultiple),
   listIds: Array.isArray(wish?.listIds) ? [...wish.listIds] : [],
+  eventDate: wish?.eventDate || "",
 });
+const formatEventDate = (value) => {
+  const [year, month, day] = String(value || "").split("-");
+  return year && month && day ? `${day}.${month}.${year}` : "";
+};
 const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
 const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
 const wishCountNoun = (count) => {
@@ -99,6 +115,33 @@ const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
   return publicWishPath(profile?.username, wish.id);
 };
 
+const SPACES = [
+  { id: "products", label: "Товары", icon: ShoppingBag },
+  { id: "places", label: "Места", icon: MapPin },
+  { id: "events", label: "События", icon: CalendarDays },
+  { id: "media", label: "Медиа", icon: Clapperboard },
+  { id: "food", label: "Еда", icon: UtensilsCrossed },
+];
+const SPACE_IDS = SPACES.map((space) => space.id);
+const listSpace = (list) => (SPACE_IDS.includes(list?.space) ? list.space : "products");
+const wishBelongsToSpace = (wish, listsById, space) => {
+  const categoryListIds = (wish?.listIds || []).filter((id) => {
+    const list = listsById.get(id);
+    return list && !isGeneralList(list);
+  });
+  if (categoryListIds.length === 0) return space === "products";
+  return categoryListIds.some((id) => listSpace(listsById.get(id)) === space);
+};
+const wishSpaceId = (wish, lists = []) => {
+  const listsById = new Map(lists.map((list) => [list.id, list]));
+  const spaceId = (wish?.listIds || [])
+    .map((id) => listsById.get(id))
+    .filter((list) => list && !isGeneralList(list))
+    .map((list) => listSpace(list))
+    .find((id) => SPACE_IDS.includes(id));
+  return spaceId || "products";
+};
+
 function ListTileContent({ title, count, privateList = false }) {
   return <>
     <strong data-slot="list-tile-label">{title}</strong>
@@ -107,6 +150,32 @@ function ListTileContent({ title, count, privateList = false }) {
       <span data-slot="list-tile-count">{count}</span>
     </div>
   </>;
+}
+
+function SpaceSwitcher({ value, onChange, className = "" }) {
+  const current = SPACES.find((space) => space.id === value) || SPACES[0];
+  return (
+    <Select value={current.id} onValueChange={(next) => { if (next && next !== current.id) onChange(next); }}>
+      <SelectTrigger className={`space-select ${className}`.trim()} aria-label="Категория списков" title="Категория списков">
+        <SelectValue>{(selected) => {
+          const space = SPACES.find((item) => item.id === selected) || current;
+          const Icon = space.icon;
+          return <><Icon aria-hidden="true" /><span className="space-select__label">{space.label}</span></>;
+        }}</SelectValue>
+      </SelectTrigger>
+      <SelectContent className="space-select__content" alignItemWithTrigger={false}>
+        {SPACES.map((space) => {
+          const Icon = space.icon;
+          return (
+            <SelectItem key={space.id} value={space.id}>
+              <Icon aria-hidden="true" />
+              <span>{space.label}</span>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
+  );
 }
 
 function useAsync(load, dependencies = []) {
@@ -682,10 +751,10 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
 }
 
 function ProtectedApp() {
-  const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [version, setVersion] = useState(0);
+  const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={() => setWishModal(true)} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -828,6 +897,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
   const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const categoryLists = lists.filter((list) => !isGeneralList(list));
+  const visibleLists = categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists));
   const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
     || selectedListIds.some((id) => !(wish.listIds || []).includes(id));
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
@@ -862,7 +932,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
       <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
-          <span>{formatMoney(wish.price, wish.currency)}</span>
+          <span>{formatMoney(wish.price, wish.currency)}{wish.eventDate ? ` · ${formatEventDate(wish.eventDate)}` : ""}</span>
           <DropdownMenu open={menu} onOpenChange={(open) => {
             setMenu(open);
             if (!open) setSelectedListIds([...(wish.listIds || [])]);
@@ -918,9 +988,9 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                       <DropdownMenuLabel className="px-2 py-2 text-sm">Списки</DropdownMenuLabel>
                       {onCreateList && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={onCreateList}><ListPlus /> Новый список</DropdownMenuItem>}
                     </DropdownMenuGroup>
-                    {(onCreateList || categoryLists.length > 0) && <DropdownMenuSeparator />}
+                    {(onCreateList || visibleLists.length > 0) && <DropdownMenuSeparator />}
                     <div className="max-h-[22.75rem] overflow-y-auto overscroll-contain">
-                      {categoryLists.length ? categoryLists.map((list) => {
+                      {visibleLists.length ? visibleLists.map((list) => {
                         const selected = selectedListIds.includes(list.id);
                         return <DropdownMenuCheckboxItem
                           key={list.id}
@@ -938,7 +1008,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                             </small>}
                           </span>
                         </DropdownMenuCheckboxItem>;
-                      }) : <p className="px-2 py-6 text-center text-xs text-muted-foreground">Создайте первый тематический список.</p>}
+                      }) : <p className="px-2 py-6 text-center text-xs text-muted-foreground">В этом пространстве пока нет списков.</p>}
                     </div>
                     {listSelectionChanged && <>
                       <DropdownMenuSeparator />
@@ -949,7 +1019,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                 </DropdownMenuSub>
               </>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-              {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
+              {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
               {owner && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
@@ -972,13 +1042,16 @@ function WishesPage({ onAdd, version }) {
   const toast = useToast();
   const { data, loading, reload } = useAsync(() => api.get("/dashboard"), [version]);
   const [selected, setSelected] = useState("all");
+  const [selectedSpace, setSelectedSpace] = useState("products");
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
   if (loading) return <LoadingScreen compact />;
   const activeWishes = data.wishes.filter((wish) => wish.status === "active");
-  const categoryLists = data.lists.filter((list) => !isGeneralList(list));
-  const wishes = selected === "all" ? activeWishes : activeWishes.filter((wish) => wish.listIds.includes(selected));
+  const listsById = new Map(data.lists.map((list) => [list.id, list]));
+  const categoryLists = data.lists.filter((list) => !isGeneralList(list) && listSpace(list) === selectedSpace);
+  const spaceWishes = activeWishes.filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
+  const wishes = selected === "all" ? spaceWishes : spaceWishes.filter((wish) => wish.listIds.includes(selected));
   const selectedList = categoryLists.find((list) => list.id === selected) || null;
   const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
@@ -996,6 +1069,10 @@ function WishesPage({ onAdd, version }) {
     toast("Ссылка на список скопирована");
   };
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
+  const selectSpace = (space) => {
+    setSelectedSpace(space);
+    setSelected("all");
+  };
   const saveList = async (saved) => {
     const attachWishId = listModal?.attachWishId;
     let attached = true;
@@ -1012,7 +1089,7 @@ function WishesPage({ onAdd, version }) {
     await reload();
     if (saved?.id && attached) setSelected(saved.id);
   };
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={onAdd} /><div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) setSelected(values[0]); }} aria-label="Списки желаний"><ToggleGroupItem value="all" aria-label={listTileAccessibleName("Мои желания", activeWishes.length)}><ListTileContent title="Мои желания" count={activeWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton></div></div>{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={<Button icon={Plus} onClick={onAdd}>Добавить желание</Button>} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) setSelected(values[0]); }} aria-label="Списки желаний"><ToggleGroupItem value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton></div></div>}{wishes.length ? <div className="wish-grid">{wishes.map((wish) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} onChanged={() => reload({ background: true })} onOpen={() => setSelectedWishId(wish.id)} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." action={undefined} />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -1031,7 +1108,9 @@ function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConf
 }
 
 function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onCreateList, onClose }) {
+  const isMobile = useIsMobile();
   const categoryLists = useMemo(() => lists.filter((list) => !isGeneralList(list)), [lists]);
+  const visibleLists = useMemo(() => categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists)), [categoryLists, wish, lists]);
   const normalizeListIds = useCallback((ids = []) => categoryLists.filter((list) => ids.includes(list.id)).map((list) => list.id), [categoryLists]);
   const [listsOpen, setListsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1090,7 +1169,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
       {onCreateList && <DropdownMenuItem className="card-menu__create-list" disabled={busy} onClick={onCreateList}><ListPlus /> Новый список</DropdownMenuItem>}
     </div>
     <div className="card-menu__list-scroll">
-      {categoryLists.length ? categoryLists.map((list) => {
+      {visibleLists.length ? visibleLists.map((list) => {
         const selected = selectedListIds.includes(list.id);
         return <DropdownMenuCheckboxItem
           key={list.id}
@@ -1115,13 +1194,13 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             className="pointer-events-none ml-auto"
           />
         </DropdownMenuCheckboxItem>;
-      }) : <p className="card-menu__lists-empty">Создайте первый тематический список.</p>}
+      }) : <p className="card-menu__lists-empty">В этом пространстве пока нет списков.</p>}
     </div>
   </>;
 
   return (
     <>
-      <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
         <DrawerContent className="wish-details-dialog">
           <DrawerClose
             render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
@@ -1129,7 +1208,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             <X />
             <span className="sr-only">Закрыть</span>
           </DrawerClose>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-md relative overflow-hidden p-0">
             {wish.imageUrl
               ? <img className="block h-auto w-full" src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} />
@@ -1137,10 +1216,11 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
 
-          <DrawerHeader className="mx-auto w-full max-w-md p-0 text-left">
+          <DrawerHeader className="mx-auto w-full max-w-md p-0 text-left!">
             <DrawerTitle><span className="sr-only">Желание: </span>{wish.title}</DrawerTitle>
             <div data-slot="wish-price-row" className="w-full">
               <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>
+              {wish.eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{formatEventDate(wish.eventDate)}</span>}
             </div>
             <DrawerDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DrawerDescription>
           </DrawerHeader>
@@ -1159,7 +1239,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     id={`wish-detail-lists-${wish.id}`}
-                    className="max-h-[calc(100dvh-12px)] max-w-(--available-width) [&_[data-slot=dropdown-menu-item]]:min-h-12"
+                    className="max-h-[calc(100dvh-12px)] max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
                     align="start"
                     sideOffset={4}
                     aria-label={`Списки желания «${wish.title}»`}
@@ -1171,7 +1251,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           </div>
 
-          {wish.url && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Где купить <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wish.url && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
             data-slot="wish-actions"
@@ -1192,24 +1272,25 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               ><MoreHorizontal /></DropdownMenuTrigger>
               <DropdownMenuContent
                 id={`wish-detail-menu-${wish.id}`}
-                className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
+                className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
                 align="end"
                 sideOffset={4}
                 aria-label={`Действия с желанием «${wish.title}»`}
               >
                 <DropdownMenuGroup>
-                  {!owner && <DropdownMenuItem disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
-                  {!owner && <DropdownMenuItem disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
+                  {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
+                  {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
                   {owner && wish.status === "fulfilled" ? <>
-                    <DropdownMenuItem disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
-                    <DropdownMenuItem disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
-                    {onEdit && <DropdownMenuItem disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+                    <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
+                    <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
+                    {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
                   </> : owner && <>
-                    <DropdownMenuItem disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
-                    {onEdit && <DropdownMenuItem disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
+                    <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><Check /> Исполнено</DropdownMenuItem>
+                    {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
                     {secretListMembership
-                      ? <DropdownMenuItem disabled><LockKeyhole /> Секретное в списке</DropdownMenuItem>
+                      ? <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled><LockKeyhole /> Секретное в списке</DropdownMenuItem>
                       : <DropdownMenuItem
+                        className="min-h-12 gap-2 px-3 py-2 text-base"
                         disabled={busy}
                         onClick={() => {
                           const nextPrivacy = wish.privacy === "private" ? "inherit" : "private";
@@ -1223,10 +1304,10 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                         {wish.privacy === "private" ? "Сделать видимым" : "Сделать секретным"}
                       </DropdownMenuItem>}
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger disabled={busy}><ListPlus /> <span>Добавить в список</span></DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger className="card-menu__submenu-trigger min-h-12 gap-2 px-3 py-2 text-base" disabled={busy}><ListPlus /> <span>Добавить в список</span></DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         id={`wish-detail-action-lists-${wish.id}`}
-                        className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] [&_[data-slot=dropdown-menu-item]]:min-h-12"
+                        className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
                         sideOffset={4}
                         aria-label={`Списки желания «${wish.title}»`}
                       >
@@ -1234,9 +1315,9 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>
                   </>}
-                  {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-                  {!owner && wish.url && <DropdownMenuItem render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> Открыть магазин</DropdownMenuItem>}
-                  {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
+                  {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
+                  {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
+                  {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1251,7 +1332,8 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   );
 }
 
-function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, returnFocusRef }) {
+function ListModal({ list = null, listsCount = 0, space = "products", onClose, onSaved, onDeleted, returnFocusRef }) {
+  const isMobile = useIsMobile();
   const editing = Boolean(list?.id);
   const toast = useToast();
   const titleId = useId();
@@ -1265,6 +1347,7 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
     title: list?.title || "",
     description: list?.description || "",
     privacy: list?.privacy || "public",
+    space: SPACE_IDS.includes(list?.space) ? list.space : (SPACE_IDS.includes(space) ? space : "products"),
   }));
   const submit = async (event) => {
     event.preventDefault();
@@ -1294,7 +1377,7 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
     }
   };
   return <>
-    <Drawer open swipeDirection="right" onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
+    <Drawer open swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
       <DrawerContent finalFocus={returnFocusRef}>
         <DrawerClose
           render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
@@ -1303,7 +1386,7 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
           <span className="sr-only">Закрыть</span>
         </DrawerClose>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-          <DrawerHeader className="text-left">
+          <DrawerHeader className="text-left!">
             <DrawerTitle>{editing ? "Изменить список" : "Создать список"}</DrawerTitle>
             <DrawerDescription>{editing ? "Измените название, описание и приватность списка." : "Задайте название, описание и приватность нового списка."}</DrawerDescription>
           </DrawerHeader>
@@ -1328,7 +1411,6 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
           </FieldGroup>
           </div>
           <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row sm:justify-end">
-            <ShadcnButton type="button" variant="outline" disabled={loading || deleting} onClick={onClose}>Отмена</ShadcnButton>
             <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
           </DrawerFooter>
         </form>
@@ -1343,7 +1425,8 @@ function ListModal({ list = null, listsCount = 0, onClose, onSaved, onDeleted, r
   </>;
 }
 
-function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
+function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products" }) {
+  const isMobile = useIsMobile();
   const editing = Boolean(wish?.id);
   const toast = useToast();
   const { data, loading: listsLoading, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
@@ -1366,6 +1449,28 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
   const listCreatorTriggerRef = useRef(null);
   const restoreDeleteFocusRef = useRef(false);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
+  const effectiveSpace = (() => {
+    if (editing) {
+      if (data?.lists) {
+        const listsById = new Map(data.lists.map((list) => [list.id, list]));
+        const wishSpace = (wish.listIds || [])
+          .map((id) => listsById.get(id))
+          .filter((list) => list && !isGeneralList(list))
+          .map((list) => listSpace(list))
+          .find((spaceId) => SPACE_IDS.includes(spaceId));
+        return wishSpace || "products";
+      }
+    }
+    return SPACE_IDS.includes(space) ? space : "products";
+  })();
+  const visibleLists = selectableLists.filter((list) => listSpace(list) === effectiveSpace);
+  const isPlaces = effectiveSpace === "places";
+  const showEventDate = effectiveSpace === "events"
+    || Boolean(wish?.eventDate)
+    || form.listIds.some((id) => {
+      const list = selectableLists.find((item) => item.id === id);
+      return list ? listSpace(list) === "events" : false;
+    });
   useEffect(() => {
     if (!data?.lists) return;
     const generalIds = new Set(data.lists.filter(isGeneralList).map((list) => list.id));
@@ -1379,8 +1484,9 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     window.clearTimeout(autoTimerRef.current);
     if (!url) { setMetadata({ status: "idle", message: "" }); return false; }
     if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
+    if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return false; }
     const requestId = ++metadataRequestRef.current;
-    setMetadata({ status: "loading", message: "Ищем название, фотографию и цену на странице магазина…" });
+    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       const meta = await api.post("/metadata", { url });
       if (requestId !== metadataRequestRef.current) return false;
@@ -1393,7 +1499,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       };
       const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
       if (foundFields.length === 0) {
-        setMetadata({ status: "error", message: "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
       const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
@@ -1404,11 +1510,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
-      setMetadata({ status: "error", message: error.message || "Не удалось прочитать страницу магазина." });
+      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : "Не удалось прочитать страницу магазина.") });
       return false;
     }
   };
@@ -1418,10 +1524,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     metadataRequestRef.current += 1;
     const url = form.url.trim();
     if (!url || !isProductUrl(url)) { setMetadata({ status: "idle", message: "" }); return undefined; }
+    if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return undefined; }
     setMetadata({ status: "waiting", message: "Ссылка принята — через мгновение заполним карточку." });
     autoTimerRef.current = window.setTimeout(() => { recognize(url); }, 600);
     return () => window.clearTimeout(autoTimerRef.current);
-  }, [form.url, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.url, editing, isPlaces]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { window.clearTimeout(autoTimerRef.current); metadataRequestRef.current += 1; }, []);
   const updateMetadataField = (field, value) => { editedMetadataFieldsRef.current.add(field); setForm((current) => ({ ...current, [field]: value })); };
   const cleanupUploadedImages = async (keepUrl = "") => {
@@ -1471,7 +1578,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     mutationRef.current = "save";
     setLoading(true);
     try {
-      const payload = { ...form, price: form.price === "" ? null : Number(form.price) };
+      const payload = { ...form, price: form.price === "" ? null : Number(form.price), eventDate: form.eventDate || null };
       const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload);
       const savedUploadId = uploadedImageIdFromUrl(result.wish?.imageUrl);
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
@@ -1507,7 +1614,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? "Читаем карточку товара" : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -1542,7 +1649,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
   return <>
-    <Drawer open swipeDirection="right" onOpenChange={(open) => { if (!open) requestClose(); }}>
+    <Drawer open swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) requestClose(); }}>
       <DrawerContent>
         <DrawerClose
           render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
@@ -1607,12 +1714,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
               </Field>
 
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
-                <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>Ссылка</FieldLabel>
-                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder="https://…" onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : "Ссылка"}</FieldLabel>
+                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
                 <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
+                {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
               </Field>
 
               {metadataNotice}
@@ -1635,6 +1743,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
                 </Select>
               </Field>
 
+              {showEventDate && <Field className="wish-editor__field wish-editor__field--date">
+                <FieldLabel htmlFor={fieldId("eventDate")}>Дата события</FieldLabel>
+                <Input id={fieldId("eventDate")} type="date" value={form.eventDate} onChange={(event) => setForm((current) => ({ ...current, eventDate: event.target.value }))} />
+              </Field>}
+
               <div className="wish-editor__settings flex flex-col gap-2" role="group" aria-label="Настройки желания">
                 <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
                   <EyeOff aria-hidden="true" />
@@ -1655,7 +1768,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
                   <ShadcnButton ref={listCreatorTriggerRef} type="button" variant="ghost" disabled={loading || deleting} onClick={() => { if (!mutationRef.current) setListCreatorOpen(true); }}><ListPlus /> Новый список</ShadcnButton>
                 </div>
                 {listsLoading ? <LoadingScreen compact /> : <div className="wish-editor__list-rows">
-                  {selectableLists.map((list) => {
+                  {visibleLists.length ? visibleLists.map((list) => {
                     const selected = form.listIds.includes(list.id);
                     const listSwitchId = fieldId(`list-${list.id}`);
                     return <Field orientation="horizontal" className={`wish-editor__list-row min-h-12 gap-3 rounded-lg px-1.5 py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
@@ -1667,7 +1780,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
                         onCheckedChange={(checked) => setListSelected(list.id, checked)}
                       />
                     </Field>;
-                  })}
+                  }) : <p className="px-2 py-6 text-center text-xs text-muted-foreground">В этом пространстве пока нет списков.</p>}
                 </div>}
               </fieldset>
             </div>
@@ -1686,6 +1799,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null }) {
     </Drawer>
       {listCreatorOpen && <ListModal
         listsCount={data?.lists?.length || 0}
+        space={effectiveSpace}
         returnFocusRef={listCreatorTriggerRef}
         onClose={() => setListCreatorOpen(false)}
         onSaved={async (saved) => {
@@ -1848,6 +1962,7 @@ function FriendsPage() {
 }
 
 function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
+  const isMobile = useIsMobile();
   const toast = useToast();
   const logout = useLogout();
   const initialForm = useMemo(() => ({
@@ -1933,7 +2048,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       setLoading(false);
     }
   };
-  return <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) close(); }}>
+  return <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) close(); }}>
     <DrawerContent
       ref={contentRef}
       className="profile-settings-dialog"
@@ -1946,12 +2061,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         <X />
         <span className="sr-only">Закрыть</span>
       </DrawerClose>
-      <DrawerHeader className="mx-auto w-full max-w-md pr-14 text-left">
+      <DrawerHeader className="mx-auto w-full max-w-md pr-14 text-left!">
         <DrawerTitle>Изменить профиль</DrawerTitle>
         <DrawerDescription>Эти данные видны рядом с вашими списками желаний.</DrawerDescription>
       </DrawerHeader>
       <ScrollArea className="mx-auto min-h-0 w-full max-w-md flex-1">
-        <form id="profile-editor-form" className="flex flex-col gap-4 px-1 pb-1 pr-3" onSubmit={submit}>
+        <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
           <Card className="flex flex-row items-center gap-3 p-3">
             <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
             <div className="min-w-0 flex-1">
@@ -2030,8 +2145,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </div>
         </form>
       </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-md rounded-none border-0 bg-transparent p-0 sm:flex-row">
-        <ShadcnButton type="button" variant="outline" className="h-12" disabled={loading || imageUploading || loggingOut} onClick={close}>Отмена</ShadcnButton>
+      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-md rounded-none border-0 bg-transparent px-4 sm:flex-row">
         <ShadcnButton
           type="submit"
           form="profile-editor-form"
@@ -2057,10 +2171,12 @@ function PublicProfile({ shared = false }) {
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
   const [selected, setSelected] = useState(shared ? "all" : params.listId || "all");
+  const [selectedSpace, setSelectedSpace] = useState("products");
   const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [wishModalOpen, setWishModalOpen] = useState(false);
+  const [wishModalSpace, setWishModalSpace] = useState("products");
   const [visibleLimit, setVisibleLimit] = useState(20);
   const loadMoreRef = useRef(null);
   const lastWishOpenerRef = useRef(null);
@@ -2102,16 +2218,19 @@ function PublicProfile({ shared = false }) {
   if (error && !data) return renderCollectionState({ title: "Такой список не нашёлся", text: error.message });
 
   const lists = shared ? [data.list] : data.lists;
-  const navigationLists = shared ? lists : lists.filter((list) => !(list.title === "Мои желания" && list.description === "Всё, чему я буду рад"));
   const activeWishes = data.wishes.filter((wish) => wish.status === "active");
   const routeList = lists.find((list) => list.id === selected);
   const selectedList = routeList && !isGeneralList(routeList) ? routeList : null;
   const selectedValue = selectedList?.id || "all";
+  const activeSpace = selectedList ? listSpace(selectedList) : selectedSpace;
+  const navigationLists = shared ? lists : lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace);
+  const listsById = new Map(lists.map((list) => [list.id, list]));
+  const spaceWishes = shared ? activeWishes : activeWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
   const wishes = shared
     ? activeWishes
     : selectedValue === "all"
-      ? activeWishes
-      : activeWishes.filter((wish) => wish.listIds.includes(selectedValue));
+      ? spaceWishes
+      : spaceWishes.filter((wish) => wish.listIds.includes(selectedValue));
   const selectedWish = selectedWishId ? activeWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
   const invalidSelection = (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
@@ -2139,6 +2258,11 @@ function PublicProfile({ shared = false }) {
     setSelectedWishId(null);
     if (shared) return;
     navigate(value === "all" ? publicProfilePath(data.profile.username) : publicListPath(data.profile.username, value));
+  };
+
+  const selectSpace = (space) => {
+    setSelectedSpace(space);
+    selectCollection("all");
   };
 
   const openWish = (id, opener = null) => {
@@ -2243,6 +2367,7 @@ function PublicProfile({ shared = false }) {
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <header className="wishes-page__topbar">
       <Logo className="app-shell-logo" />
+      {!shared && <SpaceSwitcher value={activeSpace} onChange={selectSpace} />}
       <ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
     </header>
 
@@ -2252,7 +2377,7 @@ function PublicProfile({ shared = false }) {
       <div className={`page-actions wishes-page__hero-actions ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {ownerCollection ? <>
           {selectedList && <Button className="h-12 rounded-full px-5 text-base max-[560px]:flex-1" variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}
-          <Button className="wishes-page__hero-add h-12 min-w-[180px] rounded-full px-6 text-base max-[560px]:min-w-0" icon={Plus} onClick={() => setWishModalOpen(true)}>Добавить</Button>
+          <Button className="wishes-page__hero-add h-12 min-w-[180px] rounded-full px-6 text-base max-[560px]:min-w-0" icon={Plus} onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</Button>
         </> : data.isOwner && shared
           ? <Button className="h-12 rounded-full px-6 text-base" onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</Button>
           : <Button
@@ -2265,23 +2390,23 @@ function PublicProfile({ shared = false }) {
       </div>
     </section>
 
-    <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
+    {(shared || navigationLists.length > 0) && <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
       <div className="list-tabs__track">
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-          <ToggleGroupItem value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", activeWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={activeWishes.length} /></ToggleGroupItem>
+          <ToggleGroupItem value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", spaceWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={spaceWishes.length} /></ToggleGroupItem>
           {!shared && navigationLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={list.title} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
       </div>
-    </div>
+    </div>}
 
     {wishes.length
       ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onOpen={(opener) => openWish(wish.id, opener)} onEdit={ownerCollection ? () => editWish(wish.id) : undefined} onCreateList={ownerCollection ? () => setListModal({ attachWishId: wish.id }) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</>
-      : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} action={ownerCollection ? <Button icon={Plus} onClick={() => setWishModalOpen(true)}>Добавить желание</Button> : undefined} />}
+      : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />}
     {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
-    {editingWish && <WishModal wish={editingWish} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
-    {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
-    {wishModalOpen && <WishModal onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
+    {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
+    {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
+    {wishModalOpen && <WishModal space={wishModalSpace} onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
   </div>;
 
   if (user) return <AppShell friendsContext={!data.isOwner && !shared} collectionChrome>{collectionPage}</AppShell>;

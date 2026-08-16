@@ -67,6 +67,8 @@ const schema = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  ALTER TABLE wishlists ADD COLUMN IF NOT EXISTS space TEXT NOT NULL DEFAULT 'products';
+
   CREATE TABLE IF NOT EXISTS wishes (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -85,6 +87,7 @@ const schema = `
   );
 
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS event_date DATE;
 
   CREATE TABLE IF NOT EXISTS wish_images (
     id TEXT PRIMARY KEY,

@@ -2563,9 +2563,9 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .friends-layout { min-height: 100%; }
 .friends-directory {
   width: 100%;
-  max-width: none;
+  max-width: 576px; /* max-w-xl */
   min-width: 0;
-  margin-inline: 0;
+  margin-inline: auto;
   padding: 166px 0 120px;
 }
 .friends-directory__heading {
@@ -2636,14 +2636,13 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 .friend-row {
   min-height: 72px;
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
   gap: 12px;
 }
 .friend-row__profile {
   min-width: 0;
-  width: max-content;
+  flex: 1 1 auto;
   max-width: 100%;
   min-height: 48px;
   display: flex;
@@ -2670,6 +2669,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 }
 .friend-row__identity small { display: none; color: var(--app-muted); font-size: 13px; line-height: 16px; }
 .friend-row__mutual {
+  flex: 0 0 auto;
   width: 44px;
   height: 44px;
   display: grid;
@@ -2677,7 +2677,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   color: #ffd900;
 }
 .friend-row__mutual svg { width: 25px; height: 25px; }
-.friend-row__actions { position: relative; }
+.friend-row__actions { position: relative; flex: 0 0 auto; }
 .friend-row__more {
   width: 48px;
   height: 48px;
@@ -3371,6 +3371,14 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   grid-row: 1;
   justify-self: end;
 }
+.modal--wish-editor .wish-editor__field--link > .wish-editor__link-hint {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.modal--wish-editor .wish-editor__link-hint svg { flex: 0 0 auto; }
 .modal--wish-editor .wish-editor__field--price {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 84px;
@@ -3467,6 +3475,19 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   flex-direction: column;
   gap: 2px;
 }
+.wish-editor__list-group + .wish-editor__list-group { margin-top: 14px; }
+.wish-editor__list-group-title {
+  margin: 0 0 4px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: color-mix(in oklch, var(--foreground) 44%, transparent);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+}
+.wish-editor__list-group-title svg { width: 15px; height: 15px; flex: 0 0 auto; }
 .modal--wish-editor .wish-editor__list-row {
   width: 100%;
   min-height: 58px;
@@ -3974,7 +3995,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .profile-cover__hero :is(a, button) { pointer-events: auto; }
 
-/* The wishes header is one shared row: logo on the left, sharing on the right.
+/* The wishes header is one shared row on a three-column grid: logo on the left,
+   space select strictly centered, sharing on the right.
    The owner's identity and list actions stay centered below it. */
 .app-layout--dark .wishes-page {
   --wishes-shell-inset: calc(42px + max(0px, (100vw - 1352px) / 2));
@@ -3985,16 +4007,18 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   min-height: 54px;
   margin-inline: calc(0px - var(--wishes-shell-inset));
   padding: 10px 42px 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
 }
+.app-layout--dark .wishes-page__topbar > .app-shell-logo { justify-self: start; }
 .app-layout--dark .wishes-page__topbar-share {
   width: 48px;
   height: 48px;
   min-height: 48px;
   flex: 0 0 auto;
+  justify-self: end;
   padding: 0;
   border-radius: var(--radius-pill);
 }
@@ -4220,4 +4244,62 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 @media (max-width: 560px) {
   .public-profile--list-layout.is-owner .profile-cover { min-height: 300px; }
 }
+}
+
+/* Space switcher: pill-shaped select for switching spaces (Товары / Места / События / Медиа).
+   The trigger sits in the center column of the wishes topbar, matching the 48px share button. */
+.app-layout--dark .space-select {
+  justify-self: center;
+  width: auto;
+  height: 48px;
+  padding: 0 14px 0 18px;
+  gap: 10px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.app-layout--dark .space-select:hover,
+.app-layout--dark .space-select[data-popup-open] {
+  background: transparent;
+}
+.app-layout--dark .space-select [data-slot="select-value"] {
+  flex: 0 1 auto;
+  gap: 8px;
+}
+.app-layout--dark .space-select [data-slot="select-value"] svg {
+  width: 17px;
+  height: 17px;
+}
+.app-layout--dark .space-select .space-select__label { white-space: nowrap; }
+.space-select__content {
+  min-width: 11rem;
+  padding: 8px;
+  border-radius: 16px;
+}
+.space-select__content [data-slot="select-item"] {
+  min-height: 48px;
+  padding: 8px 32px 8px 12px;
+  gap: 8px;
+  font-size: 16px;
+}
+.space-select__content [data-slot="select-item"] svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 640px) {
+  .app-layout--dark .space-select {
+    height: 42px;
+    padding: 0 10px 0 14px;
+    gap: 7px;
+    font-size: 13px;
+  }
+  .app-layout--dark .space-select [data-slot="select-value"] svg {
+    width: 15px;
+    height: 15px;
+  }
 }

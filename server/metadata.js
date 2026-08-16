@@ -265,6 +265,60 @@ export function resolveImageUrl(value, pageUrl) {
   }
 }
 
+const YANDEX_MAPS_HOSTS = new Set(["yandex.ru", "yandex.com", "yandex.kz", "yandex.by", "yandex.ua"]);
+const YANDEX_MAPS_SHORT_HOSTS = new Set(["ya.ru"]);
+
+export function isYandexMapsUrl(value) {
+  let url;
+  try {
+    url = value instanceof URL ? value : new URL(String(value));
+  } catch {
+    return false;
+  }
+  if (!["http:", "https:"].includes(url.protocol)) return false;
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const path = url.pathname.toLowerCase();
+  const isMapsPath = path === "/maps" || path.startsWith("/maps/");
+  if (!isMapsPath) return false;
+  return YANDEX_MAPS_HOSTS.has(host) || YANDEX_MAPS_SHORT_HOSTS.has(host);
+}
+
+function stripYandexMapsTitleSuffix(title) {
+  return String(title)
+    .replace(/\s*[—–-]\s*(?:яндекс\s+карты|yandex\s+maps)\s*$/iu, "")
+    .trim();
+}
+
+function yandexMapsFallbackTitle(pageUrl) {
+  try {
+    const text = new URL(pageUrl).searchParams.get("text");
+    return cleanText(text, 160);
+  } catch {
+    return "";
+  }
+}
+
+export function parseYandexMapsMetadata(source, pageUrl) {
+  const html = String(source ?? "");
+  const { meta } = collectHtmlData(html);
+
+  const title = cleanText(
+    stripYandexMapsTitleSuffix(metaValue(meta, "og:title", "twitter:title"))
+      || yandexMapsFallbackTitle(pageUrl),
+    160,
+  );
+  const description = cleanText(
+    metaValue(meta, "og:description", "twitter:description", "description"),
+    1_000,
+  );
+  const imageUrl = resolveImageUrl(
+    metaValue(meta, "og:image:secure_url", "og:image", "twitter:image", "twitter:image:src"),
+    pageUrl,
+  );
+
+  return { title, description, imageUrl, price: null, currency: "", kind: "place" };
+}
+
 export function parseProductMetadata(source, pageUrl) {
   const html = String(source ?? "");
   const { meta, microdata, scriptBodies } = collectHtmlData(html);
