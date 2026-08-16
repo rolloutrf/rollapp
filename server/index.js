@@ -11,7 +11,7 @@ import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
-import { parseProductMetadata } from "./metadata.js";
+import { parseProductMetadata, parseYandexMapsMetadata, isYandexMapsUrl } from "./metadata.js";
 import {
   createOtpCode,
   digestIp,
@@ -50,6 +50,8 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
+const listSpaceValues = ["products", "places", "events", "media", "food"];
+const listSpaceSchema = z.enum(listSpaceValues);
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
 }).strict();
@@ -178,8 +180,24 @@ function mapList(row) {
     occasionDate: row.occasion_date,
     color: row.color,
     shareToken: row.share_token,
+    space: row.space,
     wishCount: Number(row.wish_count || 0),
   };
+}
+
+function formatEventDate(value) {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) {
+    // node-pg парсит DATE как полночь в локальной таймзоне, pg-mem — как полночь в UTC.
+    // Выбираем компоненты даты без сдвига: UTC-полночь → UTC-компоненты, иначе локальные.
+    const isUtcMidnight = value.getUTCHours() === 0 && value.getUTCMinutes() === 0
+      && value.getUTCSeconds() === 0 && value.getUTCMilliseconds() === 0;
+    const year = isUtcMidnight ? value.getUTCFullYear() : value.getFullYear();
+    const month = (isUtcMidnight ? value.getUTCMonth() : value.getMonth()) + 1;
+    const day = isUtcMidnight ? value.getUTCDate() : value.getDate();
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  return String(value).slice(0, 10);
 }
 
 function mapWish(row) {
@@ -197,6 +215,7 @@ function mapWish(row) {
     allowMultiple: row.allow_multiple,
     status: row.status,
     sortOrder: Number(row.sort_order || 0),
+    eventDate: formatEventDate(row.event_date),
     createdAt: row.created_at,
     reservationCount: Number(row.reservation_count || 0),
     reservedByMe: Boolean(row.reserved_by_me),
@@ -833,15 +852,16 @@ app.post("/api/lists", requireAuth, asyncRoute(async (req, res) => {
     privacy: z.enum(["public", "followers", "link", "private"]).default("public"),
     occasionDate: z.string().date().nullable().optional(),
     color: z.enum(["coral", "blue", "lime", "sun", "ink"]).default("coral"),
+    space: listSpaceSchema.default("products"),
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Укажите название и настройки списка" });
   const id = randomUUID();
   const token = randomBytes(10).toString("base64url");
   const data = parsed.data;
   await query(
-    `INSERT INTO wishlists (id,user_id,title,description,privacy,occasion_date,color,share_token)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [id, req.user.id, data.title, data.description, data.privacy, data.occasionDate || null, data.color, token],
+    `INSERT INTO wishlists (id,user_id,title,description,privacy,occasion_date,color,share_token,space)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [id, req.user.id, data.title, data.description, data.privacy, data.occasionDate || null, data.color, token, data.space],
   );
   const result = await query("SELECT *,0 AS wish_count FROM wishlists WHERE id=$1", [id]);
   res.status(201).json({ list: mapList(result.rows[0]) });
@@ -854,6 +874,7 @@ app.patch("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
     privacy: z.enum(["public", "followers", "link", "private"]).optional(),
     occasionDate: z.string().date().nullable().optional(),
     color: z.enum(["coral", "blue", "lime", "sun", "ink"]).optional(),
+    space: listSpaceSchema.optional(),
   });
   const parsed = patchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте настройки списка" });
@@ -866,8 +887,8 @@ app.patch("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
     if (!owned.rowCount) return { status: 404, error: "Список не найден" };
     const current = owned.rows[0];
     await client.query(
-      `UPDATE wishlists SET title=$1,description=$2,privacy=$3,occasion_date=$4,color=$5 WHERE id=$6`,
-      [data.title ?? current.title, data.description ?? current.description, data.privacy ?? current.privacy, data.occasionDate === undefined ? current.occasion_date : data.occasionDate, data.color ?? current.color, current.id],
+      `UPDATE wishlists SET title=$1,description=$2,privacy=$3,occasion_date=$4,color=$5,space=$6 WHERE id=$7`,
+      [data.title ?? current.title, data.description ?? current.description, data.privacy ?? current.privacy, data.occasionDate === undefined ? current.occasion_date : data.occasionDate, data.color ?? current.color, data.space ?? current.space, current.id],
     );
     return { status: 200, id: current.id };
   }));
@@ -938,6 +959,7 @@ const wishSchema = z.object({
   priority: z.coerce.number().int().min(1).max(3).default(2),
   privacy: z.enum(["inherit", "private"]).default("inherit"),
   allowMultiple: z.boolean().default(false),
+  eventDate: z.string().date().nullable().default(null),
   listIds: listIdsSchema,
 });
 
@@ -951,9 +973,9 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const id = randomUUID();
   await transaction(async (client) => {
     await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority,privacy,allow_multiple)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple],
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority,privacy,allow_multiple,event_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate],
     );
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
   });
@@ -980,6 +1002,7 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       priority: req.body.priority ?? current.priority,
       privacy: req.body.privacy ?? current.privacy,
       allowMultiple: req.body.allowMultiple ?? current.allow_multiple,
+      eventDate: req.body.eventDate === undefined ? formatEventDate(current.event_date) : req.body.eventDate,
       listIds: req.body.listIds ?? currentLinks.rows.map((row) => row.wishlist_id),
     };
     const parsed = wishSchema.safeParse(merged);
@@ -991,8 +1014,8 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       return { status: 403, error: "Список вам не принадлежит" };
     }
     await client.query(
-      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,price=$5,currency=$6,priority=$7,privacy=$8,allow_multiple=$9 WHERE id=$10`,
-      [data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, current.id],
+      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,price=$5,currency=$6,priority=$7,privacy=$8,allow_multiple=$9,event_date=$10 WHERE id=$11`,
+      [data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, current.id],
     );
     const reservations = await client.query(
       "SELECT id FROM reservations WHERE wish_id=$1 ORDER BY created_at,id",
@@ -1114,7 +1137,9 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
 
   try {
     const { html, url } = await fetchPublicHtml(cacheUrl);
-    const value = parseProductMetadata(html, url);
+    const value = isYandexMapsUrl(url)
+      ? parseYandexMapsMetadata(html, url)
+      : parseProductMetadata(html, url);
     if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
     metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
     res.json(value);

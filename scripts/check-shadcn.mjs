@@ -397,7 +397,7 @@ assert(!/viewportClassName=|showCloseButton=|ariaLabel=/.test(profileSettingsSou
 assert(!/modal-(?:backdrop|heading|actions)|data-modal-initial-focus|settings-editor/.test(profileSettingsSource), "ProfileSettingsModal must not restore legacy modal hooks");
 const profileDrawerTag = profileSettingsSource.match(/<Drawer\b[^>]*>/)?.[0] || "";
 assert(profileDrawerTag.includes("open") && profileDrawerTag.includes("onOpenChange="), "ProfileSettingsModal must keep the native Drawer controlled");
-assert(profileDrawerTag.includes('swipeDirection="right"'), "ProfileSettingsModal must stay a right-side drawer");
+assert(profileDrawerTag.includes('swipeDirection={isMobile ? "down" : "right"}'), "ProfileSettingsModal must stay a right-side drawer on desktop and a bottom sheet on mobile");
 assert(profileDrawerTag.includes("showSwipeHandle"), "ProfileSettingsModal drawer must show the swipe handle");
 assert(/finalFocus=\{finalFocus\}/.test(profileSettingsSource), "ProfileSettingsModal must restore focus to its opener");
 assert(/<DrawerTitle>Изменить профиль<\/DrawerTitle>/.test(profileSettingsSource), "ProfileSettingsModal must expose its visible title through DrawerTitle");
@@ -504,7 +504,7 @@ assert((primaryWishDetailsDialog.match(/\bmax-w-md\b/g) || []).length === 6, "Wi
 assert(!/max-w-\[35rem\]/.test(primaryWishDetailsDialog), "WishDetailsModal must not restore the oversized 560px content rail");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|auto-rows-max|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(primaryWishDetailsContentTag), "WishDetailsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
 const wishDetailsDrawerTag = primaryWishDetailsDialog.match(/<Drawer\b[^>]*>/)?.[0] || "";
-assert(wishDetailsDrawerTag.includes('swipeDirection="right"'), "WishDetailsModal must stay a right-side drawer");
+assert(wishDetailsDrawerTag.includes('swipeDirection="right"') || wishDetailsDrawerTag.includes('swipeDirection={isMobile ? "down" : "right"}'), "WishDetailsModal must stay a right-side drawer");
 assert(wishDetailsDrawerTag.includes("showSwipeHandle"), "WishDetailsModal drawer must show the swipe handle");
 const wishMediaTag = primaryWishDetailsDialog.match(/<Card\b[^>]*data-slot="wish-media"[^>]*>/)?.[0] || "";
 const wishMediaImageTag = primaryWishDetailsDialog.match(/<img\b[^>]*className="[^"]*"[^>]*>/)?.[0] || "";

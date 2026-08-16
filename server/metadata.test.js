@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   decodeHtmlEntities,
+  isYandexMapsUrl,
   normalizeCurrency,
   normalizePrice,
   parseProductMetadata,
+  parseYandexMapsMetadata,
   resolveImageUrl,
 } from "./metadata.js";
 
@@ -122,6 +124,89 @@ test("supports Twitter cards with labeled prices", () => {
   assert.equal(result.imageUrl, "https://cdn.example/blanket.jpg");
   assert.equal(result.price, 149);
   assert.equal(result.currency, "BYN");
+});
+
+test("detects Yandex Maps urls across domains and short links", () => {
+  const valid = [
+    "https://yandex.ru/maps/213/moscow/?ll=37.6%2C55.7&z=10",
+    "https://yandex.ru/maps/-/CCQazZZZZZ",
+    "https://www.yandex.ru/maps/org/kofeynya/123456789/",
+    "https://yandex.com/maps/what/some-place",
+    "https://yandex.kz/maps/-/abc",
+    "https://yandex.by/maps/",
+    "https://yandex.ua/maps?text=%D0%BA%D0%BE%D1%84%D0%B5%D0%B9%D0%BD%D1%8F",
+    "https://ya.ru/maps/-/short",
+    "http://yandex.ru/maps",
+  ];
+  for (const url of valid) {
+    assert.equal(isYandexMapsUrl(url), true, url);
+  }
+
+  const invalid = [
+    "https://yandex.ru/search/?text=test",
+    "https://yandex.ru/",
+    "https://yandex.com/images",
+    "https://maps.yandex.ru/",
+    "https://yandex.ru.evil.example/maps/",
+    "https://fakeyandex.ru/maps/",
+    "https://ya.ru/",
+    "https://ya.ru/nearby",
+    "ftp://yandex.ru/maps/",
+    "not a url",
+    "",
+  ];
+  for (const url of invalid) {
+    assert.equal(isYandexMapsUrl(url), false, url);
+  }
+});
+
+test("parses Yandex Maps place metadata from Open Graph tags", () => {
+  const html = `
+    <html>
+      <head>
+        <meta property="og:title" content="Кофейня &laquo;Зерно&raquo; &mdash; Яндекс&nbsp;Карты">
+        <meta property="og:description" content="Москва, улица Примерная, 10 &#8226; 4,8 (256 оценок)">
+        <meta property="og:image" content="https://avatars.mds.yandex.net/get-altay/123/2a000001/orig">
+        <meta property="product:price:amount" content="500">
+      </head>
+    </html>`;
+
+  assert.deepEqual(parseYandexMapsMetadata(html, "https://yandex.ru/maps/org/zerno/123/"), {
+    title: "Кофейня «Зерно»",
+    description: "Москва, улица Примерная, 10 • 4,8 (256 оценок)",
+    imageUrl: "https://avatars.mds.yandex.net/get-altay/123/2a000001/orig",
+    price: null,
+    currency: "",
+    kind: "place",
+  });
+});
+
+test("strips the latin Yandex Maps suffix and resolves relative images", () => {
+  const html = `
+    <meta property="og:title" content="Coffee Spot - Yandex Maps">
+    <meta property="og:image" content="/static/preview.png">`;
+
+  const result = parseYandexMapsMetadata(html, "https://yandex.com/maps/-/abcdef");
+  assert.equal(result.title, "Coffee Spot");
+  assert.equal(result.imageUrl, "https://yandex.com/static/preview.png");
+  assert.equal(result.price, null);
+  assert.equal(result.kind, "place");
+});
+
+test("falls back to the text query parameter when og:title is empty", () => {
+  const html = `
+    <meta property="og:description" content="Адрес и рейтинг места">`;
+
+  const result = parseYandexMapsMetadata(
+    html,
+    "https://yandex.ru/maps/?text=%D0%9A%D0%BE%D1%84%D0%B5%D0%B9%D0%BD%D1%8F%20%D0%97%D0%B5%D1%80%D0%BD%D0%BE",
+  );
+  assert.equal(result.title, "Кофейня Зерно");
+  assert.equal(result.description, "Адрес и рейтинг места");
+  assert.equal(result.imageUrl, "");
+  assert.equal(result.price, null);
+  assert.equal(result.currency, "");
+  assert.equal(result.kind, "place");
 });
 
 test("normalizes prices, currencies, entities, and safe image URLs", () => {
