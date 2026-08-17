@@ -51,7 +51,7 @@ async function login(email) {
   return response.headers.get("set-cookie").split(";", 1)[0];
 }
 
-test("wish eventDate: create, read, patch, reset and validation", async (t) => {
+test("wish fundraisingUrl: create, read, patch and validation", async (t) => {
   const child = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
     env: { ...process.env, NODE_ENV: "test", DEMO_MODE: "true", DATABASE_URL: "", PGHOST: "", PORT: String(port) },
@@ -62,61 +62,60 @@ test("wish eventDate: create, read, patch, reset and validation", async (t) => {
 
   const ownerCookie = await login("demo@rollapp.test");
 
-  // Желания обязаны быть привязаны к списку — создаём его заранее
-  const listResponse = await post("/lists", { title: "Список для событий" }, ownerCookie);
+  const listResponse = await post("/lists", { title: "Список со сборами" }, ownerCookie);
   assert.equal(listResponse.status, 201);
   const listId = (await listResponse.json()).list.id;
 
-  // Создание с eventDate → значение возвращается строкой YYYY-MM-DD
-  const createResponse = await post("/wishes", { title: "Подарок к событию", eventDate: "2026-12-31", listIds: [listId] }, ownerCookie);
+  // Создание с fundraisingUrl → значение возвращается как есть
+  const createResponse = await post("/wishes", { title: "Подарок со сбором", fundraisingUrl: "https://example.com/fund/123", listIds: [listId] }, ownerCookie);
   assert.equal(createResponse.status, 201);
   const created = (await createResponse.json()).wish;
-  assert.equal(created.eventDate, "2026-12-31");
+  assert.equal(created.fundraisingUrl, "https://example.com/fund/123");
 
-  // Создание без eventDate → null
-  const noDateResponse = await post("/wishes", { title: "Без даты", listIds: [listId] }, ownerCookie);
-  assert.equal(noDateResponse.status, 201);
-  assert.equal((await noDateResponse.json()).wish.eventDate, null);
+  // Создание без fundraisingUrl → пустая строка по умолчанию
+  const noUrlResponse = await post("/wishes", { title: "Без сбора", listIds: [listId] }, ownerCookie);
+  assert.equal(noUrlResponse.status, 201);
+  assert.equal((await noUrlResponse.json()).wish.fundraisingUrl, "");
 
-  // Создание с явным null → null
-  const nullDateResponse = await post("/wishes", { title: "Явный null", eventDate: null, listIds: [listId] }, ownerCookie);
-  assert.equal(nullDateResponse.status, 201);
-  assert.equal((await nullDateResponse.json()).wish.eventDate, null);
+  // Создание с пустой строкой → пустая строка
+  const emptyUrlResponse = await post("/wishes", { title: "Пустая строка", fundraisingUrl: "", listIds: [listId] }, ownerCookie);
+  assert.equal(emptyUrlResponse.status, 201);
+  assert.equal((await emptyUrlResponse.json()).wish.fundraisingUrl, "");
 
-  // Невалидные форматы → 400
-  for (const bad of ["31.12.2026", "2026-13-01", "2026-02-29", "2026-12-31T00:00:00Z", "soon"]) {
-    const response = await post("/wishes", { title: "Невалидная дата", eventDate: bad, listIds: [listId] }, ownerCookie);
-    assert.equal(response.status, 400, `eventDate=${bad} должен отклоняться`);
+  // Невалидные значения → 400
+  for (const bad of ["not-a-url", "example.com/fund", `https://example.com/${"a".repeat(2_000)}`]) {
+    const response = await post("/wishes", { title: "Невалидная ссылка", fundraisingUrl: bad, listIds: [listId] }, ownerCookie);
+    assert.equal(response.status, 400, `fundraisingUrl=${bad.slice(0, 40)} должен отклоняться`);
     await response.json();
   }
 
-  // eventDate присутствует в ответе dashboard
+  // fundraisingUrl присутствует в ответе dashboard
   const dashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: ownerCookie } });
   assert.equal(dashboardResponse.status, 200);
   const dashboard = await dashboardResponse.json();
   const inDashboard = dashboard.wishes.find((wish) => wish.id === created.id);
   assert.ok(inDashboard);
-  assert.equal(inDashboard.eventDate, "2026-12-31");
+  assert.equal(inDashboard.fundraisingUrl, "https://example.com/fund/123");
 
-  // PATCH с новой датой
-  const patchDateResponse = await patch(`/wishes/${created.id}`, { eventDate: "2027-01-15" }, ownerCookie);
-  assert.equal(patchDateResponse.status, 200);
-  assert.equal((await patchDateResponse.json()).wish.eventDate, "2027-01-15");
+  // PATCH с новой ссылкой
+  const patchUrlResponse = await patch(`/wishes/${created.id}`, { fundraisingUrl: "https://boosty.to/gift" }, ownerCookie);
+  assert.equal(patchUrlResponse.status, 200);
+  assert.equal((await patchUrlResponse.json()).wish.fundraisingUrl, "https://boosty.to/gift");
 
-  // PATCH без eventDate не должен сбрасывать значение
+  // PATCH без fundraisingUrl не должен сбрасывать значение
   const patchTitleResponse = await patch(`/wishes/${created.id}`, { title: "Переименованный" }, ownerCookie);
   assert.equal(patchTitleResponse.status, 200);
   const patched = (await patchTitleResponse.json()).wish;
   assert.equal(patched.title, "Переименованный");
-  assert.equal(patched.eventDate, "2027-01-15");
+  assert.equal(patched.fundraisingUrl, "https://boosty.to/gift");
 
-  // PATCH с null сбрасывает дату
-  const resetResponse = await patch(`/wishes/${created.id}`, { eventDate: null }, ownerCookie);
-  assert.equal(resetResponse.status, 200);
-  assert.equal((await resetResponse.json()).wish.eventDate, null);
+  // PATCH с пустой строкой очищает ссылку
+  const clearResponse = await patch(`/wishes/${created.id}`, { fundraisingUrl: "" }, ownerCookie);
+  assert.equal(clearResponse.status, 200);
+  assert.equal((await clearResponse.json()).wish.fundraisingUrl, "");
 
-  // PATCH с невалидным форматом → 400
-  const invalidPatchResponse = await patch(`/wishes/${created.id}`, { eventDate: "15.01.2027" }, ownerCookie);
+  // PATCH с невалидной ссылкой → 400
+  const invalidPatchResponse = await patch(`/wishes/${created.id}`, { fundraisingUrl: "просто текст" }, ownerCookie);
   assert.equal(invalidPatchResponse.status, 400);
   await invalidPatchResponse.json();
 });

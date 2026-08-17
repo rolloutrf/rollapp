@@ -88,6 +88,8 @@ const schema = `
 
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS event_date DATE;
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS space TEXT;
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS fundraising_url TEXT NOT NULL DEFAULT '';
 
   CREATE TABLE IF NOT EXISTS wish_images (
     id TEXT PRIMARY KEY,
@@ -140,6 +142,15 @@ const schema = `
   UPDATE reservations
   SET status='multiple'
   WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);
+  UPDATE wishes
+  SET space = src.space
+  FROM (
+    SELECT DISTINCT ON (ww.wish_id) ww.wish_id, l.space
+    FROM wishlist_wishes ww
+    JOIN wishlists l ON l.id = ww.wishlist_id
+    ORDER BY ww.wish_id, l.created_at, l.id
+  ) src
+  WHERE wishes.id = src.wish_id AND wishes.space IS NULL;
 `;
 
 const koloskofWishOrder = [

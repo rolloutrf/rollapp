@@ -298,18 +298,53 @@ function yandexMapsFallbackTitle(pageUrl) {
   }
 }
 
+// Yandex Maps SPA shell always serves the same generic og:title; such a title
+// carries no information about the actual place and must be ignored.
+function yandexMapsPlaceTitle(value) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  if (/^(?:яндекс\s+карты|yandex\s+maps)(?:\s*[—–-]|$)/iu.test(raw)) return "";
+  const stripped = stripYandexMapsTitleSuffix(raw);
+  if (!stripped) return "";
+  if (/транспорт,?\s*навигация|transport,?\s*navigation/i.test(stripped)) return "";
+  return cleanText(stripped, 160);
+}
+
+// The generic og:description of the maps shell ("Карты помогут найти нужное
+// место…" and its English equivalent) is advertising copy, not a place summary.
+function yandexMapsPlaceDescription(value) {
+  const text = cleanText(value, 1_000);
+  if (!text) return "";
+  if (/карты помогут найти|yandex\s+maps\s+will\s+help/i.test(text)) return "";
+  return text;
+}
+
+// Organization links embed a readable slug: /maps/org/peterburg_bagel_company/153670098251/
+function yandexMapsOrgSlugTitle(pageUrl) {
+  try {
+    const match = /\/org\/([^/]+)\/\d+(?:\/|$)/i.exec(new URL(pageUrl).pathname);
+    if (!match) return "";
+    const decoded = decodeURIComponent(match[1]);
+    const words = decoded.replace(/[_\-+]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!words) return "";
+    return cleanText(
+      words.split(" ").map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word)).join(" "),
+      160,
+    );
+  } catch {
+    return "";
+  }
+}
+
 export function parseYandexMapsMetadata(source, pageUrl) {
   const html = String(source ?? "");
   const { meta } = collectHtmlData(html);
 
-  const title = cleanText(
-    stripYandexMapsTitleSuffix(metaValue(meta, "og:title", "twitter:title"))
-      || yandexMapsFallbackTitle(pageUrl),
-    160,
-  );
-  const description = cleanText(
+  const title = yandexMapsPlaceTitle(metaValue(meta, "og:title", "twitter:title"))
+    || yandexMapsFallbackTitle(pageUrl)
+    || yandexMapsOrgSlugTitle(pageUrl);
+  const description = yandexMapsPlaceDescription(
     metaValue(meta, "og:description", "twitter:description", "description"),
-    1_000,
   );
   const imageUrl = resolveImageUrl(
     metaValue(meta, "og:image:secure_url", "og:image", "twitter:image", "twitter:image:src"),
@@ -317,6 +352,69 @@ export function parseYandexMapsMetadata(source, pageUrl) {
   );
 
   return { title, description, imageUrl, price: null, currency: "", kind: "place" };
+}
+
+const YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com",
+  "youtube-nocookie.com",
+  "www.youtube-nocookie.com",
+  "m.youtube-nocookie.com",
+  "music.youtube-nocookie.com",
+]);
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const YOUTUBE_ID_PATHS = new Set(["shorts", "embed", "live", "v"]);
+
+export function parseYouTubeVideoId(value) {
+  let url;
+  try {
+    url = value instanceof URL ? value : new URL(String(value));
+  } catch {
+    return "";
+  }
+  if (!["http:", "https:"].includes(url.protocol)) return "";
+
+  const host = url.hostname.toLowerCase();
+  let candidate = "";
+  if (host === "youtu.be") {
+    candidate = url.pathname.split("/").filter(Boolean)[0] || "";
+  } else if (YOUTUBE_HOSTS.has(host)) {
+    const segments = url.pathname.split("/").filter(Boolean);
+    const section = (segments[0] || "").toLowerCase();
+    if (section === "watch") {
+      candidate = url.searchParams.get("v") || "";
+    } else if (YOUTUBE_ID_PATHS.has(section)) {
+      candidate = segments[1] || "";
+    }
+  } else {
+    return "";
+  }
+  return YOUTUBE_VIDEO_ID_PATTERN.test(candidate) ? candidate : "";
+}
+
+export function isYouTubeUrl(value) {
+  return Boolean(parseYouTubeVideoId(value));
+}
+
+export function youtubeThumbnailUrl(id) {
+  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+}
+
+export function parseYouTubeMetadata(oembed, pageUrl) {
+  const source = oembed && typeof oembed === "object" ? oembed : {};
+  const videoId = parseYouTubeVideoId(pageUrl);
+  const imageUrl = resolveImageUrl(source.thumbnail_url ?? "", pageUrl)
+    || (videoId ? youtubeThumbnailUrl(videoId) : "");
+  return {
+    title: cleanText(source.title, 160),
+    description: cleanText(source.author_name, 160),
+    imageUrl,
+    price: null,
+    currency: "",
+    kind: "video",
+  };
 }
 
 export function parseProductMetadata(source, pageUrl) {

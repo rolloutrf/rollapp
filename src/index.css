@@ -250,6 +250,14 @@
     height: 1.25rem;
   }
 
+  /* Row focus/hover cascade (focus:**:text-accent-foreground) must not
+     recolor the decorative checked checkbox in the list picker. */
+  .card-menu__list-row:focus [data-slot="checkbox"][data-checked],
+  .card-menu__list-row:focus [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"],
+  .card-menu__list-row:focus [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"] svg {
+    color: var(--primary-foreground);
+  }
+
   [data-slot="radio-group-item"],
   [data-slot="radio-group-indicator"] {
     width: 1.5rem;

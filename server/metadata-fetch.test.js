@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   MetadataFetchError,
   fetchPublicHtml,
+  fetchPublicJson,
   isPublicIpAddress,
   parsePublicHttpUrl,
   resolvePublicHost,
@@ -161,4 +162,85 @@ test("HTML without a content type is sniffed and legacy encodings are decoded", 
   });
 
   assert.match(result.html, /<title>Подарок<\/title>/);
+});
+
+test("fetchPublicJson parses a valid JSON response with charset parameters", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+  const requested = [];
+  const request = async (url) => {
+    requested.push(url.href);
+    return {
+      statusCode: 200,
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: Buffer.from('{"title":"Video","author_name":"Author"}'),
+    };
+  };
+
+  const result = await fetchPublicJson("https://www.youtube.com/oembed?url=x&format=json", { lookup, request });
+  assert.deepEqual(result.json, { title: "Video", author_name: "Author" });
+  assert.deepEqual(requested, ["https://www.youtube.com/oembed?url=x&format=json"]);
+  assert.equal(result.url.href, "https://www.youtube.com/oembed?url=x&format=json");
+});
+
+test("fetchPublicJson rejects non-JSON content types", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  await assert.rejects(
+    fetchPublicJson("https://api.example/data", {
+      lookup,
+      request: async () => ({
+        statusCode: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+        body: Buffer.from("<html><title>Not JSON</title></html>"),
+      }),
+    }),
+    (error) => error instanceof MetadataFetchError && error.code === "not_json",
+  );
+});
+
+test("fetchPublicJson rejects malformed JSON bodies", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  await assert.rejects(
+    fetchPublicJson("https://api.example/data", {
+      lookup,
+      request: async () => ({
+        statusCode: 200,
+        headers: { "content-type": "application/json" },
+        body: Buffer.from("{not valid json"),
+      }),
+    }),
+    (error) => error instanceof MetadataFetchError && error.code === "invalid_json",
+  );
+});
+
+test("fetchPublicJson keeps the SSRF pipeline: unsafe redirect targets are rejected", async () => {
+  const requested = [];
+  const request = async (url) => {
+    requested.push(url.href);
+    return {
+      statusCode: 302,
+      headers: { location: "http://169.254.169.254/latest/meta-data/" },
+      body: Buffer.alloc(0),
+    };
+  };
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  await assert.rejects(
+    fetchPublicJson("https://api.example/data", { lookup, request }),
+    (error) => error instanceof MetadataFetchError && error.code === "unsafe_address",
+  );
+  assert.deepEqual(requested, ["https://api.example/data"]);
+});
+
+test("fetchPublicJson rejects unsuccessful upstream responses", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  await assert.rejects(
+    fetchPublicJson("https://api.example/missing", {
+      lookup,
+      request: async () => ({ statusCode: 404, headers: {}, body: Buffer.from("missing") }),
+    }),
+    (error) => error instanceof MetadataFetchError && error.code === "upstream_status",
+  );
 });

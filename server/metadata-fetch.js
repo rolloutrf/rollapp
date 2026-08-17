@@ -282,7 +282,7 @@ function decodeHtmlBody(body, contentType) {
   }
 }
 
-export async function fetchPublicHtml(input, {
+async function fetchPublicResource(input, {
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxBytes = DEFAULT_MAX_BYTES,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
@@ -335,19 +335,48 @@ export async function fetchPublicHtml(input, {
         });
       }
 
-      const contentType = String(response.headers["content-type"] || "").toLowerCase();
-      const looksLikeHtml = /^\s*(?:<!doctype\s+html|<html|<head|<meta|<script)/i.test(response.body.subarray(0, 4_096).toString("latin1"));
-      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !(contentType === "" && looksLikeHtml)) {
-        throw new MetadataFetchError("По ссылке нет страницы товара", {
-          code: "not_html",
-        });
-      }
-
-      return { html: decodeHtmlBody(response.body, contentType), url, truncated: Boolean(response.truncated) };
+      return { response, url };
     }
 
     throw new MetadataFetchError("Слишком много перенаправлений", { code: "too_many_redirects" });
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function fetchPublicHtml(input, options = {}) {
+  const { response, url } = await fetchPublicResource(input, options);
+
+  const contentType = String(response.headers["content-type"] || "").toLowerCase();
+  const looksLikeHtml = /^\s*(?:<!doctype\s+html|<html|<head|<meta|<script)/i.test(response.body.subarray(0, 4_096).toString("latin1"));
+  if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml") && !(contentType === "" && looksLikeHtml)) {
+    throw new MetadataFetchError("По ссылке нет страницы товара", {
+      code: "not_html",
+    });
+  }
+
+  return { html: decodeHtmlBody(response.body, contentType), url, truncated: Boolean(response.truncated) };
+}
+
+export async function fetchPublicJson(input, options = {}) {
+  const { response, url } = await fetchPublicResource(input, options);
+
+  const contentType = String(response.headers["content-type"] || "").toLowerCase();
+  if (!/^\s*application\/json(?:\s*;|\s*$)/.test(contentType)) {
+    throw new MetadataFetchError("По ссылке нет JSON-данных", {
+      code: "not_json",
+    });
+  }
+
+  let json;
+  try {
+    json = JSON.parse(response.body.toString("utf8"));
+  } catch (error) {
+    throw new MetadataFetchError("Сервис вернул некорректный JSON", {
+      code: "invalid_json",
+      cause: error,
+    });
+  }
+
+  return { json, url, truncated: Boolean(response.truncated) };
 }
