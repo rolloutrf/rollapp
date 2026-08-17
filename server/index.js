@@ -10,8 +10,16 @@ import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
-import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
-import { parseProductMetadata, parseYandexMapsMetadata, isYandexMapsUrl } from "./metadata.js";
+import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
+import {
+  isYandexMapsUrl,
+  isYouTubeUrl,
+  parseProductMetadata,
+  parseYandexMapsMetadata,
+  parseYouTubeMetadata,
+  parseYouTubeVideoId,
+  youtubeThumbnailUrl,
+} from "./metadata.js";
 import {
   createOtpCode,
   digestIp,
@@ -50,7 +58,7 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
-const listSpaceValues = ["products", "places", "events", "media", "food"];
+const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const listSpaceSchema = z.enum(listSpaceValues);
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
@@ -208,6 +216,7 @@ function mapWish(row) {
     description: row.description,
     url: row.url,
     imageUrl: row.image_url,
+    fundraisingUrl: row.fundraising_url ?? "",
     price: row.price === null ? null : Number(row.price),
     currency: row.currency,
     priority: Number(row.priority),
@@ -216,6 +225,7 @@ function mapWish(row) {
     status: row.status,
     sortOrder: Number(row.sort_order || 0),
     eventDate: formatEventDate(row.event_date),
+    space: row.space ?? null,
     createdAt: row.created_at,
     reservationCount: Number(row.reservation_count || 0),
     reservedByMe: Boolean(row.reserved_by_me),
@@ -944,28 +954,45 @@ app.delete("/api/lists/:id", requireAuth, asyncRoute(async (req, res) => {
   res.json({ ok: true, reassignedCount: outcome.reassignedCount, fallbackListId: outcome.fallbackListId });
 }));
 
+const uniqueListIds = (listIds) => new Set(listIds).size === listIds.length;
+
 const listIdsSchema = z.array(z.string()).refine(
-  (listIds) => new Set(listIds).size === listIds.length,
+  uniqueListIds,
   { message: "Список нельзя выбрать дважды" },
 );
 
-const wishSchema = z.object({
+// Желание теперь может существовать без списка: пространство задаёт
+// собственное поле space желания, поэтому пустой listIds разрешён и при создании.
+const createListIdsSchema = listIdsSchema;
+
+const wishFieldsSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(1000).default(""),
   url: z.string().url().max(2000).or(z.literal("")).default(""),
   imageUrl: z.string().url().max(2000).or(localImageUrlSchema).or(z.literal("")).default(""),
+  fundraisingUrl: z.string().url().max(2000).or(z.literal("")).default(""),
   price: z.coerce.number().min(0).max(999999999).nullable().optional(),
   currency: z.enum(["RUB", "USD", "EUR", "KZT", "BYN"]).default("RUB"),
   priority: z.coerce.number().int().min(1).max(3).default(2),
   privacy: z.enum(["inherit", "private"]).default("inherit"),
   allowMultiple: z.boolean().default(false),
   eventDate: z.string().date().nullable().default(null),
-  listIds: listIdsSchema,
+  space: listSpaceSchema.nullable().optional(),
 });
+
+// Создание: пустой listIds разрешён — желание живёт в своём пространстве (space).
+const wishSchema = wishFieldsSchema.extend({ listIds: createListIdsSchema });
+
+// Патч: listIds: [] по-прежнему разрешён для намеренной отвязки желания от списков.
+const wishPatchSchema = wishFieldsSchema.extend({ listIds: listIdsSchema });
 
 app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const parsed = wishSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Добавьте название и проверьте данные желания" });
+  if (!parsed.success) {
+    const listIdsIssue = parsed.error.issues.find((issue) => issue.path[0] === "listIds");
+    if (listIdsIssue) return res.status(400).json({ error: listIdsIssue.message });
+    return res.status(400).json({ error: "Добавьте название и проверьте данные желания" });
+  }
   const data = parsed.data;
   const ownedLists = await query("SELECT id FROM wishlists WHERE user_id=$1", [req.user.id]);
   const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
@@ -973,9 +1000,9 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const id = randomUUID();
   await transaction(async (client) => {
     await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority,privacy,allow_multiple,event_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate],
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,price,currency,priority,privacy,allow_multiple,event_date,space)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null],
     );
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
   });
@@ -997,15 +1024,17 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       description: req.body.description ?? current.description,
       url: req.body.url ?? current.url,
       imageUrl: req.body.imageUrl ?? current.image_url,
+      fundraisingUrl: req.body.fundraisingUrl ?? current.fundraising_url,
       price: req.body.price === undefined ? current.price : req.body.price,
       currency: req.body.currency ?? current.currency,
       priority: req.body.priority ?? current.priority,
       privacy: req.body.privacy ?? current.privacy,
       allowMultiple: req.body.allowMultiple ?? current.allow_multiple,
       eventDate: req.body.eventDate === undefined ? formatEventDate(current.event_date) : req.body.eventDate,
+      space: req.body.space === undefined ? current.space : req.body.space,
       listIds: req.body.listIds ?? currentLinks.rows.map((row) => row.wishlist_id),
     };
-    const parsed = wishSchema.safeParse(merged);
+    const parsed = wishPatchSchema.safeParse(merged);
     if (!parsed.success) return { status: 400, error: "Проверьте данные желания" };
     const data = parsed.data;
     const ownedLists = await client.query("SELECT id FROM wishlists WHERE user_id=$1", [req.user.id]);
@@ -1014,8 +1043,8 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       return { status: 403, error: "Список вам не принадлежит" };
     }
     await client.query(
-      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,price=$5,currency=$6,priority=$7,privacy=$8,allow_multiple=$9,event_date=$10 WHERE id=$11`,
-      [data.title, data.description, data.url, data.imageUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, current.id],
+      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,fundraising_url=$5,price=$6,currency=$7,priority=$8,privacy=$9,allow_multiple=$10,event_date=$11,space=$12 WHERE id=$13`,
+      [data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null, current.id],
     );
     const reservations = await client.query(
       "SELECT id FROM reservations WHERE wish_id=$1 ORDER BY created_at,id",
@@ -1115,9 +1144,9 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
   const id = randomUUID();
   await transaction(async (client) => {
     await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,price,currency,priority,privacy,allow_multiple)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'inherit',FALSE)`,
-      [id, req.user.id, source.title, source.description, source.url, source.image_url, source.price, source.currency, source.priority],
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,price,currency,priority,privacy,allow_multiple)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'inherit',FALSE)`,
+      [id, req.user.id, source.title, source.description, source.url, source.image_url, source.fundraising_url, source.price, source.currency, source.priority],
     );
     await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [target.rows[0].id, id]);
   });
@@ -1136,10 +1165,31 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
   if (cached) metadataCache.delete(cacheKey);
 
   try {
-    const { html, url } = await fetchPublicHtml(cacheUrl);
-    const value = isYandexMapsUrl(url)
-      ? parseYandexMapsMetadata(html, url)
-      : parseProductMetadata(html, url);
+    let value;
+    if (isYouTubeUrl(cacheUrl)) {
+      // YouTube watch pages are heavy and often hide og:image; the oEmbed
+      // endpoint is the reliable source. On any failure we still return the
+      // deterministic thumbnail so the wish preview always gets an image.
+      try {
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cacheUrl.href)}&format=json`;
+        const { json } = await fetchPublicJson(oembedUrl);
+        value = parseYouTubeMetadata(json, cacheUrl);
+      } catch {
+        value = {
+          title: "",
+          description: "",
+          imageUrl: youtubeThumbnailUrl(parseYouTubeVideoId(cacheUrl)),
+          price: null,
+          currency: "",
+          kind: "video",
+        };
+      }
+    } else {
+      const { html, url } = await fetchPublicHtml(cacheUrl);
+      value = isYandexMapsUrl(url)
+        ? parseYandexMapsMetadata(html, url)
+        : parseProductMetadata(html, url);
+    }
     if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
     metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
     res.json(value);

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, CalendarDays, Check, CheckCircle2, ChevronDown,
+  Archive, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
   CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   RotateCcw, Search, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
@@ -71,11 +71,30 @@ const isYandexMapsUrl = (value) => {
     return parsed.pathname.startsWith("/maps");
   } catch { return false; }
 };
+const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "youtube-nocookie.com"];
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
+const isYouTubeUrl = (value) => {
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase().replace(/^(www\.|m\.|music\.)/, "");
+    if (!YOUTUBE_HOSTS.includes(host)) return false;
+    if (host === "youtu.be") {
+      const id = parsed.pathname.split("/")[1] || "";
+      return YOUTUBE_VIDEO_ID_PATTERN.test(id);
+    }
+    if (parsed.pathname === "/watch") {
+      return YOUTUBE_VIDEO_ID_PATTERN.test(parsed.searchParams.get("v") || "");
+    }
+    return /^\/(shorts|embed|live|v)\/[A-Za-z0-9_-]{11}(?:[/?]|$)/.test(parsed.pathname);
+  } catch { return false; }
+};
 const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 const wishFormFrom = (wish) => ({
   title: wish?.title || "",
   description: wish?.description || "",
   url: wish?.url || "",
+  fundraisingUrl: wish?.fundraisingUrl || "",
   imageUrl: wish?.imageUrl || "",
   price: wish?.price == null ? "" : String(wish.price),
   currency: WISH_CURRENCIES.includes(wish?.currency) ? wish.currency : "RUB",
@@ -121,6 +140,7 @@ const SPACES = [
   { id: "events", label: "События", icon: CalendarDays },
   { id: "media", label: "Медиа", icon: Clapperboard },
   { id: "food", label: "Еда", icon: UtensilsCrossed },
+  { id: "transport", label: "Транспорт", icon: Car },
 ];
 const SPACE_IDS = SPACES.map((space) => space.id);
 const listSpace = (list) => (SPACE_IDS.includes(list?.space) ? list.space : "products");
@@ -129,10 +149,14 @@ const wishBelongsToSpace = (wish, listsById, space) => {
     const list = listsById.get(id);
     return list && !isGeneralList(list);
   });
+  if (SPACE_IDS.includes(wish?.space)) {
+    return wish.space === space || categoryListIds.some((id) => listSpace(listsById.get(id)) === space);
+  }
   if (categoryListIds.length === 0) return space === "products";
   return categoryListIds.some((id) => listSpace(listsById.get(id)) === space);
 };
 const wishSpaceId = (wish, lists = []) => {
+  if (SPACE_IDS.includes(wish?.space)) return wish.space;
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const spaceId = (wish?.listIds || [])
     .map((id) => listsById.get(id))
@@ -870,6 +894,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
         title: wish.title,
         description: wish.description || "",
         url: wish.url || "",
+        fundraisingUrl: wish.fundraisingUrl || "",
         imageUrl: wish.imageUrl || "",
         price: wish.price,
         currency: wish.currency,
@@ -1020,6 +1045,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
               </>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
               {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
+              {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
               {owner && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
@@ -1252,6 +1278,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           </div>
 
           {wish.url && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
             data-slot="wish-actions"
@@ -1317,6 +1344,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                   </>}
                   {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
                   {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
+                  {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
                   {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
@@ -1451,6 +1479,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
   const effectiveSpace = (() => {
     if (editing) {
+      if (SPACE_IDS.includes(wish?.space)) return wish.space;
       if (data?.lists) {
         const listsById = new Map(data.lists.map((list) => [list.id, list]));
         const wishSpace = (wish.listIds || [])
@@ -1465,6 +1494,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   })();
   const visibleLists = selectableLists.filter((list) => listSpace(list) === effectiveSpace);
   const isPlaces = effectiveSpace === "places";
+  const isMedia = effectiveSpace === "media";
+  const isYouTube = isMedia && isYouTubeUrl(form.url.trim());
   const showEventDate = effectiveSpace === "events"
     || Boolean(wish?.eventDate)
     || form.listIds.some((id) => {
@@ -1486,7 +1517,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return false; }
     const requestId = ++metadataRequestRef.current;
-    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : "Ищем название, фотографию и цену на странице магазина…" });
+    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isYouTube ? "Читаем видео на YouTube…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       const meta = await api.post("/metadata", { url });
       if (requestId !== metadataRequestRef.current) return false;
@@ -1499,7 +1530,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       };
       const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
       if (foundFields.length === 0) {
-        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
       const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
@@ -1510,11 +1541,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
-      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : "Не удалось прочитать страницу магазина.") });
+      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : "Не удалось прочитать страницу магазина.") });
       return false;
     }
   };
@@ -1579,6 +1610,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     setLoading(true);
     try {
       const payload = { ...form, price: form.price === "" ? null : Number(form.price), eventDate: form.eventDate || null };
+      if (!editing) payload.space = effectiveSpace;
       const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload);
       const savedUploadId = uploadedImageIdFromUrl(result.wish?.imageUrl);
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
@@ -1614,7 +1646,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -1666,7 +1698,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             <DrawerDescription>{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</DrawerDescription>
           </DrawerHeader>
 
-          <ScrollArea className="min-h-0 flex-1 px-4" aria-label="Поля желания">
+          <ScrollArea className="min-h-0 flex-1 px-4 [&>[data-slot=scroll-area-viewport]]:p-[3px]" aria-label="Поля желания">
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
@@ -1721,9 +1753,15 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
+                {((isMedia && !form.url.trim()) || isYouTube) && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> Ссылка на видео с YouTube — подставим название и превью</p>}
               </Field>
 
               {metadataNotice}
+
+              {effectiveSpace === "products" && <Field className="wish-editor__field">
+                <FieldLabel htmlFor={fieldId("fundraisingUrl")}>Ссылка на сбор</FieldLabel>
+                <Input id={fieldId("fundraisingUrl")} type="url" inputMode="url" pattern="https?://.*" value={form.fundraisingUrl} placeholder="https://…" onChange={(event) => setForm((current) => ({ ...current, fundraisingUrl: event.target.value }))} />
+              </Field>}
 
               <Field className="wish-editor__field wish-editor__field--description">
                 <FieldLabel className="sr-only" htmlFor={fieldId("description")}>Описание желания</FieldLabel>

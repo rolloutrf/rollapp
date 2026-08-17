@@ -62,25 +62,30 @@ test("wish eventDate: create, read, patch, reset and validation", async (t) => {
 
   const ownerCookie = await login("demo@rollapp.test");
 
+  // Желания обязаны быть привязаны к списку — создаём его заранее
+  const listResponse = await post("/lists", { title: "Список для событий" }, ownerCookie);
+  assert.equal(listResponse.status, 201);
+  const listId = (await listResponse.json()).list.id;
+
   // Создание с eventDate → значение возвращается строкой YYYY-MM-DD
-  const createResponse = await post("/wishes", { title: "Подарок к событию", eventDate: "2026-12-31", listIds: [] }, ownerCookie);
+  const createResponse = await post("/wishes", { title: "Подарок к событию", eventDate: "2026-12-31", listIds: [listId] }, ownerCookie);
   assert.equal(createResponse.status, 201);
   const created = (await createResponse.json()).wish;
   assert.equal(created.eventDate, "2026-12-31");
 
   // Создание без eventDate → null
-  const noDateResponse = await post("/wishes", { title: "Без даты", listIds: [] }, ownerCookie);
+  const noDateResponse = await post("/wishes", { title: "Без даты", listIds: [listId] }, ownerCookie);
   assert.equal(noDateResponse.status, 201);
   assert.equal((await noDateResponse.json()).wish.eventDate, null);
 
   // Создание с явным null → null
-  const nullDateResponse = await post("/wishes", { title: "Явный null", eventDate: null, listIds: [] }, ownerCookie);
+  const nullDateResponse = await post("/wishes", { title: "Явный null", eventDate: null, listIds: [listId] }, ownerCookie);
   assert.equal(nullDateResponse.status, 201);
   assert.equal((await nullDateResponse.json()).wish.eventDate, null);
 
   // Невалидные форматы → 400
   for (const bad of ["31.12.2026", "2026-13-01", "2026-02-29", "2026-12-31T00:00:00Z", "soon"]) {
-    const response = await post("/wishes", { title: "Невалидная дата", eventDate: bad, listIds: [] }, ownerCookie);
+    const response = await post("/wishes", { title: "Невалидная дата", eventDate: bad, listIds: [listId] }, ownerCookie);
     assert.equal(response.status, 400, `eventDate=${bad} должен отклоняться`);
     await response.json();
   }
