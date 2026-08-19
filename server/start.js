@@ -55,3 +55,9 @@ if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
 }
 
 await import("./index.js");
+const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
+const telegramConfig = getTelegramBotRuntimeConfig();
+if (telegramConfig.deliveryMode === "polling" && telegramConfig.enabled) {
+  startTelegramBotPolling(telegramConfig);
+  console.log(`Telegram bot @${telegramConfig.botUsername} polling started`);
+}

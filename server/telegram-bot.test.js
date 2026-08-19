@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { callTelegramBotApi, getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+import { callTelegramBotApi, getTelegramBotRuntimeConfig, pollTelegramBotOnce, telegramLaunchReply } from "./telegram-bot.js";
 
 test("builds a private /start Mini App reply and ignores unrelated updates", () => {
   const config = getTelegramBotRuntimeConfig({
@@ -8,10 +8,12 @@ test("builds a private /start Mini App reply and ignores unrelated updates", () 
     TELEGRAM_WEBHOOK_SECRET: "safe_webhook-secret",
     TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
     TELEGRAM_BOT_USERNAME: "@rollappRFbot",
+    TELEGRAM_DELIVERY_MODE: "polling",
   });
   assert.equal(config.enabled, true);
   assert.equal(config.webhookEnabled, true);
   assert.equal(config.botUsername, "rollappRFbot");
+  assert.equal(config.deliveryMode, "polling");
   const reply = telegramLaunchReply({
     message: {
       text: "/start referral",
@@ -27,6 +29,34 @@ test("builds a private /start Mini App reply and ignores unrelated updates", () 
   });
   assert.equal(telegramLaunchReply({ message: { text: "привет", chat: { id: 1, type: "private" } } }, config), null);
   assert.equal(telegramLaunchReply({ message: { text: "/start", chat: { id: -100, type: "supergroup" } } }, config), null);
+});
+
+test("long polling acknowledges updates and answers launch commands", async () => {
+  const requests = [];
+  const config = getTelegramBotRuntimeConfig({
+    TELEGRAM_BOT_TOKEN: "123:secret",
+    TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+    TELEGRAM_DELIVERY_MODE: "polling",
+  });
+  const nextOffset = await pollTelegramBotOnce({
+    offset: 40,
+    config,
+    fetchImpl: async (url, options) => {
+      const method = new URL(url).pathname.split("/").at(-1);
+      requests.push({ method, body: JSON.parse(options.body) });
+      const result = method === "getUpdates"
+        ? [{ update_id: 42, message: { text: "/app@rollappRFbot", chat: { id: 7, type: "private" } } }]
+        : { message_id: 9 };
+      return new Response(JSON.stringify({ ok: true, result }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  });
+  assert.equal(nextOffset, 43);
+  assert.deepEqual(requests.map(({ method }) => method), ["getUpdates", "sendMessage"]);
+  assert.equal(requests[0].body.offset, 40);
+  assert.equal(requests[1].body.reply_markup.inline_keyboard[0][0].web_app.url, "https://xn--80avakiab.xn--p1ai/");
 });
 
 test("Bot API helper sends JSON without exposing token in its return value", async () => {

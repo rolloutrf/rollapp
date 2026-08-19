@@ -25,6 +25,7 @@ services:
       YC_PHONE_AUTH_LOCKBOX_SECRET_KEY: "phone_auth_secret"
       TELEGRAM_BOT_USERNAME: "rollappRFbot"
       TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/"
+      TELEGRAM_DELIVERY_MODE: "polling"
       TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: "900"
       YC_TELEGRAM_LOCKBOX_SECRET_ID: "e6qqi6inhrnvg67mkhhs"
       YC_TELEGRAM_BOT_TOKEN_KEY: "bot_token"

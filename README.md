@@ -48,7 +48,7 @@ GitHub push to main
   -> Container Optimized Image VM is updated
   -> Caddy obtains/renews HTTPS and proxies to the Node application
   -> application reads its PostgreSQL password from Lockbox via VM metadata IAM
-  -> CI restores the @rollappRFbot Mini App menu and webhook from a dedicated Lockbox secret
+  -> CI restores the @rollappRFbot Mini App menu and bot commands from a dedicated Lockbox secret
   -> Yandex Managed PostgreSQL stores application data
 ```
 
@@ -94,4 +94,4 @@ OTP codes expire after five minutes, are single-use, and are stored only as HMAC
 
 `@rollappRFbot` opens the production app over HTTPS. The browser sends only Telegram's raw `initData`; the server verifies its HMAC signature and freshness before it trusts the Telegram user ID. A Telegram identity is never merged by display name or `@username`: an existing Rollapp user signs in once and explicitly links the accounts, then later bot launches create the normal HTTP-only Rollapp session without a password.
 
-Store `bot_token` and an independent random `webhook_secret` in a dedicated Yandex Lockbox secret. Configure its ID through `YC_TELEGRAM_LOCKBOX_SECRET_ID` and grant payload-viewer access to the runtime and CI service accounts. Every successful `main` deployment installs the HTTPS webhook, global Mini App menu button, and bot commands after production health checks pass. The bot token is never sent to the browser or committed to the repository.
+Store `bot_token` and an independent random `webhook_secret` in a dedicated Yandex Lockbox secret. Configure its ID through `YC_TELEGRAM_LOCKBOX_SECRET_ID` and grant payload-viewer access to the runtime and CI service accounts. Production uses long polling because Telegram cannot establish a stable inbound connection to the VM's Yandex Cloud address; the same authenticated update handler remains available as an HTTPS webhook fallback. Every successful `main` deployment removes a stale webhook, then restores the global Mini App menu button and bot commands. The bot token is never sent to the browser or committed to the repository.

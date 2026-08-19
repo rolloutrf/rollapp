@@ -15,6 +15,9 @@ export function getTelegramBotRuntimeConfig(env = process.env) {
   const webhookSecret = String(env.TELEGRAM_WEBHOOK_SECRET || "").trim();
   const botUsername = String(env.TELEGRAM_BOT_USERNAME || "rollappRFbot").trim().replace(/^@/, "");
   const webAppUrl = normalizeWebAppUrl(env.TELEGRAM_WEB_APP_URL || DEFAULT_WEB_APP_URL);
+  const deliveryMode = String(env.TELEGRAM_DELIVERY_MODE || "webhook").trim().toLowerCase() === "polling"
+    ? "polling"
+    : "webhook";
   return {
     enabled: Boolean(token && webAppUrl),
     token,
@@ -22,6 +25,7 @@ export function getTelegramBotRuntimeConfig(env = process.env) {
     webhookEnabled: Boolean(token && webAppUrl && WEBHOOK_SECRET_PATTERN.test(webhookSecret)),
     botUsername,
     webAppUrl,
+    deliveryMode,
     apiBase: String(env.TELEGRAM_BOT_API_BASE || "https://api.telegram.org").replace(/\/$/, ""),
   };
 }
@@ -66,6 +70,47 @@ export async function callTelegramBotApi(method, payload, {
     throw new Error(`Telegram Bot API ${method} failed: ${description}`);
   }
   return result.result;
+}
+
+export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotRuntimeConfig(), fetchImpl = fetch } = {}) {
+  const updates = await callTelegramBotApi("getUpdates", {
+    offset,
+    timeout: 25,
+    allowed_updates: ["message"],
+  }, { ...config, fetchImpl, timeoutMs: 35_000 });
+  let nextOffset = offset;
+  for (const update of Array.isArray(updates) ? updates : []) {
+    if (Number.isSafeInteger(update?.update_id)) nextOffset = Math.max(nextOffset, update.update_id + 1);
+    const reply = telegramLaunchReply(update, config);
+    if (!reply) continue;
+    try {
+      await callTelegramBotApi("sendMessage", reply, { ...config, fetchImpl });
+    } catch (error) {
+      console.error(`[telegram-bot] Could not answer update ${update?.update_id ?? "unknown"}: ${error.message}`);
+    }
+  }
+  return nextOffset;
+}
+
+export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), { retryDelayMs = 3_000 } = {}) {
+  if (!config.enabled || config.deliveryMode !== "polling") return null;
+  let active = true;
+  const done = (async () => {
+    let offset = 0;
+    while (active) {
+      try {
+        offset = await pollTelegramBotOnce({ offset, config });
+      } catch (error) {
+        if (!active) break;
+        console.error(`[telegram-bot] Polling failed: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    }
+  })();
+  return {
+    stop() { active = false; },
+    done,
+  };
 }
 
 export const telegramWebhookSecretPattern = WEBHOOK_SECRET_PATTERN;
