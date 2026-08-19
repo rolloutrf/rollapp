@@ -53,6 +53,17 @@ const schema = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    delivery_status TEXT NOT NULL DEFAULT 'pending',
+    provider_message_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS phone_auth_challenges (
     id TEXT PRIMARY KEY,
     phone_hash TEXT NOT NULL,
@@ -163,6 +174,8 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_phone_auth_phone_created ON phone_auth_challenges(phone_hash,created_at);
   CREATE INDEX IF NOT EXISTS idx_phone_auth_ip_created ON phone_auth_challenges(request_ip_hash,created_at);
   CREATE INDEX IF NOT EXISTS idx_phone_auth_expires ON phone_auth_challenges(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_password_reset_user_created ON password_reset_tokens(user_id,created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_password_reset_expires ON password_reset_tokens(expires_at);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_wishes_user_source

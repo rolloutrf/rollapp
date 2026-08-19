@@ -10,6 +10,7 @@ import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
+import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import {
@@ -138,6 +139,10 @@ function createRateLimit({ windowMs, max }) {
 }
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const passwordResetRequestRateLimit = createRateLimit({
+  windowMs: Math.min(60 * 60, Math.max(60, Number.parseInt(process.env.PASSWORD_RESET_IP_WINDOW_SECONDS || "900", 10) || 900)) * 1_000,
+  max: Math.min(1_000, Math.max(1, Number.parseInt(process.env.PASSWORD_RESET_IP_REQUEST_LIMIT || "20", 10) || 20)),
+});
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const imageUploadBody = express.raw({
@@ -148,6 +153,7 @@ const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
 const metadataCacheLimit = 500;
 const mutationLocks = new Map();
+const backgroundTasks = new Set();
 const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function detectImageMimeType(buffer) {
@@ -176,6 +182,11 @@ async function withMutationLock(key, callback) {
     release();
     if (mutationLocks.get(key) === current) mutationLocks.delete(key);
   }
+}
+
+function trackBackgroundTask(task) {
+  backgroundTasks.add(task);
+  void task.finally(() => backgroundTasks.delete(task));
 }
 
 function cleanUser(row) {
@@ -339,6 +350,156 @@ const credentialsSchema = z.object({
   email: z.string().email().max(160).transform((value) => value.toLowerCase().trim()),
   password: z.string().min(8).max(128),
 });
+const passwordResetRequestSchema = z.object({
+  email: z.string().trim().email().max(160).transform((value) => value.toLowerCase()),
+}).strict();
+const passwordResetConfirmSchema = z.object({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  password: z.string().min(8).max(128),
+}).strict();
+
+const passwordResetRequestResponse = {
+  ok: true,
+  message: "Если аккаунт существует, мы отправили ссылку для восстановления",
+};
+const invalidPasswordResetResponse = {
+  error: "Ссылка для восстановления недействительна или истекла",
+  code: "PASSWORD_RESET_INVALID",
+};
+
+function boundedEnvironmentInteger(value, fallback, minimum, maximum) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+function getPasswordResetPolicy(env = process.env) {
+  const testMinimum = env.NODE_ENV === "test" ? 0 : 30;
+  return {
+    ttlSeconds: boundedEnvironmentInteger(env.PASSWORD_RESET_TTL_SECONDS, 1_800, env.NODE_ENV === "test" ? 1 : 600, 86_400),
+    cooldownSeconds: boundedEnvironmentInteger(env.PASSWORD_RESET_COOLDOWN_SECONDS, 60, testMinimum, 3_600),
+    dailyLimit: boundedEnvironmentInteger(env.PASSWORD_RESET_DAILY_LIMIT, 5, 1, 100),
+  };
+}
+
+function getPasswordResetOrigin(env = process.env) {
+  const candidates = [env.PUBLIC_APP_URL, ...(String(env.APP_ORIGIN || "").split(","))];
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(String(candidate || "").trim());
+      if (parsed.protocol === "https:" || (env.NODE_ENV !== "production" && parsed.protocol === "http:")) {
+        return parsed.origin;
+      }
+    } catch {
+      // Try the next explicitly configured application origin.
+    }
+  }
+  return "";
+}
+
+function buildPasswordResetUrl(origin, token) {
+  const resetUrl = new URL("/reset-password", origin);
+  resetUrl.hash = `token=${token}`;
+  return resetUrl.toString();
+}
+
+async function createPasswordResetRequest(email) {
+  const policy = getPasswordResetPolicy();
+  const now = new Date();
+  const requestId = randomUUID();
+  const token = createSessionToken();
+
+  return transaction(async (client) => {
+    const found = await client.query("SELECT id,email FROM users WHERE email=$1 FOR UPDATE", [email]);
+    const user = found.rows[0];
+    if (!user) return null;
+
+    if (policy.cooldownSeconds > 0) {
+      const cooldownCutoff = new Date(now.getTime() - policy.cooldownSeconds * 1_000);
+      const recent = await client.query(
+        `SELECT 1 FROM password_reset_tokens
+         WHERE user_id=$1 AND delivery_status IN ('pending','sent') AND created_at>$2 LIMIT 1`,
+        [user.id, cooldownCutoff],
+      );
+      if (recent.rowCount) return null;
+    }
+
+    const dailyCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1_000);
+    const daily = await client.query(
+      `SELECT COUNT(*) AS count FROM password_reset_tokens
+       WHERE user_id=$1 AND created_at>$2
+         AND (delivery_status='sent' OR (delivery_status='pending' AND expires_at>$3))`,
+      [user.id, dailyCutoff, now],
+    );
+    if (Number(daily.rows[0]?.count || 0) >= policy.dailyLimit) return null;
+
+    const expiresAt = new Date(now.getTime() + policy.ttlSeconds * 1_000);
+    const inserted = await client.query(
+      `INSERT INTO password_reset_tokens
+        (id,token_hash,user_id,expires_at,delivery_status,created_at)
+       VALUES ($1,$2,$3,$4,'pending',$5)
+       RETURNING created_at`,
+      [requestId, hashToken(token), user.id, expiresAt, now],
+    );
+    return {
+      requestId,
+      token,
+      email: user.email,
+      userId: user.id,
+      createdAt: inserted.rows[0]?.created_at || now,
+    };
+  });
+}
+
+async function deliverPasswordResetRequest(request, origin) {
+  const resetUrl = buildPasswordResetUrl(origin, request.token);
+  try {
+    const delivered = await sendPasswordResetEmail({
+      to: request.email,
+      resetUrl,
+      requestId: request.requestId,
+    });
+    const deliveredAt = new Date();
+    await transaction(async (client) => {
+      await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [request.userId]);
+      const marked = await client.query(
+        `UPDATE password_reset_tokens
+         SET delivery_status='sent',provider_message_id=$1
+         WHERE id=$2 AND delivery_status='pending' AND consumed_at IS NULL
+         RETURNING user_id,created_at`,
+        [delivered?.providerMessageId || null, request.requestId],
+      );
+      if (!marked.rowCount) return;
+      const createdAt = marked.rows[0].created_at || request.createdAt;
+      await client.query(
+        `UPDATE password_reset_tokens SET consumed_at=$1
+         WHERE user_id=$2 AND id<>$3 AND consumed_at IS NULL
+           AND (created_at<$4 OR (created_at=$4 AND id<$3))`,
+        [deliveredAt, request.userId, request.requestId, createdAt],
+      );
+    });
+  } catch (error) {
+    await query(
+      `UPDATE password_reset_tokens
+       SET delivery_status='failed',consumed_at=COALESCE(consumed_at,$1)
+       WHERE id=$2 AND delivery_status='pending'`,
+      [new Date(), request.requestId],
+    ).catch((databaseError) => {
+      console.error(`[password-reset] Could not record failure for request ${request.requestId}: ${databaseError.message}`);
+    });
+    console.error(`[password-reset] Email delivery failed for request ${request.requestId}: ${error.message}`);
+  }
+}
+
+async function processPasswordResetRequest(email, origin) {
+  try {
+    await cleanupExpiredAuthData();
+    const request = await createPasswordResetRequest(email);
+    if (request) await deliverPasswordResetRequest(request, origin);
+  } catch (error) {
+    console.error(`[password-reset] Could not process reset request: ${error.message}`);
+  }
+}
 
 class PhoneRequestLimitError extends Error {
   constructor(retryAfterSeconds) {
@@ -514,6 +675,7 @@ async function cleanupExpiredAuthData() {
   const challengeCutoff = new Date(now - 24 * 60 * 60 * 1_000);
   await Promise.all([
     query("DELETE FROM phone_auth_challenges WHERE created_at<$1", [challengeCutoff]),
+    query("DELETE FROM password_reset_tokens WHERE created_at<$1", [challengeCutoff]),
     query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
   ]);
   lastPhoneAuthCleanupAt = now;
@@ -797,6 +959,71 @@ app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) =
   res.json({ ok: true });
 }));
 
+app.post("/api/auth/password-reset/request", passwordResetRequestRateLimit, asyncRoute(async (req, res) => {
+  const emailConfig = getEmailConfig();
+  const origin = getPasswordResetOrigin();
+  if (!emailConfig.enabled || !origin) {
+    return res.status(503).json({
+      error: "Восстановление пароля временно недоступно",
+      code: "PASSWORD_RESET_UNAVAILABLE",
+    });
+  }
+
+  const parsed = passwordResetRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Введите корректный email" });
+
+  res.status(202).json(passwordResetRequestResponse);
+  trackBackgroundTask(processPasswordResetRequest(parsed.data.email, origin));
+}));
+
+app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (req, res) => {
+  const parsed = passwordResetConfirmSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const invalidPassword = parsed.error.issues.some((issue) => issue.path[0] === "password");
+    return res.status(400).json(invalidPassword
+      ? { error: "Пароль должен содержать от 8 до 128 символов", code: "PASSWORD_RESET_PASSWORD_INVALID" }
+      : invalidPasswordResetResponse);
+  }
+
+  const tokenHash = hashToken(parsed.data.token);
+  const candidate = await query(
+    `SELECT user_id FROM password_reset_tokens
+     WHERE token_hash=$1 AND delivery_status='sent'
+       AND consumed_at IS NULL AND expires_at>$2`,
+    [tokenHash, new Date()],
+  );
+  const candidateUserId = candidate.rows[0]?.user_id;
+  if (!candidateUserId) return res.status(400).json(invalidPasswordResetResponse);
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const now = new Date();
+  const result = await transaction(async (client) => {
+    const lockedUser = await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [candidateUserId]);
+    if (!lockedUser.rowCount) return { kind: "invalid" };
+    const claimed = await client.query(
+      `UPDATE password_reset_tokens SET consumed_at=$1
+       WHERE token_hash=$2 AND delivery_status='sent'
+         AND user_id=$3 AND consumed_at IS NULL AND expires_at>$1
+       RETURNING user_id`,
+      [now, tokenHash, candidateUserId],
+    );
+    const userId = claimed.rows[0]?.user_id;
+    if (!userId) return { kind: "invalid" };
+
+    await client.query("UPDATE users SET password_hash=$1 WHERE id=$2", [passwordHash, userId]);
+    await client.query(
+      "UPDATE password_reset_tokens SET consumed_at=COALESCE(consumed_at,$1) WHERE user_id=$2",
+      [now, userId],
+    );
+    await client.query("DELETE FROM sessions WHERE user_id=$1", [userId]);
+    return { kind: "success", userId };
+  });
+
+  if (result.kind !== "success") return res.status(400).json(invalidPasswordResetResponse);
+  if (req.user?.id === result.userId) res.clearCookie(sessionCookie, { path: "/" });
+  return res.json({ ok: true });
+}));
+
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте имя, email и пароль — минимум 8 символов" });
@@ -827,13 +1054,18 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Введите корректные email и пароль" });
-  const result = await query("SELECT * FROM users WHERE email = $1", [parsed.data.email]);
-  const user = result.rows[0];
-  if (!user || !(await verifyPassword(parsed.data.password, user.password_hash))) {
+  const authenticated = await transaction(async (client) => {
+    const result = await client.query("SELECT * FROM users WHERE email = $1 FOR UPDATE", [parsed.data.email]);
+    const user = result.rows[0];
+    if (!user || !(await verifyPassword(parsed.data.password, user.password_hash))) return null;
+    const session = await createSessionRecord(client, user.id);
+    return { session, user };
+  });
+  if (!authenticated) {
     return res.status(401).json({ error: "Неверные email или пароль" });
   }
-  await createSession(res, user.id);
-  res.json({ user: cleanUser(user) });
+  setSessionCookie(res, authenticated.session);
+  res.json({ user: cleanUser(authenticated.user) });
 }));
 
 app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
@@ -1859,6 +2091,12 @@ const server = app.listen(port, "0.0.0.0", () => {
 
 async function shutdown() {
   server.close(async () => {
+    if (backgroundTasks.size) {
+      await Promise.race([
+        Promise.allSettled([...backgroundTasks]),
+        new Promise((resolve) => setTimeout(resolve, 20_000)),
+      ]);
+    }
     await pool.end();
     process.exit(0);
   });

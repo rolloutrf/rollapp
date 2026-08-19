@@ -74,6 +74,12 @@ Local `.env` variables are documented in `.env.example`. Production non-secret s
 
 The server initializes idempotent tables at startup. Production seeding is disabled unless `SEED_DEMO=true` is explicitly set.
 
+### Password recovery
+
+Email/password accounts can request a one-time reset link from `/forgot-password`. Reset tokens expire after 30 minutes, are stored only as SHA-256 hashes, become invalid after one use, and revoke every existing session when the password changes. The request endpoint always returns the same public response for known and unknown email addresses.
+
+In-memory local development can use `EMAIL_PROVIDER=console` and print the reset link only to the local server terminal. That provider is blocked in production and whenever `DATABASE_URL` or `PGHOST` points at persistent PostgreSQL. Automated tests use the test-only provider. Production sends from the verified `noreply@роллапп.рф` Cloud Postbox identity through the VM's short-lived IAM token, without a static mail credential; the runtime service account has the least-privilege `postbox.sender` role. `PUBLIC_APP_URL` must be the canonical HTTPS origin used in reset links.
+
 ### Phone login
 
 Phone login is an additional sign-in method for existing accounts. A signed-in user first verifies and links a Russian mobile number in settings; email/password login remains available and existing sessions are not invalidated. Unknown phone numbers never create accounts and receive the same API response shape as linked numbers.

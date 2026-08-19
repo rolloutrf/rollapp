@@ -3,6 +3,8 @@ const RESERVED_PROFILE_USERNAMES = new Set([
   "app",
   "login",
   "register",
+  "forgot-password",
+  "reset-password",
   "ideas",
   "s",
   "u",

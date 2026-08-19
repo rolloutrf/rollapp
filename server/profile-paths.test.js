@@ -22,7 +22,7 @@ test("legacy profile targets preserve queries and remove the namespace", () => {
 });
 
 test("system routes are reserved", () => {
-  for (const username of ["api", "app", "login", "register", "ideas", "s", "u", "users", "assets", "art", "avatars"]) {
+  for (const username of ["api", "app", "login", "register", "forgot-password", "reset-password", "ideas", "s", "u", "users", "assets", "art", "avatars"]) {
     assert.equal(isReservedProfileUsername(username), true, `${username} must stay reserved`);
   }
   assert.equal(isReservedProfileUsername("koloskof"), false);
