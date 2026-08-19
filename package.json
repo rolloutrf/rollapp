@@ -7,8 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "concurrently -k \"node --watch server/start.js\" \"vite --host 0.0.0.0\"",
-    "dev:server": "node --watch server/start.js",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node server/start.js",
     "build": "vite build",
     "start": "node server/start.js",
     "test": "node --test",
