@@ -105,6 +105,7 @@ const schema = `
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS event_date DATE;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS space TEXT;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS fundraising_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS source_wish_id TEXT REFERENCES wishes(id) ON DELETE SET NULL;
 
   CREATE TABLE IF NOT EXISTS wish_images (
     id TEXT PRIMARY KEY,
@@ -164,6 +165,8 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_phone_auth_expires ON phone_auth_challenges(expires_at);
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wishes_user_source
+  ON wishes(user_id,source_wish_id) WHERE source_wish_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_wishlist_wishes_wish ON wishlist_wishes(wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_groups_list ON wish_groups(wishlist_id);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
