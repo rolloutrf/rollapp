@@ -44,6 +44,13 @@ await loadDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 
+const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
+const telegramConfig = getTelegramBotRuntimeConfig();
+if (telegramConfig.deliveryMode === "polling" && telegramConfig.enabled) {
+  startTelegramBotPolling(telegramConfig);
+  console.log(`Telegram bot @${telegramConfig.botUsername} polling started`);
+}
+
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });
   caddy.on("exit", (code) => {
@@ -55,9 +62,3 @@ if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
 }
 
 await import("./index.js");
-const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
-const telegramConfig = getTelegramBotRuntimeConfig();
-if (telegramConfig.deliveryMode === "polling" && telegramConfig.enabled) {
-  startTelegramBotPolling(telegramConfig);
-  console.log(`Telegram bot @${telegramConfig.botUsername} polling started`);
-}
