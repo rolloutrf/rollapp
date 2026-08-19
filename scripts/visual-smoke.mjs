@@ -5525,7 +5525,7 @@ try {
   const wishDialog = mobilePage.getByRole("dialog", { name: "Создание желания", exact: true });
   await wishDialog.waitFor({ state: "visible" });
   await wishDialog.getByRole("heading", { name: "Создание желания", exact: true }).waitFor();
-  assert((await wishDialog.locator("[data-slot='dialog-title']").innerText()).includes("Новое желание"), "Wish editor does not show the new-wish title");
+  assert((await wishDialog.getByRole("heading", { level: 2 }).innerText()).includes("Новое желание"), "Wish editor does not show the new-wish title");
   assert(await wishDialog.getByLabel("Ссылка", { exact: true }).isVisible(), "Wish editor does not expose the product link immediately");
   assert(await wishDialog.getByRole("button", { name: "Загадать желание", exact: true }).isVisible(), "Wish editor submit action is not visible");
   assert((await wishDialog.locator(".link-step, .wish-form").count()) === 0, "Wish editor still renders the legacy two-step flow");
@@ -5537,7 +5537,7 @@ try {
   await expectWishEditorLayout(wishDialog, "320px add-wish editor", { mobile: true, mode: "create" });
   await mobilePage.screenshot({ path: "/tmp/rollapp-mobile-wish-editor-320.png" });
   await mobilePage.setViewportSize({ width: 390, height: 844 });
-  await wishDialog.getByRole("button", { name: "Close" }).click();
+  await wishDialog.getByRole("button", { name: "Закрыть" }).click();
   await wishDialog.waitFor({ state: "detached" });
 
   const mobileDashboardResponse = await apiFromPage(mobilePage, "/api/dashboard");
@@ -6252,9 +6252,9 @@ try {
     assert(await editorDialog.isVisible(), "Cancelling list creation did not return to the wish editor");
     assert(await draftProbeInput.inputValue() === draftProbeTitle, "Cancelling list creation discarded the wish editor draft");
     assert(
-      await editorDialog.getAttribute("data-slot") === "dialog-content"
-      && await editorDialog.locator("[data-slot='dialog-title']").count() === 1,
-      "Wish editor does not remain official Dialog content after closing its nested dialog",
+      await editorDialog.getAttribute("data-slot") === "wish-editor-content"
+      && await editorDialog.getByRole("heading", { level: 2 }).count() === 1,
+      "Wish editor does not remain mounted after closing its nested dialog",
     );
     assert(
       await ownerWidePage.locator("html").evaluate((element) => getComputedStyle(element).overflowY === "hidden"),

@@ -1,0 +1,66 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { callTelegramBotApi, getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+
+test("builds a private /start Mini App reply and ignores unrelated updates", () => {
+  const config = getTelegramBotRuntimeConfig({
+    TELEGRAM_BOT_TOKEN: "123:secret",
+    TELEGRAM_WEBHOOK_SECRET: "safe_webhook-secret",
+    TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+    TELEGRAM_BOT_USERNAME: "@rollappRFbot",
+  });
+  assert.equal(config.enabled, true);
+  assert.equal(config.webhookEnabled, true);
+  assert.equal(config.botUsername, "rollappRFbot");
+  const reply = telegramLaunchReply({
+    message: {
+      text: "/start referral",
+      chat: { id: 123456, type: "private" },
+      from: { first_name: "Михаил" },
+    },
+  }, config);
+  assert.equal(reply.chat_id, 123456);
+  assert.match(reply.text, /^Михаил, добро пожаловать/);
+  assert.deepEqual(reply.reply_markup.inline_keyboard[0][0], {
+    text: "Открыть Rollapp",
+    web_app: { url: "https://xn--80avakiab.xn--p1ai/" },
+  });
+  assert.equal(telegramLaunchReply({ message: { text: "привет", chat: { id: 1, type: "private" } } }, config), null);
+  assert.equal(telegramLaunchReply({ message: { text: "/start", chat: { id: -100, type: "supergroup" } } }, config), null);
+});
+
+test("Bot API helper sends JSON without exposing token in its return value", async () => {
+  let request;
+  const result = await callTelegramBotApi("sendMessage", { chat_id: 42, text: "Rollapp" }, {
+    token: "123:secret",
+    apiBase: "https://telegram.test/",
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  });
+  assert.equal(request.url, "https://telegram.test/bot123:secret/sendMessage");
+  assert.deepEqual(JSON.parse(request.options.body), { chat_id: 42, text: "Rollapp" });
+  assert.deepEqual(result, { message_id: 7 });
+});
+
+test("Bot API errors omit the bot token", async () => {
+  await assert.rejects(
+    callTelegramBotApi("sendMessage", { chat_id: 42, text: "Rollapp" }, {
+      token: "123:super-secret-token",
+      apiBase: "https://telegram.test/",
+      fetchImpl: async () => new Response(JSON.stringify({ ok: false, description: "Bad Request" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    }),
+    (error) => {
+      assert.match(error.message, /Bad Request/);
+      assert.doesNotMatch(error.message, /super-secret-token/);
+      return true;
+    },
+  );
+});

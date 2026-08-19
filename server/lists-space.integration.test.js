@@ -69,7 +69,7 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   assert.equal(defaultList.space, "products");
 
   // Создание с валидным space для каждого значения enum
-  for (const space of ["products", "places", "events", "media", "food"]) {
+  for (const space of ["products", "places", "events", "media", "food", "transport", "pets"]) {
     const response = await post("/lists", { title: `Спейс ${space}`, space }, ownerCookie);
     assert.equal(response.status, 201);
     assert.equal((await response.json()).list.space, space);
@@ -103,7 +103,7 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   const dashboard = await dashboardResponse.json();
   assert.ok(dashboard.lists.length > 0);
   for (const list of dashboard.lists) {
-    assert.ok(["products", "places", "events", "media", "food"].includes(list.space));
+    assert.ok(["products", "places", "events", "media", "food", "transport", "pets"].includes(list.space));
   }
   // Существующие (сидированные) списки получили 'products' миграцией
   const birthdayList = dashboard.lists.find((list) => list.title === "День рождения");
@@ -118,7 +118,7 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   const profile = await profileResponse.json();
   assert.ok(profile.lists.length > 0);
   for (const list of profile.lists) {
-    assert.ok(["products", "places", "events", "media", "food"].includes(list.space));
+    assert.ok(["products", "places", "events", "media", "food", "transport", "pets"].includes(list.space));
   }
 
   // space присутствует в ответе shared-страницы

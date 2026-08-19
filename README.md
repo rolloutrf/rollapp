@@ -7,6 +7,7 @@ The product is an independent functional alternative to popular wishlist service
 ## What is included
 
 - Email/password authentication and optional SMS OTP login with HTTP-only sessions.
+- Telegram Mini App authentication with explicit one-time account linking.
 - Public profiles and shareable list links.
 - Multiple lists with public, followers-only, link-only, and private visibility.
 - Wishes that may belong to several lists at once.
@@ -27,6 +28,8 @@ npm run dev
 
 Open `http://localhost:5173`. When `DATABASE_URL`/`PGHOST` is absent, the server uses an in-memory PostgreSQL-compatible demo database. Use **Try demo** or sign in as `demo@rollapp.test` / `demo1234`.
 
+`APP_ORIGIN` must contain the local frontend origin (normally `http://localhost:5173`). The development server treats it as trusted when Vite proxies `/api` to port 8080. To keep the local copy connected to persistent PostgreSQL, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and either `PGPASSWORD` or the Yandex Lockbox variables in `.env`, then run `npm run dev`.
+
 Useful commands:
 
 ```bash
@@ -45,6 +48,7 @@ GitHub push to main
   -> Container Optimized Image VM is updated
   -> Caddy obtains/renews HTTPS and proxies to the Node application
   -> application reads its PostgreSQL password from Lockbox via VM metadata IAM
+  -> CI restores the @rollappRFbot Mini App menu and webhook from a dedicated Lockbox secret
   -> Yandex Managed PostgreSQL stores application data
 ```
 
@@ -59,9 +63,10 @@ Yandex Cloud resources:
 - runtime service account `ajers2ngi708sf3i1t4g`;
 - CI service account `ajea75b2e3r8kiigmice`;
 - database password stays in Connection Manager Lockbox secret `e6qn7uuqpp2jg3krbh4u`;
+- Telegram bot token and webhook secret stay in protected Lockbox secret `e6qqi6inhrnvg67mkhhs`;
 - static IP `51.250.110.17`; `роллапп.рф` is canonical, while `www.роллапп.рф` and `rollapp.51-250-110-17.sslip.io` permanently redirect to it so authentication stays on one cookie host.
 
-No long-lived Yandex key is stored in GitHub. The federated credential accepts only the immutable GitHub subject for `rolloutrf/rollapp` on `refs/heads/main`. CI can push to this registry and update this VM; runtime can pull images and read only its database secret.
+No long-lived Yandex key is stored in GitHub. The federated credential accepts only the immutable GitHub subject for `rolloutrf/rollapp` on `refs/heads/main`. CI can push to this registry, update this VM, and read only the Telegram deployment secret; runtime can pull images and read the database and Telegram runtime secrets.
 
 ## Configuration
 
@@ -84,3 +89,9 @@ Yandex mode obtains a short-lived IAM token from the Compute VM metadata service
 OTP codes expire after five minutes, are single-use, and are stored only as HMAC digests. Full phone numbers and requester IP addresses are also represented by keyed HMAC digests in PostgreSQL; the API exposes only a masked last-four-digit display. Persistent resend, per-phone, per-IP, attempt, and global daily limits protect the SMS quota. See `.env.example` for configurable bounds.
 
 `PHONE_AUTH_SECRET` is also the stable lookup key for linked phone numbers. Rotating it without a planned re-verification migration makes existing phone links unavailable, so keep it in Lockbox, back it up, and rotate it only through an explicit account migration.
+
+### Telegram Mini App
+
+`@rollappRFbot` opens the production app over HTTPS. The browser sends only Telegram's raw `initData`; the server verifies its HMAC signature and freshness before it trusts the Telegram user ID. A Telegram identity is never merged by display name or `@username`: an existing Rollapp user signs in once and explicitly links the accounts, then later bot launches create the normal HTTP-only Rollapp session without a password.
+
+Store `bot_token` and an independent random `webhook_secret` in a dedicated Yandex Lockbox secret. Configure its ID through `YC_TELEGRAM_LOCKBOX_SECRET_ID` and grant payload-viewer access to the runtime and CI service accounts. Every successful `main` deployment installs the HTTPS webhook, global Mini App menu button, and bot commands after production health checks pass. The bot token is never sent to the browser or committed to the repository.

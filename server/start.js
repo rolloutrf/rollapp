@@ -1,24 +1,7 @@
+import "dotenv/config";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-
-async function loadLockboxValue(secretId, secretKey = "postgresql_password") {
-  const tokenResponse = await fetch(
-    "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token",
-    { headers: { "Metadata-Flavor": "Google" }, signal: AbortSignal.timeout(5000) },
-  );
-  if (!tokenResponse.ok) throw new Error(`Metadata IAM token request failed: ${tokenResponse.status}`);
-  const { access_token: accessToken } = await tokenResponse.json();
-
-  const payloadResponse = await fetch(
-    `https://payload.lockbox.api.cloud.yandex.net/lockbox/v1/secrets/${encodeURIComponent(secretId)}/payload`,
-    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(8000) },
-  );
-  if (!payloadResponse.ok) throw new Error(`Lockbox payload request failed: ${payloadResponse.status}`);
-  const payload = await payloadResponse.json();
-  const entry = payload.entries?.find((item) => item.key === secretKey);
-  if (!entry?.textValue) throw new Error(`Lockbox key "${secretKey}" not found`);
-  return entry.textValue;
-}
+import { loadLockboxValue } from "./lockbox.js";
 
 async function loadDatabaseLockboxSecret() {
   const secretId = process.env.YC_LOCKBOX_SECRET_ID;
@@ -36,8 +19,30 @@ async function loadPhoneAuthLockboxSecret() {
   console.log("Runtime phone authentication credential loaded from Yandex Lockbox");
 }
 
+async function loadTelegramLockboxSecrets() {
+  const secretId = process.env.YC_TELEGRAM_LOCKBOX_SECRET_ID;
+  if (!secretId) return;
+  let loaded = false;
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    process.env.TELEGRAM_BOT_TOKEN = await loadLockboxValue(
+      secretId,
+      process.env.YC_TELEGRAM_BOT_TOKEN_KEY || "bot_token",
+    );
+    loaded = true;
+  }
+  if (!process.env.TELEGRAM_WEBHOOK_SECRET) {
+    process.env.TELEGRAM_WEBHOOK_SECRET = await loadLockboxValue(
+      secretId,
+      process.env.YC_TELEGRAM_WEBHOOK_SECRET_KEY || "webhook_secret",
+    );
+    loaded = true;
+  }
+  if (loaded) console.log("Runtime Telegram credentials loaded from Yandex Lockbox");
+}
+
 await loadDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
+await loadTelegramLockboxSecrets();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });

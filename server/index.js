@@ -10,6 +10,7 @@ import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
+import { deleteOwnedWishGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import {
   isYandexMapsUrl,
@@ -35,12 +36,21 @@ import {
 } from "./phone-auth.js";
 import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
+import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
 import { getSmsConfig, sendSms } from "./sms.js";
+import {
+  getTelegramAuthConfig,
+  safeSecretEqual,
+  TelegramInitDataError,
+  validateTelegramInitData,
+} from "./telegram-auth.js";
+import { callTelegramBotApi, getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
+const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const sessionCookie = "rw_session";
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
 const uploadedMediaUrlPattern = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -58,7 +68,7 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
-const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
+const listSpaceValues = ["products", "places", "events", "media", "food", "transport", "pets"];
 const listSpaceSchema = z.enum(listSpaceValues);
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
@@ -66,6 +76,9 @@ const phoneRequestSchema = z.object({
 const phoneVerifySchema = z.object({
   challengeId: z.string().uuid(),
   code: z.string().regex(/^\d{6}$/),
+}).strict();
+const telegramInitDataSchema = z.object({
+  initData: z.string().min(1).max(16_384),
 }).strict();
 
 app.set("trust proxy", 1);
@@ -75,12 +88,14 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://telegram.org"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:"],
+      frameAncestors: ["'self'", "https://web.telegram.org", "https://*.telegram.org"],
     },
   },
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  frameguard: false,
 }));
 app.use(compression());
 app.use(express.json({ limit: "256kb" }));
@@ -257,6 +272,35 @@ function requireAuth(req, res, next) {
 
 app.use("/api", asyncRoute(optionalAuth));
 
+const csrfSafeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function requireTrustedSessionMutation(req, res, next) {
+  if (csrfSafeMethods.has(req.method) || !req.cookies[sessionCookie]) return next();
+
+  const origin = req.get("origin");
+  const fetchSite = (req.get("sec-fetch-site") || "").toLowerCase();
+  if (origin) {
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(origin).origin;
+    } catch {
+      return res.status(403).json({ error: "Недоверенный источник запроса", code: "CSRF_ORIGIN_MISMATCH" });
+    }
+    const requestOrigin = `${req.protocol}://${req.get("host")}`;
+    if (!isTrustedRequestOrigin({ origin: parsedOrigin, requestOrigin, configuredOrigins: trustedAppOrigins })) {
+      return res.status(403).json({ error: "Недоверенный источник запроса", code: "CSRF_ORIGIN_MISMATCH" });
+    }
+    return next();
+  }
+
+  if (fetchSite && !["same-origin", "same-site", "none"].includes(fetchSite)) {
+    return res.status(403).json({ error: "Недоверенный источник запроса", code: "CSRF_ORIGIN_MISMATCH" });
+  }
+  return next();
+}
+
+app.use("/api", requireTrustedSessionMutation);
+
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
   setSessionCookie(res, session);
@@ -270,10 +314,12 @@ async function createSessionRecord(client, userId) {
 }
 
 function setSessionCookie(res, { token, expiresAt }) {
+  const telegramEnabled = getTelegramAuthConfig().enabled;
+  const secure = isProduction && process.env.COOKIE_SECURE !== "false";
   res.cookie(sessionCookie, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction && process.env.COOKIE_SECURE !== "false",
+    sameSite: isProduction && telegramEnabled && secure ? "none" : "lax",
+    secure,
     path: "/",
     expires: expiresAt,
   });
@@ -327,6 +373,77 @@ function publicPhoneAuthConfig() {
     expiresInSeconds: runtime.policy.ttlSeconds,
     resendAfterSeconds: runtime.policy.resendSeconds,
   };
+}
+
+function parseTelegramRequest(body) {
+  const parsed = telegramInitDataSchema.safeParse(body);
+  if (!parsed.success) throw new TelegramInitDataError("Откройте Rollapp из Telegram ещё раз");
+  const config = getTelegramAuthConfig();
+  return {
+    config,
+    identity: validateTelegramInitData(parsed.data.initData, {
+      botToken: config.token,
+      maxAgeSeconds: config.maxAgeSeconds,
+    }),
+  };
+}
+
+function respondTelegramAuthError(res, error) {
+  if (!(error instanceof TelegramInitDataError)) throw error;
+  const unavailable = error.code === "TELEGRAM_AUTH_UNAVAILABLE";
+  return res.status(unavailable ? 503 : 401).json({ error: error.message, code: error.code });
+}
+
+function publicTelegramUser(user) {
+  return {
+    name: user.name,
+    username: user.username,
+    photoUrl: user.photoUrl,
+  };
+}
+
+async function saveTelegramIdentity(client, telegramUser, userId) {
+  const current = await client.query(
+    `SELECT telegram_user_id,user_id FROM telegram_identities
+     WHERE telegram_user_id=$1 OR user_id=$2`,
+    [telegramUser.id, userId],
+  );
+  if (current.rows.some((row) => row.telegram_user_id !== telegramUser.id || row.user_id !== userId)) {
+    return { kind: "conflict" };
+  }
+  if (current.rowCount) {
+    await client.query(
+      `UPDATE telegram_identities
+       SET username=$1,first_name=$2,last_name=$3,photo_url=$4,language_code=$5,last_seen_at=$6
+       WHERE telegram_user_id=$7 AND user_id=$8`,
+      [
+        telegramUser.username,
+        telegramUser.firstName,
+        telegramUser.lastName,
+        telegramUser.photoUrl,
+        telegramUser.languageCode,
+        new Date(),
+        telegramUser.id,
+        userId,
+      ],
+    );
+    return { kind: "success" };
+  }
+  await client.query(
+    `INSERT INTO telegram_identities
+      (telegram_user_id,user_id,username,first_name,last_name,photo_url,language_code)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [
+      telegramUser.id,
+      userId,
+      telegramUser.username,
+      telegramUser.firstName,
+      telegramUser.lastName,
+      telegramUser.photoUrl,
+      telegramUser.languageCode,
+    ],
+  );
+  return { kind: "success" };
 }
 
 function phoneAuthUnavailable(res) {
@@ -582,6 +699,67 @@ app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "login" });
 }));
 
+app.get("/api/auth/telegram/config", (_req, res) => {
+  const config = getTelegramAuthConfig();
+  res.json({
+    enabled: config.enabled,
+    botUsername: config.botUsername,
+    botUrl: config.botUsername ? `https://t.me/${config.botUsername}` : null,
+  });
+});
+
+app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
+  let identity;
+  try {
+    ({ identity } = parseTelegramRequest(req.body));
+  } catch (error) {
+    return respondTelegramAuthError(res, error);
+  }
+
+  const result = await transaction(async (client) => {
+    const user = await client.query(
+      `SELECT u.* FROM telegram_identities ti
+       JOIN users u ON u.id=ti.user_id
+       WHERE ti.telegram_user_id=$1`,
+      [identity.user.id],
+    );
+    if (!user.rowCount) return { kind: "unlinked" };
+    await saveTelegramIdentity(client, identity.user, user.rows[0].id);
+    const session = await createSessionRecord(client, user.rows[0].id);
+    return { kind: "success", user: user.rows[0], session };
+  });
+
+  if (result.kind === "unlinked") {
+    return res.status(409).json({
+      error: "Привяжите Telegram к существующему аккаунту или создайте новый",
+      code: "TELEGRAM_LINK_REQUIRED",
+      telegram: publicTelegramUser(identity.user),
+    });
+  }
+  setSessionCookie(res, result.session);
+  return res.json({ user: cleanUser(result.user), telegram: publicTelegramUser(identity.user) });
+}));
+
+app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
+  const config = getTelegramBotRuntimeConfig();
+  if (!config.webhookEnabled) return res.status(404).json({ error: "Telegram webhook не настроен" });
+  const receivedSecret = String(req.get("X-Telegram-Bot-Api-Secret-Token") || "");
+  if (!safeSecretEqual(receivedSecret, config.webhookSecret)) {
+    return res.status(401).json({ error: "Неверный Telegram webhook secret" });
+  }
+
+  const reply = telegramLaunchReply(req.body, config);
+  if (reply) {
+    try {
+      await callTelegramBotApi("sendMessage", reply, config);
+    } catch (error) {
+      console.error(`[telegram-bot] Could not answer update ${req.body?.update_id ?? "unknown"}: ${error.message}`);
+      return res.status(502).json({ error: "Telegram временно не принял ответ бота" });
+    }
+  }
+  return res.json({ ok: true });
+}));
+
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
   res.json({ ok: true, service: "rollapp", version: process.env.APP_VERSION || "development" });
@@ -685,6 +863,32 @@ app.post("/api/me/phone/request", requireAuth, asyncRoute(async (req, res) => {
 
 app.post("/api/me/phone/verify", requireAuth, asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "link", userId: req.user.id });
+}));
+
+app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+  let identity;
+  try {
+    ({ identity } = parseTelegramRequest(req.body));
+  } catch (error) {
+    return respondTelegramAuthError(res, error);
+  }
+
+  let result;
+  try {
+    result = await withMutationLock(`telegram-link:${identity.user.id}`, () => transaction(
+      (client) => saveTelegramIdentity(client, identity.user, req.user.id),
+    ));
+  } catch (error) {
+    if (error.code === "23505") result = { kind: "conflict" };
+    else throw error;
+  }
+  if (result.kind === "conflict") {
+    return res.status(409).json({
+      error: "Этот Telegram уже привязан к другому аккаунту",
+      code: "TELEGRAM_IDENTITY_CONFLICT",
+    });
+  }
+  return res.json({ user: cleanUser(req.user), telegram: publicTelegramUser(identity.user) });
 }));
 
 app.get("/api/me", asyncRoute(async (req, res) => {
@@ -800,7 +1004,7 @@ async function canViewWish(wish, viewerId, shareToken = "", client = null) {
 }
 
 app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
-  const [lists, wishes, follows, birthdays, reservations] = await Promise.all([
+  const [lists, wishes, follows, birthdays, reservations, groupRows] = await Promise.all([
     getLists(req.user.id),
     getWishes(req.user.id, req.user.id, true),
     query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [req.user.id]),
@@ -826,6 +1030,14 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
        ORDER BY r.created_at DESC`,
       [req.user.id],
     ),
+    query(
+      `SELECT g.id,g.wishlist_id,g.title,m.wish_id
+       FROM wish_groups g
+       JOIN wishlists l ON l.id=g.wishlist_id
+       LEFT JOIN wish_group_members m ON m.group_id=g.id
+       WHERE l.user_id=$1 ORDER BY g.created_at,m.wish_id`,
+      [req.user.id],
+    ),
   ]);
   const reservationGroups = new Map();
   for (const row of reservations.rows) {
@@ -845,14 +1057,104 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
       const { wish_status: _wishStatus, wish_privacy: _wishPrivacy, follows_owner: _followsOwner, list_privacy: _listPrivacy, ...item } = row;
       return { ...item, price: item.price === null ? null : Number(item.price) };
     });
+  const groupsById = new Map();
+  for (const row of groupRows.rows) {
+    if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, title: row.title, wishIds: [] });
+    if (row.wish_id) groupsById.get(row.id).wishIds.push(row.wish_id);
+  }
   res.json({
     lists,
     wishes,
+    groups: [...groupsById.values()],
     followingCount: Number(follows.rows[0].count),
     birthdays: birthdays.rows.map((row) => ({ ...cleanUser(row), email: undefined })),
     reservations: visibleReservations,
     games: [],
   });
+}));
+
+app.patch("/api/wishes/reorder", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ wishIds: z.array(z.string().min(1)).min(1).max(1000) })
+    .refine(({ wishIds }) => new Set(wishIds).size === wishIds.length)
+    .safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Некорректный порядок желаний" });
+  const outcome = await transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM wishes WHERE user_id=$1 AND id = ANY($2::text[]) FOR UPDATE",
+      [req.user.id, parsed.data.wishIds],
+    );
+    if (owned.rowCount !== parsed.data.wishIds.length) return false;
+    for (const [index, wishId] of parsed.data.wishIds.entries()) {
+      await client.query("UPDATE wishes SET sort_order=$1 WHERE id=$2 AND user_id=$3", [index, wishId, req.user.id]);
+    }
+    return true;
+  });
+  if (!outcome) return res.status(404).json({ error: "Одно из желаний не найдено" });
+  res.json({ ok: true });
+}));
+
+app.post("/api/lists/:id/groups", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ wishIds: z.array(z.string()).length(2).refine((ids) => new Set(ids).size === 2) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите два разных желания" });
+  const outcome = await transaction(async (client) => {
+    const list = await client.query("SELECT id FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE", [req.params.id, req.user.id]);
+    if (!list.rowCount) return { status: 404, error: "Список не найден" };
+    const wishes = await client.query(
+      `SELECT ww.wish_id FROM wishlist_wishes ww JOIN wishes w ON w.id=ww.wish_id
+       WHERE ww.wishlist_id=$1 AND w.user_id=$2 AND ww.wish_id = ANY($3::text[])`,
+      [req.params.id, req.user.id, parsed.data.wishIds],
+    );
+    if (wishes.rowCount !== 2) return { status: 400, error: "Желания должны быть в этом списке" };
+    const occupied = await client.query("SELECT wish_id FROM wish_group_members WHERE wishlist_id=$1 AND wish_id = ANY($2::text[])", [req.params.id, parsed.data.wishIds]);
+    if (occupied.rowCount) return { status: 409, error: "Желание уже в группе" };
+    const id = randomUUID();
+    await client.query("INSERT INTO wish_groups (id,wishlist_id) VALUES ($1,$2)", [id, req.params.id]);
+    for (const wishId of parsed.data.wishIds) await client.query("INSERT INTO wish_group_members (group_id,wishlist_id,wish_id) VALUES ($1,$2,$3)", [id, req.params.id, wishId]);
+    return { id };
+  });
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.status(201).json({ group: { id: outcome.id, listId: req.params.id, title: "Группа", wishIds: parsed.data.wishIds } });
+}));
+
+app.post("/api/lists/:listId/groups/:groupId/wishes", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ wishId: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Желание не выбрано" });
+  const result = await query(
+    `INSERT INTO wish_group_members (group_id,wishlist_id,wish_id)
+     SELECT g.id,g.wishlist_id,ww.wish_id FROM wish_groups g
+     JOIN wishlists l ON l.id=g.wishlist_id
+     JOIN wishlist_wishes ww ON ww.wishlist_id=g.wishlist_id AND ww.wish_id=$1
+     JOIN wishes w ON w.id=ww.wish_id AND w.user_id=$2
+     WHERE g.id=$3 AND g.wishlist_id=$4 AND l.user_id=$2
+     ON CONFLICT (wishlist_id,wish_id) DO NOTHING RETURNING wish_id`,
+    [parsed.data.wishId, req.user.id, req.params.groupId, req.params.listId],
+  );
+  if (!result.rowCount) return res.status(409).json({ error: "Не удалось добавить в группу" });
+  res.status(201).json({ wishId: result.rows[0].wish_id });
+}));
+
+app.patch("/api/lists/:listId/groups/:groupId", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ title: z.string().trim().min(1).max(60) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Название группы должно быть от 1 до 60 символов" });
+  const result = await query(
+    `UPDATE wish_groups g SET title=$1
+     FROM wishlists l
+     WHERE g.id=$2 AND g.wishlist_id=$3 AND l.id=g.wishlist_id AND l.user_id=$4
+     RETURNING g.id,g.title`,
+    [parsed.data.title, req.params.groupId, req.params.listId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.json({ group: { id: result.rows[0].id, title: result.rows[0].title } });
+}));
+
+app.delete("/api/lists/:listId/groups/:groupId", requireAuth, asyncRoute(async (req, res) => {
+  const result = await deleteOwnedWishGroup({
+    groupId: req.params.groupId,
+    listId: req.params.listId,
+    userId: req.user.id,
+  });
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.json({ ok: true });
 }));
 
 app.post("/api/lists", requireAuth, asyncRoute(async (req, res) => {
@@ -1059,6 +1361,24 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
     }
     await client.query("DELETE FROM wishlist_wishes WHERE wish_id=$1", [current.id]);
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, current.id]);
+    await client.query(
+      "DELETE FROM wish_group_members WHERE wish_id=$1 AND NOT (wishlist_id = ANY($2::text[]))",
+      [current.id, data.listIds],
+    );
+    const ownedGroupMembers = await client.query(
+      `SELECT g.id,m.wish_id FROM wish_groups g
+       JOIN wishlists l ON l.id=g.wishlist_id
+       LEFT JOIN wish_group_members m ON m.group_id=g.id
+       WHERE l.user_id=$1`,
+      [req.user.id],
+    );
+    const groupMemberCounts = new Map();
+    for (const row of ownedGroupMembers.rows) {
+      groupMemberCounts.set(row.id, (groupMemberCounts.get(row.id) || 0) + (row.wish_id ? 1 : 0));
+    }
+    for (const [groupId, memberCount] of groupMemberCounts) {
+      if (memberCount < 2) await client.query("DELETE FROM wish_groups WHERE id=$1", [groupId]);
+    }
     return { status: 200, id: current.id };
   }));
   if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });

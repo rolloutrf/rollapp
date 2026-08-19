@@ -14,6 +14,8 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const error = new Error(payload.error || "Что-то пошло не так");
     error.status = response.status;
+    error.code = payload.code || "";
+    error.payload = payload;
     error.retryAfterSeconds = Number(payload.retryAfterSeconds || response.headers.get("Retry-After")) || 0;
     throw error;
   }
