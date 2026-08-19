@@ -42,6 +42,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { disbandWishGroupFromDashboard, filterWishGroups } from "./lib/wish-groups.js";
 import { moveWishToTargetPosition, moveWishWithinSubset } from "./lib/wish-order.js";
+import { isKinopoiskUrl, wishPreviewImageUrl } from "../shared/kinopoisk.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
 const SessionContext = createContext(null);
@@ -1330,6 +1331,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
     || selectedListIds.some((id) => !(wish.listIds || []).includes(id));
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
   const secret = isWishSecret(wish, lists);
+  const previewImageUrl = wishPreviewImageUrl(wish);
 
   useEffect(() => {
     if (!menu) setSelectedListIds([...(wish.listIds || [])]);
@@ -1370,7 +1372,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
     <>
     <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
       {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
-      <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" draggable="false" /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
+      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
           {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
@@ -1518,7 +1520,10 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, onDragOver,
   <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
     <ShadcnButton type="button" variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`}>
     <span className="wish-group-tile__preview">
-      {wishes.slice(0, 4).map((wish) => <span key={wish.id}>{wish.imageUrl ? <img src={wish.imageUrl} alt="" /> : <Gift />}</span>)}
+      {wishes.slice(0, 4).map((wish) => {
+        const previewImageUrl = wishPreviewImageUrl(wish);
+        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="no-referrer" /> : <Gift />}</span>;
+      })}
     </span>
     </ShadcnButton>
     <div className="wish-card__body wish-group-tile__meta">
@@ -2178,6 +2183,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   const linkedListNames = linkedLists.map((list) => list.title);
   const listLabel = linkedListNames.length > 1 ? `${linkedListNames[0]} +${linkedListNames.length - 1}` : linkedListNames[0] || "Без списка";
   const listTitleText = linkedListNames.join(", ") || "Без списка";
+  const previewImageUrl = wishPreviewImageUrl(wish);
 
   useEffect(() => {
     if (!listMutationRef.current) setSelectedListIds(normalizeListIds(wish.listIds));
@@ -2257,8 +2263,8 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           </DrawerClose>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-md relative overflow-hidden p-0">
-            {wish.imageUrl
-              ? <img className="block h-auto w-full" src={wish.imageUrl} alt={`Фото желания «${wish.title}»`} />
+            {previewImageUrl
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="no-referrer" />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
@@ -2518,6 +2524,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const isPlaces = effectiveSpace === "places";
   const isMedia = effectiveSpace === "media";
   const isYouTube = isMedia && isYouTubeUrl(form.url.trim());
+  const isKinopoisk = isMedia && isKinopoiskUrl(form.url.trim());
+  const formPreviewImageUrl = wishPreviewImageUrl({ imageUrl: form.imageUrl, url: form.url });
   const showEventDate = effectiveSpace === "events"
     || Boolean(wish?.eventDate)
     || form.listIds.some((id) => {
@@ -2539,7 +2547,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return false; }
     const requestId = ++metadataRequestRef.current;
-    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isYouTube ? "Читаем видео на YouTube…" : "Ищем название, фотографию и цену на странице магазина…" });
+    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isYouTube ? "Читаем видео на YouTube…" : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       const meta = await api.post("/metadata", { url });
       if (requestId !== metadataRequestRef.current) return false;
@@ -2552,7 +2560,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       };
       const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
       if (foundFields.length === 0) {
-        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
       const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
@@ -2563,11 +2571,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
-      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : "Не удалось прочитать страницу магазина.") });
+      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : isKinopoisk ? "Не удалось получить постер Кинопоиска." : isMedia ? "Не удалось получить обложку по ссылке." : "Не удалось прочитать страницу магазина.") });
       return false;
     }
   };
@@ -2668,7 +2676,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -2726,7 +2734,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
-              className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${form.imageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
+              className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${formPreviewImageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
               aria-busy={imageUploading || undefined}
               onDragEnter={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragOver={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
@@ -2737,8 +2745,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 uploadImage(event.dataTransfer.files?.[0]);
               }}
             >
-              {form.imageUrl
-                ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} />
+              {formPreviewImageUrl
+                ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="no-referrer" />
                 : <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 transition-colors max-[380px]:gap-2 max-[380px]:p-3">
                   <EmptyHeader className="gap-1">
                     <EmptyMedia className="mb-1" variant="icon"><Image aria-hidden="true" /></EmptyMedia>
@@ -2769,7 +2777,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
                 onChange={(event) => uploadImage(event.target.files?.[0])}
               />
-              {form.imageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</ShadcnButton>}
+              {formPreviewImageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</ShadcnButton>}
             </div>
             {imageError && <FieldError id={fieldId("image-error")}>{imageError}</FieldError>}
           </section>
@@ -2789,7 +2797,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
-                {((isMedia && !form.url.trim()) || isYouTube) && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> Ссылка на видео с YouTube — подставим название и превью</p>}
+                {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isYouTube ? "Ссылка на видео с YouTube — подставим название и превью" : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
               </Field>
 
               {metadataNotice}

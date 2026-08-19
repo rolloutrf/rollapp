@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  bookmateApiUrl,
   decodeHtmlEntities,
+  isBookmateUrl,
+  isKinopoiskUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
   normalizeCurrency,
   normalizePrice,
+  parseBookmateMetadata,
+  parseKinopoiskMetadata,
   parseProductMetadata,
   parseYandexMapsMetadata,
   parseYouTubeMetadata,
@@ -13,6 +18,97 @@ import {
   resolveImageUrl,
   youtubeThumbnailUrl,
 } from "./metadata.js";
+
+test("recognizes Kinopoisk film and series links without accepting lookalike hosts", () => {
+  assert.equal(isKinopoiskUrl("https://www.kinopoisk.ru/film/435/"), true);
+  assert.equal(isKinopoiskUrl("https://m.kinopoisk.ru/series/77044/"), true);
+  assert.equal(isKinopoiskUrl("https://kinopoisk.ru.evil.example/film/435/"), false);
+  assert.equal(isKinopoiskUrl("https://www.kinopoisk.ru/lists/movies/top250/"), false);
+});
+
+test("maps a Kinopoisk content link to its stable poster preview", () => {
+  assert.deepEqual(parseKinopoiskMetadata("https://www.kinopoisk.ru/film/435/"), {
+    title: "",
+    description: "",
+    imageUrl: "https://st.kp.yandex.net/images/film_iphone/iphone360_435.jpg",
+    price: null,
+    currency: "",
+    kind: "media",
+  });
+});
+
+test("recognizes Bookmate media links and builds public API urls", () => {
+  const valid = [
+    ["https://rus.bookmate.com/books/hPi0Nn9f", "https://api.bookmate.com/api/v5/books/hPi0Nn9f"],
+    ["https://bookmate.com/audiobooks/yWv285RP/", "https://api.bookmate.com/api/v5/audiobooks/yWv285RP"],
+    ["http://en.bookmate.com/comicbooks/U78uzcs7?from=library", "https://api.bookmate.com/api/v5/comicbooks/U78uzcs7"],
+  ];
+  for (const [url, apiUrl] of valid) {
+    assert.equal(isBookmateUrl(url), true, url);
+    assert.equal(bookmateApiUrl(url), apiUrl, url);
+  }
+
+  const invalid = [
+    "https://bookmate.com.evil.example/books/hPi0Nn9f",
+    "https://notbookmate.com/books/hPi0Nn9f",
+    "https://rus.bookmate.com/authors/hPi0Nn9f",
+    "https://rus.bookmate.com/books/",
+    "ftp://rus.bookmate.com/books/hPi0Nn9f",
+    "not a url",
+  ];
+  for (const url of invalid) {
+    assert.equal(isBookmateUrl(url), false, url);
+    assert.equal(bookmateApiUrl(url), "", url);
+  }
+});
+
+test("maps Bookmate API metadata to a direct cover preview", () => {
+  assert.deepEqual(
+    parseBookmateMetadata(
+      {
+        book: {
+          title: "Обмен разумов &amp; другие истории",
+          annotation: "Фантастический <b>роман</b> Роберта Шекли",
+          authors: "Роберт Шекли",
+          cover: {
+            large: "https://assets1.bmstatic.com/assets/books-covers/ee/18/uJlKhVV5-ipad.jpeg?image_hash=abc",
+            small: "https://assets1.bmstatic.com/assets/books-covers/ee/18/uJlKhVV5-thumb.jpeg?image_hash=def",
+          },
+        },
+      },
+      "https://api.bookmate.com/api/v5/books/hPi0Nn9f",
+    ),
+    {
+      title: "Обмен разумов & другие истории",
+      description: "Фантастический роман Роберта Шекли",
+      imageUrl: "https://assets1.bmstatic.com/assets/books-covers/ee/18/uJlKhVV5-ipad.jpeg?image_hash=abc",
+      price: null,
+      currency: "",
+      kind: "media",
+    },
+  );
+});
+
+test("supports Bookmate audiobook and comic-book response shapes", () => {
+  const audiobook = parseBookmateMetadata({
+    audiobook: {
+      title: "Грозовой перевал",
+      authors: [{ name: "Эмили Бронте" }],
+      cover: { small: "/assets/audiobooks-covers/cover.jpeg" },
+    },
+  }, "https://api.bookmate.com/api/v5/audiobooks/yWv285RP");
+  assert.equal(audiobook.description, "Эмили Бронте");
+  assert.equal(audiobook.imageUrl, "https://api.bookmate.com/assets/audiobooks-covers/cover.jpeg");
+
+  const comicbook = parseBookmateMetadata({
+    comicbook: {
+      title: "Комикс",
+      annotation: "Описание",
+      cover: { large: "data:image/png;base64,AAAA" },
+    },
+  }, "https://api.bookmate.com/api/v5/comicbooks/U78uzcs7");
+  assert.equal(comicbook.imageUrl, "");
+});
 
 test("parses Open Graph metadata regardless of attribute order", () => {
   const html = `
@@ -33,6 +129,90 @@ test("parses Open Graph metadata regardless of attribute order", () => {
     price: 12_490.5,
     currency: "RUB",
   });
+});
+
+test("keeps an Alpina cover with spaces in its Open Graph URL", () => {
+  const html = `
+    <meta property="og:title" content="Немного нежности к себе">
+    <meta property="og:image" content="https://alpinabook.ru/upload/iblock/c88/book cover 04 2026.jpg">
+  `;
+
+  const result = parseProductMetadata(html, "https://alpinabook.ru/catalog/book-nemnogo-nezhnosti-k-sebe/");
+  assert.equal(result.imageUrl, "https://alpinabook.ru/upload/iblock/c88/book%20cover%2004%202026.jpg");
+});
+
+test("prefers the full JSON-LD offer cover on MIF product pages", () => {
+  const html = `
+    <meta property="og:title" content="Неизбежно">
+    <meta property="og:image" content="assets/images/books-new/neizbezhno/neizbezhno-s.png">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Неизбежно",
+        "image": "/assets/images/covers/53/17953/0.50x-thumb.png",
+        "offers": {
+          "@type": "Offer",
+          "image": "/assets/images/covers/53/17953/1.00x-thumb.png",
+          "price": 897,
+          "priceCurrency": "RUB"
+        }
+      }
+    </script>
+  `;
+
+  const result = parseProductMetadata(
+    html,
+    "https://www.mann-ivanov-ferber.ru/catalog/product/neizbezhno/",
+  );
+  assert.equal(result.imageUrl, "https://www.mann-ivanov-ferber.ru/assets/images/covers/53/17953/1.00x-thumb.png");
+});
+
+test("resolves a MIF asset from the origin when structured data has no image", () => {
+  const html = `<meta property="og:image" content="assets/media/book-cover.png">`;
+  const result = parseProductMetadata(
+    html,
+    "https://www.mann-ivanov-ferber.ru/catalog/product/example/",
+  );
+  assert.equal(result.imageUrl, "https://www.mann-ivanov-ferber.ru/assets/media/book-cover.png");
+});
+
+test("does not apply MIF image rules to lookalike hosts", () => {
+  const html = `
+    <meta property="og:image" content="assets/social-card.png">
+    <script type="application/ld+json">
+      {"@type":"Product","name":"Book","image":"/assets/cover.png"}
+    </script>
+  `;
+  const result = parseProductMetadata(
+    html,
+    "https://mann-ivanov-ferber.ru.evil.example/catalog/product/example/",
+  );
+  assert.equal(
+    result.imageUrl,
+    "https://mann-ivanov-ferber.ru.evil.example/catalog/product/example/assets/social-card.png",
+  );
+});
+
+test("keeps an offer image as a fallback for non-MIF product pages", () => {
+  const html = `
+    <script type="application/ld+json">
+      [
+        {
+          "@type": "Product",
+          "name": "Первый товар",
+          "offers": { "@type": "Offer", "image": "/assets/offer-cover.jpg" }
+        },
+        {
+          "@type": "Product",
+          "name": "Второй товар",
+          "image": "/assets/product-cover.jpg"
+        }
+      ]
+    </script>
+  `;
+  const result = parseProductMetadata(html, "https://example.com/catalog/book/");
+  assert.equal(result.imageUrl, "https://example.com/assets/offer-cover.jpg");
 });
 
 test("finds a Product and AggregateOffer inside a JSON-LD graph", () => {

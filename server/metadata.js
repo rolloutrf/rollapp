@@ -1,3 +1,5 @@
+import { isKinopoiskUrl, kinopoiskPosterUrl } from "../shared/kinopoisk.js";
+
 const SUPPORTED_CURRENCIES = new Set(["RUB", "USD", "EUR", "KZT", "BYN"]);
 
 const HTML_ENTITIES = {
@@ -198,11 +200,14 @@ function productDetails(documents) {
       title: firstScalar(product.name ?? product.headline),
       description: firstScalar(product.description),
       imageUrl: firstScalar(product.image ?? product.photo ?? product.thumbnailUrl),
+      offerImageUrl: firstScalar(
+        collectJsonNodes(product.offers).map((offerNode) => offerNode?.image),
+      ),
       amount: offer.amount || firstScalar(product.price),
       currency: offer.currency || firstScalar(product.priceCurrency),
     };
     const score = Number(Boolean(candidate.title)) * 2
-      + Number(Boolean(candidate.imageUrl)) * 2
+      + Number(Boolean(candidate.imageUrl || candidate.offerImageUrl)) * 2
       + Number(normalizePrice(candidate.amount) !== null) * 3
       + Number(Boolean(candidate.description));
     if (!best || score > best.score) best = { ...candidate, score };
@@ -263,6 +268,47 @@ export function resolveImageUrl(value, pageUrl) {
   } catch {
     return "";
   }
+}
+
+function hostnameMatches(value, expected) {
+  let url;
+  try {
+    url = value instanceof URL ? value : new URL(String(value));
+  } catch {
+    return false;
+  }
+  const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+  return hostname === expected || hostname.endsWith(`.${expected}`);
+}
+
+function isMifUrl(value) {
+  return hostnameMatches(value, "mann-ivanov-ferber.ru");
+}
+
+const BOOKMATE_CONTENT_PATH = /^\/(books|audiobooks|comicbooks)\/([a-z0-9_-]{1,64})(?:\/|$)/i;
+
+function parseBookmateContentUrl(value) {
+  let url;
+  try {
+    url = value instanceof URL ? value : new URL(String(value));
+  } catch {
+    return null;
+  }
+  if (!["http:", "https:"].includes(url.protocol) || !hostnameMatches(url, "bookmate.com")) return null;
+  const match = BOOKMATE_CONTENT_PATH.exec(url.pathname);
+  if (!match) return null;
+  return { type: match[1].toLowerCase(), id: match[2] };
+}
+
+export function isBookmateUrl(value) {
+  return Boolean(parseBookmateContentUrl(value));
+}
+
+export function bookmateApiUrl(value) {
+  const content = parseBookmateContentUrl(value);
+  return content
+    ? `https://api.bookmate.com/api/v5/${content.type}/${encodeURIComponent(content.id)}`
+    : "";
 }
 
 const YANDEX_MAPS_HOSTS = new Set(["yandex.ru", "yandex.com", "yandex.kz", "yandex.by", "yandex.ua"]);
@@ -417,6 +463,38 @@ export function parseYouTubeMetadata(oembed, pageUrl) {
   };
 }
 
+export { isKinopoiskUrl };
+
+export function parseKinopoiskMetadata(pageUrl) {
+  return {
+    title: "",
+    description: "",
+    imageUrl: kinopoiskPosterUrl(pageUrl),
+    price: null,
+    currency: "",
+    kind: "media",
+  };
+}
+
+export function parseBookmateMetadata(payload, pageUrl) {
+  const source = payload?.book ?? payload?.audiobook ?? payload?.comicbook ?? {};
+  const authors = typeof source.authors === "string"
+    ? source.authors
+    : (Array.isArray(source.authors) ? source.authors : source.authors_objects || [])
+      .map((author) => author?.name)
+      .filter(Boolean)
+      .join(", ");
+
+  return {
+    title: cleanText(source.title, 160),
+    description: cleanText(source.annotation || source.editor_annotation || authors, 1_000),
+    imageUrl: resolveImageUrl(source.cover?.large || source.cover?.small, pageUrl),
+    price: null,
+    currency: "",
+    kind: "media",
+  };
+}
+
 export function parseProductMetadata(source, pageUrl) {
   const html = String(source ?? "");
   const { meta, microdata, scriptBodies } = collectHtmlData(html);
@@ -453,8 +531,14 @@ export function parseProductMetadata(source, pageUrl) {
       || microdataValue(microdata, "description"),
     1_000,
   );
-  const rawImageUrl = metaValue(meta, "og:image:secure_url", "og:image", "twitter:image", "twitter:image:src")
+  const metadataImageUrl = metaValue(meta, "og:image:secure_url", "og:image", "twitter:image", "twitter:image:src");
+  const mifMetadataImageUrl = isMifUrl(pageUrl) && /^assets\//i.test(metadataImageUrl.trim())
+    ? `/${metadataImageUrl.trim()}`
+    : metadataImageUrl;
+  const rawImageUrl = (isMifUrl(pageUrl) ? structured.offerImageUrl || structured.imageUrl : "")
+    || mifMetadataImageUrl
     || structured.imageUrl
+    || structured.offerImageUrl
     || microdataValue(microdata, "image", "thumbnailurl", "contenturl");
 
   return {
