@@ -11,7 +11,9 @@ permissions:
 
 concurrency:
   group: rollapp-production
-  cancel-in-progress: true
+  # A cancelled job can leave an asynchronous VM metadata update racing the
+  # next deployment. Let each production rollout reach a terminal state.
+  cancel-in-progress: false
 
 env:
   YC_FOLDER_ID: b1gebpfrhvkd43r38q98
@@ -85,49 +87,100 @@ jobs:
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
         run: |
+          set -euo pipefail
           sed -e "s|__IMAGE__|${IMAGE_SHA}|g" \
             -e "s|__VERSION__|${GITHUB_SHA}|g" \
             deploy/docker-compose.template.yml > deploy/docker-compose.yml
           yc compute instance update-container \
             --id "$YC_VM_ID" \
             --docker-compose-file deploy/docker-compose.yml \
-            --folder-id "$YC_FOLDER_ID" \
-            --async
+            --folder-id "$YC_FOLDER_ID"
+
+          instance_json="$(yc compute instance get \
+            --id "$YC_VM_ID" \
+            --full \
+            --format json)"
+          if ! jq -e \
+            --arg expected_image "$IMAGE_SHA" \
+            --arg expected_version "$GITHUB_SHA" \
+            '.status == "RUNNING"
+              and .metadata_options.gce_http_endpoint == "ENABLED"
+              and .metadata_options.gce_http_token == "ENABLED"
+              and (.metadata | keys == ["docker-compose"])
+              and (.metadata["docker-compose"] | contains("image: \"" + $expected_image + "\""))
+              and (.metadata["docker-compose"] | contains("APP_VERSION: \"" + $expected_version + "\""))' \
+            <<<"$instance_json" >/dev/null; then
+            echo "Production VM metadata does not contain the expected immutable image and version" >&2
+            exit 1
+          fi
 
       - name: Verify production health
         run: |
-          for attempt in $(seq 1 30); do
-            if curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" \
-              | jq -e --arg expected "$GITHUB_SHA" '.ok == true and .version == $expected' >/dev/null; then
-              echo "Rollapp is healthy at ${PUBLIC_URL}"
-              for redirect_url in \
-                "https://rollapp.51-250-110-17.sslip.io/api/healthz" \
-                "https://www.xn--80avakiab.xn--p1ai/api/healthz"; do
-                redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$redirect_url")"
-                if [ "$redirect_result" != "301 ${PUBLIC_URL}/api/healthz" ]; then
-                  echo "Unexpected canonical redirect for ${redirect_url}: ${redirect_result}" >&2
-                  exit 1
-                fi
-              done
-              profile_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/koloskof")"
-              if [ "$profile_status" != "200" ]; then
-                echo "Clean public profile returned ${profile_status}" >&2
+          set -euo pipefail
+
+          read_health() {
+            curl -fsS --max-time 10 "${PUBLIC_URL}/api/healthz" 2>/dev/null || true
+          }
+
+          wait_for_expected_version() {
+            local max_attempts="$1"
+            local health actual_version
+            for attempt in $(seq 1 "$max_attempts"); do
+              health="$(read_health)"
+              if jq -e --arg expected "$GITHUB_SHA" \
+                '.ok == true and .version == $expected' \
+                <<<"$health" >/dev/null 2>&1; then
+                return 0
+              fi
+              actual_version="$(jq -r '.version // "unavailable"' <<<"$health" 2>/dev/null || echo unavailable)"
+              echo "Waiting for production (${attempt}/${max_attempts}); current version: ${actual_version}"
+              sleep 5
+            done
+            return 1
+          }
+
+          if ! wait_for_expected_version 24; then
+            current_health="$(read_health)"
+            if jq -e --arg expected "$GITHUB_SHA" \
+              '.ok == true and .service == "rollapp" and (.version | type == "string") and .version != $expected' \
+              <<<"$current_health" >/dev/null 2>&1; then
+              stale_version="$(jq -r '.version' <<<"$current_health")"
+              echo "Production is healthy but stale at ${stale_version}; restarting the VM once to reconcile container metadata"
+              yc compute instance restart \
+                --id "$YC_VM_ID" \
+                --folder-id "$YC_FOLDER_ID"
+              if ! wait_for_expected_version 90; then
+                echo "Production stayed stale after the one-time VM restart: $(read_health)" >&2
                 exit 1
               fi
-              for legacy_path in "/u/koloskof" "/users/koloskof"; do
-                redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "${PUBLIC_URL}${legacy_path}")"
-                if [ "$redirect_result" != "301 ${PUBLIC_URL}/koloskof" ]; then
-                  echo "Unexpected profile redirect for ${legacy_path}: ${redirect_result}" >&2
-                  exit 1
-                fi
-              done
-              exit 0
+            else
+              echo "Production became unhealthy while deploying; refusing an automatic restart: ${current_health}" >&2
+              exit 1
             fi
-            echo "Waiting for production (${attempt}/30)..."
-            sleep 5
+          fi
+
+          echo "Rollapp is healthy at ${PUBLIC_URL} on ${GITHUB_SHA}"
+          for redirect_url in \
+            "https://rollapp.51-250-110-17.sslip.io/api/healthz" \
+            "https://www.xn--80avakiab.xn--p1ai/api/healthz"; do
+            redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$redirect_url")"
+            if [ "$redirect_result" != "301 ${PUBLIC_URL}/api/healthz" ]; then
+              echo "Unexpected canonical redirect for ${redirect_url}: ${redirect_result}" >&2
+              exit 1
+            fi
           done
-          echo "Production health check failed" >&2
-          exit 1
+          profile_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/koloskof")"
+          if [ "$profile_status" != "200" ]; then
+            echo "Clean public profile returned ${profile_status}" >&2
+            exit 1
+          fi
+          for legacy_path in "/u/koloskof" "/users/koloskof"; do
+            redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "${PUBLIC_URL}${legacy_path}")"
+            if [ "$redirect_result" != "301 ${PUBLIC_URL}/koloskof" ]; then
+              echo "Unexpected profile redirect for ${legacy_path}: ${redirect_result}" >&2
+              exit 1
+            fi
+          done
 
       - name: Configure Telegram Mini App
         env:
