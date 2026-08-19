@@ -7,14 +7,15 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "concurrently -k \"node --watch server/index.js\" \"vite --host 0.0.0.0\"",
-    "dev:server": "node --watch server/index.js",
+    "dev": "concurrently -k \"node --watch server/start.js\" \"vite --host 0.0.0.0\"",
+    "dev:server": "node --watch server/start.js",
     "build": "vite build",
-    "start": "node server/index.js",
+    "start": "node server/start.js",
     "test": "node --test",
     "test:ui": "node scripts/check-shadcn.mjs",
     "check": "npm run test && npm run test:ui && npm run build",
-    "test:visual": "node scripts/visual-smoke.mjs"
+    "test:visual": "node scripts/visual-smoke.mjs",
+    "telegram:configure": "node scripts/configure-telegram-bot.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

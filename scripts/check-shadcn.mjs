@@ -524,18 +524,14 @@ assert(/checked=\{form\.privacy === "private"\}/.test(listModalSource), "ListMod
 assert(/privacy: checked \? "private" : "public"/.test(listModalSource), "ListModal switch must map directly to private/public privacy");
 const wishModalSource = app.slice(app.indexOf("function WishModal"), app.indexOf("function FriendsPage"));
 const primaryWishEditorDialog = wishModalSource.slice(wishModalSource.indexOf("const fieldId"), wishModalSource.indexOf("{listCreatorOpen &&"));
-for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerFooter"]) {
-  assert(new RegExp(`<${component}\\b`).test(primaryWishEditorDialog), `WishModal must compose the official shadcn ${component} directly`);
-}
+assert(/<section\b[^>]*className="wish-editor-screen"[^>]*role="dialog"[^>]*aria-modal="true"/.test(primaryWishEditorDialog), "WishModal must render as a standalone fullscreen dialog section");
 assert(!/<Modal\b/.test(primaryWishEditorDialog), "WishModal must not wrap its primary editor in the legacy Modal adapter");
-assert(/<DrawerClose\b/.test(primaryWishEditorDialog), "WishModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
+assert(!/<Drawer(?:Content|Close|Header|Title|Description|Footer)?\b/.test(primaryWishEditorDialog), "WishModal fullscreen editor must not use Drawer components");
 assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use DrawerClose instead of the retired DialogClose");
 assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
 assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must not re-enable the retired Dialog close API");
 assert(!/modal(?:-backdrop)?--wish-editor/.test(primaryWishEditorDialog), "WishModal must not restore the legacy fullscreen editor shell");
-assert(/<Drawer open\b[^>]*onOpenChange=\{\(open\) => \{ if \(!open\) requestClose\(\); \}\}/.test(primaryWishEditorDialog), "WishModal must keep its requestClose-guarded Drawer");
-const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
-assert(primaryWishEditorContentTag === "<DrawerContent>", "WishModal must use the base shadcn DrawerContent shell without custom classes or adapters");
+assert(/className="wish-editor-screen__close"[^>]*onClick=\{requestClose\}/.test(primaryWishEditorDialog), "WishModal must keep its requestClose-guarded close action");
 assert(
   !/<Tabs\b/.test(app) || /<TabsContent\b/.test(app),
   "Tabs must render associated TabsContent panels; use ToggleGroup for filters and route selectors",

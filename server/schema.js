@@ -26,6 +26,21 @@ const schema = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 
+  CREATE TABLE IF NOT EXISTS telegram_identities (
+    telegram_user_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    username TEXT NOT NULL DEFAULT '',
+    first_name TEXT NOT NULL DEFAULT '',
+    last_name TEXT NOT NULL DEFAULT '',
+    photo_url TEXT NOT NULL DEFAULT '',
+    language_code TEXT NOT NULL DEFAULT '',
+    linked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_telegram_identities_user
+    ON telegram_identities(user_id);
+
   CREATE TABLE IF NOT EXISTS default_follow_targets (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -106,6 +121,21 @@ const schema = `
     PRIMARY KEY (wishlist_id, wish_id)
   );
 
+  CREATE TABLE IF NOT EXISTS wish_groups (
+    id TEXT PRIMARY KEY,
+    wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'Группа',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS wish_group_members (
+    group_id TEXT NOT NULL REFERENCES wish_groups(id) ON DELETE CASCADE,
+    wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    wish_id TEXT NOT NULL REFERENCES wishes(id) ON DELETE CASCADE,
+    PRIMARY KEY (group_id, wish_id),
+    UNIQUE (wishlist_id, wish_id)
+  );
+
   CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,
     wish_id TEXT NOT NULL REFERENCES wishes(id) ON DELETE CASCADE,
@@ -135,6 +165,7 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_wishes_user ON wishes(user_id);
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE INDEX IF NOT EXISTS idx_wishlist_wishes_wish ON wishlist_wishes(wish_id);
+  CREATE INDEX IF NOT EXISTS idx_wish_groups_list ON wish_groups(wishlist_id);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
