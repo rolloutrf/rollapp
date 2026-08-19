@@ -987,17 +987,19 @@ app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (re
 
   const tokenHash = hashToken(parsed.data.token);
   const candidate = await query(
-    `SELECT user_id FROM password_reset_tokens
-     WHERE token_hash=$1 AND delivery_status='sent'
-       AND consumed_at IS NULL AND expires_at>$2`,
+    `SELECT t.user_id,u.email FROM password_reset_tokens t
+     JOIN users u ON u.id=t.user_id
+     WHERE t.token_hash=$1 AND t.delivery_status='sent'
+       AND t.consumed_at IS NULL AND t.expires_at>$2`,
     [tokenHash, new Date()],
   );
   const candidateUserId = candidate.rows[0]?.user_id;
-  if (!candidateUserId) return res.status(400).json(invalidPasswordResetResponse);
+  const candidateEmail = candidate.rows[0]?.email;
+  if (!candidateUserId || !candidateEmail) return res.status(400).json(invalidPasswordResetResponse);
 
   const passwordHash = await hashPassword(parsed.data.password);
   const now = new Date();
-  const result = await transaction(async (client) => {
+  const result = await withMutationLock(`password-auth:${candidateEmail}`, () => transaction(async (client) => {
     const lockedUser = await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [candidateUserId]);
     if (!lockedUser.rowCount) return { kind: "invalid" };
     const claimed = await client.query(
@@ -1017,7 +1019,7 @@ app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (re
     );
     await client.query("DELETE FROM sessions WHERE user_id=$1", [userId]);
     return { kind: "success", userId };
-  });
+  }));
 
   if (result.kind !== "success") return res.status(400).json(invalidPasswordResetResponse);
   if (req.user?.id === result.userId) res.clearCookie(sessionCookie, { path: "/" });
@@ -1054,13 +1056,13 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Введите корректные email и пароль" });
-  const authenticated = await transaction(async (client) => {
+  const authenticated = await withMutationLock(`password-auth:${parsed.data.email}`, () => transaction(async (client) => {
     const result = await client.query("SELECT * FROM users WHERE email = $1 FOR UPDATE", [parsed.data.email]);
     const user = result.rows[0];
     if (!user || !(await verifyPassword(parsed.data.password, user.password_hash))) return null;
     const session = await createSessionRecord(client, user.id);
     return { session, user };
-  });
+  }));
   if (!authenticated) {
     return res.status(401).json({ error: "Неверные email или пароль" });
   }
