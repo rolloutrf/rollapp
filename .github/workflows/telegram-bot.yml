@@ -15,7 +15,7 @@ concurrency:
 
 env:
   YC_FOLDER_ID: b1gebpfrhvkd43r38q98
-  YC_RUNTIME_SA_ID: ajea75b2e3r8kiigmice
+  YC_POLLER_SA_ID: ajei12r063q54mgkp6fg
 
 jobs:
   poll:
@@ -42,7 +42,7 @@ jobs:
             -H 'Content-Type: application/x-www-form-urlencoded' \
             --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
             --data-urlencode 'requested_token_type=urn:ietf:params:oauth:token-type:access_token' \
-            --data-urlencode "audience=${YC_RUNTIME_SA_ID}" \
+            --data-urlencode "audience=${YC_POLLER_SA_ID}" \
             --data-urlencode "subject_token=${OIDC_TOKEN}" \
             --data-urlencode 'subject_token_type=urn:ietf:params:oauth:token-type:id_token' \
             | jq -er '.access_token')"
@@ -56,11 +56,22 @@ jobs:
             -o /usr/local/bin/yc
           sudo chmod 0755 /usr/local/bin/yc
 
+      - name: Load Telegram token
+        env:
+          YC_TELEGRAM_LOCKBOX_SECRET_ID: e6qqi6inhrnvg67mkhhs
+        run: |
+          set -euo pipefail
+          BOT_TOKEN="$(yc lockbox payload get \
+            --id "$YC_TELEGRAM_LOCKBOX_SECRET_ID" \
+            --folder-id "$YC_FOLDER_ID" \
+            --format json \
+            | jq -er '.entries[] | select(.key == "bot_token") | (.text_value // .textValue)')"
+          echo "::add-mask::${BOT_TOKEN}"
+          echo "TELEGRAM_BOT_TOKEN=${BOT_TOKEN}" >> "$GITHUB_ENV"
+          echo "YC_IAM_TOKEN=" >> "$GITHUB_ENV"
+
       - name: Poll Telegram updates
         env:
-          YC_LOCKBOX_SOURCE: cli
-          YC_TELEGRAM_LOCKBOX_SECRET_ID: e6qqi6inhrnvg67mkhhs
-          YC_TELEGRAM_BOT_TOKEN_KEY: bot_token
           TELEGRAM_BOT_USERNAME: rollappRFbot
           TELEGRAM_WEB_APP_URL: https://xn--80avakiab.xn--p1ai/
           TELEGRAM_POLLING_RUN_SECONDS: "20400"
