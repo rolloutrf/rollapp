@@ -5,7 +5,7 @@ import {
   CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   PawPrint, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
-  Users, UtensilsCrossed, X,
+  Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
@@ -40,6 +40,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { disbandWishGroupFromDashboard, filterWishGroups } from "./lib/wish-groups.js";
+import { moveWishToTargetPosition, moveWishWithinSubset } from "./lib/wish-order.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
 const SessionContext = createContext(null);
@@ -47,6 +49,50 @@ const ToastContext = createContext(null);
 const ProfileEditorContext = createContext(null);
 const APP_HOME = "/app/wishes";
 const GROUP_INTENT_DELAY_MS = 250;
+const ACTIVE_SCROLL_LOCK_SURFACE_SELECTOR = [
+  '[aria-modal="true"]:not([data-closed])',
+  '[data-slot="dropdown-menu-content"][data-open]',
+  '[data-slot="dropdown-menu-sub-content"][data-open]',
+  '[data-slot="select-content"][data-open]',
+  '.modal-backdrop',
+].join(",");
+
+const clearStaleDocumentScrollLock = () => {
+  if (typeof document === "undefined" || document.querySelector(ACTIVE_SCROLL_LOCK_SURFACE_SELECTOR)) return;
+  const root = document.documentElement;
+  const body = document.body;
+  // Base UI has no lock marker on macOS overlay scrollbars, so repair only
+  // its known inline styles after every visible locking surface is gone.
+  const hasStaleBaseUiInsetLock = root.hasAttribute("data-base-ui-scroll-locked") || (
+    body.style.position === "relative"
+    && body.style.height.includes("100dvh")
+    && body.style.width.includes("100vw")
+  );
+  [root, body].forEach((element) => {
+    ["overflow", "overflow-x", "overflow-y"].forEach((property) => {
+      if (/^(hidden|clip)$/.test(element.style.getPropertyValue(property))) {
+        element.style.removeProperty(property);
+      }
+    });
+  });
+  if (hasStaleBaseUiInsetLock) {
+    root.removeAttribute("data-base-ui-scroll-locked");
+    ["scrollbar-gutter", "scroll-behavior", "overflow", "overflow-x", "overflow-y"].forEach((property) => root.style.removeProperty(property));
+    ["position", "height", "width", "box-sizing", "scroll-behavior", "overflow", "overflow-x", "overflow-y"].forEach((property) => body.style.removeProperty(property));
+  }
+};
+
+const scheduleDocumentScrollUnlock = () => {
+  if (typeof window === "undefined") return undefined;
+  let settleFrame = 0;
+  const releaseFrame = window.requestAnimationFrame(() => {
+    settleFrame = window.requestAnimationFrame(clearStaleDocumentScrollLock);
+  });
+  return () => {
+    window.cancelAnimationFrame(releaseFrame);
+    window.cancelAnimationFrame(settleFrame);
+  };
+};
 
 const formatMoney = (value, currency = "RUB") => value == null ? "" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -1271,11 +1317,13 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   return { busy, reserve, remove, fulfilled, share, save, update, repeat };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, profile, lists = [], shareToken = "", variant = "", draggable = false, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, isDropTarget = false, isDragging = false }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [removingFromGroup, setRemovingFromGroup] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
   const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const interactionBusy = busy || removingFromGroup || groupBusy;
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const visibleLists = categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists));
   const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
@@ -1286,6 +1334,9 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   useEffect(() => {
     if (!menu) setSelectedListIds([...(wish.listIds || [])]);
   }, [wish.id, wish.listIds, menu]);
+  useEffect(() => {
+    if (groupBusy) setMenu(false);
+  }, [groupBusy]);
 
   const closeMenu = () => {
     setMenu(false);
@@ -1305,10 +1356,20 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
     if (updatedWish) closeMenu();
   };
 
+  const removeFromGroup = async () => {
+    if (!onRemoveFromGroup || interactionBusy) return;
+    setRemovingFromGroup(true);
+    try {
+      await onRemoveFromGroup();
+    } finally {
+      setRemovingFromGroup(false);
+    }
+  };
+
   return (
     <>
-    <Card data-group-wish-id={wish.id} draggable={draggable} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
-      {onOpen && <ShadcnButton type="button" draggable={draggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
+    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
+      {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       <div className="wish-card__image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" draggable="false" /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
@@ -1318,7 +1379,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
             if (!open) setSelectedListIds([...(wish.listIds || [])]);
           }}>
             <DropdownMenuTrigger
-              render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" />}
+              render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" disabled={interactionBusy} />}
               aria-label={`Опции желания «${wish.title}»`}
               aria-controls={`wish-menu-${wish.id}`}
             >
@@ -1398,6 +1459,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </>}
+              {owner && onRemoveFromGroup && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
               {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
               {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
@@ -1418,11 +1480,11 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   );
 }
 
-function WishGroupTile({ group, wishes, onOpen, onRename, onDelete, onDragOver, onDragLeave, onDrop, isDropTarget }) {
+function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, onDragOver, onDragLeave, onDrop, isDropTarget }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [disbandOpen, setDisbandOpen] = useState(false);
   const renamingFromMenuRef = useRef(false);
   const beginEditing = () => {
     renamingFromMenuRef.current = true;
@@ -1446,11 +1508,11 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDelete, onDragOver, 
     setBusy(false);
     if (saved) finishEditing();
   };
-  const remove = async () => {
+  const disband = async () => {
     setBusy(true);
-    const deleted = await onDelete();
+    const disbanded = await onDisband();
     setBusy(false);
-    if (deleted) setDeleteOpen(false);
+    if (disbanded) setDisbandOpen(false);
   };
   return <>
   <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
@@ -1463,24 +1525,25 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDelete, onDragOver, 
       {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
-        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
       </div>
     </div>
   </div>
-  {deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open); }}>
+  {disbandOpen && <AlertDialog open={disbandOpen} onOpenChange={(open) => { if (!busy) setDisbandOpen(open); }}>
     <AlertDialogContent>
-      <AlertDialogHeader><AlertDialogTitle>Удалить группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Группа будет расформирована, а желания останутся в списке. Отменить это действие не получится.</AlertDialogDescription></AlertDialogHeader>
-      <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={remove}>{busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction></AlertDialogFooter>
+      <AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.</AlertDialogDescription></AlertDialogHeader>
+      <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>{busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>}
   </>;
 }
 
-function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }) {
+function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDisband, mutationBusy = false }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const interactionBusy = busy || mutationBusy;
+  const [disbandOpen, setDisbandOpen] = useState(false);
   const renamingFromMenuRef = useRef(false);
   useEffect(() => { if (!editing) setTitle(group.title); }, [group.title, editing]);
   const beginEditing = () => {
@@ -1498,6 +1561,7 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }
     return !skipReturnFocus;
   };
   const saveTitle = async () => {
+    if (mutationBusy) return;
     const nextTitle = title.trim();
     if (!nextTitle || nextTitle === group.title) { setTitle(group.title); finishEditing(); return; }
     setBusy(true);
@@ -1505,18 +1569,19 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }
     setBusy(false);
     if (saved) finishEditing();
   };
-  const remove = async () => {
+  const disband = async () => {
+    if (mutationBusy) return;
     setBusy(true);
-    const deleted = await onDelete();
+    const disbanded = await onDisband();
     setBusy(false);
-    if (deleted) setDeleteOpen(false);
+    if (disbanded) setDisbandOpen(false);
   };
   return <>
     <header>
-      <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
-      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
+      <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={interactionBusy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
+      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" disabled={interactionBusy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
     </header>
-    {deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Группа будет расформирована, а желания останутся в списке. Отменить это действие не получится.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={remove}>{busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
+    {disbandOpen && <AlertDialog open={disbandOpen} onOpenChange={(open) => { if (!interactionBusy) setDisbandOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={interactionBusy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={interactionBusy} aria-busy={interactionBusy || undefined} onClick={disband}>{interactionBusy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
   </>;
 }
 
@@ -1524,6 +1589,7 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
   const toast = useToast();
+  const isMobile = useIsMobile();
   const { data, loading, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState("products");
@@ -1534,6 +1600,7 @@ function WishesPage({ onAdd, version }) {
   const [dropTarget, setDropTarget] = useState(null);
   const [orderedWishIds, setOrderedWishIds] = useState([]);
   const [openedGroupId, setOpenedGroupId] = useState(null);
+  const [removingGroupId, setRemovingGroupId] = useState(null);
   const pointerDragRef = useRef(null);
   const pointerTimerRef = useRef(null);
   const groupTimerRef = useRef(null);
@@ -1548,13 +1615,24 @@ function WishesPage({ onAdd, version }) {
   const suppressOpenRef = useRef(false);
   const dragSessionRef = useRef(false);
   const dragSourceWishIdRef = useRef(null);
+  const dragScopeRef = useRef(null);
   const orderDirtyRef = useRef(false);
   const pendingOrderRef = useRef(null);
   const orderPersistingRef = useRef(false);
+  const deferredAuthoritativeOrderRef = useRef(null);
+  const removingGroupIdRef = useRef(null);
   const wishOrderKey = (data?.wishes || []).map((wish) => wish.id).join("\0");
+  useEffect(() => {
+    if (selectedWishId || editingWishId || listModal || openedGroupId) return undefined;
+    return scheduleDocumentScrollUnlock();
+  }, [selectedWishId, editingWishId, listModal, openedGroupId]);
   useEffect(() => {
     if (data?.wishes) {
       const ids = data.wishes.map((wish) => wish.id);
+      if (dragSessionRef.current || orderPersistingRef.current) {
+        deferredAuthoritativeOrderRef.current = ids;
+        return;
+      }
       orderedWishIdsRef.current = ids;
       setOrderedWishIds(ids);
     }
@@ -1566,7 +1644,7 @@ function WishesPage({ onAdd, version }) {
   }, []);
   useLayoutEffect(() => {
     if (!flipPositionsRef.current.size) return;
-    const cards = document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id]");
+    const cards = document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wish-group-open > .wish-grid [data-group-wish-id]");
     cards.forEach((card) => {
       const previous = flipPositionsRef.current.get(card.dataset.groupWishId);
       if (!previous || card.dataset.groupWishId === draggedWishId) return;
@@ -1581,36 +1659,45 @@ function WishesPage({ onAdd, version }) {
     });
     flipPositionsRef.current = new Map();
   }, [orderedWishIds, draggedWishId]);
-  useEffect(() => {
-    if (!openedGroupId) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const closeOnEscape = (event) => { if (event.key === "Escape") setOpenedGroupId(null); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [openedGroupId]);
-  if (loading) return <LoadingScreen compact />;
   const orderIndex = new Map(orderedWishIds.map((id, index) => [id, index]));
-  const activeWishes = [...data.wishes]
-    .filter((wish) => wish.status === "active")
+  const dashboardWishes = data?.wishes || [];
+  const dashboardLists = data?.lists || [];
+  const visibleWishes = [...dashboardWishes]
     .sort((a, b) => (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER));
-  const listsById = new Map(data.lists.map((list) => [list.id, list]));
-  const categoryLists = data.lists.filter((list) => !isGeneralList(list) && listSpace(list) === selectedSpace);
-  const generalList = data.lists.find(isGeneralList) || null;
+  const listsById = new Map(dashboardLists.map((list) => [list.id, list]));
+  const categoryLists = dashboardLists.filter((list) => !isGeneralList(list) && listSpace(list) === selectedSpace);
+  const generalList = dashboardLists.find(isGeneralList) || null;
   const groupingListId = selected === "all" ? generalList?.id : selected;
-  const spaceWishes = activeWishes.filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
+  const spaceWishes = visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
+  const wishCountForList = (listId) => spaceWishes.filter((wish) => wish.listIds.includes(listId)).length;
   const wishes = selected === "all" ? spaceWishes : spaceWishes.filter((wish) => wish.listIds.includes(selected));
-  const groups = groupingListId ? (data.groups || []).filter((group) => group.listId === groupingListId) : [];
+  const groups = filterWishGroups({
+    groups: data?.groups,
+    listId: groupingListId,
+    selectedSpace,
+    scopeBySpace: selected === "all",
+    visibleWishIds: new Set(wishes.map((wish) => wish.id)),
+  });
   const groupedWishIds = new Set(groups.flatMap((group) => group.wishIds));
   const ungroupedWishes = wishes.filter((wish) => !groupedWishIds.has(wish.id));
   const openedGroup = groups.find((group) => group.id === openedGroupId) || null;
   const openedGroupWishes = openedGroup ? wishes.filter((wish) => openedGroup.wishIds.includes(wish.id)) : [];
   const selectedList = categoryLists.find((list) => list.id === selected) || null;
-  const selectedWish = selectedWishId ? data.wishes.find((wish) => wish.id === selectedWishId) : null;
-  const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
+  const selectedWish = selectedWishId ? dashboardWishes.find((wish) => wish.id === selectedWishId) : null;
+  const editingWish = editingWishId ? dashboardWishes.find((wish) => wish.id === editingWishId) : null;
+  useEffect(() => {
+    if (!openedGroupId) return undefined;
+    if (!openedGroup) {
+      setOpenedGroupId(null);
+      return undefined;
+    }
+    const closeOnEscape = (event) => { if (event.key === "Escape") setOpenedGroupId(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openedGroupId, openedGroup?.id]);
+  if (loading) return <LoadingScreen compact />;
   const share = async () => {
     if (selected === "secret" || selectedList?.privacy === "private") {
       toast("Приватный список виден только вам", "error");
@@ -1628,6 +1715,7 @@ function WishesPage({ onAdd, version }) {
   const selectSpace = (space) => {
     setSelectedSpace(space);
     setSelected("all");
+    setOpenedGroupId(null);
   };
   const saveList = async (saved) => {
     const attachWishId = listModal?.attachWishId;
@@ -1654,7 +1742,7 @@ function WishesPage({ onAdd, version }) {
   };
   const captureGridPositions = () => {
     const positions = new Map();
-    document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id]").forEach((card) => {
+    document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wish-group-open > .wish-grid [data-group-wish-id]").forEach((card) => {
       positions.set(card.dataset.groupWishId, card.getBoundingClientRect());
     });
     flipPositionsRef.current = positions;
@@ -1689,25 +1777,39 @@ function WishesPage({ onAdd, version }) {
     if (orderPersistingRef.current) return;
     orderPersistingRef.current = true;
     void (async () => {
+      let restoreAuthoritativeOrder = false;
       while (pendingOrderRef.current) {
         const nextOrder = pendingOrderRef.current;
         pendingOrderRef.current = null;
         try {
           await api.patch("/wishes/reorder", { wishIds: nextOrder });
+          restoreAuthoritativeOrder = false;
         } catch (error) {
           toast(error.message, "error");
-          await reload({ background: true }).catch(() => {});
+          restoreAuthoritativeOrder = true;
+          const fresh = await api.get("/dashboard").catch(() => null);
+          if (fresh?.wishes) {
+            deferredAuthoritativeOrderRef.current = fresh.wishes.map((wish) => wish.id);
+          }
         }
       }
       orderPersistingRef.current = false;
+      if (restoreAuthoritativeOrder && !dragSessionRef.current && Array.isArray(deferredAuthoritativeOrderRef.current)) {
+        orderedWishIdsRef.current = [...deferredAuthoritativeOrderRef.current];
+        setOrderedWishIds(orderedWishIdsRef.current);
+        deferredAuthoritativeOrderRef.current = null;
+      } else if (!restoreAuthoritativeOrder) {
+        deferredAuthoritativeOrderRef.current = null;
+      }
     })();
   };
   const reorderWish = (sourceId, targetId) => {
     if (!sourceId || !targetId || sourceId === targetId || lastReorderTargetRef.current === targetId) return;
-    const next = orderedWishIdsRef.current.filter((id) => id !== sourceId);
-    const targetIndex = next.indexOf(targetId);
-    if (targetIndex < 0) return;
-    next.splice(targetIndex, 0, sourceId);
+    const dragScope = dragScopeRef.current;
+    const next = dragScope?.kind === "group"
+      ? moveWishWithinSubset(orderedWishIdsRef.current, dragScope.wishIds, sourceId, targetId)
+      : moveWishToTargetPosition(orderedWishIdsRef.current, sourceId, targetId);
+    if (next === orderedWishIdsRef.current) return;
     lastReorderTargetRef.current = targetId;
     orderDirtyRef.current = true;
     orderedWishIdsRef.current = next;
@@ -1728,11 +1830,17 @@ function WishesPage({ onAdd, version }) {
       navigator.vibrate?.(12);
     }, GROUP_INTENT_DELAY_MS);
   };
-  const startDrag = (event, wishId) => {
+  const beginDragSession = (wishId, group = null) => {
     dragSessionRef.current = true; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = wishId;
+    dragScopeRef.current = group
+      ? { kind: "group", groupId: group.id, wishIds: new Set(group.wishIds || []) }
+      : { kind: "list", groupId: null };
     dragInitialOrderRef.current = [...orderedWishIdsRef.current];
     setDraggedWishId(wishId); lastReorderTargetRef.current = null;
+  };
+  const startDrag = (event, wishId, group = null) => {
+    beginDragSession(wishId, group);
     event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", wishId);
     const rect = event.currentTarget.getBoundingClientRect();
     const preview = event.currentTarget.cloneNode(true);
@@ -1747,26 +1855,51 @@ function WishesPage({ onAdd, version }) {
     const shouldRestoreOrder = activeSession && restore && orderDirtyRef.current && dragInitialOrderRef.current.length > 0;
     const orderToPersist = [...orderedWishIdsRef.current];
     const shouldPersistOrder = activeSession && persist && !restore && orderDirtyRef.current;
-    if (shouldRestoreOrder) {
+    const deferredAuthoritativeOrder = deferredAuthoritativeOrderRef.current;
+    const shouldApplyDeferredOrder = activeSession && !shouldPersistOrder && Array.isArray(deferredAuthoritativeOrder);
+    if (shouldApplyDeferredOrder) {
+      captureGridPositions();
+      orderedWishIdsRef.current = [...deferredAuthoritativeOrder];
+      setOrderedWishIds(orderedWishIdsRef.current);
+      deferredAuthoritativeOrderRef.current = null;
+    } else if (shouldRestoreOrder) {
       captureGridPositions();
       orderedWishIdsRef.current = [...dragInitialOrderRef.current];
       setOrderedWishIds(orderedWishIdsRef.current);
     }
     dragSessionRef.current = false; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = null;
+    dragScopeRef.current = null;
     dragInitialOrderRef.current = [];
     clearGroupIntent(); removePointerGhost(); setDraggedWishId(null); lastReorderTargetRef.current = null;
-    if (shouldPersistOrder) void persistOrder(orderToPersist);
+    if (shouldPersistOrder) {
+      deferredAuthoritativeOrderRef.current = null;
+      void persistOrder(orderToPersist);
+    }
   };
-  const allowWishDrop = (event, wishId) => {
+  const allowWishDrop = (event, wishId, targetGroupId = null) => {
     const sourceWishId = dragSourceWishIdRef.current;
-    if (!dragSessionRef.current || !sourceWishId || sourceWishId === wishId) return;
+    const dragScope = dragScopeRef.current;
+    const validTarget = dragScope?.kind === "group"
+      ? dragScope.groupId === targetGroupId
+      : !targetGroupId;
+    if (!dragSessionRef.current || !sourceWishId || !dragScope || !validTarget) return;
     event.preventDefault(); event.dataTransfer.dropEffect = "move";
-    if (lastReorderTargetRef.current !== wishId) reorderWish(sourceWishId, wishId);
-    armGroupIntent(`wish:${wishId}`);
+    if (sourceWishId === wishId) {
+      if (hoverTargetRef.current) clearGroupIntent();
+      lastReorderTargetRef.current = null;
+      return;
+    }
+    // Ungrouped targets must stay in place while the grouping intent timer runs.
+    // A quick drop is reordered in dropOnWish instead.
+    if (dragScope.kind === "group") {
+      if (lastReorderTargetRef.current !== wishId) reorderWish(sourceWishId, wishId);
+    } else {
+      armGroupIntent(`wish:${wishId}`);
+    }
   };
   const allowGroupDrop = (event, groupId) => {
-    if (!dragSessionRef.current || !dragSourceWishIdRef.current) return;
+    if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
     event.preventDefault(); event.dataTransfer.dropEffect = "move";
     armGroupIntent(`group:${groupId}`);
   };
@@ -1782,7 +1915,7 @@ function WishesPage({ onAdd, version }) {
     finishDrag({ persist: false, restore: true });
     if (!sourceWishId || sourceWishId === targetWishId || !groupingListId) return;
     try {
-      const { group } = await api.post(`/lists/${groupingListId}/groups`, { wishIds: [sourceWishId, targetWishId] });
+      const { group } = await api.post(`/lists/${groupingListId}/groups`, { wishIds: [sourceWishId, targetWishId], space: selectedSpace });
       updateData((current) => {
         const linked = attachWishesToDashboardList(current, groupingListId, group.wishIds);
         return {
@@ -1812,6 +1945,59 @@ function WishesPage({ onAdd, version }) {
       void reload({ background: true }).catch(() => {});
     } catch (error) { toast(error.message, "error"); }
   };
+  const restoreFocusAfterGroupRemoval = (groupId, wishId) => {
+    requestAnimationFrame(() => {
+      const closeButton = document.querySelector('.wish-group-open [aria-label="Закрыть группу"]');
+      if (closeButton) {
+        closeButton.focus();
+        return;
+      }
+      const extractedCard = [...document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id]")]
+        .find((card) => card.dataset.groupWishId === wishId);
+      const extractedCardButton = extractedCard?.querySelector(".wish-card__open");
+      if (extractedCardButton) {
+        extractedCardButton.focus();
+        return;
+      }
+      const groupTile = [...document.querySelectorAll(".wishes-page > .wish-grid [data-group-id]")]
+        .find((tile) => tile.dataset.groupId === groupId);
+      groupTile?.querySelector(".wish-group-tile__open")?.focus();
+    });
+  };
+  const removeWishFromGroup = async (wishId, group) => {
+    if (removingGroupIdRef.current) return false;
+    removingGroupIdRef.current = group.id;
+    setRemovingGroupId(group.id);
+    try {
+      const result = await api.delete(`/lists/${encodeURIComponent(group.listId)}/groups/${encodeURIComponent(group.id)}/wishes/${encodeURIComponent(wishId)}`);
+      updateData((current) => ({
+        ...current,
+        groups: (current.groups || []).flatMap((currentGroup) => {
+          if (currentGroup.id !== group.id) return [currentGroup];
+          if (result.dissolved) return [];
+          return [{
+            ...currentGroup,
+            ...(result.group || {}),
+            wishIds: result.group?.wishIds || (currentGroup.wishIds || []).filter((id) => id !== wishId),
+          }];
+        }),
+      }));
+      if (result.dissolved && openedGroupId === group.id) setOpenedGroupId(null);
+      restoreFocusAfterGroupRemoval(group.id, wishId);
+      toast(result.dissolved ? "Желание убрано, группа расформирована" : "Желание убрано из группы");
+      void reload({ background: true }).catch(() => {});
+      return true;
+    } catch (error) {
+      restoreFocusAfterGroupRemoval(group.id, wishId);
+      toast(error.message || "Не удалось убрать желание из группы", "error");
+      return false;
+    } finally {
+      if (removingGroupIdRef.current === group.id) {
+        removingGroupIdRef.current = null;
+        setRemovingGroupId(null);
+      }
+    }
+  };
   const renameGroup = async (groupId, listId, title) => {
     try {
       const result = await api.patch(`/lists/${listId}/groups/${groupId}`, { title });
@@ -1825,38 +2011,52 @@ function WishesPage({ onAdd, version }) {
     }
     catch (error) { toast(error.message, "error"); return false; }
   };
-  const deleteGroup = async (groupId) => {
-    try { await api.delete(`/lists/${groupingListId}/groups/${groupId}`); if (openedGroupId === groupId) setOpenedGroupId(null); toast("Группа удалена"); await reload({ background: true }); return true; }
-    catch (error) { toast(error.message, "error"); return false; }
+  const disbandGroup = async (groupId, listId) => {
+    try {
+      await api.delete(`/lists/${listId}/groups/${groupId}`);
+      updateData((current) => disbandWishGroupFromDashboard(current, groupId));
+      if (openedGroupId === groupId) setOpenedGroupId(null);
+      toast("Группа расформирована");
+      void reload({ background: true }).catch(() => {});
+      return true;
+    } catch (error) {
+      toast(error.message || "Не удалось расформировать группу", "error");
+      return false;
+    }
   };
-  const dropOnWish = (event, targetWishId) => {
+  const dropOnWish = (event, targetWishId, targetGroupId = null) => {
     event.preventDefault();
     const sourceWishId = dragSourceWishIdRef.current;
-    if (armedDropTargetRef.current === `wish:${targetWishId}`) createGroup(sourceWishId, targetWishId);
-    else finishDrag();
+    const dragScope = dragScopeRef.current;
+    if (dragScope?.kind === "group") {
+      if (dragScope.groupId === targetGroupId) finishDrag();
+      else finishDrag({ persist: false, restore: true });
+    }
+    else if (armedDropTargetRef.current === `wish:${targetWishId}`) createGroup(sourceWishId, targetWishId);
+    else {
+      reorderWish(sourceWishId, targetWishId);
+      finishDrag();
+    }
   };
   const dropOnGroup = (event, groupId) => {
     event.preventDefault();
     const sourceWishId = dragSourceWishIdRef.current;
-    if (armedDropTargetRef.current === `group:${groupId}`) addToGroup(sourceWishId, groupId);
+    if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
+    else if (armedDropTargetRef.current === `group:${groupId}`) addToGroup(sourceWishId, groupId);
     else finishDrag({ persist: false, restore: true });
   };
-  const beginPointerDrag = (event, wishId) => {
+  const beginPointerDrag = (event, wishId, group = null) => {
     if (event.pointerType === "mouse" || !groupingListId) return;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    pointerDragRef.current = { wishId, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, source: event.currentTarget };
+    pointerDragRef.current = { wishId, group, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, source: event.currentTarget };
     clearTimeout(pointerTimerRef.current);
     pointerTimerRef.current = setTimeout(() => {
-      if (!pointerDragRef.current) return;
-      pointerDragRef.current.active = true;
+      const drag = pointerDragRef.current;
+      if (!drag) return;
+      drag.source.setPointerCapture?.(drag.pointerId);
+      drag.active = true;
       suppressOpenRef.current = true;
-      dragSessionRef.current = true;
-      dragSourceWishIdRef.current = wishId;
-      orderDirtyRef.current = false;
-      dragInitialOrderRef.current = [...orderedWishIdsRef.current];
-      setDraggedWishId(wishId);
-      lastReorderTargetRef.current = null;
-      createPointerGhost(pointerDragRef.current.source, pointerDragRef.current.startX, pointerDragRef.current.startY);
+      beginDragSession(wishId, group);
+      createPointerGhost(drag.source, drag.startX, drag.startY);
       navigator.vibrate?.(18);
     }, 260);
   };
@@ -1870,15 +2070,27 @@ function WishesPage({ onAdd, version }) {
     event.preventDefault();
     movePointerGhost(event.clientX, event.clientY);
     const element = document.elementFromPoint(event.clientX, event.clientY);
+    const wishCard = element?.closest?.("[data-group-wish-id]");
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
-    const wishId = element?.closest?.("[data-group-wish-id]")?.dataset.groupWishId;
-    const target = groupId ? `group:${groupId}` : wishId && wishId !== drag.wishId ? `wish:${wishId}` : null;
+    const wishId = wishCard?.dataset.groupWishId;
+    const targetGroupId = wishCard?.dataset.wishGroupId || null;
+    const dragGroupId = drag.group?.id || null;
+    const validWishTarget = wishId && wishId !== drag.wishId && (dragGroupId ? targetGroupId === dragGroupId : !targetGroupId);
+    const target = dragGroupId
+      ? validWishTarget ? `wish:${wishId}` : null
+      : groupId ? `group:${groupId}` : validWishTarget ? `wish:${wishId}` : null;
     if (target && target !== drag.hoverTarget) {
       drag.hoverTarget = target;
-      if (wishId) reorderWish(drag.wishId, wishId);
-      armGroupIntent(target);
+      // Keep the same dwell-to-group, quick-drop-to-reorder contract on touch.
+      if (dragGroupId) {
+        if (wishId) reorderWish(drag.wishId, wishId);
+        clearGroupIntent();
+      } else {
+        armGroupIntent(target);
+      }
     } else if (!target) {
       drag.hoverTarget = null;
+      lastReorderTargetRef.current = null;
       clearGroupIntent();
     }
   };
@@ -1889,11 +2101,20 @@ function WishesPage({ onAdd, version }) {
     if (!drag?.active) return;
     event.preventDefault();
     const element = document.elementFromPoint(event.clientX, event.clientY);
+    const wishCard = element?.closest?.("[data-group-wish-id]");
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
-    const wishId = element?.closest?.("[data-group-wish-id]")?.dataset.groupWishId;
-    if (groupId && armedDropTargetRef.current === `group:${groupId}`) addToGroup(drag.wishId, groupId);
+    const wishId = wishCard?.dataset.groupWishId;
+    const targetGroupId = wishCard?.dataset.wishGroupId || null;
+    const dragGroupId = drag.group?.id || null;
+    if (dragGroupId && targetGroupId === dragGroupId && wishId && (wishId !== drag.wishId || orderDirtyRef.current)) finishDrag();
+    else if (dragGroupId) finishDrag({ persist: false, restore: true });
+    else if (groupId && armedDropTargetRef.current === `group:${groupId}`) addToGroup(drag.wishId, groupId);
     else if (wishId && wishId !== drag.wishId && armedDropTargetRef.current === `wish:${wishId}`) createGroup(drag.wishId, wishId);
-    else if (wishId && wishId !== drag.wishId) finishDrag();
+    else if (wishId && wishId !== drag.wishId) {
+      reorderWish(drag.wishId, wishId);
+      finishDrag();
+    }
+    else if (wishId === drag.wishId && orderDirtyRef.current) finishDrag();
     else finishDrag({ persist: false, restore: true });
     setTimeout(() => { suppressOpenRef.current = false; }, 0);
   };
@@ -1906,13 +2127,16 @@ function WishesPage({ onAdd, version }) {
     finishDrag({ persist: false, restore: true });
     setTimeout(() => { suppressOpenRef.current = false; }, 0);
   };
-  const renderWish = (wish, grouped = false) => <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={Boolean(groupingListId) && !grouped} isDragging={draggedWishId === wish.id} isDropTarget={dropTarget === `wish:${wish.id}`} onDragStart={(event) => startDrag(event, wish.id)} onDragEnd={(event) => finishDrag({ persist: event.dataTransfer.dropEffect !== "none", restore: event.dataTransfer.dropEffect === "none" })} onDragOver={(event) => allowWishDrop(event, wish.id)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnWish(event, wish.id)} onPointerDown={(event) => !grouped && beginPointerDrag(event, wish.id)} onPointerMove={movePointerDrag} onPointerUp={endPointerDrag} onPointerCancel={cancelPointerDrag} onChanged={() => reload({ background: true })} onOpen={() => {
+  const renderWish = (wish, group = null) => {
+    const dragEnabled = Boolean(groupingListId) && (!group || !removingGroupId);
+    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled && !isMobile} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startDrag(event, wish.id, group)} onDragEnd={(event) => finishDrag({ persist: event.dataTransfer.dropEffect !== "none", restore: event.dataTransfer.dropEffect === "none" })} onDragOver={(event) => allowWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onPointerMove={movePointerDrag} onPointerUp={endPointerDrag} onPointerCancel={cancelPointerDrag} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={() => reload({ background: true })} onOpen={() => {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDelete={() => deleteGroup(openedGroup.id)} /><div className="wish-grid">{openedGroupWishes.map((wish) => renderWish(wish, true))}</div></section>}
-{wishes.length ? <div className="wish-grid">{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDelete={() => deleteGroup(group.id)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowDrop(event, `group:${group.id}`)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  };
+  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid">{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
+{wishes.length ? <div className="wish-grid">{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowDrop(event, `group:${group.id}`)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -2451,18 +2675,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     onClose();
   };
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousRootOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
     const closeOnEscape = (event) => {
       if (event.key === "Escape" && !listCreatorOpen && !deleteConfirm) requestClose();
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.documentElement.style.overflow = previousRootOverflow;
       document.removeEventListener("keydown", closeOnEscape);
+      scheduleDocumentScrollUnlock();
     };
   }, [loading, deleting, imageUploading, listCreatorOpen, deleteConfirm]);
   const cancelDelete = () => {
@@ -2604,12 +2823,12 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               </Field>}
 
               <div className="wish-editor__settings flex flex-col gap-2" role="group" aria-label="Настройки желания">
-                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
+                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-0">
                   <EyeOff aria-hidden="true" />
                   <FieldLabel className="min-w-0 flex-1 cursor-pointer font-normal" htmlFor={fieldId("private")}>Секретное желание</FieldLabel>
                   <Switch id={fieldId("private")} checked={form.privacy === "private"} onCheckedChange={(checked) => setForm({ ...form, privacy: checked ? "private" : "inherit" })} />
                 </Field>
-                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
+                <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-0">
                   <LockKeyhole aria-hidden="true" />
                   <FieldLabel className="min-w-0 flex-1 cursor-pointer font-normal" htmlFor={fieldId("multiple")}>Многократное бронирование</FieldLabel>
                   <Switch id={fieldId("multiple")} checked={form.allowMultiple} onCheckedChange={(checked) => setForm({ ...form, allowMultiple: checked })} />
@@ -2915,9 +3134,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         <X />
         <span className="sr-only">Закрыть</span>
       </DrawerClose>
-      <DrawerHeader className="mx-auto w-full max-w-md pr-14 text-left!">
-        <DrawerTitle>Изменить профиль</DrawerTitle>
-        <DrawerDescription>Эти данные видны рядом с вашими списками желаний.</DrawerDescription>
+      <DrawerHeader className="mx-auto h-14 w-full max-w-md p-0">
+        <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>
+        <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
       </DrawerHeader>
       <ScrollArea className="mx-auto min-h-0 w-full max-w-md flex-1">
         <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
@@ -3072,20 +3291,22 @@ function PublicProfile({ shared = false }) {
   if (error && !data) return renderCollectionState({ title: "Такой список не нашёлся", text: error.message });
 
   const lists = shared ? [data.list] : data.lists;
-  const activeWishes = data.wishes.filter((wish) => wish.status === "active");
+  const visibleWishes = data.isOwner
+    ? data.wishes
+    : data.wishes.filter((wish) => wish.status === "active");
   const routeList = lists.find((list) => list.id === selected);
   const selectedList = routeList && !isGeneralList(routeList) ? routeList : null;
   const selectedValue = selectedList?.id || "all";
   const activeSpace = selectedList ? listSpace(selectedList) : selectedSpace;
   const navigationLists = shared ? lists : lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace);
   const listsById = new Map(lists.map((list) => [list.id, list]));
-  const spaceWishes = shared ? activeWishes : activeWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
+  const spaceWishes = shared ? visibleWishes : visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
   const wishes = shared
-    ? activeWishes
+    ? visibleWishes
     : selectedValue === "all"
       ? spaceWishes
       : spaceWishes.filter((wish) => wish.listIds.includes(selectedValue));
-  const selectedWish = selectedWishId ? activeWishes.find((wish) => wish.id === selectedWishId) : null;
+  const selectedWish = selectedWishId ? visibleWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
   const invalidSelection = (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
   if (invalidSelection) {
@@ -3099,7 +3320,7 @@ function PublicProfile({ shared = false }) {
       friendsContext: !data.isOwner && !shared,
     });
   }
-  const wishCountForList = (listId) => activeWishes.filter((wish) => wish.listIds.includes(listId)).length;
+  const wishCountForList = (listId) => visibleWishes.filter((wish) => wish.listIds.includes(listId)).length;
   const profileBasePath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
   const currentCollectionPath = shared
     ? profileBasePath

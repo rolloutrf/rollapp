@@ -3,6 +3,7 @@ import { backfillDefaultFriend } from "./default-friend.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
+import { backfillWishGroupSpaces } from "./wish-groups.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -136,17 +137,23 @@ const schema = `
   CREATE TABLE IF NOT EXISTS wish_groups (
     id TEXT PRIMARY KEY,
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    space TEXT NOT NULL DEFAULT 'products',
     title TEXT NOT NULL DEFAULT 'Группа',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  ALTER TABLE wish_groups ADD COLUMN IF NOT EXISTS space TEXT NOT NULL DEFAULT 'products';
+
   CREATE TABLE IF NOT EXISTS wish_group_members (
     group_id TEXT NOT NULL REFERENCES wish_groups(id) ON DELETE CASCADE,
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+    space TEXT NOT NULL DEFAULT 'products',
     wish_id TEXT NOT NULL REFERENCES wishes(id) ON DELETE CASCADE,
-    PRIMARY KEY (group_id, wish_id),
-    UNIQUE (wishlist_id, wish_id)
+    PRIMARY KEY (group_id, wish_id)
   );
+
+  ALTER TABLE wish_group_members ADD COLUMN IF NOT EXISTS space TEXT NOT NULL DEFAULT 'products';
+  ALTER TABLE wish_group_members DROP CONSTRAINT IF EXISTS wish_group_members_wishlist_id_wish_id_key;
 
   CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,
@@ -182,6 +189,8 @@ const schema = `
   ON wishes(user_id,source_wish_id) WHERE source_wish_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_wishlist_wishes_wish ON wishlist_wishes(wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_groups_list ON wish_groups(wishlist_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wish_group_members_list_space_wish
+    ON wish_group_members(wishlist_id,space,wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
@@ -371,6 +380,10 @@ const dataMigrations = [
       const result = await backfillDefaultFriend(client);
       return { rowCount: result.targetFound ? 1 : 0 };
     },
+  },
+  {
+    id: "2026-08-19-wish-group-space-members-v2",
+    run: backfillWishGroupSpaces,
   },
 ];
 
