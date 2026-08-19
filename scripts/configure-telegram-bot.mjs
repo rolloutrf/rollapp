@@ -26,12 +26,16 @@ if (config.botUsername && bot.username?.toLowerCase() !== config.botUsername.toL
 }
 
 const webhookUrl = new URL("/api/telegram/webhook", config.webAppUrl).toString();
-await callTelegramBotApi("setWebhook", {
-  url: webhookUrl,
-  secret_token: config.webhookSecret,
-  allowed_updates: ["message"],
-  drop_pending_updates: false,
-}, config);
+if (config.deliveryMode === "polling") {
+  await callTelegramBotApi("deleteWebhook", { drop_pending_updates: false }, config);
+} else {
+  await callTelegramBotApi("setWebhook", {
+    url: webhookUrl,
+    secret_token: config.webhookSecret,
+    allowed_updates: ["message"],
+    drop_pending_updates: false,
+  }, config);
+}
 await callTelegramBotApi("setChatMenuButton", {
   menu_button: {
     type: "web_app",
@@ -48,4 +52,4 @@ await callTelegramBotApi("setMyCommands", {
 
 console.log(`Telegram bot @${bot.username} configured`);
 console.log(`Mini App: ${config.webAppUrl}`);
-console.log(`Webhook: ${webhookUrl}`);
+console.log(config.deliveryMode === "polling" ? "Updates: long polling" : `Webhook: ${webhookUrl}`);

@@ -135,4 +135,5 @@ jobs:
           YC_TELEGRAM_LOCKBOX_SECRET_ID: e6qqi6inhrnvg67mkhhs
           TELEGRAM_BOT_USERNAME: rollappRFbot
           TELEGRAM_WEB_APP_URL: https://xn--80avakiab.xn--p1ai/
+          TELEGRAM_DELIVERY_MODE: polling
         run: npm run telegram:configure
