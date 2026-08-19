@@ -71,27 +71,47 @@ export async function callTelegramBotApi(method, payload, {
     const error = new Error(`Telegram Bot API ${method} failed: ${description}`);
     error.telegramMethod = method;
     error.status = response.status;
+    error.telegramErrorCode = Number.isSafeInteger(result?.error_code) ? result.error_code : null;
+    error.retryAfterSeconds = Number.isSafeInteger(result?.parameters?.retry_after)
+      ? result.parameters.retry_after
+      : null;
     throw error;
   }
   return result.result;
 }
 
+function isRetryableTelegramError(error) {
+  const status = Number.isSafeInteger(error?.telegramErrorCode)
+    ? error.telegramErrorCode
+    : error?.status;
+  return !Number.isSafeInteger(status)
+    || status === 408
+    || status === 429
+    || status >= 500;
+}
+
 export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotRuntimeConfig(), fetchImpl = fetch } = {}) {
   const updates = await callTelegramBotApi("getUpdates", {
     offset,
+    limit: 1,
     timeout: 25,
     allowed_updates: ["message"],
   }, { ...config, fetchImpl, timeoutMs: 35_000 });
   let nextOffset = offset;
   for (const update of Array.isArray(updates) ? updates : []) {
-    if (Number.isSafeInteger(update?.update_id)) nextOffset = Math.max(nextOffset, update.update_id + 1);
+    const updateOffset = Number.isSafeInteger(update?.update_id)
+      ? Math.max(nextOffset, update.update_id + 1)
+      : nextOffset;
     const reply = telegramLaunchReply(update, config);
-    if (!reply) continue;
-    try {
-      await callTelegramBotApi("sendMessage", reply, { ...config, fetchImpl });
-    } catch (error) {
-      console.error(`[telegram-bot] Could not answer update ${update?.update_id ?? "unknown"}: ${error.message}`);
+    if (reply) {
+      try {
+        await callTelegramBotApi("sendMessage", reply, { ...config, fetchImpl });
+      } catch (error) {
+        if (isRetryableTelegramError(error)) throw error;
+        console.error(`[telegram-bot] Skipping update ${update?.update_id ?? "unknown"} after a permanent reply failure: ${error.message}`);
+      }
     }
+    nextOffset = updateOffset;
   }
   return nextOffset;
 }
@@ -113,7 +133,10 @@ export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), 
         if (!active) break;
         if (error?.telegramMethod === "getUpdates" && error?.status === 409) webhookCleared = false;
         console.error(`[telegram-bot] Polling failed: ${error.message}`);
-        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        const retryAfterMs = Number.isSafeInteger(error?.retryAfterSeconds)
+          ? error.retryAfterSeconds * 1_000
+          : 0;
+        await new Promise((resolve) => setTimeout(resolve, Math.max(retryDelayMs, retryAfterMs)));
       }
     }
   })();

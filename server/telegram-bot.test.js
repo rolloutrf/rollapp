@@ -56,7 +56,74 @@ test("long polling acknowledges updates and answers launch commands", async () =
   assert.equal(nextOffset, 43);
   assert.deepEqual(requests.map(({ method }) => method), ["getUpdates", "sendMessage"]);
   assert.equal(requests[0].body.offset, 40);
+  assert.equal(requests[0].body.limit, 1);
   assert.equal(requests[1].body.reply_markup.inline_keyboard[0][0].web_app.url, "https://xn--80avakiab.xn--p1ai/");
+});
+
+test("long polling leaves a launch update pending when its reply fails temporarily", async () => {
+  const requests = [];
+  const config = getTelegramBotRuntimeConfig({
+    TELEGRAM_BOT_TOKEN: "123:secret",
+    TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+    TELEGRAM_DELIVERY_MODE: "polling",
+  });
+  await assert.rejects(
+    pollTelegramBotOnce({
+      offset: 40,
+      config,
+      fetchImpl: async (url, options) => {
+        const method = new URL(url).pathname.split("/").at(-1);
+        requests.push({ method, body: JSON.parse(options.body) });
+        if (method === "getUpdates") {
+          return new Response(JSON.stringify({
+            ok: true,
+            result: [{ update_id: 42, message: { text: "/app", chat: { id: 7, type: "private" } } }],
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ ok: false, description: "temporary failure" }), {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    }),
+    /temporary failure/,
+  );
+  assert.deepEqual(requests.map(({ method }) => method), ["getUpdates", "sendMessage"]);
+});
+
+test("long polling acknowledges a launch update after a permanent reply failure", async () => {
+  const requests = [];
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    const config = getTelegramBotRuntimeConfig({
+      TELEGRAM_BOT_TOKEN: "123:secret",
+      TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+      TELEGRAM_DELIVERY_MODE: "polling",
+    });
+    const nextOffset = await pollTelegramBotOnce({
+      offset: 40,
+      config,
+      fetchImpl: async (url, options) => {
+        const method = new URL(url).pathname.split("/").at(-1);
+        requests.push({ method, body: JSON.parse(options.body) });
+        const body = method === "getUpdates"
+          ? { ok: true, result: [{ update_id: 42, message: { text: "/app", chat: { id: 7, type: "private" } } }] }
+          : { ok: false, error_code: 403, description: "bot was blocked by the user" };
+        return new Response(JSON.stringify(body), {
+          status: method === "getUpdates" ? 200 : 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    assert.equal(nextOffset, 43);
+    assert.deepEqual(requests.map(({ method }) => method), ["getUpdates", "sendMessage"]);
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
 
 test("long polling clears an existing webhook before requesting updates", async () => {
