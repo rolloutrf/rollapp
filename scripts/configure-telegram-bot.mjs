@@ -26,7 +26,7 @@ if (config.botUsername && bot.username?.toLowerCase() !== config.botUsername.toL
 }
 
 const webhookUrl = new URL("/api/telegram/webhook", config.webAppUrl).toString();
-if (config.deliveryMode === "polling") {
+if (["polling", "external-polling"].includes(config.deliveryMode)) {
   await callTelegramBotApi("deleteWebhook", { drop_pending_updates: false }, config);
 } else {
   await callTelegramBotApi("setWebhook", {
@@ -52,4 +52,4 @@ await callTelegramBotApi("setMyCommands", {
 
 console.log(`Telegram bot @${bot.username} configured`);
 console.log(`Mini App: ${config.webAppUrl}`);
-console.log(config.deliveryMode === "polling" ? "Updates: long polling" : `Webhook: ${webhookUrl}`);
+console.log(["polling", "external-polling"].includes(config.deliveryMode) ? "Updates: long polling" : `Webhook: ${webhookUrl}`);

@@ -15,8 +15,9 @@ export function getTelegramBotRuntimeConfig(env = process.env) {
   const webhookSecret = String(env.TELEGRAM_WEBHOOK_SECRET || "").trim();
   const botUsername = String(env.TELEGRAM_BOT_USERNAME || "rollappRFbot").trim().replace(/^@/, "");
   const webAppUrl = normalizeWebAppUrl(env.TELEGRAM_WEB_APP_URL || DEFAULT_WEB_APP_URL);
-  const deliveryMode = String(env.TELEGRAM_DELIVERY_MODE || "webhook").trim().toLowerCase() === "polling"
-    ? "polling"
+  const requestedDeliveryMode = String(env.TELEGRAM_DELIVERY_MODE || "webhook").trim().toLowerCase();
+  const deliveryMode = ["polling", "external-polling"].includes(requestedDeliveryMode)
+    ? requestedDeliveryMode
     : "webhook";
   return {
     enabled: Boolean(token && webAppUrl),
@@ -67,7 +68,10 @@ export async function callTelegramBotApi(method, payload, {
   const result = await response.json().catch(() => null);
   if (!response.ok || !result?.ok) {
     const description = typeof result?.description === "string" ? result.description : `HTTP ${response.status}`;
-    throw new Error(`Telegram Bot API ${method} failed: ${description}`);
+    const error = new Error(`Telegram Bot API ${method} failed: ${description}`);
+    error.telegramMethod = method;
+    error.status = response.status;
+    throw error;
   }
   return result.result;
 }
@@ -107,6 +111,7 @@ export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), 
         offset = await pollTelegramBotOnce({ offset, config, fetchImpl });
       } catch (error) {
         if (!active) break;
+        if (error?.telegramMethod === "getUpdates" && error?.status === 409) webhookCleared = false;
         console.error(`[telegram-bot] Polling failed: ${error.message}`);
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       }
