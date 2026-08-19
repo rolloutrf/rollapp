@@ -44,7 +44,7 @@ import {
   TelegramInitDataError,
   validateTelegramInitData,
 } from "./telegram-auth.js";
-import { callTelegramBotApi, getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+import { getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -749,14 +749,7 @@ app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
   }
 
   const reply = telegramLaunchReply(req.body, config);
-  if (reply) {
-    try {
-      await callTelegramBotApi("sendMessage", reply, config);
-    } catch (error) {
-      console.error(`[telegram-bot] Could not answer update ${req.body?.update_id ?? "unknown"}: ${error.message}`);
-      return res.status(502).json({ error: "Telegram временно не принял ответ бота" });
-    }
-  }
+  if (reply) return res.json({ method: "sendMessage", ...reply });
   return res.json({ ok: true });
 }));
 
