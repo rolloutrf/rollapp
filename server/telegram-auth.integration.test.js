@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import http from "node:http";
 import { test } from "node:test";
 
 const port = 22_000 + (process.pid % 700);
-const telegramApiPort = port + 701;
 const baseUrl = `http://127.0.0.1:${port}/api`;
 const botToken = "123456789:AAIntegrationTokenForRollappTests";
 const webhookSecret = "integration_webhook_secret-123";
@@ -61,20 +59,6 @@ async function login(email) {
 }
 
 test("Telegram Mini App login links an existing account and protects the webhook", async (t) => {
-  const botRequests = [];
-  const fakeTelegram = http.createServer((req, res) => {
-    let body = "";
-    req.setEncoding("utf8");
-    req.on("data", (chunk) => { body += chunk; });
-    req.on("end", () => {
-      botRequests.push({ url: req.url, body: JSON.parse(body) });
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, result: { message_id: 1 } }));
-    });
-  });
-  await new Promise((resolve) => fakeTelegram.listen(telegramApiPort, "127.0.0.1", resolve));
-  t.after(() => fakeTelegram.close());
-
   const child = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
     env: {
@@ -88,7 +72,6 @@ test("Telegram Mini App login links an existing account and protects the webhook
       TELEGRAM_BOT_USERNAME: "rollappRFbot",
       TELEGRAM_WEBHOOK_SECRET: webhookSecret,
       TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
-      TELEGRAM_BOT_API_BASE: `http://127.0.0.1:${telegramApiPort}`,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -147,7 +130,6 @@ test("Telegram Mini App login links an existing account and protects the webhook
     "X-Telegram-Bot-Api-Secret-Token": "wrong",
   });
   assert.equal(rejectedWebhook.status, 401);
-  assert.equal(botRequests.length, 0);
 
   const acceptedWebhook = await post("/telegram/webhook", {
     update_id: 2,
@@ -158,7 +140,8 @@ test("Telegram Mini App login links an existing account and protects the webhook
     },
   }, "", { "X-Telegram-Bot-Api-Secret-Token": webhookSecret });
   assert.equal(acceptedWebhook.status, 200);
-  assert.equal(botRequests.length, 1);
-  assert.equal(botRequests[0].url, `/bot${botToken}/sendMessage`);
-  assert.equal(botRequests[0].body.reply_markup.inline_keyboard[0][0].web_app.url, "https://xn--80avakiab.xn--p1ai/");
+  const acceptedWebhookBody = await acceptedWebhook.json();
+  assert.equal(acceptedWebhookBody.method, "sendMessage");
+  assert.equal(acceptedWebhookBody.chat_id, 987654321);
+  assert.equal(acceptedWebhookBody.reply_markup.inline_keyboard[0][0].web_app.url, "https://xn--80avakiab.xn--p1ai/");
 });
