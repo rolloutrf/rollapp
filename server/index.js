@@ -14,8 +14,13 @@ import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import {
+  bookmateApiUrl,
+  isBookmateUrl,
+  isKinopoiskUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
+  parseBookmateMetadata,
+  parseKinopoiskMetadata,
   parseProductMetadata,
   parseYandexMapsMetadata,
   parseYouTubeMetadata,
@@ -1843,6 +1848,18 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
           kind: "video",
         };
       }
+    } else if (isBookmateUrl(cacheUrl)) {
+      // Bookmate pages and their social-preview images are protected by a
+      // browser challenge. Its public metadata API returns the original cover
+      // directly and also resolves legacy Bookmate ids.
+      const apiUrl = bookmateApiUrl(cacheUrl);
+      const { json, url } = await fetchPublicJson(apiUrl);
+      value = parseBookmateMetadata(json, url);
+    } else if (isKinopoiskUrl(cacheUrl)) {
+      // Film pages redirect anonymous server requests through Yandex SSO. The
+      // public Kinopoisk poster CDN is deterministic by content id, so it is a
+      // faster and more reliable preview source than scraping the page shell.
+      value = parseKinopoiskMetadata(cacheUrl);
     } else {
       const { html, url } = await fetchPublicHtml(cacheUrl);
       value = isYandexMapsUrl(url)
