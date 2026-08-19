@@ -85,6 +85,40 @@ test("long polling clears an existing webhook before requesting updates", async 
   assert.deepEqual(requests[0].body, { drop_pending_updates: false });
 });
 
+test("long polling clears a webhook again after Telegram reports a conflict", async () => {
+  const requests = [];
+  let getUpdatesCalls = 0;
+  let polling;
+  const config = getTelegramBotRuntimeConfig({
+    TELEGRAM_BOT_TOKEN: "123:secret",
+    TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+    TELEGRAM_DELIVERY_MODE: "polling",
+  });
+  polling = startTelegramBotPolling(config, {
+    retryDelayMs: 0,
+    fetchImpl: async (url, options) => {
+      const method = new URL(url).pathname.split("/").at(-1);
+      requests.push(method);
+      if (method === "getUpdates" && getUpdatesCalls++ === 0) {
+        return new Response(JSON.stringify({
+          ok: false,
+          description: "Conflict: can't use getUpdates method while webhook is active",
+        }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (method === "getUpdates") polling.stop();
+      return new Response(JSON.stringify({ ok: true, result: method === "getUpdates" ? [] : true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  });
+  await polling.done;
+  assert.deepEqual(requests, ["deleteWebhook", "getUpdates", "deleteWebhook", "getUpdates"]);
+});
+
 test("Bot API helper sends JSON without exposing token in its return value", async () => {
   let request;
   const result = await callTelegramBotApi("sendMessage", { chat_id: 42, text: "Rollapp" }, {
