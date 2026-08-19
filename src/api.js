@@ -1,14 +1,21 @@
 const API_ROOT = "/api";
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_ROOT}${path}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_ROOT}${path}`, {
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+    });
+  } catch (cause) {
+    const error = new Error("Сервер временно недоступен. Подождите пару секунд и попробуйте снова.", { cause });
+    error.code = "API_UNAVAILABLE";
+    throw error;
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

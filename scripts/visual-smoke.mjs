@@ -5525,7 +5525,7 @@ try {
   const wishDialog = mobilePage.getByRole("dialog", { name: "Создание желания", exact: true });
   await wishDialog.waitFor({ state: "visible" });
   await wishDialog.getByRole("heading", { name: "Создание желания", exact: true }).waitFor();
-  assert((await wishDialog.getByRole("heading", { level: 2 }).innerText()).includes("Новое желание"), "Wish editor does not show the new-wish title");
+  assert((await wishDialog.locator(".wish-editor-screen__header").count()) === 0, "Wish editor still renders the removed visual header");
   assert(await wishDialog.getByLabel("Ссылка", { exact: true }).isVisible(), "Wish editor does not expose the product link immediately");
   assert(await wishDialog.getByRole("button", { name: "Загадать желание", exact: true }).isVisible(), "Wish editor submit action is not visible");
   assert((await wishDialog.locator(".link-step, .wish-form").count()) === 0, "Wish editor still renders the legacy two-step flow");
