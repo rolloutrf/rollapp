@@ -11,7 +11,7 @@ import { initializeDatabase } from "./schema.js";
 import { pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
-import { deleteOwnedWishGroup } from "./wish-groups.js";
+import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import {
   isYandexMapsUrl,
@@ -1296,7 +1296,7 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
       [req.user.id],
     ),
     query(
-      `SELECT g.id,g.wishlist_id,g.title,m.wish_id
+      `SELECT g.id,g.wishlist_id,g.space,g.title,m.wish_id
        FROM wish_groups g
        JOIN wishlists l ON l.id=g.wishlist_id
        LEFT JOIN wish_group_members m ON m.group_id=g.id
@@ -1324,7 +1324,7 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
     });
   const groupsById = new Map();
   for (const row of groupRows.rows) {
-    if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, title: row.title, wishIds: [] });
+    if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, space: row.space, title: row.title, wishIds: [] });
     if (row.wish_id) groupsById.get(row.id).wishIds.push(row.wish_id);
   }
   res.json({
@@ -1371,20 +1371,31 @@ async function runWishGroupTransaction(listId, callback) {
   throw new Error("Не удалось завершить операцию с группой");
 }
 
+function inferWishGroupSpace(list, wishes, requestedSpace) {
+  if (requestedSpace) return requestedSpace;
+  const wishSpaces = new Set(wishes.map((wish) => wish.space).filter((space) => listSpaceValues.includes(space)));
+  if (wishSpaces.size === 1) return [...wishSpaces][0];
+  return listSpaceValues.includes(list.space) ? list.space : "products";
+}
+
 app.post("/api/lists/:id/groups", requireAuth, asyncRoute(async (req, res) => {
-  const parsed = z.object({ wishIds: z.array(z.string()).length(2).refine((ids) => new Set(ids).size === 2) }).safeParse(req.body);
+  const parsed = z.object({
+    wishIds: z.array(z.string()).length(2).refine((ids) => new Set(ids).size === 2),
+    space: listSpaceSchema.optional(),
+  }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Выберите два разных желания" });
   const outcome = await runWishGroupTransaction(req.params.id, async (client) => {
-    const list = await client.query("SELECT id FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE", [req.params.id, req.user.id]);
+    const list = await client.query("SELECT id,space FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE", [req.params.id, req.user.id]);
     if (!list.rowCount) return { status: 404, error: "Список не найден" };
     const wishes = await client.query(
-      "SELECT id FROM wishes WHERE user_id=$1 AND id IN ($2,$3) ORDER BY id FOR UPDATE",
+      "SELECT id,space FROM wishes WHERE user_id=$1 AND id IN ($2,$3) ORDER BY id FOR UPDATE",
       [req.user.id, ...parsed.data.wishIds],
     );
     if (wishes.rowCount !== 2) return { status: 404, error: "Одно из желаний не найдено" };
+    const space = inferWishGroupSpace(list.rows[0], wishes.rows, parsed.data.space);
     const occupied = await client.query(
-      "SELECT wish_id FROM wish_group_members WHERE wishlist_id=$1 AND wish_id IN ($2,$3)",
-      [req.params.id, ...parsed.data.wishIds],
+      "SELECT wish_id FROM wish_group_members WHERE wishlist_id=$1 AND space=$2 AND wish_id IN ($3,$4)",
+      [req.params.id, space, ...parsed.data.wishIds],
     );
     if (occupied.rowCount) return { status: 409, error: "Желание уже в группе" };
     const id = randomUUID();
@@ -1393,15 +1404,15 @@ app.post("/api/lists/:id/groups", requireAuth, asyncRoute(async (req, res) => {
        ON CONFLICT (wishlist_id,wish_id) DO NOTHING`,
       [req.params.id, ...parsed.data.wishIds],
     );
-    await client.query("INSERT INTO wish_groups (id,wishlist_id) VALUES ($1,$2)", [id, req.params.id]);
+    await client.query("INSERT INTO wish_groups (id,wishlist_id,space) VALUES ($1,$2,$3)", [id, req.params.id, space]);
     await client.query(
-      "INSERT INTO wish_group_members (group_id,wishlist_id,wish_id) VALUES ($1,$2,$3),($1,$2,$4)",
-      [id, req.params.id, ...parsed.data.wishIds],
+      "INSERT INTO wish_group_members (group_id,wishlist_id,space,wish_id) VALUES ($1,$2,$3,$4),($1,$2,$3,$5)",
+      [id, req.params.id, space, ...parsed.data.wishIds],
     );
-    return { id };
+    return { id, space };
   });
   if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
-  res.status(201).json({ group: { id: outcome.id, listId: req.params.id, title: "Группа", wishIds: parsed.data.wishIds } });
+  res.status(201).json({ group: { id: outcome.id, listId: req.params.id, space: outcome.space, title: "Группа", wishIds: parsed.data.wishIds } });
 }));
 
 app.post("/api/lists/:listId/groups/:groupId/wishes", requireAuth, asyncRoute(async (req, res) => {
@@ -1414,7 +1425,7 @@ app.post("/api/lists/:listId/groups/:groupId/wishes", requireAuth, asyncRoute(as
     );
     if (!list.rowCount) return { status: 404, error: "Список не найден" };
     const group = await client.query(
-      "SELECT id FROM wish_groups WHERE id=$1 AND wishlist_id=$2 FOR UPDATE",
+      "SELECT id,space FROM wish_groups WHERE id=$1 AND wishlist_id=$2 FOR UPDATE",
       [req.params.groupId, req.params.listId],
     );
     if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
@@ -1424,8 +1435,8 @@ app.post("/api/lists/:listId/groups/:groupId/wishes", requireAuth, asyncRoute(as
     );
     if (!wish.rowCount) return { status: 404, error: "Желание не найдено" };
     const occupied = await client.query(
-      "SELECT group_id FROM wish_group_members WHERE wishlist_id=$1 AND wish_id=$2",
-      [req.params.listId, parsed.data.wishId],
+      "SELECT group_id FROM wish_group_members WHERE wishlist_id=$1 AND space=$2 AND wish_id=$3",
+      [req.params.listId, group.rows[0].space, parsed.data.wishId],
     );
     if (occupied.rowCount) return { status: 409, error: "Желание уже в группе" };
     await client.query(
@@ -1434,13 +1445,25 @@ app.post("/api/lists/:listId/groups/:groupId/wishes", requireAuth, asyncRoute(as
       [req.params.listId, parsed.data.wishId],
     );
     await client.query(
-      "INSERT INTO wish_group_members (group_id,wishlist_id,wish_id) VALUES ($1,$2,$3)",
-      [req.params.groupId, req.params.listId, parsed.data.wishId],
+      "INSERT INTO wish_group_members (group_id,wishlist_id,space,wish_id) VALUES ($1,$2,$3,$4)",
+      [req.params.groupId, req.params.listId, group.rows[0].space, parsed.data.wishId],
     );
     return { wishId: parsed.data.wishId };
   });
   if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
   res.status(201).json({ wishId: outcome.wishId });
+}));
+
+app.delete("/api/lists/:listId/groups/:groupId/wishes/:wishId", requireAuth, asyncRoute(async (req, res) => {
+  const outcome = await runWishGroupTransaction(req.params.listId, (client) => removeWishFromOwnedGroup({
+    client,
+    groupId: req.params.groupId,
+    listId: req.params.listId,
+    wishId: req.params.wishId,
+    userId: req.user.id,
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.json({ ok: true, wishId: outcome.wishId, dissolved: outcome.dissolved, group: outcome.group });
 }));
 
 app.patch("/api/lists/:listId/groups/:groupId", requireAuth, asyncRoute(async (req, res) => {

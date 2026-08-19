@@ -5180,6 +5180,7 @@ async function expectWishCurrencySelect(page, dialog, label, { selectValue = nul
       colorScheme: getComputedStyle(element).colorScheme,
       backgroundLuminance: (.2126 * channel(red)) + (.7152 * channel(green)) + (.0722 * channel(blue)),
       positionerZIndex: Number.parseFloat(getComputedStyle(element.parentElement).zIndex),
+      editorZIndex: Number.parseFloat(getComputedStyle(document.querySelector("[data-slot='wish-editor-content']")).zIndex),
       optionMetrics: [...element.querySelectorAll("[role='option']")].map((option) => ({
         fontSize: Number.parseFloat(getComputedStyle(option).fontSize),
         height: option.getBoundingClientRect().height,
@@ -5192,7 +5193,7 @@ async function expectWishCurrencySelect(page, dialog, label, { selectValue = nul
     geometry.trigger && Math.abs(geometry.popup.width - Math.max(geometry.trigger.width, 144)) <= 2,
     `${label} popup does not retain the official anchor width with min-w-36`,
   );
-  assert(geometry.positionerZIndex >= 50, `${label} popup is layered under the wish editor`);
+  assert(geometry.positionerZIndex > geometry.editorZIndex, `${label} popup is layered under the wish editor`);
   assert(
     geometry.optionMetrics.every(({ fontSize, height }) => fontSize >= 15.5 && height >= 47),
     `${label} currency options do not use the app-level Large geometry`,
@@ -6446,7 +6447,16 @@ try {
     const fulfillResponse = await fulfillResponsePromise;
     assert(fulfillResponse.ok(), `Fulfilling a wish failed: ${fulfillResponse.status()}`);
     assert((await fulfillResponse.json()).status === "fulfilled", "Fulfill action returned the wrong target status");
-    await activeCard.waitFor({ state: "detached" });
+    await activeCard.locator(".fulfilled-badge").waitFor({ state: "visible" });
+    assert(await activeCard.evaluate((card) => card.classList.contains("is-fulfilled")), "Fulfilled wish card did not receive its fulfilled state");
+    const fulfilledOpacity = Number(await activeCard.evaluate((card) => getComputedStyle(card).opacity));
+    assert(fulfilledOpacity > 0 && fulfilledOpacity < 1, `Fulfilled wish card is not translucent: opacity=${fulfilledOpacity}`);
+
+    await ownerWidePage.goto(`${baseUrl}/app/wishes`, { waitUntil: "domcontentloaded" });
+    const dashboardFulfilledCard = ownerWidePage.locator(".wish-card").filter({ hasText: wishToMove.title }).first();
+    await dashboardFulfilledCard.locator(".fulfilled-badge").waitFor({ state: "visible" });
+    const dashboardFulfilledOpacity = Number(await dashboardFulfilledCard.evaluate((card) => getComputedStyle(card).opacity));
+    assert(dashboardFulfilledOpacity > 0 && dashboardFulfilledOpacity < 1, `Dashboard fulfilled wish card is not translucent: opacity=${dashboardFulfilledOpacity}`);
   } finally {
     const restoreStatusResponse = await apiFromPage(ownerWidePage, `/api/wishes/${wishToMove.id}/fulfilled`, {
       method: "POST",
@@ -6454,7 +6464,7 @@ try {
     });
     assert(restoreStatusResponse.ok && restoreStatusResponse.data?.status === "active", "Failed to restore seeded wish status");
   }
-  await expectNoRootOverflow(ownerWidePage, "1912px owner profile");
+  await expectNoRootOverflow(ownerWidePage, "1912px owner wishes");
   await ownerWide.close();
 
   console.log("Visual smoke passed: desktop/mobile card menus, hover lists, fulfilled/delete actions, list persistence, wish details, app routes, friend directories, and unified public profiles");
