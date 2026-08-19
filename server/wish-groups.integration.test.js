@@ -33,14 +33,21 @@ async function post(path, body, cookie = "") {
   });
 }
 
+async function remove(path, cookie = "") {
+  return fetch(`${baseUrl}${path}`, {
+    method: "DELETE",
+    headers: cookie ? { Cookie: cookie } : {},
+  });
+}
+
 async function login() {
   const response = await post("/auth/login", { email: "demo@rollapp.test", password: "demo1234" });
   assert.equal(response.status, 200);
   return response.headers.get("set-cookie").split(";", 1)[0];
 }
 
-async function createWish(title, cookie) {
-  const response = await post("/wishes", { title, listIds: [], space: "products" }, cookie);
+async function createWish(title, cookie, space = "products") {
+  const response = await post("/wishes", { title, listIds: [], space }, cookie);
   assert.equal(response.status, 201);
   return (await response.json()).wish;
 }
@@ -72,6 +79,7 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   assert.equal(createResponse.status, 201, JSON.stringify(createPayload));
   const group = createPayload.group;
   assert.deepEqual(group.wishIds, [first.id, second.id]);
+  assert.equal(group.space, "products");
 
   const addResponse = await post(`/lists/${list.id}/groups/${group.id}/wishes`, { wishId: third.id }, cookie);
   assert.equal(addResponse.status, 201);
@@ -92,6 +100,7 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   assert.deepEqual(concurrentResponses.map((response) => response.status).sort(), [201, 409]);
   const concurrentGroup = concurrentPayloads.find((payload) => payload.group)?.group;
   const losingWishId = concurrentGroup.wishIds.includes(left.id) ? right.id : left.id;
+  const winningWishId = concurrentGroup.wishIds.find((wishId) => wishId !== shared.id);
 
   const dashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
   const dashboard = await dashboardResponse.json();
@@ -107,4 +116,87 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   assert.ok(!dashboard.wishes.find((wish) => wish.id === fourth.id)?.listIds.includes(list.id));
   assert.ok(dashboard.wishes.find((wish) => wish.id === shared.id)?.listIds.includes(list.id));
   assert.ok(!dashboard.wishes.find((wish) => wish.id === losingWishId)?.listIds.includes(list.id));
+
+  const missingMemberResponse = await remove(`/lists/${list.id}/groups/${group.id}/wishes/${fourth.id}`, cookie);
+  assert.equal(missingMemberResponse.status, 404);
+  assert.deepEqual(await missingMemberResponse.json(), { error: "Желание не найдено в группе" });
+
+  const removeThirdResponse = await remove(`/lists/${list.id}/groups/${group.id}/wishes/${third.id}`, cookie);
+  const removeThirdPayload = await removeThirdResponse.json();
+  assert.equal(removeThirdResponse.status, 200, JSON.stringify(removeThirdPayload));
+  assert.equal(removeThirdPayload.dissolved, false);
+  assert.deepEqual(new Set(removeThirdPayload.group.wishIds), new Set([first.id, second.id]));
+
+  const afterSingleRemovalResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
+  assert.equal(afterSingleRemovalResponse.status, 200);
+  const afterSingleRemoval = await afterSingleRemovalResponse.json();
+  assert.deepEqual(
+    new Set(afterSingleRemoval.groups.find((item) => item.id === group.id)?.wishIds),
+    new Set([first.id, second.id]),
+  );
+  assert.ok(afterSingleRemoval.wishes.find((wish) => wish.id === third.id)?.listIds.includes(list.id));
+
+  const dissolveResponse = await remove(`/lists/${list.id}/groups/${group.id}/wishes/${first.id}`, cookie);
+  const dissolvePayload = await dissolveResponse.json();
+  assert.equal(dissolveResponse.status, 200, JSON.stringify(dissolvePayload));
+  assert.equal(dissolvePayload.dissolved, true);
+  assert.equal(dissolvePayload.group, null);
+
+  const afterDissolveResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
+  assert.equal(afterDissolveResponse.status, 200);
+  const afterDissolve = await afterDissolveResponse.json();
+  assert.equal(afterDissolve.groups.some((item) => item.id === group.id), false);
+  for (const wishId of [first.id, second.id, third.id]) {
+    assert.ok(afterDissolve.wishes.find((wish) => wish.id === wishId)?.listIds.includes(list.id));
+  }
+
+  const disbandResponse = await remove(`/lists/${list.id}/groups/${concurrentGroup.id}`, cookie);
+  assert.equal(disbandResponse.status, 200);
+  assert.deepEqual(await disbandResponse.json(), { ok: true });
+  const disbandedDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
+  const disbandedDashboard = await disbandedDashboardResponse.json();
+  assert.equal(disbandedDashboardResponse.status, 200);
+  assert.ok(!disbandedDashboard.groups.some((item) => item.id === concurrentGroup.id));
+  for (const wishId of [shared.id, winningWishId]) {
+    assert.ok(disbandedDashboard.wishes.find((wish) => wish.id === wishId)?.listIds.includes(list.id));
+  }
+
+  const generalListResponse = await post("/lists", {
+    title: "Мои желания",
+    description: "Всё, чему я буду рад",
+    space: "products",
+  }, cookie);
+  assert.equal(generalListResponse.status, 201);
+  const generalList = (await generalListResponse.json()).list;
+  const scopedFirst = await createWish("Товар один", cookie, "products");
+  const scopedSecond = await createWish("Товар два", cookie, "products");
+  const transportWish = await createWish("Поездка", cookie, "transport");
+  const scopedCreateResponse = await post(`/lists/${generalList.id}/groups`, {
+    wishIds: [scopedFirst.id, scopedSecond.id],
+    space: "products",
+  }, cookie);
+  const scopedCreatePayload = await scopedCreateResponse.json();
+  assert.equal(scopedCreateResponse.status, 201, `${JSON.stringify(scopedCreatePayload)}\n${serverErrors}`);
+  assert.equal(scopedCreatePayload.group.space, "products");
+
+  const transportListResponse = await post("/lists", { title: "Поездки", space: "transport" }, cookie);
+  assert.equal(transportListResponse.status, 201);
+  const transportList = (await transportListResponse.json()).list;
+  const attachResponse = await post(`/wishes/${scopedFirst.id}/lists/${transportList.id}`, {}, cookie);
+  assert.equal(attachResponse.status, 200);
+  const transportGroupResponse = await post(`/lists/${generalList.id}/groups`, {
+    wishIds: [scopedFirst.id, transportWish.id],
+    space: "transport",
+  }, cookie);
+  const transportGroupPayload = await transportGroupResponse.json();
+  assert.equal(transportGroupResponse.status, 201, JSON.stringify(transportGroupPayload));
+  assert.equal(transportGroupPayload.group.space, "transport");
+
+  const scopedDashboard = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } }).then((response) => response.json());
+  const savedGroup = scopedDashboard.groups.find((item) => item.id === scopedCreatePayload.group.id);
+  assert.equal(savedGroup.space, "products");
+  assert.deepEqual(new Set(savedGroup.wishIds), new Set([scopedFirst.id, scopedSecond.id]));
+  const savedTransportGroup = scopedDashboard.groups.find((item) => item.id === transportGroupPayload.group.id);
+  assert.equal(savedTransportGroup.space, "transport");
+  assert.deepEqual(new Set(savedTransportGroup.wishIds), new Set([scopedFirst.id, transportWish.id]));
 });
