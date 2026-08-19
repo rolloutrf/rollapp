@@ -59,7 +59,7 @@ Yandex Cloud resources:
 - folder `b1gebpfrhvkd43r38q98`;
 - Managed PostgreSQL cluster `c9q11j9k294u5dmlk127`, database `rollapp`, user `rollapp_app`;
 - Container Registry `crpvg7pqnbpjl26q93f6`;
-- Compute VM `epd40l0koqqqietvpd18`;
+- recovered Compute VM `epdn3osv2a7l82iqoo3v`;
 - runtime service account `ajers2ngi708sf3i1t4g`;
 - CI service account `ajea75b2e3r8kiigmice`;
 - database password stays in Connection Manager Lockbox secret `e6qn7uuqpp2jg3krbh4u`;
