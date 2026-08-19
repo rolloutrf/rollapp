@@ -111,6 +111,11 @@ const formatEventDate = (value) => {
   return year && month && day ? `${day}.${month}.${year}` : "";
 };
 const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
+const readPasswordResetToken = () => {
+  if (typeof window === "undefined") return "";
+  const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  return (new URLSearchParams(fragment).get("token") || "").trim();
+};
 const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
 const wishCountNoun = (count) => {
   const absolute = Math.abs(Number(count) || 0);
@@ -185,12 +190,24 @@ const wishSpaceId = (wish, lists = []) => {
   return spaceId || "products";
 };
 
+const LIST_TILE_STYLE = {
+  width: 130,
+  minWidth: 130,
+  height: 100,
+  minHeight: 100,
+  padding: 12,
+  flex: "0 0 130px",
+  borderRadius: 18,
+  fontSize: 16,
+  lineHeight: "19px",
+};
+
 function ListTileContent({ title, count, privateList = false }) {
   return <>
-    <strong data-slot="list-tile-label">{title}</strong>
+    <strong data-slot="list-tile-label" style={{ fontSize: 16, lineHeight: "19px" }}>{title}</strong>
     <div data-slot="list-tile-meta">
       {privateList && <LockKeyhole size={14} aria-hidden="true" />}
-      <span data-slot="list-tile-count">{count}</span>
+      <span data-slot="list-tile-count" style={{ fontSize: 24, lineHeight: "29px", fontWeight: 600 }}>{count}</span>
     </div>
   </>;
 }
@@ -594,6 +611,218 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
   </>;
 }
 
+function AuthRecoveryForm({ eyebrow, title, description, busy = false, onSubmit, noValidate = false, children }) {
+  return (
+    <div className="auth-page">
+      <div className="auth-panel">
+        <form className="auth-form" aria-busy={busy || undefined} noValidate={noValidate} onSubmit={onSubmit}>
+          <div>
+            <span className="eyebrow">{eyebrow}</span>
+            <h1>{title}</h1>
+            <p>{description}</p>
+          </div>
+          {children}
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPasswordPage() {
+  const fieldId = useId();
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/password-reset/request", { email });
+      setEmail("");
+      setSubmitted(true);
+    } catch (requestError) {
+      setError(requestError.message || "Не удалось отправить ссылку. Попробуйте ещё раз.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthRecoveryForm
+      eyebrow="Восстановление"
+      title="Восстановить пароль"
+      description="Введите email, который использовали при регистрации."
+      busy={loading}
+      onSubmit={submit}
+    >
+      {submitted
+        ? <Alert className="rounded-2xl border-primary/20 bg-primary/5 p-4" role="status">
+          <CheckCircle2 className="text-primary" aria-hidden="true" />
+          <AlertDescription>Если аккаунт с таким email существует, мы отправили ссылку для восстановления. Проверьте почту и папку «Спам».</AlertDescription>
+        </Alert>
+        : <>
+          {error && <Alert variant="destructive" className="rounded-2xl p-4"><AlertDescription>{error}</AlertDescription></Alert>}
+          <Field>
+            <FieldLabel htmlFor={`${fieldId}-email`}>Email</FieldLabel>
+            <Input
+              id={`${fieldId}-email`}
+              required
+              type="email"
+              maxLength={160}
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(event) => { setEmail(event.target.value); if (error) setError(""); }}
+            />
+          </Field>
+          <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>
+            {loading && <Spinner data-icon="inline-start" />}
+            Отправить ссылку
+          </ShadcnButton>
+        </>}
+      <p className="auth-switch"><a href="/login">Вернуться ко входу</a></p>
+    </AuthRecoveryForm>
+  );
+}
+
+function ResetPasswordPage() {
+  const { refresh } = useSession();
+  const fieldId = useId();
+  const passwordRef = useRef(null);
+  const confirmationRef = useRef(null);
+  const [token, setToken] = useState(readPasswordResetToken);
+  const [form, setForm] = useState({ password: "", confirmation: "" });
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  useLayoutEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+    }
+  }, []);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => current[field] ? { ...current, [field]: "" } : current);
+    if (formError) setFormError("");
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    const nextErrors = {};
+    if (form.password.length < 8) nextErrors.password = "Пароль должен содержать минимум 8 символов.";
+    else if (form.password.length > 128) nextErrors.password = "Пароль должен содержать не больше 128 символов.";
+    if (!form.confirmation) nextErrors.confirmation = "Повторите новый пароль.";
+    else if (form.confirmation !== form.password) nextErrors.confirmation = "Пароли не совпадают.";
+    setErrors(nextErrors);
+    setFormError("");
+    if (Object.keys(nextErrors).length) {
+      window.requestAnimationFrame(() => (nextErrors.password ? passwordRef : confirmationRef).current?.focus());
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await api.post("/auth/password-reset/confirm", { token, password: form.password });
+      await refresh();
+      setForm({ password: "", confirmation: "" });
+      setToken("");
+      setSuccess(true);
+    } catch (error) {
+      setFormError(error.message || "Не удалось изменить пароль. Запросите новую ссылку и попробуйте ещё раз.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <AuthRecoveryForm eyebrow="Готово" title="Пароль изменён" description="Теперь можно войти с новым паролем.">
+        <Alert className="rounded-2xl border-primary/20 bg-primary/5 p-4" role="status">
+          <CheckCircle2 className="text-primary" aria-hidden="true" />
+          <AlertDescription>Новый пароль сохранён. Все прежние сеансы завершены.</AlertDescription>
+        </Alert>
+        <a className={buttonVariants({ className: "auth-submit" })} href="/login">Перейти ко входу</a>
+      </AuthRecoveryForm>
+    );
+  }
+
+  if (!token) {
+    return (
+      <AuthRecoveryForm eyebrow="Восстановление" title="Ссылка недействительна" description="Срок действия ссылки мог закончиться или она уже была использована.">
+        <Alert variant="destructive" className="rounded-2xl p-4">
+          <AlertDescription>Запросите новую ссылку для восстановления пароля.</AlertDescription>
+        </Alert>
+        <Link className={buttonVariants({ className: "auth-submit" })} to="/forgot-password">Запросить новую ссылку</Link>
+        <p className="auth-switch"><a href="/login">Вернуться ко входу</a></p>
+      </AuthRecoveryForm>
+    );
+  }
+
+  return (
+    <AuthRecoveryForm
+      eyebrow="Новый пароль"
+      title="Придумайте новый пароль"
+      description="Используйте не меньше 8 символов."
+      busy={loading}
+      noValidate
+      onSubmit={submit}
+    >
+      {formError && <Alert variant="destructive" className="rounded-2xl p-4"><AlertDescription>{formError}</AlertDescription></Alert>}
+      <FieldGroup className="gap-4">
+        <Field data-invalid={Boolean(errors.password)}>
+          <FieldLabel htmlFor={`${fieldId}-password`}>Новый пароль</FieldLabel>
+          <Input
+            ref={passwordRef}
+            id={`${fieldId}-password`}
+            required
+            minLength={8}
+            maxLength={128}
+            type="password"
+            autoComplete="new-password"
+            placeholder="Минимум 8 символов"
+            value={form.password}
+            aria-invalid={Boolean(errors.password) || undefined}
+            aria-describedby={errors.password ? `${fieldId}-password-error` : undefined}
+            onChange={(event) => updateField("password", event.target.value)}
+          />
+          {errors.password && <FieldError id={`${fieldId}-password-error`}>{errors.password}</FieldError>}
+        </Field>
+        <Field data-invalid={Boolean(errors.confirmation)}>
+          <FieldLabel htmlFor={`${fieldId}-confirmation`}>Повторите пароль</FieldLabel>
+          <Input
+            ref={confirmationRef}
+            id={`${fieldId}-confirmation`}
+            required
+            minLength={8}
+            maxLength={128}
+            type="password"
+            autoComplete="new-password"
+            placeholder="Ещё раз новый пароль"
+            value={form.confirmation}
+            aria-invalid={Boolean(errors.confirmation) || undefined}
+            aria-describedby={errors.confirmation ? `${fieldId}-confirmation-error` : undefined}
+            onChange={(event) => updateField("confirmation", event.target.value)}
+          />
+          {errors.confirmation && <FieldError id={`${fieldId}-confirmation-error`}>{errors.confirmation}</FieldError>}
+        </Field>
+      </FieldGroup>
+      <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>
+        {loading && <Spinner data-icon="inline-start" />}
+        Сохранить новый пароль
+      </ShadcnButton>
+      <p className="auth-switch">Ссылка не работает? <Link to="/forgot-password">Запросить новую</Link></p>
+    </AuthRecoveryForm>
+  );
+}
+
 function AuthPage({ mode }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -779,6 +1008,7 @@ function AuthPage({ mode }) {
                 <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
+              {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
               <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
@@ -891,8 +1121,8 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
         </Link>
       </nav>
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия со списком желаний">
-        {selectedList && <Button className="h-12 rounded-full px-5 text-base max-[560px]:flex-1" variant="outline" icon={Pencil} onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
-        <Button className="wishes-page__hero-add h-12 min-w-[180px] rounded-full px-6 text-base max-[560px]:min-w-0" icon={Plus} onClick={onAdd}>Добавить</Button>
+        {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
+        <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
       </div>
     </section>
   );
@@ -1193,13 +1423,28 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDelete, onDragOver, 
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const renamingFromMenuRef = useRef(false);
+  const beginEditing = () => {
+    renamingFromMenuRef.current = true;
+    setTitle(group.title);
+    setEditing(true);
+  };
+  const finishEditing = () => {
+    renamingFromMenuRef.current = false;
+    setEditing(false);
+  };
+  const resolveMenuFinalFocus = () => {
+    const skipReturnFocus = renamingFromMenuRef.current;
+    renamingFromMenuRef.current = false;
+    return !skipReturnFocus;
+  };
   const saveTitle = async () => {
     const nextTitle = title.trim();
-    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); setEditing(false); return; }
+    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); finishEditing(); return; }
     setBusy(true);
     const saved = await onRename(nextTitle);
     setBusy(false);
-    if (saved) setEditing(false);
+    if (saved) finishEditing();
   };
   const remove = async () => {
     setBusy(true);
@@ -1215,10 +1460,10 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDelete, onDragOver, 
     </span>
     </ShadcnButton>
     <div className="wish-card__body wish-group-tile__meta">
-      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter") saveTitle(); if (event.key === "Escape") { setTitle(group.title); setEditing(false); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
+      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
-        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={() => { setTitle(group.title); setEditing(true); }}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
       </div>
     </div>
   </div>
@@ -1236,14 +1481,29 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const renamingFromMenuRef = useRef(false);
   useEffect(() => { if (!editing) setTitle(group.title); }, [group.title, editing]);
+  const beginEditing = () => {
+    renamingFromMenuRef.current = true;
+    setTitle(group.title);
+    setEditing(true);
+  };
+  const finishEditing = () => {
+    renamingFromMenuRef.current = false;
+    setEditing(false);
+  };
+  const resolveMenuFinalFocus = () => {
+    const skipReturnFocus = renamingFromMenuRef.current;
+    renamingFromMenuRef.current = false;
+    return !skipReturnFocus;
+  };
   const saveTitle = async () => {
     const nextTitle = title.trim();
-    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); setEditing(false); return; }
+    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); finishEditing(); return; }
     setBusy(true);
     const saved = await onRename(nextTitle);
     setBusy(false);
-    if (saved) setEditing(false);
+    if (saved) finishEditing();
   };
   const remove = async () => {
     setBusy(true);
@@ -1253,8 +1513,8 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDelete }
   };
   return <>
     <header>
-      <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter") saveTitle(); if (event.key === "Escape") { setTitle(group.title); setEditing(false); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
-      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={() => { setTitle(group.title); setEditing(true); }}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
+      <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
+      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
     </header>
     {deleteOpen && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Группа будет расформирована, а желания останутся в списке. Отменить это действие не получится.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={remove}>{busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
   </>;
@@ -1552,8 +1812,17 @@ function WishesPage({ onAdd, version }) {
       void reload({ background: true }).catch(() => {});
     } catch (error) { toast(error.message, "error"); }
   };
-  const renameGroup = async (groupId, title) => {
-    try { await api.patch(`/lists/${groupingListId}/groups/${groupId}`, { title }); toast("Группа переименована"); await reload({ background: true }); return true; }
+  const renameGroup = async (groupId, listId, title) => {
+    try {
+      const result = await api.patch(`/lists/${listId}/groups/${groupId}`, { title });
+      const savedTitle = result.group?.title || title;
+      updateData((current) => ({
+        ...current,
+        groups: (current.groups || []).map((group) => group.id === groupId ? { ...group, title: savedTitle } : group),
+      }));
+      toast("Группа переименована");
+      return true;
+    }
     catch (error) { toast(error.message, "error"); return false; }
   };
   const deleteGroup = async (groupId) => {
@@ -1641,9 +1910,9 @@ function WishesPage({ onAdd, version }) {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, title)} onDelete={() => deleteGroup(openedGroup.id)} /><div className="wish-grid">{openedGroupWishes.map((wish) => renderWish(wish, true))}</div></section>}
-{wishes.length ? <div className="wish-grid">{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, title)} onDelete={() => deleteGroup(group.id)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowDrop(event, `group:${group.id}`)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, list.wishCount, list.privacy === "private")}><ListTileContent title={list.title} count={list.wishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>)}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDelete={() => deleteGroup(openedGroup.id)} /><div className="wish-grid">{openedGroupWishes.map((wish) => renderWish(wish, true))}</div></section>}
+{wishes.length ? <div className="wish-grid">{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDelete={() => deleteGroup(group.id)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowDrop(event, `group:${group.id}`)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -2239,6 +2508,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
               className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${form.imageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
+              aria-busy={imageUploading || undefined}
               onDragEnter={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragOver={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setImageDropActive(false); }}
@@ -2250,28 +2520,39 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             >
               {form.imageUrl
                 ? <img src={form.imageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} />
-                : <ShadcnButton
-                  type="button"
-                  variant="ghost"
-                  className="wish-editor__image-empty h-full w-full max-w-none flex-col gap-1.5 overflow-hidden rounded-[inherit] border-0 bg-transparent p-3 text-center whitespace-normal shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent [&>span]:text-xs [&>span]:leading-4 [&>strong]:text-sm [&>strong]:leading-4 [&_svg:not([class*='size-'])]:size-8"
-                  disabled={imageUploading}
-                  onClick={() => imageFileRef.current?.click()}
-                >
-                  {imageUploading ? <LoaderCircle className="spin" /> : <Image />}
-                  <strong>{imageUploading ? "Загружаем изображение…" : "Добавить изображение"}</strong>
-                  <span>JPG, PNG или WEBP · до 8 МБ</span>
-                </ShadcnButton>}
+                : <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 transition-colors max-[380px]:gap-2 max-[380px]:p-3">
+                  <EmptyHeader className="gap-1">
+                    <EmptyMedia className="mb-1" variant="icon"><Image aria-hidden="true" /></EmptyMedia>
+                    <EmptyTitle>{imageUploading ? "Загружаем изображение…" : "Добавить изображение"}</EmptyTitle>
+                    <EmptyDescription id={fieldId("image-help")}>JPG, PNG или WEBP · до 8 МБ</EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <ShadcnButton
+                      type="button"
+                      variant="outline"
+                      disabled={imageUploading}
+                      aria-busy={imageUploading || undefined}
+                      aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
+                      onClick={() => imageFileRef.current?.click()}
+                    >
+                      {imageUploading ? <Spinner data-icon="inline-start" /> : <Upload data-icon="inline-start" aria-hidden="true" />}
+                      {imageUploading ? "Загрузка…" : "Выбрать файл"}
+                    </ShadcnButton>
+                  </EmptyContent>
+                </Empty>}
               <Input
                 ref={imageFileRef}
                 className="sr-only !size-px"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 aria-label="Загрузить фотографию желания"
+                aria-invalid={Boolean(imageError) || undefined}
+                aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
                 onChange={(event) => uploadImage(event.target.files?.[0])}
               />
               {form.imageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</ShadcnButton>}
             </div>
-            {imageError && <p className="wish-editor__image-error" role="alert">{imageError}</p>}
+            {imageError && <FieldError id={fieldId("image-error")}>{imageError}</FieldError>}
           </section>
 
           <section className="wish-editor__panel w-full overflow-visible p-0">
@@ -2325,12 +2606,12 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               <div className="wish-editor__settings flex flex-col gap-2" role="group" aria-label="Настройки желания">
                 <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
                   <EyeOff aria-hidden="true" />
-                  <FieldLabel className="min-w-0 flex-1 cursor-pointer" htmlFor={fieldId("private")}><strong>Секретное желание</strong></FieldLabel>
+                  <FieldLabel className="min-w-0 flex-1 cursor-pointer font-normal" htmlFor={fieldId("private")}>Секретное желание</FieldLabel>
                   <Switch id={fieldId("private")} checked={form.privacy === "private"} onCheckedChange={(checked) => setForm({ ...form, privacy: checked ? "private" : "inherit" })} />
                 </Field>
                 <Field orientation="horizontal" className="wish-editor__switch-row min-h-12 gap-3 px-1">
                   <LockKeyhole aria-hidden="true" />
-                  <FieldLabel className="min-w-0 flex-1 cursor-pointer" htmlFor={fieldId("multiple")}><strong>Многократное бронирование</strong></FieldLabel>
+                  <FieldLabel className="min-w-0 flex-1 cursor-pointer font-normal" htmlFor={fieldId("multiple")}>Многократное бронирование</FieldLabel>
                   <Switch id={fieldId("multiple")} checked={form.allowMultiple} onCheckedChange={(checked) => setForm({ ...form, allowMultiple: checked })} />
                 </Field>
               </div>
@@ -2345,7 +2626,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                   {visibleLists.length ? visibleLists.map((list) => {
                     const selected = form.listIds.includes(list.id);
                     const listSwitchId = fieldId(`list-${list.id}`);
-                    return <Field orientation="horizontal" className={`wish-editor__list-row min-h-12 gap-3 rounded-lg px-1.5 py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
+                    return <Field orientation="horizontal" className={`wish-editor__list-row min-h-12 gap-3 rounded-lg py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
                       <FieldLabel className="wish-editor__list-title min-w-0 flex-1 cursor-pointer" htmlFor={listSwitchId}>{list.title}</FieldLabel>
                       <Switch
                         id={listSwitchId}
@@ -2364,7 +2645,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
           <footer className="wish-editor-screen__footer border-t sm:flex-row">
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto rounded-lg px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
-            <ShadcnButton className="wish-editor__submit h-12 rounded-full" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
+            <ShadcnButton className="wish-editor__submit h-12 px-4" shape="pill" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
           </footer>
@@ -2949,8 +3230,8 @@ function PublicProfile({ shared = false }) {
       {relationshipBlock}
       <div className={`page-actions wishes-page__hero-actions ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {ownerCollection ? <>
-          {selectedList && <Button className="h-12 rounded-full px-5 text-base max-[560px]:flex-1" variant="outline" icon={Pencil} onClick={() => setListModal(selectedList)}>Настройки списка</Button>}
-          <Button className="wishes-page__hero-add h-12 min-w-[180px] rounded-full px-6 text-base max-[560px]:min-w-0" icon={Plus} onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</Button>
+          {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => setListModal(selectedList)}>Настройки списка</Button>}
+          <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</Button>
         </> : data.isOwner && shared
           ? <Button className="h-12 rounded-full px-6 text-base" onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</Button>
           : <Button
@@ -2966,8 +3247,8 @@ function PublicProfile({ shared = false }) {
     {(shared || navigationLists.length > 0) && <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
       <div className="list-tabs__track">
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-          <ToggleGroupItem value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", spaceWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={spaceWishes.length} /></ToggleGroupItem>
-          {!shared && navigationLists.map((list) => <ToggleGroupItem value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={list.title} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
+          <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", spaceWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={spaceWishes.length} /></ToggleGroupItem>
+          {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={list.title} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
       </div>
@@ -2996,4 +3277,4 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><ProfileEditorProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></ProfileEditorProvider></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><ProfileEditorProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></ProfileEditorProvider></SessionProvider></ToastProvider>; }

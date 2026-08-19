@@ -1,4 +1,21 @@
 const TELEGRAM_BACKGROUND = "#0a0a0a";
+const TELEGRAM_SDK_URL = "https://telegram.org/js/telegram-web-app.js";
+
+export function shouldLoadTelegramWebAppSdk(pathname) {
+  return !/^\/reset-password\/?$/.test(String(pathname || ""));
+}
+
+export async function loadTelegramWebAppSdk({ documentRef = document, windowRef = window } = {}) {
+  if (windowRef.Telegram?.WebApp || !shouldLoadTelegramWebAppSdk(windowRef.location?.pathname)) return;
+  await new Promise((resolve) => {
+    const script = documentRef.createElement("script");
+    script.src = TELEGRAM_SDK_URL;
+    script.async = true;
+    script.addEventListener("load", resolve, { once: true });
+    script.addEventListener("error", resolve, { once: true });
+    documentRef.head.appendChild(script);
+  });
+}
 
 export function initializeTelegramWebApp() {
   if (typeof window === "undefined") return { webApp: null, initData: "" };

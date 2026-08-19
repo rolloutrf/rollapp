@@ -916,6 +916,8 @@ async function expectUnauthenticatedDarkRoutes(page, label) {
   const routes = [
     { pathname: "/login", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
     { pathname: "/register", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
+    { pathname: "/forgot-password", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
+    { pathname: "/reset-password", ready: ".auth-form", surfaces: [".auth-page", ".auth-panel"] },
     { pathname: "/this-page/does-not/exist", ready: ".not-found", surfaces: [".not-found"] },
   ];
   for (const route of routes) {

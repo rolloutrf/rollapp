@@ -5,6 +5,7 @@ services:
     container_name: rollapp
     image: "__IMAGE__"
     restart: always
+    stop_grace_period: 25s
     environment:
       NODE_ENV: production
       DEMO_MODE: "false"
@@ -18,6 +19,13 @@ services:
       PG_POOL_SIZE: "8"
       YC_LOCKBOX_SECRET_ID: "e6qn7uuqpp2jg3krbh4u"
       YC_LOCKBOX_SECRET_KEY: "postgresql_password"
+      PUBLIC_APP_URL: "https://xn--80avakiab.xn--p1ai"
+      # Verified Cloud Postbox identity: роллапп.рф.
+      EMAIL_PROVIDER: "yandex"
+      EMAIL_FROM: "noreply@xn--80avakiab.xn--p1ai"
+      PASSWORD_RESET_TTL_SECONDS: "1800"
+      PASSWORD_RESET_COOLDOWN_SECONDS: "60"
+      PASSWORD_RESET_DAILY_LIMIT: "5"
       SMS_PROVIDER: "disabled"
       YC_FOLDER_ID: "b1gebpfrhvkd43r38q98"
       YC_CNS_SENDER_ID: "Rollapp"
