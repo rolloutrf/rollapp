@@ -18,8 +18,9 @@ concurrency:
 env:
   YC_FOLDER_ID: b1gebpfrhvkd43r38q98
   YC_DEPLOY_SA_ID: ajea75b2e3r8kiigmice
+  YC_RUNTIME_SA_ID: ajers2ngi708sf3i1t4g
   YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
-  YC_VM_ID: epd40l0koqqqietvpd18
+  YC_VM_ID: epdn3osv2a7l82iqoo3v
   IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
   PUBLIC_URL: https://xn--80avakiab.xn--p1ai
 
@@ -91,9 +92,29 @@ jobs:
           sed -e "s|__IMAGE__|${IMAGE_SHA}|g" \
             -e "s|__VERSION__|${GITHUB_SHA}|g" \
             deploy/docker-compose.template.yml > deploy/docker-compose.yml
-          yc compute instance update-container \
+
+          before_update="$(yc compute instance get \
             --id "$YC_VM_ID" \
-            --docker-compose-file deploy/docker-compose.yml \
+            --full \
+            --format json)"
+          if ! jq -e \
+            --arg expected_runtime_sa "$YC_RUNTIME_SA_ID" \
+            '.status == "RUNNING"
+              and .service_account_id == $expected_runtime_sa
+              and .metadata_options.gce_http_endpoint == "ENABLED"
+              and .metadata_options.gce_http_token == "ENABLED"
+              and .metadata["docker-container-declaration"] == null' \
+            <<<"$before_update" >/dev/null; then
+            echo "Refusing to mutate an unexpected or conflicting production VM" >&2
+            exit 1
+          fi
+
+          # The production VM was recovered from a repaired COI boot disk, so
+          # it no longer has the source-image marker required by update-container.
+          # Upsert only the Compose key and preserve any other instance metadata.
+          yc compute instance add-metadata \
+            --id "$YC_VM_ID" \
+            --metadata-from-file docker-compose=deploy/docker-compose.yml \
             --folder-id "$YC_FOLDER_ID"
 
           instance_json="$(yc compute instance get \
@@ -103,14 +124,17 @@ jobs:
           if ! jq -e \
             --arg expected_image "$IMAGE_SHA" \
             --arg expected_version "$GITHUB_SHA" \
+            --arg expected_runtime_sa "$YC_RUNTIME_SA_ID" \
             '.status == "RUNNING"
+              and .service_account_id == $expected_runtime_sa
               and .metadata_options.gce_http_endpoint == "ENABLED"
               and .metadata_options.gce_http_token == "ENABLED"
-              and (.metadata | keys == ["docker-compose"])
+              and .metadata["docker-container-declaration"] == null
+              and (.metadata["docker-compose"] | type == "string")
               and (.metadata["docker-compose"] | contains("image: \"" + $expected_image + "\""))
               and (.metadata["docker-compose"] | contains("APP_VERSION: \"" + $expected_version + "\""))' \
             <<<"$instance_json" >/dev/null; then
-            echo "Production VM metadata does not contain the expected immutable image and version" >&2
+            echo "Production VM identity or metadata does not match the expected deployment" >&2
             exit 1
           fi
 
