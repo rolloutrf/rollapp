@@ -64,8 +64,8 @@
 }
 
 * { box-sizing: border-box; }
-html { width: 100%; max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; scroll-behavior: smooth; color-scheme: dark; background: var(--app-bg); }
-body { width: 100%; max-width: 100%; margin: 0; overflow-x: hidden; overscroll-behavior-x: none; color: var(--ink); background: var(--app-bg); color-scheme: dark; font-family: var(--sans); font-size: 16px; line-height: 24px; font-weight: 400; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+html { width: 100%; max-width: 100%; overflow-x: clip; overscroll-behavior-x: none; scroll-behavior: smooth; color-scheme: dark; background: var(--app-bg); }
+body { width: 100%; max-width: 100%; margin: 0; overflow-x: clip; overscroll-behavior-x: none; color: var(--ink); background: var(--app-bg); color-scheme: dark; font-family: var(--sans); font-size: 16px; line-height: 24px; font-weight: 400; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 small { font-size: 13px; }
 #root { width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; }
 body.modal-open, body.nav-open, body.drawer-open, body.profile-menu-open { overflow: hidden; }
@@ -300,6 +300,7 @@ input.phone-otp__code {
 .wish-card:hover { transform: translateY(-4px); box-shadow: 0 14px 35px color-mix(in oklch, var(--background) 32%, transparent); }
 .wish-card.is-draggable { cursor: grab; }
 .wish-card.is-draggable { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.wish-group-open .wish-card.is-draggable { touch-action: pan-y; }
 .wish-card.is-draggable:active { cursor: grabbing; }
 .wish-card.is-dragging { z-index: 6; opacity: .18; transform: scale(.97); filter: saturate(.75); }
 .wish-card.is-draggable:not(.is-dragging) { transition: transform .28s cubic-bezier(.2,.82,.2,1), box-shadow .24s ease, opacity .2s ease; }
@@ -329,7 +330,7 @@ input.phone-otp__code {
 .wish-group-tile__title[data-slot="button"] { width: 100%; min-width: 0; height: auto !important; min-height: 0 !important; margin: 0; padding: 0 !important; justify-content: flex-start !important; overflow: hidden; border: 0; color: inherit; background: transparent !important; font: inherit !important; line-height: inherit; letter-spacing: inherit; text-align: left !important; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .wish-group-tile__title:focus-visible { border-radius: 3px; outline: 2px solid var(--ring); outline-offset: 2px; }
 .wish-group-tile__meta input { width: calc(100% - 46px); height: 32px; margin: -5px 0 6px; padding: 0 8px; order: 1; font-size: 16px; }
-.wish-group-open { width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0 44px 64px; position: fixed; z-index: 40; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; border: 0; border-radius: 0; background: var(--background); box-shadow: none; animation: group-screen-in .2s ease-out; }
+.wish-group-open { width: 100vw; height: 100vh; height: 100dvh; margin: 0; padding: 0 44px 64px; position: fixed; z-index: 40; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border: 0; border-radius: 0; background: var(--background); box-shadow: none; animation: group-screen-in .2s ease-out; }
 @keyframes group-screen-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 .wish-group-open > header { min-height: 96px; margin: 0 0 28px; padding: 18px 0; position: static; display: flex; align-items: center; justify-content: space-between; background: transparent; }
 .wish-group-open > header > div { display: flex; align-items: center; gap: 10px; }
@@ -1029,7 +1030,7 @@ input.phone-otp__code {
 :is(.app-layout--dark, .modal) .button--paper:hover:not(:disabled) { background: var(--app-surface-hover); }
 :is(.app-layout--dark, .modal) .button--reserved { color: var(--background); background: var(--app-lime); }
 
-.app-layout--dark .app-main { min-width: 0; min-height: calc(100dvh - 16px); overflow: clip; border-radius: 0; background: color-mix(in oklch, var(--background) 46%, transparent); }
+.app-layout--dark .app-main { min-width: 0; min-height: calc(100dvh - 16px); overflow-x: clip; overflow-y: visible; border-radius: 0; background: color-mix(in oklch, var(--background) 46%, transparent); }
 .app-layout--dark .app-page { width: 100%; min-width: 0; max-width: 1320px; padding: 54px 42px 110px; }
 @media (min-width: 821px) {
   .app-main__profile { width: 100%; height: 54px; padding: 10px 42px 0; display: flex; flex: 0 0 54px; align-items: center; gap: 8px; }
@@ -4344,8 +4345,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 
 /* Keep the first list tile on the content grid while letting scrolled tiles
    travel through both sides of the centered page to the viewport edges. */
-.app-layout--dark .app-main.app-main--wishes {
-  overflow-x: visible;
+@media (min-width: 821px) {
+  .app-layout--dark .app-main.app-main--wishes {
+    overflow-x: visible;
+  }
 }
 .app-layout--dark .wishes-page .list-tabs {
   margin-inline: calc(50% - 50vw);

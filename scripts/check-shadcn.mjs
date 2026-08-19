@@ -400,7 +400,8 @@ assert(profileDrawerTag.includes("open") && profileDrawerTag.includes("onOpenCha
 assert(profileDrawerTag.includes('swipeDirection={isMobile ? "down" : "right"}'), "ProfileSettingsModal must stay a right-side drawer on desktop and a bottom sheet on mobile");
 assert(profileDrawerTag.includes("showSwipeHandle"), "ProfileSettingsModal drawer must show the swipe handle");
 assert(/finalFocus=\{finalFocus\}/.test(profileSettingsSource), "ProfileSettingsModal must restore focus to its opener");
-assert(/<DrawerTitle>Изменить профиль<\/DrawerTitle>/.test(profileSettingsSource), "ProfileSettingsModal must expose its visible title through DrawerTitle");
+assert(/<DrawerTitle className="sr-only">Изменить профиль<\/DrawerTitle>/.test(profileSettingsSource), "ProfileSettingsModal must expose an accessible title without rendering the removed heading");
+assert(/<DrawerDescription className="sr-only">Редактирование данных профиля\.<\/DrawerDescription>/.test(profileSettingsSource), "ProfileSettingsModal must keep an accessible description without rendering helper copy");
 assert(/<form\b[^>]*onSubmit=\{submit\}/.test(profileSettingsSource), "ProfileSettingsModal must keep one native form submission path");
 assert(!/Ссылка на фото|settings-profile-avatar-url/.test(profileSettingsSource), "ProfileSettingsModal must not expose the retired avatar URL field");
 const profileLogoutLabel = profileSettingsSource.indexOf("<span>Выйти из аккаунта</span>");
