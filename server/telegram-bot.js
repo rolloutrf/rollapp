@@ -92,14 +92,19 @@ export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotR
   return nextOffset;
 }
 
-export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), { retryDelayMs = 3_000 } = {}) {
+export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), { retryDelayMs = 3_000, fetchImpl = fetch } = {}) {
   if (!config.enabled || config.deliveryMode !== "polling") return null;
   let active = true;
   const done = (async () => {
     let offset = 0;
+    let webhookCleared = false;
     while (active) {
       try {
-        offset = await pollTelegramBotOnce({ offset, config });
+        if (!webhookCleared) {
+          await callTelegramBotApi("deleteWebhook", { drop_pending_updates: false }, { ...config, fetchImpl });
+          webhookCleared = true;
+        }
+        offset = await pollTelegramBotOnce({ offset, config, fetchImpl });
       } catch (error) {
         if (!active) break;
         console.error(`[telegram-bot] Polling failed: ${error.message}`);

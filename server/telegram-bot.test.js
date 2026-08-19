@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { callTelegramBotApi, getTelegramBotRuntimeConfig, pollTelegramBotOnce, telegramLaunchReply } from "./telegram-bot.js";
+import { callTelegramBotApi, getTelegramBotRuntimeConfig, pollTelegramBotOnce, startTelegramBotPolling, telegramLaunchReply } from "./telegram-bot.js";
 
 test("builds a private /start Mini App reply and ignores unrelated updates", () => {
   const config = getTelegramBotRuntimeConfig({
@@ -57,6 +57,32 @@ test("long polling acknowledges updates and answers launch commands", async () =
   assert.deepEqual(requests.map(({ method }) => method), ["getUpdates", "sendMessage"]);
   assert.equal(requests[0].body.offset, 40);
   assert.equal(requests[1].body.reply_markup.inline_keyboard[0][0].web_app.url, "https://xn--80avakiab.xn--p1ai/");
+});
+
+test("long polling clears an existing webhook before requesting updates", async () => {
+  const requests = [];
+  let polling;
+  const config = getTelegramBotRuntimeConfig({
+    TELEGRAM_BOT_TOKEN: "123:secret",
+    TELEGRAM_WEB_APP_URL: "https://xn--80avakiab.xn--p1ai/",
+    TELEGRAM_DELIVERY_MODE: "polling",
+  });
+  polling = startTelegramBotPolling(config, {
+    retryDelayMs: 0,
+    fetchImpl: async (url, options) => {
+      const method = new URL(url).pathname.split("/").at(-1);
+      requests.push({ method, body: JSON.parse(options.body) });
+      if (method === "getUpdates") polling.stop();
+      const result = method === "getUpdates" ? [] : true;
+      return new Response(JSON.stringify({ ok: true, result }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  });
+  await polling.done;
+  assert.deepEqual(requests.map(({ method }) => method), ["deleteWebhook", "getUpdates"]);
+  assert.deepEqual(requests[0].body, { drop_pending_updates: false });
 });
 
 test("Bot API helper sends JSON without exposing token in its return value", async () => {
