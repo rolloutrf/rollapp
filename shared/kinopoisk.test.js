@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isKinopoiskHost,
   isKinopoiskUrl,
+  KINOPOISK_CONTENT_URL_REQUIRED_MESSAGE,
+  kinopoiskContentUrlError,
   kinopoiskContentId,
   kinopoiskPosterUrl,
   wishPreviewImageUrl,
@@ -41,6 +44,18 @@ test("rejects lookalike hosts and non-content Kinopoisk links", () => {
   }
 });
 
+test("distinguishes a Kinopoisk search page from a film or series card", () => {
+  const searchUrl = "https://www.kinopoisk.ru/new-search/?text=Power";
+
+  assert.equal(isKinopoiskHost(searchUrl), true);
+  assert.equal(isKinopoiskUrl(searchUrl), false);
+  assert.equal(kinopoiskContentId(searchUrl), "");
+  assert.equal(kinopoiskPosterUrl(searchUrl), "");
+  assert.equal(kinopoiskContentUrlError(searchUrl), KINOPOISK_CONTENT_URL_REQUIRED_MESSAGE);
+  assert.equal(kinopoiskContentUrlError("https://www.kinopoisk.ru/film/435/"), "");
+  assert.equal(kinopoiskContentUrlError("https://kinopoisk.ru.evil.example/film/435/"), "");
+});
+
 test("builds the deterministic Kinopoisk poster URL", () => {
   assert.equal(
     kinopoiskPosterUrl("https://www.kinopoisk.ru/film/435/"),
@@ -59,4 +74,16 @@ test("uses a Kinopoisk poster only when a wish has no image of its own", () => {
     "https://st.kp.yandex.net/images/film_iphone/iphone360_435.jpg",
   );
   assert.equal(wishPreviewImageUrl({ imageUrl: "", url: "https://example.com/item" }), "");
+});
+
+test("uses retailer link previews after explicit images and Kinopoisk posters", () => {
+  const url = "https://lavka.yandex.ru/good/petrushka-50-gram";
+  assert.equal(
+    wishPreviewImageUrl({ imageUrl: "https://cdn.example/custom.jpg", url }),
+    "https://cdn.example/custom.jpg",
+  );
+  assert.equal(
+    wishPreviewImageUrl({ imageUrl: "", url }),
+    "/retailer-previews/lavka.svg",
+  );
 });

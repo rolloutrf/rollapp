@@ -328,14 +328,19 @@ input.phone-otp__code {
 .wish-card.is-draggable { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
 .wish-group-open .wish-card.is-draggable { touch-action: pan-y; }
 .wish-card.is-draggable:active { cursor: grabbing; }
+.wish-card__drag-handle { width: 44px; height: 44px; position: absolute; z-index: 4; left: 4px; top: 4px; display: none; place-items: center; border-radius: 12px; color: #fff; background: rgba(20,20,20,.82); box-shadow: 0 4px 16px #0005; cursor: grab; touch-action: none; -webkit-touch-callout: none; }
+.wish-card__drag-handle:active { cursor: grabbing; }
+.wish-card__drag-handle svg { width: 22px; height: 22px; pointer-events: none; }
+@media (hover: none), (any-pointer: coarse) {
+  .wish-card.is-draggable .wish-card__drag-handle { display: grid; }
+}
 .wish-card.is-dragging { z-index: 6; opacity: .18; transform: scale(.97); filter: saturate(.75); }
 .wish-card.is-draggable:not(.is-dragging) { transition: transform .28s cubic-bezier(.2,.82,.2,1), box-shadow .24s ease, opacity .2s ease; }
-.wish-card--native-preview,
 .wish-card--drag-preview { overflow: visible !important; border-radius: 20px; opacity: .96; background: var(--background); box-shadow: 0 26px 64px #0009, 5px 7px 0 -2px var(--background), 5px 7px 0 0 #307cff; transform: scale(1.035) rotate(.7deg); }
-.wish-card--native-preview { position: fixed; z-index: -1; left: -10000px; top: -10000px; pointer-events: none; }
 .wish-card--drag-preview { width: var(--drag-width) !important; margin: 0 !important; position: fixed !important; z-index: 120; left: 0; top: 0; opacity: .94 !important; transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.035) rotate(.7deg) !important; transition: none !important; pointer-events: none; will-change: transform; }
 .wish-card--drag-preview .wish-card__open,
-.wish-card--drag-preview .wish-card__menu-trigger { display: none !important; }
+.wish-card--drag-preview .wish-card__menu-trigger,
+.wish-card--drag-preview .wish-card__drag-handle { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .wish-card.is-draggable, .wish-card--drag-preview { transition: none !important; }
 }

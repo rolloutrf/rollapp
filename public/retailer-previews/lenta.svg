@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 472 572" role="img" aria-labelledby="title description">
+  <title id="title">Превью ссылки Лента</title>
+  <desc id="description">Резервное превью товара из магазина Лента</desc>
+  <rect width="472" height="572" rx="40" fill="#123b8e"/>
+  <circle cx="380" cy="86" r="120" fill="#26a9e0" opacity=".22"/>
+  <circle cx="64" cy="514" r="150" fill="#ffd53d" opacity=".18"/>
+  <rect x="54" y="62" width="82" height="8" rx="4" fill="#ffd53d"/>
+  <text x="54" y="283" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="700">Лента</text>
+  <text x="56" y="330" fill="#dbeafe" font-family="Arial, Helvetica, sans-serif" font-size="24">товар по ссылке</text>
+  <rect x="54" y="464" width="364" height="54" rx="27" fill="#fff" opacity=".12"/>
+  <text x="236" y="499" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="20">lenta.com</text>
+</svg>

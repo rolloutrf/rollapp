@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 472 572" role="img" aria-labelledby="title description">
+  <title id="title">Превью ссылки Яндекс Лавка</title>
+  <desc id="description">Резервное превью товара из Яндекс Лавки</desc>
+  <rect width="472" height="572" rx="40" fill="#ffd635"/>
+  <circle cx="394" cy="92" r="140" fill="#fff" opacity=".24"/>
+  <circle cx="52" cy="535" r="160" fill="#ff7a00" opacity=".14"/>
+  <rect x="54" y="62" width="82" height="8" rx="4" fill="#111"/>
+  <text x="54" y="249" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700">Яндекс</text>
+  <text x="54" y="307" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="700">Лавка</text>
+  <text x="56" y="352" fill="#3b2b00" font-family="Arial, Helvetica, sans-serif" font-size="24">товар по ссылке</text>
+  <rect x="54" y="464" width="364" height="54" rx="27" fill="#111" opacity=".12"/>
+  <text x="236" y="499" text-anchor="middle" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="20">lavka.yandex.ru</text>
+</svg>

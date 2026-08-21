@@ -12,6 +12,7 @@ import {
   parseBookmateMetadata,
   parseKinopoiskMetadata,
   parseProductMetadata,
+  parseStructuredProductMetadata,
   parseYandexMapsMetadata,
   parseYouTubeMetadata,
   parseYouTubeVideoId,
@@ -244,6 +245,35 @@ test("finds a Product and AggregateOffer inside a JSON-LD graph", () => {
     price: 1_299.95,
     currency: "USD",
   });
+});
+
+test("returns only structured Product data and appends a separate weight", () => {
+  const html = `
+    <meta property="og:title" content="Generic grocery shell">
+    <meta property="og:image" content="https://cdn.example/logo.png">
+    <script type="application/ld+json">
+      {
+        "@type": "Product",
+        "name": "Петрушка",
+        "weight": { "@type": "QuantitativeValue", "value": "50 г" },
+        "image": "https://cdn.example/parsley.jpg",
+        "offers": { "@type": "Offer", "price": 62, "priceCurrency": "RUB" }
+      }
+    </script>`;
+
+  assert.deepEqual(parseStructuredProductMetadata(html, "https://shop.example/product/parsley"), {
+    productFound: true,
+    title: "Петрушка, 50 г",
+    description: "",
+    imageUrl: "https://cdn.example/parsley.jpg",
+    productUrl: "",
+    price: 62,
+    currency: "RUB",
+  });
+  assert.equal(
+    parseStructuredProductMetadata('<meta property="og:image" content="https://cdn.example/logo.png">', "https://shop.example").productFound,
+    false,
+  );
 });
 
 test("reads JSON-LD arrays and nested price specifications", () => {

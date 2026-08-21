@@ -281,6 +281,7 @@ async function seedDemo(client) {
   }
 
   const [alisa, max, sonya, lev] = people;
+  const alisaGeneralList = [randomUUID(), alisa.id, "Мои желания", "Всё, чему я буду рад", "public", null, "coral", "alisa-all"];
   const lists = [
     [randomUUID(), alisa.id, "День рождения", "То, чему я точно обрадуюсь в августе", "public", "2026-08-14", "coral", "alisa-birthday"],
     [randomUUID(), alisa.id, "Когда-нибудь", "Большие и маленькие мечты без дедлайна", "public", null, "blue", "alisa-someday"],
@@ -288,7 +289,7 @@ async function seedDemo(client) {
     [randomUUID(), sonya.id, "Тёплый дом", "Красивые повседневные вещи", "public", null, "sun", "sonya-home"],
     [randomUUID(), lev.id, "Новый год", "Можно бронировать, я не подглядываю", "public", "2026-12-31", "ink", "lev-new-year"]
   ];
-  for (const list of lists) {
+  for (const list of [alisaGeneralList, ...lists]) {
     await client.query(`INSERT INTO wishlists (id,user_id,title,description,privacy,occasion_date,color,share_token) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, list);
   }
 
@@ -311,6 +312,9 @@ async function seedDemo(client) {
       wish.slice(0, 12),
     );
     await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [wish[12], wish[0]]);
+    if (wish[1] === alisa.id) {
+      await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [alisaGeneralList[0], wish[0]]);
+    }
   }
 
   await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2),($1,$3),($2,$1),($3,$1)", [alisa.id, max.id, sonya.id]);
