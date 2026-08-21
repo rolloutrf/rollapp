@@ -6,16 +6,39 @@ The product is an independent functional alternative to popular wishlist service
 
 ## What is included
 
-- Email/password authentication and optional SMS OTP login with HTTP-only sessions.
+- Email/password authentication, Yandex ID, and optional SMS OTP login with HTTP-only sessions.
 - Telegram Mini App authentication with explicit one-time account linking.
 - Public profiles and shareable list links.
 - Multiple lists with public, followers-only, link-only, and private visibility.
 - Wishes that may belong to several lists at once.
-- Product metadata recognition from Open Graph tags with SSRF protection.
+- Product metadata recognition from Open Graph/Product JSON-LD with SSRF protection, trusted image-CDN checks, and an isolated Chromium fallback for protected retailer pages.
 - Prices, priorities, private wishes, multiple reservations, and fulfilled archive.
 - Anonymous reservations that never expose the giver to the wish owner.
 - Follows, friend search, and birthdays.
 - Responsive desktop and mobile UI.
+
+### Grocery retailer metadata
+
+For exact Yandex Lavka, Lenta, and Samokat product links, the metadata endpoint
+first tries the ordinary SSRF-protected HTML fetch. Lavka currently exposes its
+Product JSON-LD directly. If Qrator or Servicepipe protects a Lenta or Samokat
+card, Rollapp can open only that product in an isolated Chromium context. A
+result is accepted only when the final URL still identifies the same product,
+Product JSON-LD is present, and its image belongs to that retailer's product
+CDN. Prices are snapshots for the server/default store region and may differ at
+the user's address.
+
+The runtime Docker image contains Chromium and Xvfb. A fresh server IP can still
+receive an interactive Servicepipe CAPTCHA; Rollapp deliberately does not solve
+or bypass it and returns a local branded preview without caching the failure.
+For reliable production imports, point `RETAILER_BROWSER_CDP_URL` at an approved
+browser renderer (or use an official retailer data integration). The browser's
+network allowlist changes per retailer, requests are serialized and deduplicated,
+service workers are disabled, and application secrets are not passed to the
+browser process. A remote CDP renderer must additionally enforce an outbound
+firewall that blocks loopback, private, link-local, and metadata-service ranges;
+the application checks public DNS but cannot pin DNS inside a third-party
+browser. Existing `SAMOKAT_*` settings remain supported as aliases.
 
 ## Local development
 
@@ -73,6 +96,31 @@ No long-lived Yandex key is stored in GitHub. The federated credential accepts o
 Local `.env` variables are documented in `.env.example`. Production non-secret settings live in `deploy/docker-compose.template.yml`; the PostgreSQL password is loaded at runtime by `server/start.js` and never enters the repository, VM metadata, or GitHub Actions.
 
 The server initializes idempotent tables at startup. Production seeding is disabled unless `SEED_DEMO=true` is explicitly set.
+
+### Yandex ID login
+
+Yandex ID uses the server-side Authorization Code flow with PKCE S256. The
+browser receives only a short-lived, HTTP-only state cookie; authorization
+attempts are consumed once from PostgreSQL, and Yandex access/refresh tokens are
+discarded after the profile request. Existing Rollapp accounts are never merged
+silently by email because Yandex userinfo does not expose an `email_verified`
+flag. Instead, the user signs in locally once and explicitly completes linking.
+
+Create a Yandex OAuth application of type **For user authentication** with the
+web platform, enable login/name and email access (avatar may be optional), and
+register the exact callback:
+
+```text
+https://xn--80avakiab.xn--p1ai/api/auth/yandex/callback
+```
+
+For local development, register a separate application with
+`http://localhost:5173/api/auth/yandex/callback`. Set
+`YANDEX_OAUTH_CLIENT_ID` and `YANDEX_OAUTH_CLIENT_SECRET`; the callback is
+derived from `PUBLIC_APP_URL` unless `YANDEX_OAUTH_REDIRECT_URI` is set. In
+production, store `client_id` and `client_secret` in Yandex Lockbox and set
+`YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID`. The runtime reads those values without
+putting the client secret in the compose file.
 
 ### Password recovery
 

@@ -39,6 +39,15 @@ export const pool = isMemoryDatabase
   ? createMemoryPool()
   : createPostgresPool(process.env.DATABASE_URL || undefined);
 
+if (!isMemoryDatabase) {
+  pool.on("error", () => {
+    // node-postgres emits background errors from idle clients on the pool. An
+    // error listener keeps EventEmitter from terminating the process; omit the
+    // original error text because it may contain connection details.
+    console.error("[database] Idle PostgreSQL client disconnected; the pool will reconnect when needed.");
+  });
+}
+
 export async function query(text, params = []) {
   return pool.query(text, params);
 }

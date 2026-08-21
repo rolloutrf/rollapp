@@ -1,4 +1,8 @@
-import { isKinopoiskUrl, kinopoiskPosterUrl } from "../shared/kinopoisk.js";
+import {
+  isKinopoiskUrl,
+  kinopoiskContentUrlError,
+  kinopoiskPosterUrl,
+} from "../shared/kinopoisk.js";
 
 const SUPPORTED_CURRENCIES = new Set(["RUB", "USD", "EUR", "KZT", "BYN"]);
 
@@ -196,10 +200,20 @@ function productDetails(documents) {
   let best = null;
   for (const product of products) {
     const offer = offerDetails([product.offers, product.priceSpecification]);
+    const offerUrl = firstScalar(collectJsonNodes(product.offers).map((offerNode) => offerNode?.url));
+    const productName = firstScalar(product.name ?? product.headline);
+    const productWeight = firstScalar(product.weight ?? product.size);
+    const title = productName && productWeight && !productName.toLowerCase().includes(productWeight.toLowerCase())
+      ? `${productName}, ${productWeight}`
+      : productName;
     const candidate = {
-      title: firstScalar(product.name ?? product.headline),
+      title,
       description: firstScalar(product.description),
       imageUrl: firstScalar(product.image ?? product.photo ?? product.thumbnailUrl),
+      productUrl: firstScalar(product.url)
+        || offerUrl
+        || firstScalar(product.mainEntityOfPage)
+        || firstScalar(product["@id"]),
       offerImageUrl: firstScalar(
         collectJsonNodes(product.offers).map((offerNode) => offerNode?.image),
       ),
@@ -210,12 +224,21 @@ function productDetails(documents) {
       + Number(Boolean(candidate.imageUrl || candidate.offerImageUrl)) * 2
       + Number(normalizePrice(candidate.amount) !== null) * 3
       + Number(Boolean(candidate.description));
-    if (!best || score > best.score) best = { ...candidate, score };
+    if (!best || score > best.score) best = { ...candidate, productFound: true, score };
   }
 
   if (best) return best;
   const offer = offerDetails(standaloneOffers);
-  return { title: "", description: "", imageUrl: "", amount: offer.amount, currency: offer.currency, score: 0 };
+  return {
+    title: "",
+    description: "",
+    imageUrl: "",
+    productUrl: "",
+    amount: offer.amount,
+    currency: offer.currency,
+    productFound: false,
+    score: 0,
+  };
 }
 
 export function normalizePrice(value) {
@@ -463,7 +486,7 @@ export function parseYouTubeMetadata(oembed, pageUrl) {
   };
 }
 
-export { isKinopoiskUrl };
+export { isKinopoiskUrl, kinopoiskContentUrlError };
 
 export function parseKinopoiskMetadata(pageUrl) {
   return {
@@ -553,5 +576,87 @@ export function parseProductMetadata(source, pageUrl) {
         || microdataPrice.currency,
       selectedPrice.amount,
     ),
+  };
+}
+
+export function parseStructuredProductMetadata(source, pageUrl) {
+  const html = String(source ?? "");
+  const { scriptBodies } = collectHtmlData(html);
+  const structured = productDetails(parseJsonLd(scriptBodies));
+  const price = normalizePrice(structured.amount);
+  return {
+    productFound: structured.productFound === true,
+    title: cleanText(structured.title, 160),
+    description: cleanText(structured.description, 1_000),
+    imageUrl: resolveImageUrl(structured.imageUrl || structured.offerImageUrl, pageUrl),
+    productUrl: resolveImageUrl(structured.productUrl, pageUrl),
+    price,
+    currency: price === null ? "" : normalizeCurrency(structured.currency, structured.amount),
+  };
+}
+
+export function parseLavkaMetadata(source, pageUrl) {
+  const html = String(source ?? "");
+  const generic = parseProductMetadata(html, pageUrl);
+  const structured = parseStructuredProductMetadata(html, pageUrl);
+
+  return {
+    title: cleanText(structured.title, 160) || generic.title,
+    description: cleanText(structured.description, 1_000) || generic.description,
+    imageUrl: structured.imageUrl || generic.imageUrl,
+    price: structured.price ?? generic.price,
+    currency: structured.price === null
+      ? generic.currency
+      : structured.currency,
+  };
+}
+
+function nextImageSource(value, pageUrl) {
+  const resolved = resolveImageUrl(value, pageUrl);
+  if (!resolved) return "";
+  try {
+    const url = new URL(resolved);
+    if (url.pathname !== "/_next/image") return url.href;
+    return resolveImageUrl(url.searchParams.get("url") || "", pageUrl);
+  } catch {
+    return "";
+  }
+}
+
+function busheRscProduct(html) {
+  const escaped = /\\"product\\":\{\\"id\\":\d+,\\"name\\":\\"([^"\\]+)\\"[\s\S]{0,20000}?\\"prices\\":\{\\"deliveryPrice\\":([0-9.]+|null),\\"price\\":([0-9.]+|null)/i.exec(html);
+  const plain = /"product":\{"id":\d+,"name":"([^"]+)"[\s\S]{0,20000}?"prices":\{"deliveryPrice":([0-9.]+|null),"price":([0-9.]+|null)/i.exec(html);
+  const match = escaped || plain;
+  if (!match) return { title: "", price: null };
+  return {
+    title: cleanText(match[1], 160),
+    price: normalizePrice(match[2] === "null" ? match[3] : match[2]),
+  };
+}
+
+export function parseBusheMetadata(source, pageUrl) {
+  const html = String(source ?? "");
+  const titleMatch = /<(h[1-6])\b[^>]*class=["'][^"']*ProductContent_title__[^"']*["'][^>]*>([\s\S]*?)<\/\1\s*>/i.exec(html);
+  const weightMatch = /<span\b[^>]*class=["'][^"']*ProductContent_weight__[^"']*["'][^>]*>([\s\S]*?)<\/span\s*>/i.exec(html);
+  const descriptionMatch = /<p\b[^>]*class=["'][^"']*ProductContent_description__[^"']*["'][^>]*>([\s\S]*?)<\/p\s*>/i.exec(html);
+  const galleryStart = /<[^>]+class=["'][^"']*DetailProduct_gallery__[^"']*["'][^>]*>/i.exec(html);
+  const galleryHtml = galleryStart
+    ? html.slice((galleryStart.index ?? 0) + galleryStart[0].length, (galleryStart.index ?? 0) + galleryStart[0].length + 100_000)
+    : "";
+  const imageTag = /<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/i.exec(galleryHtml);
+  const imageSource = imageTag ? parseAttributes(imageTag[1]).src || "" : "";
+  const rsc = busheRscProduct(html);
+  const shortTitle = cleanText(titleMatch?.[2], 160);
+  const weight = cleanText(weightMatch?.[1], 40);
+  const titleWithWeight = shortTitle && weight && !shortTitle.toLowerCase().includes(weight.toLowerCase())
+    ? `${shortTitle} ${weight}`
+    : shortTitle;
+
+  return {
+    title: rsc.title || cleanText(titleWithWeight, 160),
+    description: cleanText(descriptionMatch?.[1], 1_000),
+    imageUrl: nextImageSource(imageSource, pageUrl),
+    price: rsc.price,
+    currency: rsc.price === null ? "" : "RUB",
   };
 }

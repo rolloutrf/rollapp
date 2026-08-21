@@ -8,17 +8,24 @@ import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
-import { pool, query, transaction } from "./db.js";
+import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
+import { resolveRetailerMetadata } from "./retailer-metadata.js";
+import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
+import {
+  resolvePreviewBackfillMetadata,
+  selectPreviewBackfillCandidates,
+} from "./preview-backfill.js";
 import {
   bookmateApiUrl,
   isBookmateUrl,
   isKinopoiskUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
+  kinopoiskContentUrlError,
   parseBookmateMetadata,
   parseKinopoiskMetadata,
   parseProductMetadata,
@@ -51,6 +58,15 @@ import {
   validateTelegramInitData,
 } from "./telegram-auth.js";
 import { getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+import {
+  createYandexAuthorization,
+  exchangeYandexCode,
+  fetchYandexProfile,
+  getYandexAuthConfig,
+  readYandexAuthorization,
+  safeOauthReturnPath,
+  YandexAuthError,
+} from "./yandex-auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -58,6 +74,7 @@ const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const sessionCookie = "rw_session";
+const yandexOauthCookiePrefix = "rw_yandex_oauth_";
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
 const uploadedMediaUrlPattern = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const avatarUrlSchema = z.union([
@@ -149,6 +166,7 @@ const passwordResetRequestRateLimit = createRateLimit({
   max: Math.min(1_000, Math.max(1, Number.parseInt(process.env.PASSWORD_RESET_IP_REQUEST_LIMIT || "20", 10) || 20)),
 });
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
+const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const imageUploadBody = express.raw({
   type: ["image/jpeg", "image/png", "image/webp"],
@@ -157,6 +175,8 @@ const imageUploadBody = express.raw({
 const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
 const metadataCacheLimit = 500;
+const previewBackfillJobs = new Map();
+const previewBackfillCooldownMs = 15 * 60 * 1000;
 const mutationLocks = new Map();
 const backgroundTasks = new Set();
 const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -194,6 +214,93 @@ function trackBackgroundTask(task) {
   void task.finally(() => backgroundTasks.delete(task));
 }
 
+async function backfillWishPreviews(userId) {
+  const missing = await query(
+    `SELECT w.id,w.url,
+       (
+         w.space='food'
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space='food'
+         )
+       ) AS is_food,
+       (
+         w.space='places'
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space='places'
+         )
+       ) AS is_place
+     FROM wishes w
+     WHERE w.user_id=$1 AND w.image_url='' AND w.url<>''
+       AND (
+         w.space IN ('food','places')
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space IN ('food','places')
+         )
+       )
+     ORDER BY w.created_at DESC,w.id
+     LIMIT 500`,
+    [userId],
+  );
+  const candidates = selectPreviewBackfillCandidates(missing.rows);
+  let cursor = 0;
+  let updated = 0;
+  let failed = 0;
+
+  const worker = async () => {
+    while (cursor < candidates.length) {
+      const row = candidates[cursor];
+      cursor += 1;
+      try {
+        const metadata = await resolvePreviewBackfillMetadata(row, {
+          resolveRetailerMetadata,
+          fetchPublicHtml,
+          parseYandexMapsMetadata,
+        });
+        if (!metadata || metadata.previewFallback || !/^https?:\/\//i.test(metadata.imageUrl)) continue;
+        const saved = await query(
+          "UPDATE wishes SET image_url=$1 WHERE id=$2 AND user_id=$3 AND url=$4 AND image_url=''",
+          [metadata.imageUrl, row.id, userId, row.url],
+        );
+        updated += saved.rowCount;
+      } catch {
+        failed += 1;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(3, candidates.length) }, () => worker()));
+  return { checked: candidates.length, updated, failed };
+}
+
+function deduplicatedPreviewBackfill(userId) {
+  const now = Date.now();
+  const current = previewBackfillJobs.get(userId);
+  if (current?.expiresAt > now) return current.promise;
+
+  if (previewBackfillJobs.size >= 10_000) {
+    for (const [key, entry] of previewBackfillJobs) {
+      if (entry.expiresAt <= now) previewBackfillJobs.delete(key);
+    }
+  }
+
+  const promise = backfillWishPreviews(userId);
+  const entry = { promise, expiresAt: now + previewBackfillCooldownMs };
+  previewBackfillJobs.set(userId, entry);
+  void promise.catch(() => {
+    if (previewBackfillJobs.get(userId) === entry) previewBackfillJobs.delete(userId);
+  });
+  return promise;
+}
+
 function cleanUser(row) {
   if (!row) return null;
   return {
@@ -206,8 +313,16 @@ function cleanUser(row) {
     avatarUrl: row.avatar_url,
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
+    hasYandex: Boolean(row.has_yandex),
     createdAt: row.created_at,
   };
+}
+
+async function cleanAuthenticatedUser(row) {
+  if (!row) return null;
+  if (Object.prototype.hasOwnProperty.call(row, "has_yandex")) return cleanUser(row);
+  const identity = await query("SELECT 1 FROM yandex_identities WHERE user_id=$1 LIMIT 1", [row.id]);
+  return cleanUser({ ...row, has_yandex: identity.rowCount > 0 });
 }
 
 function mapList(row) {
@@ -273,8 +388,9 @@ async function optionalAuth(req, _res, next) {
   const token = req.cookies[sessionCookie];
   if (!token) return next();
   const result = await query(
-    `SELECT u.* FROM sessions s
+    `SELECT u.*,(yi.yandex_user_id IS NOT NULL) AS has_yandex FROM sessions s
      JOIN users u ON u.id = s.user_id
+     LEFT JOIN yandex_identities yi ON yi.user_id=u.id
      WHERE s.token_hash = $1 AND s.expires_at > $2`,
     [hashToken(token), new Date()],
   );
@@ -342,10 +458,39 @@ function setSessionCookie(res, { token, expiresAt }) {
   });
 }
 
-async function uniqueUsername(name) {
+function yandexOauthCookieOptions(expires) {
+  const options = {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction && process.env.COOKIE_SECURE !== "false",
+    path: "/api/auth/yandex/callback",
+  };
+  if (expires) options.expires = expires;
+  return options;
+}
+
+function yandexOauthCookieName(state) {
+  return typeof state === "string" && /^[A-Za-z0-9_-]{43}$/.test(state)
+    ? `${yandexOauthCookiePrefix}${state}`
+    : "";
+}
+
+function clearYandexOauthCookie(res, state) {
+  const name = yandexOauthCookieName(state);
+  if (name) res.clearCookie(name, yandexOauthCookieOptions());
+}
+
+function yandexLoginRedirect(nextPath, errorCode, successCode) {
+  const params = new URLSearchParams({ next: safeOauthReturnPath(nextPath) });
+  if (errorCode) params.set("auth_error", errorCode);
+  if (successCode) params.set("auth_success", successCode);
+  return `/login?${params.toString()}`;
+}
+
+async function uniqueUsername(name, client = { query }) {
   const base = slugify(name);
   for (const candidate of profileUsernameCandidates(base)) {
-    const found = await query("SELECT 1 FROM users WHERE username = $1", [candidate]);
+    const found = await client.query("SELECT 1 FROM users WHERE username = $1", [candidate]);
     if (!found.rowCount) return candidate;
   }
   return `${base}-${randomBytes(3).toString("hex")}`;
@@ -613,6 +758,126 @@ async function saveTelegramIdentity(client, telegramUser, userId) {
   return { kind: "success" };
 }
 
+async function saveYandexIdentity(client, yandexUser, userId) {
+  const current = await client.query(
+    `SELECT yandex_user_id,user_id FROM yandex_identities
+     WHERE yandex_user_id=$1 OR user_id=$2`,
+    [yandexUser.id, userId],
+  );
+  if (current.rows.some((row) => row.yandex_user_id !== yandexUser.id || row.user_id !== userId)) {
+    return { kind: "conflict" };
+  }
+  const values = [
+    yandexUser.login,
+    yandexUser.email,
+    yandexUser.name,
+    yandexUser.firstName,
+    yandexUser.lastName,
+    yandexUser.avatarUrl,
+  ];
+  if (current.rowCount) {
+    await client.query(
+      `UPDATE yandex_identities
+       SET login=$1,default_email=$2,display_name=$3,first_name=$4,last_name=$5,
+           avatar_url=$6,last_seen_at=$7
+       WHERE yandex_user_id=$8 AND user_id=$9`,
+      [...values, new Date(), yandexUser.id, userId],
+    );
+    return { kind: "success" };
+  }
+  await client.query(
+    `INSERT INTO yandex_identities
+      (yandex_user_id,user_id,login,default_email,display_name,first_name,last_name,avatar_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [yandexUser.id, userId, ...values],
+  );
+  return { kind: "success" };
+}
+
+async function lockYandexMutation(client, yandexUser, attempt) {
+  if (isMemoryDatabase) return;
+  const keys = [
+    `yandex-id:${yandexUser.id}`,
+    `yandex-email:${yandexUser.email}`,
+    `yandex-username:${slugify(yandexUser.name || yandexUser.login)}`,
+    attempt.user_id ? `yandex-user:${attempt.user_id}` : "",
+  ].filter(Boolean).sort();
+  for (const key of keys) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+  }
+}
+
+async function insertYandexUser(client, yandexUser, userId, unusablePasswordHash) {
+  const base = slugify(yandexUser.name || yandexUser.login);
+  const candidates = [
+    ...profileUsernameCandidates(base),
+    ...Array.from({ length: 5 }, () => `${base.slice(0, 25)}-${randomBytes(3).toString("hex")}`),
+  ];
+  for (const username of candidates) {
+    const created = await client.query(
+      `INSERT INTO users (id,email,username,name,password_hash,avatar_url)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT DO NOTHING
+       RETURNING *`,
+      [userId, yandexUser.email, username, yandexUser.name, unusablePasswordHash, yandexUser.avatarUrl],
+    );
+    if (created.rowCount) return { kind: "success", user: created.rows[0] };
+    const existingEmail = await client.query("SELECT id FROM users WHERE email=$1", [yandexUser.email]);
+    if (existingEmail.rowCount) return { kind: "link-required" };
+  }
+  throw new YandexAuthError("Не удалось создать профиль Rollapp", "YANDEX_ACCOUNT_CONFLICT", 409);
+}
+
+async function resolveYandexLogin(yandexUser, attempt, currentUser) {
+  if (attempt.purpose === "link" && (!currentUser || currentUser.id !== attempt.user_id)) {
+    return { kind: "link-session-missing" };
+  }
+
+  return withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
+    await lockYandexMutation(client, yandexUser, attempt);
+    const knownIdentity = await client.query(
+      "SELECT user_id FROM yandex_identities WHERE yandex_user_id=$1",
+      [yandexUser.id],
+    );
+    if (knownIdentity.rowCount) {
+      const userId = knownIdentity.rows[0].user_id;
+      if (attempt.purpose === "link" && userId !== attempt.user_id) return { kind: "identity-conflict" };
+      const user = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [userId]);
+      if (!user.rowCount) return { kind: "identity-conflict" };
+      const saved = await saveYandexIdentity(client, yandexUser, userId);
+      if (saved.kind !== "success") return { kind: "identity-conflict" };
+      const session = await createSessionRecord(client, userId);
+      return { kind: "success", user: user.rows[0], session };
+    }
+
+    if (attempt.purpose === "link") {
+      const user = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [attempt.user_id]);
+      if (!user.rowCount) return { kind: "link-session-missing" };
+      const saved = await saveYandexIdentity(client, yandexUser, attempt.user_id);
+      if (saved.kind !== "success") return { kind: "identity-conflict" };
+      const session = await createSessionRecord(client, attempt.user_id);
+      return { kind: "success", user: user.rows[0], session };
+    }
+
+    const existingEmail = await client.query("SELECT id FROM users WHERE email=$1 FOR UPDATE", [yandexUser.email]);
+    if (existingEmail.rowCount) return { kind: "link-required" };
+
+    const userId = randomUUID();
+    const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
+    const created = await insertYandexUser(client, yandexUser, userId, unusablePasswordHash);
+    if (created.kind === "link-required") return created;
+    await client.query(
+      `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [randomUUID(), userId, "Мои желания", "Всё, чему я буду рад", "public", "coral", randomBytes(10).toString("base64url")],
+    );
+    await addDefaultFriend(client, userId);
+    await saveYandexIdentity(client, yandexUser, userId);
+    const session = await createSessionRecord(client, userId);
+    return { kind: "success", user: created.user, session };
+  }));
+}
+
 function phoneAuthUnavailable(res) {
   return res.status(503).json({ error: "Вход по телефону временно недоступен" });
 }
@@ -681,6 +946,7 @@ async function cleanupExpiredAuthData() {
   await Promise.all([
     query("DELETE FROM phone_auth_challenges WHERE created_at<$1", [challengeCutoff]),
     query("DELETE FROM password_reset_tokens WHERE created_at<$1", [challengeCutoff]),
+    query("DELETE FROM yandex_oauth_attempts WHERE expires_at<$1", [new Date(now)]),
     query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
   ]);
   lastPhoneAuthCleanupAt = now;
@@ -852,7 +1118,7 @@ async function verifyPhoneChallenge(req, res, { purpose, userId = null }) {
   }
   if (result.kind !== "success") return res.status(401).json(invalidPhoneCodeResponse);
   if (result.session) setSessionCookie(res, result.session);
-  return res.json({ user: cleanUser(result.user) });
+  return res.json({ user: await cleanAuthenticatedUser(result.user) });
 }
 
 app.get("/api/auth/phone/config", (_req, res) => {
@@ -865,6 +1131,107 @@ app.post("/api/auth/phone/request", asyncRoute(async (req, res) => {
 
 app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "login" });
+}));
+
+app.get("/api/auth/yandex/config", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ enabled: getYandexAuthConfig().enabled });
+});
+
+app.get("/api/auth/yandex/start", authRateLimit, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const config = getYandexAuthConfig();
+  if (!config.enabled) {
+    return res.status(503).json({ error: "Вход через Яндекс ID не настроен", code: "YANDEX_AUTH_UNAVAILABLE" });
+  }
+  const nextPath = safeOauthReturnPath(typeof req.query.next === "string" ? req.query.next : "");
+  const wantsLink = req.query.link === "1";
+  if (wantsLink && !req.user) {
+    return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
+  }
+  await cleanupExpiredAuthData();
+  const authorization = createYandexAuthorization(config, {
+    nextPath,
+    linkUserId: wantsLink ? req.user.id : null,
+  });
+  await query(
+    `INSERT INTO yandex_oauth_attempts
+      (state_hash,code_verifier,next_path,purpose,user_id,expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      authorization.attempt.stateHash,
+      authorization.attempt.verifier,
+      authorization.attempt.nextPath,
+      authorization.attempt.purpose,
+      authorization.attempt.userId,
+      authorization.expiresAt,
+    ],
+  );
+  res.cookie(
+    yandexOauthCookieName(authorization.state),
+    authorization.cookieValue,
+    yandexOauthCookieOptions(authorization.expiresAt),
+  );
+  return res.redirect(302, authorization.authorizationUrl);
+}));
+
+app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const config = getYandexAuthConfig();
+  const returnedState = typeof req.query.state === "string" ? req.query.state : "";
+  const cookieName = yandexOauthCookieName(returnedState);
+  const cookieState = cookieName ? req.cookies[cookieName] : undefined;
+  clearYandexOauthCookie(res, returnedState);
+  if (!config.enabled) return res.redirect(303, yandexLoginRedirect("", "YANDEX_AUTH_UNAVAILABLE"));
+
+  let stateHash;
+  try {
+    stateHash = readYandexAuthorization(cookieState, returnedState);
+  } catch {
+    return res.redirect(303, yandexLoginRedirect("", "YANDEX_STATE_INVALID"));
+  }
+  const consumed = await query(
+    `DELETE FROM yandex_oauth_attempts
+     WHERE state_hash=$1 AND expires_at>$2
+     RETURNING code_verifier,next_path,purpose,user_id`,
+    [stateHash, new Date()],
+  );
+  const attempt = consumed.rows[0];
+  if (!attempt) return res.redirect(303, yandexLoginRedirect("", "YANDEX_STATE_INVALID"));
+
+  if (typeof req.query.error === "string") {
+    const errorCode = req.query.error === "access_denied" ? "YANDEX_CANCELLED" : "YANDEX_PROVIDER_ERROR";
+    return res.redirect(303, yandexLoginRedirect(attempt.next_path, errorCode));
+  }
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  try {
+    const accessToken = await exchangeYandexCode(config, { code, verifier: attempt.code_verifier });
+    const yandexUser = await fetchYandexProfile(config, accessToken);
+    const result = await resolveYandexLogin(yandexUser, attempt, req.user);
+    if (result.kind === "link-required") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_REQUIRED"));
+    }
+    if (result.kind === "identity-conflict") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_IDENTITY_CONFLICT"));
+    }
+    if (result.kind === "link-session-missing") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_LOGIN_REQUIRED"));
+    }
+    setSessionCookie(res, result.session);
+    if (attempt.purpose === "link") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "", "YANDEX_LINKED"));
+    }
+    return res.redirect(303, safeOauthReturnPath(attempt.next_path));
+  } catch (error) {
+    const publicCode = error instanceof YandexAuthError
+      ? {
+        YANDEX_EMAIL_REQUIRED: "YANDEX_EMAIL_REQUIRED",
+        YANDEX_STATE_INVALID: "YANDEX_STATE_INVALID",
+      }[error.code] || "YANDEX_PROVIDER_ERROR"
+      : "YANDEX_PROVIDER_ERROR";
+    console.error(`[yandex-auth] Callback failed: ${error?.code || error?.message || "unknown error"}`);
+    return res.redirect(303, yandexLoginRedirect(attempt.next_path, publicCode));
+  }
 }));
 
 app.get("/api/auth/telegram/config", (_req, res) => {
@@ -905,7 +1272,7 @@ app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
     });
   }
   setSessionCookie(res, result.session);
-  return res.json({ user: cleanUser(result.user), telegram: publicTelegramUser(identity.user) });
+  return res.json({ user: await cleanAuthenticatedUser(result.user), telegram: publicTelegramUser(identity.user) });
 }));
 
 app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
@@ -1055,7 +1422,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   });
   await createSession(res, userId);
   const result = await query("SELECT * FROM users WHERE id = $1", [userId]);
-  res.status(201).json({ user: cleanUser(result.rows[0]) });
+  res.status(201).json({ user: await cleanAuthenticatedUser(result.rows[0]) });
 }));
 
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
@@ -1072,7 +1439,7 @@ app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
     return res.status(401).json({ error: "Неверные email или пароль" });
   }
   setSessionCookie(res, authenticated.session);
-  res.json({ user: cleanUser(authenticated.user) });
+  res.json({ user: await cleanAuthenticatedUser(authenticated.user) });
 }));
 
 app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
@@ -1080,7 +1447,7 @@ app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
   const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (!result.rowCount) return res.status(404).json({ error: "Демо-профиль не найден" });
   await createSession(res, result.rows[0].id);
-  res.json({ user: cleanUser(result.rows[0]) });
+  res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
 }));
 
 app.post("/api/auth/logout", asyncRoute(async (req, res) => {
@@ -1121,12 +1488,12 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
       code: "TELEGRAM_IDENTITY_CONFLICT",
     });
   }
-  return res.json({ user: cleanUser(req.user), telegram: publicTelegramUser(identity.user) });
+  return res.json({ user: await cleanAuthenticatedUser(req.user), telegram: publicTelegramUser(identity.user) });
 }));
 
 app.get("/api/me", asyncRoute(async (req, res) => {
   if (!req.user) return res.json({ user: null });
-  res.json({ user: cleanUser(req.user) });
+  res.json({ user: await cleanAuthenticatedUser(req.user) });
 }));
 
 app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
@@ -1158,7 +1525,7 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
       `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5 WHERE id=$6 RETURNING *`,
       [next.name, next.username, next.bio, next.birthday, next.avatarUrl, req.user.id],
     );
-    res.json({ user: cleanUser(result.rows[0]) });
+    res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "Такое имя профиля уже занято" });
     throw error;
@@ -1349,9 +1716,10 @@ app.patch("/api/wishes/reorder", requireAuth, asyncRoute(async (req, res) => {
     .safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некорректный порядок желаний" });
   const outcome = await transaction(async (client) => {
+    const wishPlaceholders = parsed.data.wishIds.map((_, index) => `$${index + 2}`).join(",");
     const owned = await client.query(
-      "SELECT id FROM wishes WHERE user_id=$1 AND id = ANY($2::text[]) FOR UPDATE",
-      [req.user.id, parsed.data.wishIds],
+      `SELECT id FROM wishes WHERE user_id=$1 AND id IN (${wishPlaceholders}) FOR UPDATE`,
+      [req.user.id, ...parsed.data.wishIds],
     );
     if (owned.rowCount !== parsed.data.wishIds.length) return false;
     for (const [index, wishId] of parsed.data.wishIds.entries()) {
@@ -1650,6 +2018,10 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   res.status(201).json({ wish: result.find((wish) => wish.id === id) });
 }));
 
+app.post("/api/wishes/backfill-previews", requireAuth, previewBackfillRateLimit, asyncRoute(async (req, res) => {
+  res.json(await deduplicatedPreviewBackfill(req.user.id));
+}));
+
 app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
     const owned = await client.query(
@@ -1821,8 +2193,16 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
 app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req, res) => {
   const parsed = z.object({ url: z.string().url().max(2000) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Нужна корректная ссылка" });
-  const cacheUrl = new URL(parsed.data.url);
-  cacheUrl.hash = "";
+  const metadataUrl = new URL(parsed.data.url);
+  metadataUrl.hash = "";
+  const kinopoiskUrlError = kinopoiskContentUrlError(metadataUrl);
+  if (kinopoiskUrlError) {
+    return res.status(422).json({
+      error: kinopoiskUrlError,
+      code: "kinopoisk_content_url_required",
+    });
+  }
+  const cacheUrl = canonicalRetailerProductUrl(metadataUrl) || metadataUrl;
   const cacheKey = cacheUrl.href;
   const cached = metadataCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return res.json(cached.value);
@@ -1830,44 +2210,57 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
 
   try {
     let value;
-    if (isYouTubeUrl(cacheUrl)) {
+    if (isYouTubeUrl(metadataUrl)) {
       // YouTube watch pages are heavy and often hide og:image; the oEmbed
       // endpoint is the reliable source. On any failure we still return the
       // deterministic thumbnail so the wish preview always gets an image.
       try {
-        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cacheUrl.href)}&format=json`;
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(metadataUrl.href)}&format=json`;
         const { json } = await fetchPublicJson(oembedUrl);
-        value = parseYouTubeMetadata(json, cacheUrl);
+        value = parseYouTubeMetadata(json, metadataUrl);
       } catch {
         value = {
           title: "",
           description: "",
-          imageUrl: youtubeThumbnailUrl(parseYouTubeVideoId(cacheUrl)),
+          imageUrl: youtubeThumbnailUrl(parseYouTubeVideoId(metadataUrl)),
           price: null,
           currency: "",
           kind: "video",
         };
       }
-    } else if (isBookmateUrl(cacheUrl)) {
+    } else if (isBookmateUrl(metadataUrl)) {
       // Bookmate pages and their social-preview images are protected by a
       // browser challenge. Its public metadata API returns the original cover
       // directly and also resolves legacy Bookmate ids.
-      const apiUrl = bookmateApiUrl(cacheUrl);
+      const apiUrl = bookmateApiUrl(metadataUrl);
       const { json, url } = await fetchPublicJson(apiUrl);
       value = parseBookmateMetadata(json, url);
-    } else if (isKinopoiskUrl(cacheUrl)) {
+    } else if (isKinopoiskUrl(metadataUrl)) {
       // Film pages redirect anonymous server requests through Yandex SSO. The
       // public Kinopoisk poster CDN is deterministic by content id, so it is a
       // faster and more reliable preview source than scraping the page shell.
-      value = parseKinopoiskMetadata(cacheUrl);
+      value = parseKinopoiskMetadata(metadataUrl);
     } else {
-      const { html, url } = await fetchPublicHtml(cacheUrl);
-      value = isYandexMapsUrl(url)
-        ? parseYandexMapsMetadata(html, url)
-        : parseProductMetadata(html, url);
+      const retailerMetadata = await resolveRetailerMetadata(metadataUrl);
+      if (retailerMetadata !== null) {
+        // Grocery retailers vary between structured product pages, generic app
+        // shells and bot challenges. Their adapter validates product data and
+        // always supplies a safe local preview if the remote image is unavailable.
+        value = retailerMetadata;
+      } else {
+        const { html, url } = await fetchPublicHtml(metadataUrl);
+        value = isYandexMapsUrl(url)
+          ? parseYandexMapsMetadata(html, url)
+          : parseProductMetadata(html, url);
+      }
     }
-    if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
-    metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
+    // A branded fallback means the retailer temporarily served a challenge or
+    // an incomplete app shell. Do not cache that transient result: a retry may
+    // receive the public product JSON-LD with its real image and price.
+    if (value.previewFallback !== true) {
+      if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
+      metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
+    }
     res.json(value);
   } catch (error) {
     if (error instanceof MetadataFetchError) return res.status(error.status).json({ error: error.message });
