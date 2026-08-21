@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:bg": "node scripts/dev-service.mjs start",
+    "dev:status": "node scripts/dev-service.mjs status",
+    "dev:stop": "node scripts/dev-service.mjs stop",
     "dev:server": "node server/start.js",
     "build": "vite build",
     "start": "node server/start.js",
@@ -32,6 +35,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "latest",
     "next-themes": "^0.4.6",
+    "playwright-core": "^1.61.1",
     "pg": "latest",
     "pg-mem": "latest",
     "react": "latest",
@@ -46,7 +50,6 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.4",
-    "playwright-core": "^1.61.1",
     "vite": "latest"
   }
 }

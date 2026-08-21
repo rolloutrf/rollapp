@@ -13,12 +13,19 @@ import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
+import { resolveRetailerMetadata } from "./retailer-metadata.js";
+import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
+import {
+  resolvePreviewBackfillMetadata,
+  selectPreviewBackfillCandidates,
+} from "./preview-backfill.js";
 import {
   bookmateApiUrl,
   isBookmateUrl,
   isKinopoiskUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
+  kinopoiskContentUrlError,
   parseBookmateMetadata,
   parseKinopoiskMetadata,
   parseProductMetadata,
@@ -159,6 +166,7 @@ const passwordResetRequestRateLimit = createRateLimit({
   max: Math.min(1_000, Math.max(1, Number.parseInt(process.env.PASSWORD_RESET_IP_REQUEST_LIMIT || "20", 10) || 20)),
 });
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
+const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const imageUploadBody = express.raw({
   type: ["image/jpeg", "image/png", "image/webp"],
@@ -167,6 +175,8 @@ const imageUploadBody = express.raw({
 const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
 const metadataCacheLimit = 500;
+const previewBackfillJobs = new Map();
+const previewBackfillCooldownMs = 15 * 60 * 1000;
 const mutationLocks = new Map();
 const backgroundTasks = new Set();
 const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -202,6 +212,93 @@ async function withMutationLock(key, callback) {
 function trackBackgroundTask(task) {
   backgroundTasks.add(task);
   void task.finally(() => backgroundTasks.delete(task));
+}
+
+async function backfillWishPreviews(userId) {
+  const missing = await query(
+    `SELECT w.id,w.url,
+       (
+         w.space='food'
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space='food'
+         )
+       ) AS is_food,
+       (
+         w.space='places'
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space='places'
+         )
+       ) AS is_place
+     FROM wishes w
+     WHERE w.user_id=$1 AND w.image_url='' AND w.url<>''
+       AND (
+         w.space IN ('food','places')
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space IN ('food','places')
+         )
+       )
+     ORDER BY w.created_at DESC,w.id
+     LIMIT 500`,
+    [userId],
+  );
+  const candidates = selectPreviewBackfillCandidates(missing.rows);
+  let cursor = 0;
+  let updated = 0;
+  let failed = 0;
+
+  const worker = async () => {
+    while (cursor < candidates.length) {
+      const row = candidates[cursor];
+      cursor += 1;
+      try {
+        const metadata = await resolvePreviewBackfillMetadata(row, {
+          resolveRetailerMetadata,
+          fetchPublicHtml,
+          parseYandexMapsMetadata,
+        });
+        if (!metadata || metadata.previewFallback || !/^https?:\/\//i.test(metadata.imageUrl)) continue;
+        const saved = await query(
+          "UPDATE wishes SET image_url=$1 WHERE id=$2 AND user_id=$3 AND url=$4 AND image_url=''",
+          [metadata.imageUrl, row.id, userId, row.url],
+        );
+        updated += saved.rowCount;
+      } catch {
+        failed += 1;
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(3, candidates.length) }, () => worker()));
+  return { checked: candidates.length, updated, failed };
+}
+
+function deduplicatedPreviewBackfill(userId) {
+  const now = Date.now();
+  const current = previewBackfillJobs.get(userId);
+  if (current?.expiresAt > now) return current.promise;
+
+  if (previewBackfillJobs.size >= 10_000) {
+    for (const [key, entry] of previewBackfillJobs) {
+      if (entry.expiresAt <= now) previewBackfillJobs.delete(key);
+    }
+  }
+
+  const promise = backfillWishPreviews(userId);
+  const entry = { promise, expiresAt: now + previewBackfillCooldownMs };
+  previewBackfillJobs.set(userId, entry);
+  void promise.catch(() => {
+    if (previewBackfillJobs.get(userId) === entry) previewBackfillJobs.delete(userId);
+  });
+  return promise;
 }
 
 function cleanUser(row) {
@@ -390,10 +487,10 @@ function yandexLoginRedirect(nextPath, errorCode, successCode) {
   return `/login?${params.toString()}`;
 }
 
-async function uniqueUsername(name) {
+async function uniqueUsername(name, client = { query }) {
   const base = slugify(name);
   for (const candidate of profileUsernameCandidates(base)) {
-    const found = await query("SELECT 1 FROM users WHERE username = $1", [candidate]);
+    const found = await client.query("SELECT 1 FROM users WHERE username = $1", [candidate]);
     if (!found.rowCount) return candidate;
   }
   return `${base}-${randomBytes(3).toString("hex")}`;
@@ -781,7 +878,6 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser) {
   }));
 }
 
-
 function phoneAuthUnavailable(res) {
   return res.status(503).json({ error: "Вход по телефону временно недоступен" });
 }
@@ -850,8 +946,8 @@ async function cleanupExpiredAuthData() {
   await Promise.all([
     query("DELETE FROM phone_auth_challenges WHERE created_at<$1", [challengeCutoff]),
     query("DELETE FROM password_reset_tokens WHERE created_at<$1", [challengeCutoff]),
-    query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
     query("DELETE FROM yandex_oauth_attempts WHERE expires_at<$1", [new Date(now)]),
+    query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
   ]);
   lastPhoneAuthCleanupAt = now;
 }
@@ -1137,7 +1233,6 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     return res.redirect(303, yandexLoginRedirect(attempt.next_path, publicCode));
   }
 }));
-
 
 app.get("/api/auth/telegram/config", (_req, res) => {
   const config = getTelegramAuthConfig();
@@ -1621,9 +1716,10 @@ app.patch("/api/wishes/reorder", requireAuth, asyncRoute(async (req, res) => {
     .safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Некорректный порядок желаний" });
   const outcome = await transaction(async (client) => {
+    const wishPlaceholders = parsed.data.wishIds.map((_, index) => `$${index + 2}`).join(",");
     const owned = await client.query(
-      "SELECT id FROM wishes WHERE user_id=$1 AND id = ANY($2::text[]) FOR UPDATE",
-      [req.user.id, parsed.data.wishIds],
+      `SELECT id FROM wishes WHERE user_id=$1 AND id IN (${wishPlaceholders}) FOR UPDATE`,
+      [req.user.id, ...parsed.data.wishIds],
     );
     if (owned.rowCount !== parsed.data.wishIds.length) return false;
     for (const [index, wishId] of parsed.data.wishIds.entries()) {
@@ -1922,6 +2018,10 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   res.status(201).json({ wish: result.find((wish) => wish.id === id) });
 }));
 
+app.post("/api/wishes/backfill-previews", requireAuth, previewBackfillRateLimit, asyncRoute(async (req, res) => {
+  res.json(await deduplicatedPreviewBackfill(req.user.id));
+}));
+
 app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
   const outcome = await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
     const owned = await client.query(
@@ -2093,8 +2193,16 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
 app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req, res) => {
   const parsed = z.object({ url: z.string().url().max(2000) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Нужна корректная ссылка" });
-  const cacheUrl = new URL(parsed.data.url);
-  cacheUrl.hash = "";
+  const metadataUrl = new URL(parsed.data.url);
+  metadataUrl.hash = "";
+  const kinopoiskUrlError = kinopoiskContentUrlError(metadataUrl);
+  if (kinopoiskUrlError) {
+    return res.status(422).json({
+      error: kinopoiskUrlError,
+      code: "kinopoisk_content_url_required",
+    });
+  }
+  const cacheUrl = canonicalRetailerProductUrl(metadataUrl) || metadataUrl;
   const cacheKey = cacheUrl.href;
   const cached = metadataCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return res.json(cached.value);
@@ -2102,44 +2210,57 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
 
   try {
     let value;
-    if (isYouTubeUrl(cacheUrl)) {
+    if (isYouTubeUrl(metadataUrl)) {
       // YouTube watch pages are heavy and often hide og:image; the oEmbed
       // endpoint is the reliable source. On any failure we still return the
       // deterministic thumbnail so the wish preview always gets an image.
       try {
-        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cacheUrl.href)}&format=json`;
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(metadataUrl.href)}&format=json`;
         const { json } = await fetchPublicJson(oembedUrl);
-        value = parseYouTubeMetadata(json, cacheUrl);
+        value = parseYouTubeMetadata(json, metadataUrl);
       } catch {
         value = {
           title: "",
           description: "",
-          imageUrl: youtubeThumbnailUrl(parseYouTubeVideoId(cacheUrl)),
+          imageUrl: youtubeThumbnailUrl(parseYouTubeVideoId(metadataUrl)),
           price: null,
           currency: "",
           kind: "video",
         };
       }
-    } else if (isBookmateUrl(cacheUrl)) {
+    } else if (isBookmateUrl(metadataUrl)) {
       // Bookmate pages and their social-preview images are protected by a
       // browser challenge. Its public metadata API returns the original cover
       // directly and also resolves legacy Bookmate ids.
-      const apiUrl = bookmateApiUrl(cacheUrl);
+      const apiUrl = bookmateApiUrl(metadataUrl);
       const { json, url } = await fetchPublicJson(apiUrl);
       value = parseBookmateMetadata(json, url);
-    } else if (isKinopoiskUrl(cacheUrl)) {
+    } else if (isKinopoiskUrl(metadataUrl)) {
       // Film pages redirect anonymous server requests through Yandex SSO. The
       // public Kinopoisk poster CDN is deterministic by content id, so it is a
       // faster and more reliable preview source than scraping the page shell.
-      value = parseKinopoiskMetadata(cacheUrl);
+      value = parseKinopoiskMetadata(metadataUrl);
     } else {
-      const { html, url } = await fetchPublicHtml(cacheUrl);
-      value = isYandexMapsUrl(url)
-        ? parseYandexMapsMetadata(html, url)
-        : parseProductMetadata(html, url);
+      const retailerMetadata = await resolveRetailerMetadata(metadataUrl);
+      if (retailerMetadata !== null) {
+        // Grocery retailers vary between structured product pages, generic app
+        // shells and bot challenges. Their adapter validates product data and
+        // always supplies a safe local preview if the remote image is unavailable.
+        value = retailerMetadata;
+      } else {
+        const { html, url } = await fetchPublicHtml(metadataUrl);
+        value = isYandexMapsUrl(url)
+          ? parseYandexMapsMetadata(html, url)
+          : parseProductMetadata(html, url);
+      }
     }
-    if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
-    metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
+    // A branded fallback means the retailer temporarily served a challenge or
+    // an incomplete app shell. Do not cache that transient result: a retry may
+    // receive the public product JSON-LD with its real image and price.
+    if (value.previewFallback !== true) {
+      if (metadataCache.size >= metadataCacheLimit) metadataCache.delete(metadataCache.keys().next().value);
+      metadataCache.set(cacheKey, { value, expiresAt: Date.now() + metadataCacheTtlMs });
+    }
     res.json(value);
   } catch (error) {
     if (error instanceof MetadataFetchError) return res.status(error.status).json({ error: error.message });
