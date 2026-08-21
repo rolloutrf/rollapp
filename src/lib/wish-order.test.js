@@ -47,3 +47,16 @@ test("moveWishWithinSubset rejects targets outside the group", () => {
   assert.equal(moveWishWithinSubset(order, ["group-first", "group-second"], "group-first", "outside"), order);
   assert.equal(moveWishWithinSubset(order, ["group-first", "group-second"], "outside", "group-second"), order);
 });
+
+test("moveWishWithinSubset keeps fulfilled wishes in the server-defined status section", () => {
+  const order = ["active-first", "active-second", "fulfilled-first", "fulfilled-second"];
+
+  assert.deepEqual(
+    moveWishWithinSubset(order, ["active-first", "active-second"], "active-first", "active-second"),
+    ["active-second", "active-first", "fulfilled-first", "fulfilled-second"],
+  );
+  assert.equal(
+    moveWishWithinSubset(order, ["active-first", "active-second"], "active-first", "fulfilled-first"),
+    order,
+  );
+});

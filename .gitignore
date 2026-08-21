@@ -5,5 +5,7 @@ dist/
 .DS_Store
 coverage/
 npm-debug.log*
+.dev-server.pid
+.dev-server.log
 *.pem
 !certs/yandex-cloud-ca.pem

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, Hand, Heart, Image, Link2, ListPlus,
+  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, GripVertical, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   PawPrint, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
@@ -40,16 +40,45 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import { disbandWishGroupFromDashboard, filterWishGroups } from "./lib/wish-groups.js";
 import { moveWishToTargetPosition, moveWishWithinSubset } from "./lib/wish-order.js";
-import { isKinopoiskUrl, wishPreviewImageUrl } from "../shared/kinopoisk.js";
+import {
+  isKinopoiskHost,
+  isKinopoiskUrl,
+  kinopoiskContentUrlError,
+  wishPreviewImageUrl,
+} from "../shared/kinopoisk.js";
+import { retailerPreviewImageUrl } from "../shared/retailer-previews.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
 const ProfileEditorContext = createContext(null);
+const previewBackfillRequests = new Map();
 const APP_HOME = "/app/wishes";
 const GROUP_INTENT_DELAY_MS = 250;
+
+function requestPreviewBackfill(userId) {
+  if (!userId) return null;
+  if (!previewBackfillRequests.has(userId)) {
+    const request = { refreshClaimed: false, promise: null };
+    request.promise = api.post("/wishes/backfill-previews", {}).catch((error) => {
+      if (previewBackfillRequests.get(userId) === request) previewBackfillRequests.delete(userId);
+      throw error;
+    });
+    previewBackfillRequests.set(userId, request);
+  }
+  return previewBackfillRequests.get(userId);
+}
+
+function applyRetailerPreviewFallback(event, url) {
+  const fallback = retailerPreviewImageUrl(url);
+  const image = event.currentTarget;
+  if (!fallback || image.getAttribute("src") === fallback) return;
+  image.src = fallback;
+}
+
 const ACTIVE_SCROLL_LOCK_SURFACE_SELECTOR = [
   '[aria-modal="true"]:not([data-closed])',
   '[data-slot="dropdown-menu-content"][data-open]',
@@ -157,7 +186,6 @@ const formatEventDate = (value) => {
   const [year, month, day] = String(value || "").split("-");
   return year && month && day ? `${day}.${month}.${year}` : "";
 };
-const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
 const readPasswordResetToken = () => {
   if (typeof window === "undefined") return "";
   const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
@@ -444,6 +472,18 @@ function Avatar({ user, size = "md", className = "", ...props }) {
 function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
   const shadcnVariant = { primary: "default", soft: "secondary", paper: "secondary", reserved: "secondary" }[variant] || variant;
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
+}
+
+function YandexIdButton({ href, className = "", accessibleName = "Войти с помощью Яндекс ID" }) {
+  return (
+    <a className={`yandex-id-button ${className}`} href={href} aria-label={accessibleName}>
+      <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
+        <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
+      </svg>
+      <span>Войти с Яндекс ID</span>
+    </a>
+  );
 }
 
 function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
@@ -879,6 +919,7 @@ function AuthPage({ mode }) {
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
+  const [yandexEnabled, setYandexEnabled] = useState(false);
   const [authMethod, setAuthMethod] = useState("email");
   const [telegramAuth, setTelegramAuth] = useState(() => {
     const launch = initializeTelegramWebApp();
@@ -891,7 +932,13 @@ function AuthPage({ mode }) {
   });
   const authId = useId();
   const methodTouchedRef = useRef(false);
-  const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
+  const authQuery = new URLSearchParams(location.search);
+  const nextPath = safeNextPath(authQuery.get("next"));
+  const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"));
+  const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
+  const shouldLinkYandex = Boolean(yandexError?.linkRequired);
+  const yandexStartHref = yandexAuthStartPath(nextPath);
+  const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
   const finishAuthentication = async (message) => {
     let linkError = null;
@@ -904,6 +951,10 @@ function AuthPage({ mode }) {
       }
     }
     await refresh();
+    if (shouldLinkYandex) {
+      window.location.assign(yandexLinkHref);
+      return;
+    }
     navigate(nextPath);
     if (linkError) toast("Вы вошли, но Telegram не привязался. Откройте Rollapp из бота ещё раз.", "error");
     else toast(message);
@@ -944,6 +995,14 @@ function AuthPage({ mode }) {
   }, [telegramAuth.initData, user, refresh, navigate, nextPath, toast]);
 
   useEffect(() => {
+    let active = true;
+    api.get("/auth/yandex/config")
+      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
+      .catch(() => { if (active) setYandexEnabled(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     methodTouchedRef.current = false;
     if (mode !== "login") {
       setPhoneEnabled(false);
@@ -969,7 +1028,29 @@ function AuthPage({ mode }) {
     return () => { active = false; };
   }, [mode]);
 
-  if (user && !telegramAuth.initData) return <Navigate to={nextPath} replace />;
+  if (user && !telegramAuth.initData) {
+    if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
+    return (
+      <div className="auth-page">
+        <div className="auth-panel">
+          <div className="auth-form">
+            <div>
+              <span className="eyebrow">Yandex ID</span>
+              <h1>{yandexLinked ? "Yandex ID подключён" : "Не удалось подключить вход"}</h1>
+              <p>{yandexLinked ? "Теперь можно входить в Rollapp без пароля." : "Ваш текущий аккаунт Rollapp остался активен."}</p>
+            </div>
+            {yandexError && (
+              <Alert variant={yandexError.variant} className="auth-provider-alert">
+                <AlertTitle>{yandexError.title}</AlertTitle>
+                <AlertDescription>{yandexError.description}</AlertDescription>
+              </Alert>
+            )}
+            <Link className={buttonVariants({ variant: "outline", className: "h-12 w-full" })} to={nextPath}>Вернуться в Rollapp</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
@@ -1001,6 +1082,11 @@ function AuthPage({ mode }) {
   const usingPhone = mode === "login" && phoneEnabled && authMethod === "phone";
   const telegramChecking = telegramAuth.status === "checking";
   const connectingCurrentUser = Boolean(user && telegramAuth.initData);
+  const showYandexButton = yandexEnabled
+    && !telegramAuth.initData
+    && !connectingCurrentUser
+    && !shouldLinkYandex
+    && !(usingPhone && phoneFlow.step === "otp");
   const subtitle = telegramChecking
     ? "Подтверждаем безопасный запуск из Telegram."
     : connectingCurrentUser
@@ -1038,6 +1124,13 @@ function AuthPage({ mode }) {
                   <span><strong>Telegram не подтвердил запуск</strong><small>{telegramAuth.error}</small></span>
                 </div>
               )}
+              {yandexError && !connectingCurrentUser && (
+                <Alert variant={yandexError.variant} className="auth-provider-alert">
+                  <AlertTitle>{yandexError.title}</AlertTitle>
+                  <AlertDescription>{yandexError.description}</AlertDescription>
+                </Alert>
+              )}
+              {showYandexButton && <><YandexIdButton href={yandexStartHref} /><div className="or" aria-hidden="true"><span>или</span></div></>}
           {connectingCurrentUser
             ? telegramAuth.status === "unlinked"
               ? <>
@@ -1048,7 +1141,7 @@ function AuthPage({ mode }) {
             : mode === "login" && !phoneConfigLoaded
             ? <div className="auth-config-loading" role="status"><LoaderCircle className="spin" /><span>Проверяем способы входа…</span></div>
             : usingPhone
-            ? <PhoneOtpFields flow={phoneFlow} />
+            ? <PhoneOtpFields flow={phoneFlow} verifyLabel={shouldLinkYandex ? "Подтвердить и привязать Yandex ID" : undefined} />
             : <>
               <FieldGroup className="gap-4">
                 {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
@@ -1056,7 +1149,7 @@ function AuthPage({ mode }) {
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : "Войти"}</ShadcnButton>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
@@ -1176,9 +1269,10 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
 }
 
 function ProtectedApp() {
+  const location = useLocation();
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
   return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
@@ -1318,7 +1412,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   return { busy, reserve, remove, fulfilled, share, save, update, repeat };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, isDropTarget = false, isDragging = false }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, dragGroupId = "", onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removingFromGroup, setRemovingFromGroup] = useState(false);
@@ -1370,9 +1464,10 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 
   return (
     <>
-    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
-      {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
-      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
+    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
+      {onOpen && <ShadcnButton type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
+      {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle aria-hidden="true"><GripVertical /></span>}
+      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
           {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
@@ -1482,7 +1577,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   );
 }
 
-function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, onDragOver, onDragLeave, onDrop, isDropTarget }) {
+function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, isDropTarget }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -1517,12 +1612,12 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, onDragOver,
     if (disbanded) setDisbandOpen(false);
   };
   return <>
-  <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+  <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`}>
     <ShadcnButton type="button" variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`}>
     <span className="wish-group-tile__preview">
       {wishes.slice(0, 4).map((wish) => {
         const previewImageUrl = wishPreviewImageUrl(wish);
-        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="no-referrer" /> : <Gift />}</span>;
+        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <Gift />}</span>;
       })}
     </span>
     </ShadcnButton>
@@ -1594,7 +1689,6 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDisband,
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
   const toast = useToast();
-  const isMobile = useIsMobile();
   const { data, loading, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState("products");
@@ -1608,6 +1702,9 @@ function WishesPage({ onAdd, version }) {
   const [removingGroupId, setRemovingGroupId] = useState(null);
   const pointerDragRef = useRef(null);
   const pointerTimerRef = useRef(null);
+  const pointerListenerCleanupRef = useRef(null);
+  const pointerAutoScrollFrameRef = useRef(null);
+  const pointerAutoScrollTimeRef = useRef(null);
   const groupTimerRef = useRef(null);
   const hoverTargetRef = useRef(null);
   const armedDropTargetRef = useRef(null);
@@ -1642,9 +1739,24 @@ function WishesPage({ onAdd, version }) {
       setOrderedWishIds(ids);
     }
   }, [wishOrderKey]);
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    const request = requestPreviewBackfill(user.id);
+    request.promise
+      .then((result) => {
+        if (cancelled || result.updated <= 0 || request.refreshClaimed) return;
+        request.refreshClaimed = true;
+        void reload({ background: true }).catch(() => { request.refreshClaimed = false; });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id, reload]);
   useEffect(() => () => {
     clearTimeout(pointerTimerRef.current);
     clearTimeout(groupTimerRef.current);
+    cancelAnimationFrame(pointerAutoScrollFrameRef.current);
+    pointerListenerCleanupRef.current?.();
     pointerGhostRef.current?.remove();
   }, []);
   useLayoutEffect(() => {
@@ -1811,7 +1923,7 @@ function WishesPage({ onAdd, version }) {
   const reorderWish = (sourceId, targetId) => {
     if (!sourceId || !targetId || sourceId === targetId || lastReorderTargetRef.current === targetId) return;
     const dragScope = dragScopeRef.current;
-    const next = dragScope?.kind === "group"
+    const next = dragScope?.wishIds
       ? moveWishWithinSubset(orderedWishIdsRef.current, dragScope.wishIds, sourceId, targetId)
       : moveWishToTargetPosition(orderedWishIdsRef.current, sourceId, targetId);
     if (next === orderedWishIdsRef.current) return;
@@ -1836,24 +1948,17 @@ function WishesPage({ onAdd, version }) {
     }, GROUP_INTENT_DELAY_MS);
   };
   const beginDragSession = (wishId, group = null) => {
+    const sourceStatus = dashboardWishes.find((wish) => wish.id === wishId)?.status;
+    const sameStatusWishIds = new Set(dashboardWishes
+      .filter((wish) => wish.status === sourceStatus)
+      .map((wish) => wish.id));
     dragSessionRef.current = true; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = wishId;
     dragScopeRef.current = group
-      ? { kind: "group", groupId: group.id, wishIds: new Set(group.wishIds || []) }
-      : { kind: "list", groupId: null };
+      ? { kind: "group", groupId: group.id, wishIds: new Set((group.wishIds || []).filter((id) => sameStatusWishIds.has(id))) }
+      : { kind: "list", groupId: null, wishIds: sameStatusWishIds };
     dragInitialOrderRef.current = [...orderedWishIdsRef.current];
     setDraggedWishId(wishId); lastReorderTargetRef.current = null;
-  };
-  const startDrag = (event, wishId, group = null) => {
-    beginDragSession(wishId, group);
-    event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", wishId);
-    const rect = event.currentTarget.getBoundingClientRect();
-    const preview = event.currentTarget.cloneNode(true);
-    preview.classList.add("wish-card--native-preview");
-    preview.style.width = `${rect.width}px`;
-    document.body.appendChild(preview);
-    event.dataTransfer.setDragImage(preview, event.clientX - rect.left, event.clientY - rect.top);
-    requestAnimationFrame(() => preview.remove());
   };
   const finishDrag = ({ persist = true, restore = false } = {}) => {
     const activeSession = dragSessionRef.current;
@@ -1876,46 +1981,12 @@ function WishesPage({ onAdd, version }) {
     dragSourceWishIdRef.current = null;
     dragScopeRef.current = null;
     dragInitialOrderRef.current = [];
-    clearGroupIntent(); removePointerGhost(); setDraggedWishId(null); lastReorderTargetRef.current = null;
+    stopPointerAutoScroll(); clearGroupIntent(); removePointerGhost(); setDraggedWishId(null); lastReorderTargetRef.current = null;
     if (shouldPersistOrder) {
       deferredAuthoritativeOrderRef.current = null;
       void persistOrder(orderToPersist);
     }
   };
-  const allowWishDrop = (event, wishId, targetGroupId = null) => {
-    const sourceWishId = dragSourceWishIdRef.current;
-    const dragScope = dragScopeRef.current;
-    const validTarget = dragScope?.kind === "group"
-      ? dragScope.groupId === targetGroupId
-      : !targetGroupId;
-    if (!dragSessionRef.current || !sourceWishId || !dragScope || !validTarget) return;
-    event.preventDefault(); event.dataTransfer.dropEffect = "move";
-    if (sourceWishId === wishId) {
-      if (hoverTargetRef.current) clearGroupIntent();
-      lastReorderTargetRef.current = null;
-      return;
-    }
-    // Ungrouped targets must stay in place while the grouping intent timer runs.
-    // A quick drop is reordered in dropOnWish instead.
-    if (dragScope.kind === "group") {
-      if (lastReorderTargetRef.current !== wishId) reorderWish(sourceWishId, wishId);
-    } else {
-      armGroupIntent(`wish:${wishId}`);
-    }
-  };
-  const allowGroupDrop = (event, groupId) => {
-    if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
-    event.preventDefault(); event.dataTransfer.dropEffect = "move";
-    armGroupIntent(`group:${groupId}`);
-  };
-  const leaveGroupTarget = (event) => {
-    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (event.clientX >= bounds.left && event.clientX <= bounds.right
-      && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
-    clearGroupIntent();
-  };
-  const allowDrop = (event, target) => allowGroupDrop(event, target.replace("group:", ""));
   const createGroup = async (sourceWishId, targetWishId) => {
     finishDrag({ persist: false, restore: true });
     if (!sourceWishId || sourceWishId === targetWishId || !groupingListId) return;
@@ -2029,65 +2100,98 @@ function WishesPage({ onAdd, version }) {
       return false;
     }
   };
-  const dropOnWish = (event, targetWishId, targetGroupId = null) => {
-    event.preventDefault();
-    const sourceWishId = dragSourceWishIdRef.current;
-    const dragScope = dragScopeRef.current;
-    if (dragScope?.kind === "group") {
-      if (dragScope.groupId === targetGroupId) finishDrag();
-      else finishDrag({ persist: false, restore: true });
-    }
-    else if (armedDropTargetRef.current === `wish:${targetWishId}`) createGroup(sourceWishId, targetWishId);
-    else {
-      reorderWish(sourceWishId, targetWishId);
-      finishDrag();
-    }
+  const stopPointerAutoScroll = () => {
+    if (pointerAutoScrollFrameRef.current !== null) cancelAnimationFrame(pointerAutoScrollFrameRef.current);
+    pointerAutoScrollFrameRef.current = null;
+    pointerAutoScrollTimeRef.current = null;
   };
-  const dropOnGroup = (event, groupId) => {
-    event.preventDefault();
-    const sourceWishId = dragSourceWishIdRef.current;
-    if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
-    else if (armedDropTargetRef.current === `group:${groupId}`) addToGroup(sourceWishId, groupId);
-    else finishDrag({ persist: false, restore: true });
+  const clearPointerListeners = () => {
+    stopPointerAutoScroll();
+    pointerListenerCleanupRef.current?.();
+    pointerListenerCleanupRef.current = null;
+  };
+  const releasePointerCapture = (drag) => {
+    if (!drag) return;
+    const captureTarget = drag.captureTarget || drag.source;
+    try {
+      if (captureTarget.hasPointerCapture?.(drag.pointerId)) captureTarget.releasePointerCapture?.(drag.pointerId);
+    } catch {}
+  };
+  const listenForPointerDrag = () => {
+    const move = (event) => movePointerDrag(event);
+    const end = (event) => endPointerDrag(event);
+    const cancel = (event) => cancelPointerDrag(event);
+    const visibility = (event) => { if (document.hidden) cancelPointerDrag(event); };
+    window.addEventListener("pointermove", move, { capture: true, passive: false });
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("blur", cancel);
+    document.addEventListener("visibilitychange", visibility);
+    pointerListenerCleanupRef.current = () => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", cancel, true);
+      window.removeEventListener("blur", cancel);
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  };
+  const activatePointerDrag = (drag) => {
+    if (!drag || pointerDragRef.current !== drag || drag.active) return;
+    try { drag.captureTarget.setPointerCapture?.(drag.pointerId); } catch {}
+    drag.active = true;
+    suppressOpenRef.current = true;
+    beginDragSession(drag.wishId, drag.group);
+    createPointerGhost(drag.source, drag.startX, drag.startY);
+    startPointerAutoScroll(drag);
+    navigator.vibrate?.(18);
   };
   const beginPointerDrag = (event, wishId, group = null) => {
-    if (event.pointerType === "mouse" || !groupingListId) return;
-    pointerDragRef.current = { wishId, group, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, source: event.currentTarget };
+    const pointerType = event.pointerType || "mouse";
+    if (!event.isPrimary || event.button !== 0) return;
+    if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) return;
+    if (pointerDragRef.current) return;
+    const drag = { wishId, group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
+    pointerDragRef.current = drag;
     clearTimeout(pointerTimerRef.current);
+    clearPointerListeners();
+    listenForPointerDrag();
+    if (event.target.closest?.("[data-wish-drag-handle]")) {
+      event.preventDefault();
+      activatePointerDrag(drag);
+      return;
+    }
+    if (pointerType === "mouse") return;
     pointerTimerRef.current = setTimeout(() => {
-      const drag = pointerDragRef.current;
-      if (!drag) return;
-      drag.source.setPointerCapture?.(drag.pointerId);
-      drag.active = true;
-      suppressOpenRef.current = true;
-      beginDragSession(wishId, group);
-      createPointerGhost(drag.source, drag.startX, drag.startY);
-      navigator.vibrate?.(18);
+      activatePointerDrag(drag);
     }, 260);
   };
-  const movePointerDrag = (event) => {
-    const drag = pointerDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 9) {
-      clearTimeout(pointerTimerRef.current); pointerDragRef.current = null; return;
-    }
-    if (!drag.active) return;
-    event.preventDefault();
-    movePointerGhost(event.clientX, event.clientY);
-    const element = document.elementFromPoint(event.clientX, event.clientY);
+  const updatePointerDragPosition = (drag, clientX, clientY) => {
+    movePointerGhost(clientX, clientY);
+    const element = document.elementFromPoint(clientX, clientY);
     const wishCard = element?.closest?.("[data-group-wish-id]");
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
     const wishId = wishCard?.dataset.groupWishId;
     const targetGroupId = wishCard?.dataset.wishGroupId || null;
     const dragGroupId = drag.group?.id || null;
-    const validWishTarget = wishId && wishId !== drag.wishId && (dragGroupId ? targetGroupId === dragGroupId : !targetGroupId);
+    const validReorderTarget = wishId
+      && wishId !== drag.wishId
+      && dragScopeRef.current?.wishIds?.has(wishId)
+      && (dragGroupId ? targetGroupId === dragGroupId : !targetGroupId);
+    const validGroupTarget = wishId
+      && wishId !== drag.wishId
+      && !dragGroupId
+      && !targetGroupId;
     const target = dragGroupId
-      ? validWishTarget ? `wish:${wishId}` : null
-      : groupId ? `group:${groupId}` : validWishTarget ? `wish:${wishId}` : null;
+      ? validReorderTarget ? `wish:${wishId}` : null
+      : groupId
+        ? `group:${groupId}`
+        : groupingListId
+          ? validGroupTarget ? `wish:${wishId}` : null
+          : validReorderTarget ? `wish:${wishId}` : null;
     if (target && target !== drag.hoverTarget) {
       drag.hoverTarget = target;
-      // Keep the same dwell-to-group, quick-drop-to-reorder contract on touch.
-      if (dragGroupId) {
+      // Group only after a short dwell; otherwise use the same reorder gesture everywhere.
+      if (dragGroupId || !groupingListId) {
         if (wishId) reorderWish(drag.wishId, wishId);
         clearGroupIntent();
       } else {
@@ -2099,11 +2203,83 @@ function WishesPage({ onAdd, version }) {
       clearGroupIntent();
     }
   };
-  const endPointerDrag = (event) => {
-    clearTimeout(pointerTimerRef.current);
+  const startPointerAutoScroll = (drag) => {
+    if (pointerAutoScrollFrameRef.current !== null) return;
+    const tick = (timestamp) => {
+      pointerAutoScrollFrameRef.current = null;
+      if (pointerDragRef.current !== drag || !drag.active) return;
+      const scrollContainer = drag.source.closest(".wish-group-open") || document.scrollingElement;
+      if (!scrollContainer) return;
+      const containerRect = scrollContainer === document.scrollingElement
+        ? { top: 0, right: window.innerWidth, bottom: window.innerHeight, left: 0 }
+        : scrollContainer.getBoundingClientRect();
+      if (drag.clientX < containerRect.left || drag.clientX > containerRect.right) {
+        pointerAutoScrollTimeRef.current = null;
+        return;
+      }
+      const edgeSize = Math.min(88, Math.max(40, (containerRect.bottom - containerRect.top) / 4));
+      const distanceFromTopEdge = containerRect.top + edgeSize - drag.clientY;
+      const distanceFromBottomEdge = drag.clientY - (containerRect.bottom - edgeSize);
+      let direction = 0;
+      let penetration = 0;
+      if (distanceFromTopEdge > 0) {
+        direction = -1;
+        penetration = Math.min(1, distanceFromTopEdge / edgeSize);
+      } else if (distanceFromBottomEdge > 0) {
+        direction = 1;
+        penetration = Math.min(1, distanceFromBottomEdge / edgeSize);
+      }
+      if (!direction) {
+        pointerAutoScrollTimeRef.current = null;
+        return;
+      }
+      const elapsed = pointerAutoScrollTimeRef.current === null
+        ? 16
+        : Math.min(32, Math.max(0, timestamp - pointerAutoScrollTimeRef.current));
+      pointerAutoScrollTimeRef.current = timestamp;
+      const pixelsPerSecond = 120 + 780 * penetration * penetration;
+      const scrollDelta = direction * pixelsPerSecond * (elapsed / 1000);
+      const previousScrollTop = scrollContainer.scrollTop;
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(scrollContainer.scrollHeight - scrollContainer.clientHeight, previousScrollTop + scrollDelta),
+      );
+      if (nextScrollTop === previousScrollTop) {
+        pointerAutoScrollTimeRef.current = null;
+        return;
+      }
+      scrollContainer.scrollTo({ top: nextScrollTop, behavior: "instant" });
+      if (scrollContainer.scrollTop === previousScrollTop) {
+        pointerAutoScrollTimeRef.current = null;
+        return;
+      }
+      updatePointerDragPosition(drag, drag.clientX, drag.clientY);
+      pointerAutoScrollFrameRef.current = requestAnimationFrame(tick);
+    };
+    pointerAutoScrollFrameRef.current = requestAnimationFrame(tick);
+  };
+  const movePointerDrag = (event) => {
     const drag = pointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 9) {
+      if (drag.pointerType === "mouse") activatePointerDrag(drag);
+      else { clearTimeout(pointerTimerRef.current); pointerDragRef.current = null; releasePointerCapture(drag); clearPointerListeners(); return; }
+    }
+    if (!drag.active) return;
+    event.preventDefault();
+    drag.clientX = event.clientX;
+    drag.clientY = event.clientY;
+    updatePointerDragPosition(drag, event.clientX, event.clientY);
+    startPointerAutoScroll(drag);
+  };
+  const endPointerDrag = (event) => {
+    const drag = pointerDragRef.current;
+    if (!drag || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    clearTimeout(pointerTimerRef.current);
+    clearPointerListeners();
     pointerDragRef.current = null;
-    if (!drag?.active) return;
+    releasePointerCapture(drag);
+    if (!drag.active) return;
     event.preventDefault();
     const element = document.elementFromPoint(event.clientX, event.clientY);
     const wishCard = element?.closest?.("[data-group-wish-id]");
@@ -2124,24 +2300,27 @@ function WishesPage({ onAdd, version }) {
     setTimeout(() => { suppressOpenRef.current = false; }, 0);
   };
   const cancelPointerDrag = (event) => {
-    clearTimeout(pointerTimerRef.current);
     const drag = pointerDragRef.current;
+    if (!drag || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    clearTimeout(pointerTimerRef.current);
+    clearPointerListeners();
     pointerDragRef.current = null;
-    if (!drag?.active) return;
+    releasePointerCapture(drag);
+    if (!drag.active) return;
     event.preventDefault();
     finishDrag({ persist: false, restore: true });
     setTimeout(() => { suppressOpenRef.current = false; }, 0);
   };
   const renderWish = (wish, group = null) => {
-    const dragEnabled = Boolean(groupingListId) && (!group || !removingGroupId);
-    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled && !isMobile} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startDrag(event, wish.id, group)} onDragEnd={(event) => finishDrag({ persist: event.dataTransfer.dropEffect !== "none", restore: event.dataTransfer.dropEffect === "none" })} onDragOver={(event) => allowWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onPointerMove={movePointerDrag} onPointerUp={endPointerDrag} onPointerCancel={cancelPointerDrag} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={() => reload({ background: true })} onOpen={() => {
+    const dragEnabled = !group || !removingGroupId;
+    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={() => reload({ background: true })} onOpen={() => {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
   return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid">{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
-{wishes.length ? <div className="wish-grid">{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowDrop(event, `group:${group.id}`)} onDragLeave={leaveGroupTarget} onDrop={(event) => dropOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -2264,7 +2443,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-md relative overflow-hidden p-0">
             {previewImageUrl
-              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="no-referrer" />
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
@@ -2523,7 +2702,9 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const visibleLists = selectableLists.filter((list) => listSpace(list) === effectiveSpace);
   const isPlaces = effectiveSpace === "places";
   const isMedia = effectiveSpace === "media";
+  const isFood = effectiveSpace === "food";
   const isYouTube = isMedia && isYouTubeUrl(form.url.trim());
+  const isKinopoiskSite = isMedia && isKinopoiskHost(form.url.trim());
   const isKinopoisk = isMedia && isKinopoiskUrl(form.url.trim());
   const formPreviewImageUrl = wishPreviewImageUrl({ imageUrl: form.imageUrl, url: form.url });
   const showEventDate = effectiveSpace === "events"
@@ -2546,20 +2727,26 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     if (!url) { setMetadata({ status: "idle", message: "" }); return false; }
     if (!isProductUrl(url)) { setMetadata({ status: "error", message: "Нужна полная ссылка, начинающаяся с http:// или https://" }); return false; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return false; }
+    const kinopoiskUrlError = isMedia ? kinopoiskContentUrlError(url) : "";
+    if (kinopoiskUrlError) {
+      setMetadata({ status: "error", message: kinopoiskUrlError, retryable: false });
+      return false;
+    }
     const requestId = ++metadataRequestRef.current;
     setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isYouTube ? "Читаем видео на YouTube…" : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       const meta = await api.post("/metadata", { url });
       if (requestId !== metadataRequestRef.current) return false;
+      const usesFallbackPreview = meta.previewFallback === true;
       const values = {
         title: typeof meta.title === "string" ? meta.title.trim() : "",
         description: typeof meta.description === "string" ? meta.description.trim() : "",
-        imageUrl: typeof meta.imageUrl === "string" ? meta.imageUrl.trim() : "",
+        imageUrl: !usesFallbackPreview && typeof meta.imageUrl === "string" ? meta.imageUrl.trim() : "",
         price: meta.price == null || meta.price === "" ? "" : String(meta.price),
         currency: typeof meta.currency === "string" && WISH_CURRENCIES.includes(meta.currency.toUpperCase()) ? meta.currency.toUpperCase() : "",
       };
       const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
-      if (foundFields.length === 0) {
+      if (foundFields.length === 0 && !usesFallbackPreview) {
         setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
@@ -2571,7 +2758,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: usesFallbackPreview ? "Магазин не отдал фото товара — показываем превью сервиса. Название и цену можно заполнить вручную." : isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : isFood && complete ? "Название, фото и цена уже в карточке. Цена зависит от адреса и магазина — проверьте её перед сохранением." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
@@ -2586,6 +2773,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     const url = form.url.trim();
     if (!url || !isProductUrl(url)) { setMetadata({ status: "idle", message: "" }); return undefined; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return undefined; }
+    const kinopoiskUrlError = isMedia ? kinopoiskContentUrlError(url) : "";
+    if (kinopoiskUrlError) {
+      setMetadata({ status: "error", message: kinopoiskUrlError, retryable: false });
+      return undefined;
+    }
     setMetadata({ status: "waiting", message: "Ссылка принята — через мгновение заполним карточку." });
     autoTimerRef.current = window.setTimeout(() => { recognize(url); }, 600);
     return () => window.clearTimeout(autoTimerRef.current);
@@ -2676,7 +2868,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -2726,12 +2918,12 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           <X />
           <span className="sr-only">Закрыть</span>
         </ShadcnButton>
-        <form className={`wish-editor mx-auto flex w-full max-w-lg flex-col ${editing ? "wish-editor--edit" : "wish-editor--create"}`} onSubmit={submit}>
+        <form className={`wish-editor mx-auto flex w-full max-w-lg flex-col max-[820px]:max-w-none ${editing ? "wish-editor--edit" : "wish-editor--create"}`} onSubmit={submit}>
           <h2 id={fieldId("dialog-title")} className="sr-only">{editing ? `Редактирование желания «${wish.title}»` : "Создание желания"}</h2>
           <p id={fieldId("dialog-description")} className="sr-only">{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</p>
 
-          <div className="wish-editor-screen__content px-4" aria-label="Поля желания">
-            <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3">
+          <div className="wish-editor-screen__content px-4 max-[820px]:px-0" aria-label="Поля желания">
+            <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3 max-[820px]:pr-0">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
               className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${formPreviewImageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
@@ -2746,7 +2938,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               }}
             >
               {formPreviewImageUrl
-                ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="no-referrer" />
+                ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, form.url)} />
                 : <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 transition-colors max-[380px]:gap-2 max-[380px]:p-3">
                   <EmptyHeader className="gap-1">
                     <EmptyMedia className="mb-1" variant="icon"><Image aria-hidden="true" /></EmptyMedia>
@@ -2790,14 +2982,15 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               </Field>
 
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
-                <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : "Ссылка"}</FieldLabel>
-                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : isFood ? "Ссылка на продукт" : "Ссылка"}</FieldLabel>
+                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
                 <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
-                {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isYouTube ? "Ссылка на видео с YouTube — подставим название и превью" : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
+                {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isKinopoiskSite ? "Нужна ссылка на карточку фильма или сериала, а не на поиск Кинопоиска" : isYouTube ? "Ссылка на видео с YouTube — подставим название и превью" : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
+                {isFood && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><UtensilsCrossed size={14} aria-hidden="true" /> Лента, Яндекс Лавка или Самокат — подставим название, фото и цену для выбранного магазином региона</p>}
               </Field>
 
               {metadataNotice}
@@ -3044,6 +3237,7 @@ function FriendsPage() {
 
 function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const isMobile = useIsMobile();
+  const location = useLocation();
   const toast = useToast();
   const logout = useLogout();
   const initialForm = useMemo(() => ({
@@ -3058,10 +3252,14 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [yandexEnabled, setYandexEnabled] = useState(false);
   const contentRef = useRef(null);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const changed = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const yandexLinkNext = safeNextPath(`${location.pathname}${location.search}`);
+  const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
+  const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
   const cleanupUploadedImages = async (keepUrl = "") => {
     const keepId = uploadedImageIdFromUrl(keepUrl);
     const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
@@ -3078,6 +3276,13 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         keepalive: true,
       }).catch(() => {});
     });
+  }, []);
+  useEffect(() => {
+    let active = true;
+    api.get("/auth/yandex/config")
+      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
+      .catch(() => { if (active) setYandexEnabled(false); });
+    return () => { active = false; };
   }, []);
   const uploadAvatar = async (file) => {
     if (!file || imageUploading || loading || loggingOut) return;
@@ -3205,6 +3410,20 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
               <Input id="settings-profile-birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} />
             </Field>
           </FieldGroup>
+          {(yandexEnabled || user.hasYandex) && (
+            <Card className="grid gap-3 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <strong className="block text-sm font-medium">Yandex ID</strong>
+                  <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+                </div>
+                {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
+              </div>
+              {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
+                ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
+                : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
+            </Card>
+          )}
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"
