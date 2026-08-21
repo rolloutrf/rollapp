@@ -40,9 +40,31 @@ async function loadTelegramLockboxSecrets() {
   if (loaded) console.log("Runtime Telegram credentials loaded from Yandex Lockbox");
 }
 
+async function loadYandexOauthSecrets() {
+  const secretId = process.env.YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID;
+  if (!secretId) return;
+  let loaded = false;
+  if (!process.env.YANDEX_OAUTH_CLIENT_ID) {
+    process.env.YANDEX_OAUTH_CLIENT_ID = await loadLockboxValue(
+      secretId,
+      process.env.YC_YANDEX_OAUTH_CLIENT_ID_KEY || "client_id",
+    );
+    loaded = true;
+  }
+  if (!process.env.YANDEX_OAUTH_CLIENT_SECRET) {
+    process.env.YANDEX_OAUTH_CLIENT_SECRET = await loadLockboxValue(
+      secretId,
+      process.env.YC_YANDEX_OAUTH_CLIENT_SECRET_KEY || "client_secret",
+    );
+    loaded = true;
+  }
+  if (loaded) console.log("Runtime Yandex OAuth credentials loaded from Yandex Lockbox");
+}
+
 await loadDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
+await loadYandexOauthSecrets();
 
 const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
 const telegramConfig = getTelegramBotRuntimeConfig();

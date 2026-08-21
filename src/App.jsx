@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import { disbandWishGroupFromDashboard, filterWishGroups } from "./lib/wish-groups.js";
 import { moveWishToTargetPosition, moveWishWithinSubset } from "./lib/wish-order.js";
 import { isKinopoiskUrl, wishPreviewImageUrl } from "../shared/kinopoisk.js";
@@ -157,7 +158,6 @@ const formatEventDate = (value) => {
   const [year, month, day] = String(value || "").split("-");
   return year && month && day ? `${day}.${month}.${year}` : "";
 };
-const safeNextPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : APP_HOME;
 const readPasswordResetToken = () => {
   if (typeof window === "undefined") return "";
   const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
@@ -444,6 +444,18 @@ function Avatar({ user, size = "md", className = "", ...props }) {
 function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
   const shadcnVariant = { primary: "default", soft: "secondary", paper: "secondary", reserved: "secondary" }[variant] || variant;
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
+}
+
+function YandexIdButton({ href, className = "", accessibleName = "Войти с помощью Яндекс ID" }) {
+  return (
+    <a className={`yandex-id-button ${className}`} href={href} aria-label={accessibleName}>
+      <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
+        <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
+      </svg>
+      <span>Войти с Яндекс ID</span>
+    </a>
+  );
 }
 
 function EmptyState({ icon: Icon = Sparkles, title, text, action }) {
@@ -879,6 +891,7 @@ function AuthPage({ mode }) {
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
+  const [yandexEnabled, setYandexEnabled] = useState(false);
   const [authMethod, setAuthMethod] = useState("email");
   const [telegramAuth, setTelegramAuth] = useState(() => {
     const launch = initializeTelegramWebApp();
@@ -891,7 +904,13 @@ function AuthPage({ mode }) {
   });
   const authId = useId();
   const methodTouchedRef = useRef(false);
-  const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
+  const authQuery = new URLSearchParams(location.search);
+  const nextPath = safeNextPath(authQuery.get("next"));
+  const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"));
+  const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
+  const shouldLinkYandex = Boolean(yandexError?.linkRequired);
+  const yandexStartHref = yandexAuthStartPath(nextPath);
+  const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
   const finishAuthentication = async (message) => {
     let linkError = null;
@@ -904,6 +923,10 @@ function AuthPage({ mode }) {
       }
     }
     await refresh();
+    if (shouldLinkYandex) {
+      window.location.assign(yandexLinkHref);
+      return;
+    }
     navigate(nextPath);
     if (linkError) toast("Вы вошли, но Telegram не привязался. Откройте Rollapp из бота ещё раз.", "error");
     else toast(message);
@@ -944,6 +967,14 @@ function AuthPage({ mode }) {
   }, [telegramAuth.initData, user, refresh, navigate, nextPath, toast]);
 
   useEffect(() => {
+    let active = true;
+    api.get("/auth/yandex/config")
+      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
+      .catch(() => { if (active) setYandexEnabled(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     methodTouchedRef.current = false;
     if (mode !== "login") {
       setPhoneEnabled(false);
@@ -969,7 +1000,29 @@ function AuthPage({ mode }) {
     return () => { active = false; };
   }, [mode]);
 
-  if (user && !telegramAuth.initData) return <Navigate to={nextPath} replace />;
+  if (user && !telegramAuth.initData) {
+    if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
+    return (
+      <div className="auth-page">
+        <div className="auth-panel">
+          <div className="auth-form">
+            <div>
+              <span className="eyebrow">Yandex ID</span>
+              <h1>{yandexLinked ? "Yandex ID подключён" : "Не удалось подключить вход"}</h1>
+              <p>{yandexLinked ? "Теперь можно входить в Rollapp без пароля." : "Ваш текущий аккаунт Rollapp остался активен."}</p>
+            </div>
+            {yandexError && (
+              <Alert variant={yandexError.variant} className="auth-provider-alert">
+                <AlertTitle>{yandexError.title}</AlertTitle>
+                <AlertDescription>{yandexError.description}</AlertDescription>
+              </Alert>
+            )}
+            <Link className={buttonVariants({ variant: "outline", className: "h-12 w-full" })} to={nextPath}>Вернуться в Rollapp</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
@@ -1001,6 +1054,11 @@ function AuthPage({ mode }) {
   const usingPhone = mode === "login" && phoneEnabled && authMethod === "phone";
   const telegramChecking = telegramAuth.status === "checking";
   const connectingCurrentUser = Boolean(user && telegramAuth.initData);
+  const showYandexButton = yandexEnabled
+    && !telegramAuth.initData
+    && !connectingCurrentUser
+    && !shouldLinkYandex
+    && !(usingPhone && phoneFlow.step === "otp");
   const subtitle = telegramChecking
     ? "Подтверждаем безопасный запуск из Telegram."
     : connectingCurrentUser
@@ -1038,6 +1096,13 @@ function AuthPage({ mode }) {
                   <span><strong>Telegram не подтвердил запуск</strong><small>{telegramAuth.error}</small></span>
                 </div>
               )}
+              {yandexError && !connectingCurrentUser && (
+                <Alert variant={yandexError.variant} className="auth-provider-alert">
+                  <AlertTitle>{yandexError.title}</AlertTitle>
+                  <AlertDescription>{yandexError.description}</AlertDescription>
+                </Alert>
+              )}
+              {showYandexButton && <><YandexIdButton href={yandexStartHref} /><div className="or" aria-hidden="true"><span>или</span></div></>}
           {connectingCurrentUser
             ? telegramAuth.status === "unlinked"
               ? <>
@@ -1048,7 +1113,7 @@ function AuthPage({ mode }) {
             : mode === "login" && !phoneConfigLoaded
             ? <div className="auth-config-loading" role="status"><LoaderCircle className="spin" /><span>Проверяем способы входа…</span></div>
             : usingPhone
-            ? <PhoneOtpFields flow={phoneFlow} />
+            ? <PhoneOtpFields flow={phoneFlow} verifyLabel={shouldLinkYandex ? "Подтвердить и привязать Yandex ID" : undefined} />
             : <>
               <FieldGroup className="gap-4">
                 {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
@@ -1056,7 +1121,7 @@ function AuthPage({ mode }) {
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : "Войти"}</ShadcnButton>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
@@ -1176,9 +1241,10 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
 }
 
 function ProtectedApp() {
+  const location = useLocation();
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
   return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
@@ -3044,6 +3110,7 @@ function FriendsPage() {
 
 function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const isMobile = useIsMobile();
+  const location = useLocation();
   const toast = useToast();
   const logout = useLogout();
   const initialForm = useMemo(() => ({
@@ -3058,10 +3125,14 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [yandexEnabled, setYandexEnabled] = useState(false);
   const contentRef = useRef(null);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const changed = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const yandexLinkNext = safeNextPath(`${location.pathname}${location.search}`);
+  const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
+  const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
   const cleanupUploadedImages = async (keepUrl = "") => {
     const keepId = uploadedImageIdFromUrl(keepUrl);
     const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
@@ -3078,6 +3149,13 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         keepalive: true,
       }).catch(() => {});
     });
+  }, []);
+  useEffect(() => {
+    let active = true;
+    api.get("/auth/yandex/config")
+      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
+      .catch(() => { if (active) setYandexEnabled(false); });
+    return () => { active = false; };
   }, []);
   const uploadAvatar = async (file) => {
     if (!file || imageUploading || loading || loggingOut) return;
@@ -3205,6 +3283,20 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
               <Input id="settings-profile-birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} />
             </Field>
           </FieldGroup>
+          {(yandexEnabled || user.hasYandex) && (
+            <Card className="grid gap-3 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <strong className="block text-sm font-medium">Yandex ID</strong>
+                  <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+                </div>
+                {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
+              </div>
+              {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
+                ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
+                : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
+            </Card>
+          )}
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"
