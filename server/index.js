@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
-import { pool, query, transaction } from "./db.js";
+import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
@@ -51,6 +51,15 @@ import {
   validateTelegramInitData,
 } from "./telegram-auth.js";
 import { getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+import {
+  createYandexAuthorization,
+  exchangeYandexCode,
+  fetchYandexProfile,
+  getYandexAuthConfig,
+  readYandexAuthorization,
+  safeOauthReturnPath,
+  YandexAuthError,
+} from "./yandex-auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -58,6 +67,7 @@ const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const sessionCookie = "rw_session";
+const yandexOauthCookiePrefix = "rw_yandex_oauth_";
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
 const uploadedMediaUrlPattern = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const avatarUrlSchema = z.union([
@@ -206,8 +216,16 @@ function cleanUser(row) {
     avatarUrl: row.avatar_url,
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
+    hasYandex: Boolean(row.has_yandex),
     createdAt: row.created_at,
   };
+}
+
+async function cleanAuthenticatedUser(row) {
+  if (!row) return null;
+  if (Object.prototype.hasOwnProperty.call(row, "has_yandex")) return cleanUser(row);
+  const identity = await query("SELECT 1 FROM yandex_identities WHERE user_id=$1 LIMIT 1", [row.id]);
+  return cleanUser({ ...row, has_yandex: identity.rowCount > 0 });
 }
 
 function mapList(row) {
@@ -273,8 +291,9 @@ async function optionalAuth(req, _res, next) {
   const token = req.cookies[sessionCookie];
   if (!token) return next();
   const result = await query(
-    `SELECT u.* FROM sessions s
+    `SELECT u.*,(yi.yandex_user_id IS NOT NULL) AS has_yandex FROM sessions s
      JOIN users u ON u.id = s.user_id
+     LEFT JOIN yandex_identities yi ON yi.user_id=u.id
      WHERE s.token_hash = $1 AND s.expires_at > $2`,
     [hashToken(token), new Date()],
   );
@@ -340,6 +359,35 @@ function setSessionCookie(res, { token, expiresAt }) {
     path: "/",
     expires: expiresAt,
   });
+}
+
+function yandexOauthCookieOptions(expires) {
+  const options = {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction && process.env.COOKIE_SECURE !== "false",
+    path: "/api/auth/yandex/callback",
+  };
+  if (expires) options.expires = expires;
+  return options;
+}
+
+function yandexOauthCookieName(state) {
+  return typeof state === "string" && /^[A-Za-z0-9_-]{43}$/.test(state)
+    ? `${yandexOauthCookiePrefix}${state}`
+    : "";
+}
+
+function clearYandexOauthCookie(res, state) {
+  const name = yandexOauthCookieName(state);
+  if (name) res.clearCookie(name, yandexOauthCookieOptions());
+}
+
+function yandexLoginRedirect(nextPath, errorCode, successCode) {
+  const params = new URLSearchParams({ next: safeOauthReturnPath(nextPath) });
+  if (errorCode) params.set("auth_error", errorCode);
+  if (successCode) params.set("auth_success", successCode);
+  return `/login?${params.toString()}`;
 }
 
 async function uniqueUsername(name) {
@@ -613,6 +661,127 @@ async function saveTelegramIdentity(client, telegramUser, userId) {
   return { kind: "success" };
 }
 
+async function saveYandexIdentity(client, yandexUser, userId) {
+  const current = await client.query(
+    `SELECT yandex_user_id,user_id FROM yandex_identities
+     WHERE yandex_user_id=$1 OR user_id=$2`,
+    [yandexUser.id, userId],
+  );
+  if (current.rows.some((row) => row.yandex_user_id !== yandexUser.id || row.user_id !== userId)) {
+    return { kind: "conflict" };
+  }
+  const values = [
+    yandexUser.login,
+    yandexUser.email,
+    yandexUser.name,
+    yandexUser.firstName,
+    yandexUser.lastName,
+    yandexUser.avatarUrl,
+  ];
+  if (current.rowCount) {
+    await client.query(
+      `UPDATE yandex_identities
+       SET login=$1,default_email=$2,display_name=$3,first_name=$4,last_name=$5,
+           avatar_url=$6,last_seen_at=$7
+       WHERE yandex_user_id=$8 AND user_id=$9`,
+      [...values, new Date(), yandexUser.id, userId],
+    );
+    return { kind: "success" };
+  }
+  await client.query(
+    `INSERT INTO yandex_identities
+      (yandex_user_id,user_id,login,default_email,display_name,first_name,last_name,avatar_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [yandexUser.id, userId, ...values],
+  );
+  return { kind: "success" };
+}
+
+async function lockYandexMutation(client, yandexUser, attempt) {
+  if (isMemoryDatabase) return;
+  const keys = [
+    `yandex-id:${yandexUser.id}`,
+    `yandex-email:${yandexUser.email}`,
+    `yandex-username:${slugify(yandexUser.name || yandexUser.login)}`,
+    attempt.user_id ? `yandex-user:${attempt.user_id}` : "",
+  ].filter(Boolean).sort();
+  for (const key of keys) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+  }
+}
+
+async function insertYandexUser(client, yandexUser, userId, unusablePasswordHash) {
+  const base = slugify(yandexUser.name || yandexUser.login);
+  const candidates = [
+    ...profileUsernameCandidates(base),
+    ...Array.from({ length: 5 }, () => `${base.slice(0, 25)}-${randomBytes(3).toString("hex")}`),
+  ];
+  for (const username of candidates) {
+    const created = await client.query(
+      `INSERT INTO users (id,email,username,name,password_hash,avatar_url)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT DO NOTHING
+       RETURNING *`,
+      [userId, yandexUser.email, username, yandexUser.name, unusablePasswordHash, yandexUser.avatarUrl],
+    );
+    if (created.rowCount) return { kind: "success", user: created.rows[0] };
+    const existingEmail = await client.query("SELECT id FROM users WHERE email=$1", [yandexUser.email]);
+    if (existingEmail.rowCount) return { kind: "link-required" };
+  }
+  throw new YandexAuthError("Не удалось создать профиль Rollapp", "YANDEX_ACCOUNT_CONFLICT", 409);
+}
+
+async function resolveYandexLogin(yandexUser, attempt, currentUser) {
+  if (attempt.purpose === "link" && (!currentUser || currentUser.id !== attempt.user_id)) {
+    return { kind: "link-session-missing" };
+  }
+
+  return withMutationLock(`yandex-auth:${yandexUser.id}`, () => transaction(async (client) => {
+    await lockYandexMutation(client, yandexUser, attempt);
+    const knownIdentity = await client.query(
+      "SELECT user_id FROM yandex_identities WHERE yandex_user_id=$1",
+      [yandexUser.id],
+    );
+    if (knownIdentity.rowCount) {
+      const userId = knownIdentity.rows[0].user_id;
+      if (attempt.purpose === "link" && userId !== attempt.user_id) return { kind: "identity-conflict" };
+      const user = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [userId]);
+      if (!user.rowCount) return { kind: "identity-conflict" };
+      const saved = await saveYandexIdentity(client, yandexUser, userId);
+      if (saved.kind !== "success") return { kind: "identity-conflict" };
+      const session = await createSessionRecord(client, userId);
+      return { kind: "success", user: user.rows[0], session };
+    }
+
+    if (attempt.purpose === "link") {
+      const user = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [attempt.user_id]);
+      if (!user.rowCount) return { kind: "link-session-missing" };
+      const saved = await saveYandexIdentity(client, yandexUser, attempt.user_id);
+      if (saved.kind !== "success") return { kind: "identity-conflict" };
+      const session = await createSessionRecord(client, attempt.user_id);
+      return { kind: "success", user: user.rows[0], session };
+    }
+
+    const existingEmail = await client.query("SELECT id FROM users WHERE email=$1 FOR UPDATE", [yandexUser.email]);
+    if (existingEmail.rowCount) return { kind: "link-required" };
+
+    const userId = randomUUID();
+    const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
+    const created = await insertYandexUser(client, yandexUser, userId, unusablePasswordHash);
+    if (created.kind === "link-required") return created;
+    await client.query(
+      `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [randomUUID(), userId, "Мои желания", "Всё, чему я буду рад", "public", "coral", randomBytes(10).toString("base64url")],
+    );
+    await addDefaultFriend(client, userId);
+    await saveYandexIdentity(client, yandexUser, userId);
+    const session = await createSessionRecord(client, userId);
+    return { kind: "success", user: created.user, session };
+  }));
+}
+
+
 function phoneAuthUnavailable(res) {
   return res.status(503).json({ error: "Вход по телефону временно недоступен" });
 }
@@ -682,6 +851,7 @@ async function cleanupExpiredAuthData() {
     query("DELETE FROM phone_auth_challenges WHERE created_at<$1", [challengeCutoff]),
     query("DELETE FROM password_reset_tokens WHERE created_at<$1", [challengeCutoff]),
     query("DELETE FROM sessions WHERE expires_at<$1", [new Date(now)]),
+    query("DELETE FROM yandex_oauth_attempts WHERE expires_at<$1", [new Date(now)]),
   ]);
   lastPhoneAuthCleanupAt = now;
 }
@@ -852,7 +1022,7 @@ async function verifyPhoneChallenge(req, res, { purpose, userId = null }) {
   }
   if (result.kind !== "success") return res.status(401).json(invalidPhoneCodeResponse);
   if (result.session) setSessionCookie(res, result.session);
-  return res.json({ user: cleanUser(result.user) });
+  return res.json({ user: await cleanAuthenticatedUser(result.user) });
 }
 
 app.get("/api/auth/phone/config", (_req, res) => {
@@ -866,6 +1036,108 @@ app.post("/api/auth/phone/request", asyncRoute(async (req, res) => {
 app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "login" });
 }));
+
+app.get("/api/auth/yandex/config", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ enabled: getYandexAuthConfig().enabled });
+});
+
+app.get("/api/auth/yandex/start", authRateLimit, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const config = getYandexAuthConfig();
+  if (!config.enabled) {
+    return res.status(503).json({ error: "Вход через Яндекс ID не настроен", code: "YANDEX_AUTH_UNAVAILABLE" });
+  }
+  const nextPath = safeOauthReturnPath(typeof req.query.next === "string" ? req.query.next : "");
+  const wantsLink = req.query.link === "1";
+  if (wantsLink && !req.user) {
+    return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
+  }
+  await cleanupExpiredAuthData();
+  const authorization = createYandexAuthorization(config, {
+    nextPath,
+    linkUserId: wantsLink ? req.user.id : null,
+  });
+  await query(
+    `INSERT INTO yandex_oauth_attempts
+      (state_hash,code_verifier,next_path,purpose,user_id,expires_at)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [
+      authorization.attempt.stateHash,
+      authorization.attempt.verifier,
+      authorization.attempt.nextPath,
+      authorization.attempt.purpose,
+      authorization.attempt.userId,
+      authorization.expiresAt,
+    ],
+  );
+  res.cookie(
+    yandexOauthCookieName(authorization.state),
+    authorization.cookieValue,
+    yandexOauthCookieOptions(authorization.expiresAt),
+  );
+  return res.redirect(302, authorization.authorizationUrl);
+}));
+
+app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const config = getYandexAuthConfig();
+  const returnedState = typeof req.query.state === "string" ? req.query.state : "";
+  const cookieName = yandexOauthCookieName(returnedState);
+  const cookieState = cookieName ? req.cookies[cookieName] : undefined;
+  clearYandexOauthCookie(res, returnedState);
+  if (!config.enabled) return res.redirect(303, yandexLoginRedirect("", "YANDEX_AUTH_UNAVAILABLE"));
+
+  let stateHash;
+  try {
+    stateHash = readYandexAuthorization(cookieState, returnedState);
+  } catch {
+    return res.redirect(303, yandexLoginRedirect("", "YANDEX_STATE_INVALID"));
+  }
+  const consumed = await query(
+    `DELETE FROM yandex_oauth_attempts
+     WHERE state_hash=$1 AND expires_at>$2
+     RETURNING code_verifier,next_path,purpose,user_id`,
+    [stateHash, new Date()],
+  );
+  const attempt = consumed.rows[0];
+  if (!attempt) return res.redirect(303, yandexLoginRedirect("", "YANDEX_STATE_INVALID"));
+
+  if (typeof req.query.error === "string") {
+    const errorCode = req.query.error === "access_denied" ? "YANDEX_CANCELLED" : "YANDEX_PROVIDER_ERROR";
+    return res.redirect(303, yandexLoginRedirect(attempt.next_path, errorCode));
+  }
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  try {
+    const accessToken = await exchangeYandexCode(config, { code, verifier: attempt.code_verifier });
+    const yandexUser = await fetchYandexProfile(config, accessToken);
+    const result = await resolveYandexLogin(yandexUser, attempt, req.user);
+    if (result.kind === "link-required") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_REQUIRED"));
+    }
+    if (result.kind === "identity-conflict") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_IDENTITY_CONFLICT"));
+    }
+    if (result.kind === "link-session-missing") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_LOGIN_REQUIRED"));
+    }
+    setSessionCookie(res, result.session);
+    if (attempt.purpose === "link") {
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "", "YANDEX_LINKED"));
+    }
+    return res.redirect(303, safeOauthReturnPath(attempt.next_path));
+  } catch (error) {
+    const publicCode = error instanceof YandexAuthError
+      ? {
+        YANDEX_EMAIL_REQUIRED: "YANDEX_EMAIL_REQUIRED",
+        YANDEX_STATE_INVALID: "YANDEX_STATE_INVALID",
+      }[error.code] || "YANDEX_PROVIDER_ERROR"
+      : "YANDEX_PROVIDER_ERROR";
+    console.error(`[yandex-auth] Callback failed: ${error?.code || error?.message || "unknown error"}`);
+    return res.redirect(303, yandexLoginRedirect(attempt.next_path, publicCode));
+  }
+}));
+
 
 app.get("/api/auth/telegram/config", (_req, res) => {
   const config = getTelegramAuthConfig();
@@ -905,7 +1177,7 @@ app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
     });
   }
   setSessionCookie(res, result.session);
-  return res.json({ user: cleanUser(result.user), telegram: publicTelegramUser(identity.user) });
+  return res.json({ user: await cleanAuthenticatedUser(result.user), telegram: publicTelegramUser(identity.user) });
 }));
 
 app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
@@ -1055,7 +1327,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   });
   await createSession(res, userId);
   const result = await query("SELECT * FROM users WHERE id = $1", [userId]);
-  res.status(201).json({ user: cleanUser(result.rows[0]) });
+  res.status(201).json({ user: await cleanAuthenticatedUser(result.rows[0]) });
 }));
 
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
@@ -1072,7 +1344,7 @@ app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
     return res.status(401).json({ error: "Неверные email или пароль" });
   }
   setSessionCookie(res, authenticated.session);
-  res.json({ user: cleanUser(authenticated.user) });
+  res.json({ user: await cleanAuthenticatedUser(authenticated.user) });
 }));
 
 app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
@@ -1080,7 +1352,7 @@ app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
   const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (!result.rowCount) return res.status(404).json({ error: "Демо-профиль не найден" });
   await createSession(res, result.rows[0].id);
-  res.json({ user: cleanUser(result.rows[0]) });
+  res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
 }));
 
 app.post("/api/auth/logout", asyncRoute(async (req, res) => {
@@ -1121,12 +1393,12 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
       code: "TELEGRAM_IDENTITY_CONFLICT",
     });
   }
-  return res.json({ user: cleanUser(req.user), telegram: publicTelegramUser(identity.user) });
+  return res.json({ user: await cleanAuthenticatedUser(req.user), telegram: publicTelegramUser(identity.user) });
 }));
 
 app.get("/api/me", asyncRoute(async (req, res) => {
   if (!req.user) return res.json({ user: null });
-  res.json({ user: cleanUser(req.user) });
+  res.json({ user: await cleanAuthenticatedUser(req.user) });
 }));
 
 app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
@@ -1158,7 +1430,7 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
       `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5 WHERE id=$6 RETURNING *`,
       [next.name, next.username, next.bio, next.birthday, next.avatarUrl, req.user.id],
     );
-    res.json({ user: cleanUser(result.rows[0]) });
+    res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "Такое имя профиля уже занято" });
     throw error;

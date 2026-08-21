@@ -6,7 +6,7 @@ The product is an independent functional alternative to popular wishlist service
 
 ## What is included
 
-- Email/password authentication and optional SMS OTP login with HTTP-only sessions.
+- Email/password authentication, Yandex ID, and optional SMS OTP login with HTTP-only sessions.
 - Telegram Mini App authentication with explicit one-time account linking.
 - Public profiles and shareable list links.
 - Multiple lists with public, followers-only, link-only, and private visibility.
@@ -73,6 +73,31 @@ No long-lived Yandex key is stored in GitHub. The federated credential accepts o
 Local `.env` variables are documented in `.env.example`. Production non-secret settings live in `deploy/docker-compose.template.yml`; the PostgreSQL password is loaded at runtime by `server/start.js` and never enters the repository, VM metadata, or GitHub Actions.
 
 The server initializes idempotent tables at startup. Production seeding is disabled unless `SEED_DEMO=true` is explicitly set.
+
+### Yandex ID login
+
+Yandex ID uses the server-side Authorization Code flow with PKCE S256. The
+browser receives only a short-lived, HTTP-only state cookie; authorization
+attempts are consumed once from PostgreSQL, and Yandex access/refresh tokens are
+discarded after the profile request. Existing Rollapp accounts are never merged
+silently by email because Yandex userinfo does not expose an `email_verified`
+flag. Instead, the user signs in locally once and explicitly completes linking.
+
+Create a Yandex OAuth application of type **For user authentication** with the
+web platform, enable login/name and email access (avatar may be optional), and
+register the exact callback:
+
+```text
+https://xn--80avakiab.xn--p1ai/api/auth/yandex/callback
+```
+
+For local development, register a separate application with
+`http://localhost:5173/api/auth/yandex/callback`. Set
+`YANDEX_OAUTH_CLIENT_ID` and `YANDEX_OAUTH_CLIENT_SECRET`; the callback is
+derived from `PUBLIC_APP_URL` unless `YANDEX_OAUTH_REDIRECT_URI` is set. In
+production, store `client_id` and `client_secret` in Yandex Lockbox and set
+`YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID`. The runtime reads those values without
+putting the client secret in the compose file.
 
 ### Password recovery
 
