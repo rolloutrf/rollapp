@@ -42,6 +42,35 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_telegram_identities_user
     ON telegram_identities(user_id);
 
+  CREATE TABLE IF NOT EXISTS yandex_identities (
+    yandex_user_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    login TEXT NOT NULL DEFAULT '',
+    default_email TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT '',
+    first_name TEXT NOT NULL DEFAULT '',
+    last_name TEXT NOT NULL DEFAULT '',
+    avatar_url TEXT NOT NULL DEFAULT '',
+    linked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_yandex_identities_user
+    ON yandex_identities(user_id);
+
+  CREATE TABLE IF NOT EXISTS yandex_oauth_attempts (
+    state_hash TEXT PRIMARY KEY,
+    code_verifier TEXT NOT NULL,
+    next_path TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_yandex_oauth_attempts_expires
+    ON yandex_oauth_attempts(expires_at);
+
   CREATE TABLE IF NOT EXISTS default_follow_targets (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
