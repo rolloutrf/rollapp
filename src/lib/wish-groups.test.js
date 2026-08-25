@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { disbandWishGroupFromDashboard, filterWishGroups } from "./wish-groups.js";
+import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./wish-groups.js";
 
 test("general-list groups are visible only in their own space", () => {
   const groups = [
@@ -71,4 +71,39 @@ test("disbanding a group reveals its wishes without removing them from the dashb
   assert.deepEqual(nextDashboard.groups, [{ id: "other", wishIds: ["third"] }]);
   assert.equal(nextDashboard.wishes, wishes);
   assert.equal(disbandWishGroupFromDashboard(nextDashboard, "missing"), nextDashboard);
+});
+
+test("moving a group updates its list, wish memberships, and list counters", () => {
+  const dashboard = {
+    lists: [
+      { id: "source", wishCount: 3 },
+      { id: "target", wishCount: 1 },
+    ],
+    wishes: [
+      { id: "first", status: "active", listIds: ["source"] },
+      { id: "second", status: "active", listIds: ["source", "target"] },
+      { id: "outside", status: "active", listIds: ["source"] },
+    ],
+    groups: [
+      { id: "moving", listId: "source", space: "products", title: "Группа", wishIds: ["first", "second"] },
+      { id: "other", listId: "source", space: "products", wishIds: ["outside"] },
+    ],
+  };
+  const movedGroup = { ...dashboard.groups[0], listId: "target" };
+
+  const nextDashboard = moveWishGroupInDashboard(dashboard, {
+    group: movedGroup,
+    sourceListId: "source",
+    targetListId: "target",
+    removedFromSourceWishIds: ["first", "second"],
+  });
+
+  assert.deepEqual(nextDashboard.groups, [movedGroup, dashboard.groups[1]]);
+  assert.deepEqual(nextDashboard.wishes[0].listIds, ["target"]);
+  assert.deepEqual(nextDashboard.wishes[1].listIds, ["target"]);
+  assert.equal(nextDashboard.wishes[2], dashboard.wishes[2]);
+  assert.deepEqual(nextDashboard.lists, [
+    { id: "source", wishCount: 1 },
+    { id: "target", wishCount: 2 },
+  ]);
 });

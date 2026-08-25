@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, Gift, GripVertical, Hand, Heart, Image, Link2, ListPlus,
+  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, FolderInput, Gift, GripVertical, Hand, Heart, Image, Link2, ListPlus,
   LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
   PawPrint, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
@@ -41,7 +41,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
-import { disbandWishGroupFromDashboard, filterWishGroups } from "./lib/wish-groups.js";
+import {
+  isGeneralList, listDisplayTitle, shouldShowListNavigation, shouldShowUnsortedList, UNSORTED_LIST_TITLE,
+} from "./lib/list-navigation.js";
+import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
+import { filterWishesWithoutList } from "./lib/wish-lists.js";
 import { moveWishToTargetPosition, moveWishWithinSubset } from "./lib/wish-order.js";
 import {
   isKinopoiskHost,
@@ -191,7 +195,6 @@ const readPasswordResetToken = () => {
   const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
   return (new URLSearchParams(fragment).get("token") || "").trim();
 };
-const isGeneralList = (list) => list?.title === "Мои желания" && list?.description === "Всё, чему я буду рад";
 const wishCountNoun = (count) => {
   const absolute = Math.abs(Number(count) || 0);
   const lastTwo = absolute % 100;
@@ -1417,39 +1420,42 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removingFromGroup, setRemovingFromGroup] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
+  const listMutationRef = useRef(false);
   const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const interactionBusy = busy || removingFromGroup || groupBusy;
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const visibleLists = categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists));
-  const listSelectionChanged = selectedListIds.length !== (wish.listIds || []).length
-    || selectedListIds.some((id) => !(wish.listIds || []).includes(id));
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
   const secret = isWishSecret(wish, lists);
   const previewImageUrl = wishPreviewImageUrl(wish);
+  const youtubePreview = isYouTubeUrl(wish.url);
 
   useEffect(() => {
-    if (!menu) setSelectedListIds([...(wish.listIds || [])]);
-  }, [wish.id, wish.listIds, menu]);
+    if (!listMutationRef.current) setSelectedListIds([...(wish.listIds || [])]);
+  }, [wish.id, wish.listIds]);
   useEffect(() => {
     if (groupBusy) setMenu(false);
   }, [groupBusy]);
 
   const closeMenu = () => {
     setMenu(false);
-    setSelectedListIds([...(wish.listIds || [])]);
   };
 
-  const toggleList = (list, selected) => {
-    if (busy) return;
-    setSelectedListIds((current) => selected
-      ? [...new Set([...current, list.id])]
-      : current.filter((id) => id !== list.id));
-  };
-
-  const saveLists = async () => {
-    if (!listSelectionChanged || busy) return;
-    const updatedWish = await update({ listIds: selectedListIds }, "Списки желания обновлены");
-    if (updatedWish) closeMenu();
+  const toggleList = async (list) => {
+    if (busy || listMutationRef.current) return;
+    const previousIds = [...selectedListIds];
+    const selected = previousIds.includes(list.id);
+    const nextIds = selected
+      ? previousIds.filter((id) => id !== list.id)
+      : [...previousIds, list.id];
+    listMutationRef.current = true;
+    setSelectedListIds(nextIds);
+    const updatedWish = await update(
+      { listIds: nextIds },
+      selected ? `Желание убрано из списка «${listDisplayTitle(list)}»` : `Желание добавлено в список «${listDisplayTitle(list)}»`,
+    );
+    setSelectedListIds(updatedWish ? [...(updatedWish.listIds || [])] : previousIds);
+    listMutationRef.current = false;
   };
 
   const removeFromGroup = async () => {
@@ -1464,17 +1470,14 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 
   return (
     <>
-    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
+    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${youtubePreview ? "wish-card--youtube" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
       {onOpen && <ShadcnButton type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle aria-hidden="true"><GripVertical /></span>}
       <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
           {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
-          <DropdownMenu open={menu} onOpenChange={(open) => {
-            setMenu(open);
-            if (!open) setSelectedListIds([...(wish.listIds || [])]);
-          }}>
+          <DropdownMenu open={menu} onOpenChange={setMenu}>
             <DropdownMenuTrigger
               render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" disabled={interactionBusy} />}
               aria-label={`Опции желания «${wish.title}»`}
@@ -1536,11 +1539,11 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                           checked={selected}
                           disabled={busy}
                           closeOnClick={false}
-                          onCheckedChange={(checked) => toggleList(list, checked)}
+                          onCheckedChange={() => toggleList(list)}
                         >
                           <span className="wish-card-list-icon grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground" aria-hidden="true"><ListPlus /></span>
                           <span className="min-w-0 flex-1 truncate">
-                            {list.title}
+                            {listDisplayTitle(list)}
                             {list.privacy !== "public" && <small className="ml-1 inline-flex align-middle text-muted-foreground" aria-hidden="true">
                               {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
                             </small>}
@@ -1548,11 +1551,6 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                         </DropdownMenuCheckboxItem>;
                       }) : <p className="px-2 py-6 text-center text-xs text-muted-foreground">В этом пространстве пока нет списков.</p>}
                     </div>
-                    {listSelectionChanged && <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} closeOnClick={false} onClick={() => setSelectedListIds([...(wish.listIds || [])])}><RotateCcw /> Отменить изменения</DropdownMenuItem>
-                      <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base font-medium" disabled={busy} closeOnClick={false} onClick={saveLists}>{busy ? <LoaderCircle className="spin" /> : <Check />} Сохранить списки</DropdownMenuItem>
-                    </>}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </>}
@@ -1577,7 +1575,16 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   );
 }
 
-function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, isDropTarget }) {
+function WishGroupMoveSubmenu({ lists, busy, onMove }) {
+  return <DropdownMenuSub>
+    <DropdownMenuSubTrigger className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy || lists.length === 0}><FolderInput />Переместить в список</DropdownMenuSubTrigger>
+    <DropdownMenuSubContent className="w-64 max-w-[calc(100vw-24px)] rounded-2xl p-2">
+      {lists.map((list) => <DropdownMenuItem key={list.id} className="min-h-12 rounded-xl px-3 text-base" disabled={busy} onClick={() => onMove(list)}>{listDisplayTitle(list)}</DropdownMenuItem>)}
+    </DropdownMenuSubContent>
+  </DropdownMenuSub>;
+}
+
+function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMove, onDisband, isDropTarget }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -1611,6 +1618,11 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, isDropTarge
     setBusy(false);
     if (disbanded) setDisbandOpen(false);
   };
+  const move = async (targetList) => {
+    setBusy(true);
+    await onMove(targetList);
+    setBusy(false);
+  };
   return <>
   <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`}>
     <ShadcnButton type="button" variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`}>
@@ -1625,7 +1637,7 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, isDropTarge
       {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
-        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
       </div>
     </div>
   </div>
@@ -1638,7 +1650,7 @@ function WishGroupTile({ group, wishes, onOpen, onRename, onDisband, isDropTarge
   </>;
 }
 
-function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDisband, mutationBusy = false }) {
+function WishGroupOpenHeader({ group, wishesCount, moveTargets = [], onClose, onRename, onMove, onDisband, mutationBusy = false }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -1676,10 +1688,16 @@ function WishGroupOpenHeader({ group, wishesCount, onClose, onRename, onDisband,
     setBusy(false);
     if (disbanded) setDisbandOpen(false);
   };
+  const move = async (targetList) => {
+    if (mutationBusy) return;
+    setBusy(true);
+    await onMove(targetList);
+    setBusy(false);
+  };
   return <>
     <header>
       <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={interactionBusy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
-      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" disabled={interactionBusy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-60 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
+      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" disabled={interactionBusy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={interactionBusy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
     </header>
     {disbandOpen && <AlertDialog open={disbandOpen} onOpenChange={(open) => { if (!interactionBusy) setDisbandOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={interactionBusy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={interactionBusy} aria-busy={interactionBusy || undefined} onClick={disband}>{interactionBusy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
   </>;
@@ -1782,12 +1800,14 @@ function WishesPage({ onAdd, version }) {
   const visibleWishes = [...dashboardWishes]
     .sort((a, b) => (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER));
   const listsById = new Map(dashboardLists.map((list) => [list.id, list]));
-  const categoryLists = dashboardLists.filter((list) => !isGeneralList(list) && listSpace(list) === selectedSpace);
+  const allCategoryLists = dashboardLists.filter((list) => !isGeneralList(list));
+  const categoryLists = allCategoryLists.filter((list) => listSpace(list) === selectedSpace);
   const generalList = dashboardLists.find(isGeneralList) || null;
   const groupingListId = selected === "all" ? generalList?.id : selected;
   const spaceWishes = visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
+  const unlistedWishes = filterWishesWithoutList(spaceWishes, allCategoryLists);
   const wishCountForList = (listId) => spaceWishes.filter((wish) => wish.listIds.includes(listId)).length;
-  const wishes = selected === "all" ? spaceWishes : spaceWishes.filter((wish) => wish.listIds.includes(selected));
+  const wishes = selected === "all" ? unlistedWishes : spaceWishes.filter((wish) => wish.listIds.includes(selected));
   const groups = filterWishGroups({
     groups: data?.groups,
     listId: groupingListId,
@@ -1800,6 +1820,10 @@ function WishesPage({ onAdd, version }) {
   const openedGroup = groups.find((group) => group.id === openedGroupId) || null;
   const openedGroupWishes = openedGroup ? wishes.filter((wish) => openedGroup.wishIds.includes(wish.id)) : [];
   const selectedList = categoryLists.find((list) => list.id === selected) || null;
+  const groupMoveTargets = [
+    ...(generalList && groupingListId !== generalList.id ? [{ ...generalList, title: UNSORTED_LIST_TITLE }] : []),
+    ...categoryLists.filter((list) => list.id !== groupingListId),
+  ];
   const selectedWish = selectedWishId ? dashboardWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? dashboardWishes.find((wish) => wish.id === editingWishId) : null;
   useEffect(() => {
@@ -2087,6 +2111,19 @@ function WishesPage({ onAdd, version }) {
     }
     catch (error) { toast(error.message, "error"); return false; }
   };
+  const moveGroup = async (group, targetList) => {
+    try {
+      const result = await api.post(`/lists/${encodeURIComponent(group.listId)}/groups/${encodeURIComponent(group.id)}/move`, { targetListId: targetList.id });
+      updateData((current) => moveWishGroupInDashboard(current, result));
+      if (openedGroupId === group.id) setOpenedGroupId(null);
+      toast(`Группа перемещена в «${listDisplayTitle(targetList)}»`);
+      void reload({ background: true }).catch(() => {});
+      return true;
+    } catch (error) {
+      toast(error.message || "Не удалось переместить группу", "error");
+      return false;
+    }
+  };
   const disbandGroup = async (groupId, listId) => {
     try {
       await api.delete(`/lists/${listId}/groups/${groupId}`);
@@ -2190,9 +2227,10 @@ function WishesPage({ onAdd, version }) {
           : validReorderTarget ? `wish:${wishId}` : null;
     if (target && target !== drag.hoverTarget) {
       drag.hoverTarget = target;
-      // Group only after a short dwell; otherwise use the same reorder gesture everywhere.
+      // Reorder immediately in every grid. A deliberate dwell still arms grouping,
+      // and createGroup restores the original order before changing membership.
+      if (validReorderTarget) reorderWish(drag.wishId, wishId);
       if (dragGroupId || !groupingListId) {
-        if (wishId) reorderWish(drag.wishId, wishId);
         clearGroupIntent();
       } else {
         armGroupIntent(target);
@@ -2318,9 +2356,9 @@ function WishesPage({ onAdd, version }) {
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{categoryLists.length > 0 && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний"><ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName("Мои желания", spaceWishes.length)}><ListTileContent title="Мои желания" count={spaceWishes.length} /></ToggleGroupItem>{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selected]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} moveTargets={groupMoveTargets} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onMove={(targetList) => moveGroup(openedGroup, targetList)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -2359,7 +2397,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   const reservationUnavailable = wish.reservationCount > 0 && !wish.allowMultiple && !wish.reservedByMe;
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
   const linkedLists = categoryLists.filter((list) => selectedListIds.includes(list.id));
-  const linkedListNames = linkedLists.map((list) => list.title);
+  const linkedListNames = linkedLists.map(listDisplayTitle);
   const listLabel = linkedListNames.length > 1 ? `${linkedListNames[0]} +${linkedListNames.length - 1}` : linkedListNames[0] || "Без списка";
   const listTitleText = linkedListNames.join(", ") || "Без списка";
   const previewImageUrl = wishPreviewImageUrl(wish);
@@ -2389,7 +2427,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     setSelectedListIds(nextIds);
     const updatedWish = await update(
       { listIds: nextIds },
-      selected ? `Желание убрано из списка «${list.title}»` : `Желание добавлено в список «${list.title}»`,
+      selected ? `Желание убрано из списка «${listDisplayTitle(list)}»` : `Желание добавлено в список «${listDisplayTitle(list)}»`,
     );
     setSelectedListIds(updatedWish ? normalizeListIds(updatedWish.listIds) : previousIds);
     listMutationRef.current = false;
@@ -2412,7 +2450,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           onCheckedChange={() => toggleList(list)}
         >
           <span className="card-menu__list-title">
-            {list.title}
+            {listDisplayTitle(list)}
             {list.privacy !== "public" && <small className="card-menu__list-privacy" aria-hidden="true">
               {list.privacy === "private" ? <LockKeyhole /> : list.privacy === "link" ? <Link2 /> : <Users />}
             </small>}
@@ -3047,7 +3085,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                     const selected = form.listIds.includes(list.id);
                     const listSwitchId = fieldId(`list-${list.id}`);
                     return <Field orientation="horizontal" className={`wish-editor__list-row min-h-12 gap-3 rounded-lg py-1.5 ${selected ? "is-selected" : ""}`} key={list.id}>
-                      <FieldLabel className="wish-editor__list-title min-w-0 flex-1 cursor-pointer" htmlFor={listSwitchId}>{list.title}</FieldLabel>
+                      <FieldLabel className="wish-editor__list-title min-w-0 flex-1 cursor-pointer" htmlFor={listSwitchId}>{listDisplayTitle(list)}</FieldLabel>
                       <Switch
                         id={listSwitchId}
                         className="wish-editor__list-switch"
@@ -3528,10 +3566,13 @@ function PublicProfile({ shared = false }) {
   const navigationLists = shared ? lists : lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace);
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const spaceWishes = shared ? visibleWishes : visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
+  const unlistedWishes = !shared && data.isOwner
+    ? filterWishesWithoutList(spaceWishes, lists.filter((list) => !isGeneralList(list)))
+    : spaceWishes;
   const wishes = shared
     ? visibleWishes
     : selectedValue === "all"
-      ? spaceWishes
+      ? unlistedWishes
       : spaceWishes.filter((wish) => wish.listIds.includes(selectedValue));
   const selectedWish = selectedWishId ? visibleWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
@@ -3692,11 +3733,11 @@ function PublicProfile({ shared = false }) {
       </div>
     </section>
 
-    {(shared || navigationLists.length > 0) && <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
+    {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
       <div className="list-tabs__track">
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-          <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания", spaceWishes.length)}><ListTileContent title={shared ? data.list.title : ownerCollection ? "Мои желания" : "Все желания"} count={spaceWishes.length} /></ToggleGroupItem>
-          {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={list.title} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
+          {(!ownerCollection || shouldShowUnsortedList(unlistedWishes.length)) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания", unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания"} count={unlistedWishes.length} /></ToggleGroupItem>}
+          {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
       </div>
