@@ -199,4 +199,52 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   const savedTransportGroup = scopedDashboard.groups.find((item) => item.id === transportGroupPayload.group.id);
   assert.equal(savedTransportGroup.space, "transport");
   assert.deepEqual(new Set(savedTransportGroup.wishIds), new Set([scopedFirst.id, transportWish.id]));
+
+  const moveSourceResponse = await post("/lists", { title: "Откуда", space: "products" }, cookie);
+  const moveSource = (await moveSourceResponse.json()).list;
+  const moveTargetResponse = await post("/lists", { title: "Куда", space: "products" }, cookie);
+  const moveTarget = (await moveTargetResponse.json()).list;
+  const moveFirst = await createWish("Перенести один", cookie);
+  const moveSecond = await createWish("Перенести два", cookie);
+  const targetBlocker = await createWish("Уже в целевой группе", cookie);
+  const movingGroupResponse = await post(`/lists/${moveSource.id}/groups`, {
+    wishIds: [moveFirst.id, moveSecond.id],
+  }, cookie);
+  const movingGroup = (await movingGroupResponse.json()).group;
+  const sameListMoveResponse = await post(`/lists/${moveSource.id}/groups/${movingGroup.id}/move`, {
+    targetListId: moveSource.id,
+  }, cookie);
+  assert.equal(sameListMoveResponse.status, 400);
+  assert.deepEqual(await sameListMoveResponse.json(), { error: "Группа уже находится в этом списке" });
+
+  const occupiedTargetResponse = await post(`/lists/${moveTarget.id}/groups`, {
+    wishIds: [moveFirst.id, targetBlocker.id],
+  }, cookie);
+  const occupiedTargetGroup = (await occupiedTargetResponse.json()).group;
+  const conflictMoveResponse = await post(`/lists/${moveSource.id}/groups/${movingGroup.id}/move`, {
+    targetListId: moveTarget.id,
+  }, cookie);
+  assert.equal(conflictMoveResponse.status, 409);
+  assert.deepEqual(await conflictMoveResponse.json(), { error: "Одно из желаний уже находится в группе в выбранном списке" });
+  assert.equal((await remove(`/lists/${moveTarget.id}/groups/${occupiedTargetGroup.id}`, cookie)).status, 200);
+
+  const moveResponse = await post(`/lists/${moveSource.id}/groups/${movingGroup.id}/move`, {
+    targetListId: moveTarget.id,
+  }, cookie);
+  const movePayload = await moveResponse.json();
+  assert.equal(moveResponse.status, 200, JSON.stringify(movePayload));
+  assert.equal(movePayload.group.listId, moveTarget.id);
+  assert.equal(movePayload.group.title, "Группа");
+  assert.deepEqual(new Set(movePayload.group.wishIds), new Set([moveFirst.id, moveSecond.id]));
+  assert.deepEqual(new Set(movePayload.removedFromSourceWishIds), new Set([moveFirst.id, moveSecond.id]));
+
+  const movedDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
+  const movedDashboard = await movedDashboardResponse.json();
+  assert.equal(movedDashboardResponse.status, 200);
+  assert.equal(movedDashboard.groups.find((item) => item.id === movingGroup.id)?.listId, moveTarget.id);
+  for (const wishId of [moveFirst.id, moveSecond.id]) {
+    const movedWish = movedDashboard.wishes.find((wish) => wish.id === wishId);
+    assert.ok(movedWish.listIds.includes(moveTarget.id));
+    assert.ok(!movedWish.listIds.includes(moveSource.id));
+  }
 });

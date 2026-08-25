@@ -4626,7 +4626,7 @@ async function expectFulfilledActionContrast(page, dialog, label) {
 async function expectNewListTile(page, label) {
   const generalTile = page.locator(".wishes-page .list-tabs [data-slot='toggle-group-item']").first();
   await generalTile.waitFor({ state: "visible" });
-  assert((await generalTile.innerText()).includes("Мои желания"), `${label} first list tile is not the general wish list`);
+  assert((await generalTile.innerText()).includes("Не отсортированные"), `${label} first list tile is not the unsorted wish list`);
   assert(await generalTile.locator(":scope > svg").count() === 0, `${label} first list tile still shows the heart icon`);
 
   const tile = page.locator(".list-tabs__add");
@@ -6090,34 +6090,45 @@ try {
       const { listMenu } = await openOwnerWishListMenu(ownerWidePage, portalMenu.menu, wishToMove);
       const sourceOption = listMenu.getByRole("menuitemcheckbox", { name: sourceList.title, exact: true });
       const targetOption = listMenu.getByRole("menuitemcheckbox", { name: targetList.title, exact: true });
-      assert(await sourceOption.getAttribute("aria-checked") === "true", "Wish list draft should start with the source list selected");
-      assert(await targetOption.getAttribute("aria-checked") === "false", "Wish list draft should start with the target list unselected");
+      assert(await sourceOption.getAttribute("aria-checked") === "true", "Wish list picker should start with the source list selected");
+      assert(await targetOption.getAttribute("aria-checked") === "false", "Wish list picker should start with the target list unselected");
+      assert(await listMenu.getByRole("menuitem", { name: "Сохранить списки", exact: true }).count() === 0, "Wish list picker still exposes a redundant Save action");
+      assert(await listMenu.getByRole("menuitem", { name: "Отменить изменения", exact: true }).count() === 0, "Wish list picker still exposes draft cancellation");
 
-      await sourceOption.click();
-      await targetOption.click();
-      assert(await sourceOption.getAttribute("aria-checked") === "false", "Wish list draft did not remove the source list");
-      assert(await targetOption.getAttribute("aria-checked") === "true", "Wish list draft did not add the target list");
-      await ownerWidePage.waitForTimeout(100);
-      assert(wishPatchRequests.length === 0, "Changing draft list rows sent a PATCH before Save");
-
-      const saveDraft = listMenu.getByRole("menuitem", { name: "Сохранить списки", exact: true });
-      await saveDraft.waitFor({ state: "visible" });
-      const updateResponsePromise = ownerWidePage.waitForResponse((response) => (
+      const addResponsePromise = ownerWidePage.waitForResponse((response) => (
         response.request().method() === "PATCH"
         && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}`
       ));
-      await saveDraft.click();
-      const updateResponse = await updateResponsePromise;
-      assert(updateResponse.ok(), `Wish list update failed: ${updateResponse.status()}`);
-      const updatePayload = await updateResponse.json();
-      assert(updatePayload.wish && sameMembers(updatePayload.wish.listIds, [targetList.id]), "Wish list PATCH returned the wrong membership");
-      await listMenu.waitFor({ state: "detached" });
-      await portalMenu.menu.waitFor({ state: "detached" });
-      assert(wishPatchRequests.length === 1, `Wish list Save should send exactly one PATCH, sent ${wishPatchRequests.length}`);
-      const patchBody = wishPatchRequests[0].postDataJSON();
-      assert(Array.isArray(patchBody.listIds) && sameMembers(patchBody.listIds, [targetList.id]), "Wish list Save sent the wrong listIds payload");
-      assert(await portalMenu.trigger.getAttribute("aria-expanded") === "false", "Wish list Save left the root menu expanded");
-      await expectNoWishDetail(ownerWidePage, "Desktop list draft persistence");
+      await targetOption.click();
+      const addResponse = await addResponsePromise;
+      assert(addResponse.ok(), `Immediate wish list addition failed: ${addResponse.status()}`);
+      const addPayload = await addResponse.json();
+      assert(addPayload.wish && sameMembers(addPayload.wish.listIds, [sourceList.id, targetList.id]), "Immediate wish list addition returned the wrong membership");
+      assert(wishPatchRequests.length === 1, `Wish list addition should send one PATCH, sent ${wishPatchRequests.length}`);
+      const addBody = wishPatchRequests[0].postDataJSON();
+      assert(Array.isArray(addBody.listIds) && sameMembers(addBody.listIds, [sourceList.id, targetList.id]), "Wish list addition sent the wrong listIds payload");
+      assert(await targetOption.getAttribute("aria-checked") === "true", "Wish list picker did not show the added target list");
+
+      const removeResponsePromise = ownerWidePage.waitForResponse((response) => (
+        response.request().method() === "PATCH"
+        && new URL(response.url()).pathname === `/api/wishes/${wishToMove.id}`
+      ));
+      await sourceOption.click();
+      const removeResponse = await removeResponsePromise;
+      assert(removeResponse.ok(), `Immediate wish list removal failed: ${removeResponse.status()}`);
+      const removePayload = await removeResponse.json();
+      assert(removePayload.wish && sameMembers(removePayload.wish.listIds, [targetList.id]), "Immediate wish list removal returned the wrong membership");
+      assert(wishPatchRequests.length === 2, `Two wish list choices should send two PATCH requests, sent ${wishPatchRequests.length}`);
+      const removeBody = wishPatchRequests[1].postDataJSON();
+      assert(Array.isArray(removeBody.listIds) && sameMembers(removeBody.listIds, [targetList.id]), "Wish list removal sent the wrong listIds payload");
+      if (await listMenu.isVisible()) {
+        assert(await sourceOption.getAttribute("aria-checked") === "false", "Wish list picker did not show the removed source list");
+        await ownerWidePage.keyboard.press("Escape");
+        await listMenu.waitFor({ state: "detached" });
+        await ownerWidePage.keyboard.press("Escape");
+        await portalMenu.menu.waitFor({ state: "detached" });
+      }
+      await expectNoWishDetail(ownerWidePage, "Desktop immediate list persistence");
     } finally {
       ownerWidePage.off("request", captureWishPatch);
     }

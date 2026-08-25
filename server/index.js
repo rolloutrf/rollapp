@@ -11,7 +11,7 @@ import { initializeDatabase } from "./schema.js";
 import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
-import { deleteOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
+import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
@@ -1851,6 +1851,20 @@ app.patch("/api/lists/:listId/groups/:groupId", requireAuth, asyncRoute(async (r
   );
   if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
   res.json({ group: { id: result.rows[0].id, title: result.rows[0].title } });
+}));
+
+app.post("/api/lists/:listId/groups/:groupId/move", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ targetListId: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите список для переноса" });
+  const outcome = await runWishGroupTransaction(req.params.listId, (client) => moveOwnedWishGroup({
+    client,
+    groupId: req.params.groupId,
+    sourceListId: req.params.listId,
+    targetListId: parsed.data.targetListId,
+    userId: req.user.id,
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.json(outcome);
 }));
 
 app.delete("/api/lists/:listId/groups/:groupId", requireAuth, asyncRoute(async (req, res) => {
