@@ -14,9 +14,12 @@ function createMemoryPool() {
 
 function createPostgresPool(connectionString) {
   const caPath = path.resolve(__dirname, "../certs/yandex-cloud-ca.pem");
-  const ssl = fs.existsSync(caPath)
-    ? { rejectUnauthorized: true, ca: fs.readFileSync(caPath, "utf8") }
-    : { rejectUnauthorized: true };
+  const tlsServername = process.env.PGSSL_SERVERNAME?.trim();
+  const ssl = {
+    rejectUnauthorized: true,
+    ...(fs.existsSync(caPath) ? { ca: fs.readFileSync(caPath, "utf8") } : {}),
+    ...(tlsServername ? { servername: tlsServername } : {}),
+  };
 
   return new pg.Pool({
     connectionString,

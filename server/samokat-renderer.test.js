@@ -59,6 +59,7 @@ test("browser allowlist is limited to Samokat and its challenge provider", () =>
     "https://samokat.ru/product/onion",
     "https://api-web.samokat.ru/v2/showcases/list",
     "https://servicepipe.tech/static/check.js",
+    "https://captcha.servicepipe.tech/captcha.js",
     "https://cdn.servicepipe.tech/challenge.js",
     "data:text/plain,ok",
   ]) assert.equal(isAllowedSamokatBrowserUrl(value), true, value);
@@ -93,6 +94,26 @@ test("deduplicates concurrent renders of the same canonical product", async () =
   assert.equal(calls, 1);
   assert.equal(left.html, productHead);
   assert.equal(right.url.href, left.url.href);
+});
+
+test("allows a configured interactive Samokat check to extend the render deadline", { concurrency: false }, async () => {
+  const previousTimeout = process.env.RETAILER_BROWSER_INTERACTIVE_TIMEOUT_MS;
+  process.env.RETAILER_BROWSER_INTERACTIVE_TIMEOUT_MS = "3000";
+  let receivedTimeoutMs = 0;
+  try {
+    await renderSamokatProductHtml("https://samokat.ru/product/kivi-600-g", {
+      timeoutMs: 2_000,
+      renderPage: async (url, options) => {
+        receivedTimeoutMs = options.timeoutMs;
+        return { html: productHead, url };
+      },
+    });
+  } finally {
+    if (previousTimeout === undefined) delete process.env.RETAILER_BROWSER_INTERACTIVE_TIMEOUT_MS;
+    else process.env.RETAILER_BROWSER_INTERACTIVE_TIMEOUT_MS = previousTimeout;
+  }
+
+  assert.equal(receivedTimeoutMs, 3_000);
 });
 
 test("gives a queued retailer job a fresh render deadline after it gets the slot", async () => {

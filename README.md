@@ -21,24 +21,30 @@ The product is an independent functional alternative to popular wishlist service
 
 For exact Yandex Lavka, Lenta, and Samokat product links, the metadata endpoint
 first tries the ordinary SSRF-protected HTML fetch. Lavka currently exposes its
-Product JSON-LD directly. If Qrator or Servicepipe protects a Lenta or Samokat
-card, Rollapp can open only that product in an isolated Chromium context. A
-result is accepted only when the final URL still identifies the same product,
-Product JSON-LD is present, and its image belongs to that retailer's product
-CDN. Prices are snapshots for the server/default store region and may differ at
-the user's address.
+Product JSON-LD directly. Lenta can use an isolated Chromium fallback. Samokat
+browser rendering is enabled only when an approved CDP renderer is explicitly
+configured. A result is accepted only when
+the final URL still identifies the same product, Product JSON-LD is present, and
+its image belongs to that retailer's product CDN. Prices are snapshots for the
+server/default store region and may differ at the user's address.
 
-The runtime Docker image contains Chromium and Xvfb. A fresh server IP can still
-receive an interactive Servicepipe CAPTCHA; Rollapp deliberately does not solve
-or bypass it and returns a local branded preview without caching the failure.
-For reliable production imports, point `RETAILER_BROWSER_CDP_URL` at an approved
-browser renderer (or use an official retailer data integration). The browser's
+The runtime Docker image contains Chromium and Xvfb. Rollapp deliberately does
+not solve or bypass interactive CAPTCHAs. For reliable production Samokat
+imports, point `RETAILER_BROWSER_CDP_URL` at an approved browser renderer or use
+an official retailer data integration. The browser's
 network allowlist changes per retailer, requests are serialized and deduplicated,
 service workers are disabled, and application secrets are not passed to the
 browser process. A remote CDP renderer must additionally enforce an outbound
 firewall that blocks loopback, private, link-local, and metadata-service ranges;
 the application checks public DNS but cannot pin DNS inside a third-party
 browser. Existing `SAMOKAT_*` settings remain supported as aliases.
+
+For a local browser-assisted food-retailer workflow, load the companion
+extension from `browser-extension/` in Chrome or Comet. On an explicit import it
+opens the exact Samokat, Yandex Lavka or Lenta product in an inactive tab of the
+user's regular browser profile, returns only the product metadata to Rollapp and
+closes the temporary tab. The extension is limited to product pages on those
+three stores, localhost and the production Rollapp origin.
 
 ## Local development
 
@@ -51,7 +57,7 @@ npm run dev
 
 Open `http://localhost:5173`. When `DATABASE_URL`/`PGHOST` is absent, the server uses an in-memory PostgreSQL-compatible demo database. Use **Try demo** or sign in as `demo@rollapp.test` / `demo1234`.
 
-`APP_ORIGIN` must contain the local frontend origin (normally `http://localhost:5173`). The development server treats it as trusted when Vite proxies `/api` to port 8080. To keep the local copy connected to persistent PostgreSQL, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and either `PGPASSWORD` or the Yandex Lockbox variables in `.env`, then run `npm run dev`.
+`APP_ORIGIN` must contain the local frontend origin (normally `http://localhost:5173`). The development server treats it as trusted when Vite proxies `/api` to port 8080. To keep the local copy connected to persistent PostgreSQL, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and either `PGPASSWORD` or the Yandex Lockbox variables in `.env`, then run `npm run dev`. For a private Managed PostgreSQL cluster through an SSH tunnel, point the connection at `127.0.0.1:<local-port>` and set `PGSSL_SERVERNAME` to the original cluster FQDN; TLS certificate verification stays enabled.
 
 Useful commands:
 

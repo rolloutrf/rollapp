@@ -165,6 +165,7 @@ export function isAllowedRetailerBrowserUrl(retailerId, value) {
       "api-web.samokat.ru",
       "damcdn.samokat.ru",
       "servicepipe.tech",
+      "captcha.servicepipe.tech",
       "cdn.servicepipe.tech",
     ].includes(hostname);
   }

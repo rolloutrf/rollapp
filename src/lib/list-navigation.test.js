@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  isGeneralList, listDisplayTitle, shouldShowListNavigation, shouldShowUnsortedList, UNSORTED_LIST_TITLE,
+  isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
+  shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./list-navigation.js";
 
 const supportedSpaces = ["products", "places", "events", "media", "food", "transport", "pets"];
@@ -28,6 +29,16 @@ test("existing and shared collections keep their navigation", () => {
 test("the unsorted list is hidden when it has no wishes", () => {
   assert.equal(shouldShowUnsortedList(0), false);
   assert.equal(shouldShowUnsortedList(1), true);
+});
+
+test("the first visible list is selected when the unsorted list is hidden", () => {
+  const lists = [{ id: "lifestyle" }, { id: "health" }];
+  assert.equal(resolveVisibleListSelection("all", lists, false), "lifestyle");
+  assert.equal(resolveVisibleListSelection("health", lists, false), "health");
+});
+
+test("an empty collection keeps the unsorted fallback", () => {
+  assert.equal(resolveVisibleListSelection("all", [], false), "all");
 });
 
 test("the technical general list is always displayed as unsorted", () => {

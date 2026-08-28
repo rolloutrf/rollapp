@@ -95,6 +95,7 @@ test("accepts only each retailer's product image CDN and path", () => {
 
 test("keeps browser network policies isolated by retailer", () => {
   assert.equal(isAllowedRetailerBrowserUrl("samokat", "https://servicepipe.tech/check.js"), true);
+  assert.equal(isAllowedRetailerBrowserUrl("samokat", "https://captcha.servicepipe.tech/captcha.js"), true);
   assert.equal(isAllowedRetailerBrowserUrl("lenta", "https://servicepipe.tech/check.js"), false);
   assert.equal(isAllowedRetailerBrowserUrl("lenta", "https://sitecdn.api.lenta.com/app.js"), true);
   assert.equal(isAllowedRetailerBrowserUrl("lenta", "wss://api.lenta.com/socket"), false);

@@ -1561,7 +1561,7 @@ async function getWishes(userId, viewerId = null, includePrivate = false) {
     )`;
   const result = await query(
     `SELECT w.* FROM wishes w WHERE w.user_id=$1 ${privacyClause}
-     ORDER BY w.status='active' DESC, w.sort_order ASC, w.created_at DESC`,
+     ORDER BY w.sort_order ASC, w.created_at DESC`,
     params,
   );
   const wishes = result.rows.map(mapWish);
