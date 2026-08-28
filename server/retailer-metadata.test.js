@@ -40,6 +40,38 @@ test("prefers Lavka JSON-LD product data over its smaller social card", async ()
   });
 });
 
+test("reads Lavka's current product thumb when Product JSON-LD has no image", async () => {
+  const sourceUrl = "https://lavka.yandex.ru/good/chesnok-3-sht";
+  const image500 = "https://yastatic.net/avatars/get-grocery-goods/2998517/garlic/500x500?webp=true";
+  const image1200 = "https://yastatic.net/avatars/get-grocery-goods/2998517/garlic/1200x1200?webp=true";
+  const html = `
+    <script type="application/ld+json">
+      {
+        "@type": "Product",
+        "name": "Чеснок, 3 шт.",
+        "description": "Три головки чеснока",
+        "offers": { "@type": "Offer", "price": 80, "priceCurrency": "RUB" }
+      }
+    </script>
+    <div class="image__Z406y ProductThumb__Ji_uv" aria-hidden="true" data-testid="product-thumb">
+      <img data-testid="snippet-image" itemprop="image" src="${image500}" srcset="${image500} 1x, ${image1200} 2x">
+    </div>`;
+
+  const result = await resolveRetailerMetadata(sourceUrl, {
+    fetchHtml: async () => ({ html, url: new URL(sourceUrl) }),
+  });
+
+  assert.deepEqual(result, {
+    title: "Чеснок, 3 шт.",
+    description: "Три головки чеснока",
+    imageUrl: image1200,
+    price: 80,
+    currency: "RUB",
+    kind: "retailer",
+    previewFallback: false,
+  });
+});
+
 test("parses Lenta's live Product JSON-LD including its remote image and offer", async () => {
   const sourceUrl = "https://lenta.com/product/desert-kokosovyjj-170g-709085/";
   const html = `
@@ -147,6 +179,15 @@ test("does not start a browser during background retailer backfill", async () =>
   assert.equal(result.imageUrl, "/retailer-previews/lenta.svg");
 });
 
+test("does not open an automated Samokat browser without an approved renderer", async () => {
+  const result = await resolveRetailerMetadata("https://samokat.ru/product/kivi-600-g", {
+    fetchHtml: async () => { throw new MetadataFetchError("blocked", { code: "upstream_status" }); },
+  });
+
+  assert.equal(result.previewFallback, true);
+  assert.equal(result.imageUrl, "/retailer-previews/samokat.svg");
+});
+
 test("rejects retailer shells, untrusted images and redirects to another product", async () => {
   const lavkaUrl = "https://lavka.yandex.ru/good/petrushka-50-gram";
   const shell = await resolveRetailerMetadata(lavkaUrl, {
@@ -170,7 +211,10 @@ test("rejects retailer shells, untrusted images and redirects to another product
       html: `<script type="application/ld+json">{
         "@type":"Product","name":"Укроп","url":"https://lavka.yandex.ru/good/dill-50-gram",
         "image":"https://yastatic.net/avatars/get-grocery-goods/2998517/dill/500x500?webp=true"
-      }</script>`,
+      }</script>
+      <div data-testid="product-thumb">
+        <img data-testid="snippet-image" src="https://yastatic.net/avatars/get-grocery-goods/2998517/petrushka/1200x1200?webp=true">
+      </div>`,
       url: new URL(lavkaUrl),
     }),
   });
@@ -336,6 +380,54 @@ test("renders Samokat in a browser after Servicepipe blocks the direct request",
     kind: "retailer",
     previewFallback: false,
   });
+});
+
+test("reads Samokat's current product gallery when Product JSON-LD has no image", async () => {
+  const sourceUrl = "https://samokat.ru/product/pitakhayya-artfrut-1-sht";
+  const imageUrl = "https://damcdn.samokat.ru/dam-storage-ext-env-prod/2026/02/ea505434-ed1c-4f6e-ad8e-2ff1f750bfd6";
+  const html = `
+    <script type="application/ld+json">
+      {
+        "@type": "Product",
+        "name": "Питахайя Артфрут, 1 шт.",
+        "offers": { "@type": "Offer", "price": "299.00", "priceCurrency": "RUB" }
+      }
+    </script>
+    <div class="ProductMedia_imageContainer__J0Y5D">
+      <img alt="Питахайя Артфрут, 1 шт." fetchpriority="high" decoding="async" data-nimg="fill"
+        class="ProductMedia_image__bNGSK" src="${imageUrl}">
+    </div>`;
+
+  const result = await resolveRetailerMetadata(sourceUrl, {
+    fetchHtml: async () => { throw new MetadataFetchError("blocked"); },
+    renderSamokat: async () => ({ html, url: new URL(sourceUrl) }),
+  });
+
+  assert.deepEqual(result, {
+    title: "Питахайя Артфрут, 1 шт.",
+    description: "",
+    imageUrl,
+    price: 299,
+    currency: "RUB",
+    kind: "retailer",
+    previewFallback: false,
+  });
+});
+
+test("does not mistake another Samokat DAM asset for the product gallery", async () => {
+  const sourceUrl = "https://samokat.ru/product/onion";
+  const result = await resolveRetailerMetadata(sourceUrl, {
+    fetchHtml: async () => ({
+      html: `
+        <script type="application/ld+json">{"@type":"Product","name":"Лук"}</script>
+        <img class="Recommendation_image__abc" src="https://damcdn.samokat.ru/dam-storage-ext-env-prod/recommendation">`,
+      url: new URL(sourceUrl),
+    }),
+    allowBrowser: false,
+  });
+
+  assert.equal(result.imageUrl, "/retailer-previews/samokat.svg");
+  assert.equal(result.previewFallback, true);
 });
 
 test("rejects non-product Samokat images returned by a renderer", async () => {

@@ -284,6 +284,13 @@ async function createBrowserState(deadline, retailerId) {
   }
 }
 
+function interactiveBrowserTimeoutMs(retailerId) {
+  if (retailerId !== "samokat") return 0;
+  const configured = Number.parseInt(browserSetting("BROWSER_INTERACTIVE_TIMEOUT_MS"), 10);
+  if (Number.isFinite(configured) && configured > 0) return Math.min(configured, 180_000);
+  return 0;
+}
+
 function getBrowserState(deadline, retailerId) {
   if (!browserStatePromise) {
     let tracked;
@@ -457,7 +464,38 @@ async function renderWithChromium(url, { deadline, signal, retailerId }) {
     const pageState = await beforeDeadline(() => stateHandle.jsonValue(), deadline, retailerId);
     await settleWithin(() => stateHandle.dispose(), Math.min(250, remainingDeadlineMs(deadline)));
     if (pageState === "captcha") {
-      throw renderError(retailerId, `${retailer.label} запросил интерактивную проверку`, "captcha_required");
+      if (interactiveBrowserTimeoutMs(retailerId) <= 0) {
+        throw renderError(retailerId, `${retailer.label} запросил интерактивную проверку`, "captcha_required");
+      }
+      const productHandle = await beforeDeadline(() => page.waitForFunction(
+        () => Array.from(document.querySelectorAll('script[type="application/ld+json"]')).some((script) => {
+          const containsProduct = (value) => {
+            if (Array.isArray(value)) return value.some(containsProduct);
+            if (!value || typeof value !== "object") return false;
+            const types = Array.isArray(value["@type"]) ? value["@type"] : [value["@type"]];
+            if (types.some((type) => typeof type === "string" && /(?:^|[\/#:])Product$/i.test(type))) return true;
+            return Object.values(value).some(containsProduct);
+          };
+          try {
+            return containsProduct(JSON.parse((script.textContent || "").trim().replace(/;\s*$/, "")));
+          } catch {
+            return false;
+          }
+        }),
+        undefined,
+        { timeout: Math.max(1, remainingDeadlineMs(deadline)) },
+      ), deadline, retailerId);
+      await settleWithin(() => productHandle.dispose(), Math.min(250, remainingDeadlineMs(deadline)));
+    }
+    if (retailerId === "samokat") {
+      await beforeDeadline(
+        () => page.locator('img[class*="ProductMedia_image__"][src]').first().waitFor({
+          state: "attached",
+          timeout: Math.max(1, remainingDeadlineMs(deadline)),
+        }),
+        deadline,
+        retailerId,
+      );
     }
 
     const finalUrl = canonicalRetailerProductUrl(retailerId, page.url());
@@ -465,12 +503,16 @@ async function renderWithChromium(url, { deadline, signal, retailerId }) {
       throw renderError(retailerId, `${retailer.label} перенаправил на другую карточку`, "browser_redirected");
     }
     const html = await beforeDeadline(
-      () => page.evaluate(() => {
+      () => page.evaluate((currentRetailer) => {
         const productScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
           .map((script) => script.outerHTML)
           .join("");
-        return `<head>${document.head?.innerHTML || ""}</head><body>${productScripts}</body>`;
-      }),
+        const productImage = currentRetailer === "samokat"
+          ? document.querySelector('.swiper-slide-active img[class*="ProductMedia_image__"][src]')
+            || document.querySelector('img[class*="ProductMedia_image__"][src]')
+          : null;
+        return `<head>${document.head?.innerHTML || ""}</head><body>${productScripts}${productImage?.outerHTML || ""}</body>`;
+      }, retailerId),
       deadline,
       retailerId,
     );
@@ -583,7 +625,11 @@ export async function renderRetailerProductHtml(retailerId, value, {
   }
   const url = canonicalRetailerProductUrl(retailerId, value);
   const fallbackTimeout = retailerId === "lenta" ? LENTA_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
-  const boundedTimeoutMs = Math.min(25_000, Math.max(2_000, Number(timeoutMs) || fallbackTimeout));
+  const interactiveTimeoutMs = interactiveBrowserTimeoutMs(retailerId);
+  const boundedTimeoutMs = Math.min(
+    interactiveTimeoutMs > 0 ? 180_000 : 25_000,
+    Math.max(2_000, Number(timeoutMs) || fallbackTimeout, interactiveTimeoutMs),
+  );
   const queueDeadline = Date.now() + boundedTimeoutMs;
   const jobKey = `${retailerId}:${url.href}`;
   const current = renderJobs.get(jobKey);

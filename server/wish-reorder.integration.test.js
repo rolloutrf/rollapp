@@ -72,7 +72,7 @@ test("wish reorder persists the complete owned order in the demo database", asyn
   const reordered = await reorderedResponse.json();
   assert.deepEqual(reordered.wishes.map((wish) => wish.id), reversedIds);
 
-  const fulfilledIds = reversedIds.slice(-2);
+  const fulfilledIds = reversedIds.slice(0, 2);
   for (const wishId of fulfilledIds) {
     const fulfilledResponse = await request(`/wishes/${wishId}/fulfilled`, {
       method: "POST",
@@ -85,6 +85,11 @@ test("wish reorder persists the complete owned order in the demo database", asyn
   const mixedBeforeResponse = await request("/dashboard", { cookie });
   assert.equal(mixedBeforeResponse.status, 200);
   const mixedBefore = await mixedBeforeResponse.json();
+  assert.deepEqual(
+    mixedBefore.wishes.map((wish) => wish.id),
+    reversedIds,
+    "fulfilling wishes must not change their positions",
+  );
   const activeBefore = mixedBefore.wishes
     .filter((wish) => wish.status === "active")
     .map((wish) => wish.id);

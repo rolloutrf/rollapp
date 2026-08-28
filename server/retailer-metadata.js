@@ -6,7 +6,9 @@ import { fetchPublicHtml, MetadataFetchError } from "./metadata-fetch.js";
 import {
   parseBusheMetadata,
   parseLavkaMetadata,
+  parseLavkaProductImage,
   parseProductMetadata,
+  parseSamokatProductImage,
   parseStructuredProductMetadata,
 } from "./metadata.js";
 import {
@@ -82,18 +84,24 @@ function metadataFromRetailerResponse(retailer, response, requestedUrl) {
     ? parseStructuredProductMetadata(html, url)
     : { productFound: false };
   if (hasChallengePage(html, structured.productFound) || hasUnresolvedChallenge(retailer, html, structured.productFound)) return null;
+  const verifiedImageUrl = strictProduct
+    ? [
+      structured.imageUrl,
+      retailer.id === "lavka" ? parseLavkaProductImage(html, url) : "",
+      retailer.id === "samokat" ? parseSamokatProductImage(html, url) : "",
+    ].find((imageUrl) => imageUrl && isTrustedRetailerImage(retailer.id, imageUrl, url)) || ""
+    : "";
   if (strictProduct) {
-    if (!structured.productFound || !structured.title || !structured.imageUrl) return null;
+    if (!structured.productFound || !structured.title || !verifiedImageUrl) return null;
     if (structured.productUrl && !isSameRetailerProduct(retailer.id, requestedUrl, structured.productUrl)) return null;
-    if (!isTrustedRetailerImage(retailer.id, structured.imageUrl, url)) return null;
   }
 
   const metadata = parseRetailerHtml(retailer, html, url);
   const genericShell = genericRetailerTitle(retailer, metadata.title) && metadata.price === null;
-  if (!metadata.imageUrl || genericShell) return null;
+  if ((!metadata.imageUrl && !verifiedImageUrl) || genericShell) return null;
   return {
     ...metadata,
-    imageUrl: strictProduct ? structured.imageUrl : metadata.imageUrl,
+    imageUrl: strictProduct ? verifiedImageUrl : metadata.imageUrl,
     kind: "retailer",
     previewFallback: false,
   };
@@ -143,7 +151,10 @@ export async function resolveRetailerMetadata(value, {
     : retailer.id === "lenta"
       ? renderLenta
       : null;
-  if (!allowBrowser || !renderer) return fallbackMetadata(retailer);
+  const hasApprovedSamokatRenderer = retailer.id !== "samokat"
+    || renderSamokat !== renderSamokatProductHtml
+    || Boolean(process.env.RETAILER_BROWSER_CDP_URL || process.env.SAMOKAT_BROWSER_CDP_URL);
+  if (!allowBrowser || !renderer || !hasApprovedSamokatRenderer) return fallbackMetadata(retailer);
   try {
     const effectiveRenderTimeout = Number(renderTimeoutMs)
       || (retailer.id === "lenta" ? 20_000 : 12_000);

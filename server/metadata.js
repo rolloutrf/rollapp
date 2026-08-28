@@ -595,15 +595,68 @@ export function parseStructuredProductMetadata(source, pageUrl) {
   };
 }
 
+function largestSrcsetImage(value, pageUrl) {
+  let best = { score: -1, imageUrl: "" };
+  for (const entry of decodeHtmlEntities(value).split(",")) {
+    const [candidate, descriptor = ""] = entry.trim().split(/\s+/, 2);
+    const imageUrl = resolveImageUrl(candidate, pageUrl);
+    if (!imageUrl) continue;
+    const size = /^(\d+(?:\.\d+)?)([wx])$/i.exec(descriptor);
+    const score = size
+      ? Number(size[1]) * (size[2].toLowerCase() === "x" ? 10_000 : 1)
+      : 0;
+    if (score > best.score) best = { score, imageUrl };
+  }
+  return best.imageUrl;
+}
+
+export function parseSamokatProductImage(source, pageUrl) {
+  const html = String(source ?? "");
+  const imageTags = html.matchAll(/<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi);
+
+  for (const imageTag of imageTags) {
+    const attributes = parseAttributes(imageTag[1]);
+    if (!/(?:^|\s)ProductMedia_image__[^\s]+(?:\s|$)/u.test(attributes.class || "")) continue;
+    const imageUrl = largestSrcsetImage(attributes.srcset || "", pageUrl)
+      || resolveImageUrl(attributes.src || attributes["data-src"] || "", pageUrl);
+    if (imageUrl) return imageUrl;
+  }
+  return "";
+}
+
+export function parseLavkaProductImage(source, pageUrl) {
+  const html = String(source ?? "");
+  const openingTag = /<([a-z][\w:-]*)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi;
+
+  for (const match of html.matchAll(openingTag)) {
+    const attributes = parseAttributes(match[2]);
+    if (attributes["data-testid"] !== "product-thumb") continue;
+
+    const rest = html.slice((match.index ?? 0) + match[0].length);
+    const closingTag = new RegExp(`</${match[1]}\\s*>`, "i").exec(rest);
+    const thumbHtml = closingTag ? rest.slice(0, closingTag.index) : rest.slice(0, 10_000);
+    const imageTags = thumbHtml.matchAll(/<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi);
+    for (const imageTag of imageTags) {
+      const imageAttributes = parseAttributes(imageTag[1]);
+      if (imageAttributes["data-testid"] !== "snippet-image") continue;
+      const imageUrl = largestSrcsetImage(imageAttributes.srcset || "", pageUrl)
+        || resolveImageUrl(imageAttributes.src || "", pageUrl);
+      if (imageUrl) return imageUrl;
+    }
+  }
+  return "";
+}
+
 export function parseLavkaMetadata(source, pageUrl) {
   const html = String(source ?? "");
   const generic = parseProductMetadata(html, pageUrl);
   const structured = parseStructuredProductMetadata(html, pageUrl);
+  const productImageUrl = parseLavkaProductImage(html, pageUrl);
 
   return {
     title: cleanText(structured.title, 160) || generic.title,
     description: cleanText(structured.description, 1_000) || generic.description,
-    imageUrl: structured.imageUrl || generic.imageUrl,
+    imageUrl: structured.imageUrl || productImageUrl || generic.imageUrl,
     price: structured.price ?? generic.price,
     currency: structured.price === null
       ? generic.currency

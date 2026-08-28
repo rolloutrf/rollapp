@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+process.env.NODE_ENV ||= "development";
+
 const children = new Set();
 let stopping = false;
 

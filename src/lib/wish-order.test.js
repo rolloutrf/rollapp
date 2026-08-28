@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { moveWishToTargetPosition, moveWishWithinSubset } from "./wish-order.js";
+import {
+  moveWishToTargetPosition,
+  moveWishWithinSubset,
+  resolveWishHoverMode,
+  wishRectOverlapRatio,
+} from "./wish-order.js";
 
 test("moveWishToTargetPosition moves a wish into a later target's original slot", () => {
   const order = ["first", "second", "third", "fourth"];
@@ -59,4 +64,28 @@ test("moveWishWithinSubset keeps fulfilled wishes in the server-defined status s
     moveWishWithinSubset(order, ["active-first", "active-second"], "active-first", "fulfilled-first"),
     order,
   );
+});
+
+test("resolveWishHoverMode reserves the center of a wish for grouping", () => {
+  const rect = { left: 100, right: 300, top: 50, bottom: 250, width: 200, height: 200 };
+
+  assert.equal(resolveWishHoverMode({ groupingEnabled: true, rect, clientX: 200, clientY: 150 }), "group");
+  assert.equal(resolveWishHoverMode({ groupingEnabled: true, rect, clientX: 140, clientY: 90 }), "group");
+});
+
+test("resolveWishHoverMode keeps the edges available for reordering", () => {
+  const rect = { left: 100, right: 300, top: 50, bottom: 250, width: 200, height: 200 };
+
+  assert.equal(resolveWishHoverMode({ groupingEnabled: true, rect, clientX: 110, clientY: 150 }), "reorder");
+  assert.equal(resolveWishHoverMode({ groupingEnabled: true, rect, clientX: 200, clientY: 240 }), "reorder");
+  assert.equal(resolveWishHoverMode({ groupingEnabled: false, rect, clientX: 200, clientY: 150 }), "reorder");
+});
+
+test("wishRectOverlapRatio detects a card visibly covering its neighbour", () => {
+  const dragged = { left: 180, right: 380, top: 100, bottom: 300 };
+  const target = { left: 300, right: 500, top: 100, bottom: 300 };
+
+  assert.equal(wishRectOverlapRatio(dragged, target), 0.4);
+  assert.equal(wishRectOverlapRatio(dragged, { left: 400, right: 600, top: 100, bottom: 300 }), 0);
+  assert.equal(wishRectOverlapRatio(null, target), 0);
 });

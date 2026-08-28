@@ -15,3 +15,11 @@ export function shouldShowListNavigation({ shared = false, canCreateList = false
 export function shouldShowUnsortedList(wishCount = 0) {
   return wishCount > 0;
 }
+
+export function resolveVisibleListSelection(selectedValue = "all", lists = [], showUnsorted = true) {
+  const visibleValues = [
+    ...(showUnsorted ? ["all"] : []),
+    ...lists.map((list) => list.id),
+  ];
+  return visibleValues.includes(selectedValue) ? selectedValue : (visibleValues[0] || "all");
+}

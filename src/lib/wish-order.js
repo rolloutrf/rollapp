@@ -22,3 +22,26 @@ export function moveWishWithinSubset(wishIds, movableWishIds = [], sourceId, tar
     movableIds.has(wishId) ? nextMovableOrder[movableIndex++] : wishId
   ));
 }
+
+export function resolveWishHoverMode({ groupingEnabled = false, rect, clientX, clientY }) {
+  if (!groupingEnabled || !rect || rect.width <= 0 || rect.height <= 0) return "reorder";
+
+  const horizontalInset = rect.width * 0.2;
+  const verticalInset = rect.height * 0.2;
+  const insideGroupingArea = clientX >= rect.left + horizontalInset
+    && clientX <= rect.right - horizontalInset
+    && clientY >= rect.top + verticalInset
+    && clientY <= rect.bottom - verticalInset;
+
+  return insideGroupingArea ? "group" : "reorder";
+}
+
+export function wishRectOverlapRatio(firstRect, secondRect) {
+  if (!firstRect || !secondRect) return 0;
+  const overlapWidth = Math.max(0, Math.min(firstRect.right, secondRect.right) - Math.max(firstRect.left, secondRect.left));
+  const overlapHeight = Math.max(0, Math.min(firstRect.bottom, secondRect.bottom) - Math.max(firstRect.top, secondRect.top));
+  const firstArea = Math.max(0, firstRect.right - firstRect.left) * Math.max(0, firstRect.bottom - firstRect.top);
+  const secondArea = Math.max(0, secondRect.right - secondRect.left) * Math.max(0, secondRect.bottom - secondRect.top);
+  const smallerArea = Math.min(firstArea, secondArea);
+  return smallerArea > 0 ? (overlapWidth * overlapHeight) / smallerArea : 0;
+}
