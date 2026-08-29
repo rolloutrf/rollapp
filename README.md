@@ -59,6 +59,16 @@ Open `http://localhost:5173`. When `DATABASE_URL`/`PGHOST` is absent, the server
 
 `APP_ORIGIN` must contain the local frontend origin (normally `http://localhost:5173`). The development server treats it as trusted when Vite proxies `/api` to port 8080. To keep the local copy connected to persistent PostgreSQL, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and either `PGPASSWORD` or the Yandex Lockbox variables in `.env`, then run `npm run dev`. For a private Managed PostgreSQL cluster through an SSH tunnel, point the connection at `127.0.0.1:<local-port>` and set `PGSSL_SERVERNAME` to the original cluster FQDN; TLS certificate verification stays enabled.
 
+### Persistent production database tunnel
+
+For local work with a private production database, set `ROLLAPP_TUNNEL_SSH_HOST`, `ROLLAPP_TUNNEL_SSH_USER` and (when needed) `ROLLAPP_TUNNEL_SSH_KEY` in the untracked `.env`. Then use:
+
+```bash
+npm run dev:production
+```
+
+The command starts a localhost-only SSH tunnel, reconnects it after network changes or Mac sleep, and restarts the local dev service with `PGSSL_SERVERNAME` set to the original database host. Check and stop the pair with `npm run dev:production:status` and `npm run dev:production:stop`.
+
 Useful commands:
 
 ```bash

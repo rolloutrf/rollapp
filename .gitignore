@@ -7,6 +7,8 @@ coverage/
 npm-debug.log*
 .dev-server.pid
 .dev-server.log
+.rollapp-db-tunnel.pid
+.rollapp-db-tunnel.log
 .rollapp-retailer-chrome/
 *.pem
 !certs/yandex-cloud-ca.pem
