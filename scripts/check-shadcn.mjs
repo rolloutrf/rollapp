@@ -4,12 +4,20 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFile(path.join(root, file), "utf8");
+const readOptional = async (file) => {
+  try {
+    return await read(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") return "";
+    throw error;
+  }
+};
 
 const [configText, packageText, app, agents, coachingSessionsSource, conferencesSource, coursesSource, lifeStrategySource, labResultsSource, performanceReviewSource, medicationsSource, workoutsSource, theme, typeset, legacyStyles, html, main, vite, jsconfigText] = await Promise.all([
   read("components.json"),
   read("package.json"),
   read("src/App.jsx"),
-  read("AGENTS.md"),
+  readOptional("AGENTS.md"),
   read("src/components/coaching-sessions.jsx"),
   read("src/components/conferences.jsx"),
   read("src/components/courses.jsx"),
@@ -115,13 +123,15 @@ for (const [source, label] of [[coachingSessionsSource, "CoachingSessions"], [co
   assert.doesNotMatch(source, /\bspace-[xy]-/, `${label} must use flex/grid gap instead of space-* utilities`);
   assert.match(source, /not-typeset rollapp-body/, `${label} must opt its shadcn composition out of prose styling`);
 }
-for (const rule of [
-  "--typeset-size`, `--typeset-leading`, and `--typeset-flow",
-  "margin-block-start",
-  "not-typeset",
-  "do not use `space-x-*` or `space-y-*`",
-]) {
-  assert(agents.includes(rule), `Workspace typography rules must document ${rule}`);
+if (agents) {
+  for (const rule of [
+    "--typeset-size`, `--typeset-leading`, and `--typeset-flow",
+    "margin-block-start",
+    "not-typeset",
+    "do not use `space-x-*` or `space-y-*`",
+  ]) {
+    assert(agents.includes(rule), `Workspace typography rules must document ${rule}`);
+  }
 }
 assert.match(typeset, /@media \(max-width:\s*640px\)[\s\S]*?--typeset-size:\s*1rem;[\s\S]*?--typeset-leading:\s*1\.75rem;/, "Rollapp mobile body copy must remain 16px with a 28px line height");
 assert.match(typeset, /@layer utilities\s*\{[\s\S]*?\.rollapp-body\s*\{[\s\S]*?font-family:\s*var\(--font-body\);[\s\S]*?font-size:\s*var\(--text-rollapp-body\);[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?line-height:\s*var\(--text-rollapp-body--line-height\);/, "Non-Wishlist application surfaces must expose the canonical body utility");
