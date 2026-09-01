@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   MetadataFetchError,
   fetchPublicHtml,
+  fetchPublicImage,
   fetchPublicJson,
   isPublicIpAddress,
   parsePublicHttpUrl,
@@ -180,6 +181,30 @@ test("fetchPublicJson parses a valid JSON response with charset parameters", asy
   assert.deepEqual(result.json, { title: "Video", author_name: "Author" });
   assert.deepEqual(requested, ["https://www.youtube.com/oembed?url=x&format=json"]);
   assert.equal(result.url.href, "https://www.youtube.com/oembed?url=x&format=json");
+});
+
+test("fetchPublicImage validates image bytes instead of trusting the response header", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+  const result = await fetchPublicImage("https://cdn.example/avatar.jpg", {
+    lookup,
+    request: async () => ({
+      statusCode: 200,
+      headers: { "content-type": "application/octet-stream" },
+      body: jpeg,
+      truncated: false,
+    }),
+  });
+  assert.equal(result.mimeType, "image/jpeg");
+  assert.equal(result.body, jpeg);
+
+  await assert.rejects(
+    fetchPublicImage("https://cdn.example/avatar.jpg", {
+      lookup,
+      request: async () => ({ statusCode: 200, headers: {}, body: Buffer.from("not an image"), truncated: false }),
+    }),
+    (error) => error instanceof MetadataFetchError && error.code === "not_image",
+  );
 });
 
 test("fetchPublicJson rejects non-JSON content types", async () => {

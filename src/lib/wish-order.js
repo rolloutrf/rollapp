@@ -23,6 +23,12 @@ export function moveWishWithinSubset(wishIds, movableWishIds = [], sourceId, tar
   ));
 }
 
+export function reorderScopeWishIds(visibleWishes = [], groupWishIds = null) {
+  const visibleWishIds = new Set(visibleWishes.map((wish) => wish?.id).filter(Boolean));
+  if (!Array.isArray(groupWishIds)) return visibleWishIds;
+  return new Set(groupWishIds.filter((wishId) => visibleWishIds.has(wishId)));
+}
+
 export function resolveWishHoverMode({ groupingEnabled = false, rect, clientX, clientY }) {
   if (!groupingEnabled || !rect || rect.width <= 0 || rect.height <= 0) return "reorder";
 

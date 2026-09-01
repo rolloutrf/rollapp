@@ -56,7 +56,12 @@ test("new accounts start with the configured default friend and may unfollow", a
     password: "demo1234",
   });
   assert.equal(registered.status, 201);
+  assert.equal((await registered.clone().json()).user.canDiscoverSpheres, false);
   const cookie = registered.headers.get("set-cookie").split(";", 1)[0];
+
+  const ownerLogin = await post("/auth/login", { email: "max@rollapp.test", password: "demo1234" });
+  assert.equal(ownerLogin.status, 200);
+  assert.equal((await ownerLogin.json()).user.canDiscoverSpheres, true);
 
   const subscriptions = await fetch(`${baseUrl}/people?scope=subscriptions`, {
     headers: { Cookie: cookie },

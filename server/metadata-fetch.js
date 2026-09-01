@@ -380,3 +380,34 @@ export async function fetchPublicJson(input, options = {}) {
 
   return { json, url, truncated: Boolean(response.truncated) };
 }
+
+function detectPublicImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer)) return "";
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+  return "";
+}
+
+export async function fetchPublicImage(input, options = {}) {
+  const { response, url } = await fetchPublicResource(input, options);
+  if (response.truncated) {
+    throw new MetadataFetchError("Изображение слишком большое", {
+      status: 413,
+      code: "image_too_large",
+    });
+  }
+  const mimeType = detectPublicImageMimeType(response.body);
+  if (!mimeType) {
+    throw new MetadataFetchError("По ссылке нет поддерживаемого изображения", {
+      code: "not_image",
+    });
+  }
+  return { body: response.body, mimeType, url };
+}

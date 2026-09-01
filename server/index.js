@@ -5,17 +5,33 @@ import express from "express";
 import helmet from "helmet";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
+import { VehicleCatalogUnavailableError, vehicleCatalog } from "./vehicle-catalog.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
+import { fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
+import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, mergeDirectOffers } from "./marketplace-resolvers.js";
+import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
+import { loadContactAvatar } from "./contact-avatars.js";
+import { contactAvatarPath, contactFromOverride, findContact, listContacts, mergeContactOverride } from "./contacts.js";
 import {
+  LAB_ATTENTION_ITEMS, LAB_REPORTS, LAB_TRENDS, mergeLabReportsByDate,
+} from "./lab-results-data.js";
+import {
+  isPdfBuffer, LAB_PDF_MAX_BYTES, LabPdfError, parseLabPdf,
+} from "./lab-pdf.js";
+import { generateIdentityReport, identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
+import { parsePerformanceReviewPdf } from "./performance-review-pdf.js";
+import { identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
+import {
+  previewBackfillPatch,
   resolvePreviewBackfillMetadata,
   selectPreviewBackfillCandidates,
 } from "./preview-backfill.js";
@@ -23,15 +39,20 @@ import {
   bookmateApiUrl,
   isBookmateUrl,
   isKinopoiskUrl,
+  isVkVideoUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
   kinopoiskContentUrlError,
   parseBookmateMetadata,
   parseKinopoiskMetadata,
   parseProductMetadata,
+  parseVkVideoEmbedThumbnail,
+  parseVkVideoEmbedUrl,
+  parseVkVideoMetadata,
   parseYandexMapsMetadata,
   parseYouTubeMetadata,
   parseYouTubeVideoId,
+  vkVideoOembedUrl,
   youtubeThumbnailUrl,
 } from "./metadata.js";
 import {
@@ -91,7 +112,7 @@ const birthdaySchema = z.string().date().refine(
   (value) => value <= new Date().toISOString().slice(0, 10),
   { message: "Дата рождения не может быть в будущем" },
 );
-const listSpaceValues = ["products", "places", "events", "media", "food", "transport", "pets"];
+const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const listSpaceSchema = z.enum(listSpaceValues);
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
@@ -103,6 +124,279 @@ const phoneVerifySchema = z.object({
 const telegramInitDataSchema = z.object({
   initData: z.string().min(1).max(16_384),
 }).strict();
+const contactLinkSchema = z.object({
+  label: z.string().trim().min(1).max(40),
+  url: z.string().trim().max(2_000).url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
+}).strict();
+const contactUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  company: z.string().trim().max(160),
+  role: z.string().trim().max(240),
+  category: z.string().trim().max(80),
+  status: z.string().trim().max(80),
+  links: z.array(contactLinkSchema).max(12),
+  notes: z.string().trim().max(50_000),
+}).strict();
+const contactFavoriteSchema = z.object({ favorite: z.boolean() }).strict();
+const educationUrlSchema = z.union([
+  z.literal(""),
+  z.string().trim().max(2_000).url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
+]);
+const optionalEducationDateSchema = z.union([z.literal(""), z.string().date()]);
+const educationListIdSchema = z.union([z.literal(""), z.string().uuid()]).optional().default("");
+const educationListSectionSchema = z.enum(["courses", "conferences", "coaching", "workouts"]);
+const educationListCreateSchema = z.object({
+  section: educationListSectionSchema,
+  title: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(300).default(""),
+}).strict();
+const educationListPatchSchema = z.object({
+  title: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(300).default(""),
+}).strict();
+const educationItemListMoveSchema = z.object({
+  listId: z.union([z.literal(""), z.string().uuid()]),
+}).strict();
+const educationLogoUrlSchema = z.union([
+  z.literal(""),
+  z.string().trim().max(2_000).url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
+  z.string().trim().max(2_000).regex(uploadedMediaUrlPattern),
+]);
+const courseCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  provider: z.string().trim().max(160),
+  status: z.enum(["planned", "in_progress", "completed"]),
+  logoUrl: educationLogoUrlSchema,
+  url: educationUrlSchema,
+  description: z.string().trim().max(4_000),
+  startedOn: optionalEducationDateSchema,
+  completedOn: optionalEducationDateSchema,
+  listId: educationListIdSchema,
+}).strict().superRefine((course, context) => {
+  if (course.startedOn && course.completedOn && course.completedOn < course.startedOn) {
+    context.addIssue({ code: "custom", path: ["completedOn"], message: "Дата завершения должна быть не раньше даты начала" });
+  }
+});
+const courseReorderSchema = z.object({
+  courseIds: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ courseIds }, context) => {
+  if (new Set(courseIds).size !== courseIds.length) {
+    context.addIssue({ code: "custom", path: ["courseIds"], message: "Курсы не должны повторяться" });
+  }
+});
+const courseGroupCreateSchema = z.object({
+  courseIds: z.array(z.string().trim().min(1).max(200)).length(2),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ courseIds }, context) => {
+  if (new Set(courseIds).size !== 2) {
+    context.addIssue({ code: "custom", path: ["courseIds"], message: "Выберите два разных курса" });
+  }
+});
+const courseGroupAddSchema = z.object({
+  courseId: z.string().trim().min(1).max(200),
+}).strict();
+const courseGroupPatchSchema = z.object({
+  title: z.string().trim().min(1).max(60),
+}).strict();
+const courseGroupMoveSchema = z.object({
+  listId: z.union([z.literal(""), z.string().uuid()]),
+}).strict();
+const educationItemGroupCreateSchema = z.object({
+  itemIds: z.array(z.string().trim().min(1).max(200)).length(2),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ itemIds }, context) => {
+  if (new Set(itemIds).size !== 2) {
+    context.addIssue({ code: "custom", path: ["itemIds"], message: "Выберите два разных элемента" });
+  }
+});
+const educationItemGroupAddSchema = z.object({
+  itemId: z.string().trim().min(1).max(200),
+}).strict();
+const conferenceReorderSchema = z.object({
+  conferenceIds: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ conferenceIds }, context) => {
+  if (new Set(conferenceIds).size !== conferenceIds.length) {
+    context.addIssue({ code: "custom", path: ["conferenceIds"], message: "Конференции не должны повторяться" });
+  }
+});
+const conferenceCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  status: z.enum(["planned", "registered", "attended"]),
+  role: z.enum(["attendee", "speaker", "organizer"]),
+  format: z.enum(["offline", "online", "hybrid"]),
+  location: z.string().trim().max(240),
+  url: educationUrlSchema,
+  description: z.string().trim().max(4_000),
+  startsOn: optionalEducationDateSchema,
+  endsOn: optionalEducationDateSchema,
+  listId: educationListIdSchema,
+}).strict().superRefine((conference, context) => {
+  if (conference.startsOn && conference.endsOn && conference.endsOn < conference.startsOn) {
+    context.addIssue({ code: "custom", path: ["endsOn"], message: "Дата завершения должна быть не раньше даты начала" });
+  }
+});
+const optionalEducationTimeSchema = z.union([z.literal(""), z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)]);
+const optionalDurationMinutesSchema = z.union([
+  z.literal(""),
+  z.coerce.number().int().min(15).max(480),
+]);
+const coachingSessionCreateSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  coach: z.string().trim().max(160),
+  status: z.enum(["scheduled", "completed", "cancelled"]),
+  format: z.enum(["online", "offline"]),
+  location: z.string().trim().max(240),
+  url: educationUrlSchema,
+  description: z.string().trim().max(4_000),
+  sessionOn: optionalEducationDateSchema,
+  sessionTime: optionalEducationTimeSchema,
+  durationMinutes: optionalDurationMinutesSchema,
+  listId: educationListIdSchema,
+}).strict();
+const coachingSessionReorderSchema = z.object({
+  sessionIds: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ sessionIds }, context) => {
+  if (new Set(sessionIds).size !== sessionIds.length) {
+    context.addIssue({ code: "custom", path: ["sessionIds"], message: "Коучинг-сессии не должны повторяться" });
+  }
+});
+const optionalWorkoutDurationSchema = z.union([
+  z.literal(""),
+  z.coerce.number().int().min(5).max(720),
+]);
+const optionalWorkoutDistanceSchema = z.union([
+  z.literal(""),
+  z.coerce.number().positive().max(1_000),
+]);
+const optionalWorkoutCaloriesSchema = z.union([
+  z.literal(""),
+  z.coerce.number().int().min(1).max(20_000),
+]);
+const workoutSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  workoutType: z.enum(["strength", "running", "walking", "cycling", "swimming", "mobility", "team_sport", "other"]),
+  status: z.enum(["planned", "completed", "skipped"]),
+  workoutOn: z.string().date(),
+  startTime: optionalEducationTimeSchema,
+  durationMinutes: optionalWorkoutDurationSchema,
+  intensity: z.enum(["light", "moderate", "high"]),
+  distanceKm: optionalWorkoutDistanceSchema,
+  calories: optionalWorkoutCaloriesSchema,
+  notes: z.string().trim().max(4_000),
+  listId: educationListIdSchema,
+}).strict();
+const workoutReorderSchema = z.object({
+  workoutIds: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+  listId: educationListIdSchema,
+}).strict().superRefine(({ workoutIds }, context) => {
+  if (new Set(workoutIds).size !== workoutIds.length) {
+    context.addIssue({ code: "custom", path: ["workoutIds"], message: "Тренировки не должны повторяться" });
+  }
+});
+const medicationTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+const medicationFrequencyTimeCount = {
+  once_daily: 1,
+  twice_daily: 2,
+  three_times_daily: 3,
+  weekly: 1,
+  as_needed: 0,
+};
+const medicationSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  groupId: z.string().trim().min(1).max(200).nullable().default(null),
+  medicationForm: z.enum(["tablet", "capsule", "solution", "drops", "spray", "injection", "cream", "other"]),
+  status: z.enum(["active", "planned", "paused", "completed"]),
+  dosage: z.string().trim().max(160),
+  frequency: z.enum(["once_daily", "twice_daily", "three_times_daily", "weekly", "as_needed", "custom"]),
+  scheduleTimes: z.array(medicationTimeSchema).max(6),
+  purpose: z.string().trim().max(240),
+  prescriber: z.string().trim().max(240),
+  instructions: z.string().trim().max(2_000),
+  startOn: optionalEducationDateSchema,
+  endOn: optionalEducationDateSchema,
+  notes: z.string().trim().max(4_000),
+}).strict().superRefine((medication, context) => {
+  if (medication.startOn && medication.endOn && medication.endOn < medication.startOn) {
+    context.addIssue({ code: "custom", path: ["endOn"], message: "Окончание курса должно быть не раньше начала" });
+  }
+  if (new Set(medication.scheduleTimes).size !== medication.scheduleTimes.length) {
+    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Время приёма не должно повторяться" });
+  }
+  const expectedTimeCount = medicationFrequencyTimeCount[medication.frequency];
+  if (expectedTimeCount !== undefined && medication.scheduleTimes.length !== expectedTimeCount) {
+    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Количество времён должно соответствовать частоте приёма" });
+  }
+  if (medication.frequency === "custom" && medication.scheduleTimes.length === 0) {
+    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Укажите хотя бы одно время приёма" });
+  }
+});
+const medicationGroupSchema = z.object({
+  title: z.string().trim().min(1).max(60),
+}).strict();
+const medicationGroupMoveSchema = z.object({
+  groupId: z.string().uuid().nullable(),
+}).strict();
+const careerSectionSchema = z.enum(["about", "cv", "performance", "development", "domain"]);
+const careerMarkdownSchema = z.string().max(200_000);
+const careerReviewTextSchema = z.string().max(20_000);
+const careerReviewBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("paragraph"), text: careerReviewTextSchema }).strict(),
+  z.object({
+    type: z.enum(["unordered-list", "ordered-list"]),
+    items: z.array(careerReviewTextSchema).max(500),
+  }).strict(),
+]);
+const careerReviewerBaseSchema = z.object({
+  name: z.string().max(240),
+  role: z.string().max(500),
+  score: z.string().max(120),
+}).strict();
+const careerProjectReviewerSchema = careerReviewerBaseSchema.extend({
+  positive: z.array(careerReviewBlockSchema).max(100),
+  improve: z.array(careerReviewBlockSchema).max(100),
+}).strict();
+const careerInteractionReviewerSchema = careerReviewerBaseSchema.extend({
+  comment: z.array(careerReviewBlockSchema).max(100),
+}).strict();
+const careerPerformanceCycleSchema = z.object({
+  id: z.string().min(1).max(240),
+  year: z.coerce.number().int().min(1900).max(2200),
+  season: z.string().min(1).max(120),
+  projects: z.array(z.object({
+    id: z.string().min(1).max(240),
+    title: z.string().max(500),
+    sections: z.array(z.object({
+      label: z.string().max(500),
+      blocks: z.array(careerReviewBlockSchema).max(100),
+    }).strict()).max(50),
+    reviewers: z.array(careerProjectReviewerSchema).max(500),
+  }).strict()).max(100),
+  interaction: z.array(careerInteractionReviewerSchema).max(500),
+}).strict();
+const careerPerformanceSchema = z.object({
+  heading: z.string().max(240),
+  description: z.string().max(4_000),
+  cycles: z.array(careerPerformanceCycleSchema).max(30),
+}).strict();
+const careerContentSchemas = {
+  about: careerMarkdownSchema,
+  cv: careerMarkdownSchema,
+  development: careerMarkdownSchema,
+  domain: careerMarkdownSchema,
+  performance: careerPerformanceSchema,
+};
+const identitySectionSchema = z.enum(["four-questions", "theses", "values", "mission", "life-strategy"]);
+const identityReportSectionSchema = z.enum(["hogan", "gallup"]);
+const identityContentSchemas = {
+  theses: careerMarkdownSchema,
+  values: identityValuesSchema,
+  mission: careerMarkdownSchema,
+  "life-strategy": careerMarkdownSchema,
+  "four-questions": identityFourQuestionsSchema,
+};
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -124,42 +418,6 @@ app.use(compression());
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 
-function createRateLimit({ windowMs, max }) {
-  const clients = new Map();
-  let lastSweep = Date.now();
-
-  return (req, res, next) => {
-    const now = Date.now();
-    if (clients.size > 10_000) {
-      clients.clear();
-      lastSweep = now;
-    } else if (now - lastSweep >= windowMs) {
-      for (const [key, value] of clients) {
-        if (value.resetAt <= now) clients.delete(key);
-      }
-      lastSweep = now;
-    }
-
-    const key = req.ip || req.socket.remoteAddress || "unknown";
-    const current = clients.get(key);
-    if (!current || current.resetAt <= now) {
-      clients.set(key, { count: 1, resetAt: now + windowMs });
-      return next();
-    }
-
-    res.set("RateLimit-Limit", String(max));
-    res.set("RateLimit-Remaining", String(Math.max(0, max - current.count)));
-    res.set("RateLimit-Reset", String(Math.ceil(current.resetAt / 1000)));
-    if (current.count >= max) {
-      res.set("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
-      return res.status(429).json({ error: "Слишком много попыток. Попробуйте немного позже" });
-    }
-
-    current.count += 1;
-    next();
-  };
-}
-
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const passwordResetRequestRateLimit = createRateLimit({
   windowMs: Math.min(60 * 60, Math.max(60, Number.parseInt(process.env.PASSWORD_RESET_IP_WINDOW_SECONDS || "900", 10) || 900)) * 1_000,
@@ -168,9 +426,21 @@ const passwordResetRequestRateLimit = createRateLimit({
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
 const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
+const labPdfUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+const marketplaceOffersRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  key: (req) => `marketplace:${req.user?.id || req.ip}:${req.params.id}`,
+  message: "Для этого товара поиск запускался слишком часто",
+  code: "marketplace_offers_rate_limited",
+});
 const imageUploadBody = express.raw({
   type: ["image/jpeg", "image/png", "image/webp"],
   limit: "8mb",
+});
+const labPdfUploadBody = express.raw({
+  type: ["application/pdf", "application/octet-stream"],
+  limit: LAB_PDF_MAX_BYTES,
 });
 const metadataCache = new Map();
 const metadataCacheTtlMs = 10 * 60 * 1000;
@@ -214,9 +484,24 @@ function trackBackgroundTask(task) {
   void task.finally(() => backgroundTasks.delete(task));
 }
 
+async function resolveVkVideoMetadata(metadataUrl) {
+  const { json } = await fetchPublicJson(vkVideoOembedUrl(metadataUrl));
+  const metadata = parseVkVideoMetadata(json, metadataUrl);
+  const embedUrl = parseVkVideoEmbedUrl(json);
+  if (!embedUrl) return metadata;
+
+  try {
+    const { html } = await fetchPublicHtml(embedUrl);
+    const imageUrl = parseVkVideoEmbedThumbnail(html);
+    return imageUrl ? { ...metadata, imageUrl } : metadata;
+  } catch {
+    return metadata;
+  }
+}
+
 async function backfillWishPreviews(userId) {
   const missing = await query(
-    `SELECT w.id,w.url,
+    `SELECT w.id,w.url,w.image_url,w.description,
        (
          w.space='food'
          OR EXISTS (
@@ -234,16 +519,44 @@ async function backfillWishPreviews(userId) {
            JOIN wishlists l ON l.id=ww.wishlist_id
            WHERE ww.wish_id=w.id AND l.space='places'
          )
-       ) AS is_place
-     FROM wishes w
-     WHERE w.user_id=$1 AND w.image_url='' AND w.url<>''
-       AND (
-         w.space IN ('food','places')
+       ) AS is_place,
+       (
+         w.space='media'
          OR EXISTS (
            SELECT 1
            FROM wishlist_wishes ww
            JOIN wishlists l ON l.id=ww.wishlist_id
-           WHERE ww.wish_id=w.id AND l.space IN ('food','places')
+           WHERE ww.wish_id=w.id AND l.space='media'
+         )
+       ) AS is_media
+     FROM wishes w
+     WHERE w.user_id=$1 AND w.url<>''
+       AND (
+         w.image_url=''
+         OR (
+           w.image_url LIKE 'https://%.okcdn.ru/getVideoPreview%'
+           AND w.image_url LIKE '%fn=vid_s%'
+         )
+         OR (
+           btrim(w.description)=''
+           AND (
+             w.space='places'
+             OR EXISTS (
+               SELECT 1
+               FROM wishlist_wishes ww
+               JOIN wishlists l ON l.id=ww.wishlist_id
+               WHERE ww.wish_id=w.id AND l.space='places'
+             )
+           )
+         )
+       )
+       AND (
+         w.space IN ('food','places','media')
+         OR EXISTS (
+           SELECT 1
+           FROM wishlist_wishes ww
+           JOIN wishlists l ON l.id=ww.wishlist_id
+           WHERE ww.wish_id=w.id AND l.space IN ('food','places','media')
          )
        )
      ORDER BY w.created_at DESC,w.id
@@ -264,11 +577,13 @@ async function backfillWishPreviews(userId) {
           resolveRetailerMetadata,
           fetchPublicHtml,
           parseYandexMapsMetadata,
+          resolveVkVideoMetadata,
         });
-        if (!metadata || metadata.previewFallback || !/^https?:\/\//i.test(metadata.imageUrl)) continue;
+        const patch = previewBackfillPatch(row, metadata);
+        if (!patch.changed) continue;
         const saved = await query(
-          "UPDATE wishes SET image_url=$1 WHERE id=$2 AND user_id=$3 AND url=$4 AND image_url=''",
-          [metadata.imageUrl, row.id, userId, row.url],
+          "UPDATE wishes SET image_url=$1,description=$2 WHERE id=$3 AND user_id=$4 AND url=$5 AND image_url=$6 AND description=$7",
+          [patch.imageUrl, patch.description, row.id, userId, row.url, row.image_url, row.description],
         );
         updated += saved.rowCount;
       } catch {
@@ -314,15 +629,23 @@ function cleanUser(row) {
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
     hasYandex: Boolean(row.has_yandex),
+    canDiscoverSpheres: Boolean(row.can_discover_spheres),
     createdAt: row.created_at,
   };
 }
 
 async function cleanAuthenticatedUser(row) {
   if (!row) return null;
-  if (Object.prototype.hasOwnProperty.call(row, "has_yandex")) return cleanUser(row);
-  const identity = await query("SELECT 1 FROM yandex_identities WHERE user_id=$1 LIMIT 1", [row.id]);
-  return cleanUser({ ...row, has_yandex: identity.rowCount > 0 });
+  const hasCapabilities = ["has_yandex", "can_discover_spheres"]
+    .every((property) => Object.prototype.hasOwnProperty.call(row, property));
+  if (hasCapabilities) return cleanUser(row);
+  const capabilities = await query(
+    `SELECT
+       EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
+       EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
+    [row.id],
+  );
+  return cleanUser({ ...row, ...capabilities.rows[0] });
 }
 
 function mapList(row) {
@@ -354,6 +677,173 @@ function formatEventDate(value) {
   return String(value).slice(0, 10);
 }
 
+function mapEducationList(row) {
+  return {
+    id: row.id,
+    section: row.section,
+    title: row.title,
+    description: row.description,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapEducationCourse(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    provider: row.provider,
+    status: row.status,
+    logoUrl: row.logo_url,
+    url: row.url,
+    description: row.description,
+    startedOn: formatEventDate(row.started_on),
+    completedOn: formatEventDate(row.completed_on),
+    listId: row.list_id || null,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapEducationCourseGroups(rows = []) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (!groups.has(row.id)) {
+      groups.set(row.id, {
+        id: row.id,
+        listId: row.list_id || null,
+        title: row.title,
+        courseIds: [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      });
+    }
+    if (row.course_id) groups.get(row.id).courseIds.push(row.course_id);
+  }
+  return [...groups.values()];
+}
+
+function mapEducationItemGroups(rows = []) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (!groups.has(row.id)) {
+      groups.set(row.id, {
+        id: row.id,
+        listId: row.list_id || null,
+        title: row.title,
+        itemIds: [],
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      });
+    }
+    if (row.item_id) groups.get(row.id).itemIds.push(row.item_id);
+  }
+  return [...groups.values()];
+}
+
+function mapEducationConference(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    role: row.role,
+    format: row.format,
+    location: row.location,
+    url: row.url,
+    description: row.description,
+    startsOn: formatEventDate(row.starts_on),
+    endsOn: formatEventDate(row.ends_on),
+    listId: row.list_id || null,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapEducationCoachingSession(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    coach: row.coach,
+    status: row.status,
+    format: row.format,
+    location: row.location,
+    url: row.url,
+    description: row.description,
+    sessionOn: formatEventDate(row.session_on),
+    sessionTime: row.session_time ? String(row.session_time).slice(0, 5) : null,
+    durationMinutes: row.duration_minutes === null ? null : Number(row.duration_minutes),
+    listId: row.list_id || null,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapHealthWorkout(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    workoutType: row.workout_type,
+    status: row.status,
+    workoutOn: formatEventDate(row.workout_on),
+    startTime: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    durationMinutes: row.duration_minutes === null ? null : Number(row.duration_minutes),
+    intensity: row.intensity,
+    distanceKm: row.distance_km === null ? null : Number(row.distance_km),
+    calories: row.calories === null ? null : Number(row.calories),
+    notes: row.notes,
+    listId: row.list_id || null,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function medicationScheduleTimes(value) {
+  try {
+    const parsed = JSON.parse(String(value || "[]"));
+    return Array.isArray(parsed)
+      ? [...new Set(parsed.filter((time) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(time))))].sort().slice(0, 6)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function mapHealthMedication(row) {
+  return {
+    id: row.id,
+    groupId: row.group_id || null,
+    name: row.name,
+    medicationForm: row.medication_form,
+    status: row.status,
+    dosage: row.dosage,
+    frequency: row.frequency,
+    scheduleTimes: medicationScheduleTimes(row.schedule_times_json),
+    purpose: row.purpose,
+    prescriber: row.prescriber,
+    instructions: row.instructions,
+    startOn: formatEventDate(row.start_on),
+    endOn: formatEventDate(row.end_on),
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapHealthMedicationGroup(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapWish(row) {
   return {
     id: row.id,
@@ -363,6 +853,8 @@ function mapWish(row) {
     url: row.url,
     imageUrl: row.image_url,
     fundraisingUrl: row.fundraising_url ?? "",
+    vehicleMake: row.vehicle_make ?? "",
+    vehicleModel: row.vehicle_model ?? "",
     price: row.price === null ? null : Number(row.price),
     currency: row.currency,
     priority: Number(row.priority),
@@ -380,6 +872,16 @@ function mapWish(row) {
   };
 }
 
+function mapWishMediaNote(row) {
+  return {
+    summary: row?.summary || "",
+    keyIdeas: row?.key_ideas || "",
+    quotes: row?.quotes || "",
+    applications: row?.applications || "",
+    updatedAt: row?.updated_at || null,
+  };
+}
+
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
@@ -388,9 +890,13 @@ async function optionalAuth(req, _res, next) {
   const token = req.cookies[sessionCookie];
   if (!token) return next();
   const result = await query(
-    `SELECT u.*,(yi.yandex_user_id IS NOT NULL) AS has_yandex FROM sessions s
+    `SELECT u.*,
+       (yi.yandex_user_id IS NOT NULL) AS has_yandex,
+       (dft.user_id IS NOT NULL) AS can_discover_spheres
+     FROM sessions s
      JOIN users u ON u.id = s.user_id
      LEFT JOIN yandex_identities yi ON yi.user_id=u.id
+     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
      WHERE s.token_hash = $1 AND s.expires_at > $2`,
     [hashToken(token), new Date()],
   );
@@ -400,6 +906,13 @@ async function optionalAuth(req, _res, next) {
 
 function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "Сначала войдите в аккаунт" });
+  next();
+}
+
+function requirePrivateSphereOwner(req, res, next) {
+  if (!req.user?.can_discover_spheres) {
+    return res.status(403).json({ error: "Раздел доступен только владельцу профиля" });
+  }
   next();
 }
 
@@ -1321,11 +1834,14 @@ app.post("/api/uploads/images", requireAuth, imageUploadRateLimit, imageUploadBo
 
 app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) => {
   const imageUrl = `/api/media/${req.params.id}`;
-  const [usedByWish, usedByProfile] = await Promise.all([
+  const [usedByWish, usedByProfile, usedByCourse] = await Promise.all([
     query("SELECT 1 FROM wishes WHERE user_id=$1 AND image_url=$2 LIMIT 1", [req.user.id, imageUrl]),
     query("SELECT 1 FROM users WHERE id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
+    query("SELECT 1 FROM education_courses WHERE user_id=$1 AND logo_url=$2 LIMIT 1", [req.user.id, imageUrl]),
   ]);
-  if (usedByWish.rowCount || usedByProfile.rowCount) return res.status(409).json({ error: "Изображение уже используется" });
+  if (usedByWish.rowCount || usedByProfile.rowCount || usedByCourse.rowCount) {
+    return res.status(409).json({ error: "Изображение уже используется" });
+  }
   const deleted = await query("DELETE FROM wish_images WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
   if (!deleted.rowCount) return res.status(404).json({ error: "Изображение не найдено" });
   res.json({ ok: true });
@@ -1885,16 +2401,37 @@ app.post("/api/lists", requireAuth, asyncRoute(async (req, res) => {
     occasionDate: z.string().date().nullable().optional(),
     color: z.enum(["coral", "blue", "lime", "sun", "ink"]).default("coral"),
     space: listSpaceSchema.default("products"),
+    wishIds: z.array(z.string().min(1)).max(1_000).default([]),
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Укажите название и настройки списка" });
   const id = randomUUID();
   const token = randomBytes(10).toString("base64url");
   const data = parsed.data;
-  await query(
-    `INSERT INTO wishlists (id,user_id,title,description,privacy,occasion_date,color,share_token,space)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [id, req.user.id, data.title, data.description, data.privacy, data.occasionDate || null, data.color, token, data.space],
-  );
+  const wishIds = [...new Set(data.wishIds)];
+  const created = await transaction(async (client) => {
+    if (wishIds.length) {
+      const wishPlaceholders = wishIds.map((_, index) => `$${index + 2}`).join(",");
+      const owned = await client.query(
+        `SELECT id FROM wishes WHERE user_id=$1 AND id IN (${wishPlaceholders})`,
+        [req.user.id, ...wishIds],
+      );
+      if (owned.rowCount !== wishIds.length) return false;
+    }
+    await client.query(
+      `INSERT INTO wishlists (id,user_id,title,description,privacy,occasion_date,color,share_token,space)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, req.user.id, data.title, data.description, data.privacy, data.occasionDate || null, data.color, token, data.space],
+    );
+    for (const wishId of wishIds) {
+      await client.query(
+        `INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)
+         ON CONFLICT (wishlist_id,wish_id) DO NOTHING`,
+        [id, wishId],
+      );
+    }
+    return true;
+  });
+  if (!created) return res.status(400).json({ error: "Одно из желаний не найдено" });
   const result = await query("SELECT *,0 AS wish_count FROM wishlists WHERE id=$1", [id]);
   res.status(201).json({ list: mapList(result.rows[0]) });
 }));
@@ -1993,6 +2530,8 @@ const wishFieldsSchema = z.object({
   url: z.string().url().max(2000).or(z.literal("")).default(""),
   imageUrl: z.string().url().max(2000).or(localImageUrlSchema).or(z.literal("")).default(""),
   fundraisingUrl: z.string().url().max(2000).or(z.literal("")).default(""),
+  vehicleMake: z.string().trim().max(120).default(""),
+  vehicleModel: z.string().trim().max(120).default(""),
   price: z.coerce.number().min(0).max(999999999).nullable().optional(),
   currency: z.enum(["RUB", "USD", "EUR", "KZT", "BYN"]).default("RUB"),
   priority: z.coerce.number().int().min(1).max(3).default(2),
@@ -2008,6 +2547,252 @@ const wishSchema = wishFieldsSchema.extend({ listIds: createListIdsSchema });
 // Патч: listIds: [] по-прежнему разрешён для намеренной отвязки желания от списков.
 const wishPatchSchema = wishFieldsSchema.extend({ listIds: listIdsSchema });
 
+const wishMediaNoteSchema = z.object({
+  summary: z.string().max(12000).default(""),
+  keyIdeas: z.string().max(40000).default(""),
+  quotes: z.string().max(40000).default(""),
+  applications: z.string().max(40000).default(""),
+}).strict();
+
+const vehicleModelsQuerySchema = z.object({
+  make: z.string().trim().min(1).max(120),
+});
+
+function sendVehicleCatalogError(res, error) {
+  if (!(error instanceof VehicleCatalogUnavailableError)) throw error;
+  return res.status(503).json({
+    error: "Справочник «Авто» временно недоступен. Марку и модель можно ввести вручную.",
+    code: error.code,
+  });
+}
+
+app.get("/api/vehicle-catalog/makes", requireAuth, asyncRoute(async (_req, res) => {
+  try {
+    const makes = await vehicleCatalog.listMakes();
+    res.set("Cache-Control", "private, max-age=300");
+    return res.json({ makes });
+  } catch (error) {
+    return sendVehicleCatalogError(res, error);
+  }
+}));
+
+app.get("/api/vehicle-catalog/models", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = vehicleModelsQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите марку автомобиля" });
+  try {
+    const models = await vehicleCatalog.listModels(parsed.data.make);
+    res.set("Cache-Control", "private, max-age=300");
+    return res.json({ models });
+  } catch (error) {
+    return sendVehicleCatalogError(res, error);
+  }
+}));
+
+function parseMarketplaceOfferSnapshot(row, wishTitle = "") {
+  if (!row) return null;
+  let offers = [];
+  try {
+    const parsed = JSON.parse(row.offers_json || "[]");
+    if (Array.isArray(parsed)) offers = parsed;
+  } catch {
+    offers = [];
+  }
+  const expiresAt = row.expires_at ? new Date(row.expires_at).toISOString() : null;
+  return {
+    query: row.query,
+    offers,
+    summary: row.summary || "",
+    model: row.model || "",
+    searchedAt: row.searched_at ? new Date(row.searched_at).toISOString() : null,
+    expiresAt,
+    stale: !expiresAt || Date.parse(expiresAt) <= Date.now() || row.query !== wishTitle,
+  };
+}
+
+function writeMarketplaceOfferEvent(res, event, value) {
+  if (res.writableEnded || res.destroyed) return;
+  res.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`);
+  res.flush?.();
+}
+
+app.get("/api/wishes/:id/marketplace-offers", requireAuth, asyncRoute(async (req, res) => {
+  const owned = await query(
+    "SELECT id,title FROM wishes WHERE id=$1 AND user_id=$2",
+    [req.params.id, req.user.id],
+  );
+  if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
+  const snapshot = await query(
+    `SELECT query,offers_json,summary,model,searched_at,expires_at
+     FROM wish_marketplace_offer_snapshots WHERE wish_id=$1 AND user_id=$2`,
+    [req.params.id, req.user.id],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    configured: Boolean(process.env.OPENROUTER_API_KEY),
+    snapshot: parseMarketplaceOfferSnapshot(snapshot.rows[0], owned.rows[0].title),
+  });
+}));
+
+app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceOffersRateLimit, async (req, res, next) => {
+  let owned;
+  try {
+    owned = await query(
+      `SELECT id,title,description,url,price,currency,space
+       FROM wishes WHERE id=$1 AND user_id=$2`,
+      [req.params.id, req.user.id],
+    );
+  } catch (error) {
+    return next(error);
+  }
+  if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
+  if (!process.env.OPENROUTER_API_KEY) {
+    return res.status(503).json({ error: "OpenRouter пока не настроен", code: "openrouter_not_configured" });
+  }
+
+  res.status(200);
+  res.set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "private, no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error("OpenRouter request timed out")), 90_000);
+  const keepAlive = setInterval(() => writeMarketplaceOfferEvent(res, "ping", { at: Date.now() }), 12_000);
+  res.once("close", () => {
+    if (!res.writableEnded) controller.abort();
+  });
+
+  try {
+    writeMarketplaceOfferEvent(res, "status", { stage: "searching", message: "Ищем товар на маркетплейсах…" });
+    const [openRouterSearch, marketplaceSearch] = await Promise.allSettled([
+      fetchOpenRouterMarketplaceOffers(owned.rows[0], {
+        signal: controller.signal,
+        allowEmpty: true,
+        marketplaceIds: ["ozon"],
+      }),
+      fetchMarketplaceResolvedOffers(owned.rows[0], { signal: controller.signal }),
+    ]);
+    const result = openRouterSearch.status === "fulfilled" ? openRouterSearch.value : {
+      offers: [],
+      summary: "",
+      model: process.env.OPENROUTER_MODEL || "",
+      usage: null,
+    };
+    const resolvedOffers = marketplaceSearch.status === "fulfilled" ? marketplaceSearch.value : [];
+    result.offers = mergeDirectOffers(
+      resolvedOffers,
+      filterDirectOffersForWish(owned.rows[0], result.offers),
+    );
+    if (!result.offers.length) {
+      if (openRouterSearch.status === "rejected") throw openRouterSearch.reason;
+      throw new OpenRouterOffersError("Не удалось найти прямые карточки товара", {
+        status: 422,
+        code: "marketplace_offers_not_found",
+      });
+    }
+    if (resolvedOffers.some((offer) => !offer.source)) {
+      result.summary = "Найдены прямые карточки товара. Предложения отсортированы по совпадению, наличию и цене.";
+    } else if (result.offers.length && result.offers.every((offer) => offer.source)) {
+      result.summary = "Новых точных предложений не найдено. Исходная ссылка сохранена.";
+    }
+    writeMarketplaceOfferEvent(res, "status", { stage: "ranking", message: "Проверяем цены и выбираем лучшие…" });
+
+    const configuredMinutes = Number.parseInt(process.env.OPENROUTER_OFFERS_CACHE_MINUTES || "60", 10);
+    const cacheMinutes = Math.min(1_440, Math.max(5, Number.isFinite(configuredMinutes) ? configuredMinutes : 60));
+    const searchedAt = new Date();
+    const expiresAt = new Date(searchedAt.getTime() + cacheMinutes * 60_000);
+    const saved = await query(
+      `INSERT INTO wish_marketplace_offer_snapshots
+         (wish_id,user_id,query,offers_json,summary,model,searched_at,expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (wish_id) DO UPDATE SET
+         user_id=EXCLUDED.user_id,
+         query=EXCLUDED.query,
+         offers_json=EXCLUDED.offers_json,
+         summary=EXCLUDED.summary,
+         model=EXCLUDED.model,
+         searched_at=EXCLUDED.searched_at,
+         expires_at=EXCLUDED.expires_at
+       WHERE wish_marketplace_offer_snapshots.user_id=EXCLUDED.user_id
+       RETURNING query,offers_json,summary,model,searched_at,expires_at`,
+      [
+        req.params.id,
+        req.user.id,
+        owned.rows[0].title,
+        JSON.stringify(result.offers),
+        result.summary,
+        result.model,
+        searchedAt,
+        expiresAt,
+      ],
+    );
+    if (!saved.rowCount) throw new OpenRouterOffersError("Нет доступа к предложениям", { status: 403, code: "marketplace_offers_forbidden" });
+    writeMarketplaceOfferEvent(res, "done", {
+      snapshot: parseMarketplaceOfferSnapshot(saved.rows[0], owned.rows[0].title),
+    });
+  } catch (error) {
+    const known = error instanceof OpenRouterOffersError;
+    const aborted = controller.signal.aborted;
+    writeMarketplaceOfferEvent(res, "error", {
+      error: aborted ? "Поиск занял слишком много времени. Попробуйте ещё раз" : known ? error.message : "Не удалось обновить предложения",
+      code: aborted ? "marketplace_offers_timeout" : known ? error.code : "marketplace_offers_failed",
+    });
+  } finally {
+    clearTimeout(timeout);
+    clearInterval(keepAlive);
+    if (!res.writableEnded) res.end();
+  }
+});
+
+app.get(["/api/wishes/:id/media-note", "/api/wishes/:id/book-note"], requireAuth, asyncRoute(async (req, res) => {
+  const owned = await query(
+    "SELECT id FROM wishes WHERE id=$1 AND user_id=$2",
+    [req.params.id, req.user.id],
+  );
+  if (!owned.rowCount) return res.status(404).json({ error: "Медиа-айтем не найден" });
+  const result = await query(
+    `SELECT summary,key_ideas,quotes,applications,updated_at
+     FROM wish_book_notes WHERE wish_id=$1 AND user_id=$2`,
+    [req.params.id, req.user.id],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ note: mapWishMediaNote(result.rows[0]) });
+}));
+
+app.patch(["/api/wishes/:id/media-note", "/api/wishes/:id/book-note"], requireAuth, asyncRoute(async (req, res) => {
+  const parsed = wishMediaNoteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Конспект слишком большой или содержит неверные данные" });
+  const data = parsed.data;
+  const outcome = await withMutationLock(`wish-media-note:${req.params.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM wishes WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.rowCount) return { status: 404, error: "Медиа-айтем не найден" };
+    const result = await client.query(
+      `INSERT INTO wish_book_notes (wish_id,user_id,summary,key_ideas,quotes,applications)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (wish_id) DO UPDATE SET
+         summary=EXCLUDED.summary,
+         key_ideas=EXCLUDED.key_ideas,
+         quotes=EXCLUDED.quotes,
+         applications=EXCLUDED.applications,
+         updated_at=CURRENT_TIMESTAMP
+       WHERE wish_book_notes.user_id=EXCLUDED.user_id
+       RETURNING summary,key_ideas,quotes,applications,updated_at`,
+      [req.params.id, req.user.id, data.summary, data.keyIdeas, data.quotes, data.applications],
+    );
+    if (!result.rowCount) return { status: 403, error: "Нет доступа к конспекту" };
+    return { note: mapWishMediaNote(result.rows[0]) };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ note: outcome.note });
+}));
+
 app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const parsed = wishSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -2022,9 +2807,9 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const id = randomUUID();
   await transaction(async (client) => {
     await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,price,currency,priority,privacy,allow_multiple,event_date,space)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null],
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,price,currency,priority,privacy,allow_multiple,event_date,space)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.vehicleMake, data.vehicleModel, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null],
     );
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
   });
@@ -2051,6 +2836,8 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       url: req.body.url ?? current.url,
       imageUrl: req.body.imageUrl ?? current.image_url,
       fundraisingUrl: req.body.fundraisingUrl ?? current.fundraising_url,
+      vehicleMake: req.body.vehicleMake ?? current.vehicle_make,
+      vehicleModel: req.body.vehicleModel ?? current.vehicle_model,
       price: req.body.price === undefined ? current.price : req.body.price,
       currency: req.body.currency ?? current.currency,
       priority: req.body.priority ?? current.priority,
@@ -2069,8 +2856,8 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       return { status: 403, error: "Список вам не принадлежит" };
     }
     await client.query(
-      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,fundraising_url=$5,price=$6,currency=$7,priority=$8,privacy=$9,allow_multiple=$10,event_date=$11,space=$12 WHERE id=$13`,
-      [data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null, current.id],
+      `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,fundraising_url=$5,vehicle_make=$6,vehicle_model=$7,price=$8,currency=$9,priority=$10,privacy=$11,allow_multiple=$12,event_date=$13,space=$14 WHERE id=$15`,
+      [data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.vehicleMake, data.vehicleModel, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null, current.id],
     );
     const reservations = await client.query(
       "SELECT id FROM reservations WHERE wish_id=$1 ORDER BY created_at,id",
@@ -2193,9 +2980,9 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
     if (existing.rowCount) return existing.rows[0].id;
     const copyId = randomUUID();
     await client.query(
-      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,price,currency,priority,privacy,allow_multiple,event_date,space,source_wish_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'inherit',FALSE,$11,$12,$13)`,
-      [copyId, req.user.id, source.title, source.description, source.url, source.image_url, source.fundraising_url, source.price, source.currency, source.priority, source.event_date, source.space, source.id],
+      `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,price,currency,priority,privacy,allow_multiple,event_date,space,source_wish_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'inherit',FALSE,$13,$14,$15)`,
+      [copyId, req.user.id, source.title, source.description, source.url, source.image_url, source.fundraising_url, source.vehicle_make, source.vehicle_model, source.price, source.currency, source.priority, source.event_date, source.space, source.id],
     );
     await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [target.rows[0].id, copyId]);
     return copyId;
@@ -2242,6 +3029,11 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
           kind: "video",
         };
       }
+    } else if (isVkVideoUrl(metadataUrl)) {
+      // VK exposes public video metadata through video.getOembed. Unlike the
+      // regular watch page, this endpoint does not loop through auth redirects
+      // and returns a stable title and thumbnail without an access token.
+      value = await resolveVkVideoMetadata(metadataUrl);
     } else if (isBookmateUrl(metadataUrl)) {
       // Bookmate pages and their social-preview images are protected by a
       // browser challenge. Its public metadata API returns the original cover
@@ -2409,6 +3201,1876 @@ app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => 
   res.status(outcome.status).json({ reserved: outcome.reserved });
 }));
 
+async function contactOverrides(userId, contactId = "") {
+  const params = contactId ? [userId, contactId] : [userId];
+  const result = await query(
+    `SELECT contact_id AS "contactId",name,company,role,category,status,
+            links_json AS "linksJson",notes,updated_at AS "updatedAt"
+     FROM contact_overrides
+     WHERE user_id=$1${contactId ? " AND contact_id=$2" : ""}
+     ORDER BY updated_at DESC,contact_id`,
+    params,
+  );
+  return result.rows;
+}
+
+async function contactFavoriteIds(userId, contactId = "") {
+  const params = contactId ? [userId, contactId] : [userId];
+  const result = await query(
+    `SELECT contact_id AS "contactId"
+     FROM contact_favorites
+     WHERE user_id=$1${contactId ? " AND contact_id=$2" : ""}
+     ORDER BY created_at DESC`,
+    params,
+  );
+  return result.rows.map((row) => row.contactId);
+}
+
+async function contactForUser(userId, contactId) {
+  const [[override], favoriteIds] = await Promise.all([
+    contactOverrides(userId, contactId),
+    contactFavoriteIds(userId, contactId),
+  ]);
+  const source = findContact(contactId);
+  const contact = source ? mergeContactOverride(source, override) : contactFromOverride(override);
+  if (!contact) return null;
+  return { ...contact, favorite: favoriteIds.includes(contactId) };
+}
+
+const educationItemTables = {
+  courses: "education_courses",
+  conferences: "education_conferences",
+  coaching: "education_coaching_sessions",
+  workouts: "health_workouts",
+};
+
+const educationGroupedSections = {
+  conferences: {
+    section: "conferences",
+    apiBase: "/api/education/conferences",
+    table: "education_conferences",
+    itemLabel: "Конференция",
+    listError: "Список конференций не найден",
+  },
+  coaching: {
+    section: "coaching",
+    apiBase: "/api/education/coaching-sessions",
+    table: "education_coaching_sessions",
+    itemLabel: "Коучинг-сессия",
+    listError: "Список коучинг-сессий не найден",
+  },
+};
+
+async function educationListsForUser(userId, section) {
+  const result = await query(
+    `SELECT id,section,title,description,sort_order,created_at,updated_at
+     FROM education_lists
+     WHERE user_id=$1 AND section=$2
+     ORDER BY sort_order,created_at,id`,
+    [userId, section],
+  );
+  return result.rows.map(mapEducationList);
+}
+
+async function educationListBelongsToUser(listId, userId, section) {
+  if (!listId) return true;
+  const result = await query(
+    "SELECT 1 FROM education_lists WHERE id=$1 AND user_id=$2 AND section=$3",
+    [listId, userId, section],
+  );
+  return result.rowCount > 0;
+}
+
+async function educationCourseGroupsForUser(userId) {
+  const result = await query(
+    `SELECT g.id,g.list_id,g.title,g.created_at,g.updated_at,m.course_id
+     FROM education_course_groups g
+     LEFT JOIN education_course_group_members m ON m.group_id=g.id
+     WHERE g.user_id=$1
+     ORDER BY g.created_at,g.id,m.sort_order,m.course_id`,
+    [userId],
+  );
+  return mapEducationCourseGroups(result.rows);
+}
+
+async function educationItemGroupsForUser(userId, section) {
+  const result = await query(
+    `SELECT g.id,g.list_id,g.title,g.created_at,g.updated_at,m.item_id
+     FROM education_item_groups g
+     LEFT JOIN education_item_group_members m ON m.group_id=g.id AND m.section=g.section
+     WHERE g.user_id=$1 AND g.section=$2
+     ORDER BY g.created_at,g.id,m.sort_order,m.item_id`,
+    [userId, section],
+  );
+  return mapEducationItemGroups(result.rows);
+}
+
+async function detachEducationItemFromGroup(client, section, itemId, userId) {
+  const membership = await client.query(
+    `SELECT g.id
+     FROM education_item_group_members m
+     JOIN education_item_groups g ON g.id=m.group_id AND g.section=m.section
+     WHERE m.section=$1 AND m.item_id=$2 AND g.user_id=$3
+     FOR UPDATE OF g`,
+    [section, itemId, userId],
+  );
+  if (!membership.rowCount) return null;
+  const groupId = membership.rows[0].id;
+  await client.query(
+    "DELETE FROM education_item_group_members WHERE group_id=$1 AND section=$2 AND item_id=$3",
+    [groupId, section, itemId],
+  );
+  const remaining = await client.query(
+    "SELECT item_id FROM education_item_group_members WHERE group_id=$1 AND section=$2 ORDER BY sort_order,item_id",
+    [groupId, section],
+  );
+  const dissolved = remaining.rowCount < 2;
+  if (dissolved) await client.query("DELETE FROM education_item_groups WHERE id=$1", [groupId]);
+  return { groupId, dissolved, itemIds: dissolved ? [] : remaining.rows.map((row) => row.item_id) };
+}
+
+async function detachCourseFromEducationGroup(client, courseId, userId) {
+  const membership = await client.query(
+    `SELECT g.id
+     FROM education_course_group_members m
+     JOIN education_course_groups g ON g.id=m.group_id
+     WHERE m.course_id=$1 AND g.user_id=$2
+     FOR UPDATE OF g`,
+    [courseId, userId],
+  );
+  if (!membership.rowCount) return null;
+  const groupId = membership.rows[0].id;
+  await client.query(
+    "DELETE FROM education_course_group_members WHERE group_id=$1 AND course_id=$2",
+    [groupId, courseId],
+  );
+  const remaining = await client.query(
+    "SELECT course_id FROM education_course_group_members WHERE group_id=$1 ORDER BY sort_order,course_id",
+    [groupId],
+  );
+  const dissolved = remaining.rowCount < 2;
+  if (dissolved) await client.query("DELETE FROM education_course_groups WHERE id=$1", [groupId]);
+  return { groupId, dissolved, courseIds: dissolved ? [] : remaining.rows.map((row) => row.course_id) };
+}
+
+function labUploadFilename(req) {
+  return pdfUploadFilename(req, "Анализы");
+}
+
+function pdfUploadFilename(req, fallback = "Отчёт") {
+  const encoded = String(req.get("X-File-Name") || "").slice(0, 1_000);
+  let decoded = encoded;
+  try {
+    decoded = decodeURIComponent(encoded);
+  } catch {
+    decoded = "";
+  }
+  const basename = decoded.replaceAll("\\", "/").split("/").pop() || `${fallback}.pdf`;
+  const cleaned = basename.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 240);
+  return cleaned.toLocaleLowerCase("ru-RU").endsWith(".pdf") ? cleaned : `${cleaned || fallback}.pdf`;
+}
+
+function parseStoredJson(value, fallback = null) {
+  try {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  } catch {
+    return fallback;
+  }
+}
+
+async function identityReportPayload(userId, section, client = null) {
+  const execute = client ? client.query.bind(client) : query;
+  const [stateResult, filesResult] = await Promise.all([
+    execute(
+      "SELECT status,report_json,updated_at FROM identity_generated_reports WHERE user_id=$1 AND section=$2",
+      [userId, section],
+    ),
+    execute(
+      `SELECT id,filename,size_bytes,created_at
+       FROM identity_report_uploads
+       WHERE user_id=$1 AND section=$2
+       ORDER BY created_at,id`,
+      [userId, section],
+    ),
+  ]);
+  const files = filesResult.rows.map((row) => ({
+    id: row.id,
+    filename: row.filename,
+    sizeBytes: Number(row.size_bytes),
+    uploadedAt: row.created_at,
+    pdfUrl: `/api/identity/reports/${section}/files/${row.id}/pdf`,
+  }));
+  if (!stateResult.rowCount) return { mode: "default", report: null, files, updatedAt: null };
+  const state = stateResult.rows[0];
+  if (state.status === "empty") return { mode: "empty", report: null, files: [], updatedAt: state.updated_at };
+  const report = identityReportForDisplay(section, parseStoredJson(state.report_json));
+  if (!report) throw new Error("Сохранённый отчёт повреждён");
+  return { mode: "generated", report, files, updatedAt: state.updated_at };
+}
+
+function mapUploadedLabReport(row) {
+  const report = typeof row.report_json === "string" ? JSON.parse(row.report_json) : row.report_json;
+  return {
+    ...report,
+    source: {
+      uploaded: true,
+      filename: row.filename,
+      uploadedAt: row.created_at,
+      pdfUrl: `/api/health/lab-results/uploads/${row.id}/pdf`,
+    },
+  };
+}
+
+async function uploadedLabReports(userId) {
+  const result = await query(
+    `SELECT id,filename,report_json,created_at
+     FROM lab_report_uploads
+     WHERE user_id=$1
+     ORDER BY created_at DESC`,
+    [userId],
+  );
+  return result.rows.map(mapUploadedLabReport);
+}
+
+app.get("/api/contacts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [overrides, favoriteIds] = await Promise.all([
+    contactOverrides(req.user.id),
+    contactFavoriteIds(req.user.id),
+  ]);
+  res.set("Cache-Control", "private, no-store");
+  res.json(listContacts({
+    search: String(req.query.search || "").slice(0, 80),
+    company: String(req.query.company || "").slice(0, 120),
+    category: String(req.query.category || "").slice(0, 80),
+    favoriteOnly: req.query.favorite === "true",
+    page: req.query.page,
+    pageSize: req.query.pageSize,
+  }, overrides, favoriteIds));
+}));
+
+app.post("/api/contacts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = contactUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось добавить контакт: проверьте заполнение полей и адреса ссылок" });
+  const data = parsed.data;
+  const contactId = randomUUID();
+  const result = await query(
+    `INSERT INTO contact_overrides (
+       user_id,contact_id,name,company,role,category,status,links_json,notes,updated_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+     RETURNING contact_id AS "contactId",name,company,role,category,status,
+               links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
+    [req.user.id, contactId, data.name, data.company, data.role, data.category, data.status, JSON.stringify(data.links), data.notes],
+  );
+  const contact = { ...contactFromOverride(result.rows[0]), favorite: false };
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+}));
+
+app.get("/api/career/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = careerSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Раздел карьеры не найден" });
+  const result = await query(
+    "SELECT content_json,updated_at FROM career_content WHERE user_id=$1 AND section=$2",
+    [req.user.id, section.data],
+  );
+  res.set("Cache-Control", "private, no-store");
+  if (!result.rowCount) return res.json({ content: null, updatedAt: null });
+  let content;
+  try {
+    content = JSON.parse(result.rows[0].content_json);
+  } catch {
+    return res.status(500).json({ error: "Сохранённое содержимое раздела повреждено" });
+  }
+  return res.json({ content, updatedAt: result.rows[0].updated_at });
+}));
+
+app.get("/api/identity/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identitySectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Раздел идентичности не найден" });
+  const result = await query(
+    "SELECT content_json,updated_at FROM identity_content WHERE user_id=$1 AND section=$2",
+    [req.user.id, section.data],
+  );
+  res.set("Cache-Control", "private, no-store");
+  if (!result.rowCount) return res.json({ content: null, updatedAt: null });
+  let content;
+  try {
+    content = JSON.parse(result.rows[0].content_json);
+  } catch {
+    return res.status(500).json({ error: "Сохранённое содержимое раздела повреждено" });
+  }
+  if (section.data === "four-questions") {
+    const parsed = identityFourQuestionsSchema.safeParse(content);
+    if (parsed.success) content = parsed.data;
+  }
+  return res.json({ content, updatedAt: result.rows[0].updated_at });
+}));
+
+app.patch("/api/identity/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identitySectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Раздел идентичности не найден" });
+  const parsed = identityContentSchemas[section.data].safeParse(req.body?.content);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: section.data === "four-questions"
+        ? "Заполните ответ для каждого из четырёх вопросов"
+        : section.data === "values"
+          ? "Проверьте выбранные и добавленные ценности"
+        : "Содержимое раздела слишком большое",
+      code: "IDENTITY_CONTENT_VALIDATION_ERROR",
+    });
+  }
+  const contentJson = JSON.stringify(parsed.data);
+  if (Buffer.byteLength(contentJson, "utf8") > 230_000) {
+    return res.status(413).json({ error: "Содержимое раздела слишком большое", code: "IDENTITY_CONTENT_TOO_LARGE" });
+  }
+  const result = await query(
+    `INSERT INTO identity_content (user_id,section,content_json,updated_at)
+     VALUES ($1,$2,$3,CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id,section) DO UPDATE SET
+       content_json=EXCLUDED.content_json,
+       updated_at=CURRENT_TIMESTAMP
+     RETURNING content_json,updated_at`,
+    [req.user.id, section.data, contentJson],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ content: JSON.parse(result.rows[0].content_json), updatedAt: result.rows[0].updated_at });
+}));
+
+app.get("/api/identity/reports/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identityReportSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
+  const payload = await identityReportPayload(req.user.id, section.data);
+  res.set("Cache-Control", "private, no-store");
+  return res.json(payload);
+}));
+
+app.post(
+  "/api/identity/reports/:section/files",
+  requireAuth,
+  requirePrivateSphereOwner,
+  labPdfUploadRateLimit,
+  labPdfUploadBody,
+  asyncRoute(async (req, res) => {
+    const section = identityReportSectionSchema.safeParse(req.params.section);
+    if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
+    const declaredType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!["application/pdf", "application/octet-stream"].includes(declaredType) || !isPdfBuffer(req.body)) {
+      return res.status(400).json({ error: "Загрузите корректный PDF-файл" });
+    }
+
+    const id = randomUUID();
+    const filename = pdfUploadFilename(req, section.data === "hogan" ? "Hogan" : "Gallup");
+    let document;
+    try {
+      document = await parseIdentityPdf(req.body, {
+        section: section.data,
+        id,
+        filename,
+        uploadedAt: new Date(),
+      });
+    } catch (error) {
+      if (error instanceof LabPdfError) return res.status(422).json({ error: error.message, code: error.code });
+      return res.status(422).json({ error: error.message || "Не удалось извлечь содержимое PDF", code: "IDENTITY_PDF_PARSE_ERROR" });
+    }
+
+    const fileHash = createHash("sha256").update(req.body).digest("hex");
+    try {
+      await transaction(async (client) => {
+        const count = await client.query(
+          "SELECT COUNT(*)::int AS count FROM identity_report_uploads WHERE user_id=$1 AND section=$2",
+          [req.user.id, section.data],
+        );
+        if (Number(count.rows[0].count) >= 8) {
+          const limitError = new Error("Для одного отчёта можно загрузить не больше 8 PDF");
+          limitError.code = "IDENTITY_PDF_LIMIT";
+          throw limitError;
+        }
+        await client.query(
+          `INSERT INTO identity_report_uploads (
+             id,user_id,section,filename,mime_type,pdf_data,size_bytes,file_hash,document_json
+           ) VALUES ($1,$2,$3,$4,'application/pdf',$5,$6,$7,$8)`,
+          [id, req.user.id, section.data, filename, req.body, req.body.length, fileHash, JSON.stringify(document)],
+        );
+        const documentsResult = await client.query(
+          `SELECT document_json FROM identity_report_uploads
+           WHERE user_id=$1 AND section=$2 ORDER BY created_at,id`,
+          [req.user.id, section.data],
+        );
+        const documents = documentsResult.rows
+          .map((row) => parseStoredJson(row.document_json))
+          .filter(Boolean);
+        const report = generateIdentityReport(section.data, documents);
+        const reportJson = JSON.stringify(report);
+        if (Buffer.byteLength(reportJson, "utf8") > 2_000_000) {
+          const sizeError = new Error("В загруженных PDF слишком много текста для одной страницы");
+          sizeError.code = "IDENTITY_REPORT_TOO_LARGE";
+          throw sizeError;
+        }
+        await client.query(
+          `INSERT INTO identity_generated_reports (user_id,section,status,report_json,updated_at)
+           VALUES ($1,$2,'generated',$3,CURRENT_TIMESTAMP)
+           ON CONFLICT (user_id,section) DO UPDATE SET
+             status='generated',report_json=EXCLUDED.report_json,updated_at=CURRENT_TIMESTAMP`,
+          [req.user.id, section.data, reportJson],
+        );
+      });
+    } catch (error) {
+      if (error?.code === "23505") return res.status(409).json({ error: "Этот PDF уже загружен" });
+      if (["IDENTITY_PDF_LIMIT", "IDENTITY_REPORT_TOO_LARGE"].includes(error?.code)) {
+        return res.status(413).json({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
+
+    const payload = await identityReportPayload(req.user.id, section.data);
+    res.set("Cache-Control", "private, no-store");
+    return res.status(201).json(payload);
+  }),
+);
+
+app.delete("/api/identity/reports/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identityReportSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
+  await transaction(async (client) => {
+    await client.query(
+      "DELETE FROM identity_report_uploads WHERE user_id=$1 AND section=$2",
+      [req.user.id, section.data],
+    );
+    await client.query(
+      `INSERT INTO identity_generated_reports (user_id,section,status,report_json,updated_at)
+       VALUES ($1,$2,'empty','{}',CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id,section) DO UPDATE SET
+         status='empty',report_json='{}',updated_at=CURRENT_TIMESTAMP`,
+      [req.user.id, section.data],
+    );
+  });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ mode: "empty", report: null, files: [] });
+}));
+
+app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identityReportSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).end();
+  const result = await query(
+    `SELECT filename,mime_type,pdf_data,size_bytes FROM identity_report_uploads
+     WHERE id=$1 AND user_id=$2 AND section=$3`,
+    [req.params.id, req.user.id, section.data],
+  );
+  if (!result.rowCount) return res.status(404).end();
+  const file = result.rows[0];
+  const encodedFilename = encodeURIComponent(file.filename).replaceAll("'", "%27");
+  res.set({
+    "Cache-Control": "private, no-store",
+    "Content-Disposition": `inline; filename*=UTF-8''${encodedFilename}`,
+    "Content-Length": String(file.size_bytes),
+    "X-Content-Type-Options": "nosniff",
+  });
+  return res.type(file.mime_type).send(file.pdf_data);
+}));
+
+app.post(
+  "/api/career/performance/import-pdf",
+  requireAuth,
+  requirePrivateSphereOwner,
+  labPdfUploadRateLimit,
+  labPdfUploadBody,
+  asyncRoute(async (req, res) => {
+    const declaredType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!["application/pdf", "application/octet-stream"].includes(declaredType) || !isPdfBuffer(req.body)) {
+      return res.status(400).json({ error: "Загрузите корректный PDF-файл" });
+    }
+    const filename = pdfUploadFilename(req, "Перфоманс-ревью");
+    let imported;
+    try {
+      imported = await parsePerformanceReviewPdf(req.body, {
+        id: `performance-${randomUUID()}`,
+        filename,
+        uploadedAt: new Date(),
+      });
+    } catch (error) {
+      if (error instanceof LabPdfError) return res.status(422).json({ error: error.message, code: error.code });
+      return res.status(422).json({
+        error: "Не удалось извлечь содержимое PDF",
+        code: "PERFORMANCE_PDF_PARSE_ERROR",
+      });
+    }
+    const parsedCycle = careerPerformanceCycleSchema.safeParse(imported.cycle);
+    if (!parsedCycle.success) {
+      return res.status(422).json({
+        error: "Структура PDF слишком сложная для импорта. Попробуйте файл с текстовым слоем и одним циклом ревью.",
+        code: "PERFORMANCE_PDF_STRUCTURE_ERROR",
+      });
+    }
+    if (Buffer.byteLength(JSON.stringify(parsedCycle.data), "utf8") > 210_000) {
+      return res.status(413).json({
+        error: "В PDF слишком много текста для одного цикла ревью",
+        code: "PERFORMANCE_PDF_TOO_MUCH_TEXT",
+      });
+    }
+    res.set("Cache-Control", "private, no-store");
+    return res.status(201).json({
+      cycle: parsedCycle.data,
+      filename,
+      warnings: imported.warnings,
+    });
+  }),
+);
+
+app.patch("/api/career/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = careerSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Раздел карьеры не найден" });
+  const parsed = careerContentSchemas[section.data].safeParse(req.body?.content);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Не удалось сохранить: проверьте заполнение полей раздела",
+      code: "CAREER_CONTENT_VALIDATION_ERROR",
+    });
+  }
+  const contentJson = JSON.stringify(parsed.data);
+  if (Buffer.byteLength(contentJson, "utf8") > 230_000) {
+    return res.status(413).json({ error: "Содержимое раздела слишком большое", code: "CAREER_CONTENT_TOO_LARGE" });
+  }
+  const result = await query(
+    `INSERT INTO career_content (user_id,section,content_json,updated_at)
+     VALUES ($1,$2,$3,CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id,section) DO UPDATE SET
+       content_json=EXCLUDED.content_json,
+       updated_at=CURRENT_TIMESTAMP
+     RETURNING content_json,updated_at`,
+    [req.user.id, section.data, contentJson],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ content: JSON.parse(result.rows[0].content_json), updatedAt: result.rows[0].updated_at });
+}));
+
+app.post("/api/education/lists", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationListCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите название и раздел списка" });
+  const data = parsed.data;
+  const result = await withMutationLock(`education-lists:${req.user.id}:${data.section}`, () => query(
+    `INSERT INTO education_lists (id,user_id,section,title,description,sort_order)
+     SELECT $1,$2,$3,$4,$5,COALESCE(MAX(sort_order),-1)+1
+     FROM education_lists
+     WHERE user_id=$2 AND section=$3
+     RETURNING id,section,title,description,sort_order,created_at,updated_at`,
+    [randomUUID(), req.user.id, data.section, data.title, data.description],
+  ));
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ list: mapEducationList(result.rows[0]) });
+}));
+
+app.patch("/api/education/lists/:listId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationListPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Проверьте название и описание списка" });
+  const result = await query(
+    `UPDATE education_lists
+     SET title=$1,description=$2,updated_at=CURRENT_TIMESTAMP
+     WHERE id=$3 AND user_id=$4
+     RETURNING id,section,title,description,sort_order,created_at,updated_at`,
+    [parsed.data.title, parsed.data.description, req.params.listId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Список не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ list: mapEducationList(result.rows[0]) });
+}));
+
+app.delete("/api/education/lists/:listId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const outcome = await withMutationLock(`education-list:${req.params.listId}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id,section FROM education_lists WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.listId, req.user.id],
+    );
+    if (!owned.rowCount) return { error: "Список не найден", status: 404 };
+    const table = educationItemTables[owned.rows[0].section];
+    const linked = await client.query(
+      `SELECT COUNT(*) AS count FROM ${table} WHERE list_id=$1 AND user_id=$2`,
+      [req.params.listId, req.user.id],
+    );
+    await client.query("DELETE FROM education_lists WHERE id=$1", [req.params.listId]);
+    return { unlistedCount: Number(linked.rows[0].count) || 0 };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ ok: true, unlistedCount: outcome.unlistedCount });
+}));
+
+app.get("/api/education/courses", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [result, lists, groups] = await Promise.all([query(
+    `SELECT id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order,created_at,updated_at
+     FROM education_courses
+     WHERE user_id=$1
+     ORDER BY sort_order,
+              CASE status WHEN 'in_progress' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END,
+              COALESCE(completed_on,started_on) DESC NULLS LAST,
+              updated_at DESC`,
+    [req.user.id],
+  ), educationListsForUser(req.user.id, "courses"), educationCourseGroupsForUser(req.user.id)]);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ courses: result.rows.map(mapEducationCourse), lists, groups });
+}));
+
+app.post("/api/education/courses/groups", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseGroupCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите два разных курса" });
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "courses"))) {
+    return res.status(400).json({ error: "Список курсов не найден", code: "COURSE_LIST_NOT_FOUND" });
+  }
+  const outcome = await withMutationLock(`education-course-groups:${req.user.id}`, () => transaction(async (client) => {
+    const courses = await client.query(
+      `SELECT id FROM education_courses
+       WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 AND id IN ($3,$4)
+       ORDER BY id FOR UPDATE`,
+      [req.user.id, listId, ...parsed.data.courseIds],
+    );
+    if (courses.rowCount !== 2) return { status: 404, error: "Один из курсов не найден в этом списке" };
+    const occupied = await client.query(
+      "SELECT course_id FROM education_course_group_members WHERE course_id IN ($1,$2)",
+      parsed.data.courseIds,
+    );
+    if (occupied.rowCount) return { status: 409, error: "Один из курсов уже находится в группе" };
+    const group = {
+      id: randomUUID(),
+      listId,
+      title: "Группа",
+      courseIds: parsed.data.courseIds,
+    };
+    const created = await client.query(
+      `INSERT INTO education_course_groups (id,user_id,list_id,title)
+       VALUES ($1,$2,$3,$4)
+       RETURNING created_at,updated_at`,
+      [group.id, req.user.id, group.listId, group.title],
+    );
+    await client.query(
+      `INSERT INTO education_course_group_members (group_id,course_id,sort_order)
+       VALUES ($1,$2,0),($1,$3,1)`,
+      [group.id, ...group.courseIds],
+    );
+    return {
+      group: {
+        ...group,
+        createdAt: created.rows[0].created_at,
+        updatedAt: created.rows[0].updated_at,
+      },
+    };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json(outcome);
+}));
+
+app.post("/api/education/courses/groups/:groupId/courses", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseGroupAddSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Курс не выбран" });
+  const outcome = await withMutationLock(`education-course-groups:${req.user.id}`, () => transaction(async (client) => {
+    const group = await client.query(
+      "SELECT id,list_id,title,created_at,updated_at FROM education_course_groups WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.groupId, req.user.id],
+    );
+    if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+    const course = await client.query(
+      "SELECT id FROM education_courses WHERE id=$1 AND user_id=$2 AND list_id IS NOT DISTINCT FROM $3 FOR UPDATE",
+      [parsed.data.courseId, req.user.id, group.rows[0].list_id],
+    );
+    if (!course.rowCount) return { status: 404, error: "Курс не найден в списке группы" };
+    const inserted = await client.query(
+      `INSERT INTO education_course_group_members (group_id,course_id,sort_order)
+       SELECT $1,$2,COALESCE(MAX(sort_order),-1)+1
+       FROM education_course_group_members WHERE group_id=$1
+       ON CONFLICT (course_id) DO NOTHING
+       RETURNING course_id`,
+      [req.params.groupId, parsed.data.courseId],
+    );
+    if (!inserted.rowCount) return { status: 409, error: "Курс уже находится в группе" };
+    const members = await client.query(
+      "SELECT course_id FROM education_course_group_members WHERE group_id=$1 ORDER BY sort_order,course_id",
+      [req.params.groupId],
+    );
+    const row = group.rows[0];
+    return { group: { id: row.id, listId: row.list_id || null, title: row.title, courseIds: members.rows.map((member) => member.course_id), createdAt: row.created_at, updatedAt: row.updated_at } };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json(outcome);
+}));
+
+app.delete("/api/education/courses/groups/:groupId/courses/:courseId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const outcome = await withMutationLock(`education-course-groups:${req.user.id}`, () => transaction(async (client) => {
+    const group = await client.query(
+      "SELECT id FROM education_course_groups WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.groupId, req.user.id],
+    );
+    if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+    const removed = await client.query(
+      "DELETE FROM education_course_group_members WHERE group_id=$1 AND course_id=$2 RETURNING course_id",
+      [req.params.groupId, req.params.courseId],
+    );
+    if (!removed.rowCount) return { status: 404, error: "Курс не найден в группе" };
+    const remaining = await client.query(
+      "SELECT course_id FROM education_course_group_members WHERE group_id=$1 ORDER BY sort_order,course_id",
+      [req.params.groupId],
+    );
+    const dissolved = remaining.rowCount < 2;
+    if (dissolved) await client.query("DELETE FROM education_course_groups WHERE id=$1", [req.params.groupId]);
+    return { groupId: req.params.groupId, courseId: req.params.courseId, dissolved, courseIds: dissolved ? [] : remaining.rows.map((row) => row.course_id) };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.patch("/api/education/courses/groups/:groupId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseGroupPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Проверьте название группы" });
+  const result = await query(
+    `UPDATE education_course_groups SET title=$1,updated_at=CURRENT_TIMESTAMP
+     WHERE id=$2 AND user_id=$3 RETURNING id,title,updated_at`,
+    [parsed.data.title, req.params.groupId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ group: { id: result.rows[0].id, title: result.rows[0].title, updatedAt: result.rows[0].updated_at } });
+}));
+
+app.patch("/api/education/courses/groups/:groupId/list", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseGroupMoveSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите список для группы" });
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "courses"))) {
+    return res.status(400).json({ error: "Список курсов не найден", code: "COURSE_LIST_NOT_FOUND" });
+  }
+  const outcome = await withMutationLock(`education-course-groups:${req.user.id}`, () => transaction(async (client) => {
+    const group = await client.query(
+      "SELECT id,list_id,title,created_at FROM education_course_groups WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.groupId, req.user.id],
+    );
+    if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+    const members = await client.query(
+      "SELECT course_id FROM education_course_group_members WHERE group_id=$1 ORDER BY sort_order,course_id",
+      [req.params.groupId],
+    );
+    const maxOrder = await client.query(
+      "SELECT COALESCE(MAX(sort_order),-1) AS value FROM education_courses WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2",
+      [req.user.id, listId],
+    );
+    const startOrder = Number(maxOrder.rows[0].value) + 1;
+    for (const [index, member] of members.rows.entries()) {
+      await client.query(
+        "UPDATE education_courses SET list_id=$1,sort_order=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND user_id=$4",
+        [listId, startOrder + index, member.course_id, req.user.id],
+      );
+    }
+    const updated = await client.query(
+      `UPDATE education_course_groups SET list_id=$1,updated_at=CURRENT_TIMESTAMP
+       WHERE id=$2 RETURNING updated_at`,
+      [listId, req.params.groupId],
+    );
+    const row = group.rows[0];
+    return { group: { id: row.id, listId, title: row.title, courseIds: members.rows.map((member) => member.course_id), createdAt: row.created_at, updatedAt: updated.rows[0].updated_at } };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.delete("/api/education/courses/groups/:groupId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const result = await query(
+    "DELETE FROM education_course_groups WHERE id=$1 AND user_id=$2 RETURNING id",
+    [req.params.groupId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ ok: true, groupId: result.rows[0].id });
+}));
+
+app.post("/api/education/courses", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const completedOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "completedOn");
+    return res.status(400).json({
+      error: completedOnIssue?.message || "Проверьте название, ссылку и даты курса",
+      code: "COURSE_VALIDATION_ERROR",
+    });
+  }
+  const course = parsed.data;
+  if (!(await educationListBelongsToUser(course.listId, req.user.id, "courses"))) {
+    return res.status(400).json({ error: "Список курсов не найден", code: "COURSE_LIST_NOT_FOUND" });
+  }
+  const listId = course.listId || null;
+  const result = await withMutationLock(`education-courses:${req.user.id}`, () => query(
+    `INSERT INTO education_courses (
+       id,user_id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE(MAX(sort_order),-1)+1
+       FROM education_courses WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $11
+     RETURNING id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order,created_at,updated_at`,
+    [
+      randomUUID(), req.user.id, course.title, course.provider, course.status, course.logoUrl,
+      course.url, course.description, course.startedOn || null, course.completedOn || null, listId,
+    ],
+  ));
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ course: mapEducationCourse(result.rows[0]) });
+}));
+
+app.patch("/api/education/courses/reorder", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось изменить порядок курсов", code: "COURSE_REORDER_VALIDATION_ERROR" });
+  }
+  const courseIds = parsed.data.courseIds;
+  const listId = parsed.data.listId || null;
+  const outcome = await withMutationLock(`education-courses:${req.user.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM education_courses WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 FOR UPDATE",
+      [req.user.id, listId],
+    );
+    const ownedIds = new Set(owned.rows.map((row) => row.id));
+    if (ownedIds.size !== courseIds.length || courseIds.some((id) => !ownedIds.has(id))) {
+      return { error: "Список курсов изменился. Обновите страницу и попробуйте снова", status: 409 };
+    }
+    for (const [sortOrder, courseId] of courseIds.entries()) {
+      await client.query(
+        "UPDATE education_courses SET sort_order=$1 WHERE id=$2 AND user_id=$3",
+        [sortOrder, courseId, req.user.id],
+      );
+    }
+    return { courseIds };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: "COURSE_REORDER_CONFLICT" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ courseIds: outcome.courseIds });
+}));
+
+app.patch("/api/education/courses/:courseId/list", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationItemListMoveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось выбрать список для курса", code: "COURSE_LIST_VALIDATION_ERROR" });
+  }
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "courses"))) {
+    return res.status(400).json({ error: "Список курсов не найден", code: "COURSE_LIST_NOT_FOUND" });
+  }
+  const outcome = await withMutationLock(`education-courses:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_courses WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.courseId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Курс не найден", code: "COURSE_NOT_FOUND" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachCourseFromEducationGroup(client, req.params.courseId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_courses item
+       SET list_id=$1,
+           sort_order=CASE WHEN item.list_id IS DISTINCT FROM $1 THEN (
+             SELECT COALESCE(MAX(other.sort_order),-1)+1
+             FROM education_courses other
+             WHERE other.user_id=$3 AND other.list_id IS NOT DISTINCT FROM $1
+           ) ELSE item.sort_order END,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$2 AND item.user_id=$3
+       RETURNING id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order,created_at,updated_at`,
+      [listId, req.params.courseId, req.user.id],
+    );
+    return { course: mapEducationCourse(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: outcome.code });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.patch("/api/education/courses/:courseId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = courseCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const completedOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "completedOn");
+    return res.status(400).json({
+      error: completedOnIssue?.message || "Проверьте название, ссылку, логотип и даты курса",
+      code: "COURSE_VALIDATION_ERROR",
+    });
+  }
+  const course = parsed.data;
+  if (!(await educationListBelongsToUser(course.listId, req.user.id, "courses"))) {
+    return res.status(400).json({ error: "Список курсов не найден", code: "COURSE_LIST_NOT_FOUND" });
+  }
+  const listId = course.listId || null;
+  const outcome = await withMutationLock(`education-courses:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_courses WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.courseId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Курс не найден", code: "COURSE_NOT_FOUND" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachCourseFromEducationGroup(client, req.params.courseId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_courses item
+       SET title=$1,provider=$2,status=$3,logo_url=$4,url=$5,description=$6,
+           started_on=$7,completed_on=$8,list_id=$9,
+           sort_order=CASE WHEN item.list_id IS DISTINCT FROM $9 THEN (
+             SELECT COALESCE(MAX(other.sort_order),-1)+1
+             FROM education_courses other
+             WHERE other.user_id=$11 AND other.list_id IS NOT DISTINCT FROM $9
+           ) ELSE item.sort_order END,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$10 AND item.user_id=$11
+       RETURNING id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order,created_at,updated_at`,
+      [
+        course.title, course.provider, course.status, course.logoUrl, course.url, course.description,
+        course.startedOn || null, course.completedOn || null, listId, req.params.courseId, req.user.id,
+      ],
+    );
+    return { course: mapEducationCourse(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: outcome.code });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+function registerEducationItemGroupRoutes(config) {
+  app.post(`${config.apiBase}/groups`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const parsed = educationItemGroupCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Выберите два разных элемента" });
+    const listId = parsed.data.listId || null;
+    if (!(await educationListBelongsToUser(listId, req.user.id, config.section))) {
+      return res.status(400).json({ error: config.listError });
+    }
+    const outcome = await withMutationLock(`education-${config.section}-groups:${req.user.id}`, () => transaction(async (client) => {
+      const items = await client.query(
+        `SELECT id FROM ${config.table}
+         WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 AND id IN ($3,$4)
+         ORDER BY id FOR UPDATE`,
+        [req.user.id, listId, ...parsed.data.itemIds],
+      );
+      if (items.rowCount !== 2) return { status: 404, error: "Один из элементов не найден в этом списке" };
+      const occupied = await client.query(
+        "SELECT item_id FROM education_item_group_members WHERE section=$1 AND item_id IN ($2,$3)",
+        [config.section, ...parsed.data.itemIds],
+      );
+      if (occupied.rowCount) return { status: 409, error: "Один из элементов уже находится в группе" };
+      const group = { id: randomUUID(), listId, title: "Группа", itemIds: parsed.data.itemIds };
+      const created = await client.query(
+        `INSERT INTO education_item_groups (id,user_id,section,list_id,title)
+         VALUES ($1,$2,$3,$4,$5)
+         RETURNING created_at,updated_at`,
+        [group.id, req.user.id, config.section, group.listId, group.title],
+      );
+      await client.query(
+        `INSERT INTO education_item_group_members (group_id,section,item_id,sort_order)
+         VALUES ($1,$2,$3,0),($1,$2,$4,1)`,
+        [group.id, config.section, ...group.itemIds],
+      );
+      return { group: { ...group, createdAt: created.rows[0].created_at, updatedAt: created.rows[0].updated_at } };
+    }));
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    res.set("Cache-Control", "private, no-store");
+    return res.status(201).json(outcome);
+  }));
+
+  app.post(`${config.apiBase}/groups/:groupId/items`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const parsed = educationItemGroupAddSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: `${config.itemLabel} не выбрана` });
+    const outcome = await withMutationLock(`education-${config.section}-groups:${req.user.id}`, () => transaction(async (client) => {
+      const group = await client.query(
+        `SELECT id,list_id,title,created_at,updated_at FROM education_item_groups
+         WHERE id=$1 AND user_id=$2 AND section=$3 FOR UPDATE`,
+        [req.params.groupId, req.user.id, config.section],
+      );
+      if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+      const item = await client.query(
+        `SELECT id FROM ${config.table} WHERE id=$1 AND user_id=$2 AND list_id IS NOT DISTINCT FROM $3 FOR UPDATE`,
+        [parsed.data.itemId, req.user.id, group.rows[0].list_id],
+      );
+      if (!item.rowCount) return { status: 404, error: `${config.itemLabel} не найдена в списке группы` };
+      const inserted = await client.query(
+        `INSERT INTO education_item_group_members (group_id,section,item_id,sort_order)
+         SELECT $1,$2,$3,COALESCE(MAX(sort_order),-1)+1
+         FROM education_item_group_members WHERE group_id=$1 AND section=$2
+         ON CONFLICT (section,item_id) DO NOTHING
+         RETURNING item_id`,
+        [req.params.groupId, config.section, parsed.data.itemId],
+      );
+      if (!inserted.rowCount) return { status: 409, error: `${config.itemLabel} уже находится в группе` };
+      const members = await client.query(
+        "SELECT item_id FROM education_item_group_members WHERE group_id=$1 AND section=$2 ORDER BY sort_order,item_id",
+        [req.params.groupId, config.section],
+      );
+      const row = group.rows[0];
+      return { group: { id: row.id, listId: row.list_id || null, title: row.title, itemIds: members.rows.map((member) => member.item_id), createdAt: row.created_at, updatedAt: row.updated_at } };
+    }));
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    res.set("Cache-Control", "private, no-store");
+    return res.status(201).json(outcome);
+  }));
+
+  app.delete(`${config.apiBase}/groups/:groupId/items/:itemId`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const outcome = await withMutationLock(`education-${config.section}-groups:${req.user.id}`, () => transaction(async (client) => {
+      const group = await client.query(
+        "SELECT id FROM education_item_groups WHERE id=$1 AND user_id=$2 AND section=$3 FOR UPDATE",
+        [req.params.groupId, req.user.id, config.section],
+      );
+      if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+      const removed = await client.query(
+        "DELETE FROM education_item_group_members WHERE group_id=$1 AND section=$2 AND item_id=$3 RETURNING item_id",
+        [req.params.groupId, config.section, req.params.itemId],
+      );
+      if (!removed.rowCount) return { status: 404, error: `${config.itemLabel} не найдена в группе` };
+      const remaining = await client.query(
+        "SELECT item_id FROM education_item_group_members WHERE group_id=$1 AND section=$2 ORDER BY sort_order,item_id",
+        [req.params.groupId, config.section],
+      );
+      const dissolved = remaining.rowCount < 2;
+      if (dissolved) await client.query("DELETE FROM education_item_groups WHERE id=$1", [req.params.groupId]);
+      return { groupId: req.params.groupId, itemId: req.params.itemId, dissolved, itemIds: dissolved ? [] : remaining.rows.map((row) => row.item_id) };
+    }));
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    res.set("Cache-Control", "private, no-store");
+    return res.json(outcome);
+  }));
+
+  app.patch(`${config.apiBase}/groups/:groupId`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const parsed = courseGroupPatchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Проверьте название группы" });
+    const result = await query(
+      `UPDATE education_item_groups SET title=$1,updated_at=CURRENT_TIMESTAMP
+       WHERE id=$2 AND user_id=$3 AND section=$4 RETURNING id,title,updated_at`,
+      [parsed.data.title, req.params.groupId, req.user.id, config.section],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ group: { id: result.rows[0].id, title: result.rows[0].title, updatedAt: result.rows[0].updated_at } });
+  }));
+
+  app.patch(`${config.apiBase}/groups/:groupId/list`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const parsed = courseGroupMoveSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Выберите список для группы" });
+    const listId = parsed.data.listId || null;
+    if (!(await educationListBelongsToUser(listId, req.user.id, config.section))) {
+      return res.status(400).json({ error: config.listError });
+    }
+    const outcome = await withMutationLock(`education-${config.section}-groups:${req.user.id}`, () => transaction(async (client) => {
+      const group = await client.query(
+        `SELECT id,list_id,title,created_at FROM education_item_groups
+         WHERE id=$1 AND user_id=$2 AND section=$3 FOR UPDATE`,
+        [req.params.groupId, req.user.id, config.section],
+      );
+      if (!group.rowCount) return { status: 404, error: "Группа не найдена" };
+      const members = await client.query(
+        "SELECT item_id FROM education_item_group_members WHERE group_id=$1 AND section=$2 ORDER BY sort_order,item_id",
+        [req.params.groupId, config.section],
+      );
+      const maxOrder = await client.query(
+        `SELECT COALESCE(MAX(sort_order),-1) AS value FROM ${config.table} WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2`,
+        [req.user.id, listId],
+      );
+      const startOrder = Number(maxOrder.rows[0].value) + 1;
+      for (const [index, member] of members.rows.entries()) {
+        await client.query(
+          `UPDATE ${config.table} SET list_id=$1,sort_order=$2,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND user_id=$4`,
+          [listId, startOrder + index, member.item_id, req.user.id],
+        );
+      }
+      const updated = await client.query(
+        `UPDATE education_item_groups SET list_id=$1,updated_at=CURRENT_TIMESTAMP
+         WHERE id=$2 RETURNING updated_at`,
+        [listId, req.params.groupId],
+      );
+      const row = group.rows[0];
+      return { group: { id: row.id, listId, title: row.title, itemIds: members.rows.map((member) => member.item_id), createdAt: row.created_at, updatedAt: updated.rows[0].updated_at } };
+    }));
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    res.set("Cache-Control", "private, no-store");
+    return res.json(outcome);
+  }));
+
+  app.delete(`${config.apiBase}/groups/:groupId`, requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+    const result = await query(
+      "DELETE FROM education_item_groups WHERE id=$1 AND user_id=$2 AND section=$3 RETURNING id",
+      [req.params.groupId, req.user.id, config.section],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ ok: true, groupId: result.rows[0].id });
+  }));
+}
+
+Object.values(educationGroupedSections).forEach(registerEducationItemGroupRoutes);
+
+app.get("/api/education/conferences", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [result, lists, groups] = await Promise.all([query(
+    `SELECT id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at
+     FROM education_conferences
+     WHERE user_id=$1
+     ORDER BY sort_order,
+              CASE status WHEN 'registered' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END,
+              COALESCE(starts_on,ends_on) DESC NULLS LAST,
+              updated_at DESC`,
+    [req.user.id],
+  ), educationListsForUser(req.user.id, "conferences"), educationItemGroupsForUser(req.user.id, "conferences")]);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ conferences: result.rows.map(mapEducationConference), lists, groups });
+}));
+
+app.post("/api/education/conferences", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = conferenceCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const endsOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endsOn");
+    return res.status(400).json({
+      error: endsOnIssue?.message || "Проверьте название, ссылку и даты конференции",
+      code: "CONFERENCE_VALIDATION_ERROR",
+    });
+  }
+  const conference = parsed.data;
+  if (!(await educationListBelongsToUser(conference.listId, req.user.id, "conferences"))) {
+    return res.status(400).json({ error: "Список конференций не найден", code: "CONFERENCE_LIST_NOT_FOUND" });
+  }
+  const listId = conference.listId || null;
+  const result = await withMutationLock(`education-conferences:${req.user.id}`, () => query(
+    `INSERT INTO education_conferences (
+       id,user_id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE(MAX(sort_order),-1)+1
+       FROM education_conferences WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $12
+     RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+    [
+      randomUUID(), req.user.id, conference.title, conference.status, conference.role,
+      conference.format, conference.location, conference.url, conference.description,
+      conference.startsOn || null, conference.endsOn || null, listId,
+    ],
+  ));
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ conference: mapEducationConference(result.rows[0]) });
+}));
+
+app.patch("/api/education/conferences/reorder", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = conferenceReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось изменить порядок конференций", code: "CONFERENCE_REORDER_VALIDATION_ERROR" });
+  }
+  const conferenceIds = parsed.data.conferenceIds;
+  const listId = parsed.data.listId || null;
+  const outcome = await withMutationLock(`education-conferences:${req.user.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM education_conferences WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 FOR UPDATE",
+      [req.user.id, listId],
+    );
+    const ownedIds = new Set(owned.rows.map((row) => row.id));
+    if (ownedIds.size !== conferenceIds.length || conferenceIds.some((id) => !ownedIds.has(id))) {
+      return { error: "Список конференций изменился. Обновите страницу и попробуйте снова", status: 409 };
+    }
+    for (const [sortOrder, conferenceId] of conferenceIds.entries()) {
+      await client.query(
+        "UPDATE education_conferences SET sort_order=$1 WHERE id=$2 AND user_id=$3",
+        [sortOrder, conferenceId, req.user.id],
+      );
+    }
+    return { conferenceIds };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: "CONFERENCE_REORDER_CONFLICT" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ conferenceIds: outcome.conferenceIds });
+}));
+
+app.patch("/api/education/conferences/:conferenceId/list", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationItemListMoveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось выбрать список для конференции", code: "CONFERENCE_LIST_VALIDATION_ERROR" });
+  }
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "conferences"))) {
+    return res.status(400).json({ error: "Список конференций не найден", code: "CONFERENCE_LIST_NOT_FOUND" });
+  }
+  const outcome = await withMutationLock(`education-conferences:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_conferences WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.conferenceId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Конференция не найдена", code: "CONFERENCE_NOT_FOUND" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachEducationItemFromGroup(client, "conferences", req.params.conferenceId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_conferences item
+       SET list_id=$1,
+           sort_order=CASE WHEN item.list_id IS DISTINCT FROM $1 THEN (
+             SELECT COALESCE(MAX(other.sort_order),-1)+1
+             FROM education_conferences other
+             WHERE other.user_id=$3 AND other.list_id IS NOT DISTINCT FROM $1
+           ) ELSE item.sort_order END,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$2 AND item.user_id=$3
+       RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+      [listId, req.params.conferenceId, req.user.id],
+    );
+    return { conference: mapEducationConference(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: outcome.code });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.patch("/api/education/conferences/:conferenceId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = conferenceCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const endsOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endsOn");
+    return res.status(400).json({
+      error: endsOnIssue?.message || "Проверьте название, ссылку и даты конференции",
+      code: "CONFERENCE_VALIDATION_ERROR",
+    });
+  }
+  const conference = parsed.data;
+  if (!(await educationListBelongsToUser(conference.listId, req.user.id, "conferences"))) {
+    return res.status(400).json({ error: "Список конференций не найден", code: "CONFERENCE_LIST_NOT_FOUND" });
+  }
+  const listId = conference.listId || null;
+  const outcome = await withMutationLock(`education-conferences:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_conferences WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.conferenceId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Конференция не найдена" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachEducationItemFromGroup(client, "conferences", req.params.conferenceId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_conferences item SET
+         title=$1,status=$2,role=$3,format=$4,location=$5,url=$6,description=$7,
+         starts_on=$8,ends_on=$9,list_id=$10,
+         sort_order=CASE WHEN item.list_id IS DISTINCT FROM $10 THEN (
+           SELECT COALESCE(MAX(other.sort_order),-1)+1
+           FROM education_conferences other
+           WHERE other.user_id=$12 AND other.list_id IS NOT DISTINCT FROM $10
+         ) ELSE item.sort_order END,
+         updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$11 AND item.user_id=$12
+       RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+      [
+        conference.title, conference.status, conference.role, conference.format,
+        conference.location, conference.url, conference.description,
+        conference.startsOn || null, conference.endsOn || null,
+        listId, req.params.conferenceId, req.user.id,
+      ],
+    );
+    return { conference: mapEducationConference(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.get("/api/education/coaching-sessions", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [result, lists, groups] = await Promise.all([query(
+    `SELECT id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order,created_at,updated_at
+     FROM education_coaching_sessions
+     WHERE user_id=$1
+     ORDER BY sort_order,
+              CASE status WHEN 'scheduled' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
+              CASE WHEN status='scheduled' THEN session_on END ASC NULLS LAST,
+              CASE WHEN status<>'scheduled' THEN session_on END DESC NULLS LAST,
+              updated_at DESC`,
+    [req.user.id],
+  ), educationListsForUser(req.user.id, "coaching"), educationItemGroupsForUser(req.user.id, "coaching")]);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ sessions: result.rows.map(mapEducationCoachingSession), lists, groups });
+}));
+
+app.post("/api/education/coaching-sessions", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = coachingSessionCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Проверьте название, ссылку, время и длительность сессии",
+      code: "COACHING_SESSION_VALIDATION_ERROR",
+    });
+  }
+  const session = parsed.data;
+  if (!(await educationListBelongsToUser(session.listId, req.user.id, "coaching"))) {
+    return res.status(400).json({ error: "Список коучинг-сессий не найден", code: "COACHING_LIST_NOT_FOUND" });
+  }
+  const listId = session.listId || null;
+  const result = await withMutationLock(`education-coaching-sessions:${req.user.id}`, () => query(
+    `INSERT INTO education_coaching_sessions (
+       id,user_id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE(MAX(sort_order),-1)+1
+       FROM education_coaching_sessions WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $13
+     RETURNING id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order,created_at,updated_at`,
+    [
+      randomUUID(), req.user.id, session.title, session.coach, session.status, session.format,
+      session.location, session.url, session.description, session.sessionOn || null,
+      session.sessionTime || null, session.durationMinutes || null, listId,
+    ],
+  ));
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ session: mapEducationCoachingSession(result.rows[0]) });
+}));
+
+app.patch("/api/education/coaching-sessions/reorder", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = coachingSessionReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось изменить порядок коучинг-сессий", code: "COACHING_SESSION_REORDER_VALIDATION_ERROR" });
+  }
+  const sessionIds = parsed.data.sessionIds;
+  const listId = parsed.data.listId || null;
+  const outcome = await withMutationLock(`education-coaching-sessions:${req.user.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM education_coaching_sessions WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 FOR UPDATE",
+      [req.user.id, listId],
+    );
+    const ownedIds = new Set(owned.rows.map((row) => row.id));
+    if (ownedIds.size !== sessionIds.length || sessionIds.some((id) => !ownedIds.has(id))) {
+      return { error: "Список коучинг-сессий изменился. Обновите страницу и попробуйте снова", status: 409 };
+    }
+    for (const [sortOrder, sessionId] of sessionIds.entries()) {
+      await client.query(
+        "UPDATE education_coaching_sessions SET sort_order=$1 WHERE id=$2 AND user_id=$3",
+        [sortOrder, sessionId, req.user.id],
+      );
+    }
+    return { sessionIds };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: "COACHING_SESSION_REORDER_CONFLICT" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ sessionIds: outcome.sessionIds });
+}));
+
+app.patch("/api/education/coaching-sessions/:sessionId/list", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationItemListMoveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось выбрать список для коучинг-сессии", code: "COACHING_LIST_VALIDATION_ERROR" });
+  }
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "coaching"))) {
+    return res.status(400).json({ error: "Список коучинг-сессий не найден", code: "COACHING_LIST_NOT_FOUND" });
+  }
+  const outcome = await withMutationLock(`education-coaching-sessions:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_coaching_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.sessionId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Коучинг-сессия не найдена", code: "COACHING_SESSION_NOT_FOUND" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachEducationItemFromGroup(client, "coaching", req.params.sessionId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_coaching_sessions item
+       SET list_id=$1,
+           sort_order=CASE WHEN item.list_id IS DISTINCT FROM $1 THEN (
+             SELECT COALESCE(MAX(other.sort_order),-1)+1
+             FROM education_coaching_sessions other
+             WHERE other.user_id=$3 AND other.list_id IS NOT DISTINCT FROM $1
+           ) ELSE item.sort_order END,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$2 AND item.user_id=$3
+       RETURNING id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order,created_at,updated_at`,
+      [listId, req.params.sessionId, req.user.id],
+    );
+    return { session: mapEducationCoachingSession(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: outcome.code });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.patch("/api/education/coaching-sessions/:sessionId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = coachingSessionCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Проверьте название, ссылку, время и длительность сессии",
+      code: "COACHING_SESSION_VALIDATION_ERROR",
+    });
+  }
+  const session = parsed.data;
+  if (!(await educationListBelongsToUser(session.listId, req.user.id, "coaching"))) {
+    return res.status(400).json({ error: "Список коучинг-сессий не найден", code: "COACHING_LIST_NOT_FOUND" });
+  }
+  const listId = session.listId || null;
+  const outcome = await withMutationLock(`education-coaching-sessions:${req.user.id}`, () => transaction(async (client) => {
+    const current = await client.query(
+      "SELECT id,list_id FROM education_coaching_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE",
+      [req.params.sessionId, req.user.id],
+    );
+    if (!current.rowCount) return { status: 404, error: "Коучинг-сессия не найдена" };
+    const groupChange = current.rows[0].list_id === listId
+      ? null
+      : await detachEducationItemFromGroup(client, "coaching", req.params.sessionId, req.user.id);
+    const result = await client.query(
+      `UPDATE education_coaching_sessions item SET
+         title=$1,coach=$2,status=$3,format=$4,location=$5,url=$6,description=$7,
+         session_on=$8,session_time=$9,duration_minutes=$10,list_id=$11,
+         sort_order=CASE WHEN item.list_id IS DISTINCT FROM $11 THEN (
+           SELECT COALESCE(MAX(other.sort_order),-1)+1
+           FROM education_coaching_sessions other
+           WHERE other.user_id=$13 AND other.list_id IS NOT DISTINCT FROM $11
+         ) ELSE item.sort_order END,
+         updated_at=CURRENT_TIMESTAMP
+       WHERE item.id=$12 AND item.user_id=$13
+       RETURNING id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order,created_at,updated_at`,
+      [
+        session.title, session.coach, session.status, session.format, session.location,
+        session.url, session.description, session.sessionOn || null,
+        session.sessionTime || null, session.durationMinutes || null,
+        listId, req.params.sessionId, req.user.id,
+      ],
+    );
+    return { session: mapEducationCoachingSession(result.rows[0]), groupChange };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(outcome);
+}));
+
+app.get("/api/health/workouts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [result, lists] = await Promise.all([query(
+    `SELECT id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order,created_at,updated_at
+     FROM health_workouts
+     WHERE user_id=$1
+     ORDER BY sort_order,
+              CASE status WHEN 'planned' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
+              CASE WHEN status='planned' THEN workout_on END ASC NULLS LAST,
+              CASE WHEN status<>'planned' THEN workout_on END DESC NULLS LAST,
+              updated_at DESC`,
+    [req.user.id],
+  ), educationListsForUser(req.user.id, "workouts")]);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ workouts: result.rows.map(mapHealthWorkout), lists });
+}));
+
+app.post("/api/health/workouts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = workoutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Проверьте тип, дату, длительность и показатели тренировки",
+      code: "WORKOUT_VALIDATION_ERROR",
+    });
+  }
+  const workout = parsed.data;
+  if (!(await educationListBelongsToUser(workout.listId, req.user.id, "workouts"))) {
+    return res.status(400).json({ error: "Список тренировок не найден", code: "WORKOUT_LIST_NOT_FOUND" });
+  }
+  const listId = workout.listId || null;
+  const result = await withMutationLock(`health-workouts:${req.user.id}`, () => query(
+    `INSERT INTO health_workouts (
+       id,user_id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE(MAX(sort_order),-1)+1
+       FROM health_workouts WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $13
+     RETURNING id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order,created_at,updated_at`,
+    [
+      randomUUID(), req.user.id, workout.title, workout.workoutType, workout.status, workout.workoutOn,
+      workout.startTime || null, workout.durationMinutes || null, workout.intensity,
+      workout.distanceKm || null, workout.calories || null, workout.notes, listId,
+    ],
+  ));
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ workout: mapHealthWorkout(result.rows[0]) });
+}));
+
+app.patch("/api/health/workouts/reorder", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = workoutReorderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось изменить порядок тренировок", code: "WORKOUT_REORDER_VALIDATION_ERROR" });
+  }
+  const workoutIds = parsed.data.workoutIds;
+  const listId = parsed.data.listId || null;
+  const outcome = await withMutationLock(`health-workouts:${req.user.id}`, () => transaction(async (client) => {
+    const owned = await client.query(
+      "SELECT id FROM health_workouts WHERE user_id=$1 AND list_id IS NOT DISTINCT FROM $2 FOR UPDATE",
+      [req.user.id, listId],
+    );
+    const ownedIds = new Set(owned.rows.map((row) => row.id));
+    if (ownedIds.size !== workoutIds.length || workoutIds.some((id) => !ownedIds.has(id))) {
+      return { error: "Список тренировок изменился. Обновите страницу и попробуйте снова", status: 409 };
+    }
+    for (const [sortOrder, workoutId] of workoutIds.entries()) {
+      await client.query(
+        "UPDATE health_workouts SET sort_order=$1 WHERE id=$2 AND user_id=$3",
+        [sortOrder, workoutId, req.user.id],
+      );
+    }
+    return { workoutIds };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, code: "WORKOUT_REORDER_CONFLICT" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ workoutIds: outcome.workoutIds });
+}));
+
+app.patch("/api/health/workouts/:workoutId/list", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = educationItemListMoveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Не удалось выбрать список для тренировки", code: "WORKOUT_LIST_VALIDATION_ERROR" });
+  }
+  const listId = parsed.data.listId || null;
+  if (!(await educationListBelongsToUser(listId, req.user.id, "workouts"))) {
+    return res.status(400).json({ error: "Список тренировок не найден", code: "WORKOUT_LIST_NOT_FOUND" });
+  }
+  const result = await withMutationLock(`health-workouts:${req.user.id}`, () => query(
+    `UPDATE health_workouts item
+     SET list_id=$1,
+         sort_order=CASE WHEN item.list_id IS DISTINCT FROM $1 THEN (
+           SELECT COALESCE(MAX(other.sort_order),-1)+1
+           FROM health_workouts other
+           WHERE other.user_id=$3 AND other.list_id IS NOT DISTINCT FROM $1
+         ) ELSE item.sort_order END,
+         updated_at=CURRENT_TIMESTAMP
+     WHERE item.id=$2 AND item.user_id=$3
+     RETURNING id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order,created_at,updated_at`,
+    [listId, req.params.workoutId, req.user.id],
+  ));
+  if (!result.rowCount) return res.status(404).json({ error: "Тренировка не найдена", code: "WORKOUT_NOT_FOUND" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ workout: mapHealthWorkout(result.rows[0]) });
+}));
+
+app.patch("/api/health/workouts/:workoutId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = workoutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Проверьте тип, дату, длительность и показатели тренировки",
+      code: "WORKOUT_VALIDATION_ERROR",
+    });
+  }
+  const workout = parsed.data;
+  if (!(await educationListBelongsToUser(workout.listId, req.user.id, "workouts"))) {
+    return res.status(400).json({ error: "Список тренировок не найден", code: "WORKOUT_LIST_NOT_FOUND" });
+  }
+  const listId = workout.listId || null;
+  const result = await query(
+    `UPDATE health_workouts item SET
+       title=$1,workout_type=$2,status=$3,workout_on=$4,start_time=$5,duration_minutes=$6,
+       intensity=$7,distance_km=$8,calories=$9,notes=$10,list_id=$11,
+       sort_order=CASE WHEN item.list_id IS DISTINCT FROM $11 THEN (
+         SELECT COALESCE(MAX(other.sort_order),-1)+1
+         FROM health_workouts other
+         WHERE other.user_id=$13 AND other.list_id IS NOT DISTINCT FROM $11
+       ) ELSE item.sort_order END,
+       updated_at=CURRENT_TIMESTAMP
+     WHERE item.id=$12 AND item.user_id=$13
+     RETURNING id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order,created_at,updated_at`,
+    [
+      workout.title, workout.workoutType, workout.status, workout.workoutOn, workout.startTime || null,
+      workout.durationMinutes || null, workout.intensity, workout.distanceKm || null,
+      workout.calories || null, workout.notes, listId, req.params.workoutId, req.user.id,
+    ],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Тренировка не найдена" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ workout: mapHealthWorkout(result.rows[0]) });
+}));
+
+app.post("/api/health/medication-groups", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = medicationGroupSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите название группы до 60 символов" });
+  const result = await query(
+    `INSERT INTO health_medication_groups (id,user_id,title,sort_order)
+     SELECT $1,$2,$3,COALESCE(MAX(sort_order),-1)+1
+     FROM health_medication_groups
+     WHERE user_id=$2
+     RETURNING id,title,sort_order,created_at,updated_at`,
+    [randomUUID(), req.user.id, parsed.data.title],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ group: mapHealthMedicationGroup(result.rows[0]) });
+}));
+
+app.patch("/api/health/medication-groups/:groupId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = medicationGroupSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите название группы до 60 символов" });
+  const result = await query(
+    `UPDATE health_medication_groups
+     SET title=$1,updated_at=CURRENT_TIMESTAMP
+     WHERE id=$2 AND user_id=$3
+     RETURNING id,title,sort_order,created_at,updated_at`,
+    [parsed.data.title, req.params.groupId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ group: mapHealthMedicationGroup(result.rows[0]) });
+}));
+
+app.delete("/api/health/medication-groups/:groupId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const result = await query(
+    "DELETE FROM health_medication_groups WHERE id=$1 AND user_id=$2 RETURNING id",
+    [req.params.groupId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Группа не найдена" });
+  res.set("Cache-Control", "private, no-store");
+  return res.status(204).end();
+}));
+
+app.get("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const [medicationsResult, groupsResult] = await Promise.all([
+    query(
+      `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at
+       FROM health_medications
+       WHERE user_id=$1
+       ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'planned' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,
+                CASE WHEN status='planned' THEN start_on END ASC NULLS LAST,
+                CASE WHEN status IN ('paused','completed') THEN end_on END DESC NULLS LAST,
+                updated_at DESC`,
+      [req.user.id],
+    ),
+    query(
+      `SELECT id,title,sort_order,created_at,updated_at
+       FROM health_medication_groups
+       WHERE user_id=$1
+       ORDER BY sort_order,created_at,id`,
+      [req.user.id],
+    ),
+  ]);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    medications: medicationsResult.rows.map(mapHealthMedication),
+    groups: groupsResult.rows.map(mapHealthMedicationGroup),
+  });
+}));
+
+app.post("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = medicationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const endOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endOn");
+    return res.status(400).json({
+      error: endOnIssue?.message || "Проверьте название, схему и период приёма препарата",
+      code: "MEDICATION_VALIDATION_ERROR",
+    });
+  }
+  const medication = parsed.data;
+  if (medication.groupId) {
+    const group = await query(
+      "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
+      [medication.groupId, req.user.id],
+    );
+    if (!group.rowCount) return res.status(400).json({ error: "Выбранная группа не найдена" });
+  }
+  const result = await query(
+    `INSERT INTO health_medications (
+       id,user_id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+    [
+      randomUUID(), req.user.id, medication.groupId, medication.name, medication.medicationForm,
+      medication.status, medication.dosage, medication.frequency, JSON.stringify(medication.scheduleTimes),
+      medication.purpose, medication.prescriber, medication.instructions, medication.startOn || null,
+      medication.endOn || null, medication.notes,
+    ],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({ medication: mapHealthMedication(result.rows[0]) });
+}));
+
+app.patch("/api/health/medications/:medicationId/group", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = medicationGroupMoveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Не удалось выбрать группу для препарата",
+      code: "MEDICATION_GROUP_VALIDATION_ERROR",
+    });
+  }
+  const { groupId } = parsed.data;
+  if (groupId) {
+    const group = await query(
+      "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
+      [groupId, req.user.id],
+    );
+    if (!group.rowCount) {
+      return res.status(400).json({
+        error: "Группа препаратов не найдена",
+        code: "MEDICATION_GROUP_NOT_FOUND",
+      });
+    }
+  }
+  const result = await withMutationLock(`health-medications:${req.user.id}`, () => query(
+    `UPDATE health_medications
+     SET group_id=$1,updated_at=CURRENT_TIMESTAMP
+     WHERE id=$2 AND user_id=$3
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+    [groupId, req.params.medicationId, req.user.id],
+  ));
+  if (!result.rowCount) {
+    return res.status(404).json({ error: "Препарат не найден", code: "MEDICATION_NOT_FOUND" });
+  }
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ medication: mapHealthMedication(result.rows[0]) });
+}));
+
+app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = medicationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const endOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endOn");
+    return res.status(400).json({
+      error: endOnIssue?.message || "Проверьте название, схему и период приёма препарата",
+      code: "MEDICATION_VALIDATION_ERROR",
+    });
+  }
+  const medication = parsed.data;
+  if (medication.groupId) {
+    const group = await query(
+      "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
+      [medication.groupId, req.user.id],
+    );
+    if (!group.rowCount) return res.status(400).json({ error: "Выбранная группа не найдена" });
+  }
+  const result = await query(
+    `UPDATE health_medications SET
+       group_id=$1,name=$2,medication_form=$3,status=$4,dosage=$5,frequency=$6,schedule_times_json=$7,
+       purpose=$8,prescriber=$9,instructions=$10,start_on=$11,end_on=$12,notes=$13,updated_at=CURRENT_TIMESTAMP
+     WHERE id=$14 AND user_id=$15
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+    [
+      medication.groupId, medication.name, medication.medicationForm, medication.status, medication.dosage,
+      medication.frequency, JSON.stringify(medication.scheduleTimes), medication.purpose, medication.prescriber,
+      medication.instructions, medication.startOn || null, medication.endOn || null, medication.notes,
+      req.params.medicationId, req.user.id,
+    ],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Препарат не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ medication: mapHealthMedication(result.rows[0]) });
+}));
+
+app.get("/api/health/lab-results", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const uploadedReports = await uploadedLabReports(req.user.id);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    reports: mergeLabReportsByDate([...uploadedReports, ...LAB_REPORTS]),
+    trends: LAB_TRENDS,
+    attentionItems: LAB_ATTENTION_ITEMS,
+  });
+}));
+
+app.post(
+  "/api/health/lab-results/uploads",
+  requireAuth,
+  requirePrivateSphereOwner,
+  labPdfUploadRateLimit,
+  labPdfUploadBody,
+  asyncRoute(async (req, res) => {
+    const declaredType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!["application/pdf", "application/octet-stream"].includes(declaredType) || !isPdfBuffer(req.body)) {
+      return res.status(400).json({ error: "Загрузите корректный PDF-файл" });
+    }
+
+    const id = randomUUID();
+    const filename = labUploadFilename(req);
+    let report;
+    try {
+      report = await parseLabPdf(req.body, { id, filename, uploadedAt: new Date() });
+    } catch (error) {
+      if (error instanceof LabPdfError) return res.status(422).json({ error: error.message, code: error.code });
+      throw error;
+    }
+
+    const fileHash = createHash("sha256").update(req.body).digest("hex");
+    try {
+      const inserted = await query(
+        `INSERT INTO lab_report_uploads (
+           id,user_id,filename,mime_type,pdf_data,size_bytes,file_hash,report_json
+         ) VALUES ($1,$2,$3,'application/pdf',$4,$5,$6,$7)
+         RETURNING id,filename,report_json,created_at`,
+        [id, req.user.id, filename, req.body, req.body.length, fileHash, JSON.stringify(report)],
+      );
+      const insertedReport = mapUploadedLabReport(inserted.rows[0]);
+      const reports = mergeLabReportsByDate([...(await uploadedLabReports(req.user.id)), ...LAB_REPORTS]);
+      const mergedReport = reports.find((item) => item.date === insertedReport.date) || insertedReport;
+      res.set("Cache-Control", "private, no-store");
+      return res.status(201).json({ report: mergedReport, reports });
+    } catch (error) {
+      if (error?.code === "23505") return res.status(409).json({ error: "Этот PDF уже загружен" });
+      throw error;
+    }
+  }),
+);
+
+app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const result = await query(
+    `SELECT id,filename,mime_type,pdf_data,size_bytes
+     FROM lab_report_uploads
+     WHERE id=$1 AND user_id=$2`,
+    [req.params.id, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "PDF не найден" });
+  const file = result.rows[0];
+  const encodedFilename = encodeURIComponent(file.filename).replaceAll("'", "%27");
+  res.set({
+    "Cache-Control": "private, no-store",
+    "Content-Disposition": `inline; filename*=UTF-8''${encodedFilename}`,
+    "Content-Length": String(file.size_bytes),
+    "X-Content-Type-Options": "nosniff",
+  });
+  return res.type(file.mime_type).send(file.pdf_data);
+}));
+
+app.get("/api/contacts/:contactId/avatar", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const contact = await contactForUser(req.user.id, req.params.contactId);
+  if (!contact || !contactAvatarPath(contact)) return res.status(404).end();
+  try {
+    const image = await loadContactAvatar(contact);
+    if (req.get("if-none-match") === image.etag) return res.status(304).end();
+    res.set({
+      "Cache-Control": "private, no-store",
+      "Content-Length": String(image.body.length),
+      ETag: image.etag,
+    });
+    return res.type(image.mimeType).send(image.body);
+  } catch (error) {
+    if (error instanceof MetadataFetchError) return res.status(404).end();
+    throw error;
+  }
+}));
+
+app.get("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const contact = await contactForUser(req.user.id, req.params.contactId);
+  if (!contact) return res.status(404).json({ error: "Контакт не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+}));
+
+app.patch("/api/contacts/:contactId/favorite", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const source = await contactForUser(req.user.id, req.params.contactId);
+  if (!source) return res.status(404).json({ error: "Контакт не найден" });
+  const parsed = contactFavoriteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось изменить избранное" });
+  const favorite = parsed.data.favorite;
+  await withMutationLock(`contact-favorite:${req.user.id}:${source.id}`, async () => {
+    if (favorite) {
+      await query(
+        `INSERT INTO contact_favorites (user_id,contact_id)
+         VALUES ($1,$2)
+         ON CONFLICT (user_id,contact_id) DO NOTHING`,
+        [req.user.id, source.id],
+      );
+    } else {
+      await query("DELETE FROM contact_favorites WHERE user_id=$1 AND contact_id=$2", [req.user.id, source.id]);
+    }
+  });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ favorite });
+}));
+
+app.patch("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const source = await contactForUser(req.user.id, req.params.contactId);
+  if (!source) return res.status(404).json({ error: "Контакт не найден" });
+  const parsed = contactUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось сохранить: проверьте заполнение полей и адреса ссылок" });
+  const data = parsed.data;
+  const result = await query(
+    `INSERT INTO contact_overrides (
+       user_id,contact_id,name,company,role,category,status,links_json,notes,updated_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+     ON CONFLICT (user_id,contact_id) DO UPDATE SET
+       name=EXCLUDED.name,
+       company=EXCLUDED.company,
+       role=EXCLUDED.role,
+       category=EXCLUDED.category,
+       status=EXCLUDED.status,
+       links_json=EXCLUDED.links_json,
+       notes=EXCLUDED.notes,
+       updated_at=CURRENT_TIMESTAMP
+     RETURNING contact_id AS "contactId",name,company,role,category,status,
+               links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
+    [req.user.id, source.id, data.name, data.company, data.role, data.category, data.status, JSON.stringify(data.links), data.notes],
+  );
+  const contact = await contactForUser(req.user.id, source.id);
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+}));
+
 app.get("/api/people", asyncRoute(async (req, res) => {
   const search = String(req.query.search || "").trim().slice(0, 80);
   const scope = String(req.query.scope || "discover");
@@ -2525,10 +5187,15 @@ if (isProduction) {
   app.get("*splat", (_req, res) => res.sendFile(path.join(distPath, "index.html")));
 }
 
-app.use((error, _req, res, _next) => {
+app.use((error, req, res, _next) => {
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Проверьте введённые данные" });
-  if (error?.type === "entity.too.large") return res.status(413).json({ error: "Изображение должно быть не больше 8 МБ" });
+  if (error?.type === "entity.too.large") {
+    const isPdf = req.originalUrl.startsWith("/api/health/lab-results/uploads")
+      || req.originalUrl.startsWith("/api/identity/reports/")
+      || req.originalUrl.startsWith("/api/career/performance/import-pdf");
+    return res.status(413).json({ error: isPdf ? "PDF должен быть не больше 12 МБ" : "Изображение должно быть не больше 8 МБ" });
+  }
   res.status(500).json({ error: "Внутренняя ошибка. Мы уже разбираемся." });
 });
 
@@ -2547,6 +5214,7 @@ async function shutdown() {
       ]);
     }
     await pool.end();
+    await vehicleCatalog.close();
     process.exit(0);
   });
 }

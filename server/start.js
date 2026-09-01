@@ -1,7 +1,10 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { loadLockboxValue } from "./lockbox.js";
+
+dotenv.config({ path: ".env.local", override: false, quiet: true });
 
 async function loadDatabaseLockboxSecret() {
   const secretId = process.env.YC_LOCKBOX_SECRET_ID;
@@ -9,6 +12,14 @@ async function loadDatabaseLockboxSecret() {
   if (!secretId || process.env.PGPASSWORD) return;
   process.env.PGPASSWORD = await loadLockboxValue(secretId, secretKey);
   console.log("Runtime database credential loaded from Yandex Lockbox");
+}
+
+async function loadAutoDatabaseLockboxSecret() {
+  const secretId = process.env.YC_AUTO_DATABASE_LOCKBOX_SECRET_ID;
+  const secretKey = process.env.YC_AUTO_DATABASE_LOCKBOX_SECRET_KEY || "postgresql_password";
+  if (!secretId || process.env.AUTO_PGPASSWORD || process.env.AUTO_DATABASE_URL) return;
+  process.env.AUTO_PGPASSWORD = await loadLockboxValue(secretId, secretKey);
+  console.log("Runtime auto database credential loaded from Yandex Lockbox");
 }
 
 async function loadPhoneAuthLockboxSecret() {
@@ -61,10 +72,22 @@ async function loadYandexOauthSecrets() {
   if (loaded) console.log("Runtime Yandex OAuth credentials loaded from Yandex Lockbox");
 }
 
+async function loadOpenRouterLockboxSecret() {
+  const secretId = process.env.YC_OPENROUTER_LOCKBOX_SECRET_ID;
+  if (!secretId || process.env.OPENROUTER_API_KEY) return;
+  process.env.OPENROUTER_API_KEY = await loadLockboxValue(
+    secretId,
+    process.env.YC_OPENROUTER_API_KEY_KEY || "api_key",
+  );
+  console.log("Runtime OpenRouter credential loaded from Yandex Lockbox");
+}
+
 await loadDatabaseLockboxSecret();
+await loadAutoDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 await loadYandexOauthSecrets();
+await loadOpenRouterLockboxSecret();
 
 const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
 const telegramConfig = getTelegramBotRuntimeConfig();
