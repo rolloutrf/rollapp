@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   moveWishToTargetPosition,
   moveWishWithinSubset,
+  reorderScopeWishIds,
   resolveWishHoverMode,
   wishRectOverlapRatio,
 } from "./wish-order.js";
@@ -53,16 +54,35 @@ test("moveWishWithinSubset rejects targets outside the group", () => {
   assert.equal(moveWishWithinSubset(order, ["group-first", "group-second"], "outside", "group-second"), order);
 });
 
-test("moveWishWithinSubset keeps fulfilled wishes in the server-defined status section", () => {
-  const order = ["active-first", "active-second", "fulfilled-first", "fulfilled-second"];
-
+test("reorderScopeWishIds includes every visible status in the current list", () => {
   assert.deepEqual(
-    moveWishWithinSubset(order, ["active-first", "active-second"], "active-first", "active-second"),
-    ["active-second", "active-first", "fulfilled-first", "fulfilled-second"],
+    [...reorderScopeWishIds([
+      { id: "active", status: "active" },
+      { id: "fulfilled", status: "fulfilled" },
+    ])],
+    ["active", "fulfilled"],
   );
-  assert.equal(
-    moveWishWithinSubset(order, ["active-first", "active-second"], "active-first", "fulfilled-first"),
-    order,
+});
+
+test("reorderScopeWishIds limits an open group to its visible wishes", () => {
+  assert.deepEqual(
+    [...reorderScopeWishIds(
+      [{ id: "active" }, { id: "fulfilled" }, { id: "outside" }],
+      ["active", "fulfilled", "hidden"],
+    )],
+    ["active", "fulfilled"],
+  );
+});
+
+test("moveWishWithinSubset can swap visible active and fulfilled wishes", () => {
+  assert.deepEqual(
+    moveWishWithinSubset(
+      ["active", "outside", "fulfilled"],
+      reorderScopeWishIds([{ id: "active" }, { id: "fulfilled" }]),
+      "active",
+      "fulfilled",
+    ),
+    ["fulfilled", "outside", "active"],
   );
 });
 

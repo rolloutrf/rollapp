@@ -132,6 +132,8 @@ const schema = `
     description TEXT NOT NULL DEFAULT '',
     url TEXT NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',
+    vehicle_make TEXT NOT NULL DEFAULT '',
+    vehicle_model TEXT NOT NULL DEFAULT '',
     price NUMERIC(12, 2),
     currency TEXT NOT NULL DEFAULT 'RUB',
     priority INTEGER NOT NULL DEFAULT 2,
@@ -146,7 +148,37 @@ const schema = `
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS event_date DATE;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS space TEXT;
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS fundraising_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT '';
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS source_wish_id TEXT REFERENCES wishes(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS wish_marketplace_offer_snapshots (
+    wish_id TEXT PRIMARY KEY REFERENCES wishes(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    offers_json TEXT NOT NULL DEFAULT '[]',
+    summary TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    searched_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_wish_marketplace_offer_snapshots_user
+    ON wish_marketplace_offer_snapshots(user_id, searched_at DESC);
+
+  CREATE TABLE IF NOT EXISTS wish_book_notes (
+    wish_id TEXT PRIMARY KEY REFERENCES wishes(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    summary TEXT NOT NULL DEFAULT '',
+    key_ideas TEXT NOT NULL DEFAULT '',
+    quotes TEXT NOT NULL DEFAULT '',
+    applications TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_wish_book_notes_user_updated
+    ON wish_book_notes(user_id, updated_at DESC);
 
   CREATE TABLE IF NOT EXISTS wish_images (
     id TEXT PRIMARY KEY,
@@ -156,6 +188,202 @@ const schema = `
     size_bytes INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS lab_report_uploads (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+    pdf_data BYTEA NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    report_json TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, file_hash)
+  );
+
+  CREATE TABLE IF NOT EXISTS education_lists (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('courses','conferences','coaching','workouts')),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  ALTER TABLE education_lists DROP CONSTRAINT IF EXISTS education_lists_section_check;
+  ALTER TABLE education_lists
+    ADD CONSTRAINT education_lists_section_check
+    CHECK (section IN ('courses','conferences','coaching','workouts'));
+
+  CREATE TABLE IF NOT EXISTS education_courses (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','in_progress','completed')),
+    url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    started_on DATE,
+    completed_on DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (started_on IS NULL OR completed_on IS NULL OR completed_on >= started_on)
+  );
+
+  ALTER TABLE education_courses
+    ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE education_courses
+    ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT '';
+
+  ALTER TABLE education_courses
+    ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS education_course_groups (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    list_id TEXT REFERENCES education_lists(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'Группа',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS education_course_group_members (
+    group_id TEXT NOT NULL REFERENCES education_course_groups(id) ON DELETE CASCADE,
+    course_id TEXT PRIMARY KEY REFERENCES education_courses(id) ON DELETE CASCADE,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS education_item_groups (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('conferences','coaching')),
+    list_id TEXT REFERENCES education_lists(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'Группа',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id,section)
+  );
+
+  CREATE TABLE IF NOT EXISTS education_item_group_members (
+    group_id TEXT NOT NULL,
+    section TEXT NOT NULL CHECK (section IN ('conferences','coaching')),
+    item_id TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (section,item_id),
+    FOREIGN KEY (group_id,section) REFERENCES education_item_groups(id,section) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS education_conferences (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','registered','attended')),
+    role TEXT NOT NULL DEFAULT 'attendee' CHECK (role IN ('attendee','speaker','organizer')),
+    format TEXT NOT NULL DEFAULT 'offline' CHECK (format IN ('offline','online','hybrid')),
+    location TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    starts_on DATE,
+    ends_on DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (starts_on IS NULL OR ends_on IS NULL OR ends_on >= starts_on)
+  );
+
+  ALTER TABLE education_conferences
+    ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE education_conferences
+    ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS education_coaching_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    coach TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled')),
+    format TEXT NOT NULL DEFAULT 'online' CHECK (format IN ('online','offline')),
+    location TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    session_on DATE,
+    session_time TIME,
+    duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 15 AND 480),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  ALTER TABLE education_coaching_sessions
+    ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE education_coaching_sessions
+    ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS health_workouts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    workout_type TEXT NOT NULL DEFAULT 'strength'
+      CHECK (workout_type IN ('strength','running','walking','cycling','swimming','mobility','team_sport','other')),
+    status TEXT NOT NULL DEFAULT 'completed'
+      CHECK (status IN ('planned','completed','skipped')),
+    workout_on DATE NOT NULL,
+    start_time TIME,
+    duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes BETWEEN 5 AND 720),
+    intensity TEXT NOT NULL DEFAULT 'moderate'
+      CHECK (intensity IN ('light','moderate','high')),
+    distance_km NUMERIC(8, 2) CHECK (distance_km IS NULL OR (distance_km > 0 AND distance_km <= 1000)),
+    calories INTEGER CHECK (calories IS NULL OR calories BETWEEN 1 AND 20000),
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  ALTER TABLE health_workouts
+    ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE health_workouts
+    ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS health_medication_groups (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS health_medications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id TEXT REFERENCES health_medication_groups(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    medication_form TEXT NOT NULL DEFAULT 'tablet'
+      CHECK (medication_form IN ('tablet','capsule','solution','drops','spray','injection','cream','other')),
+    status TEXT NOT NULL DEFAULT 'active'
+      CHECK (status IN ('active','planned','paused','completed')),
+    dosage TEXT NOT NULL DEFAULT '',
+    frequency TEXT NOT NULL DEFAULT 'once_daily'
+      CHECK (frequency IN ('once_daily','twice_daily','three_times_daily','weekly','as_needed','custom')),
+    schedule_times_json TEXT NOT NULL DEFAULT '[]',
+    purpose TEXT NOT NULL DEFAULT '',
+    prescriber TEXT NOT NULL DEFAULT '',
+    instructions TEXT NOT NULL DEFAULT '',
+    start_on DATE,
+    end_on DATE,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (start_on IS NULL OR end_on IS NULL OR end_on >= start_on)
+  );
+
+  ALTER TABLE health_medications
+    ADD COLUMN IF NOT EXISTS group_id TEXT REFERENCES health_medication_groups(id) ON DELETE SET NULL;
 
   CREATE TABLE IF NOT EXISTS wishlist_wishes (
     wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
@@ -201,6 +429,77 @@ const schema = `
     PRIMARY KEY (follower_id, following_id)
   );
 
+  CREATE TABLE IF NOT EXISTS contact_overrides (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    contact_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    company TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    links_json TEXT NOT NULL DEFAULT '[]',
+    notes TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, contact_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS contact_favorites (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    contact_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, contact_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS career_content (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('about','cv','performance','development','domain')),
+    content_json TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, section)
+  );
+
+  ALTER TABLE career_content DROP CONSTRAINT IF EXISTS career_content_section_check;
+  ALTER TABLE career_content
+    ADD CONSTRAINT career_content_section_check
+    CHECK (section IN ('about','cv','performance','development','domain'));
+
+  CREATE TABLE IF NOT EXISTS identity_content (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('four-questions','theses','values','mission','life-strategy')),
+    content_json TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, section)
+  );
+
+  ALTER TABLE identity_content DROP CONSTRAINT IF EXISTS identity_content_section_check;
+  ALTER TABLE identity_content
+    ADD CONSTRAINT identity_content_section_check
+    CHECK (section IN ('four-questions','theses','values','mission','life-strategy'));
+
+  CREATE TABLE IF NOT EXISTS identity_generated_reports (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    status TEXT NOT NULL DEFAULT 'generated' CHECK (status IN ('generated','empty')),
+    report_json TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, section)
+  );
+
+  CREATE TABLE IF NOT EXISTS identity_report_uploads (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    filename TEXT NOT NULL,
+    mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+    pdf_data BYTEA NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    file_hash TEXT NOT NULL,
+    document_json TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, section, file_hash)
+  );
+
   CREATE TABLE IF NOT EXISTS rollapp_data_migrations (
     id TEXT PRIMARY KEY,
     applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -221,9 +520,53 @@ const schema = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_wish_group_members_list_space_wish
     ON wish_group_members(wishlist_id,space,wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_images_user ON wish_images(user_id,created_at);
+  CREATE INDEX IF NOT EXISTS idx_lab_report_uploads_user_created
+    ON lab_report_uploads(user_id,created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_identity_report_uploads_user_section_created
+    ON identity_report_uploads(user_id,section,created_at);
+  CREATE INDEX IF NOT EXISTS idx_education_courses_user_updated
+    ON education_courses(user_id,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_education_courses_user_sort
+    ON education_courses(user_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_courses_user_list_sort
+    ON education_courses(user_id,list_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_course_groups_user_list
+    ON education_course_groups(user_id,list_id,created_at);
+  CREATE INDEX IF NOT EXISTS idx_education_course_group_members_group_sort
+    ON education_course_group_members(group_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_item_groups_user_section_list
+    ON education_item_groups(user_id,section,list_id,created_at);
+  CREATE INDEX IF NOT EXISTS idx_education_item_group_members_group_sort
+    ON education_item_group_members(group_id,section,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_lists_user_section_sort
+    ON education_lists(user_id,section,sort_order,created_at);
+  CREATE INDEX IF NOT EXISTS idx_education_conferences_user_updated
+    ON education_conferences(user_id,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_education_conferences_user_sort
+    ON education_conferences(user_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_conferences_user_list_sort
+    ON education_conferences(user_id,list_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_coaching_sessions_user_updated
+    ON education_coaching_sessions(user_id,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_education_coaching_sessions_user_sort
+    ON education_coaching_sessions(user_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_education_coaching_sessions_user_list_sort
+    ON education_coaching_sessions(user_id,list_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_health_workouts_user_date
+    ON health_workouts(user_id,workout_on DESC,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_health_workouts_user_list_sort
+    ON health_workouts(user_id,list_id,sort_order);
+  CREATE INDEX IF NOT EXISTS idx_health_medications_user_status
+    ON health_medications(user_id,status,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_health_medications_user_group
+    ON health_medications(user_id,group_id,updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_health_medication_groups_user_sort
+    ON health_medication_groups(user_id,sort_order,created_at);
   CREATE INDEX IF NOT EXISTS idx_reservations_wish ON reservations(wish_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower_created ON follows(follower_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_follows_following_created ON follows(following_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_contact_overrides_user_updated ON contact_overrides(user_id, updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_contact_favorites_user_created ON contact_favorites(user_id, created_at DESC);
   UPDATE reservations
   SET status='multiple'
   WHERE status='reserved' AND wish_id IN (SELECT id FROM wishes WHERE allow_multiple=TRUE);

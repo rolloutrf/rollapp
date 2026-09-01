@@ -5,7 +5,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./list-navigation.js";
 
-const supportedSpaces = ["products", "places", "events", "media", "food", "transport", "pets"];
+const supportedSpaces = ["products", "places", "events", "media", "food", "transport"];
 
 test("owners can create the first list in every empty space", () => {
   for (const space of supportedSpaces) {

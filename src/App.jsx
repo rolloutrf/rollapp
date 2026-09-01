@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, Clapperboard, ExternalLink, Eye, EyeOff, FolderInput, Gift, GripVertical, Hand, Heart, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, PackageCheck, Pencil, Phone, Plus,
-  PawPrint, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
+  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
+  CircleUserRound, Clapperboard, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
+  LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus,
+  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -16,10 +16,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AboutMe } from "@/components/about-me";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CoachingSessions } from "@/components/coaching-sessions";
+import { Conferences } from "@/components/conferences";
+import { Courses } from "@/components/courses";
+import { DevelopmentPlan } from "@/components/development-plan";
+import { Domain } from "@/components/domain";
+import { CvResume } from "@/components/cv-resume";
+import { FourQuestions } from "@/components/four-questions";
+import { GallupProfile } from "@/components/gallup-profile";
+import {
+  IdentityReportControls, IdentityReportEmpty,
+  IdentityReportStatus, useIdentityReport,
+} from "@/components/identity-report-manager";
+import { EditableLifeStrategy } from "@/components/editable-life-strategy";
+import { LabResults } from "@/components/lab-results";
+import { Medications } from "@/components/medications";
+import { Mission } from "@/components/mission";
+import { MarketplaceOffers } from "@/components/marketplace-offers";
+import { PerformanceReview } from "@/components/performance-review";
+import { Theses } from "@/components/theses";
+import { Values } from "@/components/values";
+import { Workouts } from "@/components/workouts";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -32,11 +54,16 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger,
+} from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -45,11 +72,14 @@ import {
   isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
+import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
 import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
 import { filterWishesWithoutList, initialWishListIds } from "./lib/wish-lists.js";
+import { GROUP_INTENT_DELAY_MS } from "./lib/card-order.js";
 import {
   moveWishToTargetPosition,
   moveWishWithinSubset,
+  reorderScopeWishIds,
   resolveWishHoverMode,
   wishRectOverlapRatio,
 } from "./lib/wish-order.js";
@@ -60,6 +90,7 @@ import {
   wishPreviewImageUrl,
 } from "../shared/kinopoisk.js";
 import { retailerPreview, retailerPreviewImageUrl } from "../shared/retailer-previews.js";
+import { isVideoUrl, isVkVideoUrl, isYouTubeUrl } from "../shared/video-links.js";
 import { requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
@@ -68,7 +99,6 @@ const ToastContext = createContext(null);
 const ProfileEditorContext = createContext(null);
 const previewBackfillRequests = new Map();
 const APP_HOME = "/app/wishes";
-const GROUP_INTENT_DELAY_MS = 250;
 
 function requestPreviewBackfill(userId) {
   if (!userId) return null;
@@ -160,30 +190,14 @@ const isYandexMapsUrl = (value) => {
     return parsed.pathname.startsWith("/maps");
   } catch { return false; }
 };
-const YOUTUBE_HOSTS = ["youtube.com", "youtu.be", "youtube-nocookie.com"];
-const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-const isYouTubeUrl = (value) => {
-  try {
-    const parsed = new URL(value);
-    if (!["http:", "https:"].includes(parsed.protocol)) return false;
-    const host = parsed.hostname.toLowerCase().replace(/^(www\.|m\.|music\.)/, "");
-    if (!YOUTUBE_HOSTS.includes(host)) return false;
-    if (host === "youtu.be") {
-      const id = parsed.pathname.split("/")[1] || "";
-      return YOUTUBE_VIDEO_ID_PATTERN.test(id);
-    }
-    if (parsed.pathname === "/watch") {
-      return YOUTUBE_VIDEO_ID_PATTERN.test(parsed.searchParams.get("v") || "");
-    }
-    return /^\/(shorts|embed|live|v)\/[A-Za-z0-9_-]{11}(?:[/?]|$)/.test(parsed.pathname);
-  } catch { return false; }
-};
 const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 const wishFormFrom = (wish, initialListId = "") => ({
   title: wish?.title || "",
   description: wish?.description || "",
   url: wish?.url || "",
   fundraisingUrl: wish?.fundraisingUrl || "",
+  vehicleMake: wish?.vehicleMake || "",
+  vehicleModel: wish?.vehicleModel || "",
   imageUrl: wish?.imageUrl || "",
   price: wish?.price == null ? "" : String(wish.price),
   currency: WISH_CURRENCIES.includes(wish?.currency) ? wish.currency : "RUB",
@@ -249,7 +263,6 @@ const SPACES = [
   { id: "media", label: "Медиа", icon: Clapperboard },
   { id: "food", label: "Еда", icon: UtensilsCrossed },
   { id: "transport", label: "Транспорт", icon: Car },
-  { id: "pets", label: "Питомцы", icon: PawPrint },
 ];
 const SPACE_IDS = SPACES.map((space) => space.id);
 const listSpace = (list) => (SPACE_IDS.includes(list?.space) ? list.space : "products");
@@ -274,6 +287,9 @@ const wishSpaceId = (wish, lists = []) => {
     .find((id) => SPACE_IDS.includes(id));
   return spaceId || "products";
 };
+const placeSnippetAddress = (description = "") => String(description)
+  .split(/\s+[•·]\s+/u, 1)[0]
+  .trim();
 
 const LIST_TILE_STYLE = {
   width: 130,
@@ -295,32 +311,6 @@ function ListTileContent({ title, count, privateList = false }) {
       <span data-slot="list-tile-count" style={{ fontSize: 24, lineHeight: "29px", fontWeight: 600 }}>{count}</span>
     </div>
   </>;
-}
-
-function SpaceSwitcher({ value, onChange, className = "" }) {
-  const current = SPACES.find((space) => space.id === value) || SPACES[0];
-  return (
-    <Select value={current.id} onValueChange={(next) => { if (next && next !== current.id) onChange(next); }}>
-      <SelectTrigger className={`space-select ${className}`.trim()} aria-label="Категория списков" title="Категория списков">
-        <SelectValue>{(selected) => {
-          const space = SPACES.find((item) => item.id === selected) || current;
-          const Icon = space.icon;
-          return <><Icon aria-hidden="true" /><span className="space-select__label">{space.label}</span></>;
-        }}</SelectValue>
-      </SelectTrigger>
-      <SelectContent className="space-select__content" alignItemWithTrigger={false}>
-        {SPACES.map((space) => {
-          const Icon = space.icon;
-          return (
-            <SelectItem key={space.id} value={space.id}>
-              <Icon aria-hidden="true" />
-              <span>{space.label}</span>
-            </SelectItem>
-          );
-        })}
-      </SelectContent>
-    </Select>
-  );
 }
 
 function useAsync(load, dependencies = []) {
@@ -470,13 +460,556 @@ function Logo({ className = "" }) {
 function Avatar({ user, size = "md", className = "", ...props }) {
   const avatarUrl = user?.avatarUrl || user?.avatar_url || "";
   const shadcnSize = size === "sm" ? "sm" : ["lg", "xl"].includes(size) ? "lg" : "default";
-  const appSizeClass = { sm: "!size-9", md: "!size-12", lg: "!size-[78px]", xl: "!size-[var(--avatar-xl-size)]" }[size] || "";
+  const appSizeClass = { sm: "!size-9", md: "!size-12", lg: "!size-[var(--avatar-lg-size)]", xl: "!size-[var(--avatar-xl-size)]" }[size] || "";
   return (
     <ShadcnAvatar size={shadcnSize} className={`avatar avatar--${size} ${appSizeClass} ${className}`} {...props}>
       {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
       <AvatarFallback className="avatar--fallback">{initials(user?.name)}</AvatarFallback>
     </ShadcnAvatar>
   );
+}
+
+const SPHERE_SERVICES = [
+  { id: "identity", label: "Идентичность", path: "/app/spheres/identity", icon: Fingerprint, color: "#5967f2" },
+  { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
+  { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
+  { id: "health", label: "Здоровье", path: "/app/spheres/health", icon: HeartPulse, color: "#43bd83" },
+  { id: "contacts", label: "Контакты", path: "/app/spheres/contacts", icon: ContactRound, color: "#9b72e8" },
+];
+
+const SERVICE_SWITCHER_ITEMS = [
+  { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
+  ...SPHERE_SERVICES,
+];
+
+function activeServiceFromPath(pathname) {
+  if (pathname.startsWith("/app/wishes")) return "wishlist";
+  if (pathname.startsWith("/s/")) return "wishlist";
+  if (pathname.startsWith("/app/friends")) return "contacts";
+  const sphereId = pathname.match(/^\/app\/spheres\/([^/]+)/)?.[1];
+  if (SPHERE_SERVICES.some((sphere) => sphere.id === sphereId)) return sphereId;
+  const reserved = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/ideas"];
+  if (!reserved.includes(pathname) && !pathname.startsWith("/app/")) return "wishlist";
+  return null;
+}
+
+function SphereSwitcher() {
+  const { pathname } = useLocation();
+  const { user } = useSession();
+  const [open, setOpen] = useState(false);
+  const activeService = activeServiceFromPath(pathname);
+  const visibleServices = serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={<ShadcnButton className="sphere-switcher__trigger !size-12 rounded-full" variant="outline" size="icon" type="button" />}
+        aria-label="Открыть переключатель сфер"
+        title="Сферы"
+      >
+        <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" focusable="false">
+          <rect x="3.25" y="3.25" width="6.5" height="6.5" rx="2.25" />
+          <rect x="14.25" y="3.25" width="6.5" height="6.5" rx="2.25" />
+          <rect x="3.25" y="14.25" width="6.5" height="6.5" rx="2.25" />
+          <rect x="14.25" y="14.25" width="6.5" height="6.5" rx="2.25" />
+        </svg>
+      </PopoverTrigger>
+      <PopoverContent
+        className="sphere-switcher__panel !w-[min(38rem,calc(100vw-2rem))] !gap-4 !rounded-3xl !p-5 max-[560px]:!rounded-2xl"
+        align="start"
+        sideOffset={10}
+      >
+        <PopoverHeader className="sphere-switcher__header">
+          <PopoverTitle className="sphere-switcher__title">Сферы</PopoverTitle>
+          <PopoverDescription>Выберите раздел Rollapp</PopoverDescription>
+        </PopoverHeader>
+        <nav className="sphere-switcher__grid" aria-label="Сервисы и сферы Rollapp">
+          {visibleServices.map(({ id, label, path, icon: Icon, color }) => {
+            const active = id === activeService;
+            return (
+              <Link
+                key={id}
+                to={path}
+                className={buttonVariants({
+                  variant: active ? "secondary" : "ghost",
+                  className: "sphere-switcher__item !h-auto !min-h-32 !whitespace-normal !rounded-xl !px-2 !py-3",
+                })}
+                data-active={active ? "true" : undefined}
+                aria-current={active ? "page" : undefined}
+                onClick={() => setOpen(false)}
+              >
+                <span className="sphere-switcher__icon" style={{ "--sphere-color": color }}>
+                  <Icon aria-hidden="true" />
+                </span>
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function AppBrand() {
+  return <div className="app-brand"><Logo className="app-shell-logo" /><SphereSwitcher /></div>;
+}
+
+function useGlobalShareHandler() {
+  const handlerRef = useRef(null);
+  useEffect(() => {
+    const handleShare = (event) => {
+      if (!handlerRef.current) return;
+      event.detail.handled = true;
+      void handlerRef.current();
+    };
+    window.addEventListener("rollapp:share-request", handleShare);
+    return () => window.removeEventListener("rollapp:share-request", handleShare);
+  }, []);
+  return handlerRef;
+}
+
+function GlobalAppChrome() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { user } = useSession();
+  const requestedService = serviceChromeFromPath(location.pathname);
+  const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user)
+    ? requestedService
+    : null;
+  const options = service?.tabs || [];
+  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const current = options.find((option) => option.id === requestedTab) || options[0] || null;
+  const selectTab = (tabId) => {
+    if (!tabId || tabId === current?.id) return;
+    const search = new URLSearchParams(location.search);
+    search.set("tab", tabId);
+    navigate({ pathname: location.pathname, search: `?${search.toString()}`, hash: location.hash }, { replace: true });
+  };
+  const share = async () => {
+    const detail = { handled: false };
+    window.dispatchEvent(new CustomEvent("rollapp:share-request", { detail }));
+    if (detail.handled) return;
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast("Ссылка скопирована");
+    } catch {
+      toast("Не удалось скопировать ссылку", "error");
+    }
+  };
+  return (
+    <header className="global-app-chrome" aria-label="Панель приложения">
+      <AppBrand />
+      {current && (
+        <Select value={current.id} onValueChange={selectTab}>
+          <SelectTrigger className="space-select global-service-select" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
+            <SelectValue>{(selected) => {
+              const option = options.find((item) => item.id === selected) || current;
+              const Icon = option.icon || service.icon;
+              return <>{Icon && <Icon aria-hidden="true" />}<span className="space-select__label">{option.label}</span></>;
+            }}</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)" alignItemWithTrigger={false}>
+            {options.map((option) => {
+              const Icon = option.icon || service.icon;
+              return <SelectItem key={option.id} value={option.id}>{Icon && <Icon aria-hidden="true" />}<span>{option.label}</span></SelectItem>;
+            })}
+          </SelectContent>
+        </Select>
+      )}
+      {service && <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>}
+    </header>
+  );
+}
+
+function AppBrandSpacer() {
+  return <span className="app-brand-spacer" aria-hidden="true" />;
+}
+
+const IDENTITY_TABS = [
+  {
+    id: "four-questions",
+    label: "4 вопроса",
+    description: "Каков этот мир, кто я, каково моё место и чего я хочу.",
+  },
+  {
+    id: "theses",
+    label: "Тезисы",
+    description: "Ключевые мысли, гипотезы и формулировки, к которым важно возвращаться.",
+  },
+  {
+    id: "values",
+    label: "Ценности",
+    description: "Личные принципы и критерии, на которые вы опираетесь в решениях.",
+    layout: "full-width",
+  },
+  {
+    id: "gallup",
+    label: "Gallup",
+    description: "Результаты и заметки по вашим сильным сторонам CliftonStrengths.",
+  },
+  {
+    id: "hogan",
+    label: "Hogan",
+    description: "Результаты оценки личности, возможных рисков и внутренних ценностей.",
+  },
+  {
+    id: "mission",
+    label: "Миссия",
+    description: "Формулировка личной миссии и ориентиров для принятия решений.",
+  },
+  {
+    id: "life-strategy",
+    label: "Жизненная стратегия",
+    description: "Цели, приоритеты и план движения по ключевым жизненным горизонтам.",
+  },
+];
+
+const CAREER_TABS = [
+  {
+    id: "about",
+    label: "О себе",
+    description: "Профессиональный профиль, принципы работы и взгляд на финтех-продукты.",
+  },
+  {
+    id: "domain",
+    label: "Домен",
+    description: "Профессиональная область, её границы, ключевые игроки и направления влияния.",
+  },
+  {
+    id: "cv",
+    label: "CV",
+    description: "Опыт, достижения и актуальная версия профессионального резюме.",
+  },
+  {
+    id: "performance",
+    label: "Перфоманс",
+    description: "Цели, результаты и обратная связь по вашей текущей профессиональной роли.",
+    layout: "full-width",
+  },
+  {
+    id: "development-plan",
+    label: "ИПР",
+    description: "Индивидуальный план развития: навыки, действия и контрольные точки.",
+  },
+];
+
+const EDUCATION_TABS = [
+  {
+    id: "courses",
+    label: "Курсы",
+    description: "Пройденные и запланированные программы обучения, материалы и результаты.",
+  },
+  {
+    id: "conferences",
+    label: "Конференции",
+    description: "Профессиональные конференции, выступления и полезные контакты с мероприятий.",
+  },
+  {
+    id: "coaching",
+    label: "Коучинг",
+    description: "Цели, сессии и договорённости в рамках индивидуальной работы с коучем.",
+  },
+];
+
+const HEALTH_TABS = [
+  {
+    id: "lab-results",
+    label: "Анализы",
+    description: "Результаты обследований, динамика показателей и рекомендации специалистов.",
+  },
+  {
+    id: "sport",
+    label: "Спорт",
+    description: "Тренировочные планы, активность, достижения и восстановление.",
+  },
+  {
+    id: "medications",
+    label: "Препараты",
+    description: "Назначенные препараты, схемы приёма и важные напоминания.",
+  },
+];
+
+const CONTACT_TABS = [
+  { id: "contacts", label: "Контакты", icon: ContactRound },
+];
+
+const SERVICE_TABS = {
+  wishlist: SPACES,
+  identity: IDENTITY_TABS,
+  career: CAREER_TABS,
+  education: EDUCATION_TABS,
+  health: HEALTH_TABS,
+  contacts: CONTACT_TABS,
+};
+
+const HOGAN_PROFILES = [
+  {
+    id: "hpi",
+    code: "HPI",
+    title: "Сильные стороны",
+    description: "Повседневный рабочий стиль и то, какое первое впечатление вы создаёте.",
+    scores: [
+      ["Адаптация", 5, "Спокойствие, стабильность и устойчивость настроения."],
+      ["Амбициозность", 84, "Инициатива, лидерство, стремление к статусу и достижениям."],
+      ["Общительность", 2, "Социальная уверенность, заметность и потребность во внимании."],
+      ["Межличностная восприимчивость", 1, "Такт, дипломатичность и ориентация на длительные отношения."],
+      ["Организованность", 10, "Самоконтроль, ответственность и следование правилам и процедурам."],
+      ["Любознательность", 16, "Открытость идеям, воображение и способность видеть перспективу."],
+      ["Подход к обучению", 4, "Интерес к формальному обучению и удовольствие от получения новых знаний."],
+    ],
+  },
+  {
+    id: "mvpi",
+    code: "MVPI",
+    title: "Ценности и мотиваторы",
+    description: "Что придаёт работе смысл, поддерживает вовлечённость и влияет на решения.",
+    scores: [
+      ["Признание", 57, "Желание быть заметным, получать внимание и признание."],
+      ["Власть", 89, "Конкуренция, успех, влияние и возможность добиваться результата."],
+      ["Жажда наслаждений", 1, "Разнообразие, развлечения и удовольствие как часть рабочей среды."],
+      ["Альтруизм", 1, "Стремление помогать, заботиться и улучшать жизнь других."],
+      ["Причастность", 2, "Потребность в частом социальном контакте и совместной деятельности."],
+      ["Традиционализм", 97, "Опора на консервативные ценности, правила и проверенные принципы."],
+      ["Безопасность", 59, "Стабильность, порядок, предсказуемость и понятная система."],
+      ["Коммерция", 81, "Прибыль, финансовый результат и деловая эффективность."],
+      ["Эстетика", 2, "Творческое самовыражение, дизайн и качество визуальной среды."],
+      ["Научный подход", 20, "Новые идеи, технологии, данные и аналитическое решение проблем."],
+    ],
+  },
+  {
+    id: "hds",
+    code: "HDS",
+    title: "Риски под нагрузкой",
+    description: "Поведенческие тенденции, которые могут усиливаться в стрессе или неопределённости.",
+    scores: [
+      ["Эмоциональный", 97, "Сильный первоначальный энтузиазм, который может сменяться разочарованием."],
+      ["Скептичный", 90, "Проницательность и настороженность, иногда переходящие в цинизм и чувствительность к критике."],
+      ["Осторожный", 29, "Опасение критики и ошибок, способное замедлять решения."],
+      ["Сам в себе", 98, "Сдержанность и дистанция, из-за которых интерес к чувствам других может быть незаметен."],
+      ["Сам по себе", 95, "Независимость, раздражение на давление и склонность игнорировать настойчивые просьбы."],
+      ["Самоуверенный", 91, "Очень высокая уверенность в собственной компетентности и значимости."],
+      ["Увлекающийся", 51, "Обаяние, смелость и готовность рисковать, иногда с элементом манипулятивности."],
+      ["Театральный", 26, "Драматичность, демонстративность и стремление быть в центре внимания."],
+      ["С богатым воображением", 55, "Необычные идеи и нестандартные способы мыслить и действовать."],
+      ["Прилежный", 89, "Перфекционизм, высокие стандарты, педантичность и требовательность."],
+      ["Исполненный сознания долга", 20, "Стремление угодить авторитету и трудность действовать независимо."],
+    ],
+  },
+];
+
+const HOGAN_REPORT_STATS = [
+  {
+    value: "3",
+    label: "опросника",
+    detail: "HPI · MVPI · HDS",
+  },
+  {
+    value: "28",
+    label: "шкал",
+    detail: "в едином профиле",
+  },
+];
+
+const HOGAN_METHODS = [
+  {
+    code: "HPI",
+    title: "Повседневная репутация",
+    text: "Описывает сильные стороны, рабочее поведение и первое впечатление, которое обычно складывается у окружающих.",
+  },
+  {
+    code: "MVPI",
+    title: "Внутренние мотиваторы",
+    text: "Показывает ключевые ценности, предпочтительную среду и то, что поддерживает интерес к работе и решениям.",
+  },
+  {
+    code: "HDS",
+    title: "Поведение под нагрузкой",
+    text: "Отражает тенденции, которые могут становиться заметнее при стрессе, усталости и неопределённости.",
+  },
+];
+
+const HOGAN_REPORT_USES = [
+  "Оценить, как рабочий стиль влияет на отношения с коллегами и клиентами.",
+  "Проверить, насколько ценности человека совпадают с культурой организации и роли.",
+  "Распознать привычные реакции, которые под давлением могут мешать результату.",
+];
+
+const HOGAN_CHANGE_STEPS = [
+  ["Что", "Какое конкретное поведение нужно изменить?"],
+  ["Готовность", "Готовы ли вы взять ответственность за изменение?"],
+  ["Как", "Какой новый способ действий вы будете практиковать?"],
+];
+
+const HOGAN_NARRATIVE_SECTIONS = [
+  {
+    id: "strengths",
+    code: "HPI",
+    eyebrow: "Повседневный стиль",
+    title: "Сильные стороны",
+    lead: "Высокая самостоятельность и ориентация на результат сочетаются с прямым, сдержанным стилем общения и предпочтением практических решений.",
+    themes: [
+      {
+        title: "Обратная связь и стремления",
+        points: [
+          "Энергичный, трудолюбивый и амбициозный стиль: важно достигать результата, брать инициативу, руководить людьми и проектами.",
+          "Лучше всего потенциал раскрывается там, где можно влиять на итог, принимать решения и работать достаточно самостоятельно.",
+          "В новом окружении впечатление скорее вежливое, но формальное: комфортнее короткая деловая коммуникация, самостоятельная работа и личное пространство.",
+        ],
+      },
+      {
+        title: "Межличностные качества",
+        points: [
+          "Независимость и уверенность помогают не избегать конфликта, поднимать сложные вопросы и работать с неэффективностью.",
+          "Есть готовность занимать непопулярную позицию, устанавливать правила и требовать выполнения обязательств.",
+          "Гибкость и спонтанность позволяют быстро менять направление, вести несколько задач и спокойно относиться к прерываниям.",
+          "Нестандартные процедуры и разумный риск особенно уместны в динамичной среде, хотя прямота может восприниматься как жёсткость.",
+        ],
+      },
+      {
+        title: "Работа и обучение",
+        points: [
+          "Открытость к обратной связи сочетается с самокритичностью, вниманием к ошибкам и настойчивостью в защите профессиональной репутации.",
+          "В решениях преобладает практичность: абстрактные теории и разнообразие ради разнообразия мотивируют слабее, чем прикладная польза.",
+          "Формальное обучение не является самоцелью; эффективнее практические форматы, реальная задача и немедленное применение знаний.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "motives",
+    code: "MVPI",
+    eyebrow: "Рабочая среда",
+    title: "Ценности и мотиваторы",
+    lead: "Главные источники энергии — достижение, влияние, коммерческий результат и работа в понятной системе правил.",
+    themes: [
+      {
+        title: "Статус и достижения",
+        points: [
+          "Деловой результат ставится выше церемоний: особенно раздражает пустая трата времени и денег.",
+          "Карьерное продвижение и реализация потенциала важны; собственная эффективность оценивается через достигнутые результаты.",
+          "Нет потребности постоянно демонстрировать успех, но содержательное признание и похвала воспринимаются положительно.",
+        ],
+      },
+      {
+        title: "Социальная среда и правила",
+        points: [
+          "Общество людей ценно, однако остаётся сильная потребность в уединении, самостоятельной работе и избирательном круге близких контактов.",
+          "В деловой коммуникации потребности задачи часто важнее эмоций; встречи должны иметь строгую повестку и практический итог.",
+          "Предпочтительны понятные процедуры, справедливость и оправданный риск, а не эксперимент ради самого эксперимента.",
+        ],
+      },
+      {
+        title: "Коммерческий интерес",
+        points: [
+          "Выражен интерес к финансам, прибыльности и экономической стороне решений; новые предложения оцениваются через деловую пользу.",
+          "Деньги используются осмотрительно, а риск должен быть рассчитан и соотнесён с безопасностью и устойчивостью результата.",
+        ],
+      },
+      {
+        title: "Стиль решений",
+        points: [
+          "Функциональность и экономичность важнее эстетики и символического эффекта.",
+          "Решения чаще опираются на опыт, интуицию и общую картину, чем на длительный теоретический или исследовательский анализ.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "risks",
+    code: "HDS",
+    eyebrow: "Стресс и неопределённость",
+    title: "Риски под нагрузкой",
+    lead: "Когда давление растёт, сильная автономность может превращаться в дистанцию, жёсткий контроль и снижение доверия к людям.",
+    themes: [
+      {
+        title: "Отношения",
+        points: [
+          "Напор и энтузиазм могут сменяться разочарованием после чужой ошибки — вплоть до резкой критики, ухода из контакта или отказа от проекта.",
+          "Проницательность помогает замечать риски, но ощущение несправедливости может усиливать подозрительность, резкость и обиду.",
+          "Сдержанность иногда выглядит как невнимание к обратной связи; проблемы могут замалчиваться, а компетентность коллег — ставиться под сомнение.",
+          "Нелюбовь к давлению извне способна замедлять процесс и создавать впечатление упрямства или невосприимчивости к коучингу.",
+        ],
+      },
+      {
+        title: "Личные цели",
+        points: [
+          "Очень высокая уверенность, энергия и ориентация на успех поддерживают смелые цели и устойчивость.",
+          "Обратная сторона — требовательность, эгоцентричность, трудность признавать ошибки и разделять результат с командой.",
+          "Прямой и непубличный стиль не требует сцены и эффектной самопрезентации; радикальные идеи оцениваются прежде всего по пользе.",
+        ],
+      },
+      {
+        title: "Отношение к руководству и команде",
+        points: [
+          "Вежливость, трудолюбие и высокие стандарты качества делают результат предсказуемым, но тот же темп может ожидаться от всех вокруг.",
+          "Стремление сделать всё самостоятельно и безупречно повышает нагрузку, усложняет делегирование и делает критерии качества труднодостижимыми.",
+          "Правила и процедуры воспринимаются серьёзно, однако независимость остаётся высокой, а длительная командная работа может утомлять.",
+        ],
+      },
+    ],
+  },
+];
+
+const HOGAN_INSIGHTS = [
+  {
+    id: "strengths",
+    eyebrow: "Рабочий стиль",
+    title: "Самостоятельный драйв",
+    text: "Ориентация на результат, готовность брать руководство и предъявлять высокие требования к качеству — особенно в самостоятельной работе и динамичной среде.",
+  },
+  {
+    id: "motives",
+    eyebrow: "Мотиваторы",
+    title: "Влияние и результат",
+    text: "Карьерный успех, возможность влиять и финансовый итог сочетаются с опорой на проверенные правила, порядок и справедливость.",
+  },
+  {
+    id: "risks",
+    eyebrow: "Под нагрузкой",
+    title: "Контроль вместо диалога",
+    text: "В стрессе могут усиливаться замкнутость, жёсткость к ошибкам и недоверие — из-за этого обратную связь и вовлечённость команды легче потерять.",
+  },
+  {
+    id: "decisions",
+    eyebrow: "Решения",
+    title: "Практичность и скорость",
+    text: "Опора на опыт, интуицию и общую картину помогает действовать быстро. Обратная сторона — риск пропустить детали и отложить стратегическую работу.",
+  },
+];
+
+const HOGAN_DEVELOPMENT_ACTIONS = [
+  "Замечать момент, когда уверенность превращается в защитную реакцию, и не принимать обратную связь лично.",
+  "Обсуждать карьерные амбиции с руководителем, сохраняя уважение к темпу и целям коллег.",
+  "После важных встреч фиксировать договорённости и проверять общее понимание.",
+  "Делегировать и оставлять коллегам пространство для другого темпа и подхода.",
+  "Если цель — лидерская роль, каждый день поддерживать короткий личный контакт с командой.",
+  "Перед прямой реакцией на ошибку делать паузу и выбирать дипломатичную формулировку.",
+  "Вести короткий ежедневный список задач и отдельно контролировать обещания.",
+  "Проверять факты и завершать рутинную часть работы до принятия окончательного решения.",
+  "Резервировать время для стратегии, миссии и долгосрочного видения, включая роль технологий и инноваций.",
+  "Выбирать прикладные форматы обучения: практика, аудио, видео и разбор реальных кейсов.",
+];
+
+const HOGAN_STRESS_CHECKLIST = [
+  "Опирайтесь на базовые сильные стороны: решительность, независимость и устойчивость.",
+  "После встречи отдельно убедитесь, что все одинаково поняли решение: молчаливое согласие ещё не означает готовность действовать.",
+  "Прямота и самостоятельность могут перекрывать обратную связь — регулярно запрашивайте её у руководителя, коуча или доверенного коллеги.",
+  "Фокус на текущем проекте не должен вытеснять вовлечение людей и развитие команды.",
+  "Даже если под давлением хочется работать одному, сохраняйте ежедневную коммуникацию с ключевыми участниками.",
+];
+
+function serviceChromeFromPath(pathname) {
+  let serviceId = activeServiceFromPath(pathname);
+  if (!serviceId && (pathname === "/app" || pathname.startsWith("/s/"))) serviceId = "wishlist";
+  if (!serviceId && !["/", "/login", "/register", "/forgot-password", "/reset-password", "/ideas"].includes(pathname) && !pathname.startsWith("/app/")) {
+    serviceId = "wishlist";
+  }
+  if (!serviceId) return null;
+  const service = serviceId === "wishlist"
+    ? SERVICE_SWITCHER_ITEMS[0]
+    : SPHERE_SERVICES.find((item) => item.id === serviceId);
+  return service ? { ...service, tabs: SERVICE_TABS[serviceId] || [] } : null;
 }
 
 function Button({ children, className = "", variant = "primary", icon: Icon, loading, ...props }) {
@@ -710,7 +1243,7 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
 
 function AuthRecoveryForm({ eyebrow, title, description, busy = false, onSubmit, noValidate = false, children }) {
   return (
-    <div className="auth-page">
+    <div className="auth-page rollapp-body">
       <div className="auth-panel">
         <form className="auth-form" aria-busy={busy || undefined} noValidate={noValidate} onSubmit={onSubmit}>
           <div>
@@ -1041,7 +1574,7 @@ function AuthPage({ mode }) {
   if (user && !telegramAuth.initData) {
     if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
     return (
-      <div className="auth-page">
+      <div className="auth-page rollapp-body">
         <div className="auth-panel">
           <div className="auth-form">
             <div>
@@ -1108,7 +1641,7 @@ function AuthPage({ mode }) {
       : "Продолжите собирать и исполнять желания.";
 
   return (
-    <div className="auth-page">
+    <div className="auth-page rollapp-body">
       <div className="auth-panel">
         <form className="auth-form" aria-busy={telegramChecking || !phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={connectingCurrentUser ? confirmTelegramLink : usingPhone ? phoneFlow.submit : submitCredentials}>
           <div>
@@ -1211,7 +1744,7 @@ function AppProfileButton({ user, compact = false }) {
 function FriendsTopbar({ user }) {
   return (
     <header className="friends-topbar" aria-label="Панель приложения">
-      <Logo className="app-shell-logo" />
+      <AppBrandSpacer />
       <div className="friends-topbar__account">
         <AppProfileButton user={user} compact />
       </div>
@@ -1227,21 +1760,1049 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   return (
     <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
       <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-        {!wishesRoute && !collectionChrome && <header className="mobile-app-head">
-          {friendsRoute ? <><Logo className="app-shell-logo" /><AppProfileButton user={user} compact /></> : <><AppProfileButton user={user} compact /><Logo className="app-shell-logo" /></>}
-        </header>}
-        {friendsRoute && !collectionChrome && <FriendsTopbar user={user} />}
-        {!friendsRoute && !wishesRoute && !collectionChrome && <nav className="app-main__profile" aria-label="Основные разделы"><AppFriendsLink /><AppProfileButton user={user} /><Logo className="app-shell-logo" /></nav>}
+        {!collectionChrome && <><div className="app-shell-chrome-spacer" aria-hidden="true" /><PersistentProfileHero user={user} /></>}
         {children}
       </main>
     </div>
   );
 }
 
-function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
+function SpherePage({ sphereId }) {
+  const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
+  const Icon = sphere?.icon || Sparkles;
+  if (!sphere) return <Navigate to={APP_HOME} replace />;
+  return (
+    <div className="app-page sphere-page typeset typeset-rollapp">
+      <div className="sphere-page__content">
+        <span className="sphere-page__icon" style={{ "--sphere-color": sphere.color }}><Icon aria-hidden="true" /></span>
+        <p className="sphere-page__eyebrow">Сферы</p>
+        <h1>{sphere.label}</h1>
+        <p>Раздел уже доступен в переключателе. Содержимое этой сферы появится здесь.</p>
+      </div>
+    </div>
+  );
+}
+
+function HoganScoreChart({ profile }) {
+  return (
+    <section className={`hogan-chart hogan-chart--${profile.id}`} aria-labelledby={`hogan-chart-${profile.id}`}>
+      <header className="hogan-chart__header">
+        <span className="hogan-chart__code" aria-hidden="true">{profile.code}</span>
+        <div data-typeset-group>
+          <h3 id={`hogan-chart-${profile.id}`}>{profile.title}</h3>
+          <p>{profile.description}</p>
+        </div>
+      </header>
+      <div className="hogan-chart__scale" aria-hidden="true">
+        <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+      </div>
+      <ol className="hogan-chart__rows" data-not-typeset>
+        {profile.scores.map(([label, score]) => (
+          <li key={label} className="hogan-chart__row">
+            <div className="hogan-chart__label"><span>{label}</span><strong>{score}</strong></div>
+            <div
+              className="hogan-chart__meter"
+              role="meter"
+              aria-label={`${label}: ${score} из 100`}
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow={score}
+            >
+              <span className="hogan-chart__fill" style={{ "--hogan-score": `${score}%` }} />
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function HoganNarrativeSection({ section }) {
+  return (
+    <section className={`hogan-narrative hogan-narrative--${section.id}`} aria-labelledby={`hogan-narrative-${section.id}`}>
+      <header className="hogan-narrative__header">
+        <span className="hogan-narrative__code" aria-hidden="true">{section.code}</span>
+        <div>
+          <span>{section.eyebrow}</span>
+          <h3 id={`hogan-narrative-${section.id}`}>{section.title}</h3>
+          <p>{section.lead}</p>
+        </div>
+      </header>
+      <div className="hogan-narrative__themes">
+        {section.themes.map((theme) => (
+          <article key={theme.title} className="hogan-theme">
+            <h4>{theme.title}</h4>
+            <ul>
+              {theme.points.map((point) => <li key={point}>{point}</li>)}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HoganScaleGuide({ profiles = HOGAN_PROFILES }) {
+  return (
+    <section className="hogan-report__scale-guide" aria-labelledby="hogan-scale-guide-title">
+      <div className="hogan-report__section-heading">
+        <span>Справочник</span>
+        <h3 id="hogan-scale-guide-title">Что означает каждая шкала</h3>
+        <p>Короткие определения помогают читать процентили в контексте, а не воспринимать отдельный балл как оценку личности.</p>
+      </div>
+      <div className="hogan-scale-guide">
+        {profiles.map((profile) => (
+          <section key={profile.id} className={`hogan-scale-group hogan-scale-group--${profile.id}`} aria-labelledby={`hogan-scale-group-${profile.id}`}>
+            <header>
+              <span aria-hidden="true">{profile.code}</span>
+              <h4 id={`hogan-scale-group-${profile.id}`}>{profile.title}</h4>
+            </header>
+            <dl data-not-typeset>
+              {profile.scores.map(([label, score, definition]) => (
+                <div key={label}>
+                  <dt><span>{label}</span><strong>{score}</strong></dt>
+                  <dd>{definition}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DefaultHoganReport() {
+  return (
+    <article className="hogan-report typeset-document" aria-labelledby="hogan-report-title">
+      <header className="hogan-report__hero">
+        <div className="hogan-report__hero-copy">
+          <span className="hogan-report__eyebrow">Leadership Forecast™</span>
+          <h2 id="hogan-report-title">Профиль Hogan</h2>
+          <p>Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS.</p>
+          <div className="hogan-report__meta">
+            <span>Михаил Колосков</span>
+            <span aria-hidden="true">·</span>
+            <time dateTime="2025-07-29">29 июля 2025</time>
+            <span aria-hidden="true">·</span>
+            <span>нормы Russian2023</span>
+          </div>
+        </div>
+        <div className="hogan-report__stats" aria-label="Состав профиля">
+          {HOGAN_REPORT_STATS.map((stat) => (
+            <div key={stat.label} className="hogan-report__stat">
+              <strong>{stat.value}</strong>
+              <span>{stat.label}<small>{stat.detail}</small></span>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <section className="hogan-report__summary" aria-labelledby="hogan-summary-title">
+        <div className="hogan-report__section-heading">
+          <span>Синтез двух отчётов</span>
+          <h3 id="hogan-summary-title">Главное в профиле</h3>
+        </div>
+        <div className="hogan-insights">
+          {HOGAN_INSIGHTS.map((insight) => (
+            <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
+              <span>{insight.eyebrow}</span>
+              <h4>{insight.title}</h4>
+              <p>{insight.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="hogan-report__methodology" aria-labelledby="hogan-methodology-title">
+        <div className="hogan-report__section-heading">
+          <span>Как читать профиль</span>
+          <h3 id="hogan-methodology-title">Три ракурса одной репутации</h3>
+          <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
+        </div>
+        <div className="hogan-methods">
+          {HOGAN_METHODS.map((method) => (
+            <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
+              <span aria-hidden="true">{method.code}</span>
+              <h4>{method.title}</h4>
+              <p>{method.text}</p>
+            </article>
+          ))}
+        </div>
+        <div className="hogan-report__reading-note">
+          <div>
+            <h4>Интерпретируйте целиком</h4>
+            <p>Высокие и низкие результаты имеют и преимущества, и ограничения. Несовпадение повседневной и «тёмной» стороны закономерно: под стрессом знакомое качество может проявляться иначе. Выводы полезно соотносить с карьерными целями, реальным поведением и обратной связью.</p>
+          </div>
+          <div>
+            <h4>Для чего использовать</h4>
+            <ul>
+              {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="hogan-report__change-model">
+            <h4>Изменение начинается с трёх ответов</h4>
+            <ol data-not-typeset>
+              {HOGAN_CHANGE_STEPS.map(([label, text]) => (
+                <li key={label}><span>{label}</span><p>{text}</p></li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section className="hogan-report__scores" aria-labelledby="hogan-scores-title">
+        <div className="hogan-report__section-heading">
+          <span>Процентили · 0–100</span>
+          <h3 id="hogan-scores-title">Все шкалы</h3>
+          <p>Положение относительно нормативной выборки. Высокий или низкий балл сам по себе не означает «хорошо» или «плохо».</p>
+        </div>
+        <div className="hogan-charts">
+          {HOGAN_PROFILES.map((profile) => <HoganScoreChart key={profile.id} profile={profile} />)}
+        </div>
+      </section>
+
+      <section className="hogan-report__interpretation" aria-labelledby="hogan-interpretation-title">
+        <div className="hogan-report__section-heading">
+          <span>Подробная интерпретация</span>
+          <h3 id="hogan-interpretation-title">Как профиль проявляется в работе</h3>
+          <p>Ниже содержание отчётов собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
+        </div>
+        <div className="hogan-narratives">
+          {HOGAN_NARRATIVE_SECTIONS.map((section) => <HoganNarrativeSection key={section.id} section={section} />)}
+        </div>
+      </section>
+
+      <section className="hogan-report__development" aria-labelledby="hogan-development-title">
+        <div className="hogan-report__development-copy">
+          <span>Фокус развития</span>
+          <h3 id="hogan-development-title">Сохранить напор, добавить контакт</h3>
+          <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
+        </div>
+        <ul data-not-typeset>
+          {HOGAN_DEVELOPMENT_ACTIONS.map((action) => (
+            <li key={action}><CheckCircle2 aria-hidden="true" /><span>{action}</span></li>
+          ))}
+        </ul>
+        <section className="hogan-report__stress-check" aria-labelledby="hogan-stress-check-title">
+          <span>Под нагрузкой</span>
+          <h4 id="hogan-stress-check-title">Пять контрольных вопросов к поведению</h4>
+          <ol data-not-typeset>
+            {HOGAN_STRESS_CHECKLIST.map((item) => <li key={item}>{item}</li>)}
+          </ol>
+        </section>
+      </section>
+
+      <p className="hogan-report__note">HDS описывает возможное поведение под нагрузкой, а не клиническую оценку. Интерпретировать профиль полезнее вместе с карьерным контекстом и обратной связью от людей.</p>
+
+      <HoganScaleGuide />
+    </article>
+  );
+}
+
+function GeneratedHoganReport({ report }) {
+  const profiles = (report.profiles || []).map((profile) => {
+    const referenceProfile = HOGAN_PROFILES.find((item) => item.id === profile.id);
+    const definitions = new Map((referenceProfile?.scores || []).map(([label, , definition]) => [label.toLocaleLowerCase("ru-RU"), definition]));
+    return {
+      ...profile,
+      title: referenceProfile?.title || profile.title,
+      description: referenceProfile?.description || profile.description,
+      scores: profile.scores.map(([label, score, definition]) => [
+        label,
+        score,
+        definitions.get(label.toLocaleLowerCase("ru-RU")) || definition,
+      ]),
+    };
+  });
+  const scaleCount = profiles.reduce((count, profile) => count + profile.scores.length, 0);
+  const comparableScores = profiles.flatMap((profile) => {
+    const referenceProfile = HOGAN_PROFILES.find((item) => item.id === profile.id);
+    const referenceScores = new Map((referenceProfile?.scores || []).map(([label, score]) => [label.toLocaleLowerCase("ru-RU"), score]));
+    return profile.scores
+      .filter(([label]) => referenceScores.has(label.toLocaleLowerCase("ru-RU")))
+      .map(([label, score]) => score === referenceScores.get(label.toLocaleLowerCase("ru-RU")));
+  });
+  const usesCuratedInterpretation = comparableScores.length >= 10
+    && comparableScores.filter(Boolean).length / comparableScores.length >= 0.8;
+  const generatedInsights = profiles.map((profile, index) => {
+    const sortedScores = [...profile.scores].sort((a, b) => b[1] - a[1]);
+    const leading = sortedScores.slice(0, 2);
+    const trailing = [...sortedScores].reverse().slice(0, 2);
+    const insightIds = ["strengths", "motives", "risks"];
+    return {
+      id: insightIds[index] || "decisions",
+      eyebrow: profile.code,
+      title: leading.map(([label]) => label).join(" и "),
+      text: `Наиболее выражены ${leading.map(([label, score]) => `${label.toLocaleLowerCase("ru-RU")} (${score})`).join(" и ")}. Контраст профиля создают ${trailing.map(([label, score]) => `${label.toLocaleLowerCase("ru-RU")} (${score})`).join(" и ")}.`,
+    };
+  });
+  const generatedNarratives = profiles.map((profile, index) => {
+    const sortedScores = [...profile.scores].sort((a, b) => b[1] - a[1]);
+    const narrativeIds = ["strengths", "motives", "risks"];
+    return {
+      id: narrativeIds[index] || profile.id,
+      code: profile.code,
+      eyebrow: "Автоматическая интерпретация",
+      title: profile.title,
+      lead: profile.description,
+      themes: [
+        {
+          title: "Наиболее выражено",
+          points: sortedScores.slice(0, 3).map(([label, score, definition]) => `${label} — ${score}-й процентиль. ${definition}`),
+        },
+        {
+          title: "В нижней части профиля",
+          points: [...sortedScores].reverse().slice(0, 3).map(([label, score, definition]) => `${label} — ${score}-й процентиль. ${definition}`),
+        },
+      ],
+    };
+  });
+  const insights = usesCuratedInterpretation ? HOGAN_INSIGHTS : generatedInsights;
+  const narratives = usesCuratedInterpretation ? HOGAN_NARRATIVE_SECTIONS : generatedNarratives;
+  const dateLabel = report.date
+    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${report.date}T12:00:00Z`))
+    : "Дата не указана";
+  return (
+    <article className="hogan-report hogan-report--generated typeset-document" aria-labelledby="hogan-generated-title">
+      <header className="hogan-report__hero">
+        <div className="hogan-report__hero-copy">
+          <span className="hogan-report__eyebrow">Leadership Forecast™ · создано из PDF</span>
+          <h2 id="hogan-generated-title">{report.title}</h2>
+          <p>Содержание загруженных отчётов очищено от разрывов страниц и собрано в единую адаптивную страницу.</p>
+          <div className="hogan-report__meta">
+            {report.person ? <span>{report.person}</span> : null}
+            {report.person ? <span aria-hidden="true">·</span> : null}
+            <time dateTime={report.date || undefined}>{dateLabel}</time>
+          </div>
+        </div>
+        <div className="hogan-report__stats" aria-label="Состав профиля">
+          <div className="hogan-report__stat">
+            <strong>{profiles.length}</strong>
+            <span>опросника<small>{profiles.map((profile) => profile.code).join(" · ") || "из PDF"}</small></span>
+          </div>
+          <div className="hogan-report__stat">
+            <strong>{scaleCount}</strong>
+            <span>шкал<small>в едином профиле</small></span>
+          </div>
+        </div>
+      </header>
+
+      {insights.length ? (
+        <section className="hogan-report__summary" aria-labelledby="hogan-generated-summary-title">
+          <div className="hogan-report__section-heading">
+            <span>Синтез загруженных отчётов</span>
+            <h3 id="hogan-generated-summary-title">Главное в профиле</h3>
+          </div>
+          <div className="hogan-insights">
+            {insights.map((insight) => (
+              <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
+                <span>{insight.eyebrow}</span>
+                <h4>{insight.title}</h4>
+                <p>{insight.text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="hogan-report__methodology" aria-labelledby="hogan-generated-methodology-title">
+        <div className="hogan-report__section-heading">
+          <span>Как читать профиль</span>
+          <h3 id="hogan-generated-methodology-title">Три ракурса одной репутации</h3>
+          <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
+        </div>
+        <div className="hogan-methods">
+          {HOGAN_METHODS.map((method) => (
+            <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
+              <span aria-hidden="true">{method.code}</span>
+              <h4>{method.title}</h4>
+              <p>{method.text}</p>
+            </article>
+          ))}
+        </div>
+        <div className="hogan-report__reading-note">
+          <div>
+            <h4>Интерпретируйте целиком</h4>
+            <p>Высокие и низкие результаты имеют и преимущества, и ограничения. Несовпадение повседневной и «тёмной» стороны закономерно: под стрессом знакомое качество может проявляться иначе.</p>
+          </div>
+          <div>
+            <h4>Для чего использовать</h4>
+            <ul>
+              {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+          <div className="hogan-report__change-model">
+            <h4>Изменение начинается с трёх ответов</h4>
+            <ol data-not-typeset>
+              {HOGAN_CHANGE_STEPS.map(([label, text]) => (
+                <li key={label}><span>{label}</span><p>{text}</p></li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {profiles.length ? (
+        <section className="hogan-report__scores" aria-labelledby="hogan-generated-scores-title">
+          <div className="hogan-report__section-heading">
+            <span>Процентили · 0–100</span>
+            <h3 id="hogan-generated-scores-title">Шкалы из загруженных отчётов</h3>
+            <p>Значения автоматически извлечены из PDF. Сверьте их с оригиналами, доступными выше.</p>
+          </div>
+          <div className="hogan-charts">
+            {profiles.map((profile) => <HoganScoreChart key={profile.id} profile={profile} />)}
+          </div>
+        </section>
+      ) : (
+        <p className="hogan-report__note">Текст PDF распознан, но процентили не найдены. Исходный документ доступен в блоке управления отчётом.</p>
+      )}
+
+      {narratives.length ? (
+        <section className="hogan-report__interpretation" aria-labelledby="hogan-generated-interpretation-title">
+          <div className="hogan-report__section-heading">
+            <span>Подробная интерпретация</span>
+            <h3 id="hogan-generated-interpretation-title">Как профиль проявляется в работе</h3>
+            <p>Содержание отчёта собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
+          </div>
+          <div className="hogan-narratives">
+            {narratives.map((section) => <HoganNarrativeSection key={section.id} section={section} />)}
+          </div>
+        </section>
+      ) : null}
+
+      {usesCuratedInterpretation ? (
+        <section className="hogan-report__development" aria-labelledby="hogan-generated-development-title">
+          <div className="hogan-report__development-copy">
+            <span>Фокус развития</span>
+            <h3 id="hogan-generated-development-title">Сохранить напор, добавить контакт</h3>
+            <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
+          </div>
+          <ul data-not-typeset>
+            {HOGAN_DEVELOPMENT_ACTIONS.map((action) => (
+              <li key={action}><CheckCircle2 aria-hidden="true" /><span>{action}</span></li>
+            ))}
+          </ul>
+          <section className="hogan-report__stress-check" aria-labelledby="hogan-generated-stress-check-title">
+            <span>Под нагрузкой</span>
+            <h4 id="hogan-generated-stress-check-title">Пять контрольных вопросов к поведению</h4>
+            <ol data-not-typeset>
+              {HOGAN_STRESS_CHECKLIST.map((item) => <li key={item}>{item}</li>)}
+            </ol>
+          </section>
+        </section>
+      ) : null}
+
+      <p className="hogan-report__note">Исходные PDF доступны выше. HDS описывает возможное поведение под нагрузкой, а не клиническую оценку.</p>
+
+      {profiles.length ? <HoganScaleGuide profiles={profiles} /> : null}
+    </article>
+  );
+}
+
+function HoganReport() {
+  const { state, setState, error, load } = useIdentityReport("hogan");
+  if (state.mode === "loading" || state.mode === "error") {
+    return <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />;
+  }
+  return (
+    <div className="identity-report-workspace">
+      <IdentityReportControls section="hogan" label="Hogan" state={state} setState={setState} load={load} />
+      {state.mode === "empty"
+        ? <IdentityReportEmpty label="Hogan" />
+        : state.mode === "generated"
+          ? <GeneratedHoganReport report={state.report} />
+          : <DefaultHoganReport />}
+    </div>
+  );
+}
+
+function TabbedSpherePage({ sphereId, tabs }) {
+  const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
+  const location = useLocation();
+  const navigate = useNavigate();
+  if (!sphere || !tabs?.length) return <Navigate to={APP_HOME} replace />;
+  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0].id;
+  const activeTabConfig = tabs.find((tab) => tab.id === activeTab);
+  const selectTab = (tabId) => {
+    const search = new URLSearchParams(location.search);
+    search.set("tab", tabId);
+    navigate({ pathname: location.pathname, search: `?${search.toString()}`, hash: location.hash }, { replace: true });
+  };
+  return (
+    <div className={`app-page sphere-page sphere-page--tabbed typeset typeset-rollapp${activeTabConfig?.layout === "full-width" ? " sphere-page--full-width" : ""}`}>
+      <div className="sphere-page__content tabbed-sphere">
+        <Tabs value={activeTab} onValueChange={selectTab} className="sphere-tabs">
+          {tabs.map((tab) => (
+            <TabsContent key={tab.id} value={tab.id} className="sphere-tabs__content">
+              {sphere.id === "identity" && tab.id === "four-questions"
+                ? <FourQuestions />
+                : sphere.id === "identity" && tab.id === "theses"
+                  ? <Theses />
+                : sphere.id === "identity" && tab.id === "gallup"
+                  ? <GallupProfile />
+                  : sphere.id === "identity" && tab.id === "hogan"
+                    ? <HoganReport />
+                    : sphere.id === "identity" && tab.id === "values"
+                      ? <Values />
+                      : sphere.id === "identity" && tab.id === "mission"
+                        ? <Mission />
+                        : sphere.id === "identity" && tab.id === "life-strategy"
+                          ? <EditableLifeStrategy />
+                        : sphere.id === "education" && tab.id === "courses"
+                          ? <Courses />
+                          : sphere.id === "education" && tab.id === "conferences"
+                            ? <Conferences />
+                            : sphere.id === "education" && tab.id === "coaching"
+                              ? <CoachingSessions />
+                              : sphere.id === "health" && tab.id === "lab-results"
+                                ? <LabResults />
+                                : sphere.id === "health" && tab.id === "sport"
+                                  ? <Workouts />
+                                  : sphere.id === "health" && tab.id === "medications"
+                                    ? <Medications />
+                                : sphere.id === "career" && tab.id === "cv"
+                                  ? <CvResume />
+                          : sphere.id === "career" && tab.id === "about"
+                            ? <AboutMe />
+                          : sphere.id === "career" && tab.id === "performance"
+                              ? <PerformanceReview />
+                          : sphere.id === "career" && tab.id === "development-plan"
+                            ? <DevelopmentPlan />
+                          : sphere.id === "career" && tab.id === "domain"
+                            ? <Domain />
+                    : sphere.id === "health"
+                      ? <Empty className="min-h-64 border" aria-labelledby={`${sphere.id}-tab-${tab.id}`}>
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon"><HeartPulse aria-hidden="true" /></EmptyMedia>
+                          <EmptyTitle><h2 id={`${sphere.id}-tab-${tab.id}`} className="m-0! text-lg! leading-7! font-semibold!">{tab.label}</h2></EmptyTitle>
+                          <EmptyDescription>{tab.description}</EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent><Badge variant="secondary">Скоро</Badge></EmptyContent>
+                      </Empty>
+                      : <section aria-labelledby={`${sphere.id}-tab-${tab.id}`}>
+                  <h2 id={`${sphere.id}-tab-${tab.id}`}>{tab.label}</h2>
+                  <p>{tab.description}</p>
+                  <span className="sphere-tabs__placeholder">Содержимое раздела появится здесь.</span>
+                </section>}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+const CONTACT_CATEGORY_LABELS = {
+  Analytics: "Аналитика",
+  "Business Development": "BizDev",
+  CEO: "CEO",
+  Coach: "Коучинг",
+  Design: "Дизайн",
+  Development: "Разработка",
+  Editor: "Редактура",
+  Founder: "Основатели",
+  Government: "Госсектор",
+  HR: "HR",
+  Investor: "Инвестиции",
+  Management: "Управление",
+  Marketing: "Маркетинг",
+  Product: "Продукт",
+  Project: "Проекты",
+  PR: "PR",
+  Strategy: "Стратегия",
+  Tracker: "Трекинг",
+};
+const CONTACT_ACCENTS = ["#9b72e8", "#5b8def", "#43bd83", "#e66a8f", "#f2a65a", "#49a7a1", "#7d83ea"];
+const CONTACT_SOCIAL_PLATFORMS = {
+  facebook: { label: "Facebook", mark: "f" },
+  linkedin: { label: "LinkedIn", mark: "in" },
+  telegram: { label: "Telegram", mark: "TG" },
+  instagram: { label: "Instagram", mark: "IG" },
+  x: { label: "X", mark: "X" },
+  vk: { label: "VK", mark: "VK" },
+  website: { label: "Сайт", mark: "↗" },
+};
+const contactSocialPlatform = (link = {}) => {
+  const label = String(link.label || "").trim().toLowerCase();
+  let host = "";
+  try { host = new URL(link.url).hostname.toLowerCase().replace(/^www\./u, ""); } catch { /* Use the label below. */ }
+  if (/facebook|\bfb\b/u.test(label) || /(^|\.)facebook\.com$|(^|\.)fb\.com$/u.test(host)) return "facebook";
+  if (/linkedin/u.test(label) || /(^|\.)linkedin\.com$/u.test(host)) return "linkedin";
+  if (/telegram|\btg\b/u.test(label) || /(^|\.)(t\.me|telegram\.me|telegram\.org)$/u.test(host)) return "telegram";
+  if (/instagram|insta/u.test(label) || /(^|\.)instagram\.com$/u.test(host)) return "instagram";
+  if (/^x$|twitter/u.test(label) || /(^|\.)(x\.com|twitter\.com)$/u.test(host)) return "x";
+  if (/^vk$|вконтакте|vkontakte/u.test(label) || /(^|\.)(vk\.com|vkontakte\.ru)$/u.test(host)) return "vk";
+  return "website";
+};
+function ContactSocialLink({ link, contactName }) {
+  const platform = contactSocialPlatform(link);
+  const details = CONTACT_SOCIAL_PLATFORMS[platform];
+  const label = platform === "website" && link.label?.trim() ? link.label.trim() : details.label;
+  return (
+    <a
+      className={`contact-social-link contact-social-link--${platform}`}
+      href={link.url}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${label}: ${contactName}`}
+      title={label}
+    >
+      <span className="contact-social-link__mark" aria-hidden="true">{details.mark}</span>
+      <span className="contact-social-link__label">{label}</span>
+    </a>
+  );
+}
+const contactCountNoun = (count) => {
+  const lastTwo = Math.abs(count) % 100;
+  const last = Math.abs(count) % 10;
+  if (last === 1 && lastTwo !== 11) return "контакт";
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "контакта";
+  return "контактов";
+};
+const ALL_CONTACT_COMPANIES = "__rollapp_all_contact_companies__";
+const ALL_CONTACT_CATEGORIES = "__rollapp_all_contact_categories__";
+const contactAccent = (company = "") => CONTACT_ACCENTS[[...company].reduce((sum, character) => sum + character.codePointAt(0), 0) % CONTACT_ACCENTS.length];
+const contactFormFrom = (contact) => ({
+  name: contact?.name || "",
+  company: contact?.company || "",
+  role: contact?.role || "",
+  category: contact?.category || "",
+  status: contact?.status || "",
+  links: (contact?.links || []).map((link) => ({ label: link.label || "", url: link.url || "" })),
+  notes: contact?.notes || "",
+});
+
+function ContactAutoLinkText({ text }) {
+  const parts = String(text || "").split(/(https?:\/\/[^\s)<>]+)/giu);
+  return parts.map((part, index) => /^https?:\/\//iu.test(part)
+    ? <a key={`${part}-${index}`} href={part.replace(/[.,;:]+$/u, "")} target="_blank" rel="noreferrer">{part}</a>
+    : part);
+}
+
+function ContactNotes({ notes }) {
+  if (!notes) return <p className="contact-detail__no-notes">В исходной заметке только основные данные контакта.</p>;
+  return notes.split(/\n{2,}/u).map((block, index) => {
+    const trimmed = block.trim();
+    if (!trimmed) return null;
+    const heading = trimmed.match(/^#{1,3}\s+(.+?)(?:\n([\s\S]*))?$/u);
+    return (
+      <div className="contact-detail__note-block" key={`${trimmed.slice(0, 24)}-${index}`}>
+        {heading ? <><h3>{heading[1]}</h3>{heading[2] && <p><ContactAutoLinkText text={heading[2]} /></p>}</> : <p><ContactAutoLinkText text={trimmed} /></p>}
+      </div>
+    );
+  });
+}
+
+function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onCancel, onSaved }) {
+  const toast = useToast();
+  const creating = !contact?.id;
+  const [form, setForm] = useState(() => contactFormFrom(contact));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const setLink = (index, field, value) => setForm((current) => ({
+    ...current,
+    links: current.links.map((link, linkIndex) => linkIndex === index ? { ...link, [field]: value } : link),
+  }));
+  const removeLink = (index) => setForm((current) => ({
+    ...current,
+    links: current.links.filter((_, linkIndex) => linkIndex !== index),
+  }));
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setSaveError("");
+    try {
+      const payload = {
+        ...form,
+        links: form.links.map((link) => ({ label: link.label.trim(), url: link.url.trim() })),
+      };
+      const result = creating
+        ? await api.post("/contacts", payload)
+        : await api.patch(`/contacts/${encodeURIComponent(contact.id)}`, payload);
+      toast(creating ? "Контакт добавлен" : "Контакт обновлён", "success");
+      onSaved(result.contact);
+    } catch (error) {
+      setSaveError(error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const knownCategories = Object.keys(CONTACT_CATEGORY_LABELS);
+  const hasCustomCategory = form.category && !knownCategories.includes(form.category);
+
+  return (
+    <form className="contact-detail__edit-form" onSubmit={save}>
+      <div className="contact-detail__edit-heading">
+        <Avatar user={creating ? { name: form.name } : contact} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+        <div><span>{creating ? "Добавление контакта" : "Редактирование контакта"}</span><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
+        {!creating && <ShadcnButton
+          type="button"
+          variant="outline"
+          size="icon"
+          className="contact-detail__favorite size-11 rounded-full"
+          data-favorite={contact.favorite ? "true" : "false"}
+          aria-pressed={Boolean(contact.favorite)}
+          aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+          title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+          disabled={favoriteSaving}
+          onClick={onFavoriteToggle}
+        >
+          {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+        </ShadcnButton>}
+      </div>
+      <div className="contact-detail__edit-fields">
+        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
+          <span>Имя</span>
+          <Input value={form.name} maxLength={120} required autoFocus onChange={(event) => setField("name", event.target.value)} />
+        </label>
+        <label className="contact-detail__edit-field">
+          <span>Компания</span>
+          <Input value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
+        </label>
+        <label className="contact-detail__edit-field">
+          <span>Направление</span>
+          <NativeSelect value={form.category} onChange={(event) => setField("category", event.target.value)}>
+            <NativeSelectOption value="">Без направления</NativeSelectOption>
+            {hasCustomCategory && <NativeSelectOption value={form.category}>{form.category}</NativeSelectOption>}
+            {knownCategories.map((value) => <NativeSelectOption key={value} value={value}>{CONTACT_CATEGORY_LABELS[value]}</NativeSelectOption>)}
+          </NativeSelect>
+        </label>
+        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
+          <span>Должность или роль</span>
+          <Input value={form.role} maxLength={240} placeholder="Не указана" onChange={(event) => setField("role", event.target.value)} />
+        </label>
+        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
+          <span>Статус</span>
+          <Input value={form.status} maxLength={80} placeholder="Например, в работе" onChange={(event) => setField("status", event.target.value)} />
+        </label>
+      </div>
+      <section className="contact-detail__edit-section" aria-labelledby="contact-edit-links-title">
+        <h2 id="contact-edit-links-title"><Link2 aria-hidden="true" />Ссылки</h2>
+        <div className="contact-detail__edit-links">
+          {form.links.map((link, index) => (
+            <div className="contact-detail__edit-link" key={index}>
+              <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
+              <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} />
+              <ShadcnButton type="button" variant="ghost" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
+            </div>
+          ))}
+          {!form.links.length && <p>Ссылок пока нет.</p>}
+        </div>
+        {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
+      </section>
+      <label className="contact-detail__edit-field contact-detail__edit-notes">
+        <span><NotebookText aria-hidden="true" />Заметки</span>
+        <Textarea value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
+      </label>
+      {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
+      <div className="contact-detail__edit-actions">
+        <ShadcnButton type="button" variant="ghost" disabled={saving} onClick={onCancel}>Отмена</ShadcnButton>
+        <ShadcnButton type="submit" disabled={saving}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
+      </div>
+    </form>
+  );
+}
+
+function ContactDetailDrawer({ contactId, onClose, onUpdated }) {
+  const isMobile = useIsMobile();
+  const toast = useToast();
+  const [favoriteSaving, setFavoriteSaving] = useState(false);
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get(`/contacts/${encodeURIComponent(contactId)}`), [contactId]);
+  const contact = data?.contact;
+  const accent = contactAccent(contact?.company);
+  const toggleFavorite = async () => {
+    if (!contact || favoriteSaving) return;
+    const favorite = !contact.favorite;
+    setFavoriteSaving(true);
+    try {
+      await api.patch(`/contacts/${encodeURIComponent(contact.id)}/favorite`, { favorite });
+      const updatedContact = { ...contact, favorite };
+      updateData((current) => ({ ...current, contact: updatedContact }));
+      onUpdated?.(updatedContact);
+      toast(favorite ? "Контакт добавлен в избранное" : "Контакт удалён из избранного", "success");
+    } catch (favoriteError) {
+      toast(favoriteError.message, "error");
+    } finally {
+      setFavoriteSaving(false);
+    }
+  };
+  return (
+    <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DrawerContent className="contact-detail-drawer rollapp-body" style={{ "--contact-accent": accent }}>
+        <DrawerClose
+          render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
+          aria-label="Закрыть карточку контакта"
+        ><X /></DrawerClose>
+        {loading ? <LoadingScreen compact /> : error ? (
+          <div className="contacts-sphere__empty" role="alert">
+            <strong>Не удалось открыть контакт</strong>
+            <span>{error.message}</span>
+            <Button variant="outline" onClick={() => reload().catch(() => {})}>Попробовать снова</Button>
+          </div>
+        ) : contact ? (
+          <ScrollArea className="contact-detail__scroll">
+            <ContactEditForm
+              contact={contact}
+              favoriteSaving={favoriteSaving}
+              onFavoriteToggle={toggleFavorite}
+              onCancel={onClose}
+              onSaved={(savedContact) => {
+                updateData((current) => ({ ...current, contact: savedContact }));
+                onUpdated?.(savedContact);
+              }}
+            />
+          </ScrollArea>
+        ) : null}
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function ContactCreateDrawer({ onClose, onCreated }) {
+  const isMobile = useIsMobile();
+  return (
+    <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DrawerContent className="contact-detail-drawer rollapp-body" style={{ "--contact-accent": contactAccent("") }}>
+        <DrawerClose
+          render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
+          aria-label="Закрыть добавление контакта"
+        ><X /></DrawerClose>
+        <ScrollArea className="contact-detail__scroll">
+          <ContactEditForm onCancel={onClose} onSaved={onCreated} />
+        </ScrollArea>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function ContactsProfileControls({ onAdd }) {
+  return (
+    <section className="wishes-page__profile-controls" aria-label="Управление контактами">
+      <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия с контактами">
+        <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
+      </div>
+    </section>
+  );
+}
+
+function ContactsSpherePage() {
+  const toast = useToast();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [company, setCompany] = useState("");
+  const [category, setCategory] = useState("");
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
+  const [favoriteSavingIds, setFavoriteSavingIds] = useState(() => new Set());
+  const [page, setPage] = useState(1);
+  const [selectedContactId, setSelectedContactId] = useState("");
+  const [creatingContact, setCreatingContact] = useState(false);
+  const [contactsVersion, setContactsVersion] = useState(0);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 180);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+  const query = new URLSearchParams({ page: String(page), pageSize: "48" });
+  if (debouncedSearch) query.set("search", debouncedSearch);
+  if (company) query.set("company", company);
+  if (category) query.set("category", category);
+  if (favoriteOnly) query.set("favorite", "true");
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get(`/contacts?${query.toString()}`), [debouncedSearch, company, category, favoriteOnly, page, contactsVersion]);
+  const contacts = data?.contacts || [];
+  const companies = data?.facets?.companies || [];
+  const categories = data?.facets?.categories || [];
+  const hasFilters = Boolean(search || company || category || favoriteOnly);
+  const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); setPage(1); };
+  const start = data?.total ? (data.page - 1) * data.pageSize + 1 : 0;
+  const end = data?.total ? Math.min(data.total, start + contacts.length - 1) : 0;
+  const toggleFavorite = async (contact) => {
+    if (favoriteSavingIds.has(contact.id)) return;
+    const favorite = !contact.favorite;
+    setFavoriteSavingIds((current) => new Set(current).add(contact.id));
+    try {
+      await api.patch(`/contacts/${encodeURIComponent(contact.id)}/favorite`, { favorite });
+      updateData((current) => {
+        if (!current) return current;
+        const nextContacts = current.contacts
+          .map((item) => item.id === contact.id ? { ...item, favorite } : item)
+          .filter((item) => !favoriteOnly || item.favorite);
+        return {
+          ...current,
+          contacts: nextContacts,
+          total: favoriteOnly && !favorite ? Math.max(0, current.total - 1) : current.total,
+          favoriteTotal: Math.max(0, Number(current.favoriteTotal || 0) + (favorite ? 1 : -1)),
+        };
+      });
+      toast(favorite ? "Контакт добавлен в избранное" : "Контакт удалён из избранного", "success");
+      await reload({ background: true });
+    } catch (favoriteError) {
+      toast(favoriteError.message, "error");
+      await reload({ background: true }).catch(() => {});
+    } finally {
+      setFavoriteSavingIds((current) => {
+        const next = new Set(current);
+        next.delete(contact.id);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div className="app-page sphere-page sphere-page--contacts typeset typeset-rollapp">
+      <ContactsProfileControls onAdd={() => setCreatingContact(true)} />
+      <section className="contacts-sphere not-typeset" aria-label="Контакты">
+        <div className="contacts-sphere__toolbar">
+          <label className="contacts-sphere__search">
+            <Search aria-hidden="true" />
+            <span className="visually-hidden">Поиск по контактам</span>
+            <Input type="search" aria-label="Поиск по контактам" placeholder="Имя, роль, компания или заметка" value={search} onChange={(event) => setSearch(event.target.value)} />
+            {search && <ShadcnButton type="button" variant="ghost" size="icon" className="contacts-sphere__search-clear size-10 rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></ShadcnButton>}
+          </label>
+          <div className="contacts-sphere__filters" aria-label="Фильтры контактов">
+            <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); setPage(1); }}>
+              <SelectTrigger className="contacts-sphere__select" aria-label="Компания">
+                <SelectValue>{(value) => value === ALL_CONTACT_COMPANIES ? "Все компании" : value}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="contacts-sphere__select-content" align="start" alignItemWithTrigger={false}>
+                <SelectItem value={ALL_CONTACT_COMPANIES}>Все компании</SelectItem>
+                {companies.map((item) => <SelectItem key={item.company} value={item.company}>{item.company} · {item.count}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={category || ALL_CONTACT_CATEGORIES} onValueChange={(value) => { setCategory(value === ALL_CONTACT_CATEGORIES ? "" : value); setPage(1); }}>
+              <SelectTrigger className="contacts-sphere__select" aria-label="Категория">
+                <SelectValue>{(value) => value === ALL_CONTACT_CATEGORIES ? "Все направления" : (CONTACT_CATEGORY_LABELS[value] || value)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="contacts-sphere__select-content" align="start" alignItemWithTrigger={false}>
+                <SelectItem value={ALL_CONTACT_CATEGORIES}>Все направления</SelectItem>
+                {categories.map((item) => <SelectItem key={item.category} value={item.category}>{CONTACT_CATEGORY_LABELS[item.category] || item.category} · {item.count}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <ShadcnButton
+              type="button"
+              variant="outline"
+              className="contacts-sphere__favorite-filter h-[50px] rounded-[15px] px-4"
+              data-favorite={favoriteOnly ? "true" : "false"}
+              aria-pressed={favoriteOnly}
+              onClick={() => { setFavoriteOnly((value) => !value); setPage(1); }}
+            >
+              <Star fill={favoriteOnly ? "currentColor" : "none"} aria-hidden="true" />
+              Избранные{data?.favoriteTotal ? ` · ${data.favoriteTotal}` : ""}
+            </ShadcnButton>
+            {hasFilters && <ShadcnButton type="button" variant="ghost" className="contacts-sphere__reset h-11 rounded-full px-4" onClick={clearFilters}>Сбросить</ShadcnButton>}
+          </div>
+        </div>
+        {!loading && !error && (
+          <div className="contacts-sphere__result-meta" aria-live="polite">
+            <strong>{data?.total || 0} {contactCountNoun(data?.total || 0)}</strong>
+            {data?.total > data.pageSize && <span>Показаны {start}–{end}</span>}
+          </div>
+        )}
+        {loading ? <LoadingScreen compact /> : error ? (
+          <div className="contacts-sphere__empty" role="alert">
+            <strong>Не удалось загрузить контакты</strong>
+            <span>{error.message}</span>
+            <Button variant="outline" onClick={() => reload().catch(() => {})}>Попробовать снова</Button>
+          </div>
+        ) : contacts.length ? (
+          <>
+            <ul className="contacts-grid">
+              {contacts.map((contact) => {
+                const accent = contactAccent(contact.company);
+                const socialLinks = (contact.links || []).filter((link) => link?.url);
+                return (
+                  <li className="contact-card" style={{ "--contact-accent": accent }} key={contact.id}>
+                    <ShadcnButton
+                      type="button"
+                      variant="ghost"
+                      className="contact-card__open"
+                      aria-label={`Открыть контакт ${contact.name}`}
+                      onClick={() => setSelectedContactId(contact.id)}
+                    />
+                    <div className="contact-card__body h-auto w-full min-w-0 shrink flex-col items-stretch justify-start gap-0 overflow-hidden rounded-none bg-transparent p-2 text-left whitespace-normal">
+                      <div className="contact-card__top w-full min-w-0">
+                        <div className="contact-card__avatar-wrap">
+                          <Avatar user={contact} size="lg" className="contact-card__avatar" aria-hidden="true" />
+                          <ShadcnButton
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="contact-card__favorite rounded-full"
+                            data-favorite={contact.favorite ? "true" : "false"}
+                            aria-pressed={Boolean(contact.favorite)}
+                            aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+                            title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+                            disabled={favoriteSavingIds.has(contact.id)}
+                            onClick={() => toggleFavorite(contact)}
+                          >
+                            {favoriteSavingIds.has(contact.id) ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+                          </ShadcnButton>
+                        </div>
+                        {contact.category && <span className="contact-card__category-slot"><span className="contact-card__category">{CONTACT_CATEGORY_LABELS[contact.category] || contact.category}</span></span>}
+                      </div>
+                      <div className="contact-card__identity w-full min-w-0">
+                        <div className="contact-card__name-row w-full min-w-0">
+                          <strong>{contact.name}</strong>
+                        </div>
+                        <span className="contact-card__company"><Building2 aria-hidden="true" /><span className="contact-card__company-text">{contact.company}</span></span>
+                      </div>
+                      <div className="contact-card__bio w-full min-w-0">
+                        <span className="contact-card__bio-text">{contact.role || (contact.hasNotes ? "Есть заметки" : "Роль не указана")}</span>
+                      </div>
+                    </div>
+                    {(contact.hasNotes || socialLinks.length > 0) && (
+                      <footer className="contact-card__footer">
+                        {contact.hasNotes && <ShadcnButton type="button" variant="ghost" className="contact-card__details h-9 rounded-full px-1" onClick={() => setSelectedContactId(contact.id)}><NotebookText aria-hidden="true" />Заметки</ShadcnButton>}
+                        {socialLinks.length > 0 && (
+                          <span className="contact-card__social-links" aria-label={`Ссылки ${contact.name}`}>
+                            {socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}
+                          </span>
+                        )}
+                      </footer>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {data.total > data.pageSize && (
+              <nav className="contacts-pagination" aria-label="Страницы контактов">
+                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(1, value - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowLeft />Назад</ShadcnButton>
+                <span>{data.page} / {Math.ceil(data.total / data.pageSize)}</span>
+                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={!data.hasMore} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Дальше<ArrowRight /></ShadcnButton>
+              </nav>
+            )}
+          </>
+        ) : (
+          <div className="contacts-sphere__empty">
+            <span className="contacts-sphere__empty-icon"><ContactRound aria-hidden="true" /></span>
+            <strong>{favoriteOnly ? "В избранном пока нет контактов" : "Контакты не найдены"}</strong>
+            <span>{favoriteOnly ? "Нажмите на звезду в карточке контакта, чтобы добавить его сюда." : "Попробуйте изменить запрос или сбросить фильтры."}</span>
+            {hasFilters && <Button variant="outline" onClick={clearFilters}>Сбросить фильтры</Button>}
+          </div>
+        )}
+      </section>
+      {selectedContactId && <ContactDetailDrawer contactId={selectedContactId} onClose={() => setSelectedContactId("")} onUpdated={() => reload({ background: true }).catch(() => {})} />}
+      {creatingContact && <ContactCreateDrawer
+        onClose={() => setCreatingContact(false)}
+        onCreated={(contact) => {
+          setCreatingContact(false);
+          clearFilters();
+          setSelectedContactId(contact.id);
+          setContactsVersion((value) => value + 1);
+        }}
+      />}
+    </div>
+  );
+}
+
+function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
   return (
-    <section className="wishes-page__hero" data-wishes-profile aria-labelledby="wishes-profile-name">
+    <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <button
         type="button"
         className="wishes-page__identity"
@@ -1251,9 +2812,16 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
       >
         <Avatar user={user} size="xl" className="wishes-page__hero-avatar" />
         <span className="wishes-page__hero-copy">
-          <h1 id="wishes-profile-name">{user.name}<span className="visually-hidden"> — мои желания</span></h1>
+          <h1 id="persistent-profile-name">{user.name}</h1>
         </span>
       </button>
+    </section>
+  );
+}
+
+function WishesProfileControls({ selectedList, onEditList, onAdd }) {
+  return (
+    <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <nav className="wishes-page__friend-links" aria-label="Связи профиля">
         <Link
           to="/app/friends/subscriptions"
@@ -1278,12 +2846,18 @@ function WishesProfileHero({ user, selectedList, onEditList, onAdd }) {
   );
 }
 
+function PrivateSphereRoute({ children }) {
+  const { user } = useSession();
+  if (!canAccessPrivateSpheres(user)) return <Navigate to={APP_HOME} replace />;
+  return children;
+}
+
 function ProtectedApp() {
   const location = useLocation();
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -1401,6 +2975,8 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
         description: wish.description || "",
         url: wish.url || "",
         fundraisingUrl: wish.fundraisingUrl || "",
+        vehicleMake: wish.vehicleMake || "",
+        vehicleModel: wish.vehicleModel || "",
         imageUrl: wish.imageUrl || "",
         price: wish.price,
         currency: wish.currency,
@@ -1431,11 +3007,13 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const interactionBusy = busy || removingFromGroup || groupBusy;
   const categoryLists = lists.filter((list) => !isGeneralList(list));
-  const visibleLists = categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists));
+  const cardSpace = wishSpaceId(wish, lists);
+  const visibleLists = categoryLists.filter((list) => listSpace(list) === cardSpace);
+  const placeAddress = cardSpace === "places" ? placeSnippetAddress(wish.description) : "";
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
   const secret = isWishSecret(wish, lists);
   const previewImageUrl = wishPreviewImageUrl(wish);
-  const youtubePreview = isYouTubeUrl(wish.url);
+  const videoPreview = isVideoUrl(wish.url);
 
   useEffect(() => {
     if (!listMutationRef.current) setSelectedListIds([...(wish.listIds || [])]);
@@ -1477,7 +3055,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 
   return (
     <>
-    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${youtubePreview ? "wish-card--youtube" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
+    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
       {onOpen && <ShadcnButton type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle aria-hidden="true"><GripVertical /></span>}
       <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
@@ -1573,7 +3151,9 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
           </DropdownMenu>
         </div>
         <h3>{wish.title}</h3>
-        <p>{wish.description || "Без дополнительного описания"}</p>
+        {placeAddress
+          ? <p className="wish-card__place-address">{placeAddress}</p>
+          : <p>{wish.description || "Без дополнительного описания"}</p>}
         {owner && <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div>}
       </div>
     </Card>
@@ -1713,10 +3293,15 @@ function WishGroupOpenHeader({ group, wishesCount, moveTargets = [], onClose, on
 
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
+  const location = useLocation();
   const toast = useToast();
+  const globalShareRef = useGlobalShareHandler();
   const { data, loading, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
   const [selected, setSelected] = useState("all");
-  const [selectedSpace, setSelectedSpace] = useState("products");
+  const [selectedSpace, setSelectedSpace] = useState(() => {
+    const tab = new URLSearchParams(location.search).get("tab");
+    return SPACE_IDS.includes(tab) ? tab : "products";
+  });
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
@@ -1748,6 +3333,14 @@ function WishesPage({ onAdd, version }) {
   const orderPersistingRef = useRef(false);
   const deferredAuthoritativeOrderRef = useRef(null);
   const removingGroupIdRef = useRef(null);
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get("tab");
+    const nextSpace = SPACE_IDS.includes(tab) ? tab : "products";
+    if (nextSpace === selectedSpace) return;
+    setSelectedSpace(nextSpace);
+    setSelected("all");
+    setOpenedGroupId(null);
+  }, [location.search, selectedSpace]);
   const wishOrderKey = (data?.wishes || []).map((wish) => wish.id).join("\0");
   useEffect(() => {
     if (selectedWishId || editingWishId || listModal || openedGroupId) return undefined;
@@ -1870,12 +3463,8 @@ function WishesPage({ onAdd, version }) {
     await navigator.clipboard.writeText(url);
     toast("Ссылка на список скопирована");
   };
+  globalShareRef.current = share;
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
-  const selectSpace = (space) => {
-    setSelectedSpace(space);
-    setSelected("all");
-    setOpenedGroupId(null);
-  };
   const saveList = async (saved) => {
     const attachWishId = listModal?.attachWishId;
     let attached = true;
@@ -1990,15 +3579,15 @@ function WishesPage({ onAdd, version }) {
     }, GROUP_INTENT_DELAY_MS);
   };
   const beginDragSession = (wishId, group = null) => {
-    const sourceStatus = dashboardWishes.find((wish) => wish.id === wishId)?.status;
-    const sameStatusWishIds = new Set(dashboardWishes
-      .filter((wish) => wish.status === sourceStatus)
-      .map((wish) => wish.id));
+    const scopeWishIds = reorderScopeWishIds(
+      group ? wishes : ungroupedWishes,
+      group ? group.wishIds : null,
+    );
     dragSessionRef.current = true; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = wishId;
     dragScopeRef.current = group
-      ? { kind: "group", groupId: group.id, wishIds: new Set((group.wishIds || []).filter((id) => sameStatusWishIds.has(id))) }
-      : { kind: "list", groupId: null, wishIds: sameStatusWishIds };
+      ? { kind: "group", groupId: group.id, wishIds: scopeWishIds }
+      : { kind: "list", groupId: null, wishIds: scopeWishIds };
     dragInitialOrderRef.current = [...orderedWishIdsRef.current];
     setDraggedWishId(wishId); lastReorderTargetRef.current = null;
   };
@@ -2408,7 +3997,7 @@ function WishesPage({ onAdd, version }) {
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
-  return <div className="app-page wishes-page"><header className="wishes-page__topbar"><Logo className="app-shell-logo" /><SpaceSwitcher value={selectedSpace} onChange={selectSpace} /><ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton></header><WishesProfileHero user={user} selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
 {openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} moveTargets={groupMoveTargets} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onMove={(targetList) => moveGroup(openedGroup, targetList)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
@@ -2426,6 +4015,149 @@ function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConf
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;
+}
+
+const EMPTY_MEDIA_NOTE = Object.freeze({
+  summary: "",
+  keyIdeas: "",
+  quotes: "",
+  applications: "",
+});
+
+const mediaNoteHasContent = (note) => Object.keys(EMPTY_MEDIA_NOTE)
+  .some((key) => String(note?.[key] || "").trim());
+
+function MediaNotesPanel({ wish }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState(EMPTY_MEDIA_NOTE);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [savedAt, setSavedAt] = useState(null);
+  const formRef = useRef(form);
+  const saveRequestRef = useRef(0);
+
+  useEffect(() => {
+    setOpen(false);
+    setLoaded(false);
+    setLoading(false);
+    setForm(EMPTY_MEDIA_NOTE);
+    formRef.current = EMPTY_MEDIA_NOTE;
+    setDirty(false);
+    setSaving(false);
+    setLoadError("");
+    setSavedAt(null);
+    saveRequestRef.current += 1;
+  }, [wish.id]);
+
+  const loadNote = useCallback(async () => {
+    if (loaded || loading) return;
+    setLoading(true);
+    setLoadError("");
+    try {
+      const result = await api.get(`/wishes/${wish.id}/media-note`);
+      const note = { ...EMPTY_MEDIA_NOTE, ...result.note };
+      setForm(note);
+      formRef.current = note;
+      setSavedAt(result.note?.updatedAt || null);
+      setLoaded(true);
+    } catch (error) {
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [loaded, loading, wish.id]);
+
+  const saveNote = useCallback(async (candidate = formRef.current, { announce = false } = {}) => {
+    if (!loaded) return false;
+    const requestId = saveRequestRef.current + 1;
+    saveRequestRef.current = requestId;
+    setSaving(true);
+    try {
+      const result = await api.patch(`/wishes/${wish.id}/media-note`, candidate);
+      if (requestId !== saveRequestRef.current) return false;
+      setSavedAt(result.note?.updatedAt || new Date().toISOString());
+      const unchanged = Object.keys(EMPTY_MEDIA_NOTE).every((key) => formRef.current[key] === candidate[key]);
+      if (unchanged) setDirty(false);
+      if (announce) toast("Конспект сохранён");
+      return true;
+    } catch (error) {
+      if (requestId === saveRequestRef.current) toast(error.message, "error");
+      return false;
+    } finally {
+      if (requestId === saveRequestRef.current) setSaving(false);
+    }
+  }, [loaded, toast, wish.id]);
+
+  useEffect(() => {
+    if (!loaded || !dirty) return undefined;
+    const timeoutId = window.setTimeout(() => saveNote(), 800);
+    return () => window.clearTimeout(timeoutId);
+  }, [dirty, form, loaded, saveNote]);
+
+  const toggleOpen = () => {
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    if (nextOpen) loadNote();
+  };
+  const updateField = (field, value) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      formRef.current = next;
+      return next;
+    });
+    setDirty(true);
+  };
+  const hasContent = mediaNoteHasContent(form);
+  const saveStatus = saving
+    ? "Сохраняем…"
+    : dirty
+      ? "Есть изменения"
+      : savedAt
+        ? "Сохранено"
+        : hasContent
+          ? "Есть записи"
+          : "Личный конспект";
+
+  return <section className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border bg-card" aria-label="Конспект медиа-айтема">
+    <ShadcnButton type="button" variant="ghost" className="h-auto min-h-16 w-full justify-start gap-3 rounded-none px-4 py-3 text-left" aria-expanded={open} onClick={toggleOpen}>
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><NotebookText className="size-5" /></span>
+      <span className="min-w-0 flex-1">
+        <strong className="block text-base font-semibold">Конспект</strong>
+        <small className="block truncate text-sm text-muted-foreground">{saveStatus}</small>
+      </span>
+      <ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+    </ShadcnButton>
+    {open && <div className="grid gap-4 border-t p-4">
+      {loading && <div className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground"><Spinner /> Загружаем конспект…</div>}
+      {!loading && loadError && <Alert variant="destructive"><AlertTitle>Не удалось открыть конспект</AlertTitle><AlertDescription className="grid gap-3">{loadError}<ShadcnButton variant="outline" size="sm" onClick={loadNote}>Повторить</ShadcnButton></AlertDescription></Alert>}
+      {!loading && loaded && <>
+        <label className="grid gap-2 text-sm font-medium">
+          <span className="flex items-center gap-2"><NotebookText className="size-4 text-muted-foreground" />Краткое резюме</span>
+          <Textarea rows={4} maxLength={12000} value={form.summary} placeholder="О чём материал и какой главный вывод" onChange={(event) => updateField("summary", event.target.value)} onBlur={() => dirty && saveNote()} />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span className="flex items-center gap-2"><Sparkles className="size-4 text-muted-foreground" />Ключевые идеи</span>
+          <Textarea rows={5} maxLength={40000} value={form.keyIdeas} placeholder="Одна важная мысль с новой строки" onChange={(event) => updateField("keyIdeas", event.target.value)} onBlur={() => dirty && saveNote()} />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span className="flex items-center gap-2"><Quote className="size-4 text-muted-foreground" />Цитаты и фрагменты</span>
+          <Textarea rows={5} maxLength={40000} value={form.quotes} placeholder="Цитата, страница, глава или таймкод" onChange={(event) => updateField("quotes", event.target.value)} onBlur={() => dirty && saveNote()} />
+        </label>
+        <label className="grid gap-2 text-sm font-medium">
+          <span className="flex items-center gap-2"><Check className="size-4 text-muted-foreground" />Как применить</span>
+          <Textarea rows={4} maxLength={40000} value={form.applications} placeholder="Что попробую сделать после изучения материала" onChange={(event) => updateField("applications", event.target.value)} onBlur={() => dirty && saveNote()} />
+        </label>
+        <div className="flex items-center justify-between gap-3">
+          <small className="text-muted-foreground">Конспект виден только вам</small>
+          <ShadcnButton size="sm" disabled={!dirty || saving} aria-busy={saving || undefined} onClick={() => saveNote(formRef.current, { announce: true })}>{saving ? <Spinner /> : <Check />}Сохранить</ShadcnButton>
+        </div>
+      </>}
+    </div>}
+  </section>;
 }
 
 function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onCreateList, onClose }) {
@@ -2540,12 +4272,15 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           <DrawerHeader className="mx-auto w-full max-w-md p-0 text-left!">
             <DrawerTitle><span className="sr-only">Желание: </span>{wish.title}</DrawerTitle>
+            {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
             {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
               {wish.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>}
               {wish.eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{formatEventDate(wish.eventDate)}</span>}
             </div>}
             <DrawerDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DrawerDescription>
           </DrawerHeader>
+
+          {owner && wishSpaceId(wish, lists) === "media" && <MediaNotesPanel wish={wish} />}
 
           <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-md min-w-0 items-center gap-2">
             {owner
@@ -2573,7 +4308,9 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           </div>
 
-          {wish.url && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wishSpaceId(wish, lists) === "products" && <MarketplaceOffers wish={wish} owner={owner} formatPrice={formatMoney} />}
+
+          {wish.url && wishSpaceId(wish, lists) !== "products" && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
@@ -2763,6 +4500,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const [imageError, setImageError] = useState("");
   const [listCreatorOpen, setListCreatorOpen] = useState(false);
   const [metadata, setMetadata] = useState({ status: "idle", message: "" });
+  const [vehicleCatalog, setVehicleCatalog] = useState({ status: "idle", makes: [], models: [], modelsStatus: "idle" });
   const [form, setForm] = useState(() => wishFormFrom(wish, initialListId));
   const autoTimerRef = useRef(null);
   const metadataRequestRef = useRef(0);
@@ -2793,11 +4531,15 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const isPlaces = effectiveSpace === "places";
   const isMedia = effectiveSpace === "media";
   const isFood = effectiveSpace === "food";
+  const isTransport = effectiveSpace === "transport";
   const browserRetailer = (() => {
     const retailer = retailerPreview(form.url.trim());
     return ["samokat", "lavka", "lenta"].includes(retailer?.id) ? retailer : null;
   })();
   const isYouTube = isMedia && isYouTubeUrl(form.url.trim());
+  const isVkVideo = isMedia && isVkVideoUrl(form.url.trim());
+  const isVideo = isYouTube || isVkVideo;
+  const videoProviderLabel = isVkVideo ? "VK Видео" : "YouTube";
   const isKinopoiskSite = isMedia && isKinopoiskHost(form.url.trim());
   const isKinopoisk = isMedia && isKinopoiskUrl(form.url.trim());
   const formPreviewImageUrl = wishPreviewImageUrl({ imageUrl: form.imageUrl, url: form.url });
@@ -2815,6 +4557,53 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       return nextListIds.length === current.listIds.length ? current : { ...current, listIds: nextListIds };
     });
   }, [data]);
+  useEffect(() => {
+    if (!isTransport) {
+      setVehicleCatalog({ status: "idle", makes: [], models: [], modelsStatus: "idle" });
+      return undefined;
+    }
+    let active = true;
+    setVehicleCatalog((current) => ({ ...current, status: "loading" }));
+    api.get("/vehicle-catalog/makes").then(({ makes }) => {
+      if (!active) return;
+      setVehicleCatalog((current) => ({
+        ...current,
+        status: "ready",
+        makes: Array.isArray(makes) ? makes : [],
+      }));
+    }).catch(() => {
+      if (!active) return;
+      setVehicleCatalog({ status: "unavailable", makes: [], models: [], modelsStatus: "idle" });
+    });
+    return () => { active = false; };
+  }, [isTransport]);
+  useEffect(() => {
+    if (!isTransport || vehicleCatalog.status !== "ready") return undefined;
+    const make = form.vehicleMake.trim();
+    const knownMake = vehicleCatalog.makes.find((value) => value.localeCompare(make, "ru", { sensitivity: "accent" }) === 0);
+    if (!knownMake) {
+      setVehicleCatalog((current) => current.models.length || current.modelsStatus !== "idle"
+        ? { ...current, models: [], modelsStatus: "idle" }
+        : current);
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setVehicleCatalog((current) => ({ ...current, modelsStatus: "loading", models: [] }));
+      api.get(`/vehicle-catalog/models?make=${encodeURIComponent(knownMake)}`).then(({ models }) => {
+        if (!active) return;
+        setVehicleCatalog((current) => ({
+          ...current,
+          modelsStatus: "ready",
+          models: Array.isArray(models) ? models : [],
+        }));
+      }).catch(() => {
+        if (!active) return;
+        setVehicleCatalog((current) => ({ ...current, modelsStatus: "unavailable", models: [] }));
+      });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [form.vehicleMake, isTransport, vehicleCatalog.makes, vehicleCatalog.status]);
   const recognize = async (sourceUrl = form.url) => {
     const url = sourceUrl.trim();
     window.clearTimeout(autoTimerRef.current);
@@ -2829,7 +4618,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     const requestId = ++metadataRequestRef.current;
     const retailer = retailerPreview(url);
     const usesBrowserHelper = ["samokat", "lavka", "lenta"].includes(retailer?.id);
-    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isYouTube ? "Читаем видео на YouTube…" : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : usesBrowserHelper ? "Открываем товар в обычном браузере и автоматически забираем фото…" : "Ищем название, фотографию и цену на странице магазина…" });
+    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isVideo ? `Читаем видео в ${videoProviderLabel}…` : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : usesBrowserHelper ? "Открываем товар в обычном браузере и автоматически забираем фото…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       let helperError = null;
       let meta = null;
@@ -2852,7 +4641,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       };
       const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
       if (foundFields.length === 0 && !usesFallbackPreview) {
-        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isVideo ? `Не удалось прочитать видео в ${videoProviderLabel}. Заполните карточку вручную.` : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
       const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
@@ -2863,11 +4652,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: usesFallbackPreview ? (usesBrowserHelper ? (helperError?.code === "helper_unavailable" ? `Нужно один раз подключить помощник Rollapp — после этого фото из «${retailer.label}» будут загружаться автоматически.` : helperError?.message || `${retailer.label} не отдал фото товара.`) : "Магазин не отдал фото товара — показываем превью сервиса. Название и цену можно заполнить вручную.") : isPlaces ? "Название и адрес подставили — проверьте карточку" : isYouTube ? "Название и превью видео уже в карточке — осталось всё проверить." : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : isFood && complete ? "Название, фото и цена уже в карточке. Цена зависит от адреса и магазина — проверьте её перед сохранением." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: usesFallbackPreview ? (usesBrowserHelper ? (helperError?.code === "helper_unavailable" ? `Нужно один раз подключить помощник Rollapp — после этого фото из «${retailer.label}» будут загружаться автоматически.` : helperError?.message || `${retailer.label} не отдал фото товара.`) : "Магазин не отдал фото товара — показываем превью сервиса. Название и цену можно заполнить вручную.") : isPlaces ? "Название и адрес подставили — проверьте карточку" : isVideo ? `Название и превью видео из ${videoProviderLabel} уже в карточке — осталось всё проверить.` : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : isFood && complete ? "Название, фото и цена уже в карточке. Цена зависит от адреса и магазина — проверьте её перед сохранением." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
-      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isYouTube ? "Не удалось прочитать видео на YouTube. Заполните карточку вручную." : isKinopoisk ? "Не удалось получить постер Кинопоиска." : isMedia ? "Не удалось получить обложку по ссылке." : "Не удалось прочитать страницу магазина.") });
+      setMetadata({ status: "error", message: error.message || (isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isVideo ? `Не удалось прочитать видео в ${videoProviderLabel}. Заполните карточку вручную.` : isKinopoisk ? "Не удалось получить постер Кинопоиска." : isMedia ? "Не удалось получить обложку по ссылке." : "Не удалось прочитать страницу магазина.") });
       return false;
     }
   };
@@ -2973,7 +4762,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isYouTube ? "Читаем видео на YouTube" : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isVideo ? `Читаем видео в ${videoProviderLabel}` : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -3098,6 +4887,43 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 <Input id={fieldId("title")} autoFocus={editing} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
               </Field>
 
+              {isTransport && <div className="grid grid-cols-2 gap-4 max-[480px]:grid-cols-1">
+                <Field className="wish-editor__field">
+                  <FieldLabel htmlFor={fieldId("vehicleMake")}>Марка</FieldLabel>
+                  <Input
+                    id={fieldId("vehicleMake")}
+                    list={fieldId("vehicle-makes")}
+                    value={form.vehicleMake}
+                    placeholder="Например, BMW"
+                    autoComplete="off"
+                    onChange={(event) => setForm((current) => ({ ...current, vehicleMake: event.target.value, vehicleModel: "" }))}
+                  />
+                  <datalist id={fieldId("vehicle-makes")}>
+                    {vehicleCatalog.makes.map((make) => <option value={make} key={make} />)}
+                  </datalist>
+                </Field>
+                <Field className="wish-editor__field">
+                  <FieldLabel htmlFor={fieldId("vehicleModel")}>Модель</FieldLabel>
+                  <Input
+                    id={fieldId("vehicleModel")}
+                    list={fieldId("vehicle-models")}
+                    value={form.vehicleModel}
+                    placeholder="Например, X5"
+                    autoComplete="off"
+                    onChange={(event) => setForm((current) => ({ ...current, vehicleModel: event.target.value }))}
+                  />
+                  <datalist id={fieldId("vehicle-models")}>
+                    {vehicleCatalog.models.map((model) => <option value={model} key={model} />)}
+                  </datalist>
+                </Field>
+                {(vehicleCatalog.status === "loading" || vehicleCatalog.status === "unavailable" || ["loading", "unavailable"].includes(vehicleCatalog.modelsStatus)) && <p className="col-span-2 m-0 text-sm leading-relaxed text-muted-foreground max-[480px]:col-span-1" role="status" aria-live="polite">
+                  {vehicleCatalog.status === "loading" && "Загружаем марки из базы «Авто»…"}
+                  {vehicleCatalog.status === "unavailable" && "Справочник «Авто» сейчас недоступен — марку и модель можно ввести вручную."}
+                  {vehicleCatalog.status === "ready" && vehicleCatalog.modelsStatus === "loading" && "Загружаем модели выбранной марки…"}
+                  {vehicleCatalog.status === "ready" && vehicleCatalog.modelsStatus === "unavailable" && "Модели не загрузились — модель можно ввести вручную."}
+                </p>}
+              </div>}
+
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : isFood ? "Ссылка на продукт" : "Ссылка"}</FieldLabel>
                 <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
@@ -3106,7 +4932,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
                 </ShadcnButton>
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
-                {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isKinopoiskSite ? "Нужна ссылка на карточку фильма или сериала, а не на поиск Кинопоиска" : isYouTube ? "Ссылка на видео с YouTube — подставим название и превью" : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
+                {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isKinopoiskSite ? "Нужна ссылка на карточку фильма или сериала, а не на поиск Кинопоиска" : isVideo ? `Ссылка на видео в ${videoProviderLabel} — подставим название и превью` : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
                 {isFood && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><UtensilsCrossed size={14} aria-hidden="true" /> {browserRetailer ? `${browserRetailer.label} — помощник браузера автоматически подставит название, фото и доступную цену` : "Подставим название, фото и цену для выбранного магазином региона"}</p>}
               </Field>
 
@@ -3269,8 +5095,8 @@ function FriendsPage() {
   };
 
   return (
-    <div className="app-page friends-page">
-      <div className="friends-layout">
+    <div className="app-page friends-page typeset typeset-rollapp">
+      <div className="friends-layout not-typeset">
         <section className="friends-directory" aria-labelledby="friends-title">
           <div className="friends-directory__heading">
             <h1 id="friends-title">{config.label}</h1>
@@ -3454,7 +5280,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   return <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) close(); }}>
     <DrawerContent
       ref={contentRef}
-      className="profile-settings-dialog"
+      className="profile-settings-dialog rollapp-body"
       initialFocus={() => window.innerWidth <= 820 ? true : contentRef.current?.querySelector("#settings-profile-name") || true}
       finalFocus={finalFocus}
     >
@@ -3585,10 +5411,14 @@ function PublicProfile({ shared = false }) {
   const { user, loading: sessionLoading } = useSession();
   const { openProfileEditor } = useProfileEditor();
   const toast = useToast();
+  const globalShareRef = useGlobalShareHandler();
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
   const [selected, setSelected] = useState(shared ? "all" : params.listId || "all");
-  const [selectedSpace, setSelectedSpace] = useState("products");
+  const [selectedSpace, setSelectedSpace] = useState(() => {
+    const tab = new URLSearchParams(location.search).get("tab");
+    return SPACE_IDS.includes(tab) ? tab : "products";
+  });
   const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
@@ -3597,6 +5427,14 @@ function PublicProfile({ shared = false }) {
   const [visibleLimit, setVisibleLimit] = useState(20);
   const loadMoreRef = useRef(null);
   const lastWishOpenerRef = useRef(null);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get("tab");
+    const nextSpace = SPACE_IDS.includes(tab) ? tab : "products";
+    if (nextSpace === selectedSpace) return;
+    setSelectedSpace(nextSpace);
+    setSelected("all");
+  }, [location.search, selectedSpace]);
 
   useEffect(() => {
     if (!params.wishId) {
@@ -3632,7 +5470,7 @@ function PublicProfile({ shared = false }) {
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
-      <header className="wishes-page__topbar"><Logo className="app-shell-logo" /></header>
+      <header className="wishes-page__topbar"><AppBrandSpacer /></header>
       <EmptyState
         icon={Gift}
         title={title}
@@ -3698,11 +5536,6 @@ function PublicProfile({ shared = false }) {
     navigate(value === "all" ? publicProfilePath(data.profile.username) : publicListPath(data.profile.username, value));
   };
 
-  const selectSpace = (space) => {
-    setSelectedSpace(space);
-    selectCollection("all");
-  };
-
   const openWish = (id, opener = null) => {
     lastWishOpenerRef.current = opener;
     setSelectedWishId(id);
@@ -3744,6 +5577,7 @@ function PublicProfile({ shared = false }) {
     await navigator.clipboard.writeText(`${window.location.origin}${path}`);
     toast("Ссылка скопирована");
   };
+  globalShareRef.current = share;
 
   const editWish = (id) => {
     if (!data.isOwner) return;
@@ -3803,9 +5637,7 @@ function PublicProfile({ shared = false }) {
     </div>;
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <header className="wishes-page__topbar">
-      <Logo className="app-shell-logo" />
-      {!shared && <SpaceSwitcher value={activeSpace} onChange={selectSpace} />}
-      <ShadcnButton className="wishes-page__topbar-share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
+      <AppBrandSpacer />
     </header>
 
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
@@ -3850,7 +5682,7 @@ function PublicProfile({ shared = false }) {
   return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{collectionPage}</main></div>;
 }
 
-function NotFound() { return <div className="not-found"><Logo /><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link to={APP_HOME} className={buttonVariants()}>В приложение</Link></div>; }
+function NotFound() { return <div className="not-found rollapp-body"><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link to={APP_HOME} className={buttonVariants()}>В приложение</Link></div>; }
 
 function LegacyProfileRedirect() {
   const params = useParams();
@@ -3860,4 +5692,4 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><ProfileEditorProvider><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></ProfileEditorProvider></SessionProvider></ToastProvider>; }
+export default function App() { return <ToastProvider><SessionProvider><ProfileEditorProvider><GlobalAppChrome /><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></ProfileEditorProvider></SessionProvider></ToastProvider>; }
