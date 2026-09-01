@@ -78,7 +78,6 @@ function retryAfterLabel(seconds) {
 
 export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
   const savedOffers = useMemo(() => marketplaceOffersForWish(wish), [wish]);
-  const [configured, setConfigured] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -92,7 +91,6 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
     let active = true;
     api.get(`/wishes/${wish.id}/marketplace-offers`).then((payload) => {
       if (!active) return;
-      setConfigured(payload.configured);
       setSnapshot(payload.snapshot || null);
     }).catch((loadError) => {
       if (active) setError(loadError.message || "Не удалось загрузить предложения");
@@ -139,7 +137,6 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
         if (event === "done") {
           completed = true;
           setSnapshot(data.snapshot || null);
-          setConfigured(true);
           setRetryAt(0);
         }
         if (event === "error") {
@@ -176,7 +173,6 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
   return (
     <section className="mx-auto grid min-w-0 w-full max-w-md grid-cols-1 gap-3" aria-label="Предложения">
 
-      {owner && configured === false && <p className="text-sm text-muted-foreground" role="status">OpenRouter не настроен на сервере.</p>}
       {visibleError && <p className={`text-sm ${errorCode === "marketplace_offers_not_found" ? "text-muted-foreground" : "text-destructive"}`} role={errorCode === "marketplace_offers_not_found" ? "status" : "alert"}>{visibleError}</p>}
       {offers.length > 0 ? <div className="grid min-w-0 grid-cols-1 gap-2" role="list">
         {offers.map((offer, index) => (
@@ -214,7 +210,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
       </div> : <p className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">Конкретные предложения пока не найдены.</p>}
 
       {owner && <div className="flex">
-        <Button className="w-full" type="button" size="sm" disabled={loading || configured === false || retrySeconds > 0} aria-busy={loading || undefined} onClick={refresh}>
+        <Button className="w-full" type="button" size="sm" disabled={loading || retrySeconds > 0} aria-busy={loading || undefined} onClick={refresh}>
           {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
           {loading ? "Ищем" : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiOffers.length ? "Обновить" : "Найти лучшие"}
         </Button>
