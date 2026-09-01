@@ -39,4 +39,28 @@ export const api = {
     headers: { "Content-Type": file.type },
     body: file,
   }),
+  uploadLabPdf: (file) => request("/health/lab-results/uploads", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
+  uploadIdentityReportPdf: (section, file) => request(`/identity/reports/${section}/files`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
+  importPerformanceReviewPdf: (file) => request("/career/performance/import-pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  }),
 };
