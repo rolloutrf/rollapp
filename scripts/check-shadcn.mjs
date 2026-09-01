@@ -5,11 +5,21 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFile(path.join(root, file), "utf8");
 
-const [configText, packageText, app, theme, legacyStyles, html, main, vite, jsconfigText] = await Promise.all([
+const [configText, packageText, app, agents, coachingSessionsSource, conferencesSource, coursesSource, lifeStrategySource, labResultsSource, performanceReviewSource, medicationsSource, workoutsSource, theme, typeset, legacyStyles, html, main, vite, jsconfigText] = await Promise.all([
   read("components.json"),
   read("package.json"),
   read("src/App.jsx"),
+  read("AGENTS.md"),
+  read("src/components/coaching-sessions.jsx"),
+  read("src/components/conferences.jsx"),
+  read("src/components/courses.jsx"),
+  read("src/components/life-strategy.jsx"),
+  read("src/components/lab-results.jsx"),
+  read("src/components/performance-review.jsx"),
+  read("src/components/medications.jsx"),
+  read("src/components/workouts.jsx"),
   read("src/index.css"),
+  read("src/typeset.css"),
   read("src/styles.css"),
   read("index.html"),
   read("src/main.jsx"),
@@ -79,7 +89,81 @@ for (const marker of [
 }
 assert.match(theme, /--text-xs:\s*0\.8125rem;/, "The smallest shadcn text token must be 13px");
 assert.match(theme, /--text-xs--line-height:\s*1rem;/, "The 13px shadcn text token must keep a compact 16px line height");
+assert.match(theme, /--font-body:\s*var\(--font-sans\);/, "Rollapp body copy must use the shared sans-serif family");
+assert.match(theme, /--text-rollapp-body:\s*0\.9375rem;/, "Rollapp desktop body copy must remain 15px");
+assert.match(theme, /--text-rollapp-body--line-height:\s*1\.640625rem;/, "Rollapp desktop body copy must retain its 26.25px reading line height");
+assert.match(typeset, /\.typeset-rollapp\s*\{[\s\S]*?--typeset-font-body:\s*var\(--font-body\);[\s\S]*?--typeset-size:\s*var\(--text-rollapp-body\);[\s\S]*?--typeset-leading:\s*var\(--text-rollapp-body--line-height\);/, "The Rollapp content preset must consume the canonical body tokens");
+assert.match(typeset, /&:where\(p, li\)\s*\{[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?text-wrap:\s*pretty;/, "Rollapp body copy must remain regular, untracked, and readable");
+assert.match(typeset, /&:where\(h1 \+ p, h2 \+ p\)\s*\{[\s\S]*?color:\s*var\(--foreground\);/, "Rollapp lead paragraphs must use the same foreground as body copy");
+assert.match(typeset, /\.not-typeset,[\s\S]*?\[data-not-typeset\]/, "Typeset must expose the official component opt-out contract");
+assert.match(typeset, /&:where\(p\)\s*\{[\s\S]*?margin-block-start:\s*var\(--typeset-flow\);[\s\S]*?margin-block-end:\s*0;/, "Paragraph spacing must flow in one direction from the shared flow token");
+assert.match(typeset, /&:where\(h1 \+ \*, h2 \+ \*, h3 \+ \*, h4 \+ \*, h5 \+ \*, h6 \+ \*\)\s*\{[\s\S]*?margin-block-start:\s*1em;/, "Headings must own the tighter gap to the following block");
+assert.match(typeset, /&:where\(hr\)\s*\{[\s\S]*?margin-block-start:\s*calc\(var\(--typeset-flow\) \* 2\.4\);[\s\S]*?margin-block-end:\s*0;/, "Dividers must derive their one-directional spacing from the shared flow token");
+assert.match(typeset, /&:where\(ul > li\)::marker,[\s\S]*?&:where\(ol > li\)::marker\s*\{[\s\S]*?color:\s*var\(--foreground\);/, "List markers must inherit the neutral prose foreground instead of introducing a blue accent");
+assert.match(typeset, /&:where\(ul\.contains-task-list\)\s*\{[\s\S]*?list-style-type:\s*none;[\s\S]*?padding-inline-start:\s*0\.25em;/, "GFM task lists must use the official shadcn\/typeset layout");
+assert.match(typeset, /&:where\(li\.task-list-item > input\[type="checkbox"\]\)\s*\{[\s\S]*?accent-color:\s*var\(--color-primary, currentColor\);/, "GFM task checkboxes must use the official primary theme token");
+assert.doesNotMatch(typeset, /:last-child\b|:has\(|:empty\b/, "Typeset layout must remain append-stable without forward-looking selectors");
+assert.doesNotMatch(lifeStrategySource, /life-strategy-source__space/, "Markdown blank lines must not render spacer elements");
+assert.doesNotMatch(lifeStrategySource, /<hr\b/, "Markdown thematic breaks must not render decorative lines");
+assert.match(lifeStrategySource, /<ul className=\{taskList \? "contains-task-list" : undefined\}>/, "Markdown lists must render semantic ul elements");
+assert.match(lifeStrategySource, /<li className=\{taskList \? "task-list-item" : undefined\}/, "Markdown lists must render semantic li elements");
+assert.doesNotMatch(lifeStrategySource, /life-strategy-source__(?:bullet|check|quote|divider|image|heading|text|paragraph)/, "Markdown content must not recreate shadcn\/typeset primitives with custom CSS hooks");
+assert.doesNotMatch(legacyStyles, /\.life-strategy-source__(?:bullet|check|quote|divider|image|heading|text|paragraph)/, "Legacy CSS must not skin shadcn\/typeset content primitives");
+assert.doesNotMatch(legacyStyles, /\.life-strategy-source\s+a\b/, "Markdown links must inherit the shadcn\/typeset theme treatment");
+assert.doesNotMatch(legacyStyles, /\.life-strategy(?:__|\s*\{)/, "The retired custom life-strategy skin must not return");
+for (const [source, label] of [[coachingSessionsSource, "CoachingSessions"], [conferencesSource, "Conferences"], [coursesSource, "Courses"], [labResultsSource, "LabResults"], [performanceReviewSource, "PerformanceReview"], [medicationsSource, "Medications"], [workoutsSource, "Workouts"]]) {
+  assert.doesNotMatch(source, /\bspace-[xy]-/, `${label} must use flex/grid gap instead of space-* utilities`);
+  assert.match(source, /not-typeset rollapp-body/, `${label} must opt its shadcn composition out of prose styling`);
+}
+for (const rule of [
+  "--typeset-size`, `--typeset-leading`, and `--typeset-flow",
+  "margin-block-start",
+  "not-typeset",
+  "do not use `space-x-*` or `space-y-*`",
+]) {
+  assert(agents.includes(rule), `Workspace typography rules must document ${rule}`);
+}
+assert.match(typeset, /@media \(max-width:\s*640px\)[\s\S]*?--typeset-size:\s*1rem;[\s\S]*?--typeset-leading:\s*1\.75rem;/, "Rollapp mobile body copy must remain 16px with a 28px line height");
+assert.match(typeset, /@layer utilities\s*\{[\s\S]*?\.rollapp-body\s*\{[\s\S]*?font-family:\s*var\(--font-body\);[\s\S]*?font-size:\s*var\(--text-rollapp-body\);[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?line-height:\s*var\(--text-rollapp-body--line-height\);/, "Non-Wishlist application surfaces must expose the canonical body utility");
+assert.doesNotMatch(theme, /--text-body(?:--line-height)?:/, "Canonical Rollapp theme tokens must not collide with the legacy Wishlist --text-body token");
 assert.match(legacyStyles, /--text-caption:\s*13px;/, "The smallest legacy caption token must be 13px");
+assert.equal((app.match(/className="auth-page rollapp-body"/g) || []).length, 3, "Every authentication surface must use the canonical body utility");
+for (const surface of [
+  'className="contact-detail-drawer rollapp-body"',
+  'className="profile-settings-dialog rollapp-body"',
+  'className="not-found rollapp-body"',
+]) {
+  assert(app.includes(surface), `Non-Wishlist surface is missing canonical body typography: ${surface}`);
+}
+assert((app.match(/app-page[^"`]*typeset typeset-rollapp/g) || []).length >= 4, "Sphere, contacts, and friends pages must use the Rollapp content preset");
+assert.match(legacyStyles, /\.contact-card__bio-text\s*\{[\s\S]*?white-space:\s*normal;[\s\S]*?overflow-wrap:\s*anywhere;[\s\S]*?text-wrap:\s*pretty;/, "Contact roles must wrap inside their cards");
+assert.match(legacyStyles, /\.contact-card__avatar\s*\{[\s\S]*?grid-column:\s*1;[\s\S]*?justify-self:\s*start;/, "Contact avatars must stay aligned to the left edge of every card");
+for (const match of app.matchAll(/className=(?:"([^"]*wishes-page[^"]*)"|\{`([^`]*wishes-page[^`]*)`\})/g)) {
+  assert(!`${match[1] || ""}${match[2] || ""}`.includes("typeset"), "Wishlist typography must remain outside the Rollapp content preset");
+}
+assert.doesNotMatch(performanceReviewSource, /text-\[15px\]|leading-\[1\.75\]/, "Performance review body copy must inherit the shared Rollapp body utility");
+const reviewBlocksSource = performanceReviewSource.slice(
+  performanceReviewSource.indexOf("function ReviewBlocks"),
+  performanceReviewSource.indexOf("function hasMeaningfulContent"),
+);
+assert.match(reviewBlocksSource, /className="flex flex-col gap-5 text-foreground"/, "Performance review narrative copy must use the canonical foreground and parent gap utilities");
+assert.doesNotMatch(reviewBlocksSource, /text-muted-foreground/, "Performance review narrative copy must not use the muted foreground");
+for (const marker of [
+  ".development-plan p",
+  ".development-plan li",
+  ".four-question__answer p",
+  ".mission-text p:not(.mission-text__label)",
+  ".mission-text li",
+  "Non-Wishlist narrative copy consumes the shared body contract",
+  ".hogan-report__section-heading > p",
+  ".gallup-report-prose p",
+]) {
+  assert(legacyStyles.includes(marker), `Non-Wishlist body coverage is missing ${marker}`);
+}
+const narrativeContractStart = legacyStyles.indexOf("Non-Wishlist narrative copy consumes the shared body contract");
+const narrativeContractEnd = legacyStyles.indexOf("The persistent profile hero owns the vertical gap", narrativeContractStart);
+const narrativeContract = legacyStyles.slice(narrativeContractStart, narrativeContractEnd);
+assert.match(narrativeContract, /color:\s*var\(--foreground\);/, "Non-Wishlist narrative copy must use the canonical foreground color");
 
 function tokenBlock(selector) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -166,6 +250,44 @@ for (const token of ["--muted", "--radius", "--radius-sm", "--radius-lg"]) {
   );
 }
 assert.doesNotMatch(legacyStyles, /--brand-logo-(?:left|right|center):/, "The retired multicolor CSS logo tokens must not return");
+for (const component of ["Alert", "Badge", "Button", "Card", "Accordion", "Input", "Spinner", "Tabs"]) {
+  assert(new RegExp(`<${component}\\b`).test(labResultsSource), `LabResults must compose the official shadcn ${component}`);
+}
+for (const component of ["Alert", "Badge", "Button", "Card", "Field", "Input", "Select", "Spinner", "Textarea"]) {
+  assert(new RegExp(`<${component}\\b`).test(coachingSessionsSource), `CoachingSessions must compose the official shadcn ${component}`);
+  assert(new RegExp(`<${component}\\b`).test(coursesSource), `Courses must compose the official shadcn ${component}`);
+  assert(new RegExp(`<${component}\\b`).test(conferencesSource), `Conferences must compose the official shadcn ${component}`);
+  assert(new RegExp(`<${component}\\b`).test(medicationsSource), `Medications must compose the official shadcn ${component}`);
+  assert(new RegExp(`<${component}\\b`).test(workoutsSource), `Workouts must compose the official shadcn ${component}`);
+}
+for (const [source, name] of [[medicationsSource, "Medications"]]) {
+  assert(/<Empty\b/.test(source), `${name} must compose the official shadcn Empty`);
+}
+for (const [source, name] of [[coachingSessionsSource, "CoachingSessions"], [coursesSource, "Courses"], [conferencesSource, "Conferences"], [workoutsSource, "Workouts"]]) {
+  assert.doesNotMatch(source, /<Empty\b/, `${name} must rely on the primary Add action instead of a duplicate empty state`);
+  assert(/<EducationSectionHeader\b/.test(source), `${name} must expose the shared primary section actions`);
+}
+for (const source of [coachingSessionsSource, coursesSource, conferencesSource, medicationsSource, workoutsSource]) {
+  assert(/<Drawer\b/.test(source), "Data cards must create and edit in the official shadcn Drawer");
+}
+assert.doesNotMatch(coachingSessionsSource, /<button\b/, "CoachingSessions interactive controls must use shadcn primitives");
+assert.doesNotMatch(coachingSessionsSource, /className="[^"]*\bcoaching(?:-|__)/, "CoachingSessions must use shadcn utilities instead of a custom component skin");
+assert.doesNotMatch(coursesSource, /<button\b/, "Courses interactive controls must use shadcn primitives");
+assert.doesNotMatch(coursesSource, /className="[^"]*\bcourses?(?:-|__)/, "Courses must use shadcn utilities instead of a custom component skin");
+assert.doesNotMatch(conferencesSource, /<button\b/, "Conferences interactive controls must use shadcn primitives");
+assert.doesNotMatch(conferencesSource, /className="[^"]*\bconferences?(?:-|__)/, "Conferences must use shadcn utilities instead of a custom component skin");
+assert.doesNotMatch(medicationsSource, /<button\b/, "Medications interactive controls must use shadcn primitives");
+assert.doesNotMatch(medicationsSource, /className="[^"]*\bmedications?(?:-|__)/, "Medications must use shadcn utilities instead of a custom component skin");
+assert.doesNotMatch(workoutsSource, /<button\b/, "Workouts interactive controls must use shadcn primitives");
+assert.doesNotMatch(workoutsSource, /className="[^"]*\bworkouts?(?:-|__)/, "Workouts must use shadcn utilities instead of a custom component skin");
+assert.doesNotMatch(labResultsSource, /<(?:button|details|summary)\b/, "LabResults interactive controls must use shadcn primitives");
+assert.doesNotMatch(labResultsSource, /className="[^"]*\blab-(?:results|overview|attention|trend|report|status|section)/, "LabResults must use shadcn utilities instead of its retired component skin");
+assert.match(labResultsSource, /<AccordionItem className="not-last:data-open:border-b-0"/, "An open laboratory section must not keep a redundant bottom divider");
+assert.doesNotMatch(legacyStyles, /\.lab-(?:results|overview|attention|trend|report|status|section)\b/, "The retired laboratory CSS skin must not return");
+const healthPlaceholderSource = app.slice(app.indexOf('sphere.id === "health"'), app.indexOf(': <section aria-labelledby', app.indexOf('sphere.id === "health"')));
+for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "EmptyDescription", "EmptyContent", "Badge"]) {
+  assert(new RegExp(`<${component}\\b`).test(healthPlaceholderSource), `Health placeholders must compose the official shadcn ${component}`);
+}
 const logoSource = app.slice(app.indexOf("function Logo"), app.indexOf("function Avatar"));
 assert.match(logoSource, /aria-label="Rollapp — в приложение"/, "The mark-only logo must keep its accessible name");
 assert.match(logoSource, /<svg[\s\S]*className="logo__mark"/, "Logo must render the vector mark as inline SVG");
@@ -173,8 +295,8 @@ assert.match(logoSource, /fill="currentColor"/, "The vector logo must inherit th
 assert.match(logoSource, /fillRule="evenodd"/, "The vector logo must preserve its transparent square cutout");
 assert.doesNotMatch(logoSource, /<(?:img|image|foreignObject)\b/, "The vector logo must not embed a raster image");
 assert.doesNotMatch(logoSource, /<span\b|className="logo__word"|>\s*rollapp\s*</i, "Logo must render only the vector mark, without a visible wordmark");
-const topbarShareButtons = [...app.matchAll(/<ShadcnButton\b([^>]*\bwishes-page__topbar-share\b[^>]*)>([\s\S]*?)<\/ShadcnButton>/g)];
-assert.equal(topbarShareButtons.length, 2, "The personal and public collection headers must both render the canonical Share icon button");
+const topbarShareButtons = [...app.matchAll(/<ShadcnButton\b([^>]*\bglobal-app-chrome__share\b[^>]*)>([\s\S]*?)<\/ShadcnButton>/g)];
+assert.equal(topbarShareButtons.length, 1, "The persistent application chrome must render one canonical Share icon button");
 for (const [, attributes, children] of topbarShareButtons) {
   assert(/\bvariant="outline"/.test(attributes), "The topbar Share action must keep its outline treatment");
   assert(/\bsize="icon"/.test(attributes), "The topbar Share action must use the 48px shadcn icon-button size");
@@ -185,10 +307,10 @@ for (const [, attributes, children] of topbarShareButtons) {
   assert(/^\s*<Share2\s+aria-hidden="true"\s*\/>\s*$/.test(children), "The topbar Share action must render only its decorative icon, without visible text");
 }
 assert(
-  /\.app-layout--dark\s+\.wishes-page__topbar-share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
+  /\.global-app-chrome__share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
-const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileHero"), app.indexOf("function ProtectedApp"));
+const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileControls"), app.indexOf("function ProtectedApp"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
   assert.match(source, /<Users aria-hidden="true"\s*\/>\s*Подписки/, `The ${label} subscriptions link must keep its decorative Users icon`);
@@ -435,9 +557,9 @@ const appProfileButtonSource = app.slice(app.indexOf("function AppProfileButton"
 assert(/<ShadcnButton\b/.test(appProfileButtonSource), "AppProfileButton must use the official shadcn Button");
 assert(/type="button"/.test(appProfileButtonSource) && /onClick=\{openProfileEditor\}/.test(appProfileButtonSource), "AppProfileButton must open profile editing in place");
 assert(!/<(?:Link|NavLink)\b/.test(appProfileButtonSource), "AppProfileButton must not navigate away from the current screen");
-const wishesProfileHeroSource = app.slice(app.indexOf("function WishesProfileHero"), app.indexOf("function ProtectedApp"));
-assert(/<button\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "WishesProfileHero must expose a native profile button");
-assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "WishesProfileHero must open profile editing in place");
+const wishesProfileHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function WishesProfileControls"));
+assert(/<button\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "PersistentProfileHero must expose a native profile button");
+assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = app.slice(app.indexOf("function ListTileContent"), app.indexOf("function useAsync"));
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
@@ -446,6 +568,9 @@ const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), ap
 const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
 assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");
 assert(!/\breserve\b/.test(wishCardSource), "WishCard must keep reservation mutations inside WishDetailsModal");
+assert(/cardSpace === "places" \? placeSnippetAddress\(wish\.description\)/.test(wishCardSource), "Place snippets must derive an address from saved metadata");
+assert(/className="wish-card__place-address"/.test(wishCardSource), "Place snippets must render the available address");
+assert(/\.app-layout--dark \.wish-card__body > \.wish-card__place-address[\s\S]*?display: -webkit-box;/u.test(legacyStyles), "Place addresses must remain visible in the dark Wishlist layout");
 const primaryWishDetailsDialog = wishDetailsSource.slice(0, wishDetailsSource.indexOf("{deleteOpen &&"));
 assert((primaryWishDetailsDialog.match(/onClick=\{reserve\}/g) || []).length >= 2, "WishDetailsModal must retain its primary and overflow-menu reservation actions");
 assert(/Забронировать/.test(primaryWishDetailsDialog) && /Снять бронь/.test(primaryWishDetailsDialog), "WishDetailsModal must retain reserve and unreserve labels");

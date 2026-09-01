@@ -7,6 +7,9 @@ import {
   isKinopoiskUrl,
   isYandexMapsUrl,
   isYouTubeUrl,
+  parseVkVideoEmbedThumbnail,
+  parseVkVideoEmbedUrl,
+  parseVkVideoMetadata,
   normalizeCurrency,
   normalizePrice,
   parseBookmateMetadata,
@@ -395,6 +398,38 @@ test("parses Yandex Maps place metadata from Open Graph tags", () => {
   });
 });
 
+test("prefers a structured place address over generic map copy", () => {
+  const html = `
+    <meta property="og:title" content="Яндекс Карты">
+    <meta property="og:description" content="Карты помогут найти нужное место и построить маршрут">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "CafeOrCoffeeShop",
+        "name": "Кофейня Зерно",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "улица Примерная, 10",
+          "addressLocality": "Москва",
+          "addressCountry": "Россия"
+        }
+      }
+    </script>`;
+
+  const result = parseYandexMapsMetadata(html, "https://yandex.ru/maps/org/zerno/123/");
+  assert.equal(result.description, "улица Примерная, 10, Москва, Россия");
+});
+
+test("combines place address metadata with its locality", () => {
+  const html = `
+    <meta property="og:title" content="Coffee Spot — Яндекс Карты">
+    <meta property="business:contact_data:street_address" content="Невский проспект, 28">
+    <meta property="business:contact_data:locality" content="Санкт-Петербург">`;
+
+  const result = parseYandexMapsMetadata(html, "https://yandex.ru/maps/org/coffee_spot/456/");
+  assert.equal(result.description, "Санкт-Петербург, Невский проспект, 28");
+});
+
 test("strips the latin Yandex Maps suffix and resolves relative images", () => {
   const html = `
     <meta property="og:title" content="Coffee Spot - Yandex Maps">
@@ -612,4 +647,55 @@ test("tolerates a missing or non-object oEmbed payload", () => {
     currency: "",
     kind: "video",
   });
+});
+
+test("maps a VK Video oEmbed response to video metadata", () => {
+  assert.deepEqual(
+    parseVkVideoMetadata(
+      {
+        response: {
+          title: "Сказка &amp; реальность",
+          author_name: "Правила жизни",
+          thumbnail_url: "https://iv.okcdn.ru/getVideoPreview?id=7578107644437",
+        },
+      },
+      "https://vk.com/video-4829_456240230",
+    ),
+    {
+      title: "Сказка & реальность",
+      description: "Правила жизни",
+      imageUrl: "https://iv.okcdn.ru/getVideoPreview?id=7578107644437",
+      price: null,
+      currency: "",
+      kind: "video",
+    },
+  );
+});
+
+test("extracts the signed VK player URL from an oEmbed response", () => {
+  assert.equal(
+    parseVkVideoEmbedUrl({
+      response: {
+        html: '<iframe src="https://vk.com/video_ext.php?oid=-4829&amp;id=456240230&amp;hash=secret"></iframe>',
+      },
+    }),
+    "https://vk.com/video_ext.php?oid=-4829&id=456240230&hash=secret",
+  );
+  assert.equal(
+    parseVkVideoEmbedUrl({ html: '<iframe src="https://vk.com.evil.example/video_ext.php?oid=-4829&amp;id=456240230"></iframe>' }),
+    "",
+  );
+});
+
+test("selects the largest available VK Video thumbnail from player HTML", () => {
+  const base = "https:\\/\\/iv.okcdn.ru\\/getVideoPreview?id=7578107644437";
+  const html = `window.player={"small":"${base}\\u0026fn=vid_s","large":"${base}\\u0026fn=vid_w","medium":"${base}\\u0026fn=vid_x"}`;
+  assert.equal(
+    parseVkVideoEmbedThumbnail(html),
+    "https://iv.okcdn.ru/getVideoPreview?id=7578107644437&fn=vid_w",
+  );
+  assert.equal(
+    parseVkVideoEmbedThumbnail('https://iv.okcdn.ru.evil.example/getVideoPreview?id=1&fn=vid_w'),
+    "",
+  );
 });

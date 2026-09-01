@@ -3,6 +3,23 @@ import {
   kinopoiskContentUrlError,
   kinopoiskPosterUrl,
 } from "../shared/kinopoisk.js";
+import {
+  isYouTubeUrl,
+  isVkVideoUrl,
+  parseYouTubeVideoId,
+  parseVkVideoId,
+  vkVideoOembedUrl,
+  youtubeThumbnailUrl,
+} from "../shared/video-links.js";
+
+export {
+  isYouTubeUrl,
+  isVkVideoUrl,
+  parseYouTubeVideoId,
+  parseVkVideoId,
+  vkVideoOembedUrl,
+  youtubeThumbnailUrl,
+};
 
 const SUPPORTED_CURRENCIES = new Set(["RUB", "USD", "EUR", "KZT", "BYN"]);
 
@@ -388,6 +405,60 @@ function yandexMapsPlaceDescription(value) {
   return text;
 }
 
+function postalAddress(value) {
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      const address = postalAddress(candidate);
+      if (address) return address;
+    }
+    return "";
+  }
+  if (typeof value === "string") return cleanText(value, 1_000);
+  if (!value || typeof value !== "object") return "";
+  const country = typeof value.addressCountry === "object"
+    ? value.addressCountry.name
+    : value.addressCountry;
+  return [...new Set([
+    value.streetAddress,
+    value.addressLocality,
+    value.addressRegion,
+    value.postalCode,
+    country,
+  ].map((part) => cleanText(firstScalar(part), 240)).filter(Boolean))].join(", ");
+}
+
+function structuredPlaceAddress(documents) {
+  for (const node of collectJsonNodes(documents)) {
+    const address = postalAddress(node?.address)
+      || (schemaTypes(node).includes("postaladdress") ? postalAddress(node) : "");
+    if (address) return address;
+  }
+  return "";
+}
+
+function pagePlaceAddress(meta, microdata, documents) {
+  const direct = cleanText(metaValue(
+    meta,
+    "place:location:address",
+    "business:contact_data:street_address",
+    "og:street-address",
+  ), 1_000);
+  if (direct) {
+    const locality = cleanText(metaValue(meta, "business:contact_data:locality", "og:locality"), 240);
+    return locality && !direct.toLocaleLowerCase("ru-RU").includes(locality.toLocaleLowerCase("ru-RU"))
+      ? `${locality}, ${direct}`
+      : direct;
+  }
+
+  const microdataAddress = cleanText(microdataValue(microdata, "address"), 1_000);
+  if (microdataAddress) return microdataAddress;
+  const microdataParts = ["addresslocality", "streetaddress", "addressregion", "postalcode"]
+    .map((key) => cleanText(microdataValue(microdata, key), 240))
+    .filter(Boolean);
+  if (microdataParts.length) return [...new Set(microdataParts)].join(", ");
+  return structuredPlaceAddress(documents);
+}
+
 // Organization links embed a readable slug: /maps/org/peterburg_bagel_company/153670098251/
 function yandexMapsOrgSlugTitle(pageUrl) {
   try {
@@ -407,68 +478,19 @@ function yandexMapsOrgSlugTitle(pageUrl) {
 
 export function parseYandexMapsMetadata(source, pageUrl) {
   const html = String(source ?? "");
-  const { meta } = collectHtmlData(html);
+  const { meta, microdata, scriptBodies } = collectHtmlData(html);
 
   const title = yandexMapsPlaceTitle(metaValue(meta, "og:title", "twitter:title"))
     || yandexMapsFallbackTitle(pageUrl)
     || yandexMapsOrgSlugTitle(pageUrl);
-  const description = yandexMapsPlaceDescription(
-    metaValue(meta, "og:description", "twitter:description", "description"),
-  );
+  const description = pagePlaceAddress(meta, microdata, parseJsonLd(scriptBodies))
+    || yandexMapsPlaceDescription(metaValue(meta, "og:description", "twitter:description", "description"));
   const imageUrl = resolveImageUrl(
     metaValue(meta, "og:image:secure_url", "og:image", "twitter:image", "twitter:image:src"),
     pageUrl,
   );
 
   return { title, description, imageUrl, price: null, currency: "", kind: "place" };
-}
-
-const YOUTUBE_HOSTS = new Set([
-  "youtube.com",
-  "www.youtube.com",
-  "m.youtube.com",
-  "music.youtube.com",
-  "youtube-nocookie.com",
-  "www.youtube-nocookie.com",
-  "m.youtube-nocookie.com",
-  "music.youtube-nocookie.com",
-]);
-const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
-const YOUTUBE_ID_PATHS = new Set(["shorts", "embed", "live", "v"]);
-
-export function parseYouTubeVideoId(value) {
-  let url;
-  try {
-    url = value instanceof URL ? value : new URL(String(value));
-  } catch {
-    return "";
-  }
-  if (!["http:", "https:"].includes(url.protocol)) return "";
-
-  const host = url.hostname.toLowerCase();
-  let candidate = "";
-  if (host === "youtu.be") {
-    candidate = url.pathname.split("/").filter(Boolean)[0] || "";
-  } else if (YOUTUBE_HOSTS.has(host)) {
-    const segments = url.pathname.split("/").filter(Boolean);
-    const section = (segments[0] || "").toLowerCase();
-    if (section === "watch") {
-      candidate = url.searchParams.get("v") || "";
-    } else if (YOUTUBE_ID_PATHS.has(section)) {
-      candidate = segments[1] || "";
-    }
-  } else {
-    return "";
-  }
-  return YOUTUBE_VIDEO_ID_PATTERN.test(candidate) ? candidate : "";
-}
-
-export function isYouTubeUrl(value) {
-  return Boolean(parseYouTubeVideoId(value));
-}
-
-export function youtubeThumbnailUrl(id) {
-  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 }
 
 export function parseYouTubeMetadata(oembed, pageUrl) {
@@ -484,6 +506,73 @@ export function parseYouTubeMetadata(oembed, pageUrl) {
     currency: "",
     kind: "video",
   };
+}
+
+export function parseVkVideoMetadata(oembed, pageUrl) {
+  const payload = oembed && typeof oembed === "object" ? oembed : {};
+  const source = payload.response && typeof payload.response === "object" ? payload.response : payload;
+  return {
+    title: cleanText(source.title, 160),
+    description: cleanText(source.author_name, 160),
+    imageUrl: resolveImageUrl(source.thumbnail_url ?? "", pageUrl),
+    price: null,
+    currency: "",
+    kind: "video",
+  };
+}
+
+export function parseVkVideoEmbedUrl(oembed) {
+  const payload = oembed && typeof oembed === "object" ? oembed : {};
+  const source = payload.response && typeof payload.response === "object" ? payload.response : payload;
+  const iframe = String(source.html ?? "").match(/<iframe\b((?:"[^"]*"|'[^']*'|[^'">])*)>/i);
+  if (!iframe) return "";
+
+  const src = parseAttributes(iframe[1]).src;
+  try {
+    const url = new URL(src);
+    return url.protocol === "https:" && isVkVideoUrl(url) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+const VK_VIDEO_THUMBNAIL_QUALITY = new Map([
+  ["vid_w", 12],
+  ["vid_h", 11],
+  ["vid_x", 10],
+  ["vid_u", 9],
+  ["vid_f", 9],
+  ["vid_md", 8],
+  ["vid_t", 7],
+  ["vid_l", 6],
+  ["vid_d", 5],
+  ["vid_m", 4],
+  ["vid_s", 3],
+  ["vid_sm", 2],
+]);
+
+export function parseVkVideoEmbedThumbnail(source) {
+  const html = decodeHtmlEntities(String(source ?? ""))
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003d/gi, "=")
+    .replace(/\\\//g, "/");
+  const candidates = html.match(/https?:\/\/[^\s"'<>\\]+\/getVideoPreview\?[^\s"'<>\\]+/gi) || [];
+  let best = { quality: -1, url: "" };
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      const hostname = url.hostname.toLowerCase();
+      if (url.protocol !== "https:" || (hostname !== "okcdn.ru" && !hostname.endsWith(".okcdn.ru"))) continue;
+      if (url.pathname !== "/getVideoPreview") continue;
+      const quality = VK_VIDEO_THUMBNAIL_QUALITY.get(url.searchParams.get("fn") || "") ?? 0;
+      if (quality > best.quality) best = { quality, url: url.href };
+    } catch {
+      // Ignore malformed strings from unrelated player scripts.
+    }
+  }
+
+  return best.url;
 }
 
 export { isKinopoiskUrl, kinopoiskContentUrlError };

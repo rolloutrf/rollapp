@@ -69,11 +69,16 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   assert.equal(defaultList.space, "products");
 
   // Создание с валидным space для каждого значения enum
-  for (const space of ["products", "places", "events", "media", "food", "transport", "pets"]) {
+  for (const space of ["products", "places", "events", "media", "food", "transport"]) {
     const response = await post("/lists", { title: `Спейс ${space}`, space }, ownerCookie);
     assert.equal(response.status, 201);
     assert.equal((await response.json()).list.space, space);
   }
+
+  // Удалённое пространство больше нельзя использовать для новых списков.
+  const removedSpaceResponse = await post("/lists", { title: "Бывший спейс", space: "pets" }, ownerCookie);
+  assert.equal(removedSpaceResponse.status, 400);
+  await removedSpaceResponse.json();
 
   // Создание с невалидным space → 400
   const invalidCreateResponse = await post("/lists", { title: "Невалидный спейс", space: "unknown" }, ownerCookie);
@@ -103,7 +108,7 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   const dashboard = await dashboardResponse.json();
   assert.ok(dashboard.lists.length > 0);
   for (const list of dashboard.lists) {
-    assert.ok(["products", "places", "events", "media", "food", "transport", "pets"].includes(list.space));
+    assert.ok(["products", "places", "events", "media", "food", "transport"].includes(list.space));
   }
   // Существующие (сидированные) списки получили 'products' миграцией
   const birthdayList = dashboard.lists.find((list) => list.title === "День рождения");
@@ -118,7 +123,7 @@ test("list spaces: default, valid values, validation and propagation", async (t)
   const profile = await profileResponse.json();
   assert.ok(profile.lists.length > 0);
   for (const list of profile.lists) {
-    assert.ok(["products", "places", "events", "media", "food", "transport", "pets"].includes(list.space));
+    assert.ok(["products", "places", "events", "media", "food", "transport"].includes(list.space));
   }
 
   // space присутствует в ответе shared-страницы

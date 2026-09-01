@@ -1,6 +1,6 @@
 import { query } from "./db.js";
 
-const wishGroupSpaces = new Set(["products", "places", "events", "media", "food", "transport", "pets"]);
+const wishGroupSpaces = new Set(["products", "places", "events", "media", "food", "transport"]);
 
 export async function backfillWishGroupSpaces(client) {
   const result = await client.query(

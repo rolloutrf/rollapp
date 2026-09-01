@@ -81,6 +81,24 @@ export function createProductionDatabaseEnvironment(environment, config = readTu
     updated.DATABASE_URL = connectionUrl.toString();
   }
 
+  const autoConnectionString = String(environment.AUTO_DATABASE_URL || "").trim();
+  if (autoConnectionString) {
+    const autoConnectionUrl = new URL(autoConnectionString);
+    if (autoConnectionUrl.hostname === config.database.host) {
+      updated.AUTO_PGSSL_SERVERNAME = autoConnectionUrl.hostname;
+      autoConnectionUrl.hostname = "127.0.0.1";
+      autoConnectionUrl.port = String(config.localPort);
+      updated.AUTO_DATABASE_URL = autoConnectionUrl.toString();
+    }
+  } else if (environment.AUTO_PGUSER || environment.AUTO_PGPASSWORD) {
+    const autoHost = String(environment.AUTO_PGHOST || config.database.host).trim();
+    if (autoHost === config.database.host) {
+      updated.AUTO_PGHOST = "127.0.0.1";
+      updated.AUTO_PGPORT = String(config.localPort);
+      updated.AUTO_PGSSL_SERVERNAME = autoHost;
+    }
+  }
+
   return updated;
 }
 
