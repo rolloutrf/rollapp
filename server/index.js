@@ -2628,7 +2628,8 @@ app.get("/api/wishes/:id/marketplace-offers", requireAuth, asyncRoute(async (req
   );
   res.set("Cache-Control", "private, no-store");
   return res.json({
-    configured: Boolean(process.env.OPENROUTER_API_KEY),
+    configured: true,
+    aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
     snapshot: parseMarketplaceOfferSnapshot(snapshot.rows[0], owned.rows[0].title),
   });
 }));
@@ -2645,9 +2646,6 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     return next(error);
   }
   if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
-  if (!process.env.OPENROUTER_API_KEY) {
-    return res.status(503).json({ error: "OpenRouter пока не настроен", code: "openrouter_not_configured" });
-  }
 
   res.status(200);
   res.set({
@@ -2667,12 +2665,20 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
 
   try {
     writeMarketplaceOfferEvent(res, "status", { stage: "searching", message: "Ищем товар на маркетплейсах…" });
-    const [openRouterSearch, marketplaceSearch] = await Promise.allSettled([
-      fetchOpenRouterMarketplaceOffers(owned.rows[0], {
+    const openRouterTask = process.env.OPENROUTER_API_KEY
+      ? fetchOpenRouterMarketplaceOffers(owned.rows[0], {
         signal: controller.signal,
         allowEmpty: true,
         marketplaceIds: ["ozon"],
-      }),
+      })
+      : Promise.resolve({
+        offers: [],
+        summary: "",
+        model: "",
+        usage: null,
+      });
+    const [openRouterSearch, marketplaceSearch] = await Promise.allSettled([
+      openRouterTask,
       fetchMarketplaceResolvedOffers(owned.rows[0], { signal: controller.signal }),
     ]);
     const result = openRouterSearch.status === "fulfilled" ? openRouterSearch.value : {
