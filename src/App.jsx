@@ -74,6 +74,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
+import { APP_SHELL_ROUTE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
@@ -1850,7 +1851,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const location = useLocation();
   const friendsRoute = friendsContext || location.pathname.startsWith("/app/friends");
   const wishesRoute = location.pathname.startsWith("/app/wishes");
-  const catalogRoute = location.pathname === "/app/wishes/catalog";
+  const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
@@ -3574,16 +3575,14 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия со списком желаний">
         {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
         <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
-        <ShadcnButton
-          render={<Link to={`/app/wishes/catalog?tab=${encodeURIComponent(selectedSpace)}`} />}
-          className="!size-12 shrink-0 rounded-full"
-          variant="outline"
-          size="icon"
+        <Link
+          to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
+          className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 rounded-full" })}
           aria-label="Открыть каталог"
           title="Каталог"
         >
           <LayoutGrid aria-hidden="true" />
-        </ShadcnButton>
+        </Link>
       </div>
     </section>
   );
@@ -3611,12 +3610,20 @@ function PrivateSphereRoute({ children }) {
   return children;
 }
 
+function ProtectedWishCatalog() {
+  const location = useLocation();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  return <AppShell><WishCatalogPage /></AppShell>;
+}
+
 function ProtectedApp() {
   const location = useLocation();
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="wishes/catalog" element={<WishCatalogPage />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -4062,16 +4069,16 @@ function CatalogWishCard({ item }) {
         <div className="catalog-wish-card__heading">
           <h2>{item.title}</h2>
           {item.url && (
-            <ShadcnButton
-              render={<a href={item.url} target="_blank" rel="noreferrer" />}
-              className="catalog-wish-card__source !size-10 rounded-full"
-              variant="ghost"
-              size="icon"
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              className={buttonVariants({ variant: "ghost", size: "icon", className: "catalog-wish-card__source !size-10 rounded-full" })}
               aria-label={`Открыть «${item.title}»`}
               title="Открыть исходную ссылку"
             >
               <ExternalLink aria-hidden="true" />
-            </ShadcnButton>
+            </a>
           )}
         </div>
         {(item.price != null || eventDate) && (
@@ -4140,16 +4147,16 @@ function WishCatalogPage() {
           <h1>{space.label}</h1>
           <p>Публичные позиции участников Rollapp и внешних каталогов. Одинаковые позиции собраны вместе.</p>
         </div>
-        <ShadcnButton render={<Link to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`} />} variant="outline">
+        <Link to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`} className={buttonVariants({ variant: "outline", className: "h-12 px-4 text-base" })}>
           <ArrowLeft data-icon="inline-start" aria-hidden="true" />
           В мой вишлист
-        </ShadcnButton>
+        </Link>
       </header>
 
       {catalog.loading ? <LoadingScreen compact /> : catalog.items.length ? (
         <>
           <div className="wish-catalog-page__summary">{catalog.total} позиций</div>
-          <div className="catalog-wish-grid">
+          <div className="wish-grid catalog-wish-grid">
             {catalog.items.map((item) => <CatalogWishCard key={item.id} item={item} />)}
           </div>
           {catalog.items.length < catalog.total && (
@@ -6853,4 +6860,32 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
-export default function App() { return <ToastProvider><SessionProvider><ProfileEditorProvider><GlobalAppChrome /><Routes><Route path="/" element={<RootRoute />} /><Route path="/login" element={<AuthPage mode="login" />} /><Route path="/register" element={<AuthPage mode="register" />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="/s/:token" element={<PublicProfile shared />} /><Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} /><Route path="/app/*" element={<ProtectedApp />} /><Route path="/u/:username/*" element={<LegacyProfileRedirect />} /><Route path="/users/:username/*" element={<LegacyProfileRedirect />} /><Route path="/:username" element={<PublicProfile />} /><Route path="/:username/lists/:listId" element={<PublicProfile />} /><Route path="/:username/wishes/:wishId" element={<PublicProfile />} /><Route path="*" element={<NotFound />} /></Routes></ProfileEditorProvider></SessionProvider></ToastProvider>; }
+export default function App() {
+  return (
+    <ToastProvider>
+      <SessionProvider>
+        <ProfileEditorProvider>
+          <GlobalAppChrome />
+          <Routes>
+            <Route path="/" element={<RootRoute />} />
+            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />
+            <Route path="/s/:token" element={<PublicProfile shared />} />
+            <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
+            <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
+            <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
+            <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
+            <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
+            <Route path="/:username" element={<PublicProfile />} />
+            <Route path="/:username/lists/:listId" element={<PublicProfile />} />
+            <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ProfileEditorProvider>
+      </SessionProvider>
+    </ToastProvider>
+  );
+}
