@@ -68,6 +68,58 @@ test("fetches the marketplace catalogue without returning its search URL", async
   assert.equal(offers[0].url.includes("search"), false);
 });
 
+test("does not search general marketplaces for food wishes and preserves the source", async () => {
+  let requests = 0;
+  const offers = await fetchMarketplaceResolvedOffers({
+    title: "Яйцо куриное С0, 10 шт",
+    space: "food",
+    url: "https://vkusvill.ru/goods/yaytso-kurinoe-s0-22658/?utm_source=share",
+    price: 136,
+  }, {
+    fetchImpl: async () => {
+      requests += 1;
+      throw new Error("food search must not call product marketplaces");
+    },
+  });
+  assert.equal(requests, 0);
+  assert.equal(offers.length, 1);
+  assert.equal(offers[0].marketplaceId, "vkusvill");
+  assert.equal(offers[0].source, true);
+});
+
+test("does not search product marketplaces for vehicles and identifies the saved source", async () => {
+  let requests = 0;
+  const offers = await fetchMarketplaceResolvedOffers({
+    title: "BMW X5 2022",
+    vehicleMake: "BMW",
+    vehicleModel: "X5",
+    space: "transport",
+    url: "https://www.avito.ru/moskva/avtomobili/bmw_x5_2022_1234567890",
+  }, {
+    fetchImpl: async () => {
+      requests += 1;
+      throw new Error("vehicle search must not call product marketplaces");
+    },
+  });
+  assert.equal(requests, 0);
+  assert.equal(offers[0].marketplaceId, "avito-auto");
+  assert.equal(offers[0].source, true);
+});
+
+test("filters vehicle offers by selected make and model", () => {
+  const offers = filterDirectOffersForWish({
+    title: "BMW X5",
+    vehicleMake: "BMW",
+    vehicleModel: "X5",
+    space: "transport",
+  }, [
+    { marketplaceId: "auto-ru", title: "BMW X5 xDrive40i 2022", url: "https://auto.ru/one" },
+    { marketplaceId: "drom", title: "BMW X3 2022", url: "https://drom.ru/two" },
+    { marketplaceId: "ozon", title: "BMW X5 модель", url: "https://ozon.ru/three" },
+  ]);
+  assert.deepEqual(offers.map((offer) => offer.marketplaceId), ["auto-ru"]);
+});
+
 const yandexMarketHtml = `<html><head><script type="application/ld+json">${JSON.stringify({
   "@context": "https://schema.org",
   "@type": "ItemList",
@@ -147,6 +199,6 @@ test("deduplicates and ranks direct offers", () => {
   const worseLive = { ...live, id: "worse", url: "https://www.wildberries.ru/catalog/2/detail.aspx", score: 80, price: 13_000 };
   assert.deepEqual(
     mergeDirectOffers([saved, yandexLive], [live, worseLive, live]).map((offer) => offer.id),
-    ["live", "saved"],
+    ["saved", "live"],
   );
 });

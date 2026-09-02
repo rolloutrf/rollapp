@@ -15,6 +15,8 @@
     "db:tunnel:status": "node scripts/production-db-tunnel.mjs status",
     "db:tunnel:stop": "node scripts/production-db-tunnel.mjs stop",
     "contacts:import": "node scripts/import-obsidian-contacts.mjs",
+    "contacts:avatars": "node scripts/import-contact-avatars.mjs",
+    "catalog:import:ohmywishes": "node scripts/import-ohmywishes-catalog.mjs",
     "performance:import": "node scripts/import-obsidian-performance.mjs",
     "dev:production": "node scripts/dev-production.mjs start",
     "dev:production:status": "node scripts/dev-production.mjs status",
@@ -59,6 +61,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.4",
+    "sharp": "^0.34.5",
     "vite": "latest"
   }
 }

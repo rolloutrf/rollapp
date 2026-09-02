@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCardReorder } from "@/hooks/use-card-reorder";
 import { sortCourses } from "@/lib/course-order";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
 } from "@/components/education-lists";
@@ -233,6 +234,8 @@ function CourseGroupMoveSubmenu({ currentListId, lists, busy, onMove }) {
 }
 
 function CourseGroupActions({ group, lists, busy, onBeginRename, onDisband, onMove }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -371,6 +374,7 @@ function CourseGroupOpen({
   group, courses, lists, moveState, onClose, onEditCourse, onMoveCourse, onCreateList,
   onRemoveCourse, onRename, onMove, onDisband,
 }) {
+  const { readOnly } = useSphereSharing();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -465,7 +469,7 @@ function CourseGroupOpen({
               onEdit={onEditCourse}
               onMove={() => {}}
               onMoveToList={onMoveCourse}
-              onRemoveFromGroup={onRemoveCourse}
+              onRemoveFromGroup={readOnly ? undefined : onRemoveCourse}
             />
           </li>
         ))}
@@ -630,25 +634,11 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
             )}
 
             <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
-                  id={`${formId}-title`}
-                  required
-                  maxLength={160}
-                  autoFocus
-                  placeholder="Например, Product Strategy"
-                  value={form.title}
-                  onChange={(event) => update("title", event.target.value)}
-                />
-              </Field>
-
               <Field data-invalid={Boolean(logoError)}>
                 <FieldLabel htmlFor={`${formId}-logo`}>Логотип</FieldLabel>
                 <div className="flex flex-wrap items-center gap-4">
                   <Button
-                    className="group relative size-20 shrink-0 overflow-hidden rounded-xl p-0"
+                    className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
                     variant="ghost"
                     size="icon"
                     type="button"
@@ -708,6 +698,20 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
                 {logoError && <FieldError>{logoError}</FieldError>}
               </Field>
 
+              <Field>
+                <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
+                <Input
+                  className="min-h-12 text-base"
+                  id={`${formId}-title`}
+                  required
+                  maxLength={160}
+                  autoFocus
+                  placeholder="Например, Product Strategy"
+                  value={form.title}
+                  onChange={(event) => update("title", event.target.value)}
+                />
+              </Field>
+
               <div className="flex flex-col gap-4">
                 <Field>
                   <FieldLabel htmlFor={`${formId}-provider`}>Платформа или школа</FieldLabel>
@@ -726,7 +730,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
                     <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-status`}>
                       <SelectValue>{(value) => COURSE_STATUS[value]?.label || "Выберите статус"}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent align="start" alignItemWithTrigger={false}>
+                    <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                       <SelectItem value="planned">Запланирован</SelectItem>
                       <SelectItem value="in_progress">В процессе</SelectItem>
                       <SelectItem value="completed">Завершён</SelectItem>
@@ -743,7 +747,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
                       ? "Не отсортированные"
                       : lists.find((list) => list.id === value)?.title || "Выберите список"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value={UNLISTED_EDUCATION_LIST_ID}>Не отсортированные</SelectItem>
                     {lists.map((list) => <SelectItem value={list.id} key={list.id}>{list.title}</SelectItem>)}
                   </SelectContent>
@@ -823,6 +827,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
 }
 
 export function Courses() {
+  const { readOnly } = useSphereSharing();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [selectedListId, setSelectedListId] = useState(UNLISTED_EDUCATION_LIST_ID);
@@ -855,7 +860,8 @@ export function Courses() {
     }),
     getItemLabel: (course) => `Курс «${course.title}»`,
     collectionLabel: "курсов",
-    groupingEnabled: visibleCourses.length > 1 && !groupState.busy,
+    disabled: readOnly,
+    groupingEnabled: !readOnly && visibleCourses.length > 1 && !groupState.busy,
     onCreateGroup: createCourseGroup,
     onAddToGroup: addCourseToGroup,
   });
@@ -885,6 +891,7 @@ export function Courses() {
   };
 
   const openCourse = (course) => {
+    if (readOnly) return;
     if (cardOrder.shouldSuppressClick()) return;
     setSelectedCourse(course);
     setDrawerOpen(true);
@@ -1151,6 +1158,7 @@ export function Courses() {
                 onEdit={openCourse}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveCourseToList}
+                draggable={!readOnly}
               />
             </li>
           ))}
@@ -1164,15 +1172,15 @@ export function Courses() {
       <p className="sr-only" aria-live="polite">{moveState.announcement}</p>
       <p className="sr-only" aria-live="polite">{groupState.announcement}</p>
 
-      <CourseDrawer
+      {!readOnly && <CourseDrawer
         course={selectedCourse}
         initialListId={educationApiListId(resolvedListId)}
         lists={requestState.lists}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onSaved={saveCourse}
-      />
-      <EducationListDrawer
+      />}
+      {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
         section="courses"
@@ -1182,7 +1190,7 @@ export function Courses() {
           : { open: false, list: null, moveItem: null })}
         onSaved={saveList}
         onDeleted={deleteList}
-      />
+      />}
       {openedGroup && (
         <CourseGroupOpen
           group={openedGroup}

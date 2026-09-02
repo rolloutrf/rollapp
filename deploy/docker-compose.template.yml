@@ -18,13 +18,12 @@ services:
       PG_POOL_SIZE: "8"
       YC_LOCKBOX_SECRET_ID: "e6qn7uuqpp2jg3krbh4u"
       YC_LOCKBOX_SECRET_KEY: "postgresql_password"
-      # Read-only catalog in the `auto` database. Fill the role and Lockbox
-      # secret when granting Rollapp access; blank values disable suggestions
-      # without substituting demo data.
+      # Read-only catalog in the `auto` database. The production role has only
+      # CONNECT/USAGE/SELECT privileges there and reuses its Lockbox password.
       AUTO_PGHOST: "c-c9q11j9k294u5dmlk127.rw.mdb.yandexcloud.net"
       AUTO_PGPORT: "6432"
       AUTO_PGDATABASE: "auto"
-      AUTO_PGUSER: ""
+      AUTO_PGUSER: "rollapp_app"
       YC_AUTO_DATABASE_LOCKBOX_SECRET_ID: ""
       YC_AUTO_DATABASE_LOCKBOX_SECRET_KEY: "postgresql_password"
       PUBLIC_APP_URL: "https://xn--80avakiab.xn--p1ai"
@@ -54,6 +53,8 @@ services:
       OPENROUTER_MODEL: "mistralai/mistral-small-2603"
       YC_OPENROUTER_LOCKBOX_SECRET_ID: ""
       YC_OPENROUTER_API_KEY_KEY: "api_key"
+      YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID: ""
+      YC_USER_CREDENTIALS_SECRET_KEY: "encryption_secret"
       PUBLIC_HOST: "xn--80avakiab.xn--p1ai"
       REDIRECT_HOSTS: "rollapp.51-250-110-17.sslip.io, www.xn--80avakiab.xn--p1ai"
     ports:

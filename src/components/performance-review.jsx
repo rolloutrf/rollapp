@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PERFORMANCE_CYCLES } from "@/data/performance-review";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const DEFAULT_PERFORMANCE_CONTENT = {
   heading: "Перфоманс в динамике",
@@ -292,6 +293,7 @@ function orderPerformanceCycles(cycles) {
 }
 
 export function PerformanceReview() {
+  const { readOnly } = useSphereSharing();
   const [activeCycleId, setActiveCycleId] = useState(PERFORMANCE_CYCLES[0]?.id || "");
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -379,7 +381,7 @@ export function PerformanceReview() {
 
   return (
     <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-8 pb-12">
-      <header className="flex min-h-12 w-full items-center justify-center">
+      {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions wishes-page__hero-actions flex flex-wrap justify-center gap-2" role="group" aria-label="Действия с перфоманс-ревью">
           <Button
             className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
@@ -411,7 +413,7 @@ export function PerformanceReview() {
             onChange={importPdf}
           />
         </div>
-      </header>
+      </header>}
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
       {actionFeedback && (
         <Alert variant={actionFeedback.tone === "error" ? "destructive" : "default"}>
@@ -449,7 +451,7 @@ export function PerformanceReview() {
               </TabsTrigger>
             ))}
           </TabsList>
-          <Button
+          {!readOnly && <Button
             className="size-12 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
             variant="ghost"
             size="icon"
@@ -460,7 +462,7 @@ export function PerformanceReview() {
             onClick={() => setDeleteOpen(true)}
           >
             <Trash2 aria-hidden="true" />
-          </Button>
+          </Button>}
         </div>
 
         <TabsContent className="flex min-w-0 flex-col gap-6" value={activeCycle.id}>
@@ -508,24 +510,24 @@ export function PerformanceReview() {
         <Card>
           <CardHeader>
             <CardTitle>Циклов ревью пока нет</CardTitle>
-            <CardDescription>Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице.</CardDescription>
+            <CardDescription>{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</CardDescription>
           </CardHeader>
-          <CardContent>
+          {!readOnly && <CardContent>
             <Button variant="outline" type="button" disabled={importing} onClick={() => fileInputRef.current?.click()}>
               <FileUp data-icon="inline-start" aria-hidden="true" />
               Выбрать PDF
             </Button>
-          </CardContent>
+          </CardContent>}
         </Card>
       )}
-      {activeCycle && <PerformanceEditor
+      {!readOnly && activeCycle && <PerformanceEditor
         activeCycleId={activeCycle.id}
         content={performanceContent}
         open={editorOpen}
         onOpenChange={setEditorOpen}
         onSave={careerContent.save}
       />}
-      <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
+      {!readOnly && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить цикл ревью?</AlertDialogTitle>
@@ -541,7 +543,7 @@ export function PerformanceReview() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </article>
   );
 }

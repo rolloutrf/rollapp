@@ -40,3 +40,8 @@ export function cardRectOverlapRatio(firstRect, secondRect) {
   const smallerArea = Math.min(firstArea, secondArea);
   return smallerArea > 0 ? (overlapWidth * overlapHeight) / smallerArea : 0;
 }
+
+export function resolveConfirmedGroupDrop({ groupingEnabled = false, armedTarget = "", dragTarget = "" }) {
+  if (!groupingEnabled || !armedTarget || dragTarget !== armedTarget) return "";
+  return armedTarget;
+}

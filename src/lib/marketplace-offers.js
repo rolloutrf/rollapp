@@ -1,4 +1,5 @@
 import { productScore } from "../../shared/product-match.js";
+import { isVehicleMarketplaceId, vehicleOfferMatchesWish } from "../../shared/vehicle-match.js";
 
 const MARKETPLACES = [
   {
@@ -31,7 +32,16 @@ const MARKETPLACES = [
     mark: "DNS",
     hosts: ["dns-shop.ru"],
   },
+  { id: "samokat", label: "Самокат", mark: "С", hosts: ["samokat.ru"] },
+  { id: "lavka", label: "Яндекс Лавка", mark: "Я", hosts: ["lavka.yandex.ru"] },
+  { id: "lenta", label: "Лента", mark: "Л", hosts: ["lenta.com"] },
+  { id: "vkusvill", label: "ВкусВилл", mark: "ВВ", hosts: ["vkusvill.ru"] },
+  { id: "auto-ru", label: "Auto.ru", mark: "A", hosts: ["auto.ru"] },
+  { id: "avito-auto", label: "Авито Авто", mark: "A", hosts: ["avito.ru"] },
+  { id: "drom", label: "Drom", mark: "D", hosts: ["drom.ru"] },
 ];
+
+const FOOD_MARKETPLACE_IDS = new Set(["samokat", "lavka", "lenta", "vkusvill"]);
 
 const SOURCE_MARKETPLACES = [
   ...MARKETPLACES,
@@ -57,6 +67,15 @@ function matchesHost(host, candidate) {
 export function marketplaceForUrl(value) {
   const host = normalizedHost(value);
   if (!host) return null;
+  if ((host === "avito.ru" || host.endsWith(".avito.ru"))) {
+    try {
+      if (new URL(String(value)).pathname.includes("/avtomobili/")) {
+        return SOURCE_MARKETPLACES.find((marketplace) => marketplace.id === "avito-auto") || null;
+      }
+    } catch {
+      return null;
+    }
+  }
   return SOURCE_MARKETPLACES.find((marketplace) => (
     marketplace.hosts.some((candidate) => matchesHost(host, candidate))
   )) || null;
@@ -93,7 +112,12 @@ export function marketplaceOffersForWish(wish) {
 }
 
 export function marketplaceOfferMatchesWish(wish, offer) {
-  return Boolean(offer?.source) || productScore(wish?.title, offer?.title) >= 70;
+  if (offer?.source) return true;
+  if (wish?.space === "transport") return vehicleOfferMatchesWish(wish, offer);
+  if (isVehicleMarketplaceId(offer?.marketplaceId)) return false;
+  const foodWish = wish?.space === "food";
+  if (foodWish !== FOOD_MARKETPLACE_IDS.has(offer?.marketplaceId)) return false;
+  return productScore(wish?.title, offer?.title) >= 70;
 }
 
 export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
@@ -125,7 +149,8 @@ export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
     }
   };
   const compare = (left, right) => (
-    Number(right.available) - Number(left.available)
+    Number(Boolean(right.source)) - Number(Boolean(left.source))
+    || Number(right.available) - Number(left.available)
     || Number(right.score || 0) - Number(left.score || 0)
     || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
   );
@@ -144,5 +169,5 @@ export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
       selected[currentIndex] = offer;
     }
   }
-  return selected;
+  return selected.sort(compare);
 }

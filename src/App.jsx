@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
   CircleUserRound, Clapperboard, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
-  LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus,
+  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
@@ -53,11 +53,12 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger,
 } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
@@ -73,6 +74,8 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
+import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
+import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
 import { filterWishesWithoutList, initialWishListIds } from "./lib/wish-lists.js";
 import { GROUP_INTENT_DELAY_MS } from "./lib/card-order.js";
@@ -223,6 +226,14 @@ const wishCountNoun = (count) => {
   if (last === 1 && lastTwo !== 11) return "желание";
   if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "желания";
   return "желаний";
+};
+const participantCountLabel = (count) => {
+  const absolute = Math.abs(Number(count) || 0);
+  const lastTwo = absolute % 100;
+  const last = absolute % 10;
+  if (last === 1 && lastTwo !== 11) return `${absolute} участник`;
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${absolute} участника`;
+  return `${absolute} участников`;
 };
 const attachWishesToDashboardList = (dashboard, listId, wishIds) => {
   const ids = new Set(wishIds);
@@ -483,6 +494,7 @@ const SERVICE_SWITCHER_ITEMS = [
 ];
 
 function activeServiceFromPath(pathname) {
+  if (pathname.startsWith("/app/business")) return "business-access";
   if (pathname.startsWith("/app/wishes")) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
   if (pathname.startsWith("/app/friends")) return "contacts";
@@ -494,11 +506,32 @@ function activeServiceFromPath(pathname) {
 }
 
 function SphereSwitcher() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const { user } = useSession();
   const [open, setOpen] = useState(false);
+  const [incomingShares, setIncomingShares] = useState([]);
   const activeService = activeServiceFromPath(pathname);
-  const visibleServices = serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user);
+  const sharedOwner = new URLSearchParams(location.search).get("owner");
+  const visibleServices = [
+    ...serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user),
+    ...(user?.accountType === "business"
+      ? [{ id: "business-access", label: "Клиенты", path: "/app/business/access", icon: Building2, color: "#8b7cf6" }]
+      : []),
+  ];
+  useEffect(() => {
+    if (!user) {
+      setIncomingShares([]);
+      return undefined;
+    }
+    let current = true;
+    api.get("/sphere-shares/incoming").then(({ shares }) => {
+      if (current) setIncomingShares(shares || []);
+    }).catch(() => {
+      if (current) setIncomingShares([]);
+    });
+    return () => { current = false; };
+  }, [user?.id, open]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -514,7 +547,7 @@ function SphereSwitcher() {
         </svg>
       </PopoverTrigger>
       <PopoverContent
-        className="sphere-switcher__panel !w-[min(38rem,calc(100vw-2rem))] !gap-4 !rounded-3xl !p-5 max-[560px]:!rounded-2xl"
+        className="sphere-switcher__panel !w-[min(28rem,calc(100vw-2rem))] !gap-3 !rounded-3xl !p-4 max-[560px]:!rounded-2xl"
         align="start"
         sideOffset={10}
       >
@@ -523,21 +556,21 @@ function SphereSwitcher() {
           <PopoverDescription>Выберите раздел Rollapp</PopoverDescription>
         </PopoverHeader>
         <nav className="sphere-switcher__grid" aria-label="Сервисы и сферы Rollapp">
-          {visibleServices.map(({ id, label, path, icon: Icon, color }) => {
-            const active = id === activeService;
+          {visibleServices.map(({ id, label, path, icon: Icon }) => {
+            const active = id === activeService && !sharedOwner;
             return (
               <Link
                 key={id}
                 to={path}
                 className={buttonVariants({
                   variant: active ? "secondary" : "ghost",
-                  className: "sphere-switcher__item !h-auto !min-h-32 !whitespace-normal !rounded-xl !px-2 !py-3",
+                  className: "sphere-switcher__item !h-auto !min-h-20 !whitespace-normal !rounded-xl !px-1 !py-1",
                 })}
                 data-active={active ? "true" : undefined}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setOpen(false)}
               >
-                <span className="sphere-switcher__icon" style={{ "--sphere-color": color }}>
+                <span className="sphere-switcher__icon">
                   <Icon aria-hidden="true" />
                 </span>
                 <span>{label}</span>
@@ -545,6 +578,34 @@ function SphereSwitcher() {
             );
           })}
         </nav>
+        {incomingShares.length > 0 && <>
+          <div className="sphere-switcher__shared-heading">
+            <strong>Доступно мне</strong>
+            <span>Разделы других людей</span>
+          </div>
+          <nav className="sphere-switcher__grid sphere-switcher__grid--shared" aria-label="Разделы, доступные для чтения">
+            {incomingShares.map((share) => {
+              const path = sphereSectionPath({ ownerUsername: share.owner.username, sphere: share.sphere, section: share.section });
+              const active = `${location.pathname}${location.search}` === path;
+              return (
+                <Link
+                  key={`${share.owner.id}:${share.sphere}:${share.section}`}
+                  to={path}
+                  className={buttonVariants({
+                    variant: active ? "secondary" : "ghost",
+                    className: "sphere-switcher__item sphere-switcher__shared-item !h-auto !min-h-32 !whitespace-normal !rounded-xl !px-2 !py-3",
+                  })}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  <Avatar user={share.owner} size="sm" className="!size-12" />
+                  <span>{SPHERE_SECTION_LABELS[share.section] || share.section}</span>
+                  <small>{share.owner.name}</small>
+                </Link>
+              );
+            })}
+          </nav>
+        </>}
       </PopoverContent>
     </Popover>
   );
@@ -574,11 +635,15 @@ function GlobalAppChrome() {
   const toast = useToast();
   const { user } = useSession();
   const requestedService = serviceChromeFromPath(location.pathname);
-  const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user)
+  const sharedOwner = new URLSearchParams(location.search).get("owner");
+  const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user) || sharedOwner
     ? requestedService
     : null;
-  const options = service?.tabs || [];
   const requestedTab = new URLSearchParams(location.search).get("tab");
+  const serviceOptions = service?.tabs || [];
+  const options = sharedOwner
+    ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
+    : serviceOptions;
   const current = options.find((option) => option.id === requestedTab) || options[0] || null;
   const selectTab = (tabId) => {
     if (!tabId || tabId === current?.id) return;
@@ -633,11 +698,6 @@ const IDENTITY_TABS = [
     description: "Каков этот мир, кто я, каково моё место и чего я хочу.",
   },
   {
-    id: "theses",
-    label: "Тезисы",
-    description: "Ключевые мысли, гипотезы и формулировки, к которым важно возвращаться.",
-  },
-  {
     id: "values",
     label: "Ценности",
     description: "Личные принципы и критерии, на которые вы опираетесь в решениях.",
@@ -662,6 +722,11 @@ const IDENTITY_TABS = [
     id: "life-strategy",
     label: "Жизненная стратегия",
     description: "Цели, приоритеты и план движения по ключевым жизненным горизонтам.",
+  },
+  {
+    id: "theses",
+    label: "Тезисы",
+    description: "Ключевые мысли, гипотезы и формулировки, к которым важно возвращаться.",
   },
 ];
 
@@ -1458,7 +1523,7 @@ function AuthPage({ mode }) {
   const location = useLocation();
   const { user, refresh } = useSession();
   const toast = useToast();
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", accountType: "personal" });
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
@@ -1483,7 +1548,7 @@ function AuthPage({ mode }) {
   const yandexStartHref = yandexAuthStartPath(nextPath);
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
-  const finishAuthentication = async (message) => {
+  const finishAuthentication = async (message, destination = nextPath) => {
     let linkError = null;
     if (telegramAuth.initData && telegramAuth.status === "unlinked") {
       try {
@@ -1498,7 +1563,7 @@ function AuthPage({ mode }) {
       window.location.assign(yandexLinkHref);
       return;
     }
-    navigate(nextPath);
+    navigate(destination);
     if (linkError) toast("Вы вошли, но Telegram не привязался. Откройте Rollapp из бота ещё раз.", "error");
     else toast(message);
   };
@@ -1598,8 +1663,20 @@ function AuthPage({ mode }) {
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
-      await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
-      await finishAuthentication(mode === "register" ? "Вишлист готов — добавьте первую мечту" : "С возвращением!");
+      const result = await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
+      const destination = mode === "register"
+        && result.user?.accountType === "business"
+        && !authQuery.get("next")
+        ? "/app/business/access"
+        : nextPath;
+      await finishAuthentication(
+        mode === "register"
+          ? result.user?.accountType === "business"
+            ? "Бизнес-аккаунт готов"
+            : "Вишлист готов — добавьте первую мечту"
+          : "С возвращением!",
+        destination,
+      );
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
   };
 
@@ -1687,12 +1764,28 @@ function AuthPage({ mode }) {
             ? <PhoneOtpFields flow={phoneFlow} verifyLabel={shouldLinkYandex ? "Подтвердить и привязать Yandex ID" : undefined} />
             : <>
               <FieldGroup className="gap-4">
+                {mode === "register" && (
+                  <Field>
+                    <FieldLabel>Тип аккаунта</FieldLabel>
+                    <RadioGroup className="auth-account-types" value={form.accountType} onValueChange={(accountType) => setForm({ ...form, accountType })} aria-label="Тип аккаунта">
+                      <label className="auth-account-type" data-active={form.accountType === "personal" ? "true" : undefined}>
+                        <RadioGroupItem value="personal" />
+                        <span><strong>Личный</strong><small>Вишлист и личные сферы</small></span>
+                      </label>
+                      <label className="auth-account-type" data-active={form.accountType === "business" ? "true" : undefined}>
+                        <RadioGroupItem value="business" />
+                        <span><strong>Бизнес</strong><small>Запросы на доступ к пространствам клиентов</small></span>
+                      </label>
+                    </RadioGroup>
+                    <FieldDescription>Бизнес получает доступ только после подтверждения владельца сферы.</FieldDescription>
+                  </Field>
+                )}
                 {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
                 <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? form.accountType === "business" ? "Создать бизнес-аккаунт" : "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
@@ -1757,13 +1850,20 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const location = useLocation();
   const friendsRoute = friendsContext || location.pathname.startsWith("/app/friends");
   const wishesRoute = location.pathname.startsWith("/app/wishes");
+  const catalogRoute = location.pathname === "/app/wishes/catalog";
+  const businessRoute = location.pathname.startsWith("/app/business");
+  const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
-    <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
-      <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-        {!collectionChrome && <><div className="app-shell-chrome-spacer" aria-hidden="true" /><PersistentProfileHero user={user} /></>}
-        {children}
-      </main>
-    </div>
+    <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
+      <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
+        <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
+          {!collectionChrome && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && !catalogRoute && !businessRoute && <PersistentProfileHero user={user} />}
+          <SphereAccessRequestBanner />
+          {children}
+        </main>
+      </div>
+    </SphereSharingProvider>
   );
 }
 
@@ -2221,6 +2321,9 @@ function TabbedSpherePage({ sphereId, tabs }) {
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
   const location = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
+  const access = useSphereSharing();
+  const globalShareRef = useGlobalShareHandler();
   if (!sphere || !tabs?.length) return <Navigate to={APP_HOME} replace />;
   const requestedTab = new URLSearchParams(location.search).get("tab");
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0].id;
@@ -2230,11 +2333,21 @@ function TabbedSpherePage({ sphereId, tabs }) {
     search.set("tab", tabId);
     navigate({ pathname: location.pathname, search: `?${search.toString()}`, hash: location.hash }, { replace: true });
   };
+  globalShareRef.current = async () => {
+    const ownerUsername = access.owner?.username;
+    const path = sphereSectionPath({ ownerUsername, sphere: sphereId, section: activeTab });
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");
+    } catch {
+      toast("Не удалось скопировать ссылку", "error");
+    }
+  };
   return (
-    <div className={`app-page sphere-page sphere-page--tabbed typeset typeset-rollapp${activeTabConfig?.layout === "full-width" ? " sphere-page--full-width" : ""}`}>
+    <div data-read-only={access.readOnly ? "true" : undefined} className={`app-page sphere-page sphere-page--tabbed typeset typeset-rollapp${activeTabConfig?.layout === "full-width" ? " sphere-page--full-width" : ""}`}>
       <div className="sphere-page__content tabbed-sphere">
         <Tabs value={activeTab} onValueChange={selectTab} className="sphere-tabs">
-          {tabs.map((tab) => (
+          {[activeTabConfig].map((tab) => (
             <TabsContent key={tab.id} value={tab.id} className="sphere-tabs__content">
               {sphere.id === "identity" && tab.id === "four-questions"
                 ? <FourQuestions />
@@ -2370,6 +2483,7 @@ const contactFormFrom = (contact) => ({
   role: contact?.role || "",
   category: contact?.category || "",
   status: contact?.status || "",
+  avatarUrl: contact?.avatarSourceUrl || "",
   links: (contact?.links || []).map((link) => ({ label: link.label || "", url: link.url || "" })),
   notes: contact?.notes || "",
 });
@@ -2395,12 +2509,25 @@ function ContactNotes({ notes }) {
   });
 }
 
-function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onCancel, onSaved }) {
+function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onCancel, onSaved, onDeleted }) {
   const toast = useToast();
   const creating = !contact?.id;
   const [form, setForm] = useState(() => contactFormFrom(contact));
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [avatarResolving, setAvatarResolving] = useState(false);
+  const [avatarCleared, setAvatarCleared] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarStatus, setAvatarStatus] = useState("");
   const [saveError, setSaveError] = useState("");
+  const avatarFileRef = useRef(null);
+  const uploadedImageIdsRef = useRef(new Set());
+  const autoResolveKeyRef = useRef("");
+  const initialAvatarSourceUrl = contact?.avatarSourceUrl || "";
+  const previewAvatarUrl = form.avatarUrl || (avatarCleared ? "" : contact?.avatarUrl || "");
+  const busy = saving || deleting || imageUploading || avatarResolving;
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const setLink = (index, field, value) => setForm((current) => ({
     ...current,
@@ -2410,8 +2537,109 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     ...current,
     links: current.links.filter((_, linkIndex) => linkIndex !== index),
   }));
+  const cleanupUploadedImages = async (keepUrl = "") => {
+    const keepId = uploadedImageIdFromUrl(keepUrl);
+    const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
+    ids.forEach((id) => uploadedImageIdsRef.current.delete(id));
+    await Promise.allSettled(ids.map((id) => api.delete(`/uploads/images/${encodeURIComponent(id)}`)));
+  };
+  useEffect(() => () => {
+    const ids = [...uploadedImageIdsRef.current];
+    uploadedImageIdsRef.current.clear();
+    ids.forEach((id) => {
+      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    });
+  }, []);
+  const applyAvatarResult = async (result, message) => {
+    const previousId = uploadedImageIdFromUrl(form.avatarUrl);
+    if (result.id) uploadedImageIdsRef.current.add(result.id);
+    setForm((current) => ({ ...current, avatarUrl: result.imageUrl }));
+    setAvatarCleared(false);
+    setAvatarError("");
+    setAvatarStatus(message);
+    if (previousId && uploadedImageIdsRef.current.has(previousId) && previousId !== result.id) {
+      uploadedImageIdsRef.current.delete(previousId);
+      await api.delete(`/uploads/images/${encodeURIComponent(previousId)}`).catch(() => {});
+    }
+  };
+  const uploadAvatar = async (file) => {
+    if (!file || busy) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setAvatarError("Подойдёт изображение JPG, PNG или WEBP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setAvatarError("Изображение должно быть не больше 8 МБ.");
+      return;
+    }
+    setImageUploading(true);
+    setAvatarError("");
+    setAvatarStatus("");
+    try {
+      const result = await api.uploadImage(file);
+      await applyAvatarResult(result, "Фото загружено вручную");
+    } catch (error) {
+      setAvatarError(error.message || "Не удалось загрузить фото.");
+    } finally {
+      setImageUploading(false);
+      if (avatarFileRef.current) avatarFileRef.current.value = "";
+    }
+  };
+  const normalizedSocialLinks = () => form.links
+    .map((link) => {
+      const url = link.url.trim();
+      const platform = contactSocialPlatform({ ...link, url });
+      const fallbackLabel = CONTACT_SOCIAL_PLATFORMS[platform]?.label || "Соцсеть";
+      return { label: link.label.trim() || fallbackLabel, url };
+    })
+    .filter((link) => link.url && contactSocialPlatform(link) !== "website");
+  const resolveAvatar = async ({ automatic = false } = {}) => {
+    if (busy) return;
+    const links = normalizedSocialLinks();
+    if (!links.length) {
+      if (!automatic) setAvatarError("Сначала добавьте ссылку на соцсеть.");
+      return;
+    }
+    const resolveKey = links.map((link) => link.url).join("\n");
+    if (automatic && autoResolveKeyRef.current === resolveKey) return;
+    autoResolveKeyRef.current = resolveKey;
+    setAvatarResolving(true);
+    setAvatarError("");
+    setAvatarStatus(automatic ? "Пробуем получить фото из соцсети…" : "Получаем фото из соцсетей…");
+    try {
+      const result = await api.resolveContactAvatar(links);
+      await applyAvatarResult(result, `Фото получено из ${result.source || "соцсети"}`);
+    } catch (error) {
+      setAvatarStatus("");
+      setAvatarError(error.message || "Не удалось получить публичное фото из соцсети.");
+    } finally {
+      setAvatarResolving(false);
+    }
+  };
+  const removeAvatar = async () => {
+    if (busy || !form.avatarUrl) return;
+    const previousId = uploadedImageIdFromUrl(form.avatarUrl);
+    setForm((current) => ({ ...current, avatarUrl: "" }));
+    setAvatarCleared(true);
+    setAvatarError("");
+    setAvatarStatus("Фото будет удалено после сохранения");
+    if (previousId && uploadedImageIdsRef.current.has(previousId)) {
+      uploadedImageIdsRef.current.delete(previousId);
+      await api.delete(`/uploads/images/${encodeURIComponent(previousId)}`).catch(() => {});
+    }
+  };
+  const cancel = async () => {
+    if (busy) return;
+    await cleanupUploadedImages();
+    onCancel();
+  };
   const save = async (event) => {
     event.preventDefault();
+    if (busy) return;
     setSaving(true);
     setSaveError("");
     try {
@@ -2422,6 +2650,13 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       const result = creating
         ? await api.post("/contacts", payload)
         : await api.patch(`/contacts/${encodeURIComponent(contact.id)}`, payload);
+      const savedUploadId = uploadedImageIdFromUrl(result.contact?.avatarSourceUrl);
+      if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
+      await cleanupUploadedImages(result.contact?.avatarSourceUrl || "");
+      const initialAvatarId = uploadedImageIdFromUrl(initialAvatarSourceUrl);
+      if (initialAvatarId && initialAvatarId !== savedUploadId) {
+        await api.delete(`/uploads/images/${encodeURIComponent(initialAvatarId)}`).catch(() => {});
+      }
       toast(creating ? "Контакт добавлен" : "Контакт обновлён", "success");
       onSaved(result.contact);
     } catch (error) {
@@ -2430,13 +2665,52 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       setSaving(false);
     }
   };
+  const removeContact = async () => {
+    if (creating || deleting) return;
+    setDeleting(true);
+    setSaveError("");
+    try {
+      await cleanupUploadedImages();
+      await api.delete(`/contacts/${encodeURIComponent(contact.id)}`);
+      toast("Контакт удалён", "success");
+      onDeleted?.(contact);
+    } catch (error) {
+      setSaveError(error.message);
+      setDeleteOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
   const knownCategories = Object.keys(CONTACT_CATEGORY_LABELS);
   const hasCustomCategory = form.category && !knownCategories.includes(form.category);
 
   return (
     <form className="contact-detail__edit-form" onSubmit={save}>
       <div className="contact-detail__edit-heading">
-        <Avatar user={creating ? { name: form.name } : contact} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+        <div className="contact-detail__avatar-editor">
+          <ShadcnButton
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="contact-detail__avatar-button"
+            aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
+            disabled={busy}
+            onClick={() => avatarFileRef.current?.click()}
+          >
+            <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+            <span className="contact-detail__avatar-button-icon" aria-hidden="true">
+              {imageUploading ? <Spinner /> : <Upload />}
+            </span>
+          </ShadcnButton>
+          <Input
+            ref={avatarFileRef}
+            className="sr-only !size-px"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Загрузить фото контакта"
+            onChange={(event) => uploadAvatar(event.target.files?.[0])}
+          />
+        </div>
         <div><span>{creating ? "Добавление контакта" : "Редактирование контакта"}</span><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
         {!creating && <ShadcnButton
           type="button"
@@ -2453,6 +2727,16 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
         </ShadcnButton>}
       </div>
+      <div className="contact-detail__avatar-controls">
+        <ShadcnButton type="button" variant="outline" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
+          {imageUploading ? <Spinner /> : <Upload />}{previewAvatarUrl ? "Сменить фото" : "Загрузить фото"}
+        </ShadcnButton>
+        <ShadcnButton type="button" variant="outline" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
+          {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
+        </ShadcnButton>
+        {form.avatarUrl && <ShadcnButton type="button" variant="ghost" disabled={busy} onClick={removeAvatar}><Trash2 />Удалить</ShadcnButton>}
+      </div>
+      {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
       <div className="contact-detail__edit-fields">
         <label className="contact-detail__edit-field contact-detail__edit-field--wide">
           <span>Имя</span>
@@ -2485,7 +2769,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           {form.links.map((link, index) => (
             <div className="contact-detail__edit-link" key={index}>
               <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
-              <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} />
+              <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} onBlur={() => { if (!form.avatarUrl) resolveAvatar({ automatic: true }); }} />
               <ShadcnButton type="button" variant="ghost" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
             </div>
           ))}
@@ -2499,14 +2783,53 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       </label>
       {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
       <div className="contact-detail__edit-actions">
-        <ShadcnButton type="button" variant="ghost" disabled={saving} onClick={onCancel}>Отмена</ShadcnButton>
-        <ShadcnButton type="submit" disabled={saving}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
+        {!creating && <ShadcnButton type="button" variant="ghost" className="contact-detail__delete" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</ShadcnButton>}
+        <ShadcnButton type="button" variant="ghost" disabled={busy} onClick={cancel}>Отмена</ShadcnButton>
+        <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
       </div>
+      {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить контакт «{contact.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>Контакт исчезнет из вашего списка. Отменить это действие не получится.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={deleting} aria-busy={deleting || undefined} onClick={removeContact}>
+              {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить контакт
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>}
     </form>
   );
 }
 
-function ContactDetailDrawer({ contactId, onClose, onUpdated }) {
+function ContactReadView({ contact }) {
+  const socialLinks = (contact.links || []).filter((link) => link?.url);
+  return (
+    <article className="contact-detail__edit-form" aria-label={`Контакт ${contact.name}`}>
+      <div className="contact-detail__edit-heading">
+        <Avatar user={contact} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+        <div><span>{contact.company || "Контакт"}</span><strong>{contact.name}</strong></div>
+      </div>
+      <div className="contact-detail__edit-fields">
+        {contact.role && <div className="contact-detail__edit-field contact-detail__edit-field--wide"><span>Должность или роль</span><strong>{contact.role}</strong></div>}
+        {contact.status && <div className="contact-detail__edit-field contact-detail__edit-field--wide"><span>Статус</span><strong>{contact.status}</strong></div>}
+      </div>
+      {socialLinks.length > 0 && <section className="contact-detail__edit-section" aria-labelledby="contact-read-links-title">
+        <h2 id="contact-read-links-title"><Link2 aria-hidden="true" />Ссылки</h2>
+        <div className="contact-card__social-links">{socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}</div>
+      </section>}
+      <section className="contact-detail__edit-section typeset typeset-rollapp" aria-labelledby="contact-read-notes-title">
+        <h2 id="contact-read-notes-title"><NotebookText aria-hidden="true" />Заметки</h2>
+        <ContactNotes notes={contact.notes} />
+      </section>
+    </article>
+  );
+}
+
+function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnly = false }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const [favoriteSaving, setFavoriteSaving] = useState(false);
@@ -2544,7 +2867,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated }) {
           </div>
         ) : contact ? (
           <ScrollArea className="contact-detail__scroll">
-            <ContactEditForm
+            {readOnly ? <ContactReadView contact={contact} /> : <ContactEditForm
               contact={contact}
               favoriteSaving={favoriteSaving}
               onFavoriteToggle={toggleFavorite}
@@ -2553,7 +2876,8 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated }) {
                 updateData((current) => ({ ...current, contact: savedContact }));
                 onUpdated?.(savedContact);
               }}
-            />
+              onDeleted={onDeleted}
+            />}
           </ScrollArea>
         ) : null}
       </DrawerContent>
@@ -2590,6 +2914,8 @@ function ContactsProfileControls({ onAdd }) {
 
 function ContactsSpherePage() {
   const toast = useToast();
+  const access = useSphereSharing();
+  const globalShareRef = useGlobalShareHandler();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [company, setCompany] = useState("");
@@ -2620,6 +2946,15 @@ function ContactsSpherePage() {
   const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); setPage(1); };
   const start = data?.total ? (data.page - 1) * data.pageSize + 1 : 0;
   const end = data?.total ? Math.min(data.total, start + contacts.length - 1) : 0;
+  globalShareRef.current = async () => {
+    const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "contacts", section: "contacts" });
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");
+    } catch {
+      toast("Не удалось скопировать ссылку", "error");
+    }
+  };
   const toggleFavorite = async (contact) => {
     if (favoriteSavingIds.has(contact.id)) return;
     const favorite = !contact.favorite;
@@ -2653,16 +2988,15 @@ function ContactsSpherePage() {
   };
 
   return (
-    <div className="app-page sphere-page sphere-page--contacts typeset typeset-rollapp">
-      <ContactsProfileControls onAdd={() => setCreatingContact(true)} />
+    <div data-read-only={access.readOnly ? "true" : undefined} className="app-page sphere-page sphere-page--contacts typeset typeset-rollapp">
+      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
-          <label className="contacts-sphere__search">
-            <Search aria-hidden="true" />
-            <span className="visually-hidden">Поиск по контактам</span>
-            <Input type="search" aria-label="Поиск по контактам" placeholder="Имя, роль, компания или заметка" value={search} onChange={(event) => setSearch(event.target.value)} />
-            {search && <ShadcnButton type="button" variant="ghost" size="icon" className="contacts-sphere__search-clear size-10 rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></ShadcnButton>}
-          </label>
+          <InputGroup className="contacts-sphere__search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput type="search" aria-label="Поиск по контактам" placeholder="Имя, роль, компания или заметка" value={search} onChange={(event) => setSearch(event.target.value)} />
+            {search && <InputGroupAddon align="inline-end"><InputGroupButton type="button" size="icon-sm" className="contacts-sphere__search-clear rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></InputGroupButton></InputGroupAddon>}
+          </InputGroup>
           <div className="contacts-sphere__filters" aria-label="Фильтры контактов">
             <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); setPage(1); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Компания">
@@ -2727,7 +3061,7 @@ function ContactsSpherePage() {
                       <div className="contact-card__top w-full min-w-0">
                         <div className="contact-card__avatar-wrap">
                           <Avatar user={contact} size="lg" className="contact-card__avatar" aria-hidden="true" />
-                          <ShadcnButton
+                          {!access.readOnly && <ShadcnButton
                             type="button"
                             variant="ghost"
                             size="icon-sm"
@@ -2740,7 +3074,7 @@ function ContactsSpherePage() {
                             onClick={() => toggleFavorite(contact)}
                           >
                             {favoriteSavingIds.has(contact.id) ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
-                          </ShadcnButton>
+                          </ShadcnButton>}
                         </div>
                         {contact.category && <span className="contact-card__category-slot"><span className="contact-card__category">{CONTACT_CATEGORY_LABELS[contact.category] || contact.category}</span></span>}
                       </div>
@@ -2785,8 +3119,17 @@ function ContactsSpherePage() {
           </div>
         )}
       </section>
-      {selectedContactId && <ContactDetailDrawer contactId={selectedContactId} onClose={() => setSelectedContactId("")} onUpdated={() => reload({ background: true }).catch(() => {})} />}
-      {creatingContact && <ContactCreateDrawer
+      {selectedContactId && <ContactDetailDrawer
+        readOnly={access.readOnly}
+        contactId={selectedContactId}
+        onClose={() => setSelectedContactId("")}
+        onUpdated={() => reload({ background: true }).catch(() => {})}
+        onDeleted={() => {
+          setSelectedContactId("");
+          setContactsVersion((value) => value + 1);
+        }}
+      />}
+      {!access.readOnly && creatingContact && <ContactCreateDrawer
         onClose={() => setCreatingContact(false)}
         onCreated={(contact) => {
           setCreatingContact(false);
@@ -2799,27 +3142,417 @@ function ContactsSpherePage() {
   );
 }
 
-function PersistentProfileHero({ user }) {
-  const { openProfileEditor } = useProfileEditor();
+function SphereAccessRequestBanner() {
+  const access = useSphereSharing();
+  const toast = useToast();
+  const [savingId, setSavingId] = useState("");
+  if (!access.active || !access.isOwner || access.requests.length === 0) return null;
+
+  const respond = async (request, decision) => {
+    if (savingId) return;
+    setSavingId(request.id);
+    try {
+      await api.post(`/sphere-access-requests/${request.id}/respond`, { decision });
+      await access.reload();
+      toast(decision === "approved"
+        ? `Доступ для ${request.requester.name} открыт`
+        : `Запрос от ${request.requester.name} отклонён`, "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setSavingId("");
+    }
+  };
+
   return (
-    <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
-      <button
-        type="button"
-        className="wishes-page__identity"
-        aria-label={`Редактировать профиль ${user.name}`}
-        title="Редактировать профиль"
-        onClick={openProfileEditor}
-      >
-        <Avatar user={user} size="xl" className="wishes-page__hero-avatar" />
-        <span className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{user.name}</h1>
-        </span>
-      </button>
+    <section className="sphere-access-requests rollapp-body" aria-label="Запросы доступа к пространству">
+      {access.requests.map((request) => (
+        <Card key={request.id} className="sphere-access-request">
+          <div className="sphere-access-request__person">
+            <Avatar user={request.requester} size="sm" className="!size-11" />
+            <span>
+              <strong>{request.requester.name}</strong>
+              <small>Бизнес-аккаунт · @{request.requester.username}</small>
+            </span>
+          </div>
+          <div className="sphere-access-request__copy">
+            <strong>Запрашивает доступ к «{SPHERE_SECTION_LABELS[access.section] || access.section}»</strong>
+            {request.message && <p>{request.message}</p>}
+          </div>
+          <div className="sphere-access-request__actions">
+            <ShadcnButton type="button" variant="outline" disabled={Boolean(savingId)} onClick={() => respond(request, "declined")}>Отклонить</ShadcnButton>
+            <ShadcnButton type="button" disabled={Boolean(savingId)} onClick={() => respond(request, "approved")}>
+              {savingId === request.id && <Spinner data-icon="inline-start" />}
+              Открыть доступ
+            </ShadcnButton>
+          </div>
+        </Card>
+      ))}
     </section>
   );
 }
 
-function WishesProfileControls({ selectedList, onEditList, onAdd }) {
+const BUSINESS_REQUEST_STATUS = {
+  pending: { label: "Ожидает ответа", variant: "secondary" },
+  approved: { label: "Доступ открыт", variant: "default" },
+  declined: { label: "Отклонён", variant: "destructive" },
+  cancelled: { label: "Отменён", variant: "outline" },
+};
+
+function BusinessAccessPage() {
+  const { user } = useSession();
+  const isMobile = useIsMobile();
+  const toast = useToast();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [people, setPeople] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [loadingPeople, setLoadingPeople] = useState(true);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [selectedPerson, setSelectedPerson] = useState(null);
+  const [sphere, setSphere] = useState("identity");
+  const [section, setSection] = useState(SPHERE_SECTIONS.identity[0]);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [cancellingId, setCancellingId] = useState("");
+
+  const loadRequests = useCallback(async () => {
+    if (user?.accountType !== "business") return;
+    setLoadingRequests(true);
+    try {
+      const result = await api.get("/business-access/requests");
+      setRequests(result.requests || []);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [toast, user?.accountType]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 180);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
+    if (user?.accountType !== "business") return undefined;
+    let current = true;
+    const query = new URLSearchParams();
+    if (debouncedSearch) query.set("search", debouncedSearch);
+    setLoadingPeople(true);
+    api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`).then((result) => {
+      if (current) setPeople(result.people || []);
+    }).catch((error) => {
+      if (current) toast(error.message, "error");
+    }).finally(() => {
+      if (current) setLoadingPeople(false);
+    });
+    return () => { current = false; };
+  }, [debouncedSearch, toast, user?.accountType]);
+
+  useEffect(() => { void loadRequests(); }, [loadRequests]);
+
+  if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
+
+  const selectSphere = (nextSphere) => {
+    setSphere(nextSphere);
+    setSection(SPHERE_SECTIONS[nextSphere][0]);
+  };
+  const openRequest = (person) => {
+    setSelectedPerson(person);
+    setSphere("identity");
+    setSection(SPHERE_SECTIONS.identity[0]);
+    setMessage("");
+  };
+  const sendRequest = async (event) => {
+    event.preventDefault();
+    if (!selectedPerson || saving) return;
+    setSaving(true);
+    try {
+      await api.post("/business-access/requests", {
+        ownerId: selectedPerson.id,
+        sphere,
+        section,
+        message,
+      });
+      setSelectedPerson(null);
+      await loadRequests();
+      toast("Запрос отправлен владельцу пространства", "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const cancelRequest = async (request) => {
+    if (cancellingId) return;
+    setCancellingId(request.id);
+    try {
+      await api.delete(`/business-access/requests/${request.id}`);
+      await loadRequests();
+      toast("Запрос отменён", "success");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setCancellingId("");
+    }
+  };
+
+  return (
+    <div className="app-page business-access-page rollapp-body">
+      <header className="business-access-page__header">
+        <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
+        <h1>Доступ к пространствам клиентов</h1>
+        <p>Найдите пользователя и запросите конкретный раздел. Доступ только для чтения откроется после его подтверждения.</p>
+      </header>
+
+      <section className="business-access-page__section" aria-labelledby="business-people-title">
+        <div className="business-access-page__section-heading">
+          <div><h2 id="business-people-title">Пользователи</h2><p>В запросе всегда указано одно конкретное пространство.</p></div>
+          <InputGroup className="business-access-page__search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </InputGroup>
+        </div>
+        {loadingPeople ? <div className="business-access-page__status"><Spinner /><span>Загружаем пользователей…</span></div> : people.length ? (
+          <div className="business-access-page__people">
+            {people.map((person) => (
+              <Card key={person.id} className="business-access-person">
+                <Avatar user={person} size="md" />
+                <span><strong>{person.name}</strong><small>@{person.username}</small></span>
+                <ShadcnButton type="button" variant="outline" onClick={() => openRequest(person)}>Запросить доступ</ShadcnButton>
+              </Card>
+            ))}
+          </div>
+        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
+      </section>
+
+      <section className="business-access-page__section" aria-labelledby="business-requests-title">
+        <div className="business-access-page__section-heading"><div><h2 id="business-requests-title">Мои запросы</h2><p>Одобренные пространства появятся в переключателе сфер.</p></div></div>
+        {loadingRequests ? <div className="business-access-page__status"><Spinner /><span>Загружаем запросы…</span></div> : requests.length ? (
+          <div className="business-access-page__requests">
+            {requests.map((request) => {
+              const status = BUSINESS_REQUEST_STATUS[request.status] || BUSINESS_REQUEST_STATUS.pending;
+              return (
+                <Card key={request.id} className="business-access-request">
+                  <div className="business-access-request__owner"><Avatar user={request.owner} size="sm" className="!size-11" /><span><strong>{request.owner.name}</strong><small>@{request.owner.username}</small></span></div>
+                  <div className="business-access-request__scope"><strong>{SPHERE_SERVICES.find((item) => item.id === request.sphere)?.label || request.sphere}</strong><span>{SPHERE_SECTION_LABELS[request.section] || request.section}</span></div>
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                  <div className="business-access-request__action">
+                    {request.status === "approved" ? (
+                      <ShadcnButton render={<Link to={sphereSectionPath({ ownerUsername: request.owner.username, sphere: request.sphere, section: request.section })} />} variant="outline">Открыть</ShadcnButton>
+                    ) : request.status === "pending" ? (
+                      <ShadcnButton type="button" variant="ghost" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}Отменить</ShadcnButton>
+                    ) : null}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        ) : <div className="business-access-page__status"><Send aria-hidden="true" /><span>Вы ещё не отправляли запросы</span></div>}
+      </section>
+
+      <Drawer open={Boolean(selectedPerson)} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => !open && !saving && setSelectedPerson(null)}>
+        <DrawerContent className="rollapp-body" style={isMobile ? undefined : { "--drawer-content-width": "min(34rem, calc(100vw - 2rem))" }}>
+          <DrawerClose render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />} aria-label="Закрыть запрос доступа"><X aria-hidden="true" /></DrawerClose>
+          <DrawerHeader className="pr-16 text-left!">
+            <DrawerTitle>Запросить доступ</DrawerTitle>
+            <DrawerDescription>{selectedPerson ? `${selectedPerson.name} увидит запрос и сам решит, открыть ли пространство.` : ""}</DrawerDescription>
+          </DrawerHeader>
+          <form className="business-access-form" onSubmit={sendRequest}>
+            <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
+            <FieldGroup className="gap-4">
+              <Field><FieldLabel>Сфера</FieldLabel><Select value={sphere} onValueChange={selectSphere} disabled={saving}><SelectTrigger className="w-full"><SelectValue>{() => SPHERE_SERVICES.find((item) => item.id === sphere)?.label || sphere}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SERVICES.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field><FieldLabel>Пространство</FieldLabel><Select value={section} onValueChange={setSection} disabled={saving}><SelectTrigger className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SECTIONS[sphere].map((item) => <SelectItem key={item} value={item}>{SPHERE_SECTION_LABELS[item] || item}</SelectItem>)}</SelectContent></Select></Field>
+              <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
+            </FieldGroup>
+            <DrawerFooter className="border-t px-0 pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>
+    </div>
+  );
+}
+
+function SphereSharePicker({ open, onOpenChange }) {
+  const isMobile = useIsMobile();
+  const toast = useToast();
+  const access = useSphereSharing();
+  const sectionOptions = SERVICE_TABS[access.sphere] || [];
+  const [selectedSection, setSelectedSection] = useState(access.section);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 180);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
+    if (open) setSelectedSection(access.section);
+  }, [access.section, access.sphere, open]);
+
+  useEffect(() => {
+    if (!open || !access.isOwner || !selectedSection) return undefined;
+    let current = true;
+    const query = new URLSearchParams({ sphere: access.sphere, section: selectedSection });
+    if (debouncedSearch) query.set("search", debouncedSearch);
+    setPeople([]);
+    setLoading(true);
+    setError("");
+    api.get(`/sphere-shares/candidates?${query.toString()}`).then((result) => {
+      if (current) setPeople(result.people || []);
+    }).catch((loadError) => {
+      if (current) setError(loadError.message);
+    }).finally(() => {
+      if (current) setLoading(false);
+    });
+    return () => { current = false; };
+  }, [access.isOwner, access.sphere, debouncedSearch, open, selectedSection]);
+
+  const toggle = async (person) => {
+    if (savingId) return;
+    const granted = !person.granted;
+    setSavingId(person.id);
+    setError("");
+    try {
+      await api.post("/sphere-shares", {
+        viewerId: person.id,
+        sphere: access.sphere,
+        section: selectedSection,
+        granted,
+      });
+      setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted } : item));
+      if (selectedSection === access.section) await access.reload();
+      const selectedLabel = SPHERE_SECTION_LABELS[selectedSection] || selectedSection;
+      toast(granted
+        ? `Доступ к «${selectedLabel}» для ${person.name} открыт`
+        : `Доступ к «${selectedLabel}» для ${person.name} закрыт`, "success");
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const label = SPHERE_SECTION_LABELS[selectedSection] || selectedSection;
+  return (
+    <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(nextOpen) => !savingId && onOpenChange(nextOpen)}>
+      <DrawerContent
+        className="rollapp-body"
+        style={isMobile ? undefined : { "--drawer-content-width": "min(32rem, calc(100vw - 2rem))" }}
+      >
+        <DrawerClose
+          render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={Boolean(savingId)} />}
+          aria-label="Закрыть выбор пользователей"
+        >
+          <X aria-hidden="true" />
+        </DrawerClose>
+        <DrawerHeader className="pr-16 text-left!">
+          <DrawerTitle>Доступ к пространствам</DrawerTitle>
+          <DrawerDescription>Права на каждое пространство внутри сферы выдаются отдельно и только для чтения.</DrawerDescription>
+        </DrawerHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="sphere-share-picker__scope">
+            <span>Пространство</span>
+            <Select value={selectedSection} onValueChange={setSelectedSection} disabled={Boolean(savingId)}>
+              <SelectTrigger className="w-full" aria-label="Пространство для настройки доступа">
+                <SelectValue>{() => label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>
+                {sectionOptions.map((section) => (
+                  <SelectItem key={section.id} value={section.id}>{section.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <InputGroup className="sphere-share-picker__search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput autoFocus type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </InputGroup>
+          {error && <Alert variant="destructive"><AlertTitle>Не удалось изменить доступ</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+          {loading ? <div className="sphere-share-picker__status"><Spinner /><span>Загружаем людей…</span></div> : people.length ? (
+            <ul className="sphere-share-picker__list" aria-label={`Пользователи с доступом к пространству «${label}»`}>
+              {people.map((person) => (
+                <li key={person.id}>
+                  <ShadcnButton
+                    type="button"
+                    variant="ghost"
+                    className="sphere-share-picker__person"
+                    disabled={Boolean(savingId)}
+                    aria-pressed={person.granted}
+                    onClick={() => toggle(person)}
+                  >
+                    <Avatar user={person} size="sm" className="!size-11" />
+                    <span><strong>{person.name}</strong><small>@{person.username}</small></span>
+                    {person.accountType === "business" && (
+                      <Badge variant="secondary" className="sphere-share-picker__account-type">
+                        <BriefcaseBusiness aria-hidden="true" />
+                        Бизнес
+                      </Badge>
+                    )}
+                    {savingId === person.id ? <Spinner /> : <Checkbox checked={person.granted} tabIndex={-1} aria-hidden="true" />}
+                  </ShadcnButton>
+                </li>
+              ))}
+            </ul>
+          ) : <div className="sphere-share-picker__status"><Users /><span>Люди не найдены</span></div>}
+        </div>
+        <DrawerFooter className="border-t pt-4">
+          <DrawerClose render={<ShadcnButton className="min-h-12 text-base" type="button" />}>Готово</DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function PersistentProfileHero({ user }) {
+  const { openProfileEditor } = useProfileEditor();
+  const access = useSphereSharing();
+  const [sharePickerOpen, setSharePickerOpen] = useState(false);
+  const profile = access.active ? (access.owner || user) : user;
+  const editable = !access.active || access.isOwner;
+  return (
+    <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
+      <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
+        <div className="sphere-share-avatars">
+          {editable ? (
+            <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
+              <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
+            </ShadcnButton>
+          ) : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
+          {access.active && access.isOwner && (
+            <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
+              {access.people.slice(0, 3).map((person) => <Avatar key={person.id} user={person} size="sm" className="sphere-share-avatars__person !size-12" title={person.name} />)}
+              <ShadcnButton
+                type="button"
+                variant="outline"
+                size="icon"
+                className="sphere-share-avatars__add !size-12 rounded-full"
+                aria-label={`Открыть доступ к разделу «${SPHERE_SECTION_LABELS[access.section] || access.section}»`}
+                title="Открыть доступ"
+                onClick={() => setSharePickerOpen(true)}
+              >
+                <Plus aria-hidden="true" />
+              </ShadcnButton>
+            </div>
+          )}
+        </div>
+        <span className="wishes-page__hero-copy">
+          <h1 id="persistent-profile-name">{profile.name}</h1>
+        </span>
+        {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
+      </div>
+      {access.active && access.isOwner && <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} />}
+    </section>
+  );
+}
+
+function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd }) {
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <nav className="wishes-page__friend-links" aria-label="Связи профиля">
@@ -2841,6 +3574,16 @@ function WishesProfileControls({ selectedList, onEditList, onAdd }) {
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия со списком желаний">
         {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
         <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
+        <ShadcnButton
+          render={<Link to={`/app/wishes/catalog?tab=${encodeURIComponent(selectedSpace)}`} />}
+          className="!size-12 shrink-0 rounded-full"
+          variant="outline"
+          size="icon"
+          aria-label="Открыть каталог"
+          title="Каталог"
+        >
+          <LayoutGrid aria-hidden="true" />
+        </ShadcnButton>
       </div>
     </section>
   );
@@ -2848,7 +3591,23 @@ function WishesProfileControls({ selectedList, onEditList, onAdd }) {
 
 function PrivateSphereRoute({ children }) {
   const { user } = useSession();
-  if (!canAccessPrivateSpheres(user)) return <Navigate to={APP_HOME} replace />;
+  const access = useSphereSharing();
+  if (access.loading) return <LoadingScreen compact />;
+  if (access.active && access.error) {
+    return (
+      <div className="app-page sphere-access-error rollapp-body">
+        <Empty className="min-h-64 border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><LockKeyhole aria-hidden="true" /></EmptyMedia>
+            <EmptyTitle>Нет доступа к разделу</EmptyTitle>
+            <EmptyDescription>{access.error.message}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent><Button render={<Link to={APP_HOME} />}>Вернуться в Rollapp</Button></EmptyContent>
+        </Empty>
+      </div>
+    );
+  }
+  if (!canAccessPrivateSpheres(user) && !access.readOnly) return <Navigate to={APP_HOME} replace />;
   return children;
 }
 
@@ -2857,7 +3616,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="wishes/catalog" element={<WishCatalogPage />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -3237,59 +3996,219 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
   </>;
 }
 
-function WishGroupOpenHeader({ group, wishesCount, moveTargets = [], onClose, onRename, onMove, onDisband, mutationBusy = false }) {
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(group.title);
-  const [busy, setBusy] = useState(false);
-  const interactionBusy = busy || mutationBusy;
-  const [disbandOpen, setDisbandOpen] = useState(false);
-  const renamingFromMenuRef = useRef(false);
-  useEffect(() => { if (!editing) setTitle(group.title); }, [group.title, editing]);
-  const beginEditing = () => {
-    renamingFromMenuRef.current = true;
-    setTitle(group.title);
-    setEditing(true);
-  };
-  const finishEditing = () => {
-    renamingFromMenuRef.current = false;
-    setEditing(false);
-  };
-  const resolveMenuFinalFocus = () => {
-    const skipReturnFocus = renamingFromMenuRef.current;
-    renamingFromMenuRef.current = false;
-    return !skipReturnFocus;
-  };
-  const saveTitle = async () => {
-    if (mutationBusy) return;
-    const nextTitle = title.trim();
-    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); finishEditing(); return; }
-    setBusy(true);
-    const saved = await onRename(nextTitle);
-    setBusy(false);
-    if (saved) finishEditing();
-  };
-  const disband = async () => {
-    if (mutationBusy) return;
-    setBusy(true);
-    const disbanded = await onDisband();
-    setBusy(false);
-    if (disbanded) setDisbandOpen(false);
-  };
-  const move = async (targetList) => {
-    if (mutationBusy) return;
-    setBusy(true);
-    await onMove(targetList);
-    setBusy(false);
-  };
-  return <>
+function WishGroupOpenHeader({ onClose }) {
+  return (
     <header>
-      <div className="wish-group-open__identity"><span>{editing ? <Input autoFocus value={title} disabled={interactionBusy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <strong>{group.title}</strong>}<small>{wishesCount} {wishCountNoun(wishesCount)}</small></span></div>
-      <div className="wish-group-open__actions">{!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" disabled={interactionBusy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={interactionBusy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={interactionBusy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}<ShadcnButton variant="ghost" size="icon" onClick={onClose} aria-label="Закрыть группу"><X /></ShadcnButton></div>
+      <ShadcnButton className="wish-group-open__close !size-12 rounded-full" variant="outline" size="icon" type="button" onClick={onClose} aria-label="Закрыть группу" title="Закрыть группу"><X aria-hidden="true" /></ShadcnButton>
     </header>
-    {disbandOpen && <AlertDialog open={disbandOpen} onOpenChange={(open) => { if (!interactionBusy) setDisbandOpen(open); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={interactionBusy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={interactionBusy} aria-busy={interactionBusy || undefined} onClick={disband}>{interactionBusy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}
-  </>;
+  );
 }
 
+const CATALOG_PAGE_SIZE = 48;
+
+function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
+  const visibleOwners = owners.slice(0, 5);
+  return (
+    <div className="catalog-owner-stack" aria-label={`Добавили: ${participantCountLabel(ownerCount)}`}>
+      <div className="catalog-owner-stack__avatars">
+        {visibleOwners.map((owner, index) => (
+          <Link
+            key={owner.id}
+            to={publicProfilePath(owner.username)}
+            className="catalog-owner-stack__avatar"
+            style={{ "--catalog-avatar-index": index }}
+            aria-label={owner.name}
+            title={owner.name}
+          >
+            <Avatar user={owner} size="sm" className="!size-9" />
+          </Link>
+        ))}
+        {ownerCount > visibleOwners.length && <span className="catalog-owner-stack__more">+{ownerCount - visibleOwners.length}</span>}
+      </div>
+      <span>{ownerCount === 1 ? "Добавил 1 участник" : `Добавили ${participantCountLabel(ownerCount)}`}</span>
+    </div>
+  );
+}
+
+function CatalogSourceAttribution({ source }) {
+  if (!source) return null;
+  const content = (
+    <>
+      <span className="catalog-source-attribution__logo">
+        {source.logoUrl ? <img src={source.logoUrl} alt="" loading="lazy" /> : source.label.slice(0, 1)}
+      </span>
+      <span>Каталог {source.label}</span>
+    </>
+  );
+  return source.homeUrl ? (
+    <a className="catalog-source-attribution" href={source.homeUrl} target="_blank" rel="noreferrer">{content}</a>
+  ) : <div className="catalog-source-attribution">{content}</div>;
+}
+
+function CatalogWishCard({ item }) {
+  const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
+  const SpaceIcon = space.icon;
+  const previewImageUrl = wishPreviewImageUrl(item);
+  const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
+  return (
+    <article className="catalog-wish-card">
+      <div className="catalog-wish-card__image">
+        {previewImageUrl ? (
+          <img src={previewImageUrl} alt="" loading="lazy" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
+        ) : <span><SpaceIcon aria-hidden="true" /></span>}
+        {item.ownerCount > 1 && <Badge className="catalog-wish-card__people-badge" variant="secondary">{participantCountLabel(item.ownerCount)}</Badge>}
+      </div>
+      <div className="catalog-wish-card__body">
+        <div className="catalog-wish-card__heading">
+          <h2>{item.title}</h2>
+          {item.url && (
+            <ShadcnButton
+              render={<a href={item.url} target="_blank" rel="noreferrer" />}
+              className="catalog-wish-card__source !size-10 rounded-full"
+              variant="ghost"
+              size="icon"
+              aria-label={`Открыть «${item.title}»`}
+              title="Открыть исходную ссылку"
+            >
+              <ExternalLink aria-hidden="true" />
+            </ShadcnButton>
+          )}
+        </div>
+        {(item.price != null || eventDate) && (
+          <p className="catalog-wish-card__meta">
+            {item.price != null ? formatMoney(item.price, item.currency) : ""}
+            {item.price != null && eventDate ? " · " : ""}
+            {eventDate}
+          </p>
+        )}
+        {item.source
+          ? <CatalogSourceAttribution source={item.source} />
+          : <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
+      </div>
+    </article>
+  );
+}
+
+function WishCatalogPage() {
+  const location = useLocation();
+  const requestedSpace = new URLSearchParams(location.search).get("tab");
+  const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
+  const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
+  const requestIdRef = useRef(0);
+  const [catalog, setCatalog] = useState({ items: [], total: 0, loading: true, loadingMore: false, error: null });
+
+  useEffect(() => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    setCatalog({ items: [], total: 0, loading: true, loadingMore: false, error: null });
+    api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
+      .then((result) => {
+        if (requestId !== requestIdRef.current) return;
+        setCatalog({ items: result.items || [], total: Number(result.total) || 0, loading: false, loadingMore: false, error: null });
+      })
+      .catch((error) => {
+        if (requestId !== requestIdRef.current) return;
+        setCatalog({ items: [], total: 0, loading: false, loadingMore: false, error });
+      });
+    return () => { requestIdRef.current += 1; };
+  }, [selectedSpace]);
+
+  const loadMore = async () => {
+    if (catalog.loadingMore || catalog.items.length >= catalog.total) return;
+    const requestId = requestIdRef.current;
+    setCatalog((current) => ({ ...current, loadingMore: true, error: null }));
+    try {
+      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${catalog.items.length}`);
+      if (requestId !== requestIdRef.current) return;
+      setCatalog((current) => ({
+        ...current,
+        items: [...current.items, ...(result.items || [])],
+        total: Number(result.total) || current.total,
+        loadingMore: false,
+      }));
+    } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+      setCatalog((current) => ({ ...current, loadingMore: false, error }));
+    }
+  };
+
+  return (
+    <div className="app-page wish-catalog-page">
+      <header className="wish-catalog-page__header">
+        <div>
+          <p className="wish-catalog-page__eyebrow">Общий каталог</p>
+          <h1>{space.label}</h1>
+          <p>Публичные позиции участников Rollapp и внешних каталогов. Одинаковые позиции собраны вместе.</p>
+        </div>
+        <ShadcnButton render={<Link to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`} />} variant="outline">
+          <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+          В мой вишлист
+        </ShadcnButton>
+      </header>
+
+      {catalog.loading ? <LoadingScreen compact /> : catalog.items.length ? (
+        <>
+          <div className="wish-catalog-page__summary">{catalog.total} позиций</div>
+          <div className="catalog-wish-grid">
+            {catalog.items.map((item) => <CatalogWishCard key={item.id} item={item} />)}
+          </div>
+          {catalog.items.length < catalog.total && (
+            <div className="wish-catalog-page__more">
+              <ShadcnButton type="button" variant="outline" disabled={catalog.loadingMore} onClick={loadMore}>
+                {catalog.loadingMore && <Spinner data-icon="inline-start" />}
+                Показать ещё
+              </ShadcnButton>
+            </div>
+          )}
+        </>
+      ) : (
+        <EmptyState icon={LayoutGrid} title={`В разделе «${space.label}» пока пусто`} text="Здесь появятся публичные позиции участников и внешних каталогов." />
+      )}
+      {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
+    </div>
+  );
+}
+
+
+function GiftSuggestionPeople({ suggestion }) {
+  if (!suggestion?.participants?.length) return null;
+  return <div className="flex flex-wrap gap-2" aria-label={`Участники: ${suggestion.participants.map((person) => person.name || person.username).join(", ")}`}>
+    {suggestion.participants.map((person) => <Link
+      key={person.id}
+      to={publicProfilePath(person.username)}
+      className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border border-border bg-muted/50 py-1 pr-3 pl-1 transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      title={`Открыть профиль ${person.name || person.username}`}
+    >
+      <Avatar user={person} size="sm" className="!size-8" />
+      <span className="truncate text-sm font-medium">{person.name || person.username}</span>
+    </Link>)}
+    {suggestion.participantCount > suggestion.participants.length && <span className="inline-flex min-h-10 items-center rounded-full bg-muted px-3 text-sm text-muted-foreground">+{suggestion.participantCount - suggestion.participants.length}</span>}
+  </div>;
+}
+
+function GiftSuggestionsPanel({ items = [], onOpenWish }) {
+  if (!items.length) return null;
+  return <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-3xl border border-border bg-card p-4 sm:p-5" aria-labelledby="gift-suggestions-title">
+    <div className="flex flex-col gap-1">
+      <h2 id="gift-suggestions-title" className="text-xl font-semibold">Кому это ещё подарить</h2>
+      <p className="text-sm text-muted-foreground">Ваши исполненные желания сейчас есть в публичных вишлистах других участников.</p>
+    </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => <Card key={item.wishId} className="gap-3 p-3">
+        <ShadcnButton type="button" variant="ghost" className="h-auto min-w-0 justify-start gap-3 rounded-xl px-0 py-0 text-left hover:bg-transparent" onClick={() => onOpenWish(item.wishId)}>
+          <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-muted-foreground">
+            {item.imageUrl ? <img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy" /> : <Gift className="size-5" aria-hidden="true" />}
+          </span>
+          <span className="min-w-0">
+            <strong className="block truncate font-semibold">{item.title}</strong>
+            <span className="block text-sm text-muted-foreground">Есть у {participantCountLabel(item.participantCount)}</span>
+          </span>
+        </ShadcnButton>
+        <GiftSuggestionPeople suggestion={item} />
+      </Card>)}
+    </div>
+  </section>;
+}
 
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
@@ -3297,6 +4216,7 @@ function WishesPage({ onAdd, version }) {
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { data, loading, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
+  const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
     const tab = new URLSearchParams(location.search).get("tab");
@@ -3431,6 +4351,10 @@ function WishesPage({ onAdd, version }) {
   ];
   const selectedWish = selectedWishId ? dashboardWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? dashboardWishes.find((wish) => wish.id === editingWishId) : null;
+  const giftSuggestions = (giftSuggestionData?.items || []).filter((item) => item.space === selectedSpace);
+  const selectedWishSuggestion = selectedWishId
+    ? (giftSuggestionData?.items || []).find((item) => item.wishId === selectedWishId)
+    : null;
   useEffect(() => {
     if (selected !== selectedValue) {
       setSelected(selectedValue);
@@ -3465,6 +4389,10 @@ function WishesPage({ onAdd, version }) {
   };
   globalShareRef.current = share;
   const editWish = (id) => { setSelectedWishId(null); setEditingWishId(id); };
+  const refreshWishes = () => Promise.all([
+    reload({ background: true }),
+    reloadGiftSuggestions({ background: true }),
+  ]);
   const saveList = async (saved) => {
     const attachWishId = listModal?.attachWishId;
     let attached = true;
@@ -3992,14 +4920,15 @@ function WishesPage({ onAdd, version }) {
   };
   const renderWish = (wish, group = null) => {
     const dragEnabled = !group || !removingGroupId;
-    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={() => reload({ background: true })} onOpen={() => {
+    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
-  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader group={openedGroup} wishesCount={openedGroupWishes.length} moveTargets={groupMoveTargets} mutationBusy={Boolean(removingGroupId)} onClose={() => setOpenedGroupId(null)} onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)} onMove={(targetList) => moveGroup(openedGroup, targetList)} onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} onChanged={() => reload({ background: true })} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+<GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
+{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader onClose={() => setOpenedGroupId(null)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -4160,10 +5089,15 @@ function MediaNotesPanel({ wish }) {
   </section>;
 }
 
-function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], onChanged, onEdit, onCreateList, onClose }) {
+function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
   const isMobile = useIsMobile();
+  const resolvedSpace = wishSpaceId(wish, lists);
+  const offerWish = useMemo(
+    () => wish.space === resolvedSpace ? wish : { ...wish, space: resolvedSpace },
+    [resolvedSpace, wish],
+  );
   const categoryLists = useMemo(() => lists.filter((list) => !isGeneralList(list)), [lists]);
-  const visibleLists = useMemo(() => categoryLists.filter((list) => listSpace(list) === wishSpaceId(wish, lists)), [categoryLists, wish, lists]);
+  const visibleLists = useMemo(() => categoryLists.filter((list) => listSpace(list) === resolvedSpace), [categoryLists, resolvedSpace]);
   const normalizeListIds = useCallback((ids = []) => categoryLists.filter((list) => ids.includes(list.id)).map((list) => list.id), [categoryLists]);
   const [listsOpen, setListsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -4280,7 +5214,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             <DrawerDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DrawerDescription>
           </DrawerHeader>
 
-          {owner && wishSpaceId(wish, lists) === "media" && <MediaNotesPanel wish={wish} />}
+          {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
 
           <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-md min-w-0 items-center gap-2">
             {owner
@@ -4308,9 +5242,17 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           </div>
 
-          {wishSpaceId(wish, lists) === "products" && <MarketplaceOffers wish={wish} owner={owner} formatPrice={formatMoney} />}
+          {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-md gap-3 p-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold">Кому это ещё подарить</h3>
+              <p className="text-sm text-muted-foreground">Это желание сейчас есть у {participantCountLabel(giftSuggestion.participantCount)}.</p>
+            </div>
+            <GiftSuggestionPeople suggestion={giftSuggestion} />
+          </Card>}
 
-          {wish.url && wishSpaceId(wish, lists) !== "products" && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} />}
+
+          {wish.url && !["products", "food"].includes(resolvedSpace) && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
@@ -4618,7 +5560,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     const requestId = ++metadataRequestRef.current;
     const retailer = retailerPreview(url);
     const usesBrowserHelper = ["samokat", "lavka", "lenta"].includes(retailer?.id);
-    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isVideo ? `Читаем видео в ${videoProviderLabel}…` : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : usesBrowserHelper ? "Открываем товар в обычном браузере и автоматически забираем фото…" : "Ищем название, фотографию и цену на странице магазина…" });
+    setMetadata({ status: "loading", message: isPlaces ? "Ищем название и адрес места в Яндекс Картах…" : isVideo ? `Читаем видео в ${videoProviderLabel}…` : isKinopoisk ? "Загружаем постер с Кинопоиска…" : isMedia ? "Ищем название и обложку…" : isTransport ? "Читаем объявление и определяем марку с моделью…" : usesBrowserHelper ? "Открываем товар в обычном браузере и автоматически забираем фото…" : "Ищем название, фотографию и цену на странице магазина…" });
     try {
       let helperError = null;
       let meta = null;
@@ -4629,19 +5571,44 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           helperError = error;
         }
       }
-      if (!meta) meta = await api.post("/metadata", { url });
+      if (!meta) {
+        try {
+          meta = await api.post("/metadata", { url });
+        } catch (error) {
+          if (!isTransport) throw error;
+          helperError = error;
+          meta = {};
+        }
+      }
       if (requestId !== metadataRequestRef.current) return false;
       const usesFallbackPreview = meta.previewFallback === true;
+      let matchedVehicle = { make: "", model: "" };
+      if (isTransport) {
+        try {
+          const matched = await api.post("/vehicle-catalog/match", {
+            title: typeof meta.title === "string" ? meta.title : "",
+            description: typeof meta.description === "string" ? meta.description : "",
+            url,
+          });
+          if (requestId !== metadataRequestRef.current) return false;
+          matchedVehicle = matched?.vehicle || matchedVehicle;
+        } catch {
+          // Карточка объявления остаётся доступной для ручного заполнения,
+          // если production-справочник автомобилей временно недоступен.
+        }
+      }
       const values = {
         title: typeof meta.title === "string" ? meta.title.trim() : "",
         description: typeof meta.description === "string" ? meta.description.trim() : "",
         imageUrl: !usesFallbackPreview && typeof meta.imageUrl === "string" ? meta.imageUrl.trim() : "",
         price: meta.price == null || meta.price === "" ? "" : String(meta.price),
         currency: typeof meta.currency === "string" && WISH_CURRENCIES.includes(meta.currency.toUpperCase()) ? meta.currency.toUpperCase() : "",
+        vehicleMake: typeof matchedVehicle.make === "string" ? matchedVehicle.make.trim() : "",
+        vehicleModel: typeof matchedVehicle.model === "string" ? matchedVehicle.model.trim() : "",
       };
-      const foundFields = ["title", "description", "imageUrl", "price"].filter((field) => values[field] !== "");
+      const foundFields = ["title", "description", "imageUrl", "price", "vehicleMake", "vehicleModel"].filter((field) => values[field] !== "");
       if (foundFields.length === 0 && !usesFallbackPreview) {
-        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isVideo ? `Не удалось прочитать видео в ${videoProviderLabel}. Заполните карточку вручную.` : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
+        setMetadata({ status: "error", message: isPlaces ? "Не удалось прочитать страницу Яндекс Карт. Заполните карточку вручную." : isVideo ? `Не удалось прочитать видео в ${videoProviderLabel}. Заполните карточку вручную.` : isKinopoisk ? "Не удалось получить постер Кинопоиска. Добавьте изображение вручную." : isMedia ? "Не удалось получить данные и обложку. Добавьте их вручную." : isTransport ? "Не удалось определить автомобиль по объявлению. Марку и модель можно выбрать вручную." : "Магазин не отдал данные товара. Можно повторить попытку или заполнить карточку вручную." });
         return false;
       }
       const appliedFields = Object.keys(values).filter((field) => values[field] !== "" && !editedMetadataFieldsRef.current.has(field));
@@ -4652,7 +5619,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
         return next;
       });
       const complete = ["title", "imageUrl", "price"].every((field) => values[field] !== "");
-      setMetadata({ status: "success", message: usesFallbackPreview ? (usesBrowserHelper ? (helperError?.code === "helper_unavailable" ? `Нужно один раз подключить помощник Rollapp — после этого фото из «${retailer.label}» будут загружаться автоматически.` : helperError?.message || `${retailer.label} не отдал фото товара.`) : "Магазин не отдал фото товара — показываем превью сервиса. Название и цену можно заполнить вручную.") : isPlaces ? "Название и адрес подставили — проверьте карточку" : isVideo ? `Название и превью видео из ${videoProviderLabel} уже в карточке — осталось всё проверить.` : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : isFood && complete ? "Название, фото и цена уже в карточке. Цена зависит от адреса и магазина — проверьте её перед сохранением." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
+      setMetadata({ status: "success", message: usesFallbackPreview ? (usesBrowserHelper ? (helperError?.code === "helper_unavailable" ? `Нужно один раз подключить помощник Rollapp — после этого фото из «${retailer.label}» будут загружаться автоматически.` : helperError?.message || `${retailer.label} не отдал фото товара.`) : "Магазин не отдал фото товара — показываем превью сервиса. Название и цену можно заполнить вручную.") : isPlaces ? "Название и адрес подставили — проверьте карточку" : isVideo ? `Название и превью видео из ${videoProviderLabel} уже в карточке — осталось всё проверить.` : isKinopoisk ? "Постер Кинопоиска уже в карточке — осталось всё проверить." : appliedFields.length === 0 ? "Данные страницы найдены, а ваши ручные правки оставлены без изменений." : isMedia && values.imageUrl ? "Название и обложка уже в карточке — осталось всё проверить." : isTransport && values.vehicleMake ? `Объявление прочитано: ${[values.vehicleMake, values.vehicleModel].filter(Boolean).join(" ")}. Проверьте марку и модель.` : isTransport ? "Объявление прочитано. Марку и модель можно выбрать вручную." : isFood && complete ? "Название, фото и цена уже в карточке. Цена зависит от адреса и магазина — проверьте её перед сохранением." : complete ? "Название, фото и цена уже в карточке — осталось всё проверить." : "Подставили всё, что удалось найти на странице. Проверьте карточку." });
       return true;
     } catch (error) {
       if (requestId !== metadataRequestRef.current) return false;
@@ -4762,7 +5729,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       ? (current.listIds.includes(id) ? current.listIds : [...current.listIds, id])
       : current.listIds.filter((item) => item !== id),
   }));
-  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isVideo ? `Читаем видео в ${videoProviderLabel}` : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
+  const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isVideo ? `Читаем видео в ${videoProviderLabel}` : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : isTransport ? "Читаем объявление автомобиля" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
     if (loading || deleting || imageUploading) return;
     cleanupUploadedImages();
@@ -4806,8 +5773,15 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   }
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
-  return <>
-    <section id={fieldId("dialog-content")} data-slot="wish-editor-content" className="wish-editor-screen" role="dialog" aria-modal="true" aria-labelledby={fieldId("dialog-title")} aria-describedby={fieldId("dialog-description")}>
+  const editorContent = <section
+    id={fieldId("dialog-content")}
+    data-slot="wish-editor-content"
+    className={`wish-editor-screen ${editing ? "" : "wish-editor-screen--drawer"}`}
+    role={editing ? "dialog" : undefined}
+    aria-modal={editing ? "true" : undefined}
+    aria-labelledby={fieldId("dialog-title")}
+    aria-describedby={fieldId("dialog-description")}
+  >
         <ShadcnButton type="button" variant="ghost" className="wish-editor-screen__close" size="icon-sm" onClick={requestClose}>
           <X />
           <span className="sr-only">Закрыть</span>
@@ -4890,31 +5864,55 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               {isTransport && <div className="grid grid-cols-2 gap-4 max-[480px]:grid-cols-1">
                 <Field className="wish-editor__field">
                   <FieldLabel htmlFor={fieldId("vehicleMake")}>Марка</FieldLabel>
-                  <Input
+                  {vehicleCatalog.status === "unavailable" ? <Input
                     id={fieldId("vehicleMake")}
-                    list={fieldId("vehicle-makes")}
                     value={form.vehicleMake}
                     placeholder="Например, BMW"
                     autoComplete="off"
-                    onChange={(event) => setForm((current) => ({ ...current, vehicleMake: event.target.value, vehicleModel: "" }))}
-                  />
-                  <datalist id={fieldId("vehicle-makes")}>
-                    {vehicleCatalog.makes.map((make) => <option value={make} key={make} />)}
-                  </datalist>
+                    onChange={(event) => {
+                      editedMetadataFieldsRef.current.add("vehicleMake");
+                      editedMetadataFieldsRef.current.add("vehicleModel");
+                      setForm((current) => ({ ...current, vehicleMake: event.target.value, vehicleModel: "" }));
+                    }}
+                  /> : <Select
+                    value={form.vehicleMake}
+                    disabled={vehicleCatalog.status !== "ready"}
+                    onValueChange={(value) => {
+                      editedMetadataFieldsRef.current.add("vehicleMake");
+                      editedMetadataFieldsRef.current.add("vehicleModel");
+                      setForm((current) => ({ ...current, vehicleMake: value, vehicleModel: "" }));
+                    }}
+                  >
+                    <SelectTrigger id={fieldId("vehicleMake")} className="w-full" aria-label="Марка автомобиля">
+                      <SelectValue>{(value) => value || (vehicleCatalog.status === "loading" ? "Загружаем марки…" : "Выберите марку")}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="w-(--anchor-width)" align="start" alignItemWithTrigger={false}>
+                      {form.vehicleMake && !vehicleCatalog.makes.includes(form.vehicleMake) && <SelectItem value={form.vehicleMake}>{form.vehicleMake}</SelectItem>}
+                      {vehicleCatalog.makes.map((make) => <SelectItem value={make} key={make}>{make}</SelectItem>)}
+                    </SelectContent>
+                  </Select>}
                 </Field>
                 <Field className="wish-editor__field">
                   <FieldLabel htmlFor={fieldId("vehicleModel")}>Модель</FieldLabel>
-                  <Input
+                  {vehicleCatalog.status === "unavailable" || vehicleCatalog.modelsStatus === "unavailable" ? <Input
                     id={fieldId("vehicleModel")}
-                    list={fieldId("vehicle-models")}
                     value={form.vehicleModel}
                     placeholder="Например, X5"
                     autoComplete="off"
-                    onChange={(event) => setForm((current) => ({ ...current, vehicleModel: event.target.value }))}
-                  />
-                  <datalist id={fieldId("vehicle-models")}>
-                    {vehicleCatalog.models.map((model) => <option value={model} key={model} />)}
-                  </datalist>
+                    onChange={(event) => updateMetadataField("vehicleModel", event.target.value)}
+                  /> : <Select
+                    value={form.vehicleModel}
+                    disabled={vehicleCatalog.status !== "ready" || !form.vehicleMake || vehicleCatalog.modelsStatus !== "ready"}
+                    onValueChange={(value) => updateMetadataField("vehicleModel", value)}
+                  >
+                    <SelectTrigger id={fieldId("vehicleModel")} className="w-full" aria-label="Модель автомобиля">
+                      <SelectValue>{(value) => value || (vehicleCatalog.modelsStatus === "loading" ? "Загружаем модели…" : form.vehicleMake ? "Выберите модель" : "Сначала выберите марку")}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="w-(--anchor-width)" align="start" alignItemWithTrigger={false}>
+                      {form.vehicleModel && !vehicleCatalog.models.includes(form.vehicleModel) && <SelectItem value={form.vehicleModel}>{form.vehicleModel}</SelectItem>}
+                      {vehicleCatalog.models.map((model) => <SelectItem value={model} key={model}>{model}</SelectItem>)}
+                    </SelectContent>
+                  </Select>}
                 </Field>
                 {(vehicleCatalog.status === "loading" || vehicleCatalog.status === "unavailable" || ["loading", "unavailable"].includes(vehicleCatalog.modelsStatus)) && <p className="col-span-2 m-0 text-sm leading-relaxed text-muted-foreground max-[480px]:col-span-1" role="status" aria-live="polite">
                   {vehicleCatalog.status === "loading" && "Загружаем марки из базы «Авто»…"}
@@ -4926,7 +5924,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : isFood ? "Ссылка на продукт" : "Ссылка"}</FieldLabel>
-                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : isTransport ? "https://auto.ru/cars/used/sale/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
                 <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
@@ -4934,6 +5932,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
                 {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isKinopoiskSite ? "Нужна ссылка на карточку фильма или сериала, а не на поиск Кинопоиска" : isVideo ? `Ссылка на видео в ${videoProviderLabel} — подставим название и превью` : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
                 {isFood && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><UtensilsCrossed size={14} aria-hidden="true" /> {browserRetailer ? `${browserRetailer.label} — помощник браузера автоматически подставит название, фото и доступную цену` : "Подставим название, фото и цену для выбранного магазином региона"}</p>}
+                {isTransport && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Car size={14} aria-hidden="true" /> Подставим данные объявления и сверим марку с моделью по базе «Авто»</p>}
               </Field>
 
               {metadataNotice}
@@ -5013,7 +6012,27 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             </ShadcnButton>
           </footer>
         </form>
-    </section>
+    </section>;
+  const editorSurface = editing ? editorContent : <Drawer
+    open
+    showSwipeHandle
+    swipeDirection={isMobile ? "down" : "right"}
+    onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
+  >
+    <DrawerContent
+      className="wish-editor-drawer rollapp-body"
+      style={isMobile ? undefined : { "--drawer-content-width": "min(42rem, calc(100vw - 2rem))" }}
+    >
+      <DrawerHeader className="pr-16 text-left!">
+        <DrawerTitle>Добавить желание</DrawerTitle>
+        <DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription>
+      </DrawerHeader>
+      {editorContent}
+    </DrawerContent>
+  </Drawer>;
+
+  return <>
+      {editorSurface}
       {listCreatorOpen && <ListModal
         listsCount={data?.lists?.length || 0}
         space={effectiveSpace}
@@ -5097,10 +6116,7 @@ function FriendsPage() {
   return (
     <div className="app-page friends-page typeset typeset-rollapp">
       <div className="friends-layout not-typeset">
-        <section className="friends-directory" aria-labelledby="friends-title">
-          <div className="friends-directory__heading">
-            <h1 id="friends-title">{config.label}</h1>
-          </div>
+        <section className="friends-directory" aria-label={config.label}>
           <nav className="friends-section-nav" aria-label="Разделы друзей">
             {Object.entries(friendSections).map(([key, item]) => {
               const Icon = item.icon;
@@ -5116,18 +6132,17 @@ function FriendsPage() {
               </Link>;
             })}
           </nav>
-          <label className="friends-search">
-            <Search aria-hidden="true" />
-            <span className="visually-hidden">{config.placeholder}</span>
-            <Input
-              className="h-full rounded-full border-0 bg-transparent px-6 py-0 pl-[60px] text-[19px] font-semibold shadow-none dark:bg-transparent md:text-[19px] max-[820px]:pl-[50px] max-[820px]:!text-base"
+          <InputGroup className="friends-search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput
+              className="h-full rounded-full py-0 font-semibold"
               type="search"
               aria-label={config.placeholder}
               placeholder={config.placeholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </label>
+          </InputGroup>
           {loading ? <LoadingScreen compact /> : error ? (
             <div className="friends-empty" role="alert">
               <strong>Не удалось загрузить людей</strong>
@@ -5196,6 +6211,17 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(false);
+  const [openRouterSettings, setOpenRouterSettings] = useState({
+    loading: true,
+    available: false,
+    configured: false,
+    keyHint: "",
+    serverFallbackConfigured: false,
+  });
+  const [openRouterKey, setOpenRouterKey] = useState("");
+  const [openRouterKeyVisible, setOpenRouterKeyVisible] = useState(false);
+  const [openRouterBusy, setOpenRouterBusy] = useState(false);
+  const [openRouterError, setOpenRouterError] = useState("");
   const contentRef = useRef(null);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
@@ -5227,6 +6253,19 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       .catch(() => { if (active) setYandexEnabled(false); });
     return () => { active = false; };
   }, []);
+  useEffect(() => {
+    let active = true;
+    api.get("/me/openrouter")
+      .then((settings) => {
+        if (active) setOpenRouterSettings({ ...settings, loading: false });
+      })
+      .catch((error) => {
+        if (!active) return;
+        setOpenRouterSettings((current) => ({ ...current, loading: false }));
+        setOpenRouterError(error.message || "Не удалось загрузить настройку OpenRouter.");
+      });
+    return () => { active = false; };
+  }, []);
   const uploadAvatar = async (file) => {
     if (!file || imageUploading || loading || loggingOut) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -5251,9 +6290,45 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
     }
   };
   const close = () => {
-    if (loading || imageUploading || loggingOut) return;
+    if (loading || imageUploading || loggingOut || openRouterBusy) return;
     cleanupUploadedImages();
     onClose();
+  };
+  const saveOpenRouterKey = async () => {
+    const apiKey = openRouterKey.trim();
+    if (!/^sk-or-v1-[A-Za-z0-9_-]{11,}$/.test(apiKey)) {
+      setOpenRouterError("Введите API-ключ OpenRouter в формате sk-or-v1-…");
+      return;
+    }
+    setOpenRouterBusy(true);
+    setOpenRouterError("");
+    try {
+      const settings = await api.post("/me/openrouter", { apiKey });
+      setOpenRouterSettings({ ...settings, loading: false });
+      setOpenRouterKey("");
+      setOpenRouterKeyVisible(false);
+      toast("Личный ключ OpenRouter подключён");
+    } catch (error) {
+      setOpenRouterError(error.message || "Не удалось сохранить ключ OpenRouter.");
+    } finally {
+      setOpenRouterBusy(false);
+    }
+  };
+  const removeOpenRouterKey = async () => {
+    if (openRouterBusy) return;
+    setOpenRouterBusy(true);
+    setOpenRouterError("");
+    try {
+      const settings = await api.delete("/me/openrouter");
+      setOpenRouterSettings({ ...settings, loading: false });
+      setOpenRouterKey("");
+      setOpenRouterKeyVisible(false);
+      toast("Личный ключ OpenRouter удалён");
+    } catch (error) {
+      setOpenRouterError(error.message || "Не удалось удалить ключ OpenRouter.");
+    } finally {
+      setOpenRouterBusy(false);
+    }
   };
   const submit = async (event) => {
     event.preventDefault();
@@ -5367,12 +6442,97 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
                 : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
             </Card>
           )}
+          <Card className="grid gap-3 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2.5">
+                <LockKeyhole className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <div className="min-w-0">
+                  <strong className="block text-sm font-medium">Личный ключ OpenRouter</strong>
+                  <p className="text-sm text-muted-foreground">
+                    Поиск предложений будет расходовать токены вашего аккаунта OpenRouter. Ключ хранится на сервере в зашифрованном виде.
+                  </p>
+                </div>
+              </div>
+              {openRouterSettings.configured && <Badge variant="secondary" className="shrink-0">Подключён</Badge>}
+            </div>
+            {openRouterSettings.loading ? (
+              <div className="flex min-h-12 items-center gap-2 text-sm text-muted-foreground" role="status">
+                <Spinner />Загружаем настройку…
+              </div>
+            ) : !openRouterSettings.available ? (
+              <Alert variant="destructive">
+                <AlertTitle>Хранилище ключей не настроено</AlertTitle>
+                <AlertDescription>Подключение личного ключа станет доступно после настройки защищённого хранилища на сервере.</AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {openRouterSettings.configured && (
+                  <p className="text-sm text-muted-foreground">
+                    Сохранён ключ <span className="font-mono text-foreground">{openRouterSettings.keyHint}</span>. Вставьте новый, чтобы заменить его.
+                  </p>
+                )}
+                <Field data-invalid={Boolean(openRouterError) || undefined}>
+                  <FieldLabel htmlFor="settings-openrouter-key">API-ключ</FieldLabel>
+                  <InputGroup className="h-12">
+                    <InputGroupInput
+                      id="settings-openrouter-key"
+                      type={openRouterKeyVisible ? "text" : "password"}
+                      autoComplete="new-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      aria-invalid={Boolean(openRouterError) || undefined}
+                      placeholder="sk-or-v1-…"
+                      value={openRouterKey}
+                      onChange={(event) => {
+                        setOpenRouterKey(event.target.value);
+                        if (openRouterError) setOpenRouterError("");
+                      }}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        size="icon-sm"
+                        aria-label={openRouterKeyVisible ? "Скрыть API-ключ" : "Показать API-ключ"}
+                        aria-pressed={openRouterKeyVisible}
+                        onClick={() => setOpenRouterKeyVisible((visible) => !visible)}
+                      >
+                        {openRouterKeyVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  {openRouterError && <FieldError>{openRouterError}</FieldError>}
+                  <FieldDescription>
+                    Создать ключ можно в разделе Keys аккаунта OpenRouter. После сохранения полный ключ больше не показывается.
+                  </FieldDescription>
+                </Field>
+                <div className="flex flex-wrap gap-2">
+                  <ShadcnButton
+                    type="button"
+                    disabled={!openRouterKey.trim() || openRouterBusy}
+                    aria-busy={openRouterBusy || undefined}
+                    onClick={saveOpenRouterKey}
+                  >
+                    {openRouterBusy && <Spinner />}
+                    {openRouterSettings.configured ? "Заменить ключ" : "Подключить ключ"}
+                  </ShadcnButton>
+                  {openRouterSettings.configured && (
+                    <ShadcnButton type="button" variant="destructive" disabled={openRouterBusy} onClick={removeOpenRouterKey}>
+                      Удалить ключ
+                    </ShadcnButton>
+                  )}
+                </div>
+                {!openRouterSettings.configured && openRouterSettings.serverFallbackConfigured && (
+                  <p className="text-sm text-muted-foreground">Пока личный ключ не подключён, поиск использует ключ Rollapp.</p>
+                )}
+              </>
+            )}
+          </Card>
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"
               variant="destructive"
               className="h-12 gap-2 px-4"
-              disabled={loading || imageUploading || loggingOut}
+              disabled={loading || imageUploading || loggingOut || openRouterBusy}
               aria-busy={loggingOut || undefined}
               onClick={async () => {
                 if (loggingOut) return;
@@ -5393,7 +6553,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           type="submit"
           form="profile-editor-form"
           className="h-12"
-          disabled={!changed || imageUploading || loggingOut || loading}
+          disabled={!changed || imageUploading || loggingOut || loading || openRouterBusy}
           aria-busy={loading || undefined}
         >
           {loading && <Spinner />}
@@ -5621,16 +6781,17 @@ function PublicProfile({ shared = false }) {
       <div><dt>Подписчики</dt><dd>{data.followersCount}</dd></div>
     </dl> : null;
   const identity = data.isOwner
-    ? <button
+    ? <ShadcnButton
       type="button"
-      className="wishes-page__identity"
+      variant="ghost"
+      className="wishes-page__identity h-auto min-h-0 p-0 hover:bg-transparent active:translate-y-0"
       aria-label={`Редактировать профиль ${data.profile.name}`}
       title="Редактировать профиль"
       onClick={openProfileEditor}
     >
       <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
-    </button>
+    </ShadcnButton>
     : <div className="wishes-page__identity friend-profile-page__identity">
       <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>

@@ -5,6 +5,7 @@ import {
   reorderCards,
   reorderCardToTarget,
   resolveCardHoverMode,
+  resolveConfirmedGroupDrop,
 } from "@/lib/card-order";
 
 const TOUCH_HOLD_DELAY_MS = 260;
@@ -20,6 +21,7 @@ export function useCardReorder({
   groupingEnabled = false,
   onAddToGroup,
   onCreateGroup,
+  disabled = false,
 }) {
   const descriptionId = useId();
   const listRef = useRef(null);
@@ -341,22 +343,20 @@ export function useCardReorder({
     releasePointerCapture(drag);
     if (!drag.active) return;
     event.preventDefault();
-    const { card, group, overlapGroupTarget } = resolvePointerTarget(drag, event.clientX, event.clientY);
-    const currentGroupTarget = group
-      ? `group:${group.dataset.sortableGroupId}`
-      : card && (overlapGroupTarget
-        || resolveCardHoverMode({ groupingEnabled, rect: card.getBoundingClientRect(), clientX: event.clientX, clientY: event.clientY }) === "group")
-        ? `card:${card.dataset.sortableCardId}`
-        : "";
-    const armedGroupTarget = armedGroupTargetRef.current;
-    if (groupingEnabled && armedGroupTarget && armedGroupTarget === currentGroupTarget) {
-      const [targetType, targetId] = armedGroupTarget.split(":");
+    const confirmedGroupTarget = resolveConfirmedGroupDrop({
+      groupingEnabled,
+      armedTarget: armedGroupTargetRef.current,
+      dragTarget: drag.groupTarget,
+    });
+    if (groupingEnabled && confirmedGroupTarget) {
+      const [targetType, targetId] = confirmedGroupTarget.split(":");
       finishDrag(drag, { persist: false });
       if (targetType === "group") void onAddToGroupRef.current?.(drag.cardId, targetId);
       if (targetType === "card" && targetId !== drag.cardId) void onCreateGroupRef.current?.(drag.cardId, targetId);
       window.setTimeout(() => { suppressClickRef.current = false; }, 0);
       return;
     }
+    const { card } = resolvePointerTarget(drag, event.clientX, event.clientY);
     const droppedInsideList = Boolean(card);
     finishDrag(drag, { persist: droppedInsideList });
     window.setTimeout(() => { suppressClickRef.current = false; }, 0);
@@ -396,7 +396,7 @@ export function useCardReorder({
   };
 
   const beginPointerDrag = (event, cardId) => {
-    if (orderBusy || !event.isPrimary || event.button !== 0) return;
+    if (disabled || orderBusy || !event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.("[data-card-drag-trigger]")) return;
     if (pointerDragRef.current) return;
     const pointerType = event.pointerType || "mouse";
@@ -425,7 +425,7 @@ export function useCardReorder({
   };
 
   const moveByOffset = (cardId, offset) => {
-    if (orderBusy) return;
+    if (disabled || orderBusy) return;
     const previousItems = itemsRef.current;
     const sourceIndex = previousItems.findIndex((item) => item.id === cardId);
     const targetIndex = sourceIndex + offset;

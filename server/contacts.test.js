@@ -27,6 +27,12 @@ test("confirmed contact avatars take priority over the Facebook metadata proxy",
   assert.equal(listed.contacts[0].avatarUrl, "/contact-avatars/78263f44640e0e30e5f1.png");
 });
 
+test("imported contact avatars keep the authenticated API route", () => {
+  const contact = findContact("f04b05e3f75a0c5f9860");
+  assert.equal(contact.name, "Адель Баркунова");
+  assert.equal(contactAvatarPath(contact), "/api/contacts/f04b05e3f75a0c5f9860/avatar");
+});
+
 test("contact filters cover names, roles, companies, categories, and note text", () => {
   const named = listContacts({ search: "Алёна Каширкина" });
   assert.equal(named.total, 1);
@@ -67,12 +73,16 @@ test("personal overrides update details, search results, and facets without chan
     role: "Новая роль",
     category: "Strategy",
     status: "В работе",
+    avatarUrl: "/api/media/11111111-1111-4111-8111-111111111111",
     linksJson: JSON.stringify([{ label: "Facebook", url: "https://www.facebook.com/aida.meirman" }]),
     notes: "Обновлённая заметка",
+    updatedAt: "2026-09-01T08:00:00.000Z",
   };
   const merged = mergeContactOverride(source, override);
   assert.equal(merged.company, "Новая компания");
   assert.equal(merged.links[0].label, "Facebook");
+  assert.equal(merged.avatarUrl, override.avatarUrl);
+  assert.match(contactAvatarPath(merged), new RegExp(`/api/contacts/${source.id}/avatar\\?v=`));
 
   const result = listContacts({ search: "обновлённая заметка" }, [override]);
   assert.equal(result.total, 1);
@@ -89,6 +99,7 @@ test("user-created contacts are listed before imported contacts and remain searc
     role: "Партнёр",
     category: "Founder",
     status: "Познакомились",
+    avatarUrl: "/api/media/22222222-2222-4222-8222-222222222222",
     linksJson: JSON.stringify([{ label: "Telegram", url: "https://t.me/new_contact" }]),
     notes: "Встретились на конференции",
     updatedAt: "2026-09-01T08:00:00.000Z",
@@ -96,6 +107,7 @@ test("user-created contacts are listed before imported contacts and remain searc
   const customContact = contactFromOverride(customOverride);
   assert.equal(customContact.id, customOverride.contactId);
   assert.equal(customContact.links[0].label, "Telegram");
+  assert.equal(customContact.avatarUrl, customOverride.avatarUrl);
 
   const result = listContacts({}, [customOverride]);
   assert.equal(result.allTotal, 1660);
@@ -119,4 +131,38 @@ test("favorite contacts are marked, shown first, and can be filtered", () => {
   assert.equal(filtered.total, 1);
   assert.equal(filtered.contacts[0].id, favorite.id);
   assert.equal(filtered.contacts[0].favorite, true);
+});
+
+test("deleted contact overrides hide imported and user-created contacts", () => {
+  const imported = findContact("83e0c2acf8a0e71d9526");
+  const customId = "64b37cb3-0ab5-44d7-af4f-09d14825da7d";
+  const result = listContacts({}, [
+    {
+      contactId: imported.id,
+      name: imported.name,
+      company: imported.company,
+      role: imported.role,
+      category: imported.category,
+      status: imported.status,
+      linksJson: JSON.stringify(imported.links),
+      notes: imported.notes,
+      deletedAt: "2026-09-02T00:00:00.000Z",
+    },
+    {
+      contactId: customId,
+      name: "Удалённый контакт",
+      company: "Rollapp",
+      role: "Партнёр",
+      category: "Founder",
+      status: "",
+      linksJson: "[]",
+      notes: "",
+      deletedAt: "2026-09-02T00:00:00.000Z",
+    },
+  ], [imported.id, customId]);
+
+  assert.equal(result.allTotal, 1658);
+  assert.equal(result.contacts.some((contact) => contact.id === imported.id), false);
+  assert.equal(result.contacts.some((contact) => contact.id === customId), false);
+  assert.equal(result.facets.companies.reduce((sum, item) => sum + item.count, 0), 1658);
 });

@@ -1,10 +1,14 @@
 import { useEffect, useId, useState } from "react";
 import {
   Activity, AlertTriangle, Bike, CalendarDays, CheckCircle2, CircleMinus, Clock3,
-  Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trophy, Waves, X,
+  Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
 } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCardReorder } from "@/hooks/use-card-reorder";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
 } from "@/components/education-lists";
@@ -94,7 +99,8 @@ function formatDistance(value) {
 }
 
 function WorkoutCard({
-  workout, dragDescriptionId, lists, moveDisabled, moving, onCreateList, onEdit, onMove, onMoveToList,
+  workout, dragDescriptionId, lists, moveDisabled, moving, onCreateList, onDelete, onEdit, onMove, onMoveToList,
+  draggable = true,
 }) {
   const status = WORKOUT_STATUS[workout.status] || WORKOUT_STATUS.completed;
   const type = WORKOUT_TYPES[workout.workoutType] || WORKOUT_TYPES.other;
@@ -103,16 +109,17 @@ function WorkoutCard({
   return (
     <div className="relative h-full min-w-0">
       <Button
-        className="peer absolute inset-0 z-10 h-full w-full cursor-grab touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:cursor-grabbing active:translate-y-0"
+        className={`peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
         variant="ghost"
         type="button"
-        data-card-drag-trigger
+        data-card-drag-trigger={draggable ? "" : undefined}
         aria-describedby={dragDescriptionId}
         aria-haspopup="dialog"
-        aria-label={`Открыть и переместить тренировку «${workout.title}»`}
-        title="Нажмите, чтобы редактировать. Перетащите, чтобы изменить порядок"
+        aria-label={draggable ? `Открыть и переместить тренировку «${workout.title}»` : `Тренировка «${workout.title}»`}
+        title={draggable ? "Нажмите, чтобы редактировать. Перетащите, чтобы изменить порядок" : undefined}
         onClick={() => onEdit(workout)}
         onKeyDown={(event) => {
+          if (!draggable) return;
           if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
             onMove(workout.id, -1);
@@ -145,6 +152,7 @@ function WorkoutCard({
               lists={lists}
               moving={moving}
               onCreateList={onCreateList}
+              onDelete={() => onDelete(workout)}
               onMove={(listId) => onMoveToList(workout, listId)}
             />
           </CardAction>
@@ -260,7 +268,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-type`}>
                     <SelectValue>{(value) => WORKOUT_TYPES[value]?.label || "Выберите тип"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     {Object.entries(WORKOUT_TYPES).map(([value, type]) => <SelectItem key={value} value={value}>{type.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -271,7 +279,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-status`}>
                     <SelectValue>{(value) => WORKOUT_STATUS[value]?.label || "Выберите статус"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     {Object.entries(WORKOUT_STATUS).map(([value, status]) => <SelectItem key={value} value={value}>{status.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -287,7 +295,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
                       ? "Не отсортированные"
                       : lists.find((list) => list.id === value)?.title || "Выберите список"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value={UNLISTED_EDUCATION_LIST_ID}>Не отсортированные</SelectItem>
                     {lists.map((list) => <SelectItem value={list.id} key={list.id}>{list.title}</SelectItem>)}
                   </SelectContent>
@@ -355,7 +363,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-intensity`}>
                     <SelectValue>{(value) => WORKOUT_INTENSITY[value] || "Выберите интенсивность"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     {Object.entries(WORKOUT_INTENSITY).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -426,8 +434,9 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
 }
 
 function WorkoutSection({
-  cardOrder, id, lists, moveState, onCreateList, onEdit, onMoveToList, title, workouts,
+  cardOrder, deleteBusy, id, lists, moveState, onCreateList, onDelete, onEdit, onMoveToList, title, workouts,
 }) {
+  const { readOnly } = useSphereSharing();
   if (!workouts.length) return null;
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
@@ -444,12 +453,14 @@ function WorkoutSection({
               workout={workout}
               dragDescriptionId={cardOrder.descriptionId}
               lists={lists}
-              moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy}
+              moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy || deleteBusy}
               moving={moveState.itemId === workout.id}
               onCreateList={() => onCreateList(workout)}
+              onDelete={onDelete}
               onEdit={onEdit}
               onMove={cardOrder.moveByOffset}
               onMoveToList={onMoveToList}
+              draggable={!readOnly}
             />
           </li>
         ))}
@@ -459,16 +470,20 @@ function WorkoutSection({
 }
 
 export function Workouts() {
+  const { readOnly } = useSphereSharing();
   const [drawerState, setDrawerState] = useState(null);
   const [selectedListId, setSelectedListId] = useState(UNLISTED_EDUCATION_LIST_ID);
   const [listDrawer, setListDrawer] = useState({ open: false, list: null, moveItem: null });
   const [moveState, setMoveState] = useState({ itemId: "", error: "", announcement: "" });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteState, setDeleteState] = useState({ busy: false, error: "" });
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, workouts: [], lists: [], error: null });
   const resolvedListId = educationListSelection(selectedListId, requestState.lists, requestState.workouts);
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleWorkouts = educationItemsInList(requestState.workouts, resolvedListId);
   const cardOrder = useCardReorder({
+    disabled: readOnly,
     items: visibleWorkouts,
     onItemsChange: (workouts) => setRequestState((state) => ({
       ...state,
@@ -501,6 +516,7 @@ export function Workouts() {
   const openNewWorkout = () => setDrawerState({ workout: null });
 
   const openWorkout = (workout) => {
+    if (readOnly) return;
     if (cardOrder.shouldSuppressClick()) return;
     setDrawerState({ workout });
   };
@@ -513,6 +529,27 @@ export function Workouts() {
         : [workout, ...state.workouts];
       return { ...state, workouts: sortWorkouts(workouts) };
     });
+  };
+
+  const requestDeleteWorkout = (workout) => {
+    setDeleteState({ busy: false, error: "" });
+    setDeleteTarget(workout);
+  };
+
+  const deleteWorkout = async () => {
+    if (!deleteTarget || deleteState.busy) return;
+    setDeleteState({ busy: true, error: "" });
+    try {
+      await api.delete(`/health/workouts/${encodeURIComponent(deleteTarget.id)}`);
+      setRequestState((state) => ({
+        ...state,
+        workouts: state.workouts.filter((workout) => workout.id !== deleteTarget.id),
+      }));
+      setDeleteTarget(null);
+      setDeleteState({ busy: false, error: "" });
+    } catch (error) {
+      setDeleteState({ busy: false, error: error.message });
+    }
   };
 
   const saveList = (list) => {
@@ -616,8 +653,8 @@ export function Workouts() {
 
       {!requestState.loading && visibleWorkouts.length > 0 && (
         <div ref={cardOrder.listRef} className="flex min-w-0 flex-col gap-6" aria-label="Порядок тренировок" aria-busy={cardOrder.orderBusy}>
-          <WorkoutSection cardOrder={cardOrder} id="planned-workouts-title" lists={requestState.lists} moveState={moveState} title="Предстоящие" workouts={planned} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
-          <WorkoutSection cardOrder={cardOrder} id="workout-history-title" lists={requestState.lists} moveState={moveState} title="История" workouts={history} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
+          <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} id="planned-workouts-title" lists={requestState.lists} moveState={moveState} title="Предстоящие" workouts={planned} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
+          <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} id="workout-history-title" lists={requestState.lists} moveState={moveState} title="История" workouts={history} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
         </div>
       )}
 
@@ -627,15 +664,15 @@ export function Workouts() {
       <p className="sr-only" aria-live="polite">{cardOrder.announcement}</p>
       <p className="sr-only" aria-live="polite">{moveState.announcement}</p>
 
-      <WorkoutDrawer
+      {!readOnly && <WorkoutDrawer
         initialListId={educationApiListId(resolvedListId)}
         lists={requestState.lists}
         open={Boolean(drawerState)}
         workout={drawerState?.workout || null}
         onOpenChange={(open) => { if (!open) setDrawerState(null); }}
         onSaved={saveWorkout}
-      />
-      <EducationListDrawer
+      />}
+      {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
         section="workouts"
@@ -645,7 +682,38 @@ export function Workouts() {
           : { open: false, list: null, moveItem: null })}
         onSaved={saveList}
         onDeleted={deleteList}
-      />
+      />}
+      {deleteTarget && (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !deleteState.busy) {
+              setDeleteTarget(null);
+              setDeleteState({ busy: false, error: "" });
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Удалить «{deleteTarget.title}»?</AlertDialogTitle>
+              <AlertDialogDescription>Тренировка будет удалена без возможности восстановления.</AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteState.error && (
+              <Alert variant="destructive">
+                <AlertTitle>Не удалось удалить тренировку</AlertTitle>
+                <AlertDescription>{deleteState.error}</AlertDescription>
+              </Alert>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteState.busy}>Отмена</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" disabled={deleteState.busy} aria-busy={deleteState.busy || undefined} onClick={deleteWorkout}>
+                {deleteState.busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+                Удалить
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </article>
   );
 }

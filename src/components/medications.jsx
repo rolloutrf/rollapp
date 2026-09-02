@@ -27,6 +27,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { localDateInputValue } from "@/lib/workouts";
 import { normalizeMedicationTimes, sortMedications } from "@/lib/medications";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const MEDICATION_FORMS = {
   tablet: "Таблетки",
@@ -124,6 +125,8 @@ function scheduleLabel(medication) {
 }
 
 function MedicationGroupMenu({ currentGroupId, disabled, groups, medicationName, moving, onCreateGroup, onMove }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return null;
   const selectedGroupId = currentGroupId || UNGROUPED_ID;
   return (
     <DropdownMenu>
@@ -674,6 +677,7 @@ function medicationCountLabel(count) {
 }
 
 function MedicationGroupTabs({ groups, medications, value, onValueChange, onCreate }) {
+  const { readOnly } = useSphereSharing();
   const countForGroup = (groupId) => medications.filter((medication) => (medication.groupId || UNGROUPED_ID) === groupId).length;
   const tiles = [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups];
   return (
@@ -690,9 +694,9 @@ function MedicationGroupTabs({ groups, medications, value, onValueChange, onCrea
             );
           })}
         </ToggleGroup>
-        <Button variant="ghost" size="icon" className="list-tabs__add" type="button" aria-label="Новая группа" title="Новая группа" onClick={onCreate}>
+        {!readOnly && <Button variant="ghost" size="icon" className="list-tabs__add" type="button" aria-label="Новая группа" title="Новая группа" onClick={onCreate}>
           <Plus aria-hidden="true" />
-        </Button>
+        </Button>}
       </div>
     </nav>
   );
@@ -723,6 +727,7 @@ function MedicationSection({ groups, id, medications, moveState, onCreateGroup, 
 }
 
 export function Medications() {
+  const { readOnly } = useSphereSharing();
   const [drawerState, setDrawerState] = useState(null);
   const [groupDrawerState, setGroupDrawerState] = useState(null);
   const [selectedGroupId, setSelectedGroupId] = useState(UNGROUPED_ID);
@@ -811,7 +816,7 @@ export function Medications() {
 
   return (
     <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" data-group-navigation aria-labelledby="medications-title">
-      <header className="flex min-h-12 w-full items-center justify-center">
+      {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия раздела «Препараты»">
           {selectedGroup && (
@@ -823,7 +828,7 @@ export function Medications() {
             Добавить
           </Button>
         </div>
-      </header>
+      </header>}
 
       {requestState.error && (
         <Alert variant="destructive">
@@ -873,56 +878,40 @@ export function Medications() {
             <EmptyTitle><h3 className="m-0 text-sm font-medium">Препаратов пока нет</h3></EmptyTitle>
             <EmptyDescription>Добавьте текущее назначение или запланированный курс.</EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
+          {!readOnly && <EmptyContent>
             <Button className="min-h-12 px-4 text-base" type="button" onClick={addMedication}>
               <Plus data-icon="inline-start" aria-hidden="true" />
               Добавить первый препарат
             </Button>
-          </EmptyContent>
-        </Empty>
-      )}
-
-      {!requestState.loading && !requestState.error && requestState.medications.length > 0 && visibleMedications.length === 0 && (
-        <Empty className="min-h-64 border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><Folder aria-hidden="true" /></EmptyMedia>
-            <EmptyTitle><h3 className="m-0 text-sm font-medium">В этой группе пока пусто</h3></EmptyTitle>
-            <EmptyDescription>Добавьте препарат — выбранная группа подставится автоматически.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button className="min-h-12 px-4 text-base" type="button" onClick={addMedication}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Добавить препарат
-            </Button>
-          </EmptyContent>
+          </EmptyContent>}
         </Empty>
       )}
 
       {!requestState.loading && !requestState.error && visibleMedications.length > 0 && (
         <>
-          <MedicationSection groups={requestState.groups} id="active-medications-title" title="Принимаю сейчас" medications={active} moveState={moveState} onCreateGroup={(medication) => setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
-          <MedicationSection groups={requestState.groups} id="planned-medications-title" title="Запланировано" medications={planned} moveState={moveState} onCreateGroup={(medication) => setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
-          <MedicationSection groups={requestState.groups} id="archived-medications-title" title="Приостановлено и завершено" medications={archived} moveState={moveState} onCreateGroup={(medication) => setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
+          <MedicationSection groups={requestState.groups} id="active-medications-title" title="Принимаю сейчас" medications={active} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
+          <MedicationSection groups={requestState.groups} id="planned-medications-title" title="Запланировано" medications={planned} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
+          <MedicationSection groups={requestState.groups} id="archived-medications-title" title="Приостановлено и завершено" medications={archived} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
         </>
       )}
 
       <p className="sr-only" aria-live="polite">{moveState.announcement}</p>
 
-      <MedicationDrawer
+      {!readOnly && <MedicationDrawer
         open={Boolean(drawerState)}
         medication={drawerState?.medication || null}
         groups={requestState.groups}
         initialGroupId={drawerState?.initialGroupId || null}
         onOpenChange={(open) => { if (!open) setDrawerState(null); }}
         onSaved={saveMedication}
-      />
-      <MedicationGroupDrawer
+      />}
+      {!readOnly && <MedicationGroupDrawer
         open={Boolean(groupDrawerState)}
         group={groupDrawerState?.group || null}
         onOpenChange={(open) => { if (!open) setGroupDrawerState(null); }}
         onSaved={saveGroup}
         onDeleted={deleteGroup}
-      />
+      />}
     </article>
   );
 }

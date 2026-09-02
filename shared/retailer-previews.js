@@ -24,6 +24,14 @@ const RETAILERS = [
     imageUrl: "/retailer-previews/lavka.svg",
   },
   {
+    id: "vkusvill",
+    label: "ВкусВилл",
+    hosts: new Set(["vkusvill.ru", "www.vkusvill.ru"]),
+    canonicalHost: "vkusvill.ru",
+    path: /^\/goods\/(?:[^/]+\/)*[^/]*-\d+(?:\.html)?\/?$/i,
+    imageUrl: "/retailer-previews/vkusvill.svg",
+  },
+  {
     id: "bushe",
     label: "Буше",
     hosts: new Set(["bushe.ru", "www.bushe.ru"]),
@@ -100,5 +108,5 @@ export function retailerPreviewImageUrl(value) {
 
 export function retailerSupportsAutomaticMetadata(value) {
   const id = retailerPreview(value)?.id;
-  return id === "lavka" || id === "bushe";
+  return id === "lavka" || id === "bushe" || id === "vkusvill";
 }

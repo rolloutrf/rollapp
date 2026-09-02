@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCardReorder } from "@/hooks/use-card-reorder";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { savedOrder } from "@/lib/card-order";
 import {
@@ -315,7 +316,7 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-status`}>
                     <SelectValue>{(value) => SESSION_STATUS[value]?.label || "Выберите статус"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value="scheduled">Запланирована</SelectItem>
                     <SelectItem value="completed">Проведена</SelectItem>
                     <SelectItem value="cancelled">Отменена</SelectItem>
@@ -331,7 +332,7 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
                     ? "Не отсортированные"
                     : lists.find((list) => list.id === value)?.title || "Выберите список"}</SelectValue>
                 </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                   <SelectItem value={UNLISTED_EDUCATION_LIST_ID}>Не отсортированные</SelectItem>
                   {lists.map((list) => <SelectItem value={list.id} key={list.id}>{list.title}</SelectItem>)}
                 </SelectContent>
@@ -344,7 +345,7 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-format`}>
                     <SelectValue>{(value) => SESSION_FORMAT[value] || "Выберите формат"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value="online">Онлайн</SelectItem>
                     <SelectItem value="offline">Офлайн</SelectItem>
                   </SelectContent>
@@ -443,6 +444,7 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
 }
 
 export function CoachingSessions() {
+  const { readOnly } = useSphereSharing();
   const [drawer, setDrawer] = useState({ open: false, session: null });
   const [selectedListId, setSelectedListId] = useState(UNLISTED_EDUCATION_LIST_ID);
   const [openedGroupId, setOpenedGroupId] = useState("");
@@ -463,6 +465,7 @@ export function CoachingSessions() {
     ? (openedGroup.itemIds || []).map((id) => requestState.sessions.find((session) => session.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    disabled: readOnly,
     items: visibleSessions,
     onItemsChange: (sessions) => setRequestState((state) => ({
       ...state,
@@ -475,7 +478,7 @@ export function CoachingSessions() {
     getItemLabel: (session) => `Коучинг-сессия «${session.title}»`,
     collectionLabel: "коучинг-сессий",
     movedVerb: "перемещена",
-    groupingEnabled: visibleSessions.length > 1 && !groupState.busy,
+    groupingEnabled: !readOnly && visibleSessions.length > 1 && !groupState.busy,
     onCreateGroup: createSessionGroup,
     onAddToGroup: addSessionToGroup,
   });
@@ -512,6 +515,7 @@ export function CoachingSessions() {
   const setDrawerOpen = (open) => setDrawer((current) => ({ ...current, open }));
   const openCreateDrawer = () => setDrawer({ open: true, session: null });
   const openEditDrawer = (session) => {
+    if (readOnly) return;
     if (cardOrder.shouldSuppressClick()) return;
     setDrawer({ open: true, session });
   };
@@ -761,6 +765,7 @@ export function CoachingSessions() {
                 onEdit={openEditDrawer}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveSessionToList}
+                draggable={!readOnly}
               />
             </li>
           ))}
@@ -774,15 +779,15 @@ export function CoachingSessions() {
       <p className="sr-only" aria-live="polite">{moveState.announcement}</p>
       <p className="sr-only" aria-live="polite">{groupState.announcement}</p>
 
-      <CoachingSessionDrawer
+      {!readOnly && <CoachingSessionDrawer
         open={drawer.open}
         session={drawer.session}
         initialListId={educationApiListId(resolvedListId)}
         lists={requestState.lists}
         onOpenChange={setDrawerOpen}
         onSaved={saveSession}
-      />
-      <EducationListDrawer
+      />}
+      {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
         section="coaching"
@@ -792,7 +797,7 @@ export function CoachingSessions() {
           : { open: false, list: null, moveItem: null })}
         onSaved={saveList}
         onDeleted={deleteList}
-      />
+      />}
       {openedGroup && (
         <EducationItemGroupOverlay
           group={openedGroup}
@@ -817,7 +822,7 @@ export function CoachingSessions() {
               onEdit={openEditDrawer}
               onMove={() => {}}
               onMoveToList={moveSessionToList}
-              onRemoveFromGroup={removeSessionFromGroup}
+              onRemoveFromGroup={readOnly ? undefined : removeSessionFromGroup}
             />
           )}
         />

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 472 572" role="img" aria-labelledby="title description">
+  <title id="title">Превью ссылки ВкусВилл</title>
+  <desc id="description">Резервное превью товара из ВкусВилла</desc>
+  <rect width="472" height="572" rx="40" fill="#f4f6ee"/>
+  <circle cx="398" cy="92" r="145" fill="#9bd34e" opacity=".24"/>
+  <circle cx="46" cy="526" r="158" fill="#0c9f36" opacity=".12"/>
+  <rect x="54" y="62" width="82" height="8" rx="4" fill="#0c9f36"/>
+  <text x="54" y="283" fill="#0c9f36" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700">ВкусВилл</text>
+  <text x="56" y="330" fill="#357044" font-family="Arial, Helvetica, sans-serif" font-size="24">товар по ссылке</text>
+  <rect x="54" y="464" width="364" height="54" rx="27" fill="#0c9f36" opacity=".1"/>
+  <text x="236" y="499" text-anchor="middle" fill="#0c9f36" font-family="Arial, Helvetica, sans-serif" font-size="20">vkusvill.ru</text>
+</svg>

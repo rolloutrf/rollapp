@@ -47,6 +47,58 @@ test("can target Ozon with a dedicated direct-card search", () => {
   assert.doesNotMatch(request.body.messages[0].content, /wildberries\.ru\/catalog/);
 });
 
+test("targets the four supported food stores with direct product pages", () => {
+  const request = buildOpenRouterMarketplaceRequest({
+    title: "Яйцо куриное С0, 10 шт",
+    space: "food",
+  }, {
+    marketplaceIds: ["samokat", "lavka", "lenta", "vkusvill"],
+  });
+  assert.deepEqual(request.body.tools[0].parameters.allowed_domains, [
+    "samokat.ru",
+    "lavka.yandex.ru",
+    "lenta.com",
+    "vkusvill.ru",
+  ]);
+  assert.match(request.body.messages[0].content, /веса, объёма, количества в упаковке/);
+  assert.match(request.body.messages[0].content, /vkusvill\.ru\/goods/);
+  assert.doesNotMatch(request.body.messages[0].content, /ozon\.ru\/product/);
+});
+
+test("targets Auto.ru, Avito Auto and Drom with make and model", () => {
+  const request = buildOpenRouterMarketplaceRequest({
+    title: "BMW X5 xDrive40i 2022",
+    space: "transport",
+    vehicleMake: "BMW",
+    vehicleModel: "X5",
+  }, {
+    marketplaceIds: ["auto-ru", "avito-auto", "drom"],
+  });
+  assert.deepEqual(request.body.tools[0].parameters.allowed_domains, ["auto.ru", "avito.ru", "drom.ru"]);
+  assert.match(request.body.messages[0].content, /марки, модели/);
+  assert.match(request.body.messages[0].content, /auto\.ru\/cars\/used\/sale/);
+  assert.match(request.body.messages[1].content, /"vehicleMake":"BMW"/);
+});
+
+test("keeps one direct vehicle listing per automotive service", () => {
+  const base = {
+    ...validOffer,
+    title: "BMW X5 xDrive40i 2022",
+    price: 8_900_000,
+  };
+  const result = normalizeOpenRouterOffers(responsePayload([
+    { ...base, marketplace: "Auto.ru", url: "https://auto.ru/cars/used/sale/bmw/x5/1123456789-example/?from=search" },
+    { ...base, marketplace: "Auto.ru", url: "https://auto.ru/cars/used/sale/bmw/x5/1123456790-other/", score: 90 },
+    { ...base, marketplace: "Авито Авто", url: "https://www.avito.ru/moskva/avtomobili/bmw_x5_2022_1234567890?context=H4sI" },
+    { ...base, marketplace: "Drom", url: "https://auto.drom.ru/moscow/bmw/x5/123456789.html" },
+    { ...base, marketplace: "Drom", url: "https://auto.drom.ru/bmw/x5/" },
+  ]), "2026-09-02T12:00:00.000Z", {
+    marketplaceIds: ["auto-ru", "avito-auto", "drom"],
+  });
+  assert.deepEqual(result.offers.map((offer) => offer.marketplaceId).sort(), ["auto-ru", "avito-auto", "drom"]);
+  assert.equal(result.offers.find((offer) => offer.marketplaceId === "auto-ru").url.includes("?"), false);
+});
+
 test("uses direct product citations returned by marketplace web search", () => {
   const payload = responsePayload([]);
   payload.choices[0].message.annotations = [
@@ -94,6 +146,30 @@ test("keeps only the best direct card from each marketplace", () => {
     "https://www.ozon.ru/product/kindle-best-2/",
     "https://www.dns-shop.ru/product/kindle-3/",
   ]);
+});
+
+test("accepts one direct food card per store and rejects category pages", () => {
+  const base = {
+    ...validOffer,
+    title: "Яйцо куриное С0 белое, 10 шт",
+    price: 149,
+  };
+  const result = normalizeOpenRouterOffers(responsePayload([
+    { ...base, marketplace: "Самокат", url: "https://samokat.ru/product/yaytso-kurinoe-s0-10-sht?from=search" },
+    { ...base, marketplace: "Яндекс Лавка", url: "https://lavka.yandex.ru/good/yaytso-kurinoe-s0-10-sht" },
+    { ...base, marketplace: "Лента", url: "https://lenta.com/product/yaytso-kurinoe-s0-10sht-123456/" },
+    { ...base, marketplace: "ВкусВилл", url: "https://vkusvill.ru/goods/yaytso-kurinoe-s0-22658/" },
+    { ...base, marketplace: "ВкусВилл", url: "https://vkusvill.ru/goods/molochnye-produkty-yaytso/yaytso/" },
+  ]), "2026-09-01T18:00:00.000Z", {
+    marketplaceIds: ["samokat", "lavka", "lenta", "vkusvill"],
+  });
+  assert.deepEqual(result.offers.map((offer) => offer.marketplaceId).sort(), [
+    "lavka",
+    "lenta",
+    "samokat",
+    "vkusvill",
+  ]);
+  assert.equal(result.offers.find((offer) => offer.marketplaceId === "samokat").url, "https://samokat.ru/product/yaytso-kurinoe-s0-10-sht");
 });
 
 test("accepts an offers array returned by Mistral structured output", () => {

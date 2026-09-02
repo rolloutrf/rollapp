@@ -12,6 +12,7 @@ const schema = `
     username TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,
+    account_type TEXT NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'business')),
     bio TEXT NOT NULL DEFAULT '',
     birthday DATE,
     avatar_url TEXT NOT NULL DEFAULT '',
@@ -24,6 +25,7 @@ const schema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'personal';
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 
@@ -58,6 +60,16 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_yandex_identities_user
     ON yandex_identities(user_id);
 
+  CREATE TABLE IF NOT EXISTS user_ai_credentials (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    encrypted_secret TEXT NOT NULL,
+    secret_hint TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, provider)
+  );
+
   CREATE TABLE IF NOT EXISTS yandex_oauth_attempts (
     state_hash TEXT PRIMARY KEY,
     code_verifier TEXT NOT NULL,
@@ -75,6 +87,40 @@ const schema = `
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS sphere_section_shares (
+    owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    viewer_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sphere TEXT NOT NULL,
+    section TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (owner_user_id, viewer_user_id, sphere, section),
+    CHECK (owner_user_id <> viewer_user_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sphere_section_shares_viewer
+    ON sphere_section_shares(viewer_user_id, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS sphere_access_requests (
+    id TEXT PRIMARY KEY,
+    requester_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sphere TEXT NOT NULL,
+    section TEXT NOT NULL,
+    message TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'declined', 'cancelled')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMPTZ,
+    UNIQUE (requester_user_id, owner_user_id, sphere, section),
+    CHECK (requester_user_id <> owner_user_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sphere_access_requests_owner
+    ON sphere_access_requests(owner_user_id, status, created_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_sphere_access_requests_requester
+    ON sphere_access_requests(requester_user_id, status, created_at DESC);
 
   CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
@@ -151,6 +197,31 @@ const schema = `
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS source_wish_id TEXT REFERENCES wishes(id) ON DELETE SET NULL;
+
+  CREATE TABLE IF NOT EXISTS external_catalog_items (
+    source TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL,
+    image_url TEXT NOT NULL DEFAULT '',
+    price NUMERIC(12, 2),
+    currency TEXT NOT NULL DEFAULT 'RUB',
+    space TEXT NOT NULL DEFAULT 'products',
+    source_label TEXT NOT NULL,
+    source_home_url TEXT NOT NULL,
+    source_logo_url TEXT NOT NULL DEFAULT '',
+    categories_json TEXT NOT NULL DEFAULT '[]',
+    source_rank INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (source, external_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_external_catalog_items_space
+    ON external_catalog_items(space, active, source_rank);
 
   CREATE TABLE IF NOT EXISTS wish_marketplace_offer_snapshots (
     wish_id TEXT PRIMARY KEY REFERENCES wishes(id) ON DELETE CASCADE,
@@ -300,6 +371,9 @@ const schema = `
   ALTER TABLE education_conferences
     ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
 
+  ALTER TABLE education_conferences
+    ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT '';
+
   CREATE TABLE IF NOT EXISTS education_coaching_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -437,11 +511,19 @@ const schema = `
     role TEXT NOT NULL DEFAULT '',
     category TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT '',
+    avatar_url TEXT NOT NULL DEFAULT '',
     links_json TEXT NOT NULL DEFAULT '[]',
     notes TEXT NOT NULL DEFAULT '',
+    deleted_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, contact_id)
   );
+
+  ALTER TABLE contact_overrides
+    ADD COLUMN IF NOT EXISTS avatar_url TEXT NOT NULL DEFAULT '';
+
+  ALTER TABLE contact_overrides
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
   CREATE TABLE IF NOT EXISTS contact_favorites (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

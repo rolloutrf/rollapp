@@ -1,4 +1,5 @@
 import { CONTACT_CATEGORIES, CONTACT_COMPANIES, CONTACTS } from "./contacts-data.js";
+import { STATIC_CONTACT_AVATAR_IDS } from "./contact-avatar-data.js";
 
 export const CONTACTS_PAGE_SIZE = 48;
 
@@ -35,8 +36,10 @@ export function mergeContactOverride(contact, override) {
     role: override.role ?? contact.role,
     category: override.category ?? contact.category,
     status: override.status ?? contact.status,
+    avatarUrl: override.avatarUrl ?? override.avatar_url ?? contact.avatarUrl ?? "",
     links: parseOverrideLinks(override.links ?? override.linksJson ?? override.links_json, contact.links),
     notes: override.notes ?? contact.notes,
+    deletedAt: override.deletedAt ?? override.deleted_at ?? null,
     updatedAt: override.updatedAt ?? override.updated_at ?? null,
   };
 }
@@ -52,21 +55,23 @@ export function contactFromOverride(override) {
     role: override.role || "",
     category: override.category || "",
     status: override.status || "",
+    avatarUrl: override.avatarUrl ?? override.avatar_url ?? "",
     links: parseOverrideLinks(override.links ?? override.linksJson ?? override.links_json, []),
     notes: override.notes || "",
+    deletedAt: override.deletedAt ?? override.deleted_at ?? null,
     updatedAt: override.updatedAt ?? override.updated_at ?? null,
   };
 }
 
 function listContact(contact) {
-  const { notes: _notes, ...summary } = contact;
+  const { notes: _notes, deletedAt: _deletedAt, ...summary } = contact;
   return { ...summary, avatarUrl: contactAvatarPath(contact), hasNotes: Boolean(contact.notes) };
 }
 
 export function contactAvatarPath(contact) {
   const confirmedAvatar = CONFIRMED_CONTACT_AVATARS.get(contact?.id);
-  if (confirmedAvatar) return confirmedAvatar;
-  if (!contact?.links?.some((link) => link.label === "Facebook")) return "";
+  if (!contact?.avatarUrl && confirmedAvatar) return confirmedAvatar;
+  if (!contact?.avatarUrl && !STATIC_CONTACT_AVATAR_IDS.has(contact?.id) && !contact?.links?.some((link) => link.label === "Facebook")) return "";
   const path = `/api/contacts/${encodeURIComponent(contact.id)}/avatar`;
   return contact.updatedAt ? `${path}?v=${encodeURIComponent(new Date(contact.updatedAt).getTime())}` : path;
 }
@@ -102,11 +107,16 @@ export function listContacts({
   const overrideMap = new Map(overrides.map((override) => [override.contactId ?? override.contact_id, override]));
   const favoriteSet = new Set(favoriteIds);
   const customContacts = overrides
-    .filter((override) => !contactsById.has(override.contactId ?? override.contact_id))
+    .filter((override) => (
+      !contactsById.has(override.contactId ?? override.contact_id)
+      && !(override.deletedAt ?? override.deleted_at)
+    ))
     .map(contactFromOverride)
     .filter(Boolean);
-  const importedContacts = CONTACTS.map((contact, index) => {
-    const merged = overrideMap.size ? mergeContactOverride(contact, overrideMap.get(contact.id)) : contact;
+  const importedContacts = CONTACTS.flatMap((contact, index) => {
+    const override = overrideMap.get(contact.id);
+    if (override?.deletedAt ?? override?.deleted_at) return [];
+    const merged = overrideMap.size ? mergeContactOverride(contact, override) : contact;
     return {
       contact: { ...merged, favorite: favoriteSet.has(contact.id) },
       searchText: overrideMap.size

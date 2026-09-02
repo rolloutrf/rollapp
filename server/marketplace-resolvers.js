@@ -1,4 +1,5 @@
 import { productScore } from "../shared/product-match.js";
+import { vehicleOfferMatchesWish } from "../shared/vehicle-match.js";
 
 const WILDBERRIES_SEARCH_URL = "https://search.wb.ru/exactmatch/ru/common/v18/search";
 const YANDEX_MARKET_SEARCH_URL = "https://market.yandex.ru/search";
@@ -12,6 +13,13 @@ const SOURCE_MARKETPLACES = [
   { id: "mvideo", label: "М.Видео", hosts: ["mvideo.ru"] },
   { id: "aliexpress", label: "AliExpress", hosts: ["aliexpress.ru", "aliexpress.com"] },
   { id: "avito", label: "Авито", hosts: ["avito.ru"] },
+  { id: "auto-ru", label: "Auto.ru", hosts: ["auto.ru"] },
+  { id: "avito-auto", label: "Авито Авто", hosts: ["avito.ru"] },
+  { id: "drom", label: "Drom", hosts: ["drom.ru"] },
+  { id: "samokat", label: "Самокат", hosts: ["samokat.ru"] },
+  { id: "lavka", label: "Яндекс Лавка", hosts: ["lavka.yandex.ru"] },
+  { id: "lenta", label: "Лента", hosts: ["lenta.com"] },
+  { id: "vkusvill", label: "ВкусВилл", hosts: ["vkusvill.ru"] },
 ];
 export { productScore } from "../shared/product-match.js";
 
@@ -28,6 +36,11 @@ function safeSourceUrl(value) {
 
 function sourceMarketplace(url) {
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  if (host === "avito.ru" || host.endsWith(".avito.ru")) {
+    return url.pathname.includes("/avtomobili/")
+      ? SOURCE_MARKETPLACES.find((marketplace) => marketplace.id === "avito-auto")
+      : SOURCE_MARKETPLACES.find((marketplace) => marketplace.id === "avito");
+  }
   return SOURCE_MARKETPLACES.find((marketplace) => marketplace.hosts.some((candidate) => (
     host === candidate || host.endsWith(`.${candidate}`)
   ))) || {
@@ -217,6 +230,7 @@ export async function fetchMarketplaceResolvedOffers(wish, {
   const checkedAt = now().toISOString();
   const source = sourceOfferForWish(wish, checkedAt);
   if (!query) return source ? [source] : [];
+  if (["food", "transport"].includes(wish?.space)) return source ? [source] : [];
   const results = await Promise.allSettled([
     fetchWildberriesOffers({ ...wish, title: query }, { fetchImpl, signal, checkedAt }),
     fetchYandexMarketOffers({ ...wish, title: query }, { fetchImpl, signal, checkedAt }),
@@ -228,6 +242,9 @@ export async function fetchMarketplaceResolvedOffers(wish, {
 }
 
 export function filterDirectOffersForWish(wish, offers) {
+  if (wish?.space === "transport") {
+    return (Array.isArray(offers) ? offers : []).filter((offer) => vehicleOfferMatchesWish(wish, offer));
+  }
   return (Array.isArray(offers) ? offers : []).filter((offer) => (
     offer?.source || (
       productScore(wish?.title, offer?.title) >= 70
@@ -244,7 +261,8 @@ export function mergeDirectOffers(...collections) {
     return true;
   });
   const compare = (left, right) => (
-    Number(right.available) - Number(left.available)
+    Number(Boolean(right.source)) - Number(Boolean(left.source))
+    || Number(right.available) - Number(left.available)
     || Number(right.score || 0) - Number(left.score || 0)
     || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
   );

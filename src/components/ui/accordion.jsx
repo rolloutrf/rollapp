@@ -31,6 +31,7 @@ function AccordionTrigger({
   className,
   children,
   headerAs: Header,
+  action,
   ...props
 }) {
   return (
@@ -54,6 +55,7 @@ function AccordionTrigger({
           data-slot="accordion-trigger-icon"
           className="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline" />
       </AccordionPrimitive.Trigger>
+      {action}
     </AccordionPrimitive.Header>
   );
 }

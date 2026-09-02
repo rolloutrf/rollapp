@@ -245,22 +245,6 @@ function normalizedMergeKey(value) {
     .replace(/\s+/g, " ");
 }
 
-function normalizedResultValue(value) {
-  return normalizedMergeKey(value).replaceAll(",", ".").replace(/\s+/g, "");
-}
-
-function resultVariant(item, sourceLabel) {
-  return {
-    value: item.value,
-    unit: item.unit,
-    reference: item.reference,
-    status: item.status,
-    secondary: item.secondary,
-    note: item.note,
-    sourceLabel,
-  };
-}
-
 function reportSources(report) {
   const sources = Array.isArray(report.sources)
     ? report.sources
@@ -307,24 +291,22 @@ function mergeReportsForDate(reports) {
 
   const groups = [];
   const groupsByKey = new Map();
+  const selectedResults = new Map();
   for (const report of orderedReports) {
     for (const group of report.groups || []) {
       const groupKey = normalizedMergeKey(group.id || group.title);
       let mergedGroup = groupsByKey.get(groupKey);
       if (!mergedGroup) {
-        mergedGroup = { id: group.id, title: group.title, items: [], itemIndexes: new Map() };
+        mergedGroup = { id: group.id, title: group.title, items: [] };
         groupsByKey.set(groupKey, mergedGroup);
         groups.push(mergedGroup);
       }
       for (const item of group.items || []) {
-        const analyteKey = `${normalizedMergeKey(item.code || item.name)}:${normalizedMergeKey(item.unit)}`;
-        const matchingIndexes = mergedGroup.itemIndexes.get(analyteKey) || [];
-        const duplicateIndex = matchingIndexes.find((index) => (
-          normalizedResultValue(mergedGroup.items[index].value) === normalizedResultValue(item.value)
-        ));
-        if (duplicateIndex !== undefined) {
-          const existing = mergedGroup.items[duplicateIndex];
-          mergedGroup.items[duplicateIndex] = {
+        const analyteKey = normalizedMergeKey(item.code || item.name);
+        const selected = selectedResults.get(analyteKey);
+        if (selected) {
+          const existing = selected.group.items[selected.index];
+          selected.group.items[selected.index] = {
             ...existing,
             code: existing.code || item.code,
             reference: existing.reference || item.reference,
@@ -334,28 +316,14 @@ function mergeReportsForDate(reports) {
           continue;
         }
 
-        if (matchingIndexes.length) {
-          const existingIndex = matchingIndexes[0];
-          const existing = mergedGroup.items[existingIndex];
-          const variants = existing.variants || [resultVariant(existing, existing.__sourceLabel)];
-          mergedGroup.items[existingIndex] = {
-            ...existing,
-            variants: [...variants, resultVariant(item, report.lab || "Источник не указан")],
-          };
-          continue;
-        }
-
-        const nextItem = { ...item, __sourceLabel: report.lab || "Источник не указан" };
+        const { variants: ignoredVariants, ...nextItem } = item;
         const nextIndex = mergedGroup.items.push(nextItem) - 1;
-        mergedGroup.itemIndexes.set(analyteKey, [nextIndex]);
+        selectedResults.set(analyteKey, { group: mergedGroup, index: nextIndex });
       }
     }
   }
 
-  const cleanGroups = groups.map(({ itemIndexes, ...group }) => ({
-    ...group,
-    items: group.items.map(({ __sourceLabel, ...item }) => item),
-  }));
+  const cleanGroups = groups.filter((group) => group.items.length);
   const resultCount = cleanGroups.reduce((count, group) => count + group.items.length, 0);
   const uploadedSource = sources.find((source) => source.pdfUrl);
   return {

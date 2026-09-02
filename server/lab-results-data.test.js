@@ -31,7 +31,7 @@ test("each trend preserves all three source dates", () => {
   }
 });
 
-test("reports from the same date become one study without duplicate results", () => {
+test("reports from the same date keep only the freshest result for every analyte", () => {
   const reports = mergeLabReportsByDate([
     {
       id: "uploaded",
@@ -43,7 +43,7 @@ test("reports from the same date become one study without duplicate results", ()
         title: "Биохимия",
         items: [
           { name: "Глюкоза", value: "5,1", unit: "ммоль/л", reference: "", status: "normal" },
-          { name: "Креатинин", value: "92", unit: "мкмоль/л", reference: "64–104", status: "normal" },
+          { code: "CREA", name: "Креатинин", value: "92", unit: "мкмоль/л", reference: "", status: "normal" },
         ],
       }],
       source: { uploaded: true, filename: "invitro.pdf", pdfUrl: "/invitro.pdf", uploadedAt: "2026-07-16T10:00:00Z" },
@@ -58,7 +58,7 @@ test("reports from the same date become one study without duplicate results", ()
         title: "Биохимия",
         items: [
           { name: "Глюкоза", value: "5,1", unit: "ммоль/л", reference: "4,1–6", status: "normal" },
-          { name: "Креатинин", value: "91", unit: "мкмоль/л", reference: "64–104", status: "normal" },
+          { code: "CREA", name: "Креатинин", value: "9,1", unit: "мг/л", reference: "64–104", status: "normal" },
           { name: "АлАТ", value: "39", unit: "Ед/л", reference: "< 41", status: "normal" },
         ],
       }],
@@ -74,9 +74,16 @@ test("reports from the same date become one study without duplicate results", ()
     ["АлАТ", "39"],
   ]);
   assert.equal(reports[0].groups[0].items[0].reference, "4,1–6");
-  assert.deepEqual(reports[0].groups[0].items[1].variants.map((item) => [item.value, item.sourceLabel]), [
-    ["92", "ИНВИТРО"],
-    ["91", "ИНВИТРО СПб"],
-  ]);
+  assert.deepEqual(reports[0].groups[0].items[1], {
+    code: "CREA",
+    name: "Креатинин",
+    value: "92",
+    unit: "мкмоль/л",
+    reference: "64–104",
+    status: "normal",
+    secondary: undefined,
+    note: undefined,
+  });
+  assert.equal("variants" in reports[0].groups[0].items[1], false);
   assert.equal(reports[0].sources[0].pdfUrl, "/invitro.pdf");
 });

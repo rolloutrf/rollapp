@@ -82,12 +82,23 @@ async function loadOpenRouterLockboxSecret() {
   console.log("Runtime OpenRouter credential loaded from Yandex Lockbox");
 }
 
+async function loadUserCredentialsLockboxSecret() {
+  const secretId = process.env.YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID;
+  if (!secretId || process.env.USER_CREDENTIALS_SECRET) return;
+  process.env.USER_CREDENTIALS_SECRET = await loadLockboxValue(
+    secretId,
+    process.env.YC_USER_CREDENTIALS_SECRET_KEY || "encryption_secret",
+  );
+  console.log("Runtime user credential encryption secret loaded from Yandex Lockbox");
+}
+
 await loadDatabaseLockboxSecret();
 await loadAutoDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 await loadYandexOauthSecrets();
 await loadOpenRouterLockboxSecret();
+await loadUserCredentialsLockboxSecret();
 
 const { getTelegramBotRuntimeConfig, startTelegramBotPolling } = await import("./telegram-bot.js");
 const telegramConfig = getTelegramBotRuntimeConfig();
