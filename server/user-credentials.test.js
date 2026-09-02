@@ -33,8 +33,12 @@ test("rejects tampered credential envelopes", () => {
     provider: "openrouter",
     env,
   });
+  const [version, iv, tag, encryptedValue] = encrypted.split(".");
+  const tamperedValue = Buffer.from(encryptedValue, "base64url");
+  tamperedValue[0] ^= 1;
+  const tamperedEnvelope = [version, iv, tag, tamperedValue.toString("base64url")].join(".");
   assert.throws(
-    () => decryptUserCredential(`${encrypted.slice(0, -1)}x`, { userId: "user-1", provider: "openrouter", env }),
+    () => decryptUserCredential(tamperedEnvelope, { userId: "user-1", provider: "openrouter", env }),
     (error) => error instanceof UserCredentialsError && error.code === "user_credential_decryption_failed",
   );
 });
