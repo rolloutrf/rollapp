@@ -9,6 +9,45 @@ const SCHEMA_CACHE_MS = 30 * 60 * 1000;
 const MAX_MAKES = 500;
 const MAX_MODELS = 1_000;
 
+const normalizeVehicleText = (value) => String(value || "")
+  .normalize("NFKC")
+  .toLocaleLowerCase("ru")
+  .replaceAll("ё", "е")
+  .replace(/[^a-zа-я0-9]+/gi, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+function containsVehicleValue(text, value) {
+  const normalizedText = normalizeVehicleText(text);
+  const normalizedValue = normalizeVehicleText(value);
+  if (!normalizedText || !normalizedValue) return false;
+  return ` ${normalizedText} `.includes(` ${normalizedValue} `);
+}
+
+export function findVehicleMake(text, makes) {
+  return (Array.isArray(makes) ? makes : [])
+    .map((make) => String(make || "").trim())
+    .filter((make) => make && containsVehicleValue(text, make))
+    .sort((left, right) => normalizeVehicleText(right).length - normalizeVehicleText(left).length)[0] || "";
+}
+
+export function findVehicleModel(text, make, models) {
+  const normalizedMake = normalizeVehicleText(make);
+  return (Array.isArray(models) ? models : [])
+    .map((model) => String(model || "").trim())
+    .filter(Boolean)
+    .filter((model) => {
+      const normalizedModel = normalizeVehicleText(model);
+      if (!normalizedModel) return false;
+      if (normalizedMake && containsVehicleValue(text, `${normalizedMake} ${normalizedModel}`)) return true;
+      // Односимвольные модели вроде Mazda 3 сопоставляем только вместе с маркой,
+      // чтобы не принять за модель цифру года, объёма или поколения.
+      if (normalizedModel.length < 2) return false;
+      return containsVehicleValue(text, normalizedModel);
+    })
+    .sort((left, right) => normalizeVehicleText(right).length - normalizeVehicleText(left).length)[0] || "";
+}
+
 const MAKE_COLUMN_SCORES = new Map([
   ["brand_name", 140],
   ["make_name", 140],
@@ -36,8 +75,10 @@ const normalizeIdentifier = (value) => String(value || "")
   .replace(/^_+|_+$/g, "");
 
 const quoteIdentifier = (value) => `"${String(value).replaceAll('"', '""')}"`;
+const quoteLiteral = (value) => `'${String(value).replaceAll("'", "''")}'`;
 const qualifiedTable = (schema, table) => `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
 const textValue = (alias, column) => `btrim(CAST(${alias}.${quoteIdentifier(column)} AS text))`;
+const jsonTextValue = (alias, column, key) => `btrim(${alias}.${quoteIdentifier(column)}->>${quoteLiteral(key)})`;
 
 function scoreColumn(columnName, scores) {
   const normalized = normalizeIdentifier(columnName);
@@ -125,7 +166,35 @@ export function resolveVehicleCatalogSchema(columns, foreignKeys = []) {
     });
   }
 
-  return normalized.sort((a, b) => b.score - a.score || a.modelTable.localeCompare(b.modelTable))[0] || null;
+  const normalizedSource = normalized
+    .sort((a, b) => b.score - a.score || a.modelTable.localeCompare(b.modelTable))[0];
+  if (normalizedSource) return normalizedSource;
+
+  // The imported Auto.ru catalogue keeps its normalized public projection in
+  // auto_catalog.snapshot_rows. Vehicle names live inside the JSONB payload of
+  // the cars_for_sale dataset rather than in dedicated SQL columns.
+  const snapshotSource = [...tables.values()]
+    .map((table) => {
+      const byName = new Map(table.columns.map((column) => [normalizeIdentifier(column.column_name), column]));
+      const dataset = byName.get("dataset");
+      const data = byName.get("data");
+      if (!dataset || !data || data.data_type !== "jsonb") return null;
+      return {
+        kind: "jsonb_snapshot",
+        schema: table.schema,
+        table: table.table,
+        datasetColumn: dataset.column_name,
+        dataColumn: data.column_name,
+        datasetValue: "cars_for_sale",
+        makeJsonKey: "make_name",
+        modelJsonKey: "model_name",
+        score: table.table === "snapshot_rows" ? 100 : 50,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.table.localeCompare(b.table))[0];
+
+  return snapshotSource || null;
 }
 
 function connectionConfig(environment = process.env) {
@@ -137,15 +206,34 @@ function connectionConfig(environment = process.env) {
     };
   }
 
-  const user = String(environment.AUTO_PGUSER || "").trim();
-  const password = String(environment.AUTO_PGPASSWORD || "").trim();
+  let primaryConnection = null;
+  const primaryConnectionString = String(environment.DATABASE_URL || "").trim();
+  if (primaryConnectionString) {
+    try {
+      primaryConnection = new URL(primaryConnectionString);
+    } catch {
+      return null;
+    }
+  }
+
+  const decodeConnectionPart = (value) => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+  const primaryUser = primaryConnection ? decodeConnectionPart(primaryConnection.username) : "";
+  const primaryPassword = primaryConnection ? decodeConnectionPart(primaryConnection.password) : "";
+  const user = String(environment.AUTO_PGUSER || environment.PGUSER || primaryUser || "").trim();
+  const password = String(environment.AUTO_PGPASSWORD || environment.PGPASSWORD || primaryPassword || "").trim();
   if (!user || !password) return null;
-  const host = String(environment.AUTO_PGHOST || environment.PGHOST || "").trim();
+  const host = String(environment.AUTO_PGHOST || environment.PGHOST || primaryConnection?.hostname || "").trim();
   if (!host) return null;
   return {
     pool: {
       host,
-      port: Number(environment.AUTO_PGPORT || environment.PGPORT || 5432),
+      port: Number(environment.AUTO_PGPORT || environment.PGPORT || primaryConnection?.port || 5432),
       database: String(environment.AUTO_PGDATABASE || "auto").trim(),
       user,
       password,
@@ -250,6 +338,7 @@ export function createVehicleCatalog({ environment = process.env, pool: provided
       const schema = await discoverSchema();
       const pool = getPool();
       let sql;
+      let params = [];
       if (schema.kind === "direct") {
         const make = textValue("source", schema.makeColumn);
         sql = `SELECT DISTINCT ${make} AS name
@@ -257,6 +346,14 @@ export function createVehicleCatalog({ environment = process.env, pool: provided
                WHERE ${make}<>''
                ORDER BY name
                LIMIT ${MAX_MAKES}`;
+      } else if (schema.kind === "jsonb_snapshot") {
+        const make = jsonTextValue("source", schema.dataColumn, schema.makeJsonKey);
+        sql = `SELECT DISTINCT ${make} AS name
+               FROM ${qualifiedTable(schema.schema, schema.table)} source
+               WHERE source.${quoteIdentifier(schema.datasetColumn)}=$1 AND ${make}<>''
+               ORDER BY name
+               LIMIT ${MAX_MAKES}`;
+        params = [schema.datasetValue];
       } else {
         const make = textValue("makes", schema.makeColumn);
         sql = `SELECT DISTINCT ${make} AS name
@@ -265,7 +362,7 @@ export function createVehicleCatalog({ environment = process.env, pool: provided
                ORDER BY name
                LIMIT ${MAX_MAKES}`;
       }
-      const result = await pool.query(sql);
+      const result = await pool.query(sql, params);
       const values = [...new Set(result.rows.map((row) => String(row.name || "").trim()).filter(Boolean))];
       makesCache = { value: values, expiresAt: Date.now() + CATALOG_CACHE_MS };
       return values;
@@ -290,6 +387,16 @@ export function createVehicleCatalog({ environment = process.env, pool: provided
                WHERE lower(${makeValue})=lower($1) AND ${modelValue}<>''
                ORDER BY name
                LIMIT ${MAX_MODELS}`;
+      } else if (schema.kind === "jsonb_snapshot") {
+        const makeValue = jsonTextValue("source", schema.dataColumn, schema.makeJsonKey);
+        const modelValue = jsonTextValue("source", schema.dataColumn, schema.modelJsonKey);
+        sql = `SELECT DISTINCT ${modelValue} AS name
+               FROM ${qualifiedTable(schema.schema, schema.table)} source
+               WHERE lower(${makeValue})=lower($1)
+                 AND source.${quoteIdentifier(schema.datasetColumn)}=$2
+                 AND ${modelValue}<>''
+               ORDER BY name
+               LIMIT ${MAX_MODELS}`;
       } else {
         const makeValue = textValue("makes", schema.makeColumn);
         const modelValue = textValue("models", schema.modelColumn);
@@ -301,18 +408,34 @@ export function createVehicleCatalog({ environment = process.env, pool: provided
                ORDER BY name
                LIMIT ${MAX_MODELS}`;
       }
-      const result = await pool.query(sql, [make]);
+      const result = await pool.query(sql, schema.kind === "jsonb_snapshot" ? [make, schema.datasetValue] : [make]);
       const values = [...new Set(result.rows.map((row) => String(row.name || "").trim()).filter(Boolean))];
       modelsCache.set(cacheKey, { value: values, expiresAt: Date.now() + CATALOG_CACHE_MS });
       return values;
     });
   }
 
+  async function matchListing({ title = "", description = "", url = "" } = {}) {
+    let decodedUrl = String(url || "").trim();
+    try {
+      decodedUrl = decodeURIComponent(decodedUrl);
+    } catch {
+      // A malformed percent escape must not prevent matching the readable URL parts.
+    }
+    const text = `${String(title || "").trim()} ${String(description || "").trim()} ${decodedUrl}`.trim();
+    if (!text) return { make: "", model: "" };
+    const makes = await listMakes();
+    const make = findVehicleMake(text, makes);
+    if (!make) return { make: "", model: "" };
+    const models = await listModels(make);
+    return { make, model: findVehicleModel(text, make, models) };
+  }
+
   async function close() {
     if (catalogPool && catalogPool !== providedPool) await catalogPool.end();
   }
 
-  return { configured, listMakes, listModels, close };
+  return { configured, listMakes, listModels, matchListing, close };
 }
 
 export const vehicleCatalog = createVehicleCatalog();
