@@ -9989,7 +9989,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 /* Shared Wishlist catalog. Wishlist intentionally keeps its product typography. */
 .wish-catalog-page {
   width: 100%;
-  max-width: 1480px;
   padding-top: 38px;
 }
 .wish-catalog-page__header {
@@ -10028,13 +10027,11 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   line-height: 16px;
 }
 .catalog-wish-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 34px 18px;
+  align-items: start;
 }
 .catalog-wish-card { min-width: 0; }
 .catalog-wish-card__image {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 236 / 286;
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
@@ -10172,13 +10169,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .wish-catalog-page__more > .button { min-width: 190px; }
 .wish-catalog-page__error { margin-top: 24px; }
 
-@media (max-width: 1120px) {
-  .catalog-wish-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
 @media (max-width: 760px) {
   .wish-catalog-page__header { align-items: start; flex-direction: column; }
-  .catalog-wish-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 12px; }
 }
 
 @media (max-width: 560px) {
