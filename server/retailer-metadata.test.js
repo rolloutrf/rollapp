@@ -72,6 +72,25 @@ test("reads Lavka's current product thumb when Product JSON-LD has no image", as
   });
 });
 
+test("reads a VkusVill direct product card", async () => {
+  const sourceUrl = "https://vkusvill.ru/goods/yaytso-kurinoe-s0-22658/";
+  const imageUrl = "https://img.vkusvill.ru/pim/images/site_LargeWebP/123.webp";
+  const html = `<script type="application/ld+json">${JSON.stringify({
+    "@type": "Product",
+    name: "Яйцо куриное С0, 10 шт",
+    description: "Куриные яйца категории С0",
+    image: imageUrl,
+    offers: { "@type": "Offer", price: 136, priceCurrency: "RUB" },
+  })}</script>`;
+  const result = await resolveRetailerMetadata(sourceUrl, {
+    fetchHtml: async () => ({ html, url: new URL(sourceUrl) }),
+  });
+  assert.equal(result.title, "Яйцо куриное С0, 10 шт");
+  assert.equal(result.imageUrl, imageUrl);
+  assert.equal(result.price, 136);
+  assert.equal(result.previewFallback, false);
+});
+
 test("parses Lenta's live Product JSON-LD including its remote image and offer", async () => {
   const sourceUrl = "https://lenta.com/product/desert-kokosovyjj-170g-709085/";
   const html = `

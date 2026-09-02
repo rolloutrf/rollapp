@@ -1,11 +1,24 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { STATIC_CONTACT_AVATAR_IDS } from "./contact-avatar-data.js";
 import { decodeHtmlEntities } from "./metadata.js";
 import { fetchPublicHtml, fetchPublicImage, MetadataFetchError } from "./metadata-fetch.js";
 
 const FACEBOOK_HOSTS = new Set(["facebook.com", "www.facebook.com", "web.facebook.com", "m.facebook.com"]);
+const SOCIAL_PROFILE_HOSTS = new Set([
+  ...FACEBOOK_HOSTS,
+  "fb.com", "www.fb.com",
+  "instagram.com", "www.instagram.com",
+  "linkedin.com", "www.linkedin.com",
+  "t.me", "telegram.me", "www.telegram.me", "telegram.org", "www.telegram.org",
+  "twitter.com", "www.twitter.com", "x.com", "www.x.com",
+  "vk.com", "www.vk.com", "vkontakte.ru", "www.vkontakte.ru",
+]);
 
-function avatarError(message = "Фото профиля недоступно") {
-  return new MetadataFetchError(message, { status: 404, code: "contact_avatar_unavailable" });
+function avatarError(message = "Фото профиля недоступно", { cause } = {}) {
+  return new MetadataFetchError(message, { status: 404, code: "contact_avatar_unavailable", cause });
 }
 
 function metaAttributes(source) {
@@ -52,6 +65,67 @@ export function facebookAvatarUrlFromHtml(html) {
   return "";
 }
 
+export function socialProfileUrl(link) {
+  try {
+    const url = new URL(String(link?.url || "").trim());
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.port) return "";
+    if (!SOCIAL_PROFILE_HOSTS.has(url.hostname.toLocaleLowerCase("en"))) return "";
+    url.hash = "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
+export function socialAvatarUrlFromHtml(html, pageUrl) {
+  for (const match of String(html || "").matchAll(/<meta\b([^>]*)>/giu)) {
+    const attributes = metaAttributes(match[1]);
+    const property = String(attributes.property || attributes.name || "").toLocaleLowerCase("en");
+    if (!["og:image", "og:image:secure_url", "twitter:image", "twitter:image:src"].includes(property)) continue;
+    try {
+      const url = new URL(String(attributes.content || "").trim(), pageUrl);
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) continue;
+      return url.href;
+    } catch {
+      // Keep looking for another valid social preview.
+    }
+  }
+  return "";
+}
+
+export function createContactSocialAvatarResolver({
+  fetchHtml = fetchPublicHtml,
+  fetchImage = fetchPublicImage,
+} = {}) {
+  return async function resolveContactSocialAvatar(links = []) {
+    const candidates = links
+      .map((link) => ({ link, profileUrl: socialProfileUrl(link) }))
+      .filter(({ profileUrl }) => profileUrl);
+    if (!candidates.length) throw avatarError("Добавьте ссылку на поддерживаемую соцсеть");
+
+    let lastError;
+    for (const { link, profileUrl } of candidates) {
+      try {
+        const { html, url } = await fetchHtml(profileUrl, { timeoutMs: 12_000, maxBytes: 1_000_000, maxRedirects: 3 });
+        const facebookImage = FACEBOOK_HOSTS.has(new URL(profileUrl).hostname.toLocaleLowerCase("en"))
+          ? facebookAvatarUrlFromHtml(html)
+          : "";
+        const avatarUrl = facebookImage || socialAvatarUrlFromHtml(html, url);
+        if (!avatarUrl) throw avatarError();
+        const image = await fetchImage(avatarUrl, { timeoutMs: 12_000, maxBytes: 8_000_000, maxRedirects: 3 });
+        return {
+          body: image.body,
+          mimeType: image.mimeType,
+          source: String(link.label || new URL(profileUrl).hostname).trim(),
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw avatarError("Не удалось получить публичное фото из добавленных соцсетей", { cause: lastError });
+  };
+}
+
 function createLimiter(limit) {
   let active = 0;
   const queue = [];
@@ -77,9 +151,9 @@ function createLimiter(limit) {
 export function createContactAvatarLoader({
   fetchHtml = fetchPublicHtml,
   fetchImage = fetchPublicImage,
-  concurrency = 4,
-  maxEntries = 256,
-  ttlMs = 6 * 60 * 60 * 1_000,
+  concurrency = 8,
+  maxEntries = 2048,
+  ttlMs = 24 * 60 * 60 * 1_000,
   now = () => Date.now(),
 } = {}) {
   const cache = new Map();
@@ -127,4 +201,29 @@ export function createContactAvatarLoader({
   };
 }
 
-export const loadContactAvatar = createContactAvatarLoader();
+const loadRemoteContactAvatar = createContactAvatarLoader();
+export const resolveContactSocialAvatar = createContactSocialAvatarResolver();
+const staticAvatarCache = new Map();
+const staticAvatarDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "contact-avatars-data");
+
+async function loadStaticContactAvatar(contactId) {
+  if (staticAvatarCache.has(contactId)) return staticAvatarCache.get(contactId);
+  let body;
+  try {
+    body = await readFile(path.join(staticAvatarDir, `${contactId}.webp`));
+  } catch (error) {
+    throw avatarError("Сохранённое фото профиля недоступно", { cause: error });
+  }
+  const value = {
+    body,
+    mimeType: "image/webp",
+    etag: `"${createHash("sha256").update(body).digest("base64url").slice(0, 32)}"`,
+  };
+  staticAvatarCache.set(contactId, value);
+  return value;
+}
+
+export async function loadContactAvatar(contact) {
+  if (STATIC_CONTACT_AVATAR_IDS.has(contact?.id)) return loadStaticContactAvatar(contact.id);
+  return loadRemoteContactAvatar(contact);
+}

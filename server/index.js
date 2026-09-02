@@ -12,14 +12,24 @@ import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
+import { externalCatalogItemFromRow } from "./external-catalog.js";
+import { groupCatalogRows } from "./wish-catalog.js";
+import { buildFulfilledWishSuggestions } from "./fulfilled-wish-suggestions.js";
 import { VehicleCatalogUnavailableError, vehicleCatalog } from "./vehicle-catalog.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
 import { fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
 import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, mergeDirectOffers } from "./marketplace-resolvers.js";
+import {
+  decryptUserCredential,
+  encryptUserCredential,
+  userCredentialHint,
+  userCredentialsConfigured,
+  UserCredentialsError,
+} from "./user-credentials.js";
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
-import { loadContactAvatar } from "./contact-avatars.js";
+import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
 import { contactAvatarPath, contactFromOverride, findContact, listContacts, mergeContactOverride } from "./contacts.js";
 import {
   LAB_ATTENTION_ITEMS, LAB_REPORTS, LAB_TRENDS, mergeLabReportsByDate,
@@ -71,6 +81,7 @@ import {
 import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
+import { isSphereSection } from "../shared/sphere-sharing.js";
 import { getSmsConfig, sendSms } from "./sms.js";
 import {
   getTelegramAuthConfig,
@@ -114,6 +125,11 @@ const birthdaySchema = z.string().date().refine(
 );
 const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const listSpaceSchema = z.enum(listSpaceValues);
+const catalogQuerySchema = z.object({
+  space: listSpaceSchema.default("products"),
+  limit: z.coerce.number().int().min(1).max(96).default(48),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+}).strict();
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
 }).strict();
@@ -124,6 +140,10 @@ const phoneVerifySchema = z.object({
 const telegramInitDataSchema = z.object({
   initData: z.string().min(1).max(16_384),
 }).strict();
+const openRouterCredentialSchema = z.object({
+  apiKey: z.string().trim().min(20).max(512).regex(/^sk-or-v1-[A-Za-z0-9_-]+$/),
+}).strict();
+const OPENROUTER_CREDENTIAL_PROVIDER = "openrouter";
 const contactLinkSchema = z.object({
   label: z.string().trim().min(1).max(40),
   url: z.string().trim().max(2_000).url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
@@ -134,6 +154,7 @@ const contactUpdateSchema = z.object({
   role: z.string().trim().max(240),
   category: z.string().trim().max(80),
   status: z.string().trim().max(80),
+  avatarUrl: z.union([z.literal(""), z.string().trim().regex(uploadedMediaUrlPattern)]).default(""),
   links: z.array(contactLinkSchema).max(12),
   notes: z.string().trim().max(50_000),
 }).strict();
@@ -223,6 +244,7 @@ const conferenceReorderSchema = z.object({
 });
 const conferenceCreateSchema = z.object({
   title: z.string().trim().min(1).max(160),
+  logoUrl: educationLogoUrlSchema,
   status: z.enum(["planned", "registered", "attended"]),
   role: z.enum(["attendee", "speaker", "organizer"]),
   format: z.enum(["offline", "online", "hybrid"]),
@@ -341,6 +363,37 @@ const medicationGroupMoveSchema = z.object({
 }).strict();
 const careerSectionSchema = z.enum(["about", "cv", "performance", "development", "domain"]);
 const careerMarkdownSchema = z.string().max(200_000);
+const careerCvExperienceSchema = z.object({
+  id: z.string().min(1).max(120),
+  company: z.string().max(240),
+  position: z.string().max(240),
+  startDate: z.string().max(20),
+  endDate: z.string().max(20),
+  current: z.boolean(),
+  description: z.string().max(20_000),
+}).strict();
+const careerCvEducationSchema = z.object({
+  id: z.string().min(1).max(120),
+  institution: z.string().max(500),
+  faculty: z.string().max(500),
+  specialization: z.string().max(500),
+  graduationYear: z.string().max(20),
+}).strict();
+const careerCvStructuredSchema = z.object({
+  version: z.literal(1),
+  desiredPosition: z.string().max(500),
+  specialization: z.string().max(500),
+  city: z.string().max(240),
+  salary: z.string().max(120),
+  employment: z.string().max(240),
+  schedule: z.string().max(240),
+  about: z.string().max(20_000),
+  skills: z.array(z.string().min(1).max(160)).max(100),
+  experiences: z.array(careerCvExperienceSchema).max(100),
+  education: z.array(careerCvEducationSchema).max(100),
+  legacyMarkdown: careerMarkdownSchema,
+}).strict();
+const careerCvSchema = z.union([careerMarkdownSchema, careerCvStructuredSchema]);
 const careerReviewTextSchema = z.string().max(20_000);
 const careerReviewBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("paragraph"), text: careerReviewTextSchema }).strict(),
@@ -383,7 +436,7 @@ const careerPerformanceSchema = z.object({
 }).strict();
 const careerContentSchemas = {
   about: careerMarkdownSchema,
-  cv: careerMarkdownSchema,
+  cv: careerCvSchema,
   development: careerMarkdownSchema,
   domain: careerMarkdownSchema,
   performance: careerPerformanceSchema,
@@ -426,6 +479,7 @@ const passwordResetRequestRateLimit = createRateLimit({
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
 const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
+const contactAvatarResolveRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const labPdfUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 const marketplaceOffersRateLimit = createRateLimit({
   windowMs: 15 * 60 * 1000,
@@ -623,6 +677,7 @@ function cleanUser(row) {
     email: row.email,
     username: row.username,
     name: row.name,
+    accountType: row.account_type || "personal",
     bio: row.bio,
     birthday: row.birthday,
     avatarUrl: row.avatar_url,
@@ -747,6 +802,7 @@ function mapEducationConference(row) {
   return {
     id: row.id,
     title: row.title,
+    logoUrl: row.logo_url,
     status: row.status,
     role: row.role,
     format: row.format,
@@ -913,7 +969,64 @@ function requirePrivateSphereOwner(req, res, next) {
   if (!req.user?.can_discover_spheres) {
     return res.status(403).json({ error: "Раздел доступен только владельцу профиля" });
   }
+  const requestedOwner = String(req.query.owner || "").trim().toLowerCase();
+  if (requestedOwner && requestedOwner !== req.user.username) {
+    return res.status(403).json({ error: "Раздел открыт только для чтения", code: "SPHERE_READ_ONLY" });
+  }
   next();
+}
+
+function requireBusinessAccount(req, res, next) {
+  if (req.user?.account_type !== "business") {
+    return res.status(403).json({ error: "Раздел доступен только бизнес-аккаунтам", code: "BUSINESS_ACCOUNT_REQUIRED" });
+  }
+  next();
+}
+
+function shareUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.name,
+    avatarUrl: row.avatar_url,
+    accountType: row.account_type || "personal",
+  };
+}
+
+async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
+  if (!isSphereSection(sphere, section)) return { status: 404, error: "Раздел не найден" };
+  const ownerUsername = String(requestedOwner || "").trim().toLowerCase();
+  if (!ownerUsername || ownerUsername === viewer.username) {
+    if (!viewer.can_discover_spheres) return { status: 403, error: "Раздел доступен только владельцу профиля" };
+    return { owner: viewer, isOwner: true };
+  }
+  const owner = await query(
+    `SELECT u.*,TRUE AS can_discover_spheres
+     FROM users u
+     JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE u.username=$1`,
+    [ownerUsername],
+  );
+  if (!owner.rowCount) return { status: 404, error: "Владелец раздела не найден" };
+  const permission = await query(
+    `SELECT 1 FROM sphere_section_shares
+     WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
+    [owner.rows[0].id, viewer.id, sphere, section],
+  );
+  if (!permission.rowCount) return { status: 403, error: "Владелец не открыл вам этот раздел", code: "SPHERE_SHARE_REQUIRED" };
+  return { owner: owner.rows[0], isOwner: false };
+}
+
+function requireSphereReadAccess(sphere, sectionValue) {
+  return asyncRoute(async (req, res, next) => {
+    const section = typeof sectionValue === "function" ? sectionValue(req) : sectionValue;
+    const access = await sphereShareOwner(req.user, req.query.owner, sphere, section);
+    if (access.error) return res.status(access.status).json({ error: access.error, code: access.code });
+    req.sphereViewer = req.user;
+    req.sphereOwner = access.owner;
+    req.user = access.owner;
+    next();
+  });
 }
 
 app.use("/api", asyncRoute(optionalAuth));
@@ -1834,12 +1947,14 @@ app.post("/api/uploads/images", requireAuth, imageUploadRateLimit, imageUploadBo
 
 app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) => {
   const imageUrl = `/api/media/${req.params.id}`;
-  const [usedByWish, usedByProfile, usedByCourse] = await Promise.all([
+  const [usedByWish, usedByProfile, usedByCourse, usedByConference, usedByContact] = await Promise.all([
     query("SELECT 1 FROM wishes WHERE user_id=$1 AND image_url=$2 LIMIT 1", [req.user.id, imageUrl]),
     query("SELECT 1 FROM users WHERE id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
     query("SELECT 1 FROM education_courses WHERE user_id=$1 AND logo_url=$2 LIMIT 1", [req.user.id, imageUrl]),
+    query("SELECT 1 FROM education_conferences WHERE user_id=$1 AND logo_url=$2 LIMIT 1", [req.user.id, imageUrl]),
+    query("SELECT 1 FROM contact_overrides WHERE user_id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
   ]);
-  if (usedByWish.rowCount || usedByProfile.rowCount || usedByCourse.rowCount) {
+  if (usedByWish.rowCount || usedByProfile.rowCount || usedByCourse.rowCount || usedByConference.rowCount || usedByContact.rowCount) {
     return res.status(409).json({ error: "Изображение уже используется" });
   }
   const deleted = await query("DELETE FROM wish_images WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
@@ -1915,9 +2030,12 @@ app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (re
 }));
 
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
-  const parsed = credentialsSchema.extend({ name: z.string().trim().min(2).max(80) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Проверьте имя, email и пароль — минимум 8 символов" });
-  const { name, email, password } = parsed.data;
+  const parsed = credentialsSchema.extend({
+    name: z.string().trim().min(2).max(80),
+    accountType: z.enum(["personal", "business"]).default("personal"),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Проверьте тип аккаунта, имя, email и пароль — минимум 8 символов" });
+  const { name, email, password, accountType } = parsed.data;
   const exists = await query("SELECT 1 FROM users WHERE email = $1", [email]);
   if (exists.rowCount) return res.status(409).json({ error: "Аккаунт с таким email уже есть" });
 
@@ -1926,8 +2044,8 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   const passwordHash = await hashPassword(password);
   await transaction(async (client) => {
     await client.query(
-      "INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,$4,$5)",
-      [userId, email, username, name, passwordHash],
+      "INSERT INTO users (id,email,username,name,password_hash,account_type) VALUES ($1,$2,$3,$4,$5,$6)",
+      [userId, email, username, name, passwordHash, accountType],
     );
     await client.query(
       `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
@@ -2010,6 +2128,352 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
 app.get("/api/me", asyncRoute(async (req, res) => {
   if (!req.user) return res.json({ user: null });
   res.json({ user: await cleanAuthenticatedUser(req.user) });
+}));
+
+async function openRouterCredentialRow(userId) {
+  const result = await query(
+    `SELECT encrypted_secret,secret_hint,updated_at
+     FROM user_ai_credentials WHERE user_id=$1 AND provider=$2`,
+    [userId, OPENROUTER_CREDENTIAL_PROVIDER],
+  );
+  return result.rows[0] || null;
+}
+
+async function resolveOpenRouterApiKey(userId) {
+  const credential = await openRouterCredentialRow(userId);
+  if (!credential) {
+    return { apiKey: process.env.OPENROUTER_API_KEY || "", source: process.env.OPENROUTER_API_KEY ? "server" : "none" };
+  }
+  return {
+    apiKey: decryptUserCredential(credential.encrypted_secret, {
+      userId,
+      provider: OPENROUTER_CREDENTIAL_PROVIDER,
+    }),
+    source: "user",
+  };
+}
+
+function openRouterCredentialStatus(credential) {
+  return {
+    available: userCredentialsConfigured(),
+    configured: Boolean(credential),
+    keyHint: credential?.secret_hint || "",
+    serverFallbackConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+  };
+}
+
+app.get("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
+  const credential = await openRouterCredentialRow(req.user.id);
+  res.set("Cache-Control", "private, no-store");
+  return res.json(openRouterCredentialStatus(credential));
+}));
+
+app.post("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+  const parsed = openRouterCredentialSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: "Введите действующий API-ключ OpenRouter в формате sk-or-v1-…",
+      code: "openrouter_key_invalid",
+    });
+  }
+  let encryptedSecret;
+  try {
+    encryptedSecret = encryptUserCredential(parsed.data.apiKey, {
+      userId: req.user.id,
+      provider: OPENROUTER_CREDENTIAL_PROVIDER,
+    });
+  } catch (error) {
+    if (error instanceof UserCredentialsError) {
+      return res.status(503).json({ error: error.message, code: error.code });
+    }
+    throw error;
+  }
+  const hint = userCredentialHint(parsed.data.apiKey);
+  const result = await query(
+    `INSERT INTO user_ai_credentials (user_id,provider,encrypted_secret,secret_hint)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (user_id,provider) DO UPDATE SET
+       encrypted_secret=EXCLUDED.encrypted_secret,
+       secret_hint=EXCLUDED.secret_hint,
+       updated_at=CURRENT_TIMESTAMP
+     RETURNING encrypted_secret,secret_hint,updated_at`,
+    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, encryptedSecret, hint],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json(openRouterCredentialStatus(result.rows[0]));
+}));
+
+app.delete("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
+  await query(
+    "DELETE FROM user_ai_credentials WHERE user_id=$1 AND provider=$2",
+    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json(openRouterCredentialStatus(null));
+}));
+
+app.get("/api/sphere-shares/incoming", requireAuth, asyncRoute(async (req, res) => {
+  const result = await query(
+    `SELECT s.sphere,s.section,s.created_at,u.id,u.username,u.name,u.avatar_url,u.account_type
+     FROM sphere_section_shares s
+     JOIN users u ON u.id=s.owner_user_id
+     WHERE s.viewer_user_id=$1
+     ORDER BY s.created_at DESC,u.name,s.sphere,s.section`,
+    [req.user.id],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    shares: result.rows.map((row) => ({
+      sphere: row.sphere,
+      section: row.section,
+      createdAt: row.created_at,
+      owner: shareUser(row),
+    })),
+  });
+}));
+
+app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) => {
+  const sphere = String(req.query.sphere || "");
+  const section = String(req.query.section || "");
+  const access = await sphereShareOwner(req.user, req.query.owner, sphere, section);
+  if (access.error) return res.status(access.status).json({ error: access.error, code: access.code });
+  let people = [];
+  let requests = [];
+  if (access.isOwner) {
+    const [peopleResult, requestResult] = await Promise.all([
+      query(
+        `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
+         FROM sphere_section_shares s
+         JOIN users u ON u.id=s.viewer_user_id
+         WHERE s.owner_user_id=$1 AND s.sphere=$2 AND s.section=$3
+         ORDER BY u.name,u.username`,
+        [access.owner.id, sphere, section],
+      ),
+      query(
+        `SELECT r.id,r.message,r.created_at,u.id AS requester_id,u.username,u.name,u.avatar_url,u.account_type
+         FROM sphere_access_requests r
+         JOIN users u ON u.id=r.requester_user_id
+         WHERE r.owner_user_id=$1 AND r.sphere=$2 AND r.section=$3 AND r.status='pending'
+         ORDER BY r.created_at,u.name`,
+        [access.owner.id, sphere, section],
+      ),
+    ]);
+    people = peopleResult.rows.map(shareUser);
+    requests = requestResult.rows.map((row) => ({
+      id: row.id,
+      message: row.message,
+      createdAt: row.created_at,
+      requester: shareUser({ ...row, id: row.requester_id }),
+    }));
+  }
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, sphere, section });
+}));
+
+app.get("/api/sphere-shares/candidates", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const sphere = String(req.query.sphere || "");
+  const section = String(req.query.section || "");
+  if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
+  const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
+  const result = await query(
+    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type,
+            (s.viewer_user_id IS NOT NULL) AS granted
+     FROM users u
+     LEFT JOIN sphere_section_shares s
+       ON s.viewer_user_id=u.id AND s.owner_user_id=$1 AND s.sphere=$2 AND s.section=$3
+     WHERE u.id<>$1
+       AND ($4='' OR LOWER(u.name) LIKE $5 OR LOWER(u.username) LIKE $5)
+     ORDER BY (s.viewer_user_id IS NOT NULL) DESC,
+              CASE WHEN u.account_type='business' THEN 0 ELSE 1 END,
+              u.name,u.username
+     LIMIT 50`,
+    [req.user.id, sphere, section, search, `%${search}%`],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ people: result.rows.map((row) => ({ ...shareUser(row), granted: Boolean(row.granted) })) });
+}));
+
+app.get("/api/business-access/users", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
+  const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
+  const result = await query(
+    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
+     FROM users u
+     JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE u.id<>$1 AND u.account_type='personal'
+       AND ($2='' OR LOWER(u.name) LIKE $3 OR LOWER(u.username) LIKE $3)
+     ORDER BY u.name,u.username
+     LIMIT 50`,
+    [req.user.id, search, `%${search}%`],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ people: result.rows.map(shareUser) });
+}));
+
+app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
+  const result = await query(
+    `SELECT r.id,r.sphere,r.section,r.message,r.status,r.created_at,r.updated_at,r.responded_at,
+            u.id AS owner_id,u.username,u.name,u.avatar_url,u.account_type
+     FROM sphere_access_requests r
+     JOIN users u ON u.id=r.owner_user_id
+     WHERE r.requester_user_id=$1
+     ORDER BY CASE r.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,r.updated_at DESC`,
+    [req.user.id],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    requests: result.rows.map((row) => ({
+      id: row.id,
+      sphere: row.sphere,
+      section: row.section,
+      message: row.message,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      respondedAt: row.responded_at,
+      owner: shareUser({ ...row, id: row.owner_id }),
+    })),
+  });
+}));
+
+app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
+  const parsed = z.object({
+    ownerId: z.string().trim().min(1).max(100),
+    sphere: z.string().trim().min(1).max(40),
+    section: z.string().trim().min(1).max(80),
+    message: z.string().trim().max(500).default(""),
+  }).strict().safeParse(req.body);
+  if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
+    return res.status(400).json({ error: "Выберите пользователя и конкретное пространство" });
+  }
+  const { ownerId, sphere, section, message } = parsed.data;
+  if (ownerId === req.user.id) return res.status(400).json({ error: "Нельзя запросить доступ у себя" });
+  const owner = await query(
+    `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
+     FROM users u
+     JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE u.id=$1 AND u.account_type='personal'`,
+    [ownerId],
+  );
+  if (!owner.rowCount) return res.status(404).json({ error: "Пользователь с доступными сферами не найден" });
+  const existingShare = await query(
+    `SELECT 1 FROM sphere_section_shares
+     WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
+    [ownerId, req.user.id, sphere, section],
+  );
+  if (existingShare.rowCount) return res.status(409).json({ error: "Доступ к этому пространству уже открыт" });
+  const pendingCount = await query(
+    "SELECT COUNT(*)::int AS count FROM sphere_access_requests WHERE requester_user_id=$1 AND status='pending'",
+    [req.user.id],
+  );
+  if (Number(pendingCount.rows[0]?.count || 0) >= 50) {
+    return res.status(429).json({ error: "Сначала дождитесь ответа на уже отправленные запросы" });
+  }
+  const id = randomUUID();
+  const result = await query(
+    `INSERT INTO sphere_access_requests
+       (id,requester_user_id,owner_user_id,sphere,section,message,status,created_at,updated_at,responded_at)
+     VALUES ($1,$2,$3,$4,$5,$6,'pending',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
+     ON CONFLICT (requester_user_id,owner_user_id,sphere,section) DO UPDATE SET
+       message=EXCLUDED.message,
+       status='pending',
+       updated_at=CURRENT_TIMESTAMP,
+       responded_at=NULL
+     RETURNING id,status,created_at,updated_at`,
+    [id, req.user.id, ownerId, sphere, section, message],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.status(201).json({
+    request: {
+      id: result.rows[0].id,
+      sphere,
+      section,
+      message,
+      status: result.rows[0].status,
+      createdAt: result.rows[0].created_at,
+      updatedAt: result.rows[0].updated_at,
+      owner: shareUser(owner.rows[0]),
+    },
+  });
+}));
+
+app.delete("/api/business-access/requests/:requestId", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
+  const result = await query(
+    `UPDATE sphere_access_requests
+     SET status='cancelled',updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
+     WHERE id=$1 AND requester_user_id=$2 AND status='pending'
+     RETURNING id`,
+    [req.params.requestId, req.user.id],
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Активный запрос не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ cancelled: true });
+}));
+
+app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = z.object({ decision: z.enum(["approved", "declined"]) }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
+  const response = await transaction(async (client) => {
+    const request = await client.query(
+      `SELECT id,requester_user_id,sphere,section,status
+       FROM sphere_access_requests
+       WHERE id=$1 AND owner_user_id=$2
+       FOR UPDATE`,
+      [req.params.requestId, req.user.id],
+    );
+    if (!request.rowCount) return { status: 404, error: "Запрос не найден" };
+    if (request.rows[0].status !== "pending") return { status: 409, error: "На этот запрос уже ответили" };
+    const row = request.rows[0];
+    await client.query(
+      `UPDATE sphere_access_requests
+       SET status=$1,updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
+       WHERE id=$2`,
+      [parsed.data.decision, row.id],
+    );
+    if (parsed.data.decision === "approved") {
+      await client.query(
+        `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
+        [req.user.id, row.requester_user_id, row.sphere, row.section],
+      );
+    }
+    return { decision: parsed.data.decision };
+  });
+  if (response.error) return res.status(response.status).json({ error: response.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(response);
+}));
+
+app.post("/api/sphere-shares", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = z.object({
+    viewerId: z.string().trim().min(1).max(100),
+    sphere: z.string().trim().min(1).max(40),
+    section: z.string().trim().min(1).max(80),
+    granted: z.boolean(),
+  }).strict().safeParse(req.body);
+  if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
+    return res.status(400).json({ error: "Не удалось изменить доступ к разделу" });
+  }
+  const { viewerId, sphere, section, granted } = parsed.data;
+  if (viewerId === req.user.id) return res.status(400).json({ error: "Владелец уже имеет доступ к разделу" });
+  const viewer = await query("SELECT id FROM users WHERE id=$1", [viewerId]);
+  if (!viewer.rowCount) return res.status(404).json({ error: "Пользователь не найден" });
+  if (granted) {
+    await query(
+      `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
+      [req.user.id, viewerId, sphere, section],
+    );
+  } else {
+    await query(
+      `DELETE FROM sphere_section_shares
+       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
+      [req.user.id, viewerId, sphere, section],
+    );
+  }
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ granted });
 }));
 
 app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
@@ -2155,6 +2619,103 @@ async function canViewWish(wish, viewerId, shareToken = "", client = null) {
   );
   return Boolean(follows.rowCount);
 }
+
+app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = catalogQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "Проверьте параметры каталога" });
+  const { space, limit, offset } = parsed.data;
+  const [result, externalCountResult] = await Promise.all([query(
+    `SELECT w.*,
+            u.id AS owner_id,u.username AS owner_username,u.name AS owner_name,u.avatar_url AS owner_avatar_url
+     FROM wishes w
+     JOIN users u ON u.id=w.user_id
+     LEFT JOIN (
+       SELECT ww.wish_id,
+              MAX(CASE WHEN l.privacy='private' THEN 1 ELSE 0 END) AS has_private,
+              MAX(CASE WHEN l.privacy='public' THEN 1 ELSE 0 END) AS has_public
+       FROM wishlist_wishes ww
+       JOIN wishlists l ON l.id=ww.wishlist_id
+       GROUP BY ww.wish_id
+     ) visibility ON visibility.wish_id=w.id
+     WHERE w.status='active'
+       AND COALESCE(w.space,'products')=$1
+       AND w.privacy <> 'private'
+       AND COALESCE(visibility.has_private,0)=0
+       AND (visibility.wish_id IS NULL OR visibility.has_public=1)
+     ORDER BY w.created_at DESC,w.id`,
+    [space],
+  ), query(
+    `SELECT COUNT(*)::int AS count FROM external_catalog_items
+     WHERE active=TRUE AND space=$1`,
+    [space],
+  )]);
+  const nativeItems = groupCatalogRows(result.rows);
+  const externalCount = Number(externalCountResult.rows[0]?.count || 0);
+  const nativeItemsForPage = nativeItems.slice(offset, offset + limit);
+  const externalLimit = limit - nativeItemsForPage.length;
+  const externalOffset = Math.max(0, offset - nativeItems.length);
+  let externalItems = [];
+  if (externalLimit > 0 && externalOffset < externalCount) {
+    const externalResult = await query(
+      `SELECT * FROM external_catalog_items
+       WHERE active=TRUE AND space=$1
+       ORDER BY source_rank,title,external_id
+       LIMIT $2 OFFSET $3`,
+      [space, externalLimit, externalOffset],
+    );
+    externalItems = externalResult.rows.map(externalCatalogItemFromRow);
+  }
+  res.set("Cache-Control", "private, no-store");
+  return res.json({
+    space,
+    total: nativeItems.length + externalCount,
+    limit,
+    offset,
+    items: [...nativeItemsForPage, ...externalItems],
+  });
+}));
+
+app.get("/api/gift-suggestions", requireAuth, asyncRoute(async (req, res) => {
+  const fulfilled = await query(
+    `SELECT * FROM wishes
+     WHERE user_id=$1 AND status='fulfilled'
+     ORDER BY created_at DESC,id
+     LIMIT 200`,
+    [req.user.id],
+  );
+  if (!fulfilled.rowCount) {
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ items: [] });
+  }
+
+  const spaces = [...new Set(fulfilled.rows.map((wish) => wish.space || "products"))];
+  const spacePlaceholders = spaces.map((_, index) => `$${index + 2}`).join(",");
+  const candidates = await query(
+    `SELECT w.*,
+            u.id AS owner_id,u.username AS owner_username,u.name AS owner_name,u.avatar_url AS owner_avatar_url
+     FROM wishes w
+     JOIN users u ON u.id=w.user_id
+     LEFT JOIN (
+       SELECT ww.wish_id,
+              MAX(CASE WHEN l.privacy='private' THEN 1 ELSE 0 END) AS has_private,
+              MAX(CASE WHEN l.privacy='public' THEN 1 ELSE 0 END) AS has_public
+       FROM wishlist_wishes ww
+       JOIN wishlists l ON l.id=ww.wishlist_id
+       GROUP BY ww.wish_id
+     ) visibility ON visibility.wish_id=w.id
+     WHERE w.user_id<>$1
+       AND w.status='active'
+       AND COALESCE(w.space,'products') IN (${spacePlaceholders})
+       AND w.privacy <> 'private'
+       AND COALESCE(visibility.has_private,0)=0
+       AND (visibility.wish_id IS NULL OR visibility.has_public=1)
+     ORDER BY w.created_at DESC,w.id`,
+    [req.user.id, ...spaces],
+  );
+
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ items: buildFulfilledWishSuggestions(fulfilled.rows, candidates.rows) });
+}));
 
 app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
   const [lists, wishes, follows, birthdays, reservations, groupRows] = await Promise.all([
@@ -2558,6 +3119,12 @@ const vehicleModelsQuerySchema = z.object({
   make: z.string().trim().min(1).max(120),
 });
 
+const vehicleMatchSchema = z.object({
+  title: z.string().trim().max(500).default(""),
+  description: z.string().trim().max(2_000).default(""),
+  url: z.string().trim().max(2_000).default(""),
+}).refine((value) => value.title || value.description || value.url, { message: "Добавьте текст или ссылку объявления" });
+
 function sendVehicleCatalogError(res, error) {
   if (!(error instanceof VehicleCatalogUnavailableError)) throw error;
   return res.status(503).json({
@@ -2583,6 +3150,18 @@ app.get("/api/vehicle-catalog/models", requireAuth, asyncRoute(async (req, res) 
     const models = await vehicleCatalog.listModels(parsed.data.make);
     res.set("Cache-Control", "private, max-age=300");
     return res.json({ models });
+  } catch (error) {
+    return sendVehicleCatalogError(res, error);
+  }
+}));
+
+app.post("/api/vehicle-catalog/match", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = vehicleMatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Добавьте название или описание объявления" });
+  try {
+    const vehicle = await vehicleCatalog.matchListing(parsed.data);
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ vehicle });
   } catch (error) {
     return sendVehicleCatalogError(res, error);
   }
@@ -2621,15 +3200,19 @@ app.get("/api/wishes/:id/marketplace-offers", requireAuth, asyncRoute(async (req
     [req.params.id, req.user.id],
   );
   if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
-  const snapshot = await query(
-    `SELECT query,offers_json,summary,model,searched_at,expires_at
-     FROM wish_marketplace_offer_snapshots WHERE wish_id=$1 AND user_id=$2`,
-    [req.params.id, req.user.id],
-  );
+  const [snapshot, credential] = await Promise.all([
+    query(
+      `SELECT query,offers_json,summary,model,searched_at,expires_at
+       FROM wish_marketplace_offer_snapshots WHERE wish_id=$1 AND user_id=$2`,
+      [req.params.id, req.user.id],
+    ),
+    openRouterCredentialRow(req.user.id),
+  ]);
   res.set("Cache-Control", "private, no-store");
   return res.json({
     configured: true,
-    aiConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+    aiConfigured: Boolean(process.env.OPENROUTER_API_KEY || (credential && userCredentialsConfigured())),
+    personalKeyConfigured: Boolean(credential),
     snapshot: parseMarketplaceOfferSnapshot(snapshot.rows[0], owned.rows[0].title),
   });
 }));
@@ -2638,7 +3221,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
   let owned;
   try {
     owned = await query(
-      `SELECT id,title,description,url,price,currency,space
+      `SELECT id,title,description,url,vehicle_make AS "vehicleMake",vehicle_model AS "vehicleModel",price,currency,space
        FROM wishes WHERE id=$1 AND user_id=$2`,
       [req.params.id, req.user.id],
     );
@@ -2646,6 +3229,16 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     return next(error);
   }
   if (!owned.rowCount) return res.status(404).json({ error: "Желание не найдено" });
+
+  let openRouterCredential;
+  try {
+    openRouterCredential = await resolveOpenRouterApiKey(req.user.id);
+  } catch (error) {
+    if (error instanceof UserCredentialsError) {
+      return res.status(503).json({ error: error.message, code: error.code });
+    }
+    return next(error);
+  }
 
   res.status(200);
   res.set({
@@ -2664,12 +3257,22 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
   });
 
   try {
-    writeMarketplaceOfferEvent(res, "status", { stage: "searching", message: "Ищем товар на маркетплейсах…" });
-    const openRouterTask = process.env.OPENROUTER_API_KEY
+    const foodSearch = owned.rows[0].space === "food";
+    const vehicleSearch = owned.rows[0].space === "transport";
+    writeMarketplaceOfferEvent(res, "status", {
+      stage: "searching",
+      message: vehicleSearch ? "Ищем автомобиль в объявлениях…" : foodSearch ? "Ищем продукт в магазинах…" : "Ищем товар на маркетплейсах…",
+    });
+    const openRouterTask = openRouterCredential.apiKey
       ? fetchOpenRouterMarketplaceOffers(owned.rows[0], {
+        apiKey: openRouterCredential.apiKey,
         signal: controller.signal,
         allowEmpty: true,
-        marketplaceIds: ["ozon"],
+        marketplaceIds: vehicleSearch
+          ? ["auto-ru", "avito-auto", "drom"]
+          : foodSearch
+            ? ["samokat", "lavka", "lenta", "vkusvill"]
+            : ["ozon"],
       })
       : Promise.resolve({
         offers: [],
@@ -2694,7 +3297,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     );
     if (!result.offers.length) {
       if (openRouterSearch.status === "rejected") throw openRouterSearch.reason;
-      throw new OpenRouterOffersError("Не удалось найти прямые карточки товара", {
+      throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти прямые объявления автомобиля" : "Не удалось найти прямые карточки товара", {
         status: 422,
         code: "marketplace_offers_not_found",
       });
@@ -2704,7 +3307,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     } else if (result.offers.length && result.offers.every((offer) => offer.source)) {
       result.summary = "Новых точных предложений не найдено. Исходная ссылка сохранена.";
     }
-    writeMarketplaceOfferEvent(res, "status", { stage: "ranking", message: "Проверяем цены и выбираем лучшие…" });
+    writeMarketplaceOfferEvent(res, "status", { stage: "ranking", message: vehicleSearch ? "Сверяем автомобили и выбираем лучшие объявления…" : "Проверяем цены и выбираем лучшие…" });
 
     const configuredMinutes = Number.parseInt(process.env.OPENROUTER_OFFERS_CACHE_MINUTES || "60", 10);
     const cacheMinutes = Math.min(1_440, Math.max(5, Number.isFinite(configuredMinutes) ? configuredMinutes : 60));
@@ -3210,8 +3813,8 @@ app.post("/api/wishes/:id/reserve", requireAuth, asyncRoute(async (req, res) => 
 async function contactOverrides(userId, contactId = "") {
   const params = contactId ? [userId, contactId] : [userId];
   const result = await query(
-    `SELECT contact_id AS "contactId",name,company,role,category,status,
-            links_json AS "linksJson",notes,updated_at AS "updatedAt"
+    `SELECT contact_id AS "contactId",name,company,role,category,status,avatar_url AS "avatarUrl",
+            links_json AS "linksJson",notes,deleted_at AS "deletedAt",updated_at AS "updatedAt"
      FROM contact_overrides
      WHERE user_id=$1${contactId ? " AND contact_id=$2" : ""}
      ORDER BY updated_at DESC,contact_id`,
@@ -3237,6 +3840,7 @@ async function contactForUser(userId, contactId) {
     contactOverrides(userId, contactId),
     contactFavoriteIds(userId, contactId),
   ]);
+  if (override?.deletedAt) return null;
   const source = findContact(contactId);
   const contact = source ? mergeContactOverride(source, override) : contactFromOverride(override);
   if (!contact) return null;
@@ -3384,7 +3988,13 @@ function parseStoredJson(value, fallback = null) {
   }
 }
 
-async function identityReportPayload(userId, section, client = null) {
+function withSphereOwnerQuery(url, ownerUsername = "") {
+  if (!url || !ownerUsername) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}owner=${encodeURIComponent(ownerUsername)}`;
+}
+
+async function identityReportPayload(userId, section, client = null, ownerUsername = "") {
   const execute = client ? client.query.bind(client) : query;
   const [stateResult, filesResult] = await Promise.all([
     execute(
@@ -3404,7 +4014,7 @@ async function identityReportPayload(userId, section, client = null) {
     filename: row.filename,
     sizeBytes: Number(row.size_bytes),
     uploadedAt: row.created_at,
-    pdfUrl: `/api/identity/reports/${section}/files/${row.id}/pdf`,
+    pdfUrl: withSphereOwnerQuery(`/api/identity/reports/${section}/files/${row.id}/pdf`, ownerUsername),
   }));
   if (!stateResult.rowCount) return { mode: "default", report: null, files, updatedAt: null };
   const state = stateResult.rows[0];
@@ -3414,7 +4024,7 @@ async function identityReportPayload(userId, section, client = null) {
   return { mode: "generated", report, files, updatedAt: state.updated_at };
 }
 
-function mapUploadedLabReport(row) {
+function mapUploadedLabReport(row, ownerUsername = "") {
   const report = typeof row.report_json === "string" ? JSON.parse(row.report_json) : row.report_json;
   return {
     ...report,
@@ -3422,12 +4032,12 @@ function mapUploadedLabReport(row) {
       uploaded: true,
       filename: row.filename,
       uploadedAt: row.created_at,
-      pdfUrl: `/api/health/lab-results/uploads/${row.id}/pdf`,
+      pdfUrl: withSphereOwnerQuery(`/api/health/lab-results/uploads/${row.id}/pdf`, ownerUsername),
     },
   };
 }
 
-async function uploadedLabReports(userId) {
+async function uploadedLabReports(userId, ownerUsername = "") {
   const result = await query(
     `SELECT id,filename,report_json,created_at
      FROM lab_report_uploads
@@ -3435,23 +4045,50 @@ async function uploadedLabReports(userId) {
      ORDER BY created_at DESC`,
     [userId],
   );
-  return result.rows.map(mapUploadedLabReport);
+  return result.rows.map((row) => mapUploadedLabReport(row, ownerUsername));
 }
 
-app.get("/api/contacts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/contacts", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
   const [overrides, favoriteIds] = await Promise.all([
     contactOverrides(req.user.id),
     contactFavoriteIds(req.user.id),
   ]);
   res.set("Cache-Control", "private, no-store");
-  res.json(listContacts({
+  const payload = listContacts({
     search: String(req.query.search || "").slice(0, 80),
     company: String(req.query.company || "").slice(0, 120),
     category: String(req.query.category || "").slice(0, 80),
     favoriteOnly: req.query.favorite === "true",
     page: req.query.page,
     pageSize: req.query.pageSize,
-  }, overrides, favoriteIds));
+  }, overrides, favoriteIds);
+  if (req.query.owner) {
+    payload.contacts = payload.contacts.map((contact) => ({
+      ...contact,
+      avatarUrl: withSphereOwnerQuery(contact.avatarUrl, req.query.owner),
+    }));
+  }
+  res.json(payload);
+}));
+
+app.post("/api/contacts/avatar/resolve", requireAuth, requirePrivateSphereOwner, contactAvatarResolveRateLimit, asyncRoute(async (req, res) => {
+  const parsed = z.object({ links: z.array(contactLinkSchema).min(1).max(12) }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Добавьте корректную ссылку на соцсеть" });
+  try {
+    const image = await resolveContactSocialAvatar(parsed.data.links);
+    const id = randomUUID();
+    await query(
+      "INSERT INTO wish_images (id,user_id,mime_type,image_data,size_bytes) VALUES ($1,$2,$3,$4,$5)",
+      [id, req.user.id, image.mimeType, image.body, image.body.length],
+    );
+    res.set("Cache-Control", "private, no-store");
+    return res.status(201).json({ id, imageUrl: `/api/media/${id}`, source: image.source });
+  } catch (error) {
+    if (error instanceof MetadataFetchError) {
+      return res.status(error.status || 422).json({ error: error.message, code: error.code });
+    }
+    throw error;
+  }
 }));
 
 app.post("/api/contacts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
@@ -3461,18 +4098,20 @@ app.post("/api/contacts", requireAuth, requirePrivateSphereOwner, asyncRoute(asy
   const contactId = randomUUID();
   const result = await query(
     `INSERT INTO contact_overrides (
-       user_id,contact_id,name,company,role,category,status,links_json,notes,updated_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+       user_id,contact_id,name,company,role,category,status,avatar_url,links_json,notes,updated_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP)
      RETURNING contact_id AS "contactId",name,company,role,category,status,
-               links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
-    [req.user.id, contactId, data.name, data.company, data.role, data.category, data.status, JSON.stringify(data.links), data.notes],
+               avatar_url AS "avatarUrl",links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
+    [req.user.id, contactId, data.name, data.company, data.role, data.category, data.status, data.avatarUrl, JSON.stringify(data.links), data.notes],
   );
   const contact = { ...contactFromOverride(result.rows[0]), favorite: false };
   res.set("Cache-Control", "private, no-store");
-  return res.status(201).json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+  return res.status(201).json({ contact: { ...contact, avatarSourceUrl: contact.avatarUrl, avatarUrl: contactAvatarPath(contact) } });
 }));
 
-app.get("/api/career/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/career/content/:section", requireAuth, requireSphereReadAccess("career", (req) => (
+  req.params.section === "development" ? "development-plan" : req.params.section
+)), asyncRoute(async (req, res) => {
   const section = careerSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).json({ error: "Раздел карьеры не найден" });
   const result = await query(
@@ -3490,7 +4129,7 @@ app.get("/api/career/content/:section", requireAuth, requirePrivateSphereOwner, 
   return res.json({ content, updatedAt: result.rows[0].updated_at });
 }));
 
-app.get("/api/identity/content/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/identity/content/:section", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
   const section = identitySectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).json({ error: "Раздел идентичности не найден" });
   const result = await query(
@@ -3543,10 +4182,10 @@ app.patch("/api/identity/content/:section", requireAuth, requirePrivateSphereOwn
   return res.json({ content: JSON.parse(result.rows[0].content_json), updatedAt: result.rows[0].updated_at });
 }));
 
-app.get("/api/identity/reports/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/identity/reports/:section", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
   const section = identityReportSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
-  const payload = await identityReportPayload(req.user.id, section.data);
+  const payload = await identityReportPayload(req.user.id, section.data, null, req.query.owner);
   res.set("Cache-Control", "private, no-store");
   return res.json(payload);
 }));
@@ -3655,7 +4294,7 @@ app.delete("/api/identity/reports/:section", requireAuth, requirePrivateSphereOw
   return res.json({ mode: "empty", report: null, files: [] });
 }));
 
-app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
   const section = identityReportSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).end();
   const result = await query(
@@ -3801,7 +4440,7 @@ app.delete("/api/education/lists/:listId", requireAuth, requirePrivateSphereOwne
   return res.json({ ok: true, unlistedCount: outcome.unlistedCount });
 }));
 
-app.get("/api/education/courses", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/education/courses", requireAuth, requireSphereReadAccess("education", "courses"), asyncRoute(async (req, res) => {
   const [result, lists, groups] = await Promise.all([query(
     `SELECT id,title,provider,status,logo_url,url,description,started_on,completed_on,list_id,sort_order,created_at,updated_at
      FROM education_courses
@@ -4302,9 +4941,9 @@ function registerEducationItemGroupRoutes(config) {
 
 Object.values(educationGroupedSections).forEach(registerEducationItemGroupRoutes);
 
-app.get("/api/education/conferences", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/education/conferences", requireAuth, requireSphereReadAccess("education", "conferences"), asyncRoute(async (req, res) => {
   const [result, lists, groups] = await Promise.all([query(
-    `SELECT id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at
+    `SELECT id,title,logo_url,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at
      FROM education_conferences
      WHERE user_id=$1
      ORDER BY sort_order,
@@ -4322,7 +4961,7 @@ app.post("/api/education/conferences", requireAuth, requirePrivateSphereOwner, a
   if (!parsed.success) {
     const endsOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endsOn");
     return res.status(400).json({
-      error: endsOnIssue?.message || "Проверьте название, ссылку и даты конференции",
+      error: endsOnIssue?.message || "Проверьте название, ссылку, логотип и даты конференции",
       code: "CONFERENCE_VALIDATION_ERROR",
     });
   }
@@ -4333,14 +4972,14 @@ app.post("/api/education/conferences", requireAuth, requirePrivateSphereOwner, a
   const listId = conference.listId || null;
   const result = await withMutationLock(`education-conferences:${req.user.id}`, () => query(
     `INSERT INTO education_conferences (
-       id,user_id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order
-     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE(MAX(sort_order),-1)+1
-       FROM education_conferences WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $12
-     RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+       id,user_id,title,logo_url,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order
+     ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,COALESCE(MAX(sort_order),-1)+1
+       FROM education_conferences WHERE user_id=$2 AND list_id IS NOT DISTINCT FROM $13
+     RETURNING id,title,logo_url,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
     [
-      randomUUID(), req.user.id, conference.title, conference.status, conference.role,
-      conference.format, conference.location, conference.url, conference.description,
-      conference.startsOn || null, conference.endsOn || null, listId,
+      randomUUID(), req.user.id, conference.title, conference.logoUrl, conference.status,
+      conference.role, conference.format, conference.location, conference.url,
+      conference.description, conference.startsOn || null, conference.endsOn || null, listId,
     ],
   ));
   res.set("Cache-Control", "private, no-store");
@@ -4404,7 +5043,7 @@ app.patch("/api/education/conferences/:conferenceId/list", requireAuth, requireP
            ) ELSE item.sort_order END,
            updated_at=CURRENT_TIMESTAMP
        WHERE item.id=$2 AND item.user_id=$3
-       RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+       RETURNING id,title,logo_url,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
       [listId, req.params.conferenceId, req.user.id],
     );
     return { conference: mapEducationConference(result.rows[0]), groupChange };
@@ -4419,7 +5058,7 @@ app.patch("/api/education/conferences/:conferenceId", requireAuth, requirePrivat
   if (!parsed.success) {
     const endsOnIssue = parsed.error.issues.find((issue) => issue.path[0] === "endsOn");
     return res.status(400).json({
-      error: endsOnIssue?.message || "Проверьте название, ссылку и даты конференции",
+      error: endsOnIssue?.message || "Проверьте название, ссылку, логотип и даты конференции",
       code: "CONFERENCE_VALIDATION_ERROR",
     });
   }
@@ -4439,21 +5078,21 @@ app.patch("/api/education/conferences/:conferenceId", requireAuth, requirePrivat
       : await detachEducationItemFromGroup(client, "conferences", req.params.conferenceId, req.user.id);
     const result = await client.query(
       `UPDATE education_conferences item SET
-         title=$1,status=$2,role=$3,format=$4,location=$5,url=$6,description=$7,
-         starts_on=$8,ends_on=$9,list_id=$10,
-         sort_order=CASE WHEN item.list_id IS DISTINCT FROM $10 THEN (
+         title=$1,logo_url=$2,status=$3,role=$4,format=$5,location=$6,url=$7,description=$8,
+         starts_on=$9,ends_on=$10,list_id=$11,
+         sort_order=CASE WHEN item.list_id IS DISTINCT FROM $11 THEN (
            SELECT COALESCE(MAX(other.sort_order),-1)+1
            FROM education_conferences other
-           WHERE other.user_id=$12 AND other.list_id IS NOT DISTINCT FROM $10
+           WHERE other.user_id=$13 AND other.list_id IS NOT DISTINCT FROM $11
          ) ELSE item.sort_order END,
          updated_at=CURRENT_TIMESTAMP
-       WHERE item.id=$11 AND item.user_id=$12
-       RETURNING id,title,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
+       WHERE item.id=$12 AND item.user_id=$13
+       RETURNING id,title,logo_url,status,role,format,location,url,description,starts_on,ends_on,list_id,sort_order,created_at,updated_at`,
       [
-        conference.title, conference.status, conference.role, conference.format,
-        conference.location, conference.url, conference.description,
-        conference.startsOn || null, conference.endsOn || null,
-        listId, req.params.conferenceId, req.user.id,
+        conference.title, conference.logoUrl, conference.status, conference.role,
+        conference.format, conference.location, conference.url, conference.description,
+        conference.startsOn || null, conference.endsOn || null, listId,
+        req.params.conferenceId, req.user.id,
       ],
     );
     return { conference: mapEducationConference(result.rows[0]), groupChange };
@@ -4463,7 +5102,7 @@ app.patch("/api/education/conferences/:conferenceId", requireAuth, requirePrivat
   return res.json(outcome);
 }));
 
-app.get("/api/education/coaching-sessions", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/education/coaching-sessions", requireAuth, requireSphereReadAccess("education", "coaching"), asyncRoute(async (req, res) => {
   const [result, lists, groups] = await Promise.all([query(
     `SELECT id,title,coach,status,format,location,url,description,session_on,session_time,duration_minutes,list_id,sort_order,created_at,updated_at
      FROM education_coaching_sessions
@@ -4623,7 +5262,7 @@ app.patch("/api/education/coaching-sessions/:sessionId", requireAuth, requirePri
   return res.json(outcome);
 }));
 
-app.get("/api/health/workouts", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/health/workouts", requireAuth, requireSphereReadAccess("health", "sport"), asyncRoute(async (req, res) => {
   const [result, lists] = await Promise.all([query(
     `SELECT id,title,workout_type,status,workout_on,start_time,duration_minutes,intensity,distance_km,calories,notes,list_id,sort_order,created_at,updated_at
      FROM health_workouts
@@ -4760,6 +5399,16 @@ app.patch("/api/health/workouts/:workoutId", requireAuth, requirePrivateSphereOw
   return res.json({ workout: mapHealthWorkout(result.rows[0]) });
 }));
 
+app.delete("/api/health/workouts/:workoutId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const result = await withMutationLock(`health-workouts:${req.user.id}`, () => query(
+    "DELETE FROM health_workouts WHERE id=$1 AND user_id=$2 RETURNING id",
+    [req.params.workoutId, req.user.id],
+  ));
+  if (!result.rowCount) return res.status(404).json({ error: "Тренировка не найдена", code: "WORKOUT_NOT_FOUND" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ deleted: true, workoutId: result.rows[0].id });
+}));
+
 app.post("/api/health/medication-groups", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
   const parsed = medicationGroupSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Укажите название группы до 60 символов" });
@@ -4800,7 +5449,7 @@ app.delete("/api/health/medication-groups/:groupId", requireAuth, requirePrivate
   return res.status(204).end();
 }));
 
-app.get("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/health/medications", requireAuth, requireSphereReadAccess("health", "medications"), asyncRoute(async (req, res) => {
   const [medicationsResult, groupsResult] = await Promise.all([
     query(
       `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at
@@ -4930,8 +5579,8 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
   return res.json({ medication: mapHealthMedication(result.rows[0]) });
 }));
 
-app.get("/api/health/lab-results", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
-  const uploadedReports = await uploadedLabReports(req.user.id);
+app.get("/api/health/lab-results", requireAuth, requireSphereReadAccess("health", "lab-results"), asyncRoute(async (req, res) => {
+  const uploadedReports = await uploadedLabReports(req.user.id, req.query.owner);
   res.set("Cache-Control", "private, no-store");
   return res.json({
     reports: mergeLabReportsByDate([...uploadedReports, ...LAB_REPORTS]),
@@ -4983,7 +5632,7 @@ app.post(
   }),
 );
 
-app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requireSphereReadAccess("health", "lab-results"), asyncRoute(async (req, res) => {
   const result = await query(
     `SELECT id,filename,mime_type,pdf_data,size_bytes
      FROM lab_report_uploads
@@ -5002,14 +5651,33 @@ app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requirePrivateSp
   return res.type(file.mime_type).send(file.pdf_data);
 }));
 
-app.get("/api/contacts/:contactId/avatar", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/contacts/:contactId/avatar", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
   const contact = await contactForUser(req.user.id, req.params.contactId);
   if (!contact || !contactAvatarPath(contact)) return res.status(404).end();
   try {
-    const image = await loadContactAvatar(contact);
-    if (req.get("if-none-match") === image.etag) return res.status(304).end();
+    const uploadedAvatarId = uploadedMediaUrlPattern.exec(contact.avatarUrl || "")?.[1];
+    let image;
+    if (uploadedAvatarId) {
+      const result = await query(
+        "SELECT mime_type,image_data FROM wish_images WHERE id=$1 AND user_id=$2",
+        [uploadedAvatarId, req.user.id],
+      );
+      if (!result.rowCount) return res.status(404).end();
+      image = {
+        body: result.rows[0].image_data,
+        mimeType: result.rows[0].mime_type,
+        etag: `"${uploadedAvatarId}"`,
+      };
+    } else {
+      image = await loadContactAvatar(contact);
+    }
+    const cacheControl = "private, max-age=86400, stale-while-revalidate=604800";
+    if (req.get("if-none-match") === image.etag) {
+      res.set("Cache-Control", cacheControl);
+      return res.status(304).end();
+    }
     res.set({
-      "Cache-Control": "private, no-store",
+      "Cache-Control": cacheControl,
       "Content-Length": String(image.body.length),
       ETag: image.etag,
     });
@@ -5020,11 +5688,15 @@ app.get("/api/contacts/:contactId/avatar", requireAuth, requirePrivateSphereOwne
   }
 }));
 
-app.get("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/contacts/:contactId", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
   const contact = await contactForUser(req.user.id, req.params.contactId);
   if (!contact) return res.status(404).json({ error: "Контакт не найден" });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+  return res.json({ contact: {
+    ...contact,
+    avatarSourceUrl: contact.avatarUrl || "",
+    avatarUrl: withSphereOwnerQuery(contactAvatarPath(contact), req.query.owner),
+  } });
 }));
 
 app.patch("/api/contacts/:contactId/favorite", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
@@ -5057,24 +5729,58 @@ app.patch("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, as
   const data = parsed.data;
   const result = await query(
     `INSERT INTO contact_overrides (
-       user_id,contact_id,name,company,role,category,status,links_json,notes,updated_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+       user_id,contact_id,name,company,role,category,status,avatar_url,links_json,notes,updated_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP)
      ON CONFLICT (user_id,contact_id) DO UPDATE SET
        name=EXCLUDED.name,
        company=EXCLUDED.company,
        role=EXCLUDED.role,
        category=EXCLUDED.category,
        status=EXCLUDED.status,
+       avatar_url=EXCLUDED.avatar_url,
        links_json=EXCLUDED.links_json,
        notes=EXCLUDED.notes,
        updated_at=CURRENT_TIMESTAMP
      RETURNING contact_id AS "contactId",name,company,role,category,status,
-               links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
-    [req.user.id, source.id, data.name, data.company, data.role, data.category, data.status, JSON.stringify(data.links), data.notes],
+               avatar_url AS "avatarUrl",links_json AS "linksJson",notes,updated_at AS "updatedAt"`,
+    [req.user.id, source.id, data.name, data.company, data.role, data.category, data.status, data.avatarUrl, JSON.stringify(data.links), data.notes],
   );
   const contact = await contactForUser(req.user.id, source.id);
   res.set("Cache-Control", "private, no-store");
-  return res.json({ contact: { ...contact, avatarUrl: contactAvatarPath(contact) } });
+  return res.json({ contact: { ...contact, avatarSourceUrl: contact.avatarUrl || "", avatarUrl: contactAvatarPath(contact) } });
+}));
+
+app.delete("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const source = await contactForUser(req.user.id, req.params.contactId);
+  if (!source) return res.status(404).json({ error: "Контакт не найден" });
+  const imported = Boolean(findContact(source.id));
+  await withMutationLock(`contact:${req.user.id}:${source.id}`, () => transaction(async (client) => {
+    await client.query(
+      "DELETE FROM contact_favorites WHERE user_id=$1 AND contact_id=$2",
+      [req.user.id, source.id],
+    );
+    if (!imported) {
+      await client.query(
+        "DELETE FROM contact_overrides WHERE user_id=$1 AND contact_id=$2",
+        [req.user.id, source.id],
+      );
+      return;
+    }
+    await client.query(
+      `INSERT INTO contact_overrides (
+         user_id,contact_id,name,company,role,category,status,avatar_url,links_json,notes,deleted_at,updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id,contact_id) DO UPDATE SET
+         deleted_at=CURRENT_TIMESTAMP,
+         updated_at=CURRENT_TIMESTAMP`,
+      [
+        req.user.id, source.id, source.name, source.company || "", source.role || "", source.category || "",
+        source.status || "", source.avatarUrl || "", JSON.stringify(source.links || []), source.notes || "",
+      ],
+    );
+  }));
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ deleted: true });
 }));
 
 app.get("/api/people", asyncRoute(async (req, res) => {

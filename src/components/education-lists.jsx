@@ -20,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
   educationListItemCount,
   UNLISTED_EDUCATION_LIST_ID,
@@ -56,8 +57,11 @@ export function EducationItemListMenu({
   lists,
   moving = false,
   onCreateList,
+  onDelete,
   onMove,
 }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return null;
   const selectedListId = currentListId || UNLISTED_EDUCATION_LIST_ID;
   return (
     <DropdownMenu>
@@ -125,12 +129,29 @@ export function EducationItemListMenu({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator className="my-2" />
+            <DropdownMenuItem
+              variant="destructive"
+              className="app-destructive-menu-item min-h-14 gap-3 rounded-2xl px-3 text-base"
+              disabled={moving}
+              aria-haspopup="dialog"
+              onClick={onDelete}
+            >
+              <Trash2 aria-hidden="true" />
+              Удалить
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
 export function EducationSectionHeader({ title, titleId, selectedList, onAdd, onEditList }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
     <header className="flex min-h-12 w-full items-center justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
@@ -168,6 +189,7 @@ export function EducationListNavigation({
   onCreateList,
   onSelectList,
 }) {
+  const { readOnly } = useSphereSharing();
   const unlistedCount = educationListItemCount(items, UNLISTED_EDUCATION_LIST_ID);
   const showUnlisted = unlistedCount > 0 || lists.length === 0;
   return (
@@ -203,7 +225,7 @@ export function EducationListNavigation({
               );
             })}
           </ToggleGroup>
-          <Button
+          {!readOnly && <Button
             variant="ghost"
             size="icon"
             className="list-tabs__add"
@@ -213,7 +235,7 @@ export function EducationListNavigation({
             onClick={onCreateList}
           >
             <Plus size={16} />
-          </Button>
+          </Button>}
         </div>
       </div>
     </div>

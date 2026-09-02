@@ -459,7 +459,7 @@ assert(/\[data-slot="switch"\]\s*>\s*\[data-slot="switch-thumb"\]\s*\{[^}]*width
 assert(/\[data-slot="checkbox"\]\s*\{[^}]*width:\s*1\.5rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Checkboxes must keep the 24px Large geometry");
 assert(/\[data-slot="checkbox-indicator"\]\s*>\s*svg\s*\{[^}]*width:\s*1\.25rem;[^}]*height:\s*1\.25rem;/s.test(largePolicy), "App Checkbox indicators must keep the 20px Large geometry");
 assert(/\[data-slot="radio-group-item"\][\s\S]*?width:\s*1\.5rem;[\s\S]*?height:\s*1\.5rem;/.test(largePolicy), "App Radio controls must keep the 24px Large geometry");
-assert((app.match(/className="sr-only !size-px"\s+type="file"/g) || []).length === 2, "Hidden file inputs must stay outside the visible Large-control geometry contract");
+assert((app.match(/className="sr-only !size-px"\s+type="file"/g) || []).length === 3, "Hidden file inputs must stay outside the visible Large-control geometry contract");
 for (const className of ["data-[variant=destructive]:text-destructive", "data-[variant=destructive]:focus:bg-destructive/10", "dark:data-[variant=destructive]:focus:bg-destructive/20", "data-[variant=destructive]:*:[svg]:text-destructive"]) {
   assert(dropdownSource.includes(className), `DropdownMenuItem must keep the official ${className} destructive state`);
 }
@@ -497,8 +497,7 @@ for (const tag of ["input", "textarea", "select"]) {
 }
 const rawButtons = [...app.matchAll(/<button\b[^>]*>/g)].map(([tag]) => tag);
 assert(
-  rawButtons.length === 2
-    && rawButtons.every((tag) => /className="wishes-page__identity"/.test(tag) && /type="button"/.test(tag)),
+  rawButtons.length === 0,
   `App.jsx contains an unauthorized raw button: ${rawButtons.join(" | ")}`,
 );
 assert(!/role=["']menu(?:item|itemcheckbox)?["']/.test(app), "App.jsx still contains a hand-written menu role");
@@ -568,7 +567,7 @@ assert(/<ShadcnButton\b/.test(appProfileButtonSource), "AppProfileButton must us
 assert(/type="button"/.test(appProfileButtonSource) && /onClick=\{openProfileEditor\}/.test(appProfileButtonSource), "AppProfileButton must open profile editing in place");
 assert(!/<(?:Link|NavLink)\b/.test(appProfileButtonSource), "AppProfileButton must not navigate away from the current screen");
 const wishesProfileHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function WishesProfileControls"));
-assert(/<button\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "PersistentProfileHero must expose a native profile button");
+assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "PersistentProfileHero must expose the official profile button");
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = app.slice(app.indexOf("function ListTileContent"), app.indexOf("function useAsync"));
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
@@ -636,7 +635,7 @@ const quickListPickerStart = primaryWishDetailsDialog.indexOf(quickListPickerId)
 const quickListPickerTag = quickListPickerStart < 0 ? "" : primaryWishDetailsDialog.slice(quickListPickerStart, primaryWishDetailsDialog.indexOf(">", quickListPickerStart) + 1);
 assert(quickListPickerTag && !/\bw-64\b/.test(quickListPickerTag), "WishDetails quick-list popup must not override the trigger-width primitive with a fixed width");
 assert(/\bmax-w-\(--available-width\)/.test(quickListPickerTag), "WishDetails quick-list popup must stay inside the Base UI available width");
-assert((primaryWishDetailsDialog.match(/\bmax-w-md\b/g) || []).length === 7, "WishDetailsModal must align all seven content sections to the 448px shadcn rail");
+assert((primaryWishDetailsDialog.match(/\bmax-w-md\b/g) || []).length === 8, "WishDetailsModal must align all eight content sections to the 448px shadcn rail");
 assert(!/max-w-\[35rem\]/.test(primaryWishDetailsDialog), "WishDetailsModal must not restore the oversized 560px content rail");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|auto-rows-max|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(primaryWishDetailsContentTag), "WishDetailsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
 const wishDetailsDrawerTag = primaryWishDetailsDialog.match(/<Drawer\b[^>]*>/)?.[0] || "";
@@ -660,9 +659,12 @@ assert(/checked=\{form\.privacy === "private"\}/.test(listModalSource), "ListMod
 assert(/privacy: checked \? "private" : "public"/.test(listModalSource), "ListModal switch must map directly to private/public privacy");
 const wishModalSource = app.slice(app.indexOf("function WishModal"), app.indexOf("function FriendsPage"));
 const primaryWishEditorDialog = wishModalSource.slice(wishModalSource.indexOf("const fieldId"), wishModalSource.indexOf("{listCreatorOpen &&"));
-assert(/<section\b[^>]*className="wish-editor-screen"[^>]*role="dialog"[^>]*aria-modal="true"/.test(primaryWishEditorDialog), "WishModal must render as a standalone fullscreen dialog section");
+assert(/className=\{`wish-editor-screen \$\{editing \? "" : "wish-editor-screen--drawer"\}`\}/.test(primaryWishEditorDialog), "WishModal must keep distinct fullscreen-edit and drawer-create surfaces");
+assert(/role=\{editing \? "dialog" : undefined\}/.test(primaryWishEditorDialog), "WishModal must expose standalone dialog semantics only for fullscreen editing");
 assert(!/<Modal\b/.test(primaryWishEditorDialog), "WishModal must not wrap its primary editor in the legacy Modal adapter");
-assert(!/<Drawer(?:Content|Close|Header|Title|Description|Footer)?\b/.test(primaryWishEditorDialog), "WishModal fullscreen editor must not use Drawer components");
+assert(/const editorSurface = editing \? editorContent : <Drawer\b/.test(primaryWishEditorDialog), "WishModal creation must render in the shared Drawer");
+assert(/swipeDirection=\{isMobile \? "down" : "right"\}/.test(primaryWishEditorDialog), "WishModal creation must use a bottom drawer on mobile and a right drawer on desktop");
+assert(/<DrawerContent\b[\s\S]*?className="wish-editor-drawer rollapp-body"/.test(primaryWishEditorDialog), "WishModal creation drawer must use the Rollapp drawer surface");
 assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use DrawerClose instead of the retired DialogClose");
 assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
 assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must not re-enable the retired Dialog close API");

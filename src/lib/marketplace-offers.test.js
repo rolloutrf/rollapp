@@ -15,6 +15,19 @@ test("recognizes supported marketplace product links", () => {
   assert.equal(marketplaceForUrl("javascript:alert(1)"), null);
 });
 
+test("recognizes the supported food stores", () => {
+  assert.equal(marketplaceForUrl("https://samokat.ru/product/eggs")?.label, "Самокат");
+  assert.equal(marketplaceForUrl("https://lavka.yandex.ru/good/eggs")?.label, "Яндекс Лавка");
+  assert.equal(marketplaceForUrl("https://lenta.com/product/eggs-123")?.label, "Лента");
+  assert.equal(marketplaceForUrl("https://vkusvill.ru/goods/eggs-123/")?.label, "ВкусВилл");
+});
+
+test("recognizes automotive listing services", () => {
+  assert.equal(marketplaceForUrl("https://auto.ru/cars/used/sale/bmw/x5/1-example/")?.label, "Auto.ru");
+  assert.equal(marketplaceForUrl("https://www.avito.ru/moskva/avtomobili/bmw_x5_1234567890")?.label, "Авито Авто");
+  assert.equal(marketplaceForUrl("https://auto.drom.ru/moscow/bmw/x5/123456789.html")?.label, "Drom");
+});
+
 test("keeps only the saved concrete product before AI research", () => {
   const offers = marketplaceOffersForWish({
     title: "Kindle Paperwhite",
@@ -49,8 +62,8 @@ test("keeps the original source alongside a saved search snapshot", () => {
     { id: "wb", marketplace: "Wildberries", url: "https://www.wildberries.ru/catalog/1/detail.aspx" },
   ], source);
   assert.equal(merged.length, 2);
-  assert.equal(merged[1].url, "https://rimowa-official.com.ru/product/essential-cabin/");
-  assert.equal(merged[1].source, true);
+  assert.equal(merged[0].url, "https://rimowa-official.com.ru/product/essential-cabin/");
+  assert.equal(merged[0].source, true);
 });
 
 test("marks a matching snapshot URL as the original without duplicating it", () => {
@@ -76,8 +89,8 @@ test("keeps only one best link per service and prioritizes its original link", (
     url: "https://market.yandex.ru/cc/original",
     price: 16_000,
   }]);
-  assert.deepEqual(merged.map((offer) => offer.id), ["wb-best", "source"]);
-  assert.equal(merged[1].source, true);
+  assert.deepEqual(merged.map((offer) => offer.id), ["source", "wb-best"]);
+  assert.equal(merged[0].source, true);
 });
 
 test("does not expose marketplace search pages when the wish has no source link", () => {
@@ -95,4 +108,41 @@ test("hides cached protective films when the wish is the device", () => {
     { title: "Kindle Paperwhite" },
     { title: "Электронная книга Amazon Kindle Paperwhite 12" },
   ), true);
+});
+
+test("keeps food offers inside the food store set", () => {
+  const wish = { title: "Яйцо куриное Окское С0 белое 10 шт", space: "food" };
+  assert.equal(marketplaceOfferMatchesWish(wish, {
+    marketplaceId: "vkusvill",
+    title: "Яйцо куриное Окское С0 белое 10 шт",
+  }), true);
+  assert.equal(marketplaceOfferMatchesWish(wish, {
+    marketplaceId: "ozon",
+    title: "Яйцо куриное Окское С0 белое 10 шт",
+  }), false);
+  assert.equal(marketplaceOfferMatchesWish({ ...wish, space: "products" }, {
+    marketplaceId: "vkusvill",
+    title: "Яйцо куриное Окское С0 белое 10 шт",
+  }), false);
+});
+
+test("keeps vehicle offers inside automotive services and matches make with model", () => {
+  const wish = {
+    title: "BMW X5 2022",
+    space: "transport",
+    vehicleMake: "BMW",
+    vehicleModel: "X5",
+  };
+  assert.equal(marketplaceOfferMatchesWish(wish, {
+    marketplaceId: "auto-ru",
+    title: "BMW X5 xDrive40i 2022",
+  }), true);
+  assert.equal(marketplaceOfferMatchesWish(wish, {
+    marketplaceId: "drom",
+    title: "BMW X3 2022",
+  }), false);
+  assert.equal(marketplaceOfferMatchesWish(wish, {
+    marketplaceId: "ozon",
+    title: "Модель BMW X5",
+  }), false);
 });

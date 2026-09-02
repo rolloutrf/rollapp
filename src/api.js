@@ -1,9 +1,22 @@
 const API_ROOT = "/api";
 
+const PRIVATE_SPHERE_API_PREFIXES = ["/contacts", "/career/", "/identity/", "/education/", "/health/"];
+
+function scopedSpherePath(path) {
+  if (typeof window === "undefined" || !PRIVATE_SPHERE_API_PREFIXES.some((prefix) => path.startsWith(prefix))) return path;
+  const owner = new URLSearchParams(window.location.search).get("owner")?.trim();
+  if (!owner) return path;
+  const [pathname, query = ""] = path.split("?", 2);
+  const search = new URLSearchParams(query);
+  search.set("owner", owner);
+  return `${pathname}?${search.toString()}`;
+}
+
 async function request(path, options = {}) {
+  const scopedPath = scopedSpherePath(path);
   let response;
   try {
-    response = await fetch(`${API_ROOT}${path}`, {
+    response = await fetch(`${API_ROOT}${scopedPath}`, {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
@@ -38,6 +51,10 @@ export const api = {
     method: "POST",
     headers: { "Content-Type": file.type },
     body: file,
+  }),
+  resolveContactAvatar: (links) => request("/contacts/avatar/resolve", {
+    method: "POST",
+    body: JSON.stringify({ links }),
   }),
   uploadLabPdf: (file) => request("/health/lab-results/uploads", {
     method: "POST",

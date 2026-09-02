@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import { educationApiListId, UNLISTED_EDUCATION_LIST_ID } from "@/lib/education-lists";
 
 export function russianCountLabel(count, one, few, many) {
@@ -56,6 +57,8 @@ function EducationGroupMoveSubmenu({ currentListId, lists, busy, onMove }) {
 }
 
 function EducationGroupActions({ group, lists, busy, onBeginRename, onDisband, onMove }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -102,7 +105,7 @@ function DisbandDialog({ group, busy, itemsStayLabel, onOpenChange, onDisband })
 
 export function EducationItemGroupTile({
   group, items, lists, isDropTarget, ItemIcon, countLabel, itemsStayLabel,
-  onOpen, onRename, onMove, onDisband,
+  renderItemPreview, onOpen, onRename, onMove, onDisband,
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
@@ -153,7 +156,7 @@ export function EducationItemGroupTile({
             <div className="flex h-20 items-center gap-4 overflow-hidden pr-12" aria-hidden="true">
               {items.slice(0, 4).map((item) => (
                 <span className="grid size-14 shrink-0 place-items-center overflow-hidden text-muted-foreground" key={item.id}>
-                  <ItemIcon className="size-7" />
+                  {renderItemPreview ? renderItemPreview(item) : <ItemIcon className="size-7" />}
                 </span>
               ))}
             </div>

@@ -1,7 +1,7 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink,
-  RotateCcw, TicketCheck, Ungroup, Users, X,
+  ImagePlus, RotateCcw, TicketCheck, Trash2, Ungroup, Users, X,
 } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,8 +19,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCardReorder } from "@/hooks/use-card-reorder";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { savedOrder } from "@/lib/card-order";
+import { logoUrlAfterResourceChange, siteLogoUrl } from "@/lib/education-logo";
 import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
 } from "@/components/education-lists";
@@ -34,6 +36,7 @@ import {
 
 const EMPTY_CONFERENCE = {
   title: "",
+  logoUrl: "",
   status: "planned",
   role: "attendee",
   format: "offline",
@@ -64,6 +67,7 @@ const CONFERENCE_FORMAT = {
 };
 
 const STATUS_ORDER = ["registered", "planned", "attended"];
+const uploadedImageIdFromUrl = (value = "") => /^\/api\/media\/([0-9a-f-]{36})$/i.exec(value)?.[1] || "";
 
 function sortConferences(conferences) {
   return [...conferences].sort((left, right) => (
@@ -94,8 +98,25 @@ const conferenceCountLabel = (count) => russianCountLabel(count, "конфере
 
 function conferenceFormValues(conference, initialListId = "") {
   if (!conference) return { ...EMPTY_CONFERENCE, listId: initialListId };
-  return Object.fromEntries(
+  const values = Object.fromEntries(
     Object.keys(EMPTY_CONFERENCE).map((field) => [field, conference[field] || EMPTY_CONFERENCE[field]]),
+  );
+  if (!values.logoUrl) values.logoUrl = siteLogoUrl(values.url);
+  return values;
+}
+
+function ConferenceLogo({ conference, size = "card" }) {
+  const className = size === "form"
+    ? "size-20 shrink-0 rounded-xl"
+    : "size-10 shrink-0 rounded-lg";
+  return (
+    <div className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
+      {conference.logoUrl ? (
+        <img className="size-full object-contain" src={conference.logoUrl} alt="" />
+      ) : (
+        <TicketCheck className={size === "form" ? "size-8" : "size-5"} aria-hidden="true" />
+      )}
+    </div>
   );
 }
 
@@ -133,8 +154,13 @@ function ConferenceCard({
       </Button>
       <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
         <CardHeader>
-          <CardTitle><h3 className="m-0 font-heading text-base leading-snug font-medium">{conference.title}</h3></CardTitle>
-          {conference.location && <CardDescription className="truncate">{conference.location}</CardDescription>}
+          <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
+            <ConferenceLogo conference={conference} />
+            <div className="min-w-0">
+              <h3 className="m-0 truncate font-heading text-base leading-snug font-medium">{conference.title}</h3>
+              {conference.location && <CardDescription className="mt-1 truncate">{conference.location}</CardDescription>}
+            </div>
+          </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
             <Badge variant={status.variant}>
               <StatusIcon data-icon="inline-start" aria-hidden="true" />
@@ -200,8 +226,12 @@ function ConferenceCard({
 function ConferenceDrawer({ conference, initialListId = "", lists = [], open, onOpenChange, onSaved }) {
   const isMobile = useIsMobile();
   const formId = useId();
+  const imageFileRef = useRef(null);
+  const uploadedImageIdsRef = useRef(new Set());
   const [form, setForm] = useState(EMPTY_CONFERENCE);
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState("");
   const [error, setError] = useState("");
   const editing = Boolean(conference);
   const datesInvalid = Boolean(form.startsOn && form.endsOn && form.endsOn < form.startsOn);
@@ -210,14 +240,75 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
     if (!open) return;
     setForm(conferenceFormValues(conference, initialListId));
     setSaving(false);
+    setLogoUploading(false);
+    setLogoError("");
     setError("");
   }, [conference, initialListId, open]);
 
+  const cleanupUploadedImages = async (keepUrl = "") => {
+    const keepId = uploadedImageIdFromUrl(keepUrl);
+    const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
+    ids.forEach((id) => uploadedImageIdsRef.current.delete(id));
+    await Promise.allSettled(ids.map((id) => api.delete(`/uploads/images/${encodeURIComponent(id)}`)));
+  };
+
+  useEffect(() => () => {
+    const ids = [...uploadedImageIdsRef.current];
+    uploadedImageIdsRef.current.clear();
+    ids.forEach((id) => {
+      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+        keepalive: true,
+      }).catch(() => {});
+    });
+  }, []);
+
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const updateResourceUrl = (url) => setForm((current) => ({
+    ...current,
+    url,
+    logoUrl: logoUrlAfterResourceChange({
+      currentLogoUrl: current.logoUrl,
+      previousResourceUrl: current.url,
+      resourceUrl: url,
+    }),
+  }));
+
+  const changeOpen = (nextOpen) => {
+    if (saving || logoUploading) return;
+    if (!nextOpen) void cleanupUploadedImages();
+    onOpenChange(nextOpen);
+  };
+
+  const uploadLogo = async (file) => {
+    if (!file || logoUploading || saving) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setLogoError("Подойдёт изображение JPG, PNG или WEBP.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setLogoError("Изображение должно быть не больше 8 МБ.");
+      return;
+    }
+    setLogoUploading(true);
+    setLogoError("");
+    try {
+      const result = await api.uploadImage(file);
+      uploadedImageIdsRef.current.add(result.id);
+      update("logoUrl", result.imageUrl);
+    } catch (uploadError) {
+      setLogoError(uploadError.message || "Не удалось загрузить логотип.");
+    } finally {
+      setLogoUploading(false);
+      if (imageFileRef.current) imageFileRef.current.value = "";
+    }
+  };
 
   async function submit(event) {
     event.preventDefault();
-    if (datesInvalid) return;
+    if (datesInvalid || logoUploading) return;
     setSaving(true);
     setError("");
     try {
@@ -225,6 +316,16 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
         ? `/education/conferences/${encodeURIComponent(conference.id)}`
         : "/education/conferences";
       const result = editing ? await api.patch(path, form) : await api.post(path, form);
+      const savedLogoUrl = result.conference?.logoUrl || "";
+      const savedUploadId = uploadedImageIdFromUrl(savedLogoUrl);
+      if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
+      await cleanupUploadedImages(savedLogoUrl);
+
+      const previousLogoId = uploadedImageIdFromUrl(conference?.logoUrl);
+      if (previousLogoId && previousLogoId !== savedUploadId) {
+        await api.delete(`/uploads/images/${encodeURIComponent(previousLogoId)}`).catch(() => {});
+      }
+
       onSaved(result.conference, result.groupChange || null);
       onOpenChange(false);
     } catch (requestError) {
@@ -238,14 +339,14 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
       open={open}
       showSwipeHandle
       swipeDirection={isMobile ? "down" : "right"}
-      onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}
+      onOpenChange={changeOpen}
     >
       <DrawerContent
         className="rollapp-body"
         style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || logoUploading} />}
           aria-label="Закрыть форму конференции"
         >
           <X aria-hidden="true" />
@@ -270,6 +371,72 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             )}
 
             <FieldGroup className="gap-4">
+              <Field data-invalid={Boolean(logoError)}>
+                <FieldLabel htmlFor={`${formId}-logo`}>Логотип</FieldLabel>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Button
+                    className="group relative size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl p-0"
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    disabled={saving || logoUploading}
+                    aria-label={form.logoUrl ? "Заменить логотип конференции" : "Загрузить логотип конференции"}
+                    title={form.logoUrl ? "Заменить логотип" : "Загрузить логотип"}
+                    onClick={() => imageFileRef.current?.click()}
+                  >
+                    <ConferenceLogo conference={form} size="form" />
+                    <span
+                      className={`pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/60 text-white transition-opacity ${logoUploading ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}
+                      aria-hidden="true"
+                    >
+                      {logoUploading ? <Spinner /> : <ImagePlus className="size-6" />}
+                    </span>
+                  </Button>
+                  <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+                    <Input
+                      className="sr-only"
+                      id={`${formId}-logo`}
+                      ref={imageFileRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      tabIndex={-1}
+                      onChange={(event) => uploadLogo(event.target.files?.[0])}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        className="min-h-12 px-4 text-base"
+                        variant="outline"
+                        type="button"
+                        disabled={saving || logoUploading}
+                        onClick={() => imageFileRef.current?.click()}
+                      >
+                        {logoUploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
+                        {logoUploading ? "Загружаем" : form.logoUrl ? "Заменить" : "Загрузить"}
+                      </Button>
+                      {form.logoUrl && (
+                        <Button
+                          className="min-h-12 px-4 text-base"
+                          variant="ghost"
+                          type="button"
+                          disabled={saving || logoUploading}
+                          onClick={() => {
+                            update("logoUrl", "");
+                            setLogoError("");
+                          }}
+                        >
+                          <Trash2 data-icon="inline-start" aria-hidden="true" />
+                          Удалить
+                        </Button>
+                      )}
+                    </div>
+                    <p className="m-0 text-sm text-muted-foreground text-pretty">
+                      Подтянется по ссылке на ресурс. Можно заменить своим JPG, PNG или WEBP до 8 МБ.
+                    </p>
+                  </div>
+                </div>
+                {logoError && <FieldError>{logoError}</FieldError>}
+              </Field>
+
               <Field>
                 <FieldLabel htmlFor={`${formId}-title`}>Название</FieldLabel>
                 <Input
@@ -290,7 +457,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-status`}>
                     <SelectValue>{(value) => CONFERENCE_STATUS[value]?.label || "Выберите статус"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value="planned">Планирую</SelectItem>
                     <SelectItem value="registered">Зарегистрирован</SelectItem>
                     <SelectItem value="attended">Участвовал</SelectItem>
@@ -303,7 +470,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-role`}>
                     <SelectValue>{(value) => CONFERENCE_ROLE[value] || "Выберите роль"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value="attendee">Участник</SelectItem>
                     <SelectItem value="speaker">Спикер</SelectItem>
                     <SelectItem value="organizer">Организатор</SelectItem>
@@ -319,7 +486,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                     ? "Не отсортированные"
                     : lists.find((list) => list.id === value)?.title || "Выберите список"}</SelectValue>
                 </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false}>
+                <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                   <SelectItem value={UNLISTED_EDUCATION_LIST_ID}>Не отсортированные</SelectItem>
                   {lists.map((list) => <SelectItem value={list.id} key={list.id}>{list.title}</SelectItem>)}
                 </SelectContent>
@@ -332,7 +499,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                   <SelectTrigger className="min-h-12 w-full text-base" id={`${formId}-format`}>
                     <SelectValue>{(value) => CONFERENCE_FORMAT[value] || "Выберите формат"}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectContent className="education-form-select-content rollapp-body" align="start" alignItemWithTrigger={false}>
                     <SelectItem value="offline">Офлайн</SelectItem>
                     <SelectItem value="online">Онлайн</SelectItem>
                     <SelectItem value="hybrid">Гибрид</SelectItem>
@@ -385,7 +552,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                   inputMode="url"
                   placeholder="https://…"
                   value={form.url}
-                  onChange={(event) => update("url", event.target.value)}
+                  onChange={(event) => updateResourceUrl(event.target.value)}
                 />
               </Field>
             </div>
@@ -405,10 +572,10 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
           </div>
 
           <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row sm:justify-end">
-            <Button className="min-h-12 px-4 text-base" variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
+            <Button className="min-h-12 px-4 text-base" variant="outline" type="button" onClick={() => changeOpen(false)} disabled={saving || logoUploading}>
               Отмена
             </Button>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || datesInvalid}>
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить конференцию"}
             </Button>
@@ -420,6 +587,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
 }
 
 export function Conferences() {
+  const { readOnly } = useSphereSharing();
   const [drawer, setDrawer] = useState({ open: false, conference: null });
   const [selectedListId, setSelectedListId] = useState(UNLISTED_EDUCATION_LIST_ID);
   const [openedGroupId, setOpenedGroupId] = useState("");
@@ -440,6 +608,7 @@ export function Conferences() {
     ? (openedGroup.itemIds || []).map((id) => requestState.conferences.find((conference) => conference.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    disabled: readOnly,
     items: visibleConferences,
     onItemsChange: (conferences) => setRequestState((state) => ({
       ...state,
@@ -452,7 +621,7 @@ export function Conferences() {
     getItemLabel: (conference) => `Конференция «${conference.title}»`,
     collectionLabel: "конференций",
     movedVerb: "перемещена",
-    groupingEnabled: visibleConferences.length > 1 && !groupState.busy,
+    groupingEnabled: !readOnly && visibleConferences.length > 1 && !groupState.busy,
     onCreateGroup: createConferenceGroup,
     onAddToGroup: addConferenceToGroup,
   });
@@ -493,6 +662,7 @@ export function Conferences() {
 
   const openCreateDrawer = () => setDrawer({ open: true, conference: null });
   const openEditDrawer = (conference) => {
+    if (readOnly) return;
     if (cardOrder.shouldSuppressClick()) return;
     setDrawer({ open: true, conference });
   };
@@ -717,6 +887,9 @@ export function Conferences() {
               lists={requestState.lists}
               isDropTarget={cardOrder.groupTarget === `group:${group.id}`}
               ItemIcon={TicketCheck}
+              renderItemPreview={(conference) => conference.logoUrl
+                ? <img className="max-h-full max-w-full object-contain" src={conference.logoUrl} alt="" />
+                : <TicketCheck className="size-7" />}
               countLabel={conferenceCountLabel}
               itemsStayLabel="Конференции"
               onOpen={() => setOpenedGroupId(group.id)}
@@ -742,6 +915,7 @@ export function Conferences() {
                 onEdit={openEditDrawer}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveConferenceToList}
+                draggable={!readOnly}
               />
             </li>
           ))}
@@ -755,15 +929,15 @@ export function Conferences() {
       <p className="sr-only" aria-live="polite">{moveState.announcement}</p>
       <p className="sr-only" aria-live="polite">{groupState.announcement}</p>
 
-      <ConferenceDrawer
+      {!readOnly && <ConferenceDrawer
         conference={drawer.conference}
         initialListId={educationApiListId(resolvedListId)}
         lists={requestState.lists}
         open={drawer.open}
         onOpenChange={setDrawerOpen}
         onSaved={saveConference}
-      />
-      <EducationListDrawer
+      />}
+      {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
         section="conferences"
@@ -773,7 +947,7 @@ export function Conferences() {
           : { open: false, list: null, moveItem: null })}
         onSaved={saveList}
         onDeleted={deleteList}
-      />
+      />}
       {openedGroup && (
         <EducationItemGroupOverlay
           group={openedGroup}
@@ -798,7 +972,7 @@ export function Conferences() {
               onEdit={openEditDrawer}
               onMove={() => {}}
               onMoveToList={moveConferenceToList}
-              onRemoveFromGroup={removeConferenceFromGroup}
+              onRemoveFromGroup={readOnly ? undefined : removeConferenceFromGroup}
             />
           )}
         />

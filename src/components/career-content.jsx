@@ -11,6 +11,8 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSphereSharing } from "@/lib/sphere-sharing";
+import { getLifeStrategyPeriods, replaceLifeStrategyPeriod } from "@/lib/life-strategy";
 
 export function useCareerContent(section, fallbackContent, scope = "career") {
   const fallbackRef = useRef(fallbackContent);
@@ -70,6 +72,8 @@ export function CareerContentError({ error, onRetry }) {
 }
 
 export function CareerEditAction({ disabled = false, loading = false, label, onClick }) {
+  const { readOnly } = useSphereSharing();
+  if (readOnly) return null;
   return (
     <header className="not-typeset rollapp-body flex min-h-12 w-full items-center justify-center">
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Редактирование раздела">
@@ -88,7 +92,7 @@ export function CareerEditAction({ disabled = false, loading = false, label, onC
   );
 }
 
-function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, open }) {
+export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, open }) {
   const isMobile = useIsMobile();
   const fieldId = useId();
   const [draft, setDraft] = useState("");
@@ -178,13 +182,26 @@ export function EditableMarkdownDocument({
   label, scope = "career", section, source,
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
+  const [periodEditorId, setPeriodEditorId] = useState(null);
   const careerContent = useCareerContent(section, source, scope);
   const content = typeof careerContent.content === "string" ? careerContent.content : source;
+  const periods = collapsibleAges ? getLifeStrategyPeriods(content) : [];
+  const editingPeriod = periods.find((period) => period.id === periodEditorId) || null;
+
+  const editPeriod = (title) => {
+    const period = periods.find((item) => item.title === title);
+    if (period) setPeriodEditorId(period.id);
+  };
+
+  const savePeriod = async (draft) => {
+    if (!editingPeriod) throw new Error("Период жизненной стратегии не найден");
+    return careerContent.save(replaceLifeStrategyPeriod(content, editingPeriod.id, draft));
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <CareerEditAction
-        label="Редактировать"
+        label={collapsibleAges ? "Редактировать всё" : "Редактировать"}
         loading={careerContent.loading}
         onClick={() => setEditorOpen(true)}
       />
@@ -195,6 +212,8 @@ export function EditableMarkdownDocument({
         className={className}
         collapsibleAges={collapsibleAges}
         collapsibleStrategies={collapsibleStrategies}
+        ageEditDisabled={careerContent.loading}
+        onEditAge={collapsibleAges ? editPeriod : undefined}
       />
       <MarkdownEditorDrawer
         content={content}
@@ -202,6 +221,15 @@ export function EditableMarkdownDocument({
         open={editorOpen}
         onOpenChange={setEditorOpen}
         onSave={careerContent.save}
+      />
+      <MarkdownEditorDrawer
+        content={editingPeriod?.content || ""}
+        label={editingPeriod ? `Период ${editingPeriod.title}` : "Период жизни"}
+        open={Boolean(editingPeriod)}
+        onOpenChange={(open) => {
+          if (!open) setPeriodEditorId(null);
+        }}
+        onSave={savePeriod}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import {
   reorderCards,
   reorderCardToTarget,
   resolveCardHoverMode,
+  resolveConfirmedGroupDrop,
   savedOrder,
 } from "./card-order.js";
 
@@ -71,4 +72,27 @@ test("cardRectOverlapRatio detects one education card covering another", () => {
   assert.equal(cardRectOverlapRatio(dragged, target), 0.4);
   assert.equal(cardRectOverlapRatio(dragged, { left: 400, right: 600, top: 100, bottom: 300 }), 0);
   assert.equal(cardRectOverlapRatio(null, target), 0);
+});
+
+test("confirmed education grouping survives layout changes at pointer release", () => {
+  assert.equal(resolveConfirmedGroupDrop({
+    groupingEnabled: true,
+    armedTarget: "card:conference-2",
+    dragTarget: "card:conference-2",
+  }), "card:conference-2");
+  assert.equal(resolveConfirmedGroupDrop({
+    groupingEnabled: true,
+    armedTarget: "group:conference-group",
+    dragTarget: "group:conference-group",
+  }), "group:conference-group");
+  assert.equal(resolveConfirmedGroupDrop({
+    groupingEnabled: true,
+    armedTarget: "card:conference-2",
+    dragTarget: "",
+  }), "");
+  assert.equal(resolveConfirmedGroupDrop({
+    groupingEnabled: false,
+    armedTarget: "card:conference-2",
+    dragTarget: "card:conference-2",
+  }), "");
 });

@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const MAX_PDF_BYTES = 12 * 1024 * 1024;
 
@@ -32,6 +33,7 @@ export function useIdentityReport(section) {
 }
 
 export function IdentityReportControls({ section, label, state, setState, load }) {
+  const { readOnly } = useSphereSharing();
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -82,7 +84,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
 
   return (
     <section className="identity-report-manager not-typeset" aria-label={`Управление отчётом ${label}`}>
-      <input
+      {!readOnly && <input
         ref={inputRef}
         className="sr-only"
         type="file"
@@ -90,8 +92,8 @@ export function IdentityReportControls({ section, label, state, setState, load }
         aria-label={`Загрузить PDF для ${label}`}
         multiple
         onChange={upload}
-      />
-      <div className="identity-report-manager__actions">
+      />}
+      {!readOnly && <div className="identity-report-manager__actions">
         <Button className="min-h-12 px-6 text-base" size="lg" shape="pill" disabled={busy} onClick={() => inputRef.current?.click()}>
           {busy && <Spinner data-icon="inline-start" />}
           {state.mode === "empty" ? "Загрузить PDF" : "Добавить PDF"}
@@ -101,7 +103,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
             Удалить весь контент
           </Button>
         ) : null}
-      </div>
+      </div>}
       {state.files?.length ? (
         <div className="identity-report-manager__files" aria-label="Исходные PDF">
           <span>Исходные PDF</span>
@@ -116,7 +118,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
         </div>
       ) : null}
 
-      <AlertDialog open={deleteOpen} onOpenChange={(open) => !busy && setDeleteOpen(open)}>
+      {!readOnly && <AlertDialog open={deleteOpen} onOpenChange={(open) => !busy && setDeleteOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить весь контент {label}?</AlertDialogTitle>
@@ -132,20 +134,21 @@ export function IdentityReportControls({ section, label, state, setState, load }
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
     </section>
   );
 }
 
 export function IdentityReportEmpty({ label }) {
+  const { readOnly } = useSphereSharing();
   return (
     <Empty className="identity-report-empty not-typeset">
       <EmptyHeader>
         <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>
-        <EmptyDescription>Загрузите один или несколько PDF — Rollapp извлечёт структуру отчёта и соберёт адаптивную страницу заново.</EmptyDescription>
+        <EmptyDescription>{readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — Rollapp извлечёт структуру отчёта и соберёт адаптивную страницу заново."}</EmptyDescription>
       </EmptyHeader>
-      <EmptyContent><p>До 8 файлов, каждый не больше 12 МБ.</p></EmptyContent>
+      {!readOnly && <EmptyContent><p>До 8 файлов, каждый не больше 12 МБ.</p></EmptyContent>}
     </Empty>
   );
 }

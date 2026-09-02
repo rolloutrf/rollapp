@@ -6,8 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_VALUE_GROUPS, PERSONAL_VALUES } from "@/data/personal-values";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const EMPTY_VALUES = { selected: [], custom: [] };
 
@@ -51,6 +53,7 @@ function ValueOption({ checked, description, disabled, label, onCheckedChange })
 }
 
 export function Values() {
+  const { readOnly } = useSphereSharing();
   const valuesContent = useCareerContent("values", EMPTY_VALUES, "identity");
   const [draft, setDraft] = useState(EMPTY_VALUES);
   const [search, setSearch] = useState("");
@@ -154,7 +157,7 @@ export function Values() {
             <span className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">Личные ценности</span>
             <h2 className="m-0 text-3xl font-semibold tracking-tight">Что для меня действительно важно</h2>
             <p className="m-0 text-muted-foreground">
-              Отметьте ценности, которые служат вам ориентирами. В списке 83 варианта; отсутствующую ценность можно добавить самостоятельно.
+              {readOnly ? "Ценности, которые владелец выбрал как личные ориентиры." : "Отметьте ценности, которые служат вам ориентирами. В списке 83 варианта; отсутствующую ценность можно добавить самостоятельно."}
             </p>
           </div>
           <Badge className="min-h-8 px-3 text-sm" variant={selectedCount ? "default" : "secondary"}>
@@ -163,24 +166,24 @@ export function Values() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
-          <label className="relative min-w-0 flex-1">
-            <span className="sr-only">Найти ценность</span>
-            <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input
-              className="h-12 pl-12 text-base md:text-base"
+          <InputGroup className="values-search h-12 min-w-0 flex-1">
+            <InputGroupAddon align="inline-start"><Search className="size-5" aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput
+              className="h-12 text-base md:text-base"
               type="text"
               role="searchbox"
+              aria-label="Найти ценность"
               inputMode="search"
               enterKeyHint="search"
               placeholder="Найти ценность"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </label>
-          <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || saving} onClick={save}>
+          </InputGroup>
+          {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || saving} onClick={save}>
             {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {saving ? "Сохраняем" : dirty ? "Сохранить выбор" : "Сохранено"}
-          </Button>
+          </Button>}
         </div>
       </header>
 
@@ -201,7 +204,7 @@ export function Values() {
                 <Checkbox
                   className="mt-1 size-5"
                   checked={selected.has(value.id)}
-                  disabled={saving}
+                  disabled={saving || readOnly}
                   onCheckedChange={(checked) => toggle(value.id, checked)}
                   aria-label={value.label}
                 />
@@ -209,9 +212,9 @@ export function Values() {
                   <strong className="font-semibold text-foreground">{value.label}</strong>
                   {value.description && <span className="text-muted-foreground">{value.description}</span>}
                 </span>
-                <Button variant="ghost" size="icon-sm" type="button" disabled={saving} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
+                {!readOnly && <Button variant="ghost" size="icon-sm" type="button" disabled={saving} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
                   <Trash2 aria-hidden="true" />
-                </Button>
+                </Button>}
               </div>
             ))}
           </div>
@@ -230,7 +233,7 @@ export function Values() {
                 key={value.id}
                 checked={selected.has(value.id)}
                 description={value.description}
-                disabled={saving}
+                disabled={saving || readOnly}
                 label={value.label}
                 onCheckedChange={(checked) => toggle(value.id, checked)}
               />
@@ -243,7 +246,7 @@ export function Values() {
         </div>
       )}
 
-      <section className="flex flex-col gap-3 rounded-2xl border bg-card p-5" aria-labelledby="add-value-title">
+      {!readOnly && <section className="flex flex-col gap-3 rounded-2xl border bg-card p-5" aria-labelledby="add-value-title">
         <div className="flex flex-col gap-1">
           <h3 className="m-0 text-xl font-semibold" id="add-value-title">Не нашли нужную ценность?</h3>
           <p className="m-0 text-muted-foreground">Добавьте свою формулировку — она появится в начале страницы и сразу будет выбрана.</p>
@@ -270,7 +273,7 @@ export function Values() {
             Добавить
           </Button>
         </form>
-      </section>
+      </section>}
 
       <footer className="flex flex-col items-start justify-between gap-4 border-t pt-6 sm:flex-row sm:items-center">
         <p className="m-0 max-w-2xl text-sm text-muted-foreground">
@@ -284,7 +287,7 @@ export function Values() {
             Personal Values Card Sort Университета Нью-Мексико
           </a>.
         </p>
-        <div className="flex flex-wrap gap-2">
+        {!readOnly && <div className="flex flex-wrap gap-2">
           <Button variant="ghost" type="button" disabled={selectedCount === 0 || saving} onClick={reset}>
             <RotateCcw data-icon="inline-start" aria-hidden="true" />
             Снять выбор
@@ -293,7 +296,7 @@ export function Values() {
             {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {saving ? "Сохраняем" : dirty ? "Сохранить выбор" : "Сохранено"}
           </Button>
-        </div>
+        </div>}
       </footer>
     </div>
   );

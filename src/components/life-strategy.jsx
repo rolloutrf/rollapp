@@ -1,10 +1,12 @@
 import { Fragment } from "react";
+import { Pencil } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 import lifeStrategySource from "@/data/life-strategy.md?raw";
 
 const INLINE_PATTERN = /(\*\*[^*]+\*\*|\[[^\]]*\]\((?:https?:\/\/|\/)[^)]+\)|https?:\/\/[^\s]+)/gu;
@@ -230,7 +232,7 @@ function StrategySections({ lines }) {
   );
 }
 
-function AgeSections({ lines }) {
+function AgeSections({ editDisabled = false, lines, onEditAge }) {
   const { introduction, sections } = splitAgeSections(lines);
 
   return (
@@ -246,6 +248,20 @@ function AgeSections({ lines }) {
             <AccordionTrigger
               className="min-h-12 w-full items-center py-6 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
               headerAs="h1"
+              action={onEditAge ? (
+                <Button
+                  className="ml-2 size-12 shrink-0 self-center rounded-full"
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  disabled={editDisabled}
+                  aria-label={`Редактировать период ${section.title}`}
+                  title={`Редактировать период ${section.title}`}
+                  onClick={() => onEditAge(section.title)}
+                >
+                  <Pencil aria-hidden="true" />
+                </Button>
+              ) : null}
             >
               <span className="text-4xl leading-10 font-extrabold tracking-tight text-foreground">
                 {section.title}
@@ -265,12 +281,13 @@ function AgeSections({ lines }) {
 
 export function MarkdownDocument({
   source, label, className = "", collapsibleAges = false, collapsibleStrategies = false,
+  ageEditDisabled = false, onEditAge,
 }) {
   const lines = source.replace(/\n$/u, "").split("\n");
   return (
     <article className={`life-strategy-source typeset typeset-rollapp typeset-document ${className}`.trim()} aria-label={label}>
       {collapsibleAges
-        ? <AgeSections lines={lines} />
+        ? <AgeSections lines={lines} editDisabled={ageEditDisabled} onEditAge={onEditAge} />
         : collapsibleStrategies
           ? <StrategySections lines={lines} />
           : renderSourceBlocks(lines)}

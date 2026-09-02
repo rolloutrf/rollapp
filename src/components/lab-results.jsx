@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const STATUS_LABELS = {
   normal: "В норме",
@@ -35,8 +36,8 @@ function sortReports(reports) {
 }
 
 function ResultItem({ item }) {
-  const variants = item.variants || [];
-  const needsAttention = (variants.length ? variants : [item]).some((result) => result.status === "low" || result.status === "high");
+  const result = item.variants?.[0] || item;
+  const needsAttention = result.status === "low" || result.status === "high";
   return (
     <li className="min-w-0">
       <Card size="sm" className={cn("h-full min-w-0", needsAttention && "border-destructive/30 bg-destructive/5")}>
@@ -45,29 +46,23 @@ function ResultItem({ item }) {
           {item.code && <CardAction className="text-xs font-medium text-muted-foreground">{item.code}</CardAction>}
         </CardHeader>
         <CardContent className="flex h-full flex-col gap-3">
-          {(variants.length ? variants : [item]).map((result, index) => {
-            const resultNeedsAttention = result.status === "low" || result.status === "high";
-            return (
-              <div className={cn("flex flex-col gap-2", index > 0 && "border-t pt-3")} key={`${result.sourceLabel || "result"}-${result.value}-${index}`}>
-                {result.sourceLabel && <span className="text-xs font-medium text-muted-foreground">{result.sourceLabel}</span>}
-                <div className="flex items-baseline gap-1.5">
-                  <strong className="text-xl font-medium tracking-tight tabular-nums">{result.value}</strong>
-                  {result.unit && <span className="text-xs text-muted-foreground">{result.unit}</span>}
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {result.reference ? `Референс ${result.reference}` : "Референс не указан"}
-                  </span>
-                  <Badge variant={resultNeedsAttention ? "destructive" : "secondary"}>
-                    {result.status === "normal" && <Check data-icon="inline-start" aria-hidden="true" />}
-                    {STATUS_LABELS[result.status]}
-                  </Badge>
-                </div>
-                {result.secondary && <p className="m-0! text-xs! leading-4! text-muted-foreground!">{result.secondary}</p>}
-                {result.note && <p className="m-0! text-xs! leading-4! text-muted-foreground!">{result.note}</p>}
-              </div>
-            );
-          })}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline gap-1.5">
+              <strong className="text-xl font-medium tracking-tight tabular-nums">{result.value}</strong>
+              {result.unit && <span className="text-xs text-muted-foreground">{result.unit}</span>}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                {result.reference ? `Референс ${result.reference}` : "Референс не указан"}
+              </span>
+              <Badge variant={needsAttention ? "destructive" : "secondary"}>
+                {result.status === "normal" && <Check data-icon="inline-start" aria-hidden="true" />}
+                {STATUS_LABELS[result.status]}
+              </Badge>
+            </div>
+            {result.secondary && <p className="m-0! text-xs! leading-4! text-muted-foreground!">{result.secondary}</p>}
+            {result.note && <p className="m-0! text-xs! leading-4! text-muted-foreground!">{result.note}</p>}
+          </div>
         </CardContent>
       </Card>
     </li>
@@ -111,6 +106,7 @@ function LabReportPanel({ report }) {
 }
 
 export function LabResults() {
+  const { readOnly } = useSphereSharing();
   const fileInputRef = useRef(null);
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, data: null, error: null });
@@ -231,7 +227,7 @@ export function LabResults() {
       </section>
 
       <section className="flex max-w-none flex-col gap-5">
-        <Input
+        {!readOnly && <><Input
           ref={fileInputRef}
           className="sr-only"
           type="file"
@@ -268,7 +264,7 @@ export function LabResults() {
           <span className="text-sm font-normal text-muted-foreground" id="lab-pdf-help">
             {uploadState.loading ? "Это может занять немного времени" : "или нажмите, чтобы выбрать файл до 12 МБ с выделяемым текстом"}
           </span>
-        </Button>
+        </Button></>}
 
         {selectedPdfSources.length ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -287,14 +283,14 @@ export function LabResults() {
           </div>
         ) : null}
 
-        {uploadState.error && (
+        {!readOnly && uploadState.error && (
           <Alert variant="destructive" aria-live="assertive">
             <AlertTriangle aria-hidden="true" />
             <AlertTitle>Не удалось добавить PDF</AlertTitle>
             <AlertDescription>{uploadState.error}</AlertDescription>
           </Alert>
         )}
-        {uploadState.success && (
+        {!readOnly && uploadState.success && (
           <Alert aria-live="polite">
             <CheckCircle2 aria-hidden="true" />
             <AlertTitle>Анализ добавлен</AlertTitle>

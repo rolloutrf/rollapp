@@ -351,13 +351,17 @@
     padding-inline: 1rem;
   }
 
-  .friends-search > [data-slot="input"] {
-    padding-inline: 3.75rem 1.5rem;
+  .friends-search [data-slot="input-group-control"] {
+    padding-inline: 0 1.5rem;
     font-size: 1.1875rem;
   }
 
-  .contacts-sphere__search > [data-slot="input"] {
-    padding-inline: 2.875rem 3rem;
+  .contacts-sphere__search [data-slot="input-group-control"] {
+    padding-inline: 0 0.5rem;
+  }
+
+  .values-search [data-slot="input-group-control"] {
+    padding-inline: 0 1rem;
   }
 
   :is([data-slot="textarea"], textarea[data-slot="input-group-control"]) {
@@ -396,6 +400,14 @@
   ) svg:not([class*="size-"]) {
     width: 1.25rem;
     height: 1.25rem;
+  }
+
+  .education-form-select-content {
+    padding: 0.25rem;
+  }
+
+  .education-form-select-content [data-slot="select-item"] {
+    padding-inline: 0.75rem 2.5rem;
   }
 
   [data-slot="switch"] {
@@ -437,12 +449,18 @@
     height: 1.25rem;
   }
 
-  /* Row focus/hover cascade (focus:**:text-accent-foreground) must not
-     recolor the decorative checked checkbox in the list picker. */
-  .card-menu__list-row:focus [data-slot="checkbox"][data-checked],
-  .card-menu__list-row:focus [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"],
-  .card-menu__list-row:focus [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"] svg {
+  /* The menu row and its decorative checkbox are separate Base UI controls.
+     Lock the checked palette so row hover/focus cannot erase the checkmark. */
+  .card-menu__list-row [data-slot="checkbox"][data-checked] {
+    border-color: var(--primary);
     color: var(--primary-foreground);
+    background: var(--primary);
+  }
+
+  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked],
+  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"],
+  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"] svg {
+    color: var(--primary-foreground) !important;
   }
 
   [data-slot="radio-group-item"],
@@ -561,8 +579,8 @@
   }
 
   @media (max-width: 820px) {
-    .friends-search > [data-slot="input"] {
-      padding-inline-start: 3.125rem;
+    .friends-search [data-slot="input-group-control"] {
+      padding-inline-start: 0;
       font-size: 1rem;
     }
 

@@ -3,6 +3,7 @@ import { ExternalLink, LoaderCircle } from "lucide-react";
 import { api } from "@/api.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MarketplaceLogo } from "@/components/marketplace-logo.jsx";
 import { marketplaceOfferMatchesWish, marketplaceOffersForWish, mergeMarketplaceOffers } from "@/lib/marketplace-offers.js";
 
 const MARKETPLACE_MARK_CLASSES = {
@@ -15,6 +16,13 @@ const MARKETPLACE_MARK_CLASSES = {
   aliexpress: "bg-red-500/15 text-red-400",
   avito: "bg-violet-500/15 text-violet-400",
   mvideo: "bg-red-500/15 text-red-400",
+  samokat: "bg-[#ef425c] text-white",
+  lavka: "bg-[#ffd635] text-black",
+  lenta: "bg-[#123b8e] text-[#ffd53d]",
+  vkusvill: "bg-[#0c9f36] text-white",
+  "auto-ru": "bg-[#ff3b30] text-white",
+  "avito-auto": "bg-[#00aaff] text-white",
+  drom: "bg-[#d71920] text-white",
   source: "bg-muted text-muted-foreground",
 };
 
@@ -23,6 +31,9 @@ function marketplaceMark(offer) {
   if (offer.marketplaceId === "wildberries") return "WB";
   if (offer.marketplaceId === "yandex-market") return "Я";
   if (offer.marketplaceId === "dns") return "DNS";
+  if (offer.marketplaceId === "auto-ru") return "A";
+  if (offer.marketplaceId === "avito-auto") return "A";
+  if (offer.marketplaceId === "drom") return "D";
   return String(offer.marketplace || "М").slice(0, 1).toUpperCase();
 }
 
@@ -165,6 +176,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
     .filter((offer) => marketplaceOfferMatchesWish(wish, offer));
   const offers = mergeMarketplaceOffers(aiOffers, savedOffers);
   if (!offers.length && !owner) return null;
+  const bestLiveOfferIndex = offers.findIndex((offer) => !offer.source);
   const retrySeconds = retryAt ? Math.max(0, Math.ceil((retryAt - clock) / 1_000)) : 0;
   const visibleError = errorCode === "marketplace_offers_rate_limited" && retrySeconds > 0
     ? `Для этого товара поиск запускался слишком часто. Повторить можно через ${retryAfterLabel(retrySeconds)}.`
@@ -185,13 +197,15 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
             className="group flex min-h-16 min-w-0 w-full max-w-full items-center gap-2.5 rounded-2xl border bg-card px-3 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             aria-label={`${offer.exact ? "Открыть предложение" : "Найти товар"} на ${offer.marketplace}`}
           >
-            <span className={`grid size-9 shrink-0 place-items-center rounded-xl text-xs font-bold ${MARKETPLACE_MARK_CLASSES[offer.marketplaceId] || MARKETPLACE_MARK_CLASSES.source}`} aria-hidden="true">
-              {marketplaceMark(offer)}
-            </span>
+            <MarketplaceLogo
+              marketplaceId={offer.marketplaceId}
+              fallback={marketplaceMark(offer)}
+              fallbackClassName={MARKETPLACE_MARK_CLASSES[offer.marketplaceId] || MARKETPLACE_MARK_CLASSES.source}
+            />
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
                 <strong className="truncate text-sm font-semibold">{offer.marketplace}</strong>
-                {aiOffers.length > 0 && (offer.source || index === 0) && <Badge variant="secondary" className="shrink-0">{offer.source ? "Исходная ссылка" : "Лучшее"}</Badge>}
+                {aiOffers.length > 0 && (offer.source || index === bestLiveOfferIndex) && <Badge variant="secondary" className="shrink-0">{offer.source ? "Исходная ссылка" : "Лучшее"}</Badge>}
               </span>
               <small className="block truncate text-sm text-muted-foreground">
                 {aiOffers.length ? offer.title : "Сохранённая карточка"}

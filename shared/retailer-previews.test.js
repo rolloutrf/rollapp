@@ -14,6 +14,8 @@ test("matches product links from the supported food retailers", () => {
     ["https://samokat.ru/product/ketchup-heinz-320-g", "samokat"],
     ["https://www.samokat.ru/product/ketchup-heinz-320-g?utm_source=share", "samokat"],
     ["https://lavka.yandex.ru/good/petrushka-50-gram", "lavka"],
+    ["https://vkusvill.ru/goods/yaytso-kurinoe-s0-22658/", "vkusvill"],
+    ["https://www.vkusvill.ru/goods/yaytso-kurinoe-varaksino-92801.html", "vkusvill"],
     ["https://bushe.ru/products/xleb-laplandskii-320-g-a4fb88?pointId=5", "bushe"],
   ];
 
@@ -30,6 +32,7 @@ test("rejects retailer lookalikes, catalog pages, credentials, and non-web URLs"
     "https://samokat.ru/product/coffee/nutrition/",
     "https://lavka.yandex.ru/good/coffee/reviews",
     "https://bushe.ru/products/coffee/details",
+    "https://vkusvill.ru/goods/molochnye-produkty-yaytso/yaytso/",
     "https://user:secret@lenta.com/product/coffee/",
     "https://lenta.com:8443/product/coffee/",
     "ftp://samokat.ru/product/coffee/",
@@ -61,6 +64,10 @@ test("canonicalizes exact retailer product links for stable cache keys", () => {
       "http://www.bushe.ru/products/xleb-laplandskii-320-g-a4fb88/?pointId=5",
       "https://bushe.ru/products/xleb-laplandskii-320-g-a4fb88?pointId=5",
     ],
+    [
+      "https://www.vkusvill.ru/goods/yaytso-kurinoe-s0-22658/?utm_source=share#details",
+      "https://vkusvill.ru/goods/yaytso-kurinoe-s0-22658",
+    ],
   ];
 
   for (const [source, expected] of cases) {
@@ -84,6 +91,7 @@ test("returns a local preview asset for every supported retailer", () => {
   assert.equal(retailerPreviewImageUrl("https://samokat.ru/product/coffee/"), "/retailer-previews/samokat.svg");
   assert.equal(retailerPreviewImageUrl("https://lavka.yandex.ru/good/coffee"), "/retailer-previews/lavka.svg");
   assert.equal(retailerPreviewImageUrl("https://bushe.ru/products/coffee"), "/retailer-previews/bushe.svg");
+  assert.equal(retailerPreviewImageUrl("https://vkusvill.ru/goods/coffee-123"), "/retailer-previews/vkusvill.svg");
 });
 
 test("automatically fetches only retailers with stable public product metadata", () => {
@@ -91,4 +99,5 @@ test("automatically fetches only retailers with stable public product metadata",
   assert.equal(retailerSupportsAutomaticMetadata("https://bushe.ru/products/coffee"), true);
   assert.equal(retailerSupportsAutomaticMetadata("https://lenta.com/product/coffee/"), false);
   assert.equal(retailerSupportsAutomaticMetadata("https://samokat.ru/product/coffee/"), false);
+  assert.equal(retailerSupportsAutomaticMetadata("https://vkusvill.ru/goods/coffee-123/"), true);
 });

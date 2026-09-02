@@ -1,15 +1,28 @@
 import { z } from "zod";
+import { canonicalRetailerProductUrl, retailerPreview } from "../shared/retailer-previews.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "mistralai/mistral-small-2603";
-const MARKETPLACES = [
-  { id: "ozon", label: "Ozon", hosts: ["ozon.ru"] },
-  { id: "wildberries", label: "Wildberries", hosts: ["wildberries.ru", "global.wildberries.ru"] },
-  { id: "yandex-market", label: "Яндекс Маркет", hosts: ["market.yandex.ru"] },
-  { id: "megamarket", label: "Мегамаркет", hosts: ["megamarket.ru"] },
-  { id: "dns", label: "DNS", hosts: ["dns-shop.ru"] },
+const PRODUCT_MARKETPLACES = [
+  { id: "ozon", label: "Ozon", hosts: ["ozon.ru"], directPath: "ozon.ru/product/ или ozon.ru/t/" },
+  { id: "wildberries", label: "Wildberries", hosts: ["wildberries.ru", "global.wildberries.ru"], directPath: "wildberries.ru/catalog/<id>/detail.aspx" },
+  { id: "yandex-market", label: "Яндекс Маркет", hosts: ["market.yandex.ru"], directPath: "market.yandex.ru/card/ или market.yandex.ru/product--" },
+  { id: "megamarket", label: "Мегамаркет", hosts: ["megamarket.ru"], directPath: "megamarket.ru/catalog/details/" },
+  { id: "dns", label: "DNS", hosts: ["dns-shop.ru"], directPath: "dns-shop.ru/product/" },
 ];
-const ALLOWED_DOMAINS = MARKETPLACES.flatMap((marketplace) => marketplace.hosts);
+const FOOD_MARKETPLACES = [
+  { id: "samokat", label: "Самокат", hosts: ["samokat.ru"], directPath: "samokat.ru/product/<товар>" },
+  { id: "lavka", label: "Яндекс Лавка", hosts: ["lavka.yandex.ru"], directPath: "lavka.yandex.ru/good/<товар>" },
+  { id: "lenta", label: "Лента", hosts: ["lenta.com"], directPath: "lenta.com/product/<товар> или lenta.com/item/<артикул>" },
+  { id: "vkusvill", label: "ВкусВилл", hosts: ["vkusvill.ru"], directPath: "vkusvill.ru/goods/<товар>-<артикул>/" },
+];
+const VEHICLE_MARKETPLACES = [
+  { id: "auto-ru", label: "Auto.ru", hosts: ["auto.ru"], directPath: "auto.ru/cars/used/sale/<марка>/<модель>/<объявление>/" },
+  { id: "avito-auto", label: "Авито Авто", hosts: ["avito.ru"], directPath: "avito.ru/<город>/avtomobili/<объявление>_<id>" },
+  { id: "drom", label: "Drom", hosts: ["drom.ru"], directPath: "auto.drom.ru/<город>/<марка>/<модель>/<id>.html" },
+];
+const MARKETPLACES = [...PRODUCT_MARKETPLACES, ...FOOD_MARKETPLACES, ...VEHICLE_MARKETPLACES];
+const DEFAULT_MARKETPLACE_IDS = PRODUCT_MARKETPLACES.map((marketplace) => marketplace.id);
 
 const rawOfferSchema = z.object({
   marketplace: z.string().trim().min(1).max(80),
@@ -76,12 +89,30 @@ function marketplaceForHost(host) {
   ))) || null;
 }
 
-function directProductUrl(value) {
+function directProductUrl(value, marketplaceIds) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) return null;
     const marketplace = marketplaceForHost(url.hostname);
     if (!marketplace) return null;
+    if (Array.isArray(marketplaceIds) && marketplaceIds.length && !marketplaceIds.includes(marketplace.id)) return null;
+    if (FOOD_MARKETPLACES.some((candidate) => candidate.id === marketplace.id)) {
+      const canonical = canonicalRetailerProductUrl(url);
+      if (!canonical || retailerPreview(canonical)?.id !== marketplace.id) return null;
+      return { url: canonical.href, marketplace };
+    }
+    if (VEHICLE_MARKETPLACES.some((candidate) => candidate.id === marketplace.id)) {
+      const vehicleListing = (marketplace.id === "auto-ru"
+        && /^\/cars\/(?:used|new)\/sale\/[^/]+\/[^/]+\/[^/]+\/?$/i.test(url.pathname))
+        || (marketplace.id === "avito-auto"
+          && /^\/[^/]+\/avtomobili\/[^/]+_\d+\/?$/i.test(url.pathname))
+        || (marketplace.id === "drom"
+          && /\/\d+\.html$/i.test(url.pathname));
+      if (!vehicleListing) return null;
+      url.search = "";
+      url.hash = "";
+      return { url: url.href, marketplace };
+    }
     const productPage = (marketplace.id === "ozon" && (url.pathname.startsWith("/product/") || /^\/t\/[a-z0-9_-]+\/?$/i.test(url.pathname)))
       || (marketplace.id === "wildberries" && (/\/catalog\/\d+\/detail\.aspx$/i.test(url.pathname) || url.pathname.startsWith("/product/")))
       || (marketplace.id === "yandex-market" && (url.pathname.startsWith("/card/") || url.pathname.startsWith("/product--") || url.pathname.startsWith("/product/") || /^\/cc\/[a-z0-9_-]+\/?$/i.test(url.pathname)))
@@ -210,7 +241,7 @@ function savedOfferForWish(wish, checkedAt) {
   };
 }
 
-export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOString()) {
+export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOString(), { marketplaceIds } = {}) {
   const raw = parseJsonText(responseText(payload));
   const envelope = responseEnvelope(raw);
   const candidates = [
@@ -230,7 +261,7 @@ export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOS
   const offers = [];
 
   for (const candidate of parsed.offers) {
-    const direct = directProductUrl(candidate.url);
+    const direct = directProductUrl(candidate.url, marketplaceIds);
     if (!direct || seenUrls.has(direct.url)) continue;
     seenUrls.add(direct.url);
     offers.push({
@@ -271,25 +302,30 @@ export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOS
 export function buildOpenRouterMarketplaceRequest(wish, {
   model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
   origin = process.env.PUBLIC_APP_URL || "https://rollapp.app",
-  marketplaceIds = MARKETPLACES.map((marketplace) => marketplace.id),
+  marketplaceIds = DEFAULT_MARKETPLACE_IDS,
 } = {}) {
   const requestedMarketplaces = MARKETPLACES.filter((marketplace) => marketplaceIds.includes(marketplace.id));
-  const marketplaces = requestedMarketplaces.length ? requestedMarketplaces : MARKETPLACES;
+  const marketplaces = requestedMarketplaces.length ? requestedMarketplaces : PRODUCT_MARKETPLACES;
   const marketplaceNames = marketplaces.map((marketplace) => marketplace.label).join(", ");
-  const marketplacePaths = marketplaces.map((marketplace) => {
-    if (marketplace.id === "ozon") return "ozon.ru/product/ или ozon.ru/t/";
-    if (marketplace.id === "wildberries") return "wildberries.ru/catalog/<id>/detail.aspx";
-    if (marketplace.id === "yandex-market") return "market.yandex.ru/card/ или market.yandex.ru/product--";
-    if (marketplace.id === "megamarket") return "megamarket.ru/catalog/details/";
-    return "dns-shop.ru/product/";
-  }).join(", ");
+  const marketplacePaths = marketplaces.map((marketplace) => marketplace.directPath).join(", ");
+  const foodSearch = marketplaces.every((marketplace) => FOOD_MARKETPLACES.some((candidate) => candidate.id === marketplace.id));
+  const vehicleSearch = marketplaces.every((marketplace) => VEHICLE_MARKETPLACES.some((candidate) => candidate.id === marketplace.id));
   const product = {
     title: String(wish?.title || "").trim(),
     description: String(wish?.description || "").trim().slice(0, 1_000),
     sourceUrl: String(wish?.url || "").trim(),
     savedPrice: wish?.price == null ? null : Number(wish.price),
     savedCurrency: String(wish?.currency || "RUB"),
+    vehicleMake: String(wish?.vehicleMake || "").trim(),
+    vehicleModel: String(wish?.vehicleModel || "").trim(),
   };
+  const researcherKind = vehicleSearch ? "автомобильных объявлений" : foodSearch ? "продуктовых предложений" : "товарных предложений";
+  const exactMatch = vehicleSearch
+    ? "марки, модели и, если они указаны, года, поколения, кузова и комплектации автомобиля"
+    : foodSearch
+      ? "названия, бренда, веса, объёма, количества в упаковке и варианта продукта"
+      : "модели и варианта товара";
+  const itemKind = vehicleSearch ? "объявления автомобиля" : foodSearch ? "карточки продукта" : "карточки товара";
   return {
     url: OPENROUTER_URL,
     model,
@@ -303,11 +339,11 @@ export function buildOpenRouterMarketplaceRequest(wish, {
       messages: [
         {
           role: "system",
-          content: `Ты исследователь товарных предложений для России. Ищи только точное совпадение модели и варианта товара на площадках: ${marketplaceNames}. Не придумывай цены, наличие, продавцов или ссылки. Добавляй только прямые карточки товара; если карточка найдена, но цена в источнике не видна, укажи price=null. Выполняй адресные site-поиски по шаблонам прямых карточек: ${marketplacePaths}. Не возвращай /search, страницы категорий, подборки, обзоры и рекламные статьи. Сначала оцени точность модели, затем наличие, цену и надёжность продавца. Ответ дай на русском языке по JSON-схеме.`,
+          content: `Ты исследователь ${researcherKind} для России. Ищи только точное совпадение ${exactMatch} на площадках: ${marketplaceNames}. Не придумывай цены, наличие, продавцов или ссылки. Добавляй только прямые ${itemKind}; если цена в источнике не видна, укажи price=null. Выполняй адресные site-поиски по шаблонам прямых страниц: ${marketplacePaths}. Не возвращай /search, списки объявлений, страницы категорий, подборки, рецепты, обзоры и рекламные статьи. Сначала оцени точность совпадения, затем наличие, цену и надёжность продавца. Ответ дай на русском языке по JSON-схеме.`,
         },
         {
           role: "user",
-          content: `Найди актуальные прямые карточки товара на площадках: ${marketplaceNames}. Не более двух карточек с одной площадки. Данные товара: ${JSON.stringify(product)}`,
+          content: `Найди актуальные прямые ${vehicleSearch ? "объявления этого автомобиля" : foodSearch ? "карточки этого продукта" : "карточки товара"} на площадках: ${marketplaceNames}. Не более двух результатов с одной площадки. Данные: ${JSON.stringify(product)}`,
         },
       ],
       tools: [{
@@ -396,7 +432,7 @@ export async function fetchOpenRouterMarketplaceOffers(wish, {
   let normalized;
   const checkedAt = now().toISOString();
   try {
-    normalized = normalizeOpenRouterOffers(payload, checkedAt);
+    normalized = normalizeOpenRouterOffers(payload, checkedAt, { marketplaceIds });
   } catch (cause) {
     throw new OpenRouterOffersError("OpenRouter вернул неполный список предложений", {
       code: "openrouter_invalid_response",
