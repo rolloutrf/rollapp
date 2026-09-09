@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import {
-  AlertTriangle, BriefcaseBusiness, GraduationCap, MapPin, Pencil, Plus, Trash2, X,
+  AlertTriangle, MapPin, Pencil, Plus, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import cvSource from "@/data/cv.md?raw";
@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -120,8 +121,7 @@ function CvEditor({ cv, editor, onOpenChange, onSave }) {
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(52rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -371,7 +371,7 @@ export function CvResume() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="page-stack">
       <CareerEditAction
         label={hasStructuredContent ? "Редактировать основное" : "Заполнить CV"}
         loading={careerContent.loading}
@@ -396,10 +396,7 @@ export function CvResume() {
 
         <section className="cv-builder__section" aria-labelledby="cv-experience-title">
           <header className="cv-builder__section-header">
-            <div>
-              <span className="cv-builder__section-icon"><BriefcaseBusiness aria-hidden="true" /></span>
-              <h2 id="cv-experience-title">Опыт работы</h2>
-            </div>
+            <div><h2 id="cv-experience-title">Опыт работы</h2></div>
             {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "experience" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.experiences.length ? (
@@ -431,10 +428,7 @@ export function CvResume() {
 
         <section className="cv-builder__section" aria-labelledby="cv-education-title">
           <header className="cv-builder__section-header">
-            <div>
-              <span className="cv-builder__section-icon"><GraduationCap aria-hidden="true" /></span>
-              <h2 id="cv-education-title">Образование</h2>
-            </div>
+            <div><h2 id="cv-education-title">Образование</h2></div>
             {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "education" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.education.length ? (
@@ -470,10 +464,14 @@ export function CvResume() {
         </section>
 
         {cv.legacyMarkdown && (
-          <details className="cv-builder__legacy" open={!hasStructuredContent}>
-            <summary>Исходный текст CV</summary>
-            <MarkdownDocument source={cv.legacyMarkdown} label="Исходный текст CV" className="cv-builder__legacy-document" />
-          </details>
+          <Accordion className="cv-builder__legacy" defaultValue={hasStructuredContent ? [] : ["source"]}>
+            <AccordionItem value="source">
+              <AccordionTrigger>Исходный текст CV</AccordionTrigger>
+              <AccordionContent>
+                <MarkdownDocument source={cv.legacyMarkdown} label="Исходный текст CV" className="cv-builder__legacy-document" />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
       </article>
 

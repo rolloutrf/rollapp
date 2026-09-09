@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarketplaceLogo } from "@/components/marketplace-logo.jsx";
 import { marketplaceOfferMatchesWish, marketplaceOffersForWish, mergeMarketplaceOffers } from "@/lib/marketplace-offers.js";
+import { refreshMarketplaceOffers } from "@/lib/marketplace-offer-stream.js";
 
 const MARKETPLACE_MARK_CLASSES = {
   ozon: "bg-sky-500/15 text-sky-400",
@@ -37,51 +38,6 @@ function marketplaceMark(offer) {
   return String(offer.marketplace || "М").slice(0, 1).toUpperCase();
 }
 
-function streamMessage(block) {
-  let event = "message";
-  const data = [];
-  for (const line of block.split(/\r?\n/)) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    if (line.startsWith("data:")) data.push(line.slice(5).trim());
-  }
-  if (!data.length) return null;
-  try {
-    return { event, data: JSON.parse(data.join("\n")) };
-  } catch {
-    return null;
-  }
-}
-
-async function readOfferStream(response, onMessage) {
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const error = new Error(payload.error || "Не удалось запустить поиск предложений");
-    error.code = payload.code || "";
-    error.status = response.status;
-    error.retryAfterSeconds = Number(payload.retryAfterSeconds || response.headers.get("Retry-After")) || 0;
-    throw error;
-  }
-  if (!response.body) throw new Error("Браузер не поддерживает потоковое обновление");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = blocks.pop() || "";
-    for (const block of blocks) {
-      const message = streamMessage(block);
-      if (message) onMessage(message);
-    }
-    if (done) break;
-  }
-  if (buffer.trim()) {
-    const message = streamMessage(buffer);
-    if (message) onMessage(message);
-  }
-}
-
 function retryAfterLabel(seconds) {
   if (seconds >= 60) return `${Math.ceil(seconds / 60)} мин`;
   return `${Math.max(1, seconds)} сек`;
@@ -89,10 +45,13 @@ function retryAfterLabel(seconds) {
 
 export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
   const savedOffers = useMemo(() => marketplaceOffersForWish(wish), [wish]);
+  const [aiConfigured, setAiConfigured] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
+  const [warning, setWarning] = useState("");
   const [retryAt, setRetryAt] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
   const refreshControllerRef = useRef(null);
@@ -100,8 +59,12 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
   useEffect(() => {
     if (!owner) return undefined;
     let active = true;
+    setAiConfigured(null);
+    setStatusMessage("");
+    setWarning("");
     api.get(`/wishes/${wish.id}/marketplace-offers`).then((payload) => {
       if (!active) return;
+      setAiConfigured(Boolean(payload.aiConfigured ?? payload.configured));
       setSnapshot(payload.snapshot || null);
     }).catch((loadError) => {
       if (active) setError(loadError.message || "Не удалось загрузить предложения");
@@ -133,32 +96,35 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
     const controller = new AbortController();
     refreshControllerRef.current = controller;
     setLoading(true);
+    setStatusMessage("");
     setError("");
     setErrorCode("");
+    setWarning("");
     try {
-      const response = await fetch(`/api/wishes/${encodeURIComponent(wish.id)}/marketplace-offers/refresh`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
+      await refreshMarketplaceOffers(wish.id, {
         signal: controller.signal,
+        onMessage: ({ event, data }) => {
+          if (event === "status") {
+            setStatusMessage(data.message || "Ищем актуальные предложения…");
+          }
+          if (event === "done") {
+            setSnapshot(data.snapshot || null);
+            setRetryAt(0);
+            setStatusMessage("Предложения обновлены");
+          }
+          if (event === "warning") {
+            setWarning(data.warning || "Нейропоиск не сработал; показаны предложения из каталогов магазинов.");
+          }
+          if (event === "error") {
+            const streamError = new Error(data.error || "Не удалось обновить предложения");
+            streamError.code = data.code || "";
+            throw streamError;
+          }
+        },
       });
-      let completed = false;
-      await readOfferStream(response, ({ event, data }) => {
-        if (event === "done") {
-          completed = true;
-          setSnapshot(data.snapshot || null);
-          setRetryAt(0);
-        }
-        if (event === "error") {
-          const streamError = new Error(data.error || "Не удалось обновить предложения");
-          streamError.code = data.code || "";
-          throw streamError;
-        }
-      });
-      if (!completed) throw new Error("Поиск завершился без списка предложений");
     } catch (refreshError) {
       if (refreshError.name !== "AbortError") {
+        setStatusMessage("");
         setError(refreshError.message || "Не удалось обновить предложения");
         setErrorCode(refreshError.code || "");
         if (refreshError.status === 429 && refreshError.retryAfterSeconds > 0) {
@@ -183,9 +149,12 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
     : error;
 
   return (
-    <section className="mx-auto grid min-w-0 w-full max-w-md grid-cols-1 gap-3" aria-label="Предложения">
+    <section className="mx-auto grid min-w-0 w-full max-w-(--layout-compact-width) grid-cols-1 gap-3" aria-label="Предложения">
 
       {visibleError && <p className={`text-sm ${errorCode === "marketplace_offers_not_found" ? "text-muted-foreground" : "text-destructive"}`} role={errorCode === "marketplace_offers_not_found" ? "status" : "alert"}>{visibleError}</p>}
+      {statusMessage && !visibleError && <p className="text-sm text-muted-foreground" role="status">{statusMessage}</p>}
+      {warning && <p className="text-sm text-muted-foreground" role="status">{warning}</p>}
+      {owner && aiConfigured === false && !visibleError && !warning && <p className="text-sm text-muted-foreground" role="status">Нейропоиск не настроен. Сейчас доступны только предложения из прямых каталогов магазинов.</p>}
       {offers.length > 0 ? <div className="grid min-w-0 grid-cols-1 gap-2" role="list">
         {offers.map((offer, index) => (
           <a
@@ -226,7 +195,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
       {owner && <div className="flex">
         <Button className="w-full" type="button" size="sm" disabled={loading || retrySeconds > 0} aria-busy={loading || undefined} onClick={refresh}>
           {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-          {loading ? "Ищем" : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiOffers.length ? "Обновить" : "Найти лучшие"}
+          {loading ? (aiConfigured === false ? "Ищем в магазинах" : "Ищем") : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiConfigured === false ? (aiOffers.length ? "Обновить из магазинов" : "Найти в магазинах") : aiOffers.length ? "Обновить" : "Найти лучшие"}
         </Button>
       </div>}
 

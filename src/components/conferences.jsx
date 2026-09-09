@@ -1,14 +1,14 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink,
+  AlertTriangle, CalendarDays, CheckCircle2, Clock3,
   ImagePlus, RotateCcw, TicketCheck, Trash2, Ungroup, Users, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
-  Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
+  Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -27,7 +27,7 @@ import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
 } from "@/components/education-lists";
 import {
-  applyEducationGroupChange, EducationItemGroupOverlay, EducationItemGroupTile, russianCountLabel,
+  applyEducationGroupChange, educationGroupReturnFocus, EducationItemGroupOverlay, EducationItemGroupTile, russianCountLabel,
 } from "@/components/education-item-groups";
 import {
   educationApiListId, educationItemsInList, educationListSelection,
@@ -82,7 +82,7 @@ function formatDate(value) {
   if (!value) return "";
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return "";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day)))
     .replace(" г.", "");
 }
@@ -122,7 +122,7 @@ function ConferenceLogo({ conference, size = "card" }) {
 
 function ConferenceCard({
   conference, dragDescriptionId, lists, moveDisabled, moving, onCreateList, onEdit, onMove, onMoveToList,
-  onRemoveFromGroup, removeBusy = false, draggable = true,
+  onRemoveFromGroup, removeBusy = false, draggable = true, grouping,
 }) {
   const status = CONFERENCE_STATUS[conference.status] || CONFERENCE_STATUS.planned;
   const StatusIcon = status.icon;
@@ -168,6 +168,7 @@ function ConferenceCard({
             </Badge>
             <EducationItemListMenu
               currentListId={conference.listId}
+              grouping={grouping}
               disabled={moveDisabled}
               itemLabel="конференцию"
               itemTitle={conference.title}
@@ -205,19 +206,6 @@ function ConferenceCard({
             </div>
           </div>
         </CardContent>
-        {conference.url && (
-          <CardFooter className="justify-end">
-            <a
-              className={buttonVariants({ variant: "outline", size: "default", className: "pointer-events-auto relative z-20 min-h-12 px-4 text-base" })}
-              href={conference.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink data-icon="inline-start" aria-hidden="true" />
-              Открыть сайт
-            </a>
-          </CardFooter>
-        )}
       </Card>
     </div>
   );
@@ -342,8 +330,8 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
       onOpenChange={changeOpen}
     >
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
+        finalFocus={educationGroupReturnFocus}
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || logoUploading} />}
@@ -571,7 +559,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row sm:justify-end">
+          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
             <Button className="min-h-12 px-4 text-base" variant="outline" type="button" onClick={() => changeOpen(false)} disabled={saving || logoUploading}>
               Отмена
             </Button>
@@ -810,7 +798,7 @@ export function Conferences() {
   };
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" aria-labelledby="conferences-title">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="conferences-title">
       <EducationSectionHeader
         title="Конференции"
         titleId="conferences-title"
@@ -824,12 +812,12 @@ export function Conferences() {
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Не удалось загрузить конференции</AlertTitle>
           <AlertDescription>{requestState.error.message}</AlertDescription>
-          <AlertAction>
+          <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
               <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
-          </AlertAction>
+          </div>
         </Alert>
       )}
 
@@ -909,12 +897,19 @@ export function Conferences() {
                 conference={conference}
                 dragDescriptionId={cardOrder.descriptionId}
                 lists={requestState.lists}
-                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy}
+                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy || groupState.busy}
                 moving={moveState.itemId === conference.id}
                 onCreateList={() => setListDrawer({ open: true, list: null, moveItem: conference })}
                 onEdit={openEditDrawer}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveConferenceToList}
+                grouping={{
+                  items: ungroupedConferences.filter((candidate) => candidate.id !== conference.id),
+                  groups: visibleGroups,
+                  busy: groupState.busy,
+                  onCreate: (targetId) => createConferenceGroup(conference.id, targetId),
+                  onAdd: (groupId) => addConferenceToGroup(conference.id, groupId),
+                }}
                 draggable={!readOnly}
               />
             </li>
@@ -951,6 +946,7 @@ export function Conferences() {
       {openedGroup && (
         <EducationItemGroupOverlay
           group={openedGroup}
+          suspended={drawer.open || listDrawer.open}
           items={openedGroupConferences}
           lists={requestState.lists}
           countLabel={conferenceCountLabel}

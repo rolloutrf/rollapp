@@ -4,7 +4,7 @@ import {
   RotateCcw, Ungroup, Video, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -26,7 +26,7 @@ import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
 } from "@/components/education-lists";
 import {
-  applyEducationGroupChange, EducationItemGroupOverlay, EducationItemGroupTile, russianCountLabel,
+  applyEducationGroupChange, educationGroupReturnFocus, EducationItemGroupOverlay, EducationItemGroupTile, russianCountLabel,
 } from "@/components/education-item-groups";
 import {
   educationApiListId, educationItemsInList, educationListSelection,
@@ -86,7 +86,7 @@ function formatDate(value) {
   if (!value) return "";
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return "";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day)))
     .replace(" г.", "");
 }
@@ -115,7 +115,7 @@ function coachingSessionFormValues(session, initialListId = "") {
 
 function CoachingSessionCard({
   session, dragDescriptionId, lists, moveDisabled, moving, onCreateList, onEdit, onMove, onMoveToList,
-  onRemoveFromGroup, removeBusy = false, draggable = true,
+  onRemoveFromGroup, removeBusy = false, draggable = true, grouping,
 }) {
   const status = SESSION_STATUS[session.status] || SESSION_STATUS.scheduled;
   const StatusIcon = status.icon;
@@ -157,6 +157,7 @@ function CoachingSessionCard({
             </Badge>
             <EducationItemListMenu
               currentListId={session.listId}
+              grouping={grouping}
               disabled={moveDisabled}
               itemLabel="коучинг-сессию"
               itemTitle={session.title}
@@ -256,8 +257,8 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
       onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}
     >
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
+        finalFocus={educationGroupReturnFocus}
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -663,7 +664,7 @@ export function CoachingSessions() {
   };
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" aria-labelledby="coaching-title">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="coaching-title">
       <EducationSectionHeader
         title="Коучинг"
         titleId="coaching-title"
@@ -677,12 +678,12 @@ export function CoachingSessions() {
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Не удалось загрузить коучинг-сессии</AlertTitle>
           <AlertDescription>{requestState.error.message}</AlertDescription>
-          <AlertAction>
+          <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
               <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
-          </AlertAction>
+          </div>
         </Alert>
       )}
 
@@ -759,12 +760,19 @@ export function CoachingSessions() {
                 session={session}
                 dragDescriptionId={cardOrder.descriptionId}
                 lists={requestState.lists}
-                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy}
+                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy || groupState.busy}
                 moving={moveState.itemId === session.id}
                 onCreateList={() => setListDrawer({ open: true, list: null, moveItem: session })}
                 onEdit={openEditDrawer}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveSessionToList}
+                grouping={{
+                  items: ungroupedSessions.filter((candidate) => candidate.id !== session.id),
+                  groups: visibleGroups,
+                  busy: groupState.busy,
+                  onCreate: (targetId) => createSessionGroup(session.id, targetId),
+                  onAdd: (groupId) => addSessionToGroup(session.id, groupId),
+                }}
                 draggable={!readOnly}
               />
             </li>
@@ -801,6 +809,7 @@ export function CoachingSessions() {
       {openedGroup && (
         <EducationItemGroupOverlay
           group={openedGroup}
+          suspended={drawer.open || listDrawer.open}
           items={openedGroupSessions}
           lists={requestState.lists}
           countLabel={sessionCountLabel}

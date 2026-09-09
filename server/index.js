@@ -13,20 +13,25 @@ import { addDefaultFriend } from "./default-friend.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
-import { groupCatalogRows } from "./wish-catalog.js";
+import {
+  canonicalCatalogUrl, catalogActionKey, catalogIdentityKey, externalCatalogReference, groupCatalogRows, preservedCatalogRow,
+} from "./wish-catalog.js";
 import { buildFulfilledWishSuggestions } from "./fulfilled-wish-suggestions.js";
 import { VehicleCatalogUnavailableError, vehicleCatalog } from "./vehicle-catalog.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
+import { courseLogoHandler } from "./course-logo-resolver.js";
+import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
-import { fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
+import { DEFAULT_MODEL, fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
 import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, mergeDirectOffers } from "./marketplace-resolvers.js";
 import {
-  decryptUserCredential,
   encryptUserCredential,
   userCredentialHint,
   userCredentialsConfigured,
   UserCredentialsError,
 } from "./user-credentials.js";
+import { resolveOpenRouterCredential } from "./openrouter-credential.js";
+import { listOpenRouterModels, OpenRouterSettingsError, resolveOpenRouterModel, validateOpenRouterKey, validateOpenRouterModel } from "./openrouter-settings.js";
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
 import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
@@ -130,6 +135,14 @@ const catalogQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(96).default(48),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 }).strict();
+const catalogItemIdSchema = z.string().trim().min(1).max(2_000);
+const catalogLikeSchema = z.object({
+  itemId: catalogItemIdSchema,
+  liked: z.boolean(),
+}).strict();
+const catalogAddSchema = z.object({
+  itemId: catalogItemIdSchema,
+}).strict();
 const phoneRequestSchema = z.object({
   phone: z.string().trim().min(10).max(64),
 }).strict();
@@ -142,7 +155,9 @@ const telegramInitDataSchema = z.object({
 }).strict();
 const openRouterCredentialSchema = z.object({
   apiKey: z.string().trim().min(20).max(512).regex(/^sk-or-v1-[A-Za-z0-9_-]+$/),
+  model: z.string().trim().min(1).max(200).optional(),
 }).strict();
+const openRouterModelSchema = z.object({ model: z.string().trim().min(1).max(200) }).strict();
 const OPENROUTER_CREDENTIAL_PROVIDER = "openrouter";
 const contactLinkSchema = z.object({
   label: z.string().trim().min(1).max(40),
@@ -1008,6 +1023,9 @@ async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
     [ownerUsername],
   );
   if (!owner.rowCount) return { status: 404, error: "Владелец раздела не найден" };
+  if (viewer.account_type !== "business") {
+    return { status: 403, error: "Раздел доступен только бизнес-аккаунтам", code: "BUSINESS_ACCOUNT_REQUIRED" };
+  }
   const permission = await query(
     `SELECT 1 FROM sphere_section_shares
      WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
@@ -1916,8 +1934,20 @@ app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
 
 app.get("/api/healthz", asyncRoute(async (_req, res) => {
   await query("SELECT 1 AS ok");
-  res.json({ ok: true, service: "rollapp", version: process.env.APP_VERSION || "development" });
+  res.json({
+    ok: true,
+    service: "rollapp",
+    version: process.env.APP_VERSION || "development",
+    capabilities: {
+      marketplaceDirect: true,
+      marketplaceAi: Boolean(process.env.OPENROUTER_API_KEY),
+      personalAiCredentials: userCredentialsConfigured(),
+    },
+  });
 }));
+
+app.get("/api/education/course-logo", requireAuth, metadataRateLimit, asyncRoute(courseLogoHandler));
+app.get("/api/education/provider-logos/:providerKey", asyncRoute(providerLogoHandler));
 
 app.get("/api/media/:id", asyncRoute(async (req, res) => {
   const result = await query("SELECT id,mime_type,image_data,size_bytes FROM wish_images WHERE id=$1", [req.params.id]);
@@ -2132,7 +2162,7 @@ app.get("/api/me", asyncRoute(async (req, res) => {
 
 async function openRouterCredentialRow(userId) {
   const result = await query(
-    `SELECT encrypted_secret,secret_hint,updated_at
+    `SELECT encrypted_secret,secret_hint,model,updated_at
      FROM user_ai_credentials WHERE user_id=$1 AND provider=$2`,
     [userId, OPENROUTER_CREDENTIAL_PROVIDER],
   );
@@ -2141,16 +2171,8 @@ async function openRouterCredentialRow(userId) {
 
 async function resolveOpenRouterApiKey(userId) {
   const credential = await openRouterCredentialRow(userId);
-  if (!credential) {
-    return { apiKey: process.env.OPENROUTER_API_KEY || "", source: process.env.OPENROUTER_API_KEY ? "server" : "none" };
-  }
-  return {
-    apiKey: decryptUserCredential(credential.encrypted_secret, {
-      userId,
-      provider: OPENROUTER_CREDENTIAL_PROVIDER,
-    }),
-    source: "user",
-  };
+  const resolved = resolveOpenRouterCredential(credential, { userId });
+  return { ...resolved, model: resolveOpenRouterModel(credential, { source: resolved.source, defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL }) };
 }
 
 function openRouterCredentialStatus(credential) {
@@ -2158,6 +2180,8 @@ function openRouterCredentialStatus(credential) {
     available: userCredentialsConfigured(),
     configured: Boolean(credential),
     keyHint: credential?.secret_hint || "",
+    model: credential?.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+    defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
     serverFallbackConfigured: Boolean(process.env.OPENROUTER_API_KEY),
   };
 }
@@ -2166,6 +2190,37 @@ app.get("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
   const credential = await openRouterCredentialRow(req.user.id);
   res.set("Cache-Control", "private, no-store");
   return res.json(openRouterCredentialStatus(credential));
+}));
+
+app.get("/api/me/openrouter/models", requireAuth, asyncRoute(async (_req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  try {
+    return res.json({ models: await listOpenRouterModels() });
+  } catch (error) {
+    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
+    throw error;
+  }
+}));
+
+app.patch("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+  const parsed = openRouterModelSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Выберите модель OpenRouter", code: "openrouter_model_invalid" });
+  const credential = await openRouterCredentialRow(req.user.id);
+  if (!credential) return res.status(409).json({ error: "Сначала подключите личный ключ OpenRouter", code: "openrouter_key_required" });
+  try {
+    await validateOpenRouterModel(parsed.data.model);
+  } catch (error) {
+    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
+    throw error;
+  }
+  const result = await query(
+    `UPDATE user_ai_credentials SET model=$3,updated_at=CURRENT_TIMESTAMP
+     WHERE user_id=$1 AND provider=$2 RETURNING secret_hint,model,updated_at`,
+    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, parsed.data.model],
+  );
+  if (!result.rowCount) return res.status(409).json({ error: "Ключ был отключён. Подключите его заново.", code: "openrouter_key_required" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(openRouterCredentialStatus(result.rows[0]));
 }));
 
 app.post("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
@@ -2177,12 +2232,18 @@ app.post("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req
     });
   }
   let encryptedSecret;
+  let model;
   try {
+    const current = await openRouterCredentialRow(req.user.id);
+    model = parsed.data.model || current?.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
     encryptedSecret = encryptUserCredential(parsed.data.apiKey, {
       userId: req.user.id,
       provider: OPENROUTER_CREDENTIAL_PROVIDER,
     });
+    await validateOpenRouterKey(parsed.data.apiKey);
+    await validateOpenRouterModel(model);
   } catch (error) {
+    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
     if (error instanceof UserCredentialsError) {
       return res.status(503).json({ error: error.message, code: error.code });
     }
@@ -2190,14 +2251,15 @@ app.post("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req
   }
   const hint = userCredentialHint(parsed.data.apiKey);
   const result = await query(
-    `INSERT INTO user_ai_credentials (user_id,provider,encrypted_secret,secret_hint)
-     VALUES ($1,$2,$3,$4)
+    `INSERT INTO user_ai_credentials (user_id,provider,encrypted_secret,secret_hint,model)
+     VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (user_id,provider) DO UPDATE SET
        encrypted_secret=EXCLUDED.encrypted_secret,
        secret_hint=EXCLUDED.secret_hint,
+       model=EXCLUDED.model,
        updated_at=CURRENT_TIMESTAMP
-     RETURNING encrypted_secret,secret_hint,updated_at`,
-    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, encryptedSecret, hint],
+     RETURNING secret_hint,model,updated_at`,
+    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, encryptedSecret, hint, model],
   );
   res.set("Cache-Control", "private, no-store");
   return res.json(openRouterCredentialStatus(result.rows[0]));
@@ -2212,7 +2274,7 @@ app.delete("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
   return res.json(openRouterCredentialStatus(null));
 }));
 
-app.get("/api/sphere-shares/incoming", requireAuth, asyncRoute(async (req, res) => {
+app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
   const result = await query(
     `SELECT s.sphere,s.section,s.created_at,u.id,u.username,u.name,u.avatar_url,u.account_type
      FROM sphere_section_shares s
@@ -2246,6 +2308,7 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
          FROM sphere_section_shares s
          JOIN users u ON u.id=s.viewer_user_id
          WHERE s.owner_user_id=$1 AND s.sphere=$2 AND s.section=$3
+           AND u.account_type='business'
          ORDER BY u.name,u.username`,
         [access.owner.id, sphere, section],
       ),
@@ -2254,6 +2317,7 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
          FROM sphere_access_requests r
          JOIN users u ON u.id=r.requester_user_id
          WHERE r.owner_user_id=$1 AND r.sphere=$2 AND r.section=$3 AND r.status='pending'
+           AND u.account_type='business'
          ORDER BY r.created_at,u.name`,
         [access.owner.id, sphere, section],
       ),
@@ -2282,9 +2346,9 @@ app.get("/api/sphere-shares/candidates", requireAuth, requirePrivateSphereOwner,
      LEFT JOIN sphere_section_shares s
        ON s.viewer_user_id=u.id AND s.owner_user_id=$1 AND s.sphere=$2 AND s.section=$3
      WHERE u.id<>$1
+       AND u.account_type='business'
        AND ($4='' OR LOWER(u.name) LIKE $5 OR LOWER(u.username) LIKE $5)
      ORDER BY (s.viewer_user_id IS NOT NULL) DESC,
-              CASE WHEN u.account_type='business' THEN 0 ELSE 1 END,
               u.name,u.username
      LIMIT 50`,
     [req.user.id, sphere, section, search, `%${search}%`],
@@ -2414,15 +2478,23 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requireP
   if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
   const response = await transaction(async (client) => {
     const request = await client.query(
-      `SELECT id,requester_user_id,sphere,section,status
-       FROM sphere_access_requests
-       WHERE id=$1 AND owner_user_id=$2
-       FOR UPDATE`,
+      `SELECT r.id,r.requester_user_id,r.sphere,r.section,r.status,u.account_type AS requester_account_type
+       FROM sphere_access_requests r
+       JOIN users u ON u.id=r.requester_user_id
+       WHERE r.id=$1 AND r.owner_user_id=$2
+       FOR UPDATE OF r`,
       [req.params.requestId, req.user.id],
     );
     if (!request.rowCount) return { status: 404, error: "Запрос не найден" };
     if (request.rows[0].status !== "pending") return { status: 409, error: "На этот запрос уже ответили" };
     const row = request.rows[0];
+    if (parsed.data.decision === "approved" && row.requester_account_type !== "business") {
+      return {
+        status: 400,
+        error: "Доступ можно открыть только бизнес-аккаунту",
+        code: "BUSINESS_VIEWER_REQUIRED",
+      };
+    }
     await client.query(
       `UPDATE sphere_access_requests
        SET status=$1,updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
@@ -2439,7 +2511,7 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requireP
     }
     return { decision: parsed.data.decision };
   });
-  if (response.error) return res.status(response.status).json({ error: response.error });
+  if (response.error) return res.status(response.status).json({ error: response.error, code: response.code });
   res.set("Cache-Control", "private, no-store");
   return res.json(response);
 }));
@@ -2456,8 +2528,14 @@ app.post("/api/sphere-shares", requireAuth, requirePrivateSphereOwner, asyncRout
   }
   const { viewerId, sphere, section, granted } = parsed.data;
   if (viewerId === req.user.id) return res.status(400).json({ error: "Владелец уже имеет доступ к разделу" });
-  const viewer = await query("SELECT id FROM users WHERE id=$1", [viewerId]);
+  const viewer = await query("SELECT id,account_type FROM users WHERE id=$1", [viewerId]);
   if (!viewer.rowCount) return res.status(404).json({ error: "Пользователь не найден" });
+  if (granted && viewer.rows[0].account_type !== "business") {
+    return res.status(400).json({
+      error: "Доступ можно открыть только бизнес-аккаунту",
+      code: "BUSINESS_VIEWER_REQUIRED",
+    });
+  }
   if (granted) {
     await query(
       `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
@@ -2620,6 +2698,118 @@ async function canViewWish(wish, viewerId, shareToken = "", client = null) {
   return Boolean(follows.rowCount);
 }
 
+async function resolveCatalogActionItem(itemId, client = null) {
+  const runQuery = client ? client.query.bind(client) : query;
+  const externalReference = externalCatalogReference(itemId);
+  if (externalReference) {
+    const result = await runQuery(
+      `SELECT * FROM external_catalog_items
+       WHERE source=$1 AND external_id=$2 AND active=TRUE`,
+      [externalReference.source, externalReference.externalId],
+    );
+    return result.rowCount
+      ? { kind: "external", item: externalCatalogItemFromRow(result.rows[0]), sourceWishId: null }
+      : null;
+  }
+
+  const result = await runQuery(
+    `SELECT w.*
+     FROM wishes w
+     LEFT JOIN (
+       SELECT ww.wish_id,
+              MAX(CASE WHEN l.privacy='private' THEN 1 ELSE 0 END) AS has_private,
+              MAX(CASE WHEN l.privacy='public' THEN 1 ELSE 0 END) AS has_public
+       FROM wishlist_wishes ww
+       JOIN wishlists l ON l.id=ww.wishlist_id
+       GROUP BY ww.wish_id
+     ) visibility ON visibility.wish_id=w.id
+     WHERE w.id=$1
+       AND w.status='active'
+       AND w.privacy <> 'private'
+       AND (w.catalog_item_key IS NULL OR w.catalog_item_key NOT LIKE 'external:%')
+       AND COALESCE(visibility.has_private,0)=0
+       AND (visibility.wish_id IS NULL OR visibility.has_public=1)`,
+    [itemId],
+  );
+  if (result.rowCount) return { kind: "native", item: result.rows[0], sourceWishId: result.rows[0].id };
+  const preserved = await runQuery("SELECT snapshot FROM catalog_preserved_items WHERE id=$1", [itemId]);
+  return preserved.rowCount ? { kind: "native", item: preserved.rows[0].snapshot, sourceWishId: null } : null;
+}
+
+function catalogWishSnapshot({ item }) {
+  const read = (snakeCase, camelCase, fallback = "") => item[snakeCase] ?? item[camelCase] ?? fallback;
+  const currency = String(read("currency", "currency", "RUB"));
+  const priority = Number(read("priority", "priority", 2));
+  return {
+    title: String(read("title", "title")).trim().slice(0, 160),
+    description: String(read("description", "description")).trim().slice(0, 1_000),
+    url: String(read("url", "url")),
+    imageUrl: String(read("image_url", "imageUrl")),
+    fundraisingUrl: String(read("fundraising_url", "fundraisingUrl")),
+    vehicleMake: String(read("vehicle_make", "vehicleMake")).trim().slice(0, 120),
+    vehicleModel: String(read("vehicle_model", "vehicleModel")).trim().slice(0, 120),
+    price: read("price", "price", null),
+    currency: ["RUB", "USD", "EUR", "KZT", "BYN"].includes(currency) ? currency : "RUB",
+    priority: [1, 2, 3].includes(priority) ? priority : 2,
+    eventDate: formatEventDate(read("event_date", "eventDate", null)),
+    space: listSpaceValues.includes(item.space) ? item.space : "products",
+  };
+}
+
+async function decorateCatalogItems(items, userId, space) {
+  if (!items.length) return items;
+  const itemKeys = [...new Set(items.map(catalogActionKey))];
+  const [likes, ownedWishes] = await Promise.all([
+    query(
+      `SELECT item_key,COUNT(*)::int AS like_count,
+              SUM(CASE WHEN user_id=$2 THEN 1 ELSE 0 END)::int AS liked_by_me
+       FROM catalog_item_likes
+       WHERE item_key=ANY($1::text[])
+       GROUP BY item_key`,
+      [itemKeys, userId],
+    ),
+    query(
+      `SELECT * FROM wishes
+       WHERE user_id=$1 AND status='active' AND COALESCE(space,'products')=$2
+       ORDER BY created_at DESC,id`,
+      [userId, space],
+    ),
+  ]);
+  const likeStateByKey = new Map(likes.rows.map((row) => [row.item_key, {
+    likeCount: Number(row.like_count) || 0,
+    likedByMe: Number(row.liked_by_me) > 0,
+  }]));
+  const ownedByCatalogKey = new Map();
+  const ownedByIdentityKey = new Map();
+  const ownedByCanonicalUrl = new Map();
+  for (const wish of ownedWishes.rows) {
+    if (wish.catalog_item_key && !ownedByCatalogKey.has(wish.catalog_item_key)) {
+      ownedByCatalogKey.set(wish.catalog_item_key, wish.id);
+    }
+    const identityKey = catalogIdentityKey(wish);
+    if (!ownedByIdentityKey.has(identityKey)) ownedByIdentityKey.set(identityKey, wish.id);
+    const canonicalUrl = canonicalCatalogUrl(wish.url);
+    if (canonicalUrl && !ownedByCanonicalUrl.has(canonicalUrl)) ownedByCanonicalUrl.set(canonicalUrl, wish.id);
+  }
+
+  return items.map((item) => {
+    const itemKey = catalogActionKey(item);
+    const likeState = likeStateByKey.get(itemKey) || { likeCount: 0, likedByMe: false };
+    const externalReference = externalCatalogReference(item.id);
+    const addedWishId = ownedByCatalogKey.get(itemKey)
+      || (externalReference
+        ? ownedByCanonicalUrl.get(canonicalCatalogUrl(item.url))
+        : ownedByIdentityKey.get(catalogIdentityKey(item)))
+      || null;
+    return {
+      ...item,
+      ...likeState,
+      addedByMe: Boolean(addedWishId),
+      addedWishId,
+    };
+  });
+}
+
 app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
   const parsed = catalogQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте параметры каталога" });
@@ -2640,6 +2830,7 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
      WHERE w.status='active'
        AND COALESCE(w.space,'products')=$1
        AND w.privacy <> 'private'
+       AND (w.catalog_item_key IS NULL OR w.catalog_item_key NOT LIKE 'external:%')
        AND COALESCE(visibility.has_private,0)=0
        AND (visibility.wish_id IS NULL OR visibility.has_public=1)
      ORDER BY w.created_at DESC,w.id`,
@@ -2649,7 +2840,8 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
      WHERE active=TRUE AND space=$1`,
     [space],
   )]);
-  const nativeItems = groupCatalogRows(result.rows);
+  const preserved = await query("SELECT snapshot FROM catalog_preserved_items WHERE space=$1", [space]);
+  const nativeItems = groupCatalogRows([...result.rows, ...preserved.rows.map((row) => row.snapshot)]);
   const externalCount = Number(externalCountResult.rows[0]?.count || 0);
   const nativeItemsForPage = nativeItems.slice(offset, offset + limit);
   const externalLimit = limit - nativeItemsForPage.length;
@@ -2665,13 +2857,172 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
     );
     externalItems = externalResult.rows.map(externalCatalogItemFromRow);
   }
+  const items = await decorateCatalogItems([...nativeItemsForPage, ...externalItems], req.user.id, space);
   res.set("Cache-Control", "private, no-store");
   return res.json({
     space,
     total: nativeItems.length + externalCount,
     limit,
     offset,
-    items: [...nativeItemsForPage, ...externalItems],
+    items,
+  });
+}));
+
+app.patch("/api/catalog/items/like", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = catalogLikeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось изменить лайк" });
+  const { itemId, liked } = parsed.data;
+  const outcome = await withMutationLock(`catalog-like:${req.user.id}:${itemId}`, () => transaction(async (client) => {
+    const resolved = await resolveCatalogActionItem(itemId, client);
+    if (!resolved) return { status: 404, error: "Позиция каталога не найдена" };
+    const itemKey = catalogActionKey(resolved.item);
+    if (liked) {
+      await client.query(
+        `INSERT INTO catalog_item_likes (user_id,item_key) VALUES ($1,$2)
+         ON CONFLICT (user_id,item_key) DO NOTHING`,
+        [req.user.id, itemKey],
+      );
+    } else {
+      await client.query(
+        "DELETE FROM catalog_item_likes WHERE user_id=$1 AND item_key=$2",
+        [req.user.id, itemKey],
+      );
+    }
+    const count = await client.query(
+      "SELECT COUNT(*)::int AS like_count FROM catalog_item_likes WHERE item_key=$1",
+      [itemKey],
+    );
+    return { status: 200, likeCount: Number(count.rows[0]?.like_count) || 0 };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ likedByMe: liked, likeCount: outcome.likeCount });
+}));
+
+app.post("/api/catalog/items/remove", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = z.object({ itemId: z.string().min(1).max(500), wishId: z.string().min(1).max(160) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось определить желание" });
+  const { itemId, wishId } = parsed.data;
+  const outcome = await withMutationLock(`wish:${wishId}`, () => transaction(async (client) => {
+    const owned = await client.query("SELECT * FROM wishes WHERE id=$1 AND user_id=$2 FOR UPDATE", [wishId, req.user.id]);
+    if (!owned.rowCount) return { ok: true };
+    const resolved = await resolveCatalogActionItem(itemId, client);
+    if (!resolved) return { status: 404, error: "Позиция каталога не найдена" };
+    const wish = owned.rows[0];
+    const sameItem = wish.catalog_item_key === catalogActionKey(resolved.item)
+      || (resolved.kind === "native" && catalogIdentityKey(wish) === catalogIdentityKey(resolved.item))
+      || (resolved.kind === "external" && canonicalCatalogUrl(wish.url)
+        && canonicalCatalogUrl(wish.url) === canonicalCatalogUrl(resolved.item.url));
+    if (!sameItem) return { status: 409, error: "Желание не соответствует позиции каталога" };
+    if (resolved.kind === "native") {
+      const snapshot = preservedCatalogRow(resolved.item);
+      await client.query(
+        `INSERT INTO catalog_preserved_items (id,space,snapshot) VALUES ($1,$2,$3::jsonb)
+         ON CONFLICT (id) DO NOTHING`,
+        [snapshot.id, snapshot.space, JSON.stringify(snapshot)],
+      );
+    }
+    await client.query("DELETE FROM wishes WHERE id=$1 AND user_id=$2", [wishId, req.user.id]);
+    return { ok: true };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  res.set("Cache-Control", "private, no-store");
+  res.json(outcome);
+}));
+
+app.post("/api/catalog/items/add", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = catalogAddSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Не удалось добавить позицию" });
+  const { itemId } = parsed.data;
+  const outcome = await withMutationLock(`catalog-add:${req.user.id}:${itemId}`, () => transaction(async (client) => {
+    const resolved = await resolveCatalogActionItem(itemId, client);
+    if (!resolved) return { status: 404, error: "Позиция каталога не найдена" };
+    const snapshotResult = wishFieldsSchema.safeParse({
+      ...catalogWishSnapshot(resolved),
+      privacy: "inherit",
+      allowMultiple: false,
+    });
+    if (!snapshotResult.success) return { status: 422, error: "Данные позиции не подходят для добавления" };
+    const snapshot = snapshotResult.data;
+    const itemKey = catalogActionKey(resolved.item);
+    const identityKey = catalogIdentityKey(resolved.item);
+    const direct = await client.query(
+      `SELECT * FROM wishes
+       WHERE user_id=$1
+         AND (catalog_item_key=$2 OR ($3::text IS NOT NULL AND (id=$3 OR source_wish_id=$3)))
+       ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,created_at DESC,id
+       LIMIT 1`,
+      [req.user.id, itemKey, resolved.sourceWishId],
+    );
+    if (direct.rowCount) {
+      const existing = direct.rows[0];
+      const restored = existing.status !== "active" || (existing.space || "products") !== snapshot.space;
+      const updated = await client.query(
+        `UPDATE wishes
+         SET status='active',space=$1,catalog_item_key=COALESCE(catalog_item_key,$2)
+         WHERE id=$3 AND user_id=$4
+         RETURNING id`,
+        [snapshot.space, itemKey, existing.id, req.user.id],
+      );
+      return { status: 200, id: updated.rows[0].id, created: false, restored };
+    }
+    const owned = await client.query(
+      `SELECT * FROM wishes
+       WHERE user_id=$1 AND COALESCE(space,'products')=$2
+       ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,created_at DESC,id`,
+      [req.user.id, snapshot.space],
+    );
+    const sourceUrl = canonicalCatalogUrl(resolved.item.url);
+    const existing = resolved.kind === "native"
+      ? owned.rows.find((wish) => catalogIdentityKey(wish) === identityKey)
+      : owned.rows.find((wish) => sourceUrl && canonicalCatalogUrl(wish.url) === sourceUrl);
+    if (existing) {
+      const restored = await client.query(
+        `UPDATE wishes
+         SET status='active',catalog_item_key=COALESCE(catalog_item_key,$1)
+         WHERE id=$2 AND user_id=$3
+         RETURNING id`,
+        [itemKey, existing.id, req.user.id],
+      );
+      return { status: 200, id: restored.rows[0].id, created: false, restored: existing.status !== "active" };
+    }
+
+    const wishId = randomUUID();
+    const inserted = await client.query(
+      `INSERT INTO wishes (
+         id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,
+         price,currency,priority,privacy,allow_multiple,event_date,space,source_wish_id,catalog_item_key
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'inherit',FALSE,$13,$14,$15,$16)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [
+        wishId, req.user.id, snapshot.title, snapshot.description, snapshot.url, snapshot.imageUrl,
+        snapshot.fundraisingUrl, snapshot.vehicleMake, snapshot.vehicleModel, snapshot.price,
+        snapshot.currency, snapshot.priority, snapshot.eventDate, snapshot.space,
+        resolved.sourceWishId, itemKey,
+      ],
+    );
+    if (inserted.rowCount) return { status: 201, id: wishId, created: true };
+
+    const raced = await client.query(
+      `SELECT id FROM wishes
+       WHERE user_id=$1
+         AND (catalog_item_key=$2 OR ($3::text IS NOT NULL AND source_wish_id=$3))
+       ORDER BY created_at DESC,id
+       LIMIT 1`,
+      [req.user.id, itemKey, resolved.sourceWishId],
+    );
+    if (!raced.rowCount) return { status: 409, error: "Позиция уже была добавлена другим запросом" };
+    await client.query("UPDATE wishes SET status='active',space=$2 WHERE id=$1", [raced.rows[0].id, snapshot.space]);
+    return { status: 200, id: raced.rows[0].id, created: false, restored: true };
+  }));
+  if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+  const wishes = await getWishes(req.user.id, req.user.id, true);
+  res.set("Cache-Control", "private, no-store");
+  return res.status(outcome.status).json({
+    wish: wishes.find((wish) => wish.id === outcome.id),
+    created: outcome.created,
+    restored: Boolean(outcome.restored),
   });
 }));
 
@@ -3208,10 +3559,11 @@ app.get("/api/wishes/:id/marketplace-offers", requireAuth, asyncRoute(async (req
     ),
     openRouterCredentialRow(req.user.id),
   ]);
+  const aiConfigured = Boolean(process.env.OPENROUTER_API_KEY || (credential && userCredentialsConfigured()));
   res.set("Cache-Control", "private, no-store");
   return res.json({
     configured: true,
-    aiConfigured: Boolean(process.env.OPENROUTER_API_KEY || (credential && userCredentialsConfigured())),
+    aiConfigured,
     personalKeyConfigured: Boolean(credential),
     snapshot: parseMarketplaceOfferSnapshot(snapshot.rows[0], owned.rows[0].title),
   });
@@ -3234,9 +3586,6 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
   try {
     openRouterCredential = await resolveOpenRouterApiKey(req.user.id);
   } catch (error) {
-    if (error instanceof UserCredentialsError) {
-      return res.status(503).json({ error: error.message, code: error.code });
-    }
     return next(error);
   }
 
@@ -3250,6 +3599,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
   res.flushHeaders();
 
   const controller = new AbortController();
+  const searchStartedAt = Date.now();
   const timeout = setTimeout(() => controller.abort(new Error("OpenRouter request timed out")), 90_000);
   const keepAlive = setInterval(() => writeMarketplaceOfferEvent(res, "ping", { at: Date.now() }), 12_000);
   res.once("close", () => {
@@ -3263,16 +3613,25 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       stage: "searching",
       message: vehicleSearch ? "Ищем автомобиль в объявлениях…" : foodSearch ? "Ищем продукт в магазинах…" : "Ищем товар на маркетплейсах…",
     });
+    if (openRouterCredential.warning) {
+      writeMarketplaceOfferEvent(res, "warning", {
+        warning: openRouterCredential.apiKey
+          ? "Личный ключ нейропоиска недоступен; используется серверный ключ."
+          : "Личный ключ нейропоиска недоступен; поиск продолжен в прямых каталогах магазинов.",
+        code: openRouterCredential.warning.code,
+      });
+    }
     const openRouterTask = openRouterCredential.apiKey
       ? fetchOpenRouterMarketplaceOffers(owned.rows[0], {
         apiKey: openRouterCredential.apiKey,
+        model: openRouterCredential.model,
         signal: controller.signal,
         allowEmpty: true,
         marketplaceIds: vehicleSearch
           ? ["auto-ru", "avito-auto", "drom"]
           : foodSearch
             ? ["samokat", "lavka", "lenta", "vkusvill"]
-            : ["ozon"],
+            : ["ozon", "wildberries", "yandex-market", "megamarket", "dns"],
       })
       : Promise.resolve({
         offers: [],
@@ -3287,7 +3646,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     const result = openRouterSearch.status === "fulfilled" ? openRouterSearch.value : {
       offers: [],
       summary: "",
-      model: process.env.OPENROUTER_MODEL || "",
+      model: "",
       usage: null,
     };
     const resolvedOffers = marketplaceSearch.status === "fulfilled" ? marketplaceSearch.value : [];
@@ -3300,6 +3659,25 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти прямые объявления автомобиля" : "Не удалось найти прямые карточки товара", {
         status: 422,
         code: "marketplace_offers_not_found",
+      });
+    }
+    if (!openRouterCredential.apiKey && !openRouterCredential.warning) {
+      writeMarketplaceOfferEvent(res, "warning", {
+        warning: "Нейропоиск не настроен; показаны предложения из прямых каталогов магазинов.",
+        code: "openrouter_not_configured",
+      });
+    } else if (openRouterSearch.status === "rejected") {
+      const aiError = openRouterSearch.reason;
+      const knownAiError = aiError instanceof OpenRouterOffersError;
+      console.warn("Marketplace AI search failed", {
+        code: knownAiError ? aiError.code : "openrouter_request_failed",
+        durationMs: Date.now() - searchStartedAt,
+      });
+      writeMarketplaceOfferEvent(res, "warning", {
+        warning: knownAiError
+          ? `${aiError.message}; показаны предложения из прямых каталогов магазинов.`
+          : "Нейропоиск временно недоступен; показаны предложения из прямых каталогов магазинов.",
+        code: knownAiError ? aiError.code : "openrouter_request_failed",
       });
     }
     if (resolvedOffers.some((offer) => !offer.source)) {
@@ -3342,9 +3720,18 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     writeMarketplaceOfferEvent(res, "done", {
       snapshot: parseMarketplaceOfferSnapshot(saved.rows[0], owned.rows[0].title),
     });
+    console.info("Marketplace offer refresh completed", {
+      ai: Boolean(result.model),
+      offers: result.offers.length,
+      durationMs: Date.now() - searchStartedAt,
+    });
   } catch (error) {
     const known = error instanceof OpenRouterOffersError;
     const aborted = controller.signal.aborted;
+    console.warn("Marketplace offer refresh failed", {
+      code: aborted ? "marketplace_offers_timeout" : known ? error.code : "marketplace_offers_failed",
+      durationMs: Date.now() - searchStartedAt,
+    });
     writeMarketplaceOfferEvent(res, "error", {
       error: aborted ? "Поиск занял слишком много времени. Попробуйте ещё раз" : known ? error.message : "Не удалось обновить предложения",
       code: aborted ? "marketplace_offers_timeout" : known ? error.code : "marketplace_offers_failed",
@@ -4029,6 +4416,7 @@ function mapUploadedLabReport(row, ownerUsername = "") {
   return {
     ...report,
     source: {
+      uploadId: row.id,
       uploaded: true,
       filename: row.filename,
       uploadedAt: row.created_at,
@@ -4037,8 +4425,9 @@ function mapUploadedLabReport(row, ownerUsername = "") {
   };
 }
 
-async function uploadedLabReports(userId, ownerUsername = "") {
-  const result = await query(
+async function uploadedLabReports(userId, ownerUsername = "", client = null) {
+  const execute = client ? client.query.bind(client) : query;
+  const result = await execute(
     `SELECT id,filename,report_json,created_at
      FROM lab_report_uploads
      WHERE user_id=$1
@@ -4046,6 +4435,60 @@ async function uploadedLabReports(userId, ownerUsername = "") {
     [userId],
   );
   return result.rows.map((row) => mapUploadedLabReport(row, ownerUsername));
+}
+
+function labReportKey(report) {
+  const date = String(report?.date || "").trim();
+  return date ? `date:${date}` : `id:${String(report?.id || "").trim()}`;
+}
+
+async function deletedLabReportKeys(userId, client = null) {
+  const execute = client ? client.query.bind(client) : query;
+  const result = await execute(
+    "SELECT report_key FROM lab_report_deletions WHERE user_id=$1",
+    [userId],
+  );
+  return new Set(result.rows.map((row) => row.report_key));
+}
+
+function labReportDateAliases(reports) {
+  const aliases = new Set();
+  for (const report of reports) {
+    const date = String(report?.date || "").trim();
+    if (!date) continue;
+    aliases.add(date);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (!match) continue;
+    const [, year, month, day] = match;
+    aliases.add(`${day}.${month}.${year}`);
+    aliases.add(`${day}.${month}.${year.slice(-2)}`);
+  }
+  return aliases;
+}
+
+async function lockLabResultsMutation(client, userId) {
+  if (isMemoryDatabase) return;
+  await client.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`lab-results:${userId}`],
+  );
+}
+
+async function labResultsPayload(userId, ownerUsername = "", client = null) {
+  const [uploadedReports, deletedKeys] = await Promise.all([
+    uploadedLabReports(userId, ownerUsername, client),
+    deletedLabReportKeys(userId, client),
+  ]);
+  const reports = mergeLabReportsByDate([...uploadedReports, ...LAB_REPORTS])
+    .filter((report) => !deletedKeys.has(labReportKey(report)));
+  const visibleDates = labReportDateAliases(reports);
+  return {
+    reports,
+    trends: LAB_TRENDS
+      .map((trend) => ({ ...trend, points: trend.points.filter((point) => visibleDates.has(point.date)) }))
+      .filter((trend) => trend.points.length),
+    attentionItems: LAB_ATTENTION_ITEMS.filter((item) => visibleDates.has(item.date)),
+  };
 }
 
 app.get("/api/contacts", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
@@ -5580,13 +6023,9 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
 }));
 
 app.get("/api/health/lab-results", requireAuth, requireSphereReadAccess("health", "lab-results"), asyncRoute(async (req, res) => {
-  const uploadedReports = await uploadedLabReports(req.user.id, req.query.owner);
+  const payload = await labResultsPayload(req.user.id, req.query.owner);
   res.set("Cache-Control", "private, no-store");
-  return res.json({
-    reports: mergeLabReportsByDate([...uploadedReports, ...LAB_REPORTS]),
-    trends: LAB_TRENDS,
-    attentionItems: LAB_ATTENTION_ITEMS,
-  });
+  return res.json(payload);
 }));
 
 app.post(
@@ -5613,24 +6052,63 @@ app.post(
 
     const fileHash = createHash("sha256").update(req.body).digest("hex");
     try {
-      const inserted = await query(
-        `INSERT INTO lab_report_uploads (
-           id,user_id,filename,mime_type,pdf_data,size_bytes,file_hash,report_json
-         ) VALUES ($1,$2,$3,'application/pdf',$4,$5,$6,$7)
-         RETURNING id,filename,report_json,created_at`,
-        [id, req.user.id, filename, req.body, req.body.length, fileHash, JSON.stringify(report)],
-      );
-      const insertedReport = mapUploadedLabReport(inserted.rows[0]);
-      const reports = mergeLabReportsByDate([...(await uploadedLabReports(req.user.id)), ...LAB_REPORTS]);
-      const mergedReport = reports.find((item) => item.date === insertedReport.date) || insertedReport;
+      const inserted = await withMutationLock(`lab-results:${req.user.id}`, () => transaction(async (client) => {
+        await lockLabResultsMutation(client, req.user.id);
+        const result = await client.query(
+          `INSERT INTO lab_report_uploads (
+             id,user_id,filename,mime_type,pdf_data,size_bytes,file_hash,report_json
+           ) VALUES ($1,$2,$3,'application/pdf',$4,$5,$6,$7)
+           RETURNING id,filename,report_json,created_at`,
+          [id, req.user.id, filename, req.body, req.body.length, fileHash, JSON.stringify(report)],
+        );
+        await client.query(
+          "DELETE FROM lab_report_deletions WHERE user_id=$1 AND report_key=$2",
+          [req.user.id, labReportKey(report)],
+        );
+        return {
+          row: result.rows[0],
+          payload: await labResultsPayload(req.user.id, "", client),
+        };
+      }));
+      const insertedReport = mapUploadedLabReport(inserted.row);
+      const mergedReport = inserted.payload.reports.find((item) => item.date === insertedReport.date) || insertedReport;
       res.set("Cache-Control", "private, no-store");
-      return res.status(201).json({ report: mergedReport, reports });
+      return res.status(201).json({ report: mergedReport, ...inserted.payload });
     } catch (error) {
       if (error?.code === "23505") return res.status(409).json({ error: "Этот PDF уже загружен" });
       throw error;
     }
   }),
 );
+
+app.delete("/api/health/lab-results/:reportId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const outcome = await withMutationLock(`lab-results:${req.user.id}`, () => transaction(async (client) => {
+    await lockLabResultsMutation(client, req.user.id);
+    const currentPayload = await labResultsPayload(req.user.id, "", client);
+    const report = currentPayload.reports.find((item) => item.id === req.params.reportId);
+    if (!report) return null;
+
+    const reportKey = labReportKey(report);
+    const uploads = await uploadedLabReports(req.user.id, "", client);
+    for (const upload of uploads) {
+      if (labReportKey(upload) !== reportKey || !upload.source?.uploadId) continue;
+      await client.query(
+        "DELETE FROM lab_report_uploads WHERE id=$1 AND user_id=$2",
+        [upload.source.uploadId, req.user.id],
+      );
+    }
+    await client.query(
+      `INSERT INTO lab_report_deletions (user_id,report_key,deleted_at)
+       VALUES ($1,$2,CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id,report_key) DO UPDATE SET deleted_at=CURRENT_TIMESTAMP`,
+      [req.user.id, reportKey],
+    );
+    return labResultsPayload(req.user.id, "", client);
+  }));
+  if (!outcome) return res.status(404).json({ error: "Анализ не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ ok: true, ...outcome });
+}));
 
 app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requireSphereReadAccess("health", "lab-results"), asyncRoute(async (req, res) => {
   const result = await query(

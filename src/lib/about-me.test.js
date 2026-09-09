@@ -14,7 +14,7 @@ test("about-me markdown becomes separate question and description pairs", () => 
   });
 });
 
-test("about-me serialization restores numbering and preserves a preamble", () => {
+test("about-me serialization omits numbering and preserves a preamble", () => {
   const source = serializeAboutMeMarkdown({
     preamble: "Вводный текст.",
     questions: [
@@ -23,6 +23,6 @@ test("about-me serialization restores numbering and preserves a preamble", () =>
     ],
   });
 
-  assert.equal(source, "Вводный текст.\n\n### 1. Новый вопрос?\n\nНовый ответ.\n\n### 2. Ещё один?\n\nОписание в двух строках.\n\nПродолжение.\n");
+  assert.equal(source, "Вводный текст.\n\n### Новый вопрос?\n\nНовый ответ.\n\n### Ещё один?\n\nОписание в двух строках.\n\nПродолжение.\n");
   assert.equal(parseAboutMeMarkdown(source).questions.length, 2);
 });

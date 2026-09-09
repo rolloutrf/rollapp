@@ -36,11 +36,11 @@ export function serializeAboutMeMarkdown({ preamble = "", questions = [] }) {
   const cleanPreamble = String(preamble || "").trim();
   if (cleanPreamble) blocks.push(cleanPreamble);
 
-  questions.forEach(({ question, description }, index) => {
+  questions.forEach(({ question, description }) => {
     const cleanQuestion = String(question || "").trim();
     const cleanDescription = String(description || "").trim();
     if (!cleanQuestion || !cleanDescription) return;
-    blocks.push(`### ${index + 1}. ${cleanQuestion}\n\n${cleanDescription}`);
+    blocks.push(`### ${cleanQuestion}\n\n${cleanDescription}`);
   });
 
   return blocks.length ? `${blocks.join("\n\n")}\n` : "";

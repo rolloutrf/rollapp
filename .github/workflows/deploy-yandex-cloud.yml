@@ -184,6 +184,10 @@ jobs:
           fi
 
           echo "Rollapp is healthy at ${PUBLIC_URL} on ${GITHUB_SHA}"
+          health="$(read_health)"
+          if ! jq -e '.capabilities.marketplaceAi == true' <<<"$health" >/dev/null 2>&1; then
+            echo "::warning::Marketplace AI search is not configured; production will use direct catalogues only"
+          fi
           for redirect_url in \
             "https://rollapp.51-250-110-17.sslip.io/api/healthz" \
             "https://www.xn--80avakiab.xn--p1ai/api/healthz"; do

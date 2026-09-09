@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle, Check, CheckCircle2, ExternalLink, FileUp, RotateCcw,
+  AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/api";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card, CardAction, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -47,8 +51,8 @@ function ResultItem({ item }) {
         </CardHeader>
         <CardContent className="flex h-full flex-col gap-3">
           <div className="flex flex-col gap-2">
-            <div className="flex items-baseline gap-1.5">
-              <strong className="text-xl font-medium tracking-tight tabular-nums">{result.value}</strong>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-1.5">
+              <strong className="min-w-0 break-words text-xl font-medium tracking-tight tabular-nums">{result.value}</strong>
               {result.unit && <span className="text-xs text-muted-foreground">{result.unit}</span>}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -72,9 +76,9 @@ function ResultItem({ item }) {
 function ReportGroup({ group }) {
   const countLabel = group.items.length === 1 ? "показатель" : group.items.length < 5 ? "показателя" : "показателей";
   return (
-    <AccordionItem className="not-last:data-open:border-b-0" value={group.id}>
+    <AccordionItem className="not-last:data-open:border-b-0 [&>h2]:m-0" value={group.id}>
       <AccordionTrigger
-        className="w-full min-w-0 items-center hover:no-underline"
+        className="w-full min-w-0 items-center py-4 hover:no-underline"
         headerAs="h2"
       >
         <span className="flex min-w-0 flex-1 items-center gap-3 pr-3">
@@ -86,8 +90,8 @@ function ReportGroup({ group }) {
           </span>
         </span>
       </AccordionTrigger>
-      <AccordionContent>
-        <ul className="grid list-none gap-2 px-px pt-2 sm:grid-cols-2">
+      <AccordionContent className="pb-0">
+        <ul className="m-0 grid list-none gap-2 px-px sm:grid-cols-2">
           {group.items.map((item, index) => <ResultItem key={`${item.name}-${index}`} item={item} />)}
         </ul>
       </AccordionContent>
@@ -112,6 +116,8 @@ export function LabResults() {
   const [requestState, setRequestState] = useState({ loading: true, data: null, error: null });
   const [selectedReportId, setSelectedReportId] = useState("");
   const [uploadState, setUploadState] = useState({ loading: false, error: "", success: "" });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteState, setDeleteState] = useState({ busy: false, error: "" });
   const [isDraggingPdf, setIsDraggingPdf] = useState(false);
   useEffect(() => {
     let current = true;
@@ -119,7 +125,7 @@ export function LabResults() {
     api.get("/health/lab-results").then((data) => {
       if (!current) return;
       setRequestState({ loading: false, data, error: null });
-      setSelectedReportId((id) => id || data.reports?.[0]?.id || "");
+      setSelectedReportId((id) => data.reports?.some((report) => report.id === id) ? id : data.reports?.[0]?.id || "");
     }).catch((error) => {
       if (current) setRequestState({ loading: false, data: null, error });
     });
@@ -127,7 +133,7 @@ export function LabResults() {
   }, [requestVersion]);
 
   async function uploadPdf(file) {
-    if (!file) return;
+    if (!file || deleteState.busy) return;
     if (!(file.type === "application/pdf" || file.name.toLocaleLowerCase("ru-RU").endsWith(".pdf"))) {
       setUploadState({ loading: false, error: "Выберите файл в формате PDF.", success: "" });
       return;
@@ -165,14 +171,55 @@ export function LabResults() {
   function handlePdfDrop(event) {
     event.preventDefault();
     setIsDraggingPdf(false);
-    if (uploadState.loading) return;
+    if (uploadState.loading || deleteState.busy) return;
     const [file] = event.dataTransfer.files || [];
     void uploadPdf(file);
   }
 
+  function requestDeleteReport(report) {
+    setUploadState({ loading: false, error: "", success: "" });
+    setDeleteState({ busy: false, error: "" });
+    setDeleteTarget(report);
+  }
+
+  async function deleteReport() {
+    if (!deleteTarget || deleteState.busy) return;
+    const targetId = deleteTarget.id;
+    const currentReports = requestState.data?.reports || [];
+    const deletedIndex = Math.max(0, currentReports.findIndex((report) => report.id === targetId));
+    const applyResponse = (response) => {
+      const reports = sortReports(response.reports || []);
+      const nextReport = reports[Math.min(deletedIndex, Math.max(0, reports.length - 1))] || null;
+      setRequestState((state) => ({
+        loading: false,
+        error: null,
+        data: { ...state.data, ...response, reports },
+      }));
+      setSelectedReportId(nextReport?.id || "");
+      setUploadState({ loading: false, error: "", success: "" });
+      setDeleteTarget(null);
+      setDeleteState({ busy: false, error: "" });
+    };
+    setDeleteState({ busy: true, error: "" });
+    try {
+      applyResponse(await api.delete(`/health/lab-results/${encodeURIComponent(targetId)}`));
+    } catch (error) {
+      try {
+        const refreshed = await api.get("/health/lab-results");
+        if (!(refreshed.reports || []).some((report) => report.id === targetId)) {
+          applyResponse(refreshed);
+          return;
+        }
+      } catch {
+        // Preserve the original mutation error when reconciliation is unavailable.
+      }
+      setDeleteState({ busy: false, error: error.message });
+    }
+  }
+
   if (requestState.loading) {
     return (
-      <Card className="not-typeset rollapp-body mx-auto w-full max-w-3xl">
+      <Card className="not-typeset rollapp-body mx-auto w-full max-w-(--layout-text-width)">
         <CardContent className="flex min-h-56 flex-col items-center justify-center gap-3 text-center" aria-live="polite">
           <Spinner className="size-5" aria-label="Загружаем анализы" />
           <div className="flex flex-col gap-1">
@@ -183,47 +230,73 @@ export function LabResults() {
       </Card>
     );
   }
-  if (requestState.error || !requestState.data?.reports?.length) {
+  if (requestState.error) {
     return (
-      <Alert variant="destructive" className="not-typeset rollapp-body mx-auto max-w-3xl pr-32">
+      <Alert variant="destructive" className="not-typeset rollapp-body mx-auto max-w-(--layout-text-width)">
         <AlertTriangle aria-hidden="true" />
         <AlertTitle>Не удалось загрузить анализы</AlertTitle>
-        <AlertDescription>{requestState.error?.message || "В истории пока нет результатов."}</AlertDescription>
-        <AlertAction>
+        <AlertDescription>{requestState.error.message}</AlertDescription>
+        <div className="col-start-2 flex flex-wrap gap-2 pt-2">
           <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
             <RotateCcw data-icon="inline-start" aria-hidden="true" />
             Повторить
           </Button>
-        </AlertAction>
+        </div>
       </Alert>
     );
   }
 
-  const reports = requestState.data.reports;
-  const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0];
-  const selectedPdfSources = (selectedReport.sources || (selectedReport.source ? [selectedReport.source] : []))
-    .filter((source, index, sources) => source.pdfUrl && sources.findIndex((item) => item.pdfUrl === source.pdfUrl) === index);
+  const reports = requestState.data?.reports || [];
+  const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0] || null;
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-8 pb-12" aria-label="Анализы крови">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
+      {selectedReport && !readOnly && (
+        <div className="page-actions w-full justify-center" role="group" aria-label="Действия с анализом">
+          <Button
+            className="size-12 shrink-0 rounded-full text-destructive hover:text-destructive"
+            variant="outline"
+            size="icon"
+            type="button"
+            disabled={deleteState.busy || uploadState.loading}
+            aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
+            title="Удалить анализ"
+            onClick={() => requestDeleteReport(selectedReport)}
+          >
+            <Trash2 aria-hidden="true" />
+          </Button>
+        </div>
+      )}
       <section className="min-w-0 max-w-none">
-        <Tabs className="min-w-0" value={selectedReport.id} onValueChange={setSelectedReportId}>
-          <TabsList className="flex h-auto! w-full flex-nowrap gap-1 overflow-x-auto" aria-label="Дата исследования">
-            {reports.map((report, index) => (
-              <TabsTrigger className="h-auto! min-w-48 flex-1 shrink-0 flex-col items-start px-3! py-2.5! text-left" key={report.id} value={report.id}>
-                <span className="w-full truncate">{report.dateLabel}</span>
-                <span className="w-full truncate text-xs font-normal text-muted-foreground">
-                  {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
-                </span>
-              </TabsTrigger>
+        {selectedReport ? (
+          <Tabs className="min-w-0" value={selectedReport.id} onValueChange={setSelectedReportId}>
+            <TabsList className="h-auto! min-w-0 w-full flex-wrap gap-1" aria-label="Дата исследования">
+              {reports.map((report, index) => (
+                <TabsTrigger className="h-auto min-w-0 basis-48 flex-col items-start px-3! py-2.5! text-left whitespace-normal wrap-anywhere" key={report.id} value={report.id}>
+                  <span className="w-full">{report.dateLabel}</span>
+                  <span className="w-full text-xs font-normal text-muted-foreground">
+                    {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {reports.map((report) => (
+              <TabsContent className="min-w-0" key={report.id} value={report.id}>
+                <LabReportPanel report={report} />
+              </TabsContent>
             ))}
-          </TabsList>
-          {reports.map((report) => (
-            <TabsContent className="min-w-0" key={report.id} value={report.id}>
-              <LabReportPanel report={report} />
-            </TabsContent>
-          ))}
-        </Tabs>
+          </Tabs>
+        ) : (
+          <Card>
+            <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 text-center">
+              <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
+              <div className="flex flex-col gap-1">
+                <div className="font-medium">Анализов пока нет</div>
+                <div className="text-sm text-muted-foreground">{readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."}</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       <section className="flex max-w-none flex-col gap-5">
@@ -232,9 +305,10 @@ export function LabResults() {
           className="sr-only"
           type="file"
           accept="application/pdf,.pdf"
+          aria-label="Загрузить PDF с результатами анализов"
           aria-describedby="lab-pdf-help"
           onChange={handleFileChange}
-          disabled={uploadState.loading}
+          disabled={uploadState.loading || deleteState.busy}
         />
         <Button
           className="h-auto min-h-40 w-full flex-col gap-2 border-dashed px-6 py-8 whitespace-normal data-[dragging=true]:border-primary data-[dragging=true]:bg-muted"
@@ -245,7 +319,7 @@ export function LabResults() {
           onClick={() => fileInputRef.current?.click()}
           onDragEnter={(event) => {
             event.preventDefault();
-            if (!uploadState.loading) setIsDraggingPdf(true);
+            if (!uploadState.loading && !deleteState.busy) setIsDraggingPdf(true);
           }}
           onDragOver={(event) => {
             event.preventDefault();
@@ -255,7 +329,7 @@ export function LabResults() {
             if (!event.currentTarget.contains(event.relatedTarget)) setIsDraggingPdf(false);
           }}
           onDrop={handlePdfDrop}
-          disabled={uploadState.loading}
+          disabled={uploadState.loading || deleteState.busy}
         >
           {uploadState.loading ? <Spinner className="size-6" aria-hidden="true" /> : <FileUp className="size-7" aria-hidden="true" />}
           <span className="text-base font-medium">
@@ -265,23 +339,6 @@ export function LabResults() {
             {uploadState.loading ? "Это может занять немного времени" : "или нажмите, чтобы выбрать файл до 12 МБ с выделяемым текстом"}
           </span>
         </Button></>}
-
-        {selectedPdfSources.length ? (
-          <div className="flex flex-wrap justify-end gap-2">
-            {selectedPdfSources.map((source) => (
-              <a
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "min-h-12 px-4 text-base")}
-                href={source.pdfUrl}
-                key={source.pdfUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink data-icon="inline-start" aria-hidden="true" />
-                {selectedPdfSources.length > 1 ? source.filename || source.lab || "Открыть PDF" : "Открыть PDF"}
-              </a>
-            ))}
-          </div>
-        ) : null}
 
         {!readOnly && uploadState.error && (
           <Alert variant="destructive" aria-live="assertive">
@@ -298,6 +355,45 @@ export function LabResults() {
           </Alert>
         )}
       </section>
+
+      {deleteTarget && !readOnly && (
+        <AlertDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !deleteState.busy) {
+              setDeleteTarget(null);
+              setDeleteState({ busy: false, error: "" });
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Удалить анализ от {deleteTarget.dateLabel}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Исследование и все прикреплённые к этой дате PDF будут удалены без возможности восстановления.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteState.error && (
+              <Alert variant="destructive">
+                <AlertTitle>Не удалось удалить анализ</AlertTitle>
+                <AlertDescription>{deleteState.error}</AlertDescription>
+              </Alert>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleteState.busy}>Отмена</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={deleteState.busy}
+                aria-busy={deleteState.busy || undefined}
+                onClick={deleteReport}
+              >
+                {deleteState.busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+                Удалить
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </article>
   );
 }

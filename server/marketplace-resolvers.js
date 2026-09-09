@@ -3,6 +3,7 @@ import { vehicleOfferMatchesWish } from "../shared/vehicle-match.js";
 
 const WILDBERRIES_SEARCH_URL = "https://search.wb.ru/exactmatch/ru/common/v18/search";
 const YANDEX_MARKET_SEARCH_URL = "https://market.yandex.ru/search";
+const DEFAULT_PROVIDER_TIMEOUT_MS = 10_000;
 const SOURCE_MARKETPLACES = [
   { id: "ozon", label: "Ozon", hosts: ["ozon.ru"] },
   { id: "wildberries", label: "Wildberries", hosts: ["wildberries.ru", "global.wildberries.ru"] },
@@ -221,10 +222,16 @@ async function fetchYandexMarketOffers(wish, { fetchImpl, signal, checkedAt }) {
   return normalizeYandexMarketOffers(await response.text(), wish, checkedAt);
 }
 
+function providerSignal(parentSignal, timeoutMs) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
+}
+
 export async function fetchMarketplaceResolvedOffers(wish, {
   fetchImpl = fetch,
   signal,
   now = () => new Date(),
+  providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
 } = {}) {
   const query = String(wish?.title || "").trim();
   const checkedAt = now().toISOString();
@@ -232,8 +239,16 @@ export async function fetchMarketplaceResolvedOffers(wish, {
   if (!query) return source ? [source] : [];
   if (["food", "transport"].includes(wish?.space)) return source ? [source] : [];
   const results = await Promise.allSettled([
-    fetchWildberriesOffers({ ...wish, title: query }, { fetchImpl, signal, checkedAt }),
-    fetchYandexMarketOffers({ ...wish, title: query }, { fetchImpl, signal, checkedAt }),
+    fetchWildberriesOffers({ ...wish, title: query }, {
+      fetchImpl,
+      signal: providerSignal(signal, providerTimeoutMs),
+      checkedAt,
+    }),
+    fetchYandexMarketOffers({ ...wish, title: query }, {
+      fetchImpl,
+      signal: providerSignal(signal, providerTimeoutMs),
+      checkedAt,
+    }),
   ]);
   return mergeDirectOffers(
     ...results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []),

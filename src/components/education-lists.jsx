@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { educationGroupReturnFocus, EducationItemGroupingMenu } from "@/components/education-item-groups";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -52,6 +53,7 @@ function ListTileContent({ title, count }) {
 export function EducationItemListMenu({
   currentListId,
   disabled = false,
+  grouping,
   itemLabel,
   itemTitle,
   lists,
@@ -75,15 +77,19 @@ export function EducationItemListMenu({
             disabled={disabled}
           />
         )}
-        aria-label={`Переместить ${itemLabel} «${itemTitle}» в другой список`}
+        aria-label={grouping ? `Действия: ${itemTitle}` : `Переместить ${itemLabel} «${itemTitle}» в другой список`}
       >
         {moving ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="rollapp-body w-80 max-w-[calc(100vw-24px)] rounded-3xl p-3"
+        className="rollapp-body w-(--layout-menu-wide-width) max-w-(--available-width) rounded-3xl p-3"
         align="end"
         sideOffset={8}
       >
+        {grouping && <>
+          <EducationItemGroupingMenu {...grouping} busy={disabled || moving || grouping.busy} />
+          <DropdownMenuSeparator className="my-2" />
+        </>}
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 py-2 text-base">Списки</DropdownMenuLabel>
           {onCreateList && (
@@ -153,7 +159,7 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
   const { readOnly } = useSphereSharing();
   if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
-    <header className="flex min-h-12 w-full items-center justify-center">
+    <header className="page-toolbar w-full justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label={`Действия раздела «${title}»`}>
         {selectedList && (
@@ -195,7 +201,7 @@ export function EducationListNavigation({
   return (
     <div className="min-w-0" data-group-navigation>
       <div className="list-tabs mb-0">
-        <div className="flex w-max min-w-full flex-none items-stretch justify-center gap-1.5">
+        <div className="list-tabs__track">
           <ToggleGroup
             className="contents"
             value={[selectedListId]}
@@ -311,8 +317,8 @@ export function EducationListDrawer({
         onOpenChange={(nextOpen) => !saving && !deleting && onOpenChange(nextOpen)}
       >
         <DrawerContent
-          className="rollapp-body"
-          style={isMobile ? undefined : { "--drawer-content-width": "min(34rem, calc(100vw - 2rem))" }}
+          className="rollapp-body app-drawer--form"
+          finalFocus={educationGroupReturnFocus}
         >
           <DrawerClose
             render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || deleting} />}

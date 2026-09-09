@@ -1,3 +1,5 @@
+import { externalCatalogItemId } from "./wish-catalog.js";
+
 function parseCategories(value) {
   if (Array.isArray(value)) return value.filter((item) => typeof item === "string");
   try {
@@ -12,7 +14,7 @@ export function externalCatalogItemFromRow(row) {
   const source = String(row.source || "external");
   const externalId = String(row.external_id || "");
   return {
-    id: `external:${source}:${externalId}`,
+    id: externalCatalogItemId(source, externalId),
     title: String(row.title || ""),
     description: String(row.description || ""),
     url: String(row.url || ""),

@@ -7,12 +7,41 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const MAX_PDF_BYTES = 12 * 1024 * 1024;
+
+export function IdentityReportOverview({ titleId, eyebrow, title, description, date, dateLabel, person, stats = [] }) {
+  return (
+    <Card className="identity-report-overview not-typeset rollapp-body" aria-labelledby={titleId}>
+      <CardHeader className="gap-4">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="font-semibold tracking-widest uppercase">{eyebrow}</span>
+          {dateLabel && <time dateTime={date || undefined}>{dateLabel}</time>}
+        </div>
+        <div className="flex min-w-0 flex-col gap-3">
+          <h2 id={titleId} className="m-0 font-heading text-3xl leading-9 font-semibold tracking-tight text-balance">{title}</h2>
+          <p className="m-0 max-w-(--layout-text-width) text-pretty">{description}</p>
+          {person && <span className="text-xs text-muted-foreground">{person}</span>}
+        </div>
+      </CardHeader>
+      {stats.length > 0 && <CardFooter className="grid gap-4 sm:grid-cols-2" aria-label="Состав профиля">
+        {stats.map((stat) => <div key={stat.label} className="flex min-w-0 items-center gap-3">
+          <strong className="font-heading text-3xl leading-9 font-semibold tabular-nums">{stat.value}</strong>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-medium">{stat.label}</span>
+            <span className="text-xs text-muted-foreground">{stat.detail}</span>
+          </div>
+        </div>)}
+      </CardFooter>}
+    </Card>
+  );
+}
 
 export function useIdentityReport(section) {
   const [state, setState] = useState({ mode: "loading", report: null, files: [], updatedAt: null });
@@ -37,11 +66,14 @@ export function IdentityReportControls({ section, label, state, setState, load }
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const canUpload = !readOnly && state.mode === "empty";
+  const canDelete = !readOnly && (state.mode === "default" || state.mode === "generated");
+  const uploadDisabled = busy || !canUpload;
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])];
     event.target.value = "";
-    if (!files.length) return;
+    if (uploadDisabled || !files.length) return;
     if (files.length + (state.files?.length || 0) > 8) {
       toast.error("Для одного отчёта можно загрузить не больше 8 PDF");
       return;
@@ -70,6 +102,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
   };
 
   const removeAll = async () => {
+    if (busy || !canDelete) return;
     setBusy(true);
     try {
       setState(await api.delete(`/identity/reports/${section}`));
@@ -83,39 +116,42 @@ export function IdentityReportControls({ section, label, state, setState, load }
   };
 
   return (
-    <section className="identity-report-manager not-typeset" aria-label={`Управление отчётом ${label}`}>
-      {!readOnly && <input
+    <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
+      {canUpload && <input
         ref={inputRef}
         className="sr-only"
         type="file"
         accept="application/pdf,.pdf"
         aria-label={`Загрузить PDF для ${label}`}
         multiple
+        disabled={uploadDisabled}
         onChange={upload}
       />}
-      {!readOnly && <div className="identity-report-manager__actions">
-        <Button className="min-h-12 px-6 text-base" size="lg" shape="pill" disabled={busy} onClick={() => inputRef.current?.click()}>
-          {busy && <Spinner data-icon="inline-start" />}
-          {state.mode === "empty" ? "Загрузить PDF" : "Добавить PDF"}
-        </Button>
-        {state.mode !== "empty" && state.mode !== "loading" && state.mode !== "error" ? (
-          <Button className="min-h-12 px-6 text-base" size="lg" shape="pill" variant="outline" disabled={busy} onClick={() => setDeleteOpen(true)}>
-            Удалить весь контент
+      {(canUpload || canDelete) && <div className="identity-report-manager__actions">
+        {canUpload ? (
+          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
+            {busy && <Spinner data-icon="inline-start" />}
+            Загрузить
           </Button>
-        ) : null}
+        ) : (
+          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" variant="outline" disabled={busy} onClick={() => setDeleteOpen(true)}>
+            {busy && <Spinner data-icon="inline-start" />}
+            Удалить
+          </Button>
+        )}
       </div>}
       {state.files?.length ? (
-        <div className="identity-report-manager__files" aria-label="Исходные PDF">
-          <span>Исходные PDF</span>
-          <div>
+        <Card className="identity-report-files" aria-label="Исходные PDF">
+          <CardHeader><span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span></CardHeader>
+          <CardContent className="grid min-w-0 gap-2 sm:grid-cols-2">
             {state.files.map((file) => (
-              <a key={file.id} href={file.pdfUrl} target="_blank" rel="noreferrer">
-                <FileText aria-hidden="true" />
-                <span>{file.filename}</span>
+              <a key={file.id} href={file.pdfUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "h-auto min-w-0 justify-start gap-3 px-3 py-3 text-left whitespace-normal wrap-anywhere")}>
+                <FileText className="size-5" aria-hidden="true" />
+                <span className="min-w-0">{file.filename}</span>
               </a>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       ) : null}
 
       {!readOnly && <AlertDialog open={deleteOpen} onOpenChange={(open) => !busy && setDeleteOpen(open)}>
@@ -142,7 +178,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
 export function IdentityReportEmpty({ label }) {
   const { readOnly } = useSphereSharing();
   return (
-    <Empty className="identity-report-empty not-typeset">
+    <Empty className="identity-report-empty not-typeset rollapp-body">
       <EmptyHeader>
         <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>
@@ -155,11 +191,11 @@ export function IdentityReportEmpty({ label }) {
 
 export function IdentityReportStatus({ mode, error, onRetry }) {
   if (mode === "loading") {
-    return <div className="identity-report-loading not-typeset"><Spinner /><span>Загружаем отчёт…</span></div>;
+    return <div className="identity-report-loading not-typeset rollapp-body" role="status"><Spinner aria-hidden="true" /><span>Загружаем отчёт…</span></div>;
   }
   if (mode !== "error") return null;
   return (
-    <Alert variant="destructive" className="identity-report-error not-typeset">
+    <Alert variant="destructive" className="identity-report-error not-typeset rollapp-body">
       <AlertTitle>Не удалось загрузить отчёт</AlertTitle>
       <AlertDescription>{error}</AlertDescription>
       <Button variant="outline" onClick={onRetry}><RotateCcw data-icon="inline-start" aria-hidden="true" />Повторить</Button>

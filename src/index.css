@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "./typeset.css";
+@import "./spacing.css";
+@import "./containers.css";
+@import "./identity-reports.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -56,79 +59,34 @@
 
 /* PDF-backed identity reports */
 .identity-report-workspace {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--layout-page-gap);
+  width: min(100%, var(--layout-collection-width));
+  margin-inline: auto;
 }
 
 .identity-report-manager {
   display: grid;
-  width: min(100%, 1120px);
-  gap: 16px;
+  width: min(100%, var(--layout-collection-width));
+  min-width: 0;
+  gap: var(--layout-page-gap);
   margin-inline: auto;
-  padding-block: 8px 44px;
+  padding-block: 0;
 }
 
 .identity-report-manager__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 10px;
-}
-
-.identity-report-manager__files {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: color-mix(in oklch, var(--card) 78%, transparent);
-}
-
-.identity-report-manager__files > span {
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-}
-
-.identity-report-manager__files > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.identity-report-manager__files a {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-lg);
-  background: var(--muted);
-  color: var(--foreground);
-  text-decoration: none;
-}
-
-.identity-report-manager__files a:hover {
-  background: var(--accent);
-}
-
-.identity-report-manager__files svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  color: var(--muted-foreground);
-}
-
-.identity-report-manager__files a span {
-  overflow: hidden;
-  max-width: 320px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: var(--layout-inline-gap);
 }
 
 .identity-report-empty,
 .identity-report-loading,
 .identity-report-error {
-  width: min(100%, 760px);
+  width: min(100%, var(--layout-text-width));
   margin-inline: auto;
 }
 
@@ -153,13 +111,13 @@
 
 .identity-generated-documents {
   display: grid;
-  gap: 40px;
-  padding-block-start: 72px;
+  gap: var(--layout-page-gap);
+  padding-block-start: var(--layout-section-gap);
 }
 
 .identity-generated-documents__header {
   display: grid;
-  max-width: 720px;
+  max-width: var(--layout-text-width);
   gap: 8px;
 }
 
@@ -175,13 +133,13 @@
 
 .identity-generated-documents__list {
   display: grid;
-  gap: 72px;
+  gap: var(--layout-section-gap);
 }
 
 .identity-generated-document {
   display: grid;
-  gap: 36px;
-  padding-block-start: 28px;
+  gap: var(--layout-page-gap);
+  padding-block-start: var(--layout-page-gap);
   border-block-start: 1px solid var(--border);
 }
 
@@ -191,7 +149,7 @@
 }
 
 .identity-generated-document > section {
-  max-width: 840px;
+  max-width: var(--layout-text-width);
 }
 
 .hogan-report--generated .identity-generated-documents,
@@ -200,10 +158,6 @@
 }
 
 @media (max-width: 640px) {
-  .identity-report-manager {
-    padding-block: 4px 28px;
-  }
-
   .identity-report-manager__actions {
     display: grid;
     grid-template-columns: 1fr;
@@ -213,24 +167,6 @@
     width: 100%;
   }
 
-  .identity-report-manager__files a,
-  .identity-report-manager__files a span {
-    width: 100%;
-    max-width: none;
-  }
-
-  .identity-generated-documents {
-    gap: 28px;
-    padding-block-start: 48px;
-  }
-
-  .identity-generated-documents__list {
-    gap: 48px;
-  }
-
-  .identity-generated-document {
-    gap: 24px;
-  }
 }
 
 :root {
@@ -316,6 +252,50 @@
 }
 
 @layer utilities {
+  /* Keep full-screen editor actions in the layout, with an independent form
+     scroller. The footer cannot cover fields when content is long. */
+  .app-fullscreen-dialog.wish-editor-screen {
+    display: flex;
+    overflow: clip;
+  }
+
+  .app-fullscreen-dialog.wish-editor-screen > .wish-editor {
+    min-height: 0;
+    height: 100%;
+    margin-block: 0;
+    padding: var(--app-chrome-overlay-height) 0 0;
+  }
+
+  .app-fullscreen-dialog .wish-editor-screen__content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-block-start: var(--layout-item-gap);
+    padding-block-end: var(--layout-page-gap);
+    padding-inline: var(--layout-item-gap);
+  }
+
+  .app-fullscreen-dialog .wish-editor-screen__footer {
+    position: static;
+    flex-direction: row;
+    justify-content: space-between;
+    pointer-events: auto;
+    border-color: var(--border);
+    background: var(--background);
+  }
+
+  .app-fullscreen-dialog .wish-editor-screen__footer .wish-editor__submit { box-shadow: none; }
+
+  /* Dialog content must remain reachable on narrow or short viewports,
+     including mobile landscape. */
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]):not(.education-group-overlay, .app-fullscreen-dialog) {
+    inline-size: calc(100% - 2rem);
+    max-block-size: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   /*
    * Rollapp's product-level Large control contract. The generated shadcn
    * primitives keep their official Base Nova defaults; this layer enlarges
@@ -358,6 +338,33 @@
 
   .contacts-sphere__search [data-slot="input-group-control"] {
     padding-inline: 0 0.5rem;
+  }
+
+  /* The filter grid owns its columns; selected labels may shrink without
+     pushing the adjacent control or its chevron beyond the viewport. */
+  .contacts-sphere__select[data-slot="select-trigger"] {
+    width: min(220px, 20vw);
+    min-width: 0;
+  }
+
+  .contacts-sphere__select [data-slot="select-value"] {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1080px) {
+    .contacts-sphere__select[data-slot="select-trigger"] {
+      width: min(260px, 38vw);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .contacts-sphere__select[data-slot="select-trigger"] {
+      width: 100%;
+    }
   }
 
   .values-search [data-slot="input-group-control"] {
@@ -573,6 +580,7 @@
   }
 
   .wish-details-dialog [data-slot="drawer-close"],
+  .catalog-wish-details [data-slot="drawer-close"],
   .profile-settings-dialog [data-slot="drawer-close"] {
     top: max(0.5rem, env(safe-area-inset-top));
     right: max(0.5rem, env(safe-area-inset-right));

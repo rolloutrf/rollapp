@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
-  CareerContentError, MarkdownEditorDrawer, useCareerContent,
+  CareerContentError, useCareerContent,
 } from "@/components/career-content";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -62,8 +62,7 @@ function ThesisEditor({ initialValue = "", mode, onOpenChange, onSave, open }) {
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(42rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -115,7 +114,6 @@ function ThesisEditor({ initialValue = "", mode, onOpenChange, onSave, open }) {
 export function Theses() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
-  const [wholeEditorOpen, setWholeEditorOpen] = useState(false);
   const [deleteIndex, setDeleteIndex] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const careerContent = useCareerContent("theses", thesesSource, "identity");
@@ -150,30 +148,18 @@ export function Theses() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      {!readOnly && <header className="not-typeset rollapp-body flex min-h-12 w-full items-center justify-center">
-        <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Управление тезисами">
-          <Button
-            className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-            shape="pill"
-            type="button"
-            disabled={careerContent.loading}
-            onClick={() => setEditor({ mode: "add" })}
-          >
-            {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {careerContent.loading ? "Загружаем" : "Добавить тезис"}
-          </Button>
-          <Button
-            className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-            shape="pill"
-            variant="outline"
-            type="button"
-            disabled={careerContent.loading}
-            onClick={() => setWholeEditorOpen(true)}
-          >
-            Редактировать всё
-          </Button>
-        </div>
+    <div className="sphere-text-page page-stack">
+      {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
+        <Button
+          className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
+          shape="pill"
+          type="button"
+          disabled={careerContent.loading}
+          onClick={() => setEditor({ mode: "add" })}
+        >
+          {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
+          {careerContent.loading ? "Загружаем" : "Добавить тезис"}
+        </Button>
       </header>}
 
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
@@ -235,14 +221,6 @@ export function Theses() {
           if (!open) setEditor(null);
         }}
         onSave={saveThesis}
-      />}
-
-      {!readOnly && <MarkdownEditorDrawer
-        content={content}
-        label="Тезисы"
-        open={wholeEditorOpen}
-        onOpenChange={setWholeEditorOpen}
-        onSave={careerContent.save}
       />}
 
       {!readOnly && <AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !deleting && !open && setDeleteIndex(null)}>

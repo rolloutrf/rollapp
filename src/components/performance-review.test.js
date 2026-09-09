@@ -47,8 +47,13 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   );
   assert.match(
     source,
-    /<article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-8/,
-    "The performance page must keep its cards in a centered, readable desktop column",
+    /<article className="not-typeset rollapp-body career-content-rail page-stack/,
+    "The performance page must use the same centered content rail as CV",
+  );
+  assert.match(
+    styles,
+    /\.career-content-rail,\s*\.cv-builder\s*\{[^}]*width:\s*min\(var\(--layout-document-width\),\s*100%\);[^}]*min-width:\s*0;[^}]*margin-inline:\s*auto;/su,
+    "Performance and CV must share one 896px responsive container contract",
   );
   assert.match(
     source,
@@ -59,10 +64,10 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   assert.match(source, /<Tabs className="min-w-0 gap-6"/, "Tabs must own the gap between their list and panel");
   assert.match(
     source,
-    /className="w-full max-w-full justify-start overflow-x-auto group-data-horizontal\/tabs:h-auto"/,
-    "The review-cycle tab list must fill the available width and keep its narrow-screen overflow",
+    /className="h-auto! min-w-0 w-full flex-wrap justify-start gap-1"/,
+    "The review-cycle tab list must grow by rows within the available width",
   );
-  assert.match(source, /<TabsTrigger className="min-w-max"/, "Review-cycle tabs must share spare width without crushing their labels");
+  assert.match(source, /<TabsTrigger className="h-auto min-w-0 basis-40 whitespace-normal wrap-anywhere"/, "Review-cycle tabs must share spare width and wrap long labels");
   assert.doesNotMatch(source, /<TabsTrigger className="flex-none"/, "Review-cycle tabs must not opt out of equal-width growth");
   assert.match(source, /REVIEW_SCORE_LABELS\.has\(label\)/, "Review prose must never be rendered inside a score badge");
   assert.match(source, /whitespace-nowrap text-xs font-normal text-muted-foreground/, "Feedback counts must remain readable when a project header is narrow");

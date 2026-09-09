@@ -4,7 +4,7 @@ import {
   Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -236,8 +236,7 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
       onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}
     >
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -434,13 +433,13 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
 }
 
 function WorkoutSection({
-  cardOrder, deleteBusy, id, lists, moveState, onCreateList, onDelete, onEdit, onMoveToList, title, workouts,
+  cardOrder, deleteBusy, hideTitle = false, id, lists, moveState, onCreateList, onDelete, onEdit, onMoveToList, title, workouts,
 }) {
   const { readOnly } = useSphereSharing();
   if (!workouts.length) return null;
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
-      <h3 className="m-0 font-heading text-lg leading-7 font-semibold" id={id}>{title}</h3>
+      <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
       <ul className="grid list-none gap-4 sm:grid-cols-2">
         {workouts.map((workout) => (
           <li
@@ -592,7 +591,7 @@ export function Workouts() {
   const planned = visibleWorkouts.filter((workout) => workout.status === "planned");
   const history = visibleWorkouts.filter((workout) => workout.status !== "planned");
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" aria-labelledby="workouts-title">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="workouts-title">
       <EducationSectionHeader
         title="Спорт"
         titleId="workouts-title"
@@ -606,12 +605,12 @@ export function Workouts() {
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Не удалось загрузить тренировки</AlertTitle>
           <AlertDescription>{requestState.error.message}</AlertDescription>
-          <AlertAction>
+          <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
               <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
-          </AlertAction>
+          </div>
         </Alert>
       )}
 
@@ -654,7 +653,7 @@ export function Workouts() {
       {!requestState.loading && visibleWorkouts.length > 0 && (
         <div ref={cardOrder.listRef} className="flex min-w-0 flex-col gap-6" aria-label="Порядок тренировок" aria-busy={cardOrder.orderBusy}>
           <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} id="planned-workouts-title" lists={requestState.lists} moveState={moveState} title="Предстоящие" workouts={planned} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
-          <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} id="workout-history-title" lists={requestState.lists} moveState={moveState} title="История" workouts={history} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
+          <WorkoutSection cardOrder={cardOrder} deleteBusy={deleteState.busy} hideTitle id="workout-history-title" lists={requestState.lists} moveState={moveState} title="История" workouts={history} onCreateList={(workout) => setListDrawer({ open: true, list: null, moveItem: workout })} onDelete={requestDeleteWorkout} onEdit={openWorkout} onMoveToList={moveWorkoutToList} />
         </div>
       )}
 

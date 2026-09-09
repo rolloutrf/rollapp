@@ -1,0 +1,253 @@
+/* Rollapp layout rhythm. Prose remains owned by typeset.css; shadcn primitives
+   retain their own Card/Field/Dialog spacing. One container owns each gap. */
+@layer base {
+  :root {
+    --layout-page-inset: 2rem;
+    --layout-shell-inset: 1rem;
+    --layout-inline-gap: 0.5rem;
+    --layout-item-gap: 1rem;
+    --layout-page-gap: 1.5rem;
+    --layout-section-gap: 3rem;
+    --layout-page-end: 4rem;
+    --layout-profile-gap: 1rem;
+    --layout-chrome-top: 1.5rem;
+    --layout-chrome-tail: 1.5rem;
+    --app-chrome-overlay-height: calc(var(--layout-chrome-top) + 3rem + var(--layout-chrome-tail) + env(safe-area-inset-top));
+  }
+
+  @media (max-width: 1180px) {
+    :root { --layout-page-inset: 1.5rem; }
+  }
+
+  @media (max-width: 820px) {
+    :root { --layout-shell-inset: 0rem; }
+  }
+
+  @media (max-width: 640px) {
+    :root {
+      --layout-page-inset: 1rem;
+      --layout-section-gap: 2rem;
+      --layout-page-end: 3rem;
+      --layout-profile-gap: 0.75rem;
+    }
+  }
+
+  @media (max-width: 560px) {
+    :root {
+      --layout-chrome-top: 0.5rem;
+      --layout-chrome-tail: 1rem;
+    }
+  }
+}
+
+@layer components {
+  .app-layout--dark {
+    padding: var(--layout-shell-inset) var(--layout-shell-inset) 0;
+  }
+
+  .global-app-chrome {
+    top: calc(var(--layout-chrome-top) + env(safe-area-inset-top));
+    max-width: var(--layout-page-width);
+    padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
+  }
+
+  .app-shell-chrome-spacer {
+    height: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
+    flex-basis: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
+  }
+
+  .app-layout--dark .app-page {
+    max-width: var(--layout-page-width);
+    padding: 0 var(--layout-page-inset) calc(var(--layout-page-end) + env(safe-area-inset-bottom));
+  }
+
+  /* Pages without a profile get the same page gap below the chrome. */
+  .app-shell-chrome-spacer + .app-page {
+    padding-block-start: var(--layout-page-gap);
+  }
+
+  .app-layout--dark .persistent-profile-hero {
+    --persistent-profile-name-gap: var(--layout-profile-gap);
+    max-width: var(--layout-page-width);
+    padding: var(--layout-profile-gap) var(--layout-page-inset) var(--layout-page-gap);
+  }
+
+  .persistent-profile-hero .wishes-page__identity {
+    gap: var(--persistent-profile-name-gap);
+  }
+
+  .public-collection-page__hero {
+    padding: var(--layout-profile-gap) 0 var(--layout-page-gap);
+    gap: var(--layout-page-gap);
+  }
+
+  .public-collection-page__hero .wishes-page__identity {
+    gap: var(--layout-profile-gap);
+  }
+
+  .wishes-page__profile-controls {
+    padding-block-end: var(--layout-page-gap);
+    gap: var(--layout-page-gap);
+  }
+
+  .wishes-page__friend-links {
+    margin-block: 0;
+    column-gap: var(--layout-item-gap);
+  }
+
+  .wishes-page .list-tabs {
+    margin-block-end: var(--layout-page-gap);
+    padding-block: 0;
+  }
+
+  /* Content tabs keep their existing wrapping layout. Wishlist lists use a
+     separate single-row scroller below. */
+  .public-list-tabs,
+  .sphere-tabs__list {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    max-height: none;
+    margin-inline: 0;
+    padding-inline: 0;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .list-tabs__track {
+    width: max-content;
+    min-width: 100%;
+    margin-inline: 0;
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: center;
+    gap: var(--layout-inline-gap);
+  }
+
+  .wishes-page .list-tabs {
+    --list-navigation-gutter: calc(var(--layout-page-inset) + var(--layout-shell-inset));
+    width: calc(100% + 2 * var(--wishes-viewport-inset));
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin-inline: calc(-1 * var(--wishes-viewport-inset));
+    padding-inline: var(--list-navigation-gutter);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: var(--list-navigation-gutter);
+    scrollbar-width: none;
+  }
+
+  .sphere-page--tabbed .tabbed-sphere {
+    padding: 0;
+  }
+
+  .page-stack {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--layout-page-gap);
+  }
+
+  .page-stack--sections { gap: var(--layout-section-gap); }
+
+  .page-toolbar {
+    display: flex;
+    min-width: 0;
+    min-height: 3rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--layout-inline-gap);
+  }
+
+  .page-actions {
+    flex-wrap: wrap;
+    gap: var(--layout-inline-gap);
+  }
+
+  .app-group-dialog {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-group-dialog__header {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: var(--layout-collection-width);
+    min-height: 6rem;
+    margin-inline: auto;
+    margin-block: 0 var(--layout-page-gap);
+    padding-block: max(var(--layout-item-gap), env(safe-area-inset-top)) var(--layout-item-gap);
+    gap: var(--layout-item-gap);
+    background: var(--background);
+  }
+
+  @media (max-width: 640px) {
+    .app-group-dialog__header {
+      min-height: 4.5rem;
+      padding-block: max(0.75rem, env(safe-area-inset-top)) 0.75rem;
+      gap: var(--layout-inline-gap);
+    }
+  }
+
+  .sphere-page--contacts { align-items: center; }
+
+  .four-question__heading-row { align-items: center; }
+
+  .document-accordion [data-not-typeset] { gap: var(--layout-inline-gap); }
+
+  /* Prose heading margins must not enter the disclosure's Header/Panel layout. */
+  .typeset-document .document-accordion > [data-slot="accordion-item"] > :is([data-not-typeset], [data-slot="accordion-content"]) {
+    margin-block: 0;
+  }
+
+  .hogan-report,
+  .cv-builder {
+    padding-block-end: 0;
+    gap: var(--layout-section-gap);
+  }
+
+  .auth-panel {
+    padding-block-start: max(calc(var(--app-chrome-overlay-height) + var(--layout-page-gap)), calc(var(--tg-content-safe-area-inset-top, 0px) + var(--layout-page-gap)));
+    padding-block-end: calc(var(--layout-page-end) + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+    padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
+  }
+
+  .auth-form { gap: var(--layout-page-gap); }
+
+  .auth-submit,
+  .auth-switch { margin-block: 0; }
+
+  .wish-catalog-page__more { padding-block-start: var(--layout-section-gap); }
+
+  /* Public collections and personal Wishlist share the same viewport rail. */
+  .app-layout--dark .wishes-page {
+    --wishes-shell-inset: calc(var(--layout-page-inset) + max(0px, (100vw - var(--layout-wishlist-page-width) - var(--layout-shell-inset) - var(--layout-shell-inset)) / 2));
+    --wishes-viewport-inset: calc(var(--wishes-shell-inset) + var(--layout-shell-inset));
+  }
+
+  @media (max-width: 820px) {
+    .app-layout--dark .app-main--wishes > .wishes-page {
+      --wishes-shell-inset: var(--layout-page-inset);
+    }
+  }
+}
+
+@layer utilities {
+  .app-fullscreen-dialog.app-group-dialog {
+    padding: 0 max(var(--layout-page-inset), env(safe-area-inset-right)) calc(var(--layout-page-end) + env(safe-area-inset-bottom)) max(var(--layout-page-inset), env(safe-area-inset-left)) !important;
+  }
+}
