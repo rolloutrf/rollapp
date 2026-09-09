@@ -79,7 +79,12 @@ test("returns a ready marketplace result when another provider times out", async
       }
       slowProviderSignal = options.signal;
       return new Promise((resolve, reject) => {
-        const abort = () => reject(options.signal.reason);
+        // A real pending request keeps Node alive; AbortSignal.timeout alone does not.
+        const pendingRequest = setTimeout(() => resolve({ ok: true, text: async () => "<html></html>" }), 1_000);
+        const abort = () => {
+          clearTimeout(pendingRequest);
+          reject(options.signal.reason);
+        };
         if (options.signal.aborted) abort();
         else options.signal.addEventListener("abort", abort, { once: true });
       });

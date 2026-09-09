@@ -2478,22 +2478,24 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requireP
   if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
   const response = await transaction(async (client) => {
     const request = await client.query(
-      `SELECT r.id,r.requester_user_id,r.sphere,r.section,r.status,u.account_type AS requester_account_type
-       FROM sphere_access_requests r
-       JOIN users u ON u.id=r.requester_user_id
-       WHERE r.id=$1 AND r.owner_user_id=$2
-       FOR UPDATE OF r`,
+      `SELECT id,requester_user_id,sphere,section,status
+       FROM sphere_access_requests
+       WHERE id=$1 AND owner_user_id=$2
+       FOR UPDATE`,
       [req.params.requestId, req.user.id],
     );
     if (!request.rowCount) return { status: 404, error: "Запрос не найден" };
     if (request.rows[0].status !== "pending") return { status: 409, error: "На этот запрос уже ответили" };
     const row = request.rows[0];
-    if (parsed.data.decision === "approved" && row.requester_account_type !== "business") {
-      return {
-        status: 400,
-        error: "Доступ можно открыть только бизнес-аккаунту",
-        code: "BUSINESS_VIEWER_REQUIRED",
-      };
+    if (parsed.data.decision === "approved") {
+      const requester = await client.query("SELECT account_type FROM users WHERE id=$1", [row.requester_user_id]);
+      if (requester.rows[0]?.account_type !== "business") {
+        return {
+          status: 400,
+          error: "Доступ можно открыть только бизнес-аккаунту",
+          code: "BUSINESS_VIEWER_REQUIRED",
+        };
+      }
     }
     await client.query(
       `UPDATE sphere_access_requests
