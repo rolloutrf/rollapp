@@ -66,8 +66,7 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(52rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -144,7 +143,7 @@ export function AboutMe() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="sphere-text-page page-stack">
       <CareerEditAction
         label="Добавить вопрос"
         loading={careerContent.loading}
@@ -159,7 +158,7 @@ export function AboutMe() {
         {parsed.questions.map((entry, index) => (
           <article className="about-me-question" key={`${index}-${entry.question}`}>
             <MarkdownDocument
-              source={`### ${index + 1}. ${entry.question}\n\n${entry.description}`}
+              source={`### ${entry.question}\n\n${entry.description}`}
               label={entry.question}
               className="about-me-question__document"
             />

@@ -32,6 +32,7 @@ test("builds a constrained realtime marketplace research request", () => {
   assert.equal(request.model, "mistralai/mistral-small-2603");
   assert.equal(request.body.tools[0].type, "openrouter:web_search");
   assert.equal(request.body.tools[0].parameters.max_uses, 6);
+  assert.deepEqual(request.body.tools[0].parameters.user_location, { type: "approximate", country: "RU" });
   assert.ok(request.body.tools[0].parameters.allowed_domains.includes("ozon.ru"));
   assert.equal(request.body.response_format.type, "json_schema");
   assert.equal(request.body.provider.require_parameters, true);

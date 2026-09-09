@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import { FolderInput, Layers3, MoreHorizontal, Pencil, Ungroup, X } from "lucide-react";
+import { FolderInput, Layers3, MoreHorizontal, Pencil, Ungroup } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub,
   DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
@@ -34,6 +34,57 @@ export function applyEducationGroupChange(groups = [], change) {
   });
 }
 
+export function educationGroupReturnFocus() {
+  // The editors are sibling drawers, so their default focus restoration does
+  // not know that the full-screen group underneath is still open.
+  const group = document.querySelector(".education-group-overlay");
+  return group?.querySelector('[data-slot="dialog-close"]') || group || true;
+}
+
+export function EducationGroupDialog({ busy, children, editing, label, onClose, suspended = false }) {
+  return (
+    <GroupDialog
+      busy={busy || editing}
+      suspended={suspended}
+      onClose={onClose}
+      className="education-group-overlay not-typeset rollapp-body"
+      aria-label={label}
+    >
+      {children}
+    </GroupDialog>
+  );
+}
+
+export function EducationItemGroupingMenu({ items, groups, busy, onCreate, onAdd }) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy}>
+        <Layers3 aria-hidden="true" />
+        Объединить в группу
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="rollapp-body w-(--layout-menu-wide-width) max-w-(--available-width) rounded-2xl p-2">
+        {groups.map((group) => (
+          <DropdownMenuItem key={`group:${group.id}`} className="min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy} onClick={() => onAdd(group.id)}>
+            <Layers3 aria-hidden="true" />
+            <span className="min-w-0 whitespace-normal break-words">В группу «{group.title}»</span>
+          </DropdownMenuItem>
+        ))}
+        {groups.length > 0 && items.length > 0 && <DropdownMenuSeparator />}
+        {items.map((item) => (
+          <DropdownMenuItem key={`item:${item.id}`} className="min-h-12 rounded-xl px-3 text-base" disabled={busy} onClick={() => onCreate(item.id)}>
+            <span className="min-w-0 whitespace-normal break-words">С «{item.title}»</span>
+          </DropdownMenuItem>
+        ))}
+        {groups.length === 0 && items.length === 0 && (
+          <DropdownMenuItem className="min-h-12 whitespace-normal rounded-xl px-3 text-base" disabled>
+            В этом списке пока нет других элементов
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
+
 function EducationGroupMoveSubmenu({ currentListId, lists, busy, onMove }) {
   const targets = [
     { id: UNLISTED_EDUCATION_LIST_ID, title: "Не отсортированные" },
@@ -45,7 +96,7 @@ function EducationGroupMoveSubmenu({ currentListId, lists, busy, onMove }) {
         <FolderInput aria-hidden="true" />
         Переместить в список
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="rollapp-body w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2">
+      <DropdownMenuSubContent className="rollapp-body w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2">
         {targets.map((list) => (
           <DropdownMenuItem className="min-h-12 rounded-xl px-3 text-base" key={list.id} disabled={busy} onClick={() => onMove(list)}>
             {list.title}
@@ -67,7 +118,7 @@ function EducationGroupActions({ group, lists, busy, onBeginRename, onDisband, o
       >
         {busy ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="rollapp-body w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2" align="end" sideOffset={8}>
+      <DropdownMenuContent className="rollapp-body w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2" align="end" sideOffset={8}>
         <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy} onClick={onBeginRename}>
           <Pencil aria-hidden="true" />
           Переименовать
@@ -204,7 +255,7 @@ export function EducationItemGroupTile({
 
 export function EducationItemGroupOverlay({
   group, items, lists, countLabel, itemsStayLabel, moveItemId, renderItem,
-  onClose, onRename, onMove, onDisband,
+  onClose, onRename, onMove, onDisband, suspended = false,
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
@@ -212,13 +263,6 @@ export function EducationItemGroupOverlay({
   const [disbandOpen, setDisbandOpen] = useState(false);
 
   useEffect(() => { if (!editing) setTitle(group.title); }, [editing, group.title]);
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape" && !editing && !disbandOpen) onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [disbandOpen, editing, onClose]);
 
   const saveTitle = async () => {
     const nextTitle = title.trim();
@@ -244,16 +288,14 @@ export function EducationItemGroupOverlay({
     if (removed) setDisbandOpen(false);
   };
 
-  return createPortal(
-    <section className="education-group-overlay rollapp-body" role="dialog" aria-modal="true" aria-label={`Группа «${group.title}»`}>
-      <header className="mx-auto flex min-h-24 w-full max-w-5xl items-center justify-between gap-4 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><Layers3 className="size-5" aria-hidden="true" /></span>
-          <span className="grid min-w-0 gap-0.5">
-            {editing ? (
+  return (
+    <EducationGroupDialog busy={busy} editing={editing} label={`Группа «${group.title}»`} onClose={onClose} suspended={suspended}>
+      <GroupDialogHeader
+        busy={busy || editing}
+        title={editing ? (
               <Input
                 autoFocus
-                className="min-h-10 w-[min(24rem,55vw)] text-base font-semibold"
+                className="min-h-12 w-full min-w-0 max-w-sm text-base font-semibold"
                 maxLength={60}
                 aria-label="Название группы"
                 disabled={busy}
@@ -263,15 +305,12 @@ export function EducationItemGroupOverlay({
                 onBlur={saveTitle}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); }
-                  if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); setEditing(false); }
+                  if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setTitle(group.title); setEditing(false); }
                 }}
               />
-            ) : <strong className="truncate text-base font-semibold">{group.title}</strong>}
-            <small className="text-sm text-muted-foreground">{countLabel(items.length)}</small>
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {!editing && (
+            ) : group.title}
+        description={countLabel(items.length)}
+        actions={!editing && (
             <EducationGroupActions
               group={group}
               lists={lists}
@@ -281,12 +320,8 @@ export function EducationItemGroupOverlay({
               onDisband={() => setDisbandOpen(true)}
             />
           )}
-          <Button className="size-11 rounded-full" variant="ghost" size="icon" type="button" disabled={busy} aria-label="Закрыть группу" onClick={onClose}>
-            <X aria-hidden="true" />
-          </Button>
-        </div>
-      </header>
-      <ul className="mx-auto grid w-full max-w-5xl list-none gap-4 sm:grid-cols-2" aria-label={`Элементы группы «${group.title}»`}>
+      />
+      <ul className="mx-auto grid w-full max-w-(--layout-collection-width) list-none gap-4 sm:grid-cols-2" aria-label={`Элементы группы «${group.title}»`}>
         {items.map((item) => (
           <li className="min-w-0" key={item.id}>
             {renderItem(item, { busy, removeBusy: moveItemId === item.id })}
@@ -296,7 +331,6 @@ export function EducationItemGroupOverlay({
       {disbandOpen && (
         <DisbandDialog group={group} busy={busy} itemsStayLabel={itemsStayLabel} onOpenChange={setDisbandOpen} onDisband={disband} />
       )}
-    </section>,
-    document.body,
+    </EducationGroupDialog>
   );
 }

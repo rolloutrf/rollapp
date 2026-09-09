@@ -9,6 +9,7 @@ export function Mission() {
       source={missionSource}
       label="Миссия"
       className="mission-text"
+      hideSourceLabels
     />
   );
 }

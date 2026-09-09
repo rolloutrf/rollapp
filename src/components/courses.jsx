@@ -1,17 +1,18 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink, FolderInput, GraduationCap,
-  ImagePlus, Layers3, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
+  ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
 } from "lucide-react";
 import { api } from "@/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { GroupDialogHeader } from "@/components/group-dialog";
+import { EducationGroupDialog, educationGroupReturnFocus } from "@/components/education-item-groups";
 import {
   Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCardReorder } from "@/hooks/use-card-reorder";
 import { sortCourses } from "@/lib/course-order";
+import { courseLogoUrls } from "@/lib/education-logo";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
   EducationItemListMenu, EducationListDrawer, EducationListNavigation, EducationSectionHeader,
@@ -63,7 +65,7 @@ function formatDate(value) {
   if (!value) return "";
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return "";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" })
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day)))
     .replace(" г.", "");
 }
@@ -81,24 +83,51 @@ function courseFormValues(course, initialListId = "") {
   );
 }
 
-function CourseLogo({ course, size = "card" }) {
-  const className = size === "form"
-    ? "size-20 shrink-0 rounded-xl"
-    : "size-10 shrink-0 rounded-lg";
+function CourseLogoGraphic({ iconClassName, logoUrls }) {
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const logoUrl = logoUrls[candidateIndex] || "";
+
   return (
-    <div className={`flex items-center justify-center overflow-hidden border bg-muted text-muted-foreground ${className}`}>
-      {course.logoUrl ? (
-        <img className="size-full object-contain" src={course.logoUrl} alt="" />
-      ) : (
-        <GraduationCap className={size === "form" ? "size-8" : "size-5"} aria-hidden="true" />
+    <>
+      {!loaded && <GraduationCap className={iconClassName} aria-hidden="true" />}
+      {logoUrl && (
+        <img
+          className={`absolute inset-0 size-full object-contain transition-opacity ${loaded ? "opacity-100" : "opacity-0"}`}
+          src={logoUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            setLoaded(false);
+            setCandidateIndex((index) => index + 1);
+          }}
+        />
       )}
-    </div>
+    </>
+  );
+}
+
+function CourseLogo({ course, size = "card" }) {
+  const logoUrls = courseLogoUrls(course);
+  const className = {
+    card: "size-10 shrink-0 rounded-lg border bg-muted",
+    form: "size-20 shrink-0 rounded-xl border bg-muted",
+    group: "size-14 shrink-0",
+  }[size] || "size-10 shrink-0 rounded-lg border bg-muted";
+  const iconClassName = size === "form" ? "size-8" : size === "group" ? "size-7" : "size-5";
+  return (
+    <span className={`relative flex items-center justify-center overflow-hidden text-muted-foreground ${className}`}>
+      <CourseLogoGraphic iconClassName={iconClassName} logoUrls={logoUrls} key={logoUrls.join("|") || "empty"} />
+    </span>
   );
 }
 
 function CourseCard({
   course, dragDescriptionId, lists, moveDisabled, moving, onCreateList, onEdit, onMove, onMoveToList,
-  onRemoveFromGroup, removeBusy = false, draggable = true,
+  onRemoveFromGroup, removeBusy = false, draggable = true, grouping,
 }) {
   const status = COURSE_STATUS[course.status] || COURSE_STATUS.planned;
   const StatusIcon = status.icon;
@@ -144,6 +173,7 @@ function CourseCard({
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
             <EducationItemListMenu
               currentListId={course.listId}
+              grouping={grouping}
               disabled={moveDisabled}
               itemLabel="курс"
               itemTitle={course.title}
@@ -222,7 +252,7 @@ function CourseGroupMoveSubmenu({ currentListId, lists, busy, onMove }) {
         <FolderInput aria-hidden="true" />
         Переместить в список
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="rollapp-body w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2">
+      <DropdownMenuSubContent className="rollapp-body w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2">
         {targets.map((list) => (
           <DropdownMenuItem className="min-h-12 rounded-xl px-3 text-base" key={list.id} disabled={busy} onClick={() => onMove(list)}>
             {list.title}
@@ -244,7 +274,7 @@ function CourseGroupActions({ group, lists, busy, onBeginRename, onDisband, onMo
       >
         {busy ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="rollapp-body w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2" align="end" sideOffset={8}>
+      <DropdownMenuContent className="rollapp-body w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2" align="end" sideOffset={8}>
         <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy} onClick={onBeginRename}>
           <Pencil aria-hidden="true" />
           Переименовать
@@ -309,9 +339,7 @@ function CourseGroupTile({ group, courses, lists, isDropTarget, onOpen, onRename
           <CardHeader className="gap-3">
             <div className="flex h-20 items-center gap-4 overflow-hidden pr-12" aria-hidden="true">
               {courses.slice(0, 4).map((course) => (
-                <span className="grid size-14 shrink-0 place-items-center overflow-hidden text-muted-foreground" key={course.id}>
-                  {course.logoUrl ? <img className="max-h-full max-w-full object-contain" src={course.logoUrl} alt="" /> : <GraduationCap className="size-7" />}
-                </span>
+                <CourseLogo course={course} size="group" key={course.id} />
               ))}
             </div>
             <CardTitle className="relative z-20 min-w-0 pr-10">
@@ -372,7 +400,7 @@ function CourseGroupTile({ group, courses, lists, isDropTarget, onOpen, onRename
 
 function CourseGroupOpen({
   group, courses, lists, moveState, onClose, onEditCourse, onMoveCourse, onCreateList,
-  onRemoveCourse, onRename, onMove, onDisband,
+  onRemoveCourse, onRename, onMove, onDisband, suspended = false,
 }) {
   const { readOnly } = useSphereSharing();
   const [editing, setEditing] = useState(false);
@@ -381,13 +409,6 @@ function CourseGroupOpen({
   const [disbandOpen, setDisbandOpen] = useState(false);
 
   useEffect(() => { if (!editing) setTitle(group.title); }, [editing, group.title]);
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape" && !editing && !disbandOpen) onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [disbandOpen, editing, onClose]);
 
   const saveTitle = async () => {
     const nextTitle = title.trim();
@@ -413,16 +434,14 @@ function CourseGroupOpen({
     if (removed) setDisbandOpen(false);
   };
 
-  return createPortal(
-    <section className="education-group-overlay rollapp-body" role="dialog" aria-modal="true" aria-label={`Группа курсов «${group.title}»`}>
-      <header className="mx-auto flex min-h-24 w-full max-w-5xl items-center justify-between gap-4 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><Layers3 className="size-5" aria-hidden="true" /></span>
-          <span className="grid min-w-0 gap-0.5">
-            {editing ? (
+  return (
+    <EducationGroupDialog busy={busy} editing={editing} label={`Группа курсов «${group.title}»`} onClose={onClose} suspended={suspended}>
+      <GroupDialogHeader
+        busy={busy || editing}
+        title={editing ? (
               <Input
                 autoFocus
-                className="min-h-10 w-[min(24rem,55vw)] text-base font-semibold"
+                className="min-h-12 w-full min-w-0 max-w-sm text-base font-semibold"
                 maxLength={60}
                 aria-label="Название группы курсов"
                 disabled={busy}
@@ -432,15 +451,12 @@ function CourseGroupOpen({
                 onBlur={saveTitle}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); }
-                  if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); setEditing(false); }
+                  if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setTitle(group.title); setEditing(false); }
                 }}
               />
-            ) : <strong className="truncate text-base font-semibold">{group.title}</strong>}
-            <small className="text-sm text-muted-foreground">{courseCountLabel(courses.length)}</small>
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {!editing && (
+            ) : group.title}
+        description={courseCountLabel(courses.length)}
+        actions={!editing && (
             <CourseGroupActions
               group={group}
               lists={lists}
@@ -450,12 +466,8 @@ function CourseGroupOpen({
               onDisband={() => setDisbandOpen(true)}
             />
           )}
-          <Button className="size-11 rounded-full" variant="ghost" size="icon" type="button" disabled={busy} aria-label="Закрыть группу" onClick={onClose}>
-            <X aria-hidden="true" />
-          </Button>
-        </div>
-      </header>
-      <ul className="mx-auto grid w-full max-w-5xl list-none gap-4 sm:grid-cols-2" aria-label={`Курсы группы «${group.title}»`}>
+      />
+      <ul className="mx-auto grid w-full max-w-(--layout-collection-width) list-none gap-4 sm:grid-cols-2" aria-label={`Курсы группы «${group.title}»`}>
         {courses.map((course) => (
           <li className="min-w-0" key={course.id}>
             <CourseCard
@@ -491,8 +503,7 @@ function CourseGroupOpen({
           </AlertDialogContent>
         </AlertDialog>
       )}
-    </section>,
-    document.body,
+    </EducationGroupDialog>
   );
 }
 
@@ -605,8 +616,8 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
       onOpenChange={changeOpen}
     >
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
+        finalFocus={educationGroupReturnFocus}
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || logoUploading} />}
@@ -692,7 +703,9 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
                         </Button>
                       )}
                     </div>
-                    <p className="m-0 text-sm text-muted-foreground">JPG, PNG или WEBP, до 8 МБ.</p>
+                    <p className="m-0 text-sm text-muted-foreground">
+                      По ссылке на курс логотип подставится автоматически. Можно заменить своим JPG, PNG или WEBP до 8 МБ.
+                    </p>
                   </div>
                 </div>
                 {logoError && <FieldError>{logoError}</FieldError>}
@@ -1059,7 +1072,7 @@ export function Courses() {
   };
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" aria-labelledby="courses-title">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="courses-title">
       <EducationSectionHeader
         title="Курсы"
         titleId="courses-title"
@@ -1073,12 +1086,12 @@ export function Courses() {
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Не удалось загрузить курсы</AlertTitle>
           <AlertDescription>{requestState.error.message}</AlertDescription>
-          <AlertAction>
+          <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
               <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
-          </AlertAction>
+          </div>
         </Alert>
       )}
 
@@ -1152,12 +1165,19 @@ export function Courses() {
                 course={course}
                 dragDescriptionId={cardOrder.descriptionId}
                 lists={requestState.lists}
-                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy}
+                moveDisabled={Boolean(moveState.itemId) || cardOrder.orderBusy || groupState.busy}
                 moving={moveState.itemId === course.id}
                 onCreateList={() => setListDrawer({ open: true, list: null, moveItem: course })}
                 onEdit={openCourse}
                 onMove={cardOrder.moveByOffset}
                 onMoveToList={moveCourseToList}
+                grouping={{
+                  items: ungroupedCourses.filter((candidate) => candidate.id !== course.id),
+                  groups: visibleGroups,
+                  busy: groupState.busy,
+                  onCreate: (targetId) => createCourseGroup(course.id, targetId),
+                  onAdd: (groupId) => addCourseToGroup(course.id, groupId),
+                }}
                 draggable={!readOnly}
               />
             </li>
@@ -1194,6 +1214,7 @@ export function Courses() {
       {openedGroup && (
         <CourseGroupOpen
           group={openedGroup}
+          suspended={drawerOpen || listDrawer.open}
           courses={openedGroupCourses}
           lists={requestState.lists}
           moveState={{ ...moveState, itemId: moveState.itemId || groupState.itemId }}

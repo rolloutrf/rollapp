@@ -1,0 +1,206 @@
+/* Gallup and Hogan share the page / section / item rhythm. Prose keeps the
+   typeset contract; cards and controls keep their shadcn composition spacing. */
+@layer components {
+  .identity-report,
+  .identity-report-section {
+    display: grid;
+    min-width: 0;
+    gap: var(--layout-section-gap);
+    padding: 0;
+  }
+
+  .identity-report-section { gap: var(--layout-page-gap); }
+
+  .identity-report-domain-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--layout-item-gap);
+  }
+
+  .gallup-profile__section-head {
+    margin: 0;
+    align-items: start;
+    gap: var(--layout-page-gap);
+  }
+
+  .gallup-profile__section-head > div { min-width: 0; flex: 1; }
+  .gallup-profile__section-head > p { flex: 1; margin: 0; text-align: left; }
+  .gallup-top-five { gap: var(--layout-page-gap); align-items: start; }
+
+  .gallup-strength-detail {
+    min-height: 0;
+    padding: var(--layout-page-gap);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+  }
+
+  .gallup-strength-detail__heading { gap: var(--layout-item-gap); }
+  .gallup-strength-detail__heading > div { min-width: 0; }
+  .gallup-strength-detail__rank {
+    width: 3rem;
+    height: 3rem;
+    flex-basis: 3rem;
+    border-radius: var(--radius-lg);
+    @apply text-2xl leading-8;
+  }
+
+  .gallup-strength-detail__domain { @apply text-xs font-semibold tracking-widest; }
+  .gallup-strength-detail__translation { @apply text-xs; }
+  .gallup-strength-detail__action {
+    margin-block-start: var(--typeset-flow);
+    padding-block-start: var(--typeset-flow);
+  }
+
+  .gallup-strength-detail__action > span { margin: 0; @apply text-xs font-semibold tracking-widest; }
+  .gallup-strength-detail__action > p { margin-block-start: calc(var(--typeset-flow) / 2); }
+  .gallup-dna { margin: 0; height: 1.5rem; }
+  .gallup-dna__labels { margin: 0; @apply text-xs; }
+  .gallup-sequence { margin: 0; column-gap: var(--layout-page-gap); }
+  .gallup-profile--generated .gallup-sequence { grid-auto-flow: row; grid-template-rows: none; }
+  .gallup-sequence li { grid-template-columns: 1.5rem 0.5rem minmax(0, 1fr); gap: var(--layout-inline-gap); padding: var(--layout-inline-gap); }
+  .gallup-sequence__name { white-space: normal; @apply text-base leading-6; }
+  .gallup-sequence__translation { grid-column: 3; text-align: left; @apply text-xs; }
+  .gallup-domain-legend { margin: 0; padding-block-start: var(--layout-page-gap); gap: var(--layout-page-gap); }
+  .gallup-profile__note { margin: 0; }
+  .gallup-report-toolbar { flex-wrap: wrap; gap: var(--layout-item-gap); }
+
+  .gallup-web-report {
+    display: grid;
+    gap: var(--layout-section-gap);
+    margin: 0;
+    border: 0;
+    overflow: visible;
+  }
+
+  .gallup-web-report__masthead {
+    min-height: 0;
+    display: block;
+    padding: var(--layout-page-gap);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+  }
+
+  .gallup-web-report__brandline { margin: 0; flex-wrap: wrap; gap: var(--layout-inline-gap); @apply text-xs; }
+  .gallup-web-report__brandline > span { @apply text-xs font-semibold tracking-widest; }
+  .gallup-web-report__nav {
+    margin: var(--layout-page-gap) 0 0;
+    flex-wrap: wrap;
+    gap: var(--layout-inline-gap) var(--layout-item-gap);
+    overflow: visible;
+  }
+
+  .gallup-web-report__nav a { min-height: 3rem; max-width: 100%; white-space: normal; @apply text-base leading-6; }
+  .gallup-web-report__intro { padding: 0; border: 0; }
+  .gallup-report-chapters { padding: 0; gap: var(--layout-section-gap); }
+  .gallup-report-chapter { padding: 0; scroll-margin-top: calc(var(--app-chrome-overlay-height) + var(--layout-page-gap)); }
+  .gallup-report-chapter + .gallup-report-chapter { padding-block-start: var(--layout-section-gap); }
+  .gallup-report-chapter__rank { width: 3rem; height: 3rem; flex-basis: 3rem; border-radius: var(--radius-lg); @apply text-2xl leading-8; }
+  .gallup-report-chapter__heading { gap: var(--layout-item-gap); }
+  .gallup-report-chapter__heading > div { min-width: 0; }
+  .gallup-report-chapter__thrive { padding: 0; }
+  .gallup-report-prose { display: block; margin-block-start: var(--typeset-size); }
+  .gallup-report-prose--columns { column-count: 1; max-width: var(--layout-text-width); }
+  .gallup-report-block__title > span { margin-block-end: 0; }
+  .gallup-report-next,
+  .gallup-theme-library,
+  .gallup-weakness-guide { margin: 0; padding: var(--layout-page-gap) 0 0; }
+  .gallup-profile__sources { margin: 0; padding-block-start: var(--layout-page-gap); }
+
+  /* The section stack owns the gap; no accumulated section margin + padding. */
+  .hogan-report__summary,
+  .hogan-report__methodology,
+  .hogan-report__scores,
+  .hogan-report__interpretation,
+  .hogan-report__scale-guide,
+  .hogan-report__development {
+    display: grid;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    gap: var(--layout-page-gap);
+    border: 0;
+  }
+
+  .hogan-insights,
+  .hogan-methods,
+  .hogan-charts,
+  .hogan-narratives,
+  .hogan-scale-guide { gap: var(--layout-page-gap); }
+
+  .hogan-insight,
+  .hogan-method,
+  .hogan-chart {
+    min-width: 0;
+    margin: 0;
+    padding: var(--layout-item-gap);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+  }
+
+  .hogan-insight::before { content: none; }
+  .hogan-method:first-child { padding: var(--layout-item-gap); border: 1px solid var(--border); }
+  .hogan-method > span { @apply text-xs font-semibold tracking-widest; }
+  .hogan-report__reading-note { padding: 0; gap: var(--layout-page-gap); border: 0; }
+  .hogan-report__change-model { display: grid; gap: var(--layout-item-gap); padding-block-start: var(--layout-page-gap); }
+  .hogan-report__change-model ol { gap: var(--layout-item-gap); }
+  .hogan-report__change-model li { padding: var(--layout-item-gap); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  .hogan-report__change-model li + li { padding-inline-start: var(--layout-item-gap); }
+  .hogan-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+  .hogan-chart { display: grid; gap: var(--layout-item-gap); grid-column: auto; }
+  .hogan-chart__header { min-height: 0; padding: 0; display: grid; align-content: start; gap: var(--layout-inline-gap); }
+  .hogan-chart__code { position: static; @apply text-xs font-semibold tracking-widest; }
+  .hogan-chart__scale { margin: 0; }
+  .hogan-chart__rows { gap: var(--layout-item-gap); align-content: start; }
+  .hogan-chart__label { align-items: baseline; gap: var(--layout-inline-gap); }
+  .hogan-chart__label span { min-width: 0; white-space: normal; text-overflow: clip; }
+  .hogan-chart__label strong { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .hogan-chart__meter { height: 0.5rem; border-radius: var(--radius-sm); }
+  .hogan-chart__fill { border-radius: inherit; }
+  .hogan-narrative { padding: var(--layout-page-gap) 0 0; gap: var(--layout-page-gap); }
+  .hogan-narrative__header { display: flex; flex-direction: column; gap: var(--layout-inline-gap); }
+  .hogan-narrative__header > div { display: block; }
+  .hogan-narrative__themes { gap: var(--layout-page-gap); }
+  .hogan-theme { padding: 0; }
+  .hogan-report__development-copy { display: block; padding: 0; border: 0; }
+  .hogan-report__development > ul { gap: var(--layout-item-gap); }
+  .hogan-report__development > ul > li { padding: var(--layout-item-gap); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  .hogan-report__stress-check { padding-block-start: var(--layout-page-gap); }
+  .hogan-report__stress-check ol { margin-block-start: var(--typeset-flow); grid-template-columns: minmax(0, 1fr); gap: var(--layout-inline-gap); }
+  .hogan-report__stress-check li,
+  .hogan-report__stress-check li:nth-child(even),
+  .hogan-report__stress-check li:nth-last-child(2),
+  .hogan-report__stress-check li:last-child { grid-template-columns: 1.5rem minmax(0, 1fr); padding: var(--layout-inline-gap) 0; border: 0; gap: var(--layout-inline-gap); }
+  .hogan-report__note { margin: 0; }
+  .hogan-scale-group { padding: var(--layout-page-gap) 0 0; gap: var(--layout-item-gap); }
+  .hogan-scale-group dl { gap: var(--layout-item-gap) var(--layout-page-gap); }
+  .hogan-scale-group dl > div { padding: var(--layout-item-gap) 0 0; }
+
+  @media (min-width: 1025px) {
+    .hogan-charts { grid-template-rows: auto auto auto; align-items: stretch; }
+    .hogan-chart { grid-row: span 3; grid-template-rows: subgrid; }
+  }
+
+  @media (max-width: 1024px) {
+    .hogan-charts { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 760px) {
+    .gallup-top-five { grid-template-columns: minmax(0, 1fr); }
+    .gallup-profile__section-head { flex-direction: column; gap: var(--layout-inline-gap); }
+    .hogan-methods { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  @media (max-width: 640px) {
+    .identity-report-domain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gallup-strength-detail,
+    .gallup-web-report__masthead { padding: var(--layout-item-gap); }
+    .gallup-sequence { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-flow: row; }
+    .gallup-domain-legend { grid-template-columns: minmax(0, 1fr); }
+    .gallup-web-report__intro { grid-template-columns: minmax(0, 1fr); }
+    .hogan-report__change-model ol { grid-template-columns: minmax(0, 1fr); }
+    .hogan-report__change-model li + li { border-left: 1px solid var(--border); }
+  }
+}

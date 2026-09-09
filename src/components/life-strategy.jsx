@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useId } from "react";
 import { Pencil } from "lucide-react";
 import {
   Accordion,
@@ -112,12 +112,17 @@ function getListItem(line) {
 }
 
 function SourceList({ items, taskList }) {
+  const listId = useId();
   return (
     <ul className={taskList ? "contains-task-list" : undefined}>
       {items.map(({ checked, index, text }) => (
         <li className={taskList ? "task-list-item" : undefined} key={`${index}-${text}`}>
-          {taskList && <input type="checkbox" checked={checked} disabled readOnly />}
-          <InlineContent text={text} lineIndex={index} />
+          {taskList ? (
+            <>
+              <input type="checkbox" checked={checked} disabled readOnly aria-labelledby={`${listId}-${index}`} />
+              <span id={`${listId}-${index}`}><InlineContent text={text} lineIndex={index} /></span>
+            </>
+          ) : <InlineContent text={text} lineIndex={index} />}
         </li>
       ))}
     </ul>
@@ -202,18 +207,20 @@ function splitStrategySections(lines) {
 function StrategySections({ lines }) {
   const { introduction, sections } = splitStrategySections(lines);
 
+  if (!sections.length) return <>{renderSourceBlocks(introduction)}</>;
+
   return (
     <>
       {renderSourceBlocks(introduction)}
       <Accordion
-        className="mt-[calc(var(--typeset-flow)*2.4)]"
+        className="document-accordion"
         hiddenUntilFound
         multiple
       >
         {sections.map((section) => (
           <AccordionItem className="border-border/70" key={section.id} value={section.id}>
             <AccordionTrigger
-              className="min-h-12 w-full items-center py-5 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
+              className="min-h-12 w-full items-center py-4 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
               headerAs="h2"
             >
               <span className="text-3xl leading-9 font-semibold tracking-tight text-foreground">
@@ -235,22 +242,24 @@ function StrategySections({ lines }) {
 function AgeSections({ editDisabled = false, lines, onEditAge }) {
   const { introduction, sections } = splitAgeSections(lines);
 
+  if (!sections.length) return <StrategySections lines={introduction} />;
+
   return (
     <>
       <StrategySections lines={introduction} />
       <Accordion
-        className="mt-[calc(var(--typeset-flow)*2.4)]"
+        className="document-accordion"
         hiddenUntilFound
         multiple
       >
         {sections.map((section) => (
           <AccordionItem className="border-border/70" key={section.id} value={section.id}>
             <AccordionTrigger
-              className="min-h-12 w-full items-center py-6 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
+              className="min-h-12 w-full items-center py-4 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
               headerAs="h1"
               action={onEditAge ? (
                 <Button
-                  className="ml-2 size-12 shrink-0 self-center rounded-full"
+                  className="size-12 shrink-0 self-center rounded-full"
                   variant="ghost"
                   size="icon"
                   type="button"
@@ -281,9 +290,12 @@ function AgeSections({ editDisabled = false, lines, onEditAge }) {
 
 export function MarkdownDocument({
   source, label, className = "", collapsibleAges = false, collapsibleStrategies = false,
-  ageEditDisabled = false, onEditAge,
+  ageEditDisabled = false, hideSourceLabels = false, onEditAge,
 }) {
-  const lines = source.replace(/\n$/u, "").split("\n");
+  const lines = source
+    .replace(/\n$/u, "")
+    .split("\n")
+    .filter((line) => !hideSourceLabels || !/^:::label\s+/u.test(line));
   return (
     <article className={`life-strategy-source typeset typeset-rollapp typeset-document ${className}`.trim()} aria-label={label}>
       {collapsibleAges
@@ -296,5 +308,9 @@ export function MarkdownDocument({
 }
 
 export function LifeStrategy() {
-  return <MarkdownDocument source={lifeStrategySource} label="Жизненная стратегия" collapsibleAges />;
+  return (
+    <div className="sphere-text-page page-stack">
+      <MarkdownDocument source={lifeStrategySource} label="Жизненная стратегия" collapsibleAges />
+    </div>
+  );
 }

@@ -103,8 +103,27 @@ test("business accounts request section access and the owner keeps consent contr
     body: { name: "Личный Тест", email: "personal-access@rollapp.test", password: "personal1234" },
   });
   assert.equal(personalRegistration.status, 201);
-  assert.equal((await personalRegistration.json()).user.accountType, "personal");
+  const personalUser = (await personalRegistration.json()).user;
+  assert.equal(personalUser.accountType, "personal");
   const personalCookie = personalRegistration.headers.get("set-cookie").split(";", 1)[0];
+  const personalCandidates = await request(
+    "/sphere-shares/candidates?sphere=identity&section=mission",
+    { cookie: ownerCookie },
+  );
+  assert.equal(personalCandidates.status, 200);
+  const candidatePeople = (await personalCandidates.json()).people;
+  assert.equal(candidatePeople.some((candidate) => candidate.id === personalUser.id), false);
+  assert.equal(candidatePeople.every((candidate) => candidate.accountType === "business"), true);
+  const forbiddenPersonalGrant = await request("/sphere-shares", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { viewerId: personalUser.id, sphere: "identity", section: "mission", granted: true },
+  });
+  assert.equal(forbiddenPersonalGrant.status, 400);
+  assert.equal((await forbiddenPersonalGrant.json()).code, "BUSINESS_VIEWER_REQUIRED");
+  const forbiddenPersonalShares = await request("/sphere-shares/incoming", { cookie: personalCookie });
+  assert.equal(forbiddenPersonalShares.status, 403);
+  assert.equal((await forbiddenPersonalShares.json()).code, "BUSINESS_ACCOUNT_REQUIRED");
   const forbiddenBusinessSearch = await request("/business-access/users", { cookie: personalCookie });
   assert.equal(forbiddenBusinessSearch.status, 403);
 

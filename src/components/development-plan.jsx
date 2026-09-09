@@ -186,8 +186,7 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(42rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -249,7 +248,7 @@ function EntryList({ disabled, items, onAdd, onDelete, onEdit, readOnly, title }
         )}
       </header>
       {items.length ? (
-        <ul className="development-plan-editor__list">
+        <ul className="not-typeset development-plan-editor__list">
           {items.map((entry, index) => (
             <li key={`${index}-${entry}`}>
               <span>{entry}</span>
@@ -373,7 +372,7 @@ export function DevelopmentPlan() {
   });
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="sphere-text-page page-stack">
       <CareerEditAction
         label="Редактировать всё"
         loading={careerContent.loading}

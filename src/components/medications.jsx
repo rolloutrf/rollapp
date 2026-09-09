@@ -4,7 +4,7 @@ import {
   ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -145,7 +145,7 @@ function MedicationGroupMenu({ currentGroupId, disabled, groups, medicationName,
         {moving ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="rollapp-body w-80 max-w-[calc(100vw-24px)] rounded-3xl p-3"
+        className="rollapp-body w-(--layout-menu-wide-width) max-w-(--available-width) rounded-3xl p-3"
         align="end"
         sideOffset={8}
       >
@@ -312,8 +312,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
       onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}
     >
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(40rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -595,8 +594,7 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
         onOpenChange={(nextOpen) => !busy && onOpenChange(nextOpen)}
       >
         <DrawerContent
-          className="rollapp-body"
-          style={isMobile ? undefined : { "--drawer-content-width": "min(32rem, calc(100vw - 2rem))" }}
+          className="rollapp-body app-drawer--form"
         >
           <DrawerClose
             render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
@@ -682,7 +680,7 @@ function MedicationGroupTabs({ groups, medications, value, onValueChange, onCrea
   const tiles = [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups];
   return (
     <nav className="list-tabs mb-0 w-full" aria-label="Группы препаратов">
-      <div className="flex w-max min-w-full items-stretch justify-center gap-1.5">
+      <div className="list-tabs__track">
         <ToggleGroup className="contents" value={[value]} onValueChange={(values) => values[0] && onValueChange(values[0])} aria-label="Группы препаратов">
           {tiles.map((group) => {
             const count = countForGroup(group.id);
@@ -702,11 +700,11 @@ function MedicationGroupTabs({ groups, medications, value, onValueChange, onCrea
   );
 }
 
-function MedicationSection({ groups, id, medications, moveState, onCreateGroup, onEdit, onMoveToGroup, title }) {
+function MedicationSection({ groups, hideTitle = false, id, medications, moveState, onCreateGroup, onEdit, onMoveToGroup, title }) {
   if (!medications.length) return null;
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
-      <h3 className="m-0 font-heading text-lg leading-7 font-semibold" id={id}>{title}</h3>
+      <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
       <ul className="grid list-none gap-4 sm:grid-cols-2">
         {medications.map((medication) => (
           <li className="min-w-0" key={medication.id}>
@@ -815,8 +813,8 @@ export function Medications() {
   });
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6 pb-12" data-group-navigation aria-labelledby="medications-title">
-      {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" data-group-navigation aria-labelledby="medications-title">
+      {!readOnly && <header className="page-toolbar w-full justify-center">
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия раздела «Препараты»">
           {selectedGroup && (
@@ -835,12 +833,12 @@ export function Medications() {
           <AlertTriangle aria-hidden="true" />
           <AlertTitle>Не удалось загрузить препараты</AlertTitle>
           <AlertDescription>{requestState.error.message}</AlertDescription>
-          <AlertAction>
+          <div className="col-start-2 flex flex-wrap gap-2 pt-2">
             <Button variant="outline" size="sm" type="button" onClick={() => setRequestVersion((version) => version + 1)}>
               <RotateCcw data-icon="inline-start" aria-hidden="true" />
               Повторить
             </Button>
-          </AlertAction>
+          </div>
         </Alert>
       )}
 
@@ -889,7 +887,7 @@ export function Medications() {
 
       {!requestState.loading && !requestState.error && visibleMedications.length > 0 && (
         <>
-          <MedicationSection groups={requestState.groups} id="active-medications-title" title="Принимаю сейчас" medications={active} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
+          <MedicationSection groups={requestState.groups} hideTitle id="active-medications-title" title="Принимаю сейчас" medications={active} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
           <MedicationSection groups={requestState.groups} id="planned-medications-title" title="Запланировано" medications={planned} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
           <MedicationSection groups={requestState.groups} id="archived-medications-title" title="Приостановлено и завершено" medications={archived} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
         </>

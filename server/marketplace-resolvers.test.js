@@ -68,6 +68,29 @@ test("fetches the marketplace catalogue without returning its search URL", async
   assert.equal(offers[0].url.includes("search"), false);
 });
 
+test("returns a ready marketplace result when another provider times out", async () => {
+  let slowProviderSignal;
+  const startedAt = Date.now();
+  const offers = await fetchMarketplaceResolvedOffers({ title: "Shokz OpenSwim Pro Grey" }, {
+    providerTimeoutMs: 10,
+    fetchImpl: async (url, options) => {
+      if (String(url).includes("search.wb.ru")) {
+        return { ok: true, json: async () => ({ products: [headphones] }) };
+      }
+      slowProviderSignal = options.signal;
+      return new Promise((resolve, reject) => {
+        const abort = () => reject(options.signal.reason);
+        if (options.signal.aborted) abort();
+        else options.signal.addEventListener("abort", abort, { once: true });
+      });
+    },
+  });
+
+  assert.equal(slowProviderSignal.aborted, true);
+  assert.equal(offers[0].marketplaceId, "wildberries");
+  assert.ok(Date.now() - startedAt < 500);
+});
+
 test("does not search general marketplaces for food wishes and preserves the source", async () => {
   let requests = 0;
   const offers = await fetchMarketplaceResolvedOffers({

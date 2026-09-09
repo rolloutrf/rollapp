@@ -113,6 +113,31 @@ Local `.env` variables are documented in `.env.example`. Production non-secret s
 
 The server initializes idempotent tables at startup. Production seeding is disabled unless `SEED_DEMO=true` is explicitly set.
 
+### Marketplace offer search
+
+Product wishes can always use the direct Wildberries and Yandex Market
+resolvers. AI-assisted search across the wider store set additionally needs an
+OpenRouter key. In production, keep that key in Yandex Lockbox under `api_key`,
+set `YC_OPENROUTER_LOCKBOX_SECRET_ID`, and grant the runtime service account
+`lockbox.payloadViewer`; never put the raw key in Compose or GitHub.
+
+Personal OpenRouter keys require a separate, stable encryption secret of at
+least 32 characters. Store it in Lockbox under `encryption_secret`, set
+`YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID`, and grant the same runtime access.
+Losing or rotating this value without a credential migration makes previously
+stored personal keys unreadable. If either AI credential path is unavailable,
+the refresh endpoint continues with direct catalogues and reports that fallback
+to the client instead of failing the whole search.
+
+Profile settings let each user connect, replace, or disconnect a personal key
+and select their own model. Connecting a key validates it with OpenRouter's
+read-only `/api/v1/key` endpoint before writing the encrypted value. Model-only
+changes preserve the key. The searchable model catalogue comes from
+`/api/v1/models` (cached for five minutes); it includes synchronous text models
+supporting tools, structured outputs, and a response token limit. Personal model
+preferences apply only to requests using that user's key; the server fallback
+continues to use `OPENROUTER_MODEL`. No paid completion is made when saving settings.
+
 ### Yandex ID login
 
 Yandex ID uses the server-side Authorization Code flow with PKCE S256. The

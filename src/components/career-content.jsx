@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, RotateCcw, X } from "lucide-react";
 import { api } from "@/api";
 import { MarkdownDocument } from "@/components/life-strategy";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -42,6 +42,9 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
   }, [requestVersion, scope, section]);
 
   const save = async (content) => {
+    if (state.loading || state.error) {
+      throw new Error("Дождитесь загрузки сохранённого содержимого. При ошибке загрузки нажмите «Повторить».");
+    }
     const result = await api.patch(`/${scope}/content/${encodeURIComponent(section)}`, { content });
     setState({ content: result.content, error: "", loading: false, updatedAt: result.updatedAt || null });
     return result.content;
@@ -61,12 +64,12 @@ export function CareerContentError({ error, onRetry }) {
       <AlertTriangle aria-hidden="true" />
       <AlertTitle>Не удалось загрузить сохранённое содержимое</AlertTitle>
       <AlertDescription>{error}</AlertDescription>
-      <AlertAction>
+      <div className="col-start-2 flex flex-wrap gap-2 pt-2">
         <Button variant="outline" size="sm" type="button" onClick={onRetry}>
           <RotateCcw data-icon="inline-start" aria-hidden="true" />
           Повторить
         </Button>
-      </AlertAction>
+      </div>
     </Alert>
   );
 }
@@ -75,7 +78,7 @@ export function CareerEditAction({ disabled = false, loading = false, label, onC
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
   return (
-    <header className="not-typeset rollapp-body flex min-h-12 w-full items-center justify-center">
+    <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Редактирование раздела">
         <Button
           className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
@@ -126,8 +129,7 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(52rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -179,7 +181,7 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
 
 export function EditableMarkdownDocument({
   className = "", collapsibleAges = false, collapsibleStrategies = false,
-  label, scope = "career", section, source,
+  hideSourceLabels = false, label, scope = "career", section, source,
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [periodEditorId, setPeriodEditorId] = useState(null);
@@ -199,7 +201,7 @@ export function EditableMarkdownDocument({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="sphere-text-page page-stack">
       <CareerEditAction
         label={collapsibleAges ? "Редактировать всё" : "Редактировать"}
         loading={careerContent.loading}
@@ -213,6 +215,7 @@ export function EditableMarkdownDocument({
         collapsibleAges={collapsibleAges}
         collapsibleStrategies={collapsibleStrategies}
         ageEditDisabled={careerContent.loading}
+        hideSourceLabels={hideSourceLabels}
         onEditAge={collapsibleAges ? editPeriod : undefined}
       />
       <MarkdownEditorDrawer

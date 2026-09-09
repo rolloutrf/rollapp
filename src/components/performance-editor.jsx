@@ -330,8 +330,7 @@ export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(60rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--wide"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -355,10 +354,10 @@ export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave
               </Alert>
             )}
             <Tabs className="min-w-0 gap-4" defaultValue="main">
-              <TabsList className="h-auto w-full justify-start overflow-x-auto" aria-label="Содержимое перфоманса">
-                <TabsTrigger className="min-h-10 min-w-max px-3" value="main">Основное</TabsTrigger>
-                <TabsTrigger className="min-h-10 min-w-max px-3" value="projects">Проекты</TabsTrigger>
-                <TabsTrigger className="min-h-10 min-w-max px-3" value="interaction">Взаимодействие</TabsTrigger>
+              <TabsList className="h-auto! min-w-0 w-full flex-wrap justify-start gap-1" aria-label="Содержимое перфоманса">
+                <TabsTrigger className="h-auto min-w-0 basis-32 px-3 whitespace-normal wrap-anywhere" value="main">Основное</TabsTrigger>
+                <TabsTrigger className="h-auto min-w-0 basis-32 px-3 whitespace-normal wrap-anywhere" value="projects">Проекты</TabsTrigger>
+                <TabsTrigger className="h-auto min-w-0 basis-32 px-3 whitespace-normal wrap-anywhere" value="interaction">Взаимодействие</TabsTrigger>
               </TabsList>
 
               <TabsContent className="flex min-w-0 flex-col gap-4" value="main">

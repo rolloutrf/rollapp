@@ -46,7 +46,13 @@ test("reports from the same date keep only the freshest result for every analyte
           { code: "CREA", name: "Креатинин", value: "92", unit: "мкмоль/л", reference: "", status: "normal" },
         ],
       }],
-      source: { uploaded: true, filename: "invitro.pdf", pdfUrl: "/invitro.pdf", uploadedAt: "2026-07-16T10:00:00Z" },
+      source: {
+        uploadId: "upload-1",
+        uploaded: true,
+        filename: "invitro.pdf",
+        pdfUrl: "/invitro.pdf",
+        uploadedAt: "2026-07-16T10:00:00Z",
+      },
     },
     {
       id: "built-in",
@@ -85,5 +91,7 @@ test("reports from the same date keep only the freshest result for every analyte
     note: undefined,
   });
   assert.equal("variants" in reports[0].groups[0].items[1], false);
+  assert.equal(reports[0].source.uploadId, "upload-1");
+  assert.equal(reports[0].sources[0].uploadId, "upload-1");
   assert.equal(reports[0].sources[0].pdfUrl, "/invitro.pdf");
 });

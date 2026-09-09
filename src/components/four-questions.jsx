@@ -90,8 +90,7 @@ function FourQuestionEditor({ onOpenChange, onSave, open, question, questionInde
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(52rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--document"
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
@@ -177,14 +176,14 @@ export function FourQuestions() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    <div className="sphere-text-page page-stack">
       <CareerContentError error={state.error} onRetry={() => setRequestVersion((version) => version + 1)} />
       <article className="four-questions typeset typeset-rollapp typeset-document" aria-label="Четыре вопроса">
-        <ol className="four-questions__list">
+        <ol className="four-questions__list m-0 list-none p-0">
           {content.questions.map((question, index) => (
-            <li key={index} className="four-question">
+            <li key={index} className="four-question p-0">
               <article className="four-question__content" aria-labelledby={`four-question-${index + 1}`}>
-                <div className="four-question__heading-row">
+                <div className="four-question__heading-row" data-typeset-group>
                   <h3 id={`four-question-${index + 1}`}>{IDENTITY_QUESTION_TITLES[index]}</h3>
                   {!readOnly && (
                     <Button

@@ -65,10 +65,13 @@ const schema = `
     provider TEXT NOT NULL,
     encrypted_secret TEXT NOT NULL,
     secret_hint TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, provider)
   );
+
+  ALTER TABLE user_ai_credentials ADD COLUMN IF NOT EXISTS model TEXT NOT NULL DEFAULT '';
 
   CREATE TABLE IF NOT EXISTS yandex_oauth_attempts (
     state_hash TEXT PRIMARY KEY,
@@ -197,6 +200,7 @@ const schema = `
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_make TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS vehicle_model TEXT NOT NULL DEFAULT '';
   ALTER TABLE wishes ADD COLUMN IF NOT EXISTS source_wish_id TEXT REFERENCES wishes(id) ON DELETE SET NULL;
+  ALTER TABLE wishes ADD COLUMN IF NOT EXISTS catalog_item_key TEXT;
 
   CREATE TABLE IF NOT EXISTS external_catalog_items (
     source TEXT NOT NULL,
@@ -222,6 +226,23 @@ const schema = `
 
   CREATE INDEX IF NOT EXISTS idx_external_catalog_items_space
     ON external_catalog_items(space, active, source_rank);
+
+  CREATE TABLE IF NOT EXISTS catalog_preserved_items (
+    id TEXT PRIMARY KEY,
+    space TEXT NOT NULL,
+    snapshot JSONB NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_catalog_preserved_items_space ON catalog_preserved_items(space);
+
+  CREATE TABLE IF NOT EXISTS catalog_item_likes (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_key TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, item_key)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_catalog_item_likes_item
+    ON catalog_item_likes(item_key, created_at DESC);
 
   CREATE TABLE IF NOT EXISTS wish_marketplace_offer_snapshots (
     wish_id TEXT PRIMARY KEY REFERENCES wishes(id) ON DELETE CASCADE,
@@ -271,6 +292,13 @@ const schema = `
     report_json TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (user_id, file_hash)
+  );
+
+  CREATE TABLE IF NOT EXISTS lab_report_deletions (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    report_key TEXT NOT NULL,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, report_key)
   );
 
   CREATE TABLE IF NOT EXISTS education_lists (
@@ -597,6 +625,8 @@ const schema = `
   CREATE INDEX IF NOT EXISTS idx_wishes_user_sort ON wishes(user_id,status,sort_order);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_wishes_user_source
   ON wishes(user_id,source_wish_id) WHERE source_wish_id IS NOT NULL;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wishes_user_catalog_item
+  ON wishes(user_id,catalog_item_key) WHERE catalog_item_key IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_wishlist_wishes_wish ON wishlist_wishes(wish_id);
   CREATE INDEX IF NOT EXISTS idx_wish_groups_list ON wish_groups(wishlist_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_wish_group_members_list_space_wish

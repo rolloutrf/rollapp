@@ -2,7 +2,7 @@ import { z } from "zod";
 import { canonicalRetailerProductUrl, retailerPreview } from "../shared/retailer-previews.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "mistralai/mistral-small-2603";
+export const DEFAULT_MODEL = "mistralai/mistral-small-2603";
 const PRODUCT_MARKETPLACES = [
   { id: "ozon", label: "Ozon", hosts: ["ozon.ru"], directPath: "ozon.ru/product/ или ozon.ru/t/" },
   { id: "wildberries", label: "Wildberries", hosts: ["wildberries.ru", "global.wildberries.ru"], directPath: "wildberries.ru/catalog/<id>/detail.aspx" },
@@ -356,12 +356,11 @@ export function buildOpenRouterMarketplaceRequest(wish, {
           max_uses: 6,
           search_context_size: "medium",
           allowed_domains: marketplaces.flatMap((marketplace) => marketplace.hosts),
-          user_location: { country: "RU" },
+          user_location: { type: "approximate", country: "RU" },
         },
       }],
       response_format: responseFormat,
       provider: { require_parameters: true },
-      temperature: 0.1,
       max_tokens: 2_000,
     },
   };

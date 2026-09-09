@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ListChecks, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,7 @@ export function Values() {
   const [customDescription, setCustomDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const editingDisabled = saving || valuesContent.loading || Boolean(valuesContent.error) || readOnly;
 
   useEffect(() => {
     if (valuesContent.loading) return;
@@ -79,6 +80,10 @@ export function Values() {
       || `${value.label} ${value.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)
     )),
   })).filter((group) => group.values.length > 0), [normalizedSearch]);
+  const visibleCustomValues = useMemo(() => draft.custom.filter((value) => (
+    !normalizedSearch
+    || `${value.label} ${value.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)
+  )), [draft.custom, normalizedSearch]);
 
   const toggle = (id, checked) => {
     setDraft((current) => ({
@@ -92,6 +97,7 @@ export function Values() {
 
   const addCustom = (event) => {
     event.preventDefault();
+    if (editingDisabled) return;
     const label = customValue.trim().replace(/\s+/g, " ");
     const description = customDescription.trim().replace(/\s+/g, " ");
     if (!label || !description) return;
@@ -133,6 +139,7 @@ export function Values() {
   };
 
   const save = async () => {
+    if (editingDisabled || !dirty) return;
     setSaving(true);
     setSaveError("");
     try {
@@ -145,24 +152,18 @@ export function Values() {
   };
 
   const reset = () => {
-    setDraft(EMPTY_VALUES);
+    setDraft((current) => ({ ...current, selected: [] }));
     setSaveError("");
   };
 
   return (
-    <div className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl flex-col gap-8">
+    <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
       <header className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex max-w-3xl flex-col gap-2">
-            <span className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">Личные ценности</span>
-            <h2 className="m-0 text-3xl font-semibold tracking-tight">Что для меня действительно важно</h2>
-            <p className="m-0 text-muted-foreground">
-              {readOnly ? "Ценности, которые владелец выбрал как личные ориентиры." : "Отметьте ценности, которые служат вам ориентирами. В списке 83 варианта; отсутствующую ценность можно добавить самостоятельно."}
-            </p>
-          </div>
-          <Badge className="min-h-8 px-3 text-sm" variant={selectedCount ? "default" : "secondary"}>
-            Выбрано: {selectedCount}
-          </Badge>
+        <div className="flex justify-end">
+          <span className="inline-flex min-h-8 items-center gap-2 text-base leading-6 font-normal text-muted-foreground sm:text-lg" role="status">
+            <ListChecks className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+            <span>Выбрано: {selectedCount}</span>
+          </span>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -180,9 +181,9 @@ export function Values() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </InputGroup>
-          {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || saving} onClick={save}>
+          {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
             {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {saving ? "Сохраняем" : dirty ? "Сохранить выбор" : "Сохранено"}
+            {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
           </Button>}
         </div>
       </header>
@@ -195,24 +196,24 @@ export function Values() {
         </Alert>
       )}
 
-      {draft.custom.length > 0 && (
+      {visibleCustomValues.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-values-title">
           <h3 className="m-0 text-xl font-semibold" id="custom-values-title">Мои ценности</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {draft.custom.map((value) => (
-              <div key={value.id} className={`flex min-h-24 items-start gap-3 rounded-xl border p-4 ${selected.has(value.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
+            {visibleCustomValues.map((value) => (
+              <div key={value.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(value.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox
                   className="mt-1 size-5"
                   checked={selected.has(value.id)}
-                  disabled={saving || readOnly}
+                  disabled={editingDisabled}
                   onCheckedChange={(checked) => toggle(value.id, checked)}
                   aria-label={value.label}
                 />
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="flex min-w-0 flex-1 flex-col gap-1 break-words">
                   <strong className="font-semibold text-foreground">{value.label}</strong>
                   {value.description && <span className="text-muted-foreground">{value.description}</span>}
                 </span>
-                {!readOnly && <Button variant="ghost" size="icon-sm" type="button" disabled={saving} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
+                {!readOnly && <Button className="shrink-0" variant="ghost" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
                   <Trash2 aria-hidden="true" />
                 </Button>}
               </div>
@@ -221,7 +222,7 @@ export function Values() {
         </section>
       )}
 
-      {visibleGroups.length > 0 ? visibleGroups.map((group) => (
+      {visibleGroups.map((group) => (
         <section className="flex flex-col gap-3" key={group.id} aria-labelledby={`values-${group.id}`}>
           <div className="flex items-center gap-3">
             <h3 className="m-0 text-xl font-semibold" id={`values-${group.id}`}>{group.label}</h3>
@@ -233,16 +234,17 @@ export function Values() {
                 key={value.id}
                 checked={selected.has(value.id)}
                 description={value.description}
-                disabled={saving || readOnly}
+                disabled={editingDisabled}
                 label={value.label}
                 onCheckedChange={(checked) => toggle(value.id, checked)}
               />
             ))}
           </div>
         </section>
-      )) : (
+      ))}
+      {visibleGroups.length === 0 && visibleCustomValues.length === 0 && (
         <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-          По вашему запросу ничего не найдено. Добавьте собственную ценность ниже.
+          {readOnly ? "По вашему запросу ничего не найдено." : "По вашему запросу ничего не найдено. Добавьте собственную ценность ниже."}
         </div>
       )}
 
@@ -254,6 +256,7 @@ export function Values() {
         <form className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]" onSubmit={addCustom}>
           <Input
             className="h-12 text-base md:text-base"
+            disabled={editingDisabled}
             maxLength={80}
             placeholder="Название, например «Созидание»"
             value={customValue}
@@ -262,13 +265,14 @@ export function Values() {
           />
           <Input
             className="h-12 text-base md:text-base"
+            disabled={editingDisabled}
             maxLength={240}
             placeholder="Что эта ценность означает для вас"
             value={customDescription}
             onChange={(event) => setCustomDescription(event.target.value)}
             aria-label="Описание своей ценности"
           />
-          <Button className="h-12 px-5 text-base" variant="outline" type="submit" disabled={!customValue.trim() || !customDescription.trim() || saving}>
+          <Button className="h-12 px-5 text-base" variant="outline" type="submit" disabled={!customValue.trim() || !customDescription.trim() || editingDisabled}>
             <Plus data-icon="inline-start" aria-hidden="true" />
             Добавить
           </Button>
@@ -276,7 +280,7 @@ export function Values() {
       </section>}
 
       <footer className="flex flex-col items-start justify-between gap-4 border-t pt-6 sm:flex-row sm:items-center">
-        <p className="m-0 max-w-2xl text-sm text-muted-foreground">
+        <p className="m-0 max-w-(--layout-text-width) text-sm text-muted-foreground">
           Перечень адаптирован из открытой методики{" "}
           <a
             className="underline underline-offset-4 hover:text-foreground"
@@ -288,13 +292,13 @@ export function Values() {
           </a>.
         </p>
         {!readOnly && <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" type="button" disabled={selectedCount === 0 || saving} onClick={reset}>
+          <Button variant="ghost" type="button" disabled={selectedCount === 0 || editingDisabled} onClick={reset}>
             <RotateCcw data-icon="inline-start" aria-hidden="true" />
             Снять выбор
           </Button>
-          <Button className="min-h-12 text-base" type="button" disabled={!dirty || saving} onClick={save}>
+          <Button className="min-h-12 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
             {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {saving ? "Сохраняем" : dirty ? "Сохранить выбор" : "Сохранено"}
+            {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
           </Button>
         </div>}
       </footer>

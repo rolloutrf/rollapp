@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
+import { externalCatalogReference } from "./wish-catalog.js";
 
 test("normalizes an external catalog row without inventing an owner", () => {
   const item = externalCatalogItemFromRow({
@@ -24,4 +25,20 @@ test("normalizes an external catalog row without inventing an owner", () => {
   assert.deepEqual(item.owners, []);
   assert.deepEqual(item.categories, ["books"]);
   assert.equal(item.source.label, "OhMyWishes");
+});
+
+test("external item ids remain reversible when provider keys contain separators", () => {
+  const item = externalCatalogItemFromRow({
+    source: "provider:media",
+    external_id: "book:42",
+    title: "Книга",
+    url: "https://example.com/book/42",
+    source_label: "Provider",
+    source_home_url: "https://example.com",
+  });
+
+  assert.deepEqual(externalCatalogReference(item.id), {
+    source: "provider:media",
+    externalId: "book:42",
+  });
 });

@@ -380,7 +380,7 @@ export function PerformanceReview() {
   };
 
   return (
-    <article className="not-typeset rollapp-body mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-8 pb-12">
+    <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions wishes-page__hero-actions flex flex-wrap justify-center gap-2" role="group" aria-label="Действия с перфоманс-ревью">
           <Button
@@ -439,13 +439,13 @@ export function PerformanceReview() {
       <Separator />
 
       {activeCycle ? <Tabs className="min-w-0 gap-6" value={activeCycle.id} onValueChange={setActiveCycleId}>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <TabsList
-            className="w-full max-w-full justify-start overflow-x-auto group-data-horizontal/tabs:h-auto"
+            className="h-auto! min-w-0 w-full flex-wrap justify-start gap-1"
             aria-label="Циклы перфоманс-ревью"
           >
             {cycles.map((cycle) => (
-              <TabsTrigger className="min-w-max" key={cycle.id} value={cycle.id}>
+              <TabsTrigger className="h-auto min-w-0 basis-40 whitespace-normal wrap-anywhere" key={cycle.id} value={cycle.id}>
                 <CalendarRange data-icon="inline-start" aria-hidden="true" />
                 {cycle.season} {cycle.year}
               </TabsTrigger>

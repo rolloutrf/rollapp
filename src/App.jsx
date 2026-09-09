@@ -9,6 +9,10 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { buildRepeatWishPayload } from "./lib/wish-repeat.js";
+import { createLatestSaveQueue } from "./lib/latest-save-queue.js";
+import { refreshSession } from "./lib/session-refresh.js";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -30,13 +34,17 @@ import { CvResume } from "@/components/cv-resume";
 import { FourQuestions } from "@/components/four-questions";
 import { GallupProfile } from "@/components/gallup-profile";
 import {
-  IdentityReportControls, IdentityReportEmpty,
+  IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
   IdentityReportStatus, useIdentityReport,
 } from "@/components/identity-report-manager";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
+import { FullscreenDialog } from "@/components/fullscreen-dialog";
+import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
 import { LabResults } from "@/components/lab-results";
 import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
+import { OpenRouterSettings } from "@/components/openrouter-settings";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
 import { PerformanceReview } from "@/components/performance-review";
 import { Theses } from "@/components/theses";
@@ -54,9 +62,8 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
-  Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger,
+  Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,6 +75,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useWishReorder } from "@/hooks/use-wish-reorder";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import {
   isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
@@ -382,18 +390,25 @@ function ToastProvider({ children }) {
 }
 
 function SessionProvider({ children }) {
-  const [session, setSession] = useState({ user: null, loading: true });
-  const refresh = useCallback(async () => {
-    try {
-      const result = await api.get("/me");
-      setSession({ ...result, loading: false });
-      return result;
-    } catch {
-      setSession({ user: null, loading: false });
-      return null;
-    }
-  }, []);
-  useEffect(() => { refresh(); }, [refresh]);
+  const [session, setSession] = useState({ user: null, loading: true, error: null });
+  const [retrying, setRetrying] = useState(false);
+  const refresh = useCallback(() => refreshSession(() => api.get("/me"), setSession), []);
+  useEffect(() => { refresh().catch(() => {}); }, [refresh]);
+  if (session.error && !session.user) {
+    return <div className="auth-page rollapp-body">
+      <div className="auth-panel">
+        <div className="auth-form">
+          <h1>Не удалось загрузить Rollapp</h1>
+          <Alert variant="destructive"><AlertDescription>{session.error.message}</AlertDescription></Alert>
+          <ShadcnButton className="auth-submit" disabled={retrying} aria-busy={retrying || undefined} onClick={async () => {
+            setRetrying(true);
+            try { await refresh(); } catch { /* Keep the error visible for another retry. */ }
+            finally { setRetrying(false); }
+          }}>{retrying && <Spinner data-icon="inline-start" />}Повторить</ShadcnButton>
+        </div>
+      </div>
+    </div>;
+  }
   return <SessionContext.Provider value={{ ...session, refresh, setSession }}>{children}</SessionContext.Provider>;
 }
 
@@ -402,13 +417,13 @@ function useToast() { return useContext(ToastContext); }
 function useProfileEditor() { return useContext(ProfileEditorContext); }
 
 function useLogout() {
-  const { refresh } = useSession();
+  const { setSession } = useSession();
   const navigate = useNavigate();
   const toast = useToast();
   return useCallback(async () => {
     try {
       await api.post("/auth/logout", {});
-      await refresh();
+      setSession({ user: null, loading: false, error: null });
       navigate("/");
       toast("Вы вышли из аккаунта");
       return true;
@@ -416,7 +431,7 @@ function useLogout() {
       toast(error?.message || "Не удалось выйти из аккаунта");
       return false;
     }
-  }, [navigate, refresh, toast]);
+  }, [navigate, setSession, toast]);
 }
 
 function ProfileEditorProvider({ children }) {
@@ -446,25 +461,31 @@ function ProfileEditorProvider({ children }) {
   );
 }
 
+function LogoMark({ className = "logo__mark" }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 364 364"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M1 8h109v114H1z" fill="currentColor" />
+      <path
+        d="M321.907 17.031A222.647 79.661 -47.859 1 1 23.133 347.216 222.647 79.661 -47.859 1 1 321.907 17.031ZM118 124h109v115H118Z"
+        fill="currentColor"
+        fillRule="evenodd"
+        clipRule="evenodd"
+      />
+      <circle cx="302" cy="294" r="61" fill="currentColor" />
+    </svg>
+  );
+}
+
 function Logo({ className = "" }) {
   return (
     <Link to={APP_HOME} className={`logo ${className}`} aria-label="Rollapp — в приложение">
-      <svg
-        className="logo__mark"
-        viewBox="0 0 364 364"
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path d="M1 8h109v114H1z" fill="currentColor" />
-        <path
-          d="M321.907 17.031A222.647 79.661 -47.859 1 1 23.133 347.216 222.647 79.661 -47.859 1 1 321.907 17.031ZM118 124h109v115H118Z"
-          fill="currentColor"
-          fillRule="evenodd"
-          clipRule="evenodd"
-        />
-        <circle cx="302" cy="294" r="61" fill="currentColor" />
-      </svg>
+      <LogoMark />
     </Link>
   );
 }
@@ -521,7 +542,7 @@ function SphereSwitcher() {
       : []),
   ];
   useEffect(() => {
-    if (!user) {
+    if (user?.accountType !== "business") {
       setIncomingShares([]);
       return undefined;
     }
@@ -532,11 +553,11 @@ function SphereSwitcher() {
       if (current) setIncomingShares([]);
     });
     return () => { current = false; };
-  }, [user?.id, open]);
+  }, [user?.accountType, user?.id, open]);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className="sphere-switcher__trigger !size-12 rounded-full" variant="outline" size="icon" type="button" />}
+        render={<ShadcnButton className="sphere-switcher__trigger !size-12 !rounded-full" variant="outline" size="icon" type="button" />}
         aria-label="Открыть переключатель сфер"
         title="Сферы"
       >
@@ -552,10 +573,6 @@ function SphereSwitcher() {
         align="start"
         sideOffset={10}
       >
-        <PopoverHeader className="sphere-switcher__header">
-          <PopoverTitle className="sphere-switcher__title">Сферы</PopoverTitle>
-          <PopoverDescription>Выберите раздел Rollapp</PopoverDescription>
-        </PopoverHeader>
         <nav className="sphere-switcher__grid" aria-label="Сервисы и сферы Rollapp">
           {visibleServices.map(({ id, label, path, icon: Icon }) => {
             const active = id === activeService && !sharedOwner;
@@ -668,7 +685,7 @@ function GlobalAppChrome() {
       <AppBrand />
       {current && (
         <Select value={current.id} onValueChange={selectTab}>
-          <SelectTrigger className="space-select global-service-select" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
+          <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
               const option = options.find((item) => item.id === selected) || current;
               const Icon = option.icon || service.icon;
@@ -702,7 +719,6 @@ const IDENTITY_TABS = [
     id: "values",
     label: "Ценности",
     description: "Личные принципы и критерии, на которые вы опираетесь в решениях.",
-    layout: "full-width",
   },
   {
     id: "gallup",
@@ -1386,7 +1402,7 @@ function ForgotPasswordPage() {
 }
 
 function ResetPasswordPage() {
-  const { refresh } = useSession();
+  const { setSession } = useSession();
   const fieldId = useId();
   const passwordRef = useRef(null);
   const confirmationRef = useRef(null);
@@ -1427,7 +1443,7 @@ function ResetPasswordPage() {
     setLoading(true);
     try {
       await api.post("/auth/password-reset/confirm", { token, password: form.password });
-      await refresh();
+      setSession({ user: null, loading: false, error: null });
       setForm({ password: "", confirmation: "" });
       setToken("");
       setSuccess(true);
@@ -1859,7 +1875,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
       <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !businessRoute && <PersistentProfileHero user={user} />}
+          {!collectionChrome && !catalogRoute && !businessRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -1923,8 +1939,8 @@ function HoganNarrativeSection({ section }) {
     <section className={`hogan-narrative hogan-narrative--${section.id}`} aria-labelledby={`hogan-narrative-${section.id}`}>
       <header className="hogan-narrative__header">
         <span className="hogan-narrative__code" aria-hidden="true">{section.code}</span>
-        <div>
-          <span>{section.eyebrow}</span>
+        <div data-typeset-group>
+          <span data-typography="label">{section.eyebrow}</span>
           <h3 id={`hogan-narrative-${section.id}`}>{section.title}</h3>
           <p>{section.lead}</p>
         </div>
@@ -1946,8 +1962,8 @@ function HoganNarrativeSection({ section }) {
 function HoganScaleGuide({ profiles = HOGAN_PROFILES }) {
   return (
     <section className="hogan-report__scale-guide" aria-labelledby="hogan-scale-guide-title">
-      <div className="hogan-report__section-heading">
-        <span>Справочник</span>
+      <div className="hogan-report__section-heading" data-typeset-group>
+        <span data-typography="label">Справочник</span>
         <h3 id="hogan-scale-guide-title">Что означает каждая шкала</h3>
         <p>Короткие определения помогают читать процентили в контексте, а не воспринимать отдельный балл как оценку личности.</p>
       </div>
@@ -1975,39 +1991,27 @@ function HoganScaleGuide({ profiles = HOGAN_PROFILES }) {
 
 function DefaultHoganReport() {
   return (
-    <article className="hogan-report typeset-document" aria-labelledby="hogan-report-title">
-      <header className="hogan-report__hero">
-        <div className="hogan-report__hero-copy">
-          <span className="hogan-report__eyebrow">Leadership Forecast™</span>
-          <h2 id="hogan-report-title">Профиль Hogan</h2>
-          <p>Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS.</p>
-          <div className="hogan-report__meta">
-            <span>Михаил Колосков</span>
-            <span aria-hidden="true">·</span>
-            <time dateTime="2025-07-29">29 июля 2025</time>
-            <span aria-hidden="true">·</span>
-            <span>нормы Russian2023</span>
-          </div>
-        </div>
-        <div className="hogan-report__stats" aria-label="Состав профиля">
-          {HOGAN_REPORT_STATS.map((stat) => (
-            <div key={stat.label} className="hogan-report__stat">
-              <strong>{stat.value}</strong>
-              <span>{stat.label}<small>{stat.detail}</small></span>
-            </div>
-          ))}
-        </div>
-      </header>
+    <article className="hogan-report identity-report typeset-document" aria-labelledby="hogan-report-title">
+      <IdentityReportOverview
+        titleId="hogan-report-title"
+        eyebrow="Leadership Forecast™"
+        title="Профиль Hogan"
+        description="Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS."
+        person="Михаил Колосков · нормы Russian2023"
+        date="2025-07-29"
+        dateLabel="29 июля 2025"
+        stats={HOGAN_REPORT_STATS}
+      />
 
       <section className="hogan-report__summary" aria-labelledby="hogan-summary-title">
-        <div className="hogan-report__section-heading">
-          <span>Синтез двух отчётов</span>
+        <div className="hogan-report__section-heading" data-typeset-group>
+          <span data-typography="label">Синтез двух отчётов</span>
           <h3 id="hogan-summary-title">Главное в профиле</h3>
         </div>
         <div className="hogan-insights">
           {HOGAN_INSIGHTS.map((insight) => (
             <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
-              <span>{insight.eyebrow}</span>
+              <span data-typography="label">{insight.eyebrow}</span>
               <h4>{insight.title}</h4>
               <p>{insight.text}</p>
             </article>
@@ -2016,15 +2020,15 @@ function DefaultHoganReport() {
       </section>
 
       <section className="hogan-report__methodology" aria-labelledby="hogan-methodology-title">
-        <div className="hogan-report__section-heading">
-          <span>Как читать профиль</span>
+        <div className="hogan-report__section-heading" data-typeset-group>
+          <span data-typography="label">Как читать профиль</span>
           <h3 id="hogan-methodology-title">Три ракурса одной репутации</h3>
           <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
         </div>
         <div className="hogan-methods">
           {HOGAN_METHODS.map((method) => (
             <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
-              <span aria-hidden="true">{method.code}</span>
+              <span aria-hidden="true" data-typography="label">{method.code}</span>
               <h4>{method.title}</h4>
               <p>{method.text}</p>
             </article>
@@ -2041,7 +2045,7 @@ function DefaultHoganReport() {
               {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="hogan-report__change-model">
+          <div className="hogan-report__change-model" data-typeset-group>
             <h4>Изменение начинается с трёх ответов</h4>
             <ol data-not-typeset>
               {HOGAN_CHANGE_STEPS.map(([label, text]) => (
@@ -2053,8 +2057,8 @@ function DefaultHoganReport() {
       </section>
 
       <section className="hogan-report__scores" aria-labelledby="hogan-scores-title">
-        <div className="hogan-report__section-heading">
-          <span>Процентили · 0–100</span>
+        <div className="hogan-report__section-heading" data-typeset-group>
+          <span data-typography="label">Процентили · 0–100</span>
           <h3 id="hogan-scores-title">Все шкалы</h3>
           <p>Положение относительно нормативной выборки. Высокий или низкий балл сам по себе не означает «хорошо» или «плохо».</p>
         </div>
@@ -2064,8 +2068,8 @@ function DefaultHoganReport() {
       </section>
 
       <section className="hogan-report__interpretation" aria-labelledby="hogan-interpretation-title">
-        <div className="hogan-report__section-heading">
-          <span>Подробная интерпретация</span>
+        <div className="hogan-report__section-heading" data-typeset-group>
+          <span data-typography="label">Подробная интерпретация</span>
           <h3 id="hogan-interpretation-title">Как профиль проявляется в работе</h3>
           <p>Ниже содержание отчётов собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
         </div>
@@ -2075,8 +2079,8 @@ function DefaultHoganReport() {
       </section>
 
       <section className="hogan-report__development" aria-labelledby="hogan-development-title">
-        <div className="hogan-report__development-copy">
-          <span>Фокус развития</span>
+        <div className="hogan-report__development-copy" data-typeset-group>
+          <span data-typography="label">Фокус развития</span>
           <h3 id="hogan-development-title">Сохранить напор, добавить контакт</h3>
           <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
         </div>
@@ -2165,40 +2169,31 @@ function GeneratedHoganReport({ report }) {
     ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${report.date}T12:00:00Z`))
     : "Дата не указана";
   return (
-    <article className="hogan-report hogan-report--generated typeset-document" aria-labelledby="hogan-generated-title">
-      <header className="hogan-report__hero">
-        <div className="hogan-report__hero-copy">
-          <span className="hogan-report__eyebrow">Leadership Forecast™ · создано из PDF</span>
-          <h2 id="hogan-generated-title">{report.title}</h2>
-          <p>Содержание загруженных отчётов очищено от разрывов страниц и собрано в единую адаптивную страницу.</p>
-          <div className="hogan-report__meta">
-            {report.person ? <span>{report.person}</span> : null}
-            {report.person ? <span aria-hidden="true">·</span> : null}
-            <time dateTime={report.date || undefined}>{dateLabel}</time>
-          </div>
-        </div>
-        <div className="hogan-report__stats" aria-label="Состав профиля">
-          <div className="hogan-report__stat">
-            <strong>{profiles.length}</strong>
-            <span>опросника<small>{profiles.map((profile) => profile.code).join(" · ") || "из PDF"}</small></span>
-          </div>
-          <div className="hogan-report__stat">
-            <strong>{scaleCount}</strong>
-            <span>шкал<small>в едином профиле</small></span>
-          </div>
-        </div>
-      </header>
+    <article className="hogan-report hogan-report--generated identity-report typeset-document" aria-labelledby="hogan-generated-title">
+      <IdentityReportOverview
+        titleId="hogan-generated-title"
+        eyebrow="Leadership Forecast™"
+        title={report.title}
+        description="Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS."
+        person={report.person}
+        date={report.date}
+        dateLabel={dateLabel}
+        stats={[
+          { value: profiles.length, label: "опросника", detail: profiles.map((profile) => profile.code).join(" · ") || "из PDF" },
+          { value: scaleCount, label: "шкал", detail: "в едином профиле" },
+        ]}
+      />
 
       {insights.length ? (
         <section className="hogan-report__summary" aria-labelledby="hogan-generated-summary-title">
-          <div className="hogan-report__section-heading">
-            <span>Синтез загруженных отчётов</span>
+          <div className="hogan-report__section-heading" data-typeset-group>
+            <span data-typography="label">Синтез загруженных отчётов</span>
             <h3 id="hogan-generated-summary-title">Главное в профиле</h3>
           </div>
           <div className="hogan-insights">
             {insights.map((insight) => (
               <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
-                <span>{insight.eyebrow}</span>
+                <span data-typography="label">{insight.eyebrow}</span>
                 <h4>{insight.title}</h4>
                 <p>{insight.text}</p>
               </article>
@@ -2208,15 +2203,15 @@ function GeneratedHoganReport({ report }) {
       ) : null}
 
       <section className="hogan-report__methodology" aria-labelledby="hogan-generated-methodology-title">
-        <div className="hogan-report__section-heading">
-          <span>Как читать профиль</span>
+        <div className="hogan-report__section-heading" data-typeset-group>
+          <span data-typography="label">Как читать профиль</span>
           <h3 id="hogan-generated-methodology-title">Три ракурса одной репутации</h3>
           <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
         </div>
         <div className="hogan-methods">
           {HOGAN_METHODS.map((method) => (
             <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
-              <span aria-hidden="true">{method.code}</span>
+              <span aria-hidden="true" data-typography="label">{method.code}</span>
               <h4>{method.title}</h4>
               <p>{method.text}</p>
             </article>
@@ -2233,7 +2228,7 @@ function GeneratedHoganReport({ report }) {
               {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
             </ul>
           </div>
-          <div className="hogan-report__change-model">
+          <div className="hogan-report__change-model" data-typeset-group>
             <h4>Изменение начинается с трёх ответов</h4>
             <ol data-not-typeset>
               {HOGAN_CHANGE_STEPS.map(([label, text]) => (
@@ -2246,8 +2241,8 @@ function GeneratedHoganReport({ report }) {
 
       {profiles.length ? (
         <section className="hogan-report__scores" aria-labelledby="hogan-generated-scores-title">
-          <div className="hogan-report__section-heading">
-            <span>Процентили · 0–100</span>
+          <div className="hogan-report__section-heading" data-typeset-group>
+            <span data-typography="label">Процентили · 0–100</span>
             <h3 id="hogan-generated-scores-title">Шкалы из загруженных отчётов</h3>
             <p>Значения автоматически извлечены из PDF. Сверьте их с оригиналами, доступными выше.</p>
           </div>
@@ -2261,8 +2256,8 @@ function GeneratedHoganReport({ report }) {
 
       {narratives.length ? (
         <section className="hogan-report__interpretation" aria-labelledby="hogan-generated-interpretation-title">
-          <div className="hogan-report__section-heading">
-            <span>Подробная интерпретация</span>
+          <div className="hogan-report__section-heading" data-typeset-group>
+            <span data-typography="label">Подробная интерпретация</span>
             <h3 id="hogan-generated-interpretation-title">Как профиль проявляется в работе</h3>
             <p>Содержание отчёта собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
           </div>
@@ -2274,8 +2269,8 @@ function GeneratedHoganReport({ report }) {
 
       {usesCuratedInterpretation ? (
         <section className="hogan-report__development" aria-labelledby="hogan-generated-development-title">
-          <div className="hogan-report__development-copy">
-            <span>Фокус развития</span>
+          <div className="hogan-report__development-copy" data-typeset-group>
+            <span data-typography="label">Фокус развития</span>
             <h3 id="hogan-generated-development-title">Сохранить напор, добавить контакт</h3>
             <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
           </div>
@@ -2510,8 +2505,9 @@ function ContactNotes({ notes }) {
   });
 }
 
-function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onCancel, onSaved, onDeleted }) {
+function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
   const toast = useToast();
+  const contactFieldId = useId();
   const creating = !contact?.id;
   const [form, setForm] = useState(() => contactFormFrom(contact));
   const [saving, setSaving] = useState(false);
@@ -2633,11 +2629,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       await api.delete(`/uploads/images/${encodeURIComponent(previousId)}`).catch(() => {});
     }
   };
-  const cancel = async () => {
-    if (busy) return;
-    await cleanupUploadedImages();
-    onCancel();
-  };
   const save = async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -2684,6 +2675,11 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   };
   const knownCategories = Object.keys(CONTACT_CATEGORY_LABELS);
   const hasCustomCategory = form.category && !knownCategories.includes(form.category);
+  const categoryItems = [
+    { value: "", label: "Без направления" },
+    ...(hasCustomCategory ? [{ value: form.category, label: form.category }] : []),
+    ...knownCategories.map((value) => ({ value, label: CONTACT_CATEGORY_LABELS[value] })),
+  ];
 
   return (
     <form className="contact-detail__edit-form" onSubmit={save}>
@@ -2693,16 +2689,30 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             type="button"
             variant="ghost"
             size="icon"
-            className="contact-detail__avatar-button"
+            className="contact-detail__avatar-button size-(--contact-detail-avatar-size) rounded-full border-0 p-0 hover:bg-transparent dark:hover:bg-transparent"
             aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
             disabled={busy}
             onClick={() => avatarFileRef.current?.click()}
           >
             <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
             <span className="contact-detail__avatar-button-icon" aria-hidden="true">
-              {imageUploading ? <Spinner /> : <Upload />}
+              {imageUploading ? <Spinner className="size-3.5" /> : <Upload className="size-3.5" />}
             </span>
           </ShadcnButton>
+          {!creating && <ShadcnButton
+            type="button"
+            variant="outline"
+            size="icon"
+            className="contact-detail__favorite absolute -right-3 -top-3 z-10 size-12 rounded-full bg-popover dark:bg-popover"
+            data-favorite={contact.favorite ? "true" : "false"}
+            aria-pressed={Boolean(contact.favorite)}
+            aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+            title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+            disabled={favoriteSaving}
+            onClick={onFavoriteToggle}
+          >
+            {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+          </ShadcnButton>}
           <Input
             ref={avatarFileRef}
             className="sr-only !size-px"
@@ -2712,21 +2722,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             onChange={(event) => uploadAvatar(event.target.files?.[0])}
           />
         </div>
-        <div><span>{creating ? "Добавление контакта" : "Редактирование контакта"}</span><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
-        {!creating && <ShadcnButton
-          type="button"
-          variant="outline"
-          size="icon"
-          className="contact-detail__favorite size-11 rounded-full"
-          data-favorite={contact.favorite ? "true" : "false"}
-          aria-pressed={Boolean(contact.favorite)}
-          aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
-          title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-          disabled={favoriteSaving}
-          onClick={onFavoriteToggle}
-        >
-          {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
-        </ShadcnButton>}
+        <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
       </div>
       <div className="contact-detail__avatar-controls">
         <ShadcnButton type="button" variant="outline" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
@@ -2739,30 +2735,33 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       </div>
       {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
       <div className="contact-detail__edit-fields">
-        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
-          <span>Имя</span>
-          <Input value={form.name} maxLength={120} required autoFocus onChange={(event) => setField("name", event.target.value)} />
-        </label>
-        <label className="contact-detail__edit-field">
-          <span>Компания</span>
-          <Input value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
-        </label>
-        <label className="contact-detail__edit-field">
-          <span>Направление</span>
-          <NativeSelect value={form.category} onChange={(event) => setField("category", event.target.value)}>
-            <NativeSelectOption value="">Без направления</NativeSelectOption>
-            {hasCustomCategory && <NativeSelectOption value={form.category}>{form.category}</NativeSelectOption>}
-            {knownCategories.map((value) => <NativeSelectOption key={value} value={value}>{CONTACT_CATEGORY_LABELS[value]}</NativeSelectOption>)}
-          </NativeSelect>
-        </label>
-        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
-          <span>Должность или роль</span>
-          <Input value={form.role} maxLength={240} placeholder="Не указана" onChange={(event) => setField("role", event.target.value)} />
-        </label>
-        <label className="contact-detail__edit-field contact-detail__edit-field--wide">
-          <span>Статус</span>
-          <Input value={form.status} maxLength={80} placeholder="Например, в работе" onChange={(event) => setField("status", event.target.value)} />
-        </label>
+        <Field className="contact-detail__edit-field--wide">
+          <FieldLabel htmlFor={`${contactFieldId}-name`}>Имя</FieldLabel>
+          <Input id={`${contactFieldId}-name`} value={form.name} maxLength={120} required autoFocus onChange={(event) => setField("name", event.target.value)} />
+        </Field>
+        <Field className="contact-detail__edit-field--wide">
+          <FieldLabel htmlFor={`${contactFieldId}-company`}>Компания</FieldLabel>
+          <Input id={`${contactFieldId}-company`} value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
+        </Field>
+        <Field className="contact-detail__edit-field--wide">
+          <FieldLabel htmlFor={`${contactFieldId}-category`}>Направление</FieldLabel>
+          <Select items={categoryItems} value={form.category} onValueChange={(value) => setField("category", value ?? "")} disabled={busy}>
+            <SelectTrigger id={`${contactFieldId}-category`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              {categoryItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field className="contact-detail__edit-field--wide">
+          <FieldLabel htmlFor={`${contactFieldId}-role`}>Должность или роль</FieldLabel>
+          <Input id={`${contactFieldId}-role`} value={form.role} maxLength={240} placeholder="Не указана" onChange={(event) => setField("role", event.target.value)} />
+        </Field>
+        <Field className="contact-detail__edit-field--wide">
+          <FieldLabel htmlFor={`${contactFieldId}-status`}>Статус</FieldLabel>
+          <Input id={`${contactFieldId}-status`} value={form.status} maxLength={80} placeholder="Например, в работе" onChange={(event) => setField("status", event.target.value)} />
+        </Field>
       </div>
       <section className="contact-detail__edit-section" aria-labelledby="contact-edit-links-title">
         <h2 id="contact-edit-links-title"><Link2 aria-hidden="true" />Ссылки</h2>
@@ -2778,15 +2777,14 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         </div>
         {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
       </section>
-      <label className="contact-detail__edit-field contact-detail__edit-notes">
-        <span><NotebookText aria-hidden="true" />Заметки</span>
-        <Textarea value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
-      </label>
+      <Field className="contact-detail__edit-notes">
+        <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
+        <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
+      </Field>
       {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
       <div className="contact-detail__edit-actions">
-        {!creating && <ShadcnButton type="button" variant="ghost" className="contact-detail__delete" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</ShadcnButton>}
-        <ShadcnButton type="button" variant="ghost" disabled={busy} onClick={cancel}>Отмена</ShadcnButton>
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
+        {!creating && <ShadcnButton type="button" variant="ghost" className="contact-detail__delete" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</ShadcnButton>}
       </div>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
@@ -2823,7 +2821,7 @@ function ContactReadView({ contact }) {
         <div className="contact-card__social-links">{socialLinks.map((link, index) => <ContactSocialLink key={`${link.url}-${index}`} link={link} contactName={contact.name} />)}</div>
       </section>}
       <section className="contact-detail__edit-section typeset typeset-rollapp" aria-labelledby="contact-read-notes-title">
-        <h2 id="contact-read-notes-title"><NotebookText aria-hidden="true" />Заметки</h2>
+        <h2 id="contact-read-notes-title">Заметки</h2>
         <ContactNotes notes={contact.notes} />
       </section>
     </article>
@@ -2855,11 +2853,13 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
   };
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DrawerContent className="contact-detail-drawer rollapp-body" style={{ "--contact-accent": accent }}>
-        <DrawerClose
-          render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
-          aria-label="Закрыть карточку контакта"
-        ><X /></DrawerClose>
+      <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": accent }}>
+        <div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2">
+          <DrawerClose
+            render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
+            aria-label="Закрыть карточку контакта"
+          ><X /></DrawerClose>
+        </div>
         {loading ? <LoadingScreen compact /> : error ? (
           <div className="contacts-sphere__empty" role="alert">
             <strong>Не удалось открыть контакт</strong>
@@ -2872,7 +2872,6 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
               contact={contact}
               favoriteSaving={favoriteSaving}
               onFavoriteToggle={toggleFavorite}
-              onCancel={onClose}
               onSaved={(savedContact) => {
                 updateData((current) => ({ ...current, contact: savedContact }));
                 onUpdated?.(savedContact);
@@ -2890,13 +2889,15 @@ function ContactCreateDrawer({ onClose, onCreated }) {
   const isMobile = useIsMobile();
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DrawerContent className="contact-detail-drawer rollapp-body" style={{ "--contact-accent": contactAccent("") }}>
-        <DrawerClose
-          render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
-          aria-label="Закрыть добавление контакта"
-        ><X /></DrawerClose>
+      <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": contactAccent("") }}>
+        <div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2">
+          <DrawerClose
+            render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
+            aria-label="Закрыть добавление контакта"
+          ><X /></DrawerClose>
+        </div>
         <ScrollArea className="contact-detail__scroll">
-          <ContactEditForm onCancel={onClose} onSaved={onCreated} />
+          <ContactEditForm onSaved={onCreated} />
         </ScrollArea>
       </DrawerContent>
     </Drawer>
@@ -2905,7 +2906,7 @@ function ContactCreateDrawer({ onClose, onCreated }) {
 
 function ContactsProfileControls({ onAdd }) {
   return (
-    <section className="wishes-page__profile-controls" aria-label="Управление контактами">
+    <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия с контактами">
         <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
       </div>
@@ -2989,7 +2990,7 @@ function ContactsSpherePage() {
   };
 
   return (
-    <div data-read-only={access.readOnly ? "true" : undefined} className="app-page sphere-page sphere-page--contacts typeset typeset-rollapp">
+    <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
       {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
@@ -3341,7 +3342,7 @@ function BusinessAccessPage() {
                   <Badge variant={status.variant}>{status.label}</Badge>
                   <div className="business-access-request__action">
                     {request.status === "approved" ? (
-                      <ShadcnButton render={<Link to={sphereSectionPath({ ownerUsername: request.owner.username, sphere: request.sphere, section: request.section })} />} variant="outline">Открыть</ShadcnButton>
+                      <Link to={sphereSectionPath({ ownerUsername: request.owner.username, sphere: request.sphere, section: request.section })} className={buttonVariants({ variant: "outline" })}>Открыть</Link>
                     ) : request.status === "pending" ? (
                       <ShadcnButton type="button" variant="ghost" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}Отменить</ShadcnButton>
                     ) : null}
@@ -3354,7 +3355,7 @@ function BusinessAccessPage() {
       </section>
 
       <Drawer open={Boolean(selectedPerson)} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => !open && !saving && setSelectedPerson(null)}>
-        <DrawerContent className="rollapp-body" style={isMobile ? undefined : { "--drawer-content-width": "min(34rem, calc(100vw - 2rem))" }}>
+        <DrawerContent className="rollapp-body app-drawer--form">
           <DrawerClose render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />} aria-label="Закрыть запрос доступа"><X aria-hidden="true" /></DrawerClose>
           <DrawerHeader className="pr-16 text-left!">
             <DrawerTitle>Запросить доступ</DrawerTitle>
@@ -3363,8 +3364,8 @@ function BusinessAccessPage() {
           <form className="business-access-form" onSubmit={sendRequest}>
             <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
             <FieldGroup className="gap-4">
-              <Field><FieldLabel>Сфера</FieldLabel><Select value={sphere} onValueChange={selectSphere} disabled={saving}><SelectTrigger className="w-full"><SelectValue>{() => SPHERE_SERVICES.find((item) => item.id === sphere)?.label || sphere}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SERVICES.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
-              <Field><FieldLabel>Пространство</FieldLabel><Select value={section} onValueChange={setSection} disabled={saving}><SelectTrigger className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SECTIONS[sphere].map((item) => <SelectItem key={item} value={item}>{SPHERE_SECTION_LABELS[item] || item}</SelectItem>)}</SelectContent></Select></Field>
+              <Field><FieldLabel htmlFor="business-access-sphere">Сфера</FieldLabel><Select value={sphere} onValueChange={selectSphere} disabled={saving}><SelectTrigger id="business-access-sphere" className="w-full"><SelectValue>{() => SPHERE_SERVICES.find((item) => item.id === sphere)?.label || sphere}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SERVICES.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field><FieldLabel htmlFor="business-access-section">Пространство</FieldLabel><Select value={section} onValueChange={setSection} disabled={saving}><SelectTrigger id="business-access-section" className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SECTIONS[sphere].map((item) => <SelectItem key={item} value={item}>{SPHERE_SECTION_LABELS[item] || item}</SelectItem>)}</SelectContent></Select></Field>
               <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
             </FieldGroup>
             <DrawerFooter className="border-t px-0 pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
@@ -3379,8 +3380,6 @@ function SphereSharePicker({ open, onOpenChange }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const access = useSphereSharing();
-  const sectionOptions = SERVICE_TABS[access.sphere] || [];
-  const [selectedSection, setSelectedSection] = useState(access.section);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
@@ -3394,26 +3393,22 @@ function SphereSharePicker({ open, onOpenChange }) {
   }, [search]);
 
   useEffect(() => {
-    if (open) setSelectedSection(access.section);
-  }, [access.section, access.sphere, open]);
-
-  useEffect(() => {
-    if (!open || !access.isOwner || !selectedSection) return undefined;
+    if (!open || !access.isOwner || !access.section) return undefined;
     let current = true;
-    const query = new URLSearchParams({ sphere: access.sphere, section: selectedSection });
+    const query = new URLSearchParams({ sphere: access.sphere, section: access.section });
     if (debouncedSearch) query.set("search", debouncedSearch);
     setPeople([]);
     setLoading(true);
     setError("");
     api.get(`/sphere-shares/candidates?${query.toString()}`).then((result) => {
-      if (current) setPeople(result.people || []);
+      if (current) setPeople((result.people || []).filter((person) => person.accountType === "business"));
     }).catch((loadError) => {
       if (current) setError(loadError.message);
     }).finally(() => {
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [access.isOwner, access.sphere, debouncedSearch, open, selectedSection]);
+  }, [access.isOwner, access.section, access.sphere, debouncedSearch, open]);
 
   const toggle = async (person) => {
     if (savingId) return;
@@ -3424,12 +3419,12 @@ function SphereSharePicker({ open, onOpenChange }) {
       await api.post("/sphere-shares", {
         viewerId: person.id,
         sphere: access.sphere,
-        section: selectedSection,
+        section: access.section,
         granted,
       });
       setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted } : item));
-      if (selectedSection === access.section) await access.reload();
-      const selectedLabel = SPHERE_SECTION_LABELS[selectedSection] || selectedSection;
+      await access.reload();
+      const selectedLabel = SPHERE_SECTION_LABELS[access.section] || access.section;
       toast(granted
         ? `Доступ к «${selectedLabel}» для ${person.name} открыт`
         : `Доступ к «${selectedLabel}» для ${person.name} закрыт`, "success");
@@ -3440,12 +3435,11 @@ function SphereSharePicker({ open, onOpenChange }) {
     }
   };
 
-  const label = SPHERE_SECTION_LABELS[selectedSection] || selectedSection;
+  const label = SPHERE_SECTION_LABELS[access.section] || access.section;
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(nextOpen) => !savingId && onOpenChange(nextOpen)}>
       <DrawerContent
-        className="rollapp-body"
-        style={isMobile ? undefined : { "--drawer-content-width": "min(32rem, calc(100vw - 2rem))" }}
+        className="rollapp-body app-drawer--form"
       >
         <DrawerClose
           render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={Boolean(savingId)} />}
@@ -3454,30 +3448,17 @@ function SphereSharePicker({ open, onOpenChange }) {
           <X aria-hidden="true" />
         </DrawerClose>
         <DrawerHeader className="pr-16 text-left!">
-          <DrawerTitle>Доступ к пространствам</DrawerTitle>
-          <DrawerDescription>Права на каждое пространство внутри сферы выдаются отдельно и только для чтения.</DrawerDescription>
+          <DrawerTitle>Доступ к «{label}»</DrawerTitle>
+          <DrawerDescription>Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.</DrawerDescription>
         </DrawerHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-          <div className="sphere-share-picker__scope">
-            <span>Пространство</span>
-            <Select value={selectedSection} onValueChange={setSelectedSection} disabled={Boolean(savingId)}>
-              <SelectTrigger className="w-full" aria-label="Пространство для настройки доступа">
-                <SelectValue>{() => label}</SelectValue>
-              </SelectTrigger>
-              <SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>
-                {sectionOptions.map((section) => (
-                  <SelectItem key={section.id} value={section.id}>{section.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <InputGroup className="sphere-share-picker__search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput autoFocus type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <InputGroupInput autoFocus type="search" aria-label="Найти бизнес-аккаунт" placeholder="Название или username" value={search} onChange={(event) => setSearch(event.target.value)} />
           </InputGroup>
           {error && <Alert variant="destructive"><AlertTitle>Не удалось изменить доступ</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           {loading ? <div className="sphere-share-picker__status"><Spinner /><span>Загружаем людей…</span></div> : people.length ? (
-            <ul className="sphere-share-picker__list" aria-label={`Пользователи с доступом к пространству «${label}»`}>
+            <ul className="sphere-share-picker__list" aria-label={`Бизнес-аккаунты с доступом к пространству «${label}»`}>
               {people.map((person) => (
                 <li key={person.id}>
                   <ShadcnButton
@@ -3501,7 +3482,7 @@ function SphereSharePicker({ open, onOpenChange }) {
                 </li>
               ))}
             </ul>
-          ) : <div className="sphere-share-picker__status"><Users /><span>Люди не найдены</span></div>}
+          ) : <div className="sphere-share-picker__status"><Users /><span>Бизнес-аккаунты не найдены</span></div>}
         </div>
         <DrawerFooter className="border-t pt-4">
           <DrawerClose render={<ShadcnButton className="min-h-12 text-base" type="button" />}>Готово</DrawerClose>
@@ -3553,6 +3534,33 @@ function PersistentProfileHero({ user }) {
   );
 }
 
+function CatalogProfileHero({ selectedSpace }) {
+  return (
+    <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
+      <div className="wishes-page__identity wishes-page__identity--readonly">
+        <div className="sphere-share-avatars" aria-hidden="true">
+          <ShadcnAvatar size="lg" className="wishes-page__hero-avatar !size-[var(--avatar-xl-size)]">
+            <AvatarFallback className="bg-transparent text-foreground">
+              <LogoMark className="size-3/5" />
+            </AvatarFallback>
+          </ShadcnAvatar>
+        </div>
+        <div className="wishes-page__hero-copy">
+          <h1 id="catalog-profile-name">РОЛЛАПП</h1>
+        </div>
+      </div>
+      <Link
+        to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`}
+        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-12 rounded-full")}
+        aria-label="В мой вишлист"
+        title="В мой вишлист"
+      >
+        <ArrowLeft className="size-5" aria-hidden="true" />
+      </Link>
+    </section>
+  );
+}
+
 function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd }) {
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
@@ -3577,7 +3585,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
-          className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 rounded-full" })}
+          className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
           aria-label="Открыть каталог"
           title="Каталог"
         >
@@ -3601,7 +3609,7 @@ function PrivateSphereRoute({ children }) {
             <EmptyTitle>Нет доступа к разделу</EmptyTitle>
             <EmptyDescription>{access.error.message}</EmptyDescription>
           </EmptyHeader>
-          <EmptyContent><Button render={<Link to={APP_HOME} />}>Вернуться в Rollapp</Button></EmptyContent>
+          <EmptyContent><Link to={APP_HOME} className={buttonVariants()}>Вернуться в Rollapp</Link></EmptyContent>
         </Empty>
       </div>
     );
@@ -3736,21 +3744,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   const repeat = async () => {
     setBusy(true);
     try {
-      await api.post("/wishes", {
-        title: wish.title,
-        description: wish.description || "",
-        url: wish.url || "",
-        fundraisingUrl: wish.fundraisingUrl || "",
-        vehicleMake: wish.vehicleMake || "",
-        vehicleModel: wish.vehicleModel || "",
-        imageUrl: wish.imageUrl || "",
-        price: wish.price,
-        currency: wish.currency,
-        priority: wish.priority,
-        privacy: wish.privacy,
-        allowMultiple: wish.allowMultiple,
-        listIds: [...(wish.listIds || [])],
-      });
+      await api.post("/wishes", buildRepeatWishPayload(wish, wishSpaceId(wish, lists)));
       toast("Желание снова добавлено в активные ✦");
       await refreshAfterMutation();
       return true;
@@ -3764,7 +3758,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   return { busy, reserve, remove, fulfilled, share, save, update, repeat };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, dragGroupId = "", onPointerDown, isDropTarget = false, isDragging = false }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removingFromGroup, setRemovingFromGroup] = useState(false);
@@ -3821,9 +3815,9 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 
   return (
     <>
-    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} aria-busy={groupBusy || undefined} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
-      {onOpen && <ShadcnButton type="button" variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
-      {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle aria-hidden="true"><GripVertical /></span>}
+    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
+      {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
+      {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
       <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
@@ -3931,13 +3925,13 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 function WishGroupMoveSubmenu({ lists, busy, onMove }) {
   return <DropdownMenuSub>
     <DropdownMenuSubTrigger className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy || lists.length === 0}><FolderInput />Переместить в список</DropdownMenuSubTrigger>
-    <DropdownMenuSubContent className="w-64 max-w-[calc(100vw-24px)] rounded-2xl p-2">
+    <DropdownMenuSubContent className="w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2">
       {lists.map((list) => <DropdownMenuItem key={list.id} className="min-h-12 rounded-xl px-3 text-base" disabled={busy} onClick={() => onMove(list)}>{listDisplayTitle(list)}</DropdownMenuItem>)}
     </DropdownMenuSubContent>
   </DropdownMenuSub>;
 }
 
-function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMove, onDisband, isDropTarget }) {
+function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMove, onDisband, onDragOver, onDragLeave, onDrop, isDropTarget }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -3977,7 +3971,7 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
     setBusy(false);
   };
   return <>
-  <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`}>
+  <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
     <ShadcnButton type="button" variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`}>
     <span className="wish-group-tile__preview">
       {wishes.slice(0, 4).map((wish) => {
@@ -3990,7 +3984,7 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
       {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
-        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
       </div>
     </div>
   </div>
@@ -4003,17 +3997,71 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
   </>;
 }
 
-function WishGroupOpenHeader({ onClose }) {
-  return (
-    <header>
-      <ShadcnButton className="wish-group-open__close !size-12 rounded-full" variant="outline" size="icon" type="button" onClick={onClose} aria-label="Закрыть группу" title="Закрыть группу"><X aria-hidden="true" /></ShadcnButton>
-    </header>
-  );
+function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisband, busy: itemBusy, children, ...props }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(group.title);
+  const [saving, setSaving] = useState(false);
+  const [disbandOpen, setDisbandOpen] = useState(false);
+  const renamingFromMenuRef = useRef(false);
+  const busy = itemBusy || saving;
+  useEffect(() => { if (!editing) setTitle(group.title); }, [editing, group.title]);
+  const saveTitle = async () => {
+    const nextTitle = title.trim();
+    if (!nextTitle || nextTitle === group.title) { setTitle(group.title); setEditing(false); return; }
+    setSaving(true);
+    const saved = await onRename(nextTitle);
+    setSaving(false);
+    if (saved) setEditing(false);
+  };
+  const move = async (list) => { setSaving(true); await onMove(list); setSaving(false); };
+  const disband = async () => {
+    setSaving(true);
+    const removed = await onDisband();
+    setSaving(false);
+    if (removed) setDisbandOpen(false);
+  };
+  return <GroupDialog {...props} className="wish-group-open" busy={busy || editing} aria-label={`Группа «${group.title}»`}>
+    <GroupDialogHeader
+      busy={busy || editing}
+      title={editing ? <Input
+        autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы"
+        className="min-h-12 w-full min-w-0 max-w-sm text-base font-semibold"
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={saveTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); }
+          if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setTitle(group.title); setEditing(false); }
+        }}
+      /> : group.title}
+      description={`${count} ${wishCountNoun(count)}`}
+      actions={!editing && <DropdownMenu>
+        <DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="size-12 rounded-full" disabled={busy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"
+          finalFocus={() => { const restore = !renamingFromMenuRef.current; renamingFromMenuRef.current = false; return restore; }}
+        >
+          <DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy} onClick={() => { renamingFromMenuRef.current = true; setTitle(group.title); setEditing(true); }}><Pencil />Переименовать</DropdownMenuItem>
+          <WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} />
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>}
+    />
+    {children}
+    {disbandOpen && <AlertDialog open onOpenChange={(open) => { if (!busy) setDisbandOpen(open); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader><AlertDialogTitle>Расформировать группу «{group.title}»?</AlertDialogTitle><AlertDialogDescription>Желания останутся в списке и снова будут показаны отдельно.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} aria-busy={busy || undefined} onClick={disband}>{busy ? <Spinner data-icon="inline-start" /> : <Ungroup data-icon="inline-start" aria-hidden="true" />}Расформировать</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>}
+  </GroupDialog>;
 }
 
 const CATALOG_PAGE_SIZE = 48;
 
 function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
+  if (!ownerCount) return <div className="catalog-owner-stack">Пока ни у кого в вишлисте</div>;
   const visibleOwners = owners.slice(0, 5);
   return (
     <div className="catalog-owner-stack" aria-label={`Добавили: ${participantCountLabel(ownerCount)}`}>
@@ -4037,7 +4085,7 @@ function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
   );
 }
 
-function CatalogSourceAttribution({ source }) {
+function CatalogSourceAttribution({ source, linked = true }) {
   if (!source) return null;
   const content = (
     <>
@@ -4047,39 +4095,55 @@ function CatalogSourceAttribution({ source }) {
       <span>Каталог {source.label}</span>
     </>
   );
-  return source.homeUrl ? (
+  return linked && source.homeUrl ? (
     <a className="catalog-source-attribution" href={source.homeUrl} target="_blank" rel="noreferrer">{content}</a>
   ) : <div className="catalog-source-attribution">{content}</div>;
 }
 
-function CatalogWishCard({ item }) {
+function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onOpen }) {
   const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
   const SpaceIcon = space.icon;
   const previewImageUrl = wishPreviewImageUrl(item);
   const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
+  const wishlistLabel = item.addedByMe
+    ? `Удалить «${item.title}» из вишлиста, раздел «${space.label}»`
+    : `Добавить «${item.title}» в вишлист, раздел «${space.label}»`;
   return (
     <article className="catalog-wish-card">
+      <ShadcnButton
+        type="button"
+        variant="ghost"
+        className="catalog-wish-card__open absolute inset-0 z-[1] h-full w-full min-w-0 rounded-[20px] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background active:translate-y-0"
+        data-catalog-item-id={item.id}
+        aria-label={`Открыть информацию о «${item.title}»`}
+        aria-haspopup="dialog"
+        onClick={(event) => onOpen(item.id, event.currentTarget)}
+      />
       <div className="catalog-wish-card__image">
         {previewImageUrl ? (
           <img src={previewImageUrl} alt="" loading="lazy" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
-        ) : <span><SpaceIcon aria-hidden="true" /></span>}
+        ) : <span className="catalog-wish-card__placeholder"><SpaceIcon aria-hidden="true" /></span>}
         {item.ownerCount > 1 && <Badge className="catalog-wish-card__people-badge" variant="secondary">{participantCountLabel(item.ownerCount)}</Badge>}
+        <div className="catalog-wish-card__actions">
+          <ShadcnButton
+            type="button"
+            variant="outline"
+            size="icon"
+            className={`catalog-wish-card__action !size-12 !rounded-full ${item.addedByMe ? "is-added" : ""}`}
+            disabled={wishlistDisabled}
+            aria-label={wishlistLabel}
+            aria-pressed={Boolean(item.addedByMe)}
+            aria-busy={wishlistPending || undefined}
+            title={wishlistLabel}
+            onClick={() => onToggleWishlist(item)}
+          >
+            {wishlistPending ? <Spinner className="!size-5" /> : <Heart className={`!size-5 ${item.addedByMe ? "fill-current text-destructive" : ""}`} aria-hidden="true" />}
+          </ShadcnButton>
+        </div>
       </div>
       <div className="catalog-wish-card__body">
         <div className="catalog-wish-card__heading">
           <h2>{item.title}</h2>
-          {item.url && (
-            <a
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className={buttonVariants({ variant: "ghost", size: "icon", className: "catalog-wish-card__source !size-10 rounded-full" })}
-              aria-label={`Открыть «${item.title}»`}
-              title="Открыть исходную ссылку"
-            >
-              <ExternalLink aria-hidden="true" />
-            </a>
-          )}
         </div>
         {(item.price != null || eventDate) && (
           <p className="catalog-wish-card__meta">
@@ -4089,90 +4153,340 @@ function CatalogWishCard({ item }) {
           </p>
         )}
         {item.source
-          ? <CatalogSourceAttribution source={item.source} />
+          ? <CatalogSourceAttribution source={item.source} linked={false} />
           : <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
       </div>
     </article>
   );
 }
 
+function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onClose, returnFocusRef }) {
+  const isMobile = useIsMobile();
+  const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
+  const previewImageUrl = wishPreviewImageUrl(item);
+  const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
+  const description = String(item.description || "").trim();
+  const wishlistLabel = item.addedByMe
+    ? `Удалить «${item.title}» из вишлиста`
+    : `Добавить «${item.title}» в вишлист`;
+
+  return (
+    <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DrawerContent
+        className="catalog-wish-details app-drawer--compact"
+        finalFocus={returnFocusRef}
+      >
+        <DrawerClose
+          render={<ShadcnButton type="button" variant="ghost" size="icon-sm" className="absolute top-2 right-2 z-10" />}
+        >
+          <X aria-hidden="true" />
+          <span className="sr-only">Закрыть</span>
+        </DrawerClose>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
+          <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
+            {previewImageUrl
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото позиции каталога «${item.title}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
+              : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift aria-hidden="true" /></span>}
+          </Card>
+
+          <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
+            <DrawerTitle><span className="sr-only">Позиция каталога: </span>{item.title}</DrawerTitle>
+            {(item.vehicleMake || item.vehicleModel) && (
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[item.vehicleMake, item.vehicleModel].filter(Boolean).join(" ")}</span>
+            )}
+            {(item.price != null || eventDate) && (
+              <div data-slot="wish-price-row" className="w-full">
+                {item.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(item.price, item.currency)}</strong>}
+                {eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{eventDate}</span>}
+              </div>
+            )}
+            <DrawerDescription>
+              {description || "Автор пока не добавил описание — иногда желание говорит само за себя."}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
+            <Badge variant="secondary" className="max-w-full truncate">{space.label}</Badge>
+          </div>
+
+          {["products", "food", "transport"].includes(item.space) && (
+            <MarketplaceOffers wish={item} owner={false} formatPrice={formatMoney} />
+          )}
+          {item.url && !["products", "food", "transport"].includes(item.space) && (
+            <a href={item.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>
+              {isYandexMapsUrl(item.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" />
+            </a>
+          )}
+          {item.fundraisingUrl && (
+            <a href={item.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>
+              Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" />
+            </a>
+          )}
+
+          <div
+            data-slot="wish-actions"
+            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
+            role="group"
+            aria-label="Действия с позицией каталога"
+          >
+            <ShadcnButton
+              type="button"
+              className="h-12 min-w-0 flex-1"
+              disabled={wishlistDisabled}
+              aria-label={wishlistLabel}
+              aria-pressed={Boolean(item.addedByMe)}
+              aria-busy={wishlistPending || undefined}
+              onClick={() => onToggleWishlist(item)}
+            >
+              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
+              {wishlistPending
+                ? item.addedByMe ? "Удаляем…" : "Добавляем…"
+                : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
+            </ShadcnButton>
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
 function WishCatalogPage() {
   const location = useLocation();
+  const { user } = useSession();
+  const toast = useToast();
   const requestedSpace = new URLSearchParams(location.search).get("tab");
   const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
-  const [catalog, setCatalog] = useState({ items: [], total: 0, loading: true, loadingMore: false, error: null });
+  const pendingWishlistIdsRef = useRef(new Map());
+  const catalogLoadMoreOperationRef = useRef(null);
+  const lastCatalogOpenerRef = useRef(null);
+  const [catalog, setCatalog] = useState({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+  const [pendingWishlistIds, setPendingWishlistIds] = useState(new Set());
+  const [selectedCatalogItemId, setSelectedCatalogItemId] = useState(null);
+  const selectedCatalogItem = selectedCatalogItemId
+    ? catalog.items.find((item) => item.id === selectedCatalogItemId) || null
+    : null;
+
+  const updateCatalogItem = useCallback((itemId, patch) => {
+    setCatalog((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === itemId
+        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
+        : item),
+    }));
+  }, []);
 
   useEffect(() => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setCatalog({ items: [], total: 0, loading: true, loadingMore: false, error: null });
+    pendingWishlistIdsRef.current.clear();
+    catalogLoadMoreOperationRef.current = null;
+    lastCatalogOpenerRef.current = null;
+    setPendingWishlistIds(new Set());
+    setSelectedCatalogItemId(null);
+    setCatalog({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
     api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog({ items: result.items || [], total: Number(result.total) || 0, loading: false, loadingMore: false, error: null });
+        const items = result.items || [];
+        setCatalog({ items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
       })
       .catch((error) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog({ items: [], total: 0, loading: false, loadingMore: false, error });
+        setCatalog({ items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
       });
     return () => { requestIdRef.current += 1; };
   }, [selectedSpace]);
 
+  useEffect(() => {
+    if (selectedCatalogItemId) return undefined;
+    return scheduleDocumentScrollUnlock();
+  }, [selectedCatalogItemId]);
+
+  const openCatalogItem = (itemId, opener) => {
+    lastCatalogOpenerRef.current = opener;
+    setSelectedCatalogItemId(itemId);
+  };
+
+  const closeCatalogItem = () => {
+    setSelectedCatalogItemId(null);
+  };
+
   const loadMore = async () => {
-    if (catalog.loadingMore || catalog.items.length >= catalog.total) return;
+    if (catalog.loadingMore
+      || catalogLoadMoreOperationRef.current
+      || pendingWishlistIdsRef.current.size > 0
+      || catalog.nextOffset >= catalog.total) return;
     const requestId = requestIdRef.current;
+    const offset = catalog.nextOffset;
+    const operation = Symbol("catalog-load-more");
+    catalogLoadMoreOperationRef.current = operation;
     setCatalog((current) => ({ ...current, loadingMore: true, error: null }));
     try {
-      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${catalog.items.length}`);
+      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
       if (requestId !== requestIdRef.current) return;
+      const incoming = result.items || [];
       setCatalog((current) => ({
         ...current,
-        items: [...current.items, ...(result.items || [])],
+        items: [...current.items, ...incoming.filter((item) => !current.items.some((existing) => existing.id === item.id))],
         total: Number(result.total) || current.total,
+        nextOffset: offset + incoming.length,
         loadingMore: false,
       }));
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       setCatalog((current) => ({ ...current, loadingMore: false, error }));
+    } finally {
+      if (catalogLoadMoreOperationRef.current === operation) catalogLoadMoreOperationRef.current = null;
+    }
+  };
+
+  const refreshLoadedCatalog = async (requestId) => {
+    const targetCount = Math.max(CATALOG_PAGE_SIZE, catalog.nextOffset || catalog.items.length);
+    const items = [];
+    let total = 0;
+    for (let offset = 0; offset < targetCount; offset += CATALOG_PAGE_SIZE) {
+      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
+      if (requestId !== requestIdRef.current) return null;
+      const incoming = result.items || [];
+      total = Number(result.total) || 0;
+      items.push(...incoming.filter((candidate) => !items.some((existing) => existing.id === candidate.id)));
+      if (incoming.length < CATALOG_PAGE_SIZE || offset + incoming.length >= total) break;
+    }
+    return { items, total };
+  };
+
+  const toggleCatalogWishlist = async (item) => {
+    if (catalogLoadMoreOperationRef.current || pendingWishlistIdsRef.current.size > 0) return;
+    const requestId = requestIdRef.current;
+    const operation = Symbol(item.id);
+    const removing = Boolean(item.addedByMe);
+    pendingWishlistIdsRef.current.set(item.id, operation);
+    setPendingWishlistIds((current) => new Set(current).add(item.id));
+    try {
+      if (removing) {
+        const wishId = String(item.addedWishId || "").trim();
+        if (!wishId) throw new Error("Не удалось определить желание в вашем вишлисте");
+        await api.post("/catalog/items/remove", { itemId: item.id, wishId });
+        if (requestId !== requestIdRef.current) return;
+
+        updateCatalogItem(item.id, { addedByMe: false, addedWishId: null });
+        let refreshFailed = false;
+        try {
+          const refreshed = await refreshLoadedCatalog(requestId);
+          if (!refreshed || requestId !== requestIdRef.current) return;
+          setCatalog((current) => ({
+            ...current,
+            items: refreshed.items,
+            total: refreshed.total,
+            nextOffset: refreshed.items.length,
+            error: null,
+          }));
+          setSelectedCatalogItemId((current) => (
+            current && !refreshed.items.some((candidate) => candidate.id === current) ? null : current
+          ));
+        } catch {
+          refreshFailed = true;
+        }
+        if (requestId !== requestIdRef.current) return;
+        const itemSpace = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
+        toast(
+          refreshFailed
+            ? `«${item.title}» удалено из раздела «${itemSpace.label}». Обновите каталог, чтобы синхронизировать карточки`
+            : `«${item.title}» удалено из раздела «${itemSpace.label}»`,
+          "success",
+        );
+        return;
+      }
+
+      const result = await api.post("/catalog/items/add", { itemId: item.id });
+      if (requestId === requestIdRef.current) {
+        const currentUserAlreadyListed = item.owners?.some((owner) => owner.id === user?.id);
+        const owner = user ? {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          avatarUrl: user.avatarUrl || "",
+        } : null;
+        updateCatalogItem(item.id, {
+          addedByMe: true,
+          addedWishId: result.wish?.id || null,
+          ...(!item.source && result.created && owner && !currentUserAlreadyListed ? {
+            owners: [...(item.owners || []), owner],
+            ownerCount: (Number(item.ownerCount) || 0) + 1,
+            wishCount: (Number(item.wishCount) || 0) + 1,
+          } : {}),
+        });
+        const itemSpace = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
+        toast(
+          result.created
+            ? `«${item.title}» добавлено в раздел «${itemSpace.label}»`
+            : result.restored
+              ? `«${item.title}» возвращено в раздел «${itemSpace.label}»`
+              : `«${item.title}» уже находится в разделе «${itemSpace.label}»`,
+          "success",
+        );
+      }
+    } catch (error) {
+      if (requestId === requestIdRef.current) {
+        toast(error.message || (removing ? "Не удалось удалить позицию из вишлиста" : "Не удалось добавить позицию"), "error");
+      }
+    } finally {
+      if (pendingWishlistIdsRef.current.get(item.id) !== operation) return;
+      pendingWishlistIdsRef.current.delete(item.id);
+      setPendingWishlistIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
   return (
-    <div className="app-page wish-catalog-page">
-      <header className="wish-catalog-page__header">
-        <div>
-          <p className="wish-catalog-page__eyebrow">Общий каталог</p>
-          <h1>{space.label}</h1>
-          <p>Публичные позиции участников Rollapp и внешних каталогов. Одинаковые позиции собраны вместе.</p>
-        </div>
-        <Link to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`} className={buttonVariants({ variant: "outline", className: "h-12 px-4 text-base" })}>
-          <ArrowLeft data-icon="inline-start" aria-hidden="true" />
-          В мой вишлист
-        </Link>
-      </header>
-
-      {catalog.loading ? <LoadingScreen compact /> : catalog.items.length ? (
-        <>
-          <div className="wish-catalog-page__summary">{catalog.total} позиций</div>
-          <div className="wish-grid catalog-wish-grid">
-            {catalog.items.map((item) => <CatalogWishCard key={item.id} item={item} />)}
-          </div>
-          {catalog.items.length < catalog.total && (
-            <div className="wish-catalog-page__more">
-              <ShadcnButton type="button" variant="outline" disabled={catalog.loadingMore} onClick={loadMore}>
-                {catalog.loadingMore && <Spinner data-icon="inline-start" />}
-                Показать ещё
-              </ShadcnButton>
+    <>
+      <CatalogProfileHero selectedSpace={selectedSpace} />
+      <div className="app-page wish-catalog-page">
+        {catalog.loading ? <LoadingScreen compact /> : catalog.items.length ? (
+          <>
+            <div className="wish-grid catalog-wish-grid">
+              {catalog.items.map((item) => (
+                <CatalogWishCard
+                  key={item.id}
+                  item={item}
+                  wishlistDisabled={pendingWishlistIds.size > 0 || catalog.loadingMore}
+                  wishlistPending={pendingWishlistIds.has(item.id)}
+                  onToggleWishlist={toggleCatalogWishlist}
+                  onOpen={openCatalogItem}
+                />
+              ))}
             </div>
-          )}
-        </>
-      ) : (
-        <EmptyState icon={LayoutGrid} title={`В разделе «${space.label}» пока пусто`} text="Здесь появятся публичные позиции участников и внешних каталогов." />
-      )}
-      {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
-    </div>
+            {catalog.nextOffset < catalog.total && (
+              <div className="wish-catalog-page__more">
+                <ShadcnButton type="button" variant="outline" disabled={catalog.loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
+                  {catalog.loadingMore && <Spinner data-icon="inline-start" />}
+                  Показать ещё
+                </ShadcnButton>
+              </div>
+            )}
+          </>
+        ) : (
+          <EmptyState icon={LayoutGrid} title={`В разделе «${space.label}» пока пусто`} text="Здесь появятся публичные позиции участников и внешних каталогов." />
+        )}
+        {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
+        {selectedCatalogItem && (
+          <CatalogWishDetailsDrawer
+            item={selectedCatalogItem}
+            wishlistDisabled={pendingWishlistIds.size > 0 || catalog.loadingMore}
+            wishlistPending={pendingWishlistIds.has(selectedCatalogItem.id)}
+            onToggleWishlist={toggleCatalogWishlist}
+            onClose={closeCatalogItem}
+            returnFocusRef={lastCatalogOpenerRef}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
@@ -4195,7 +4509,7 @@ function GiftSuggestionPeople({ suggestion }) {
 
 function GiftSuggestionsPanel({ items = [], onOpenWish }) {
   if (!items.length) return null;
-  return <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-3xl border border-border bg-card p-4 sm:p-5" aria-labelledby="gift-suggestions-title">
+  return <section className="mx-auto flex w-full max-w-(--layout-collection-width) flex-col gap-4 rounded-3xl border border-border bg-card p-4 sm:p-5" aria-labelledby="gift-suggestions-title">
     <div className="flex flex-col gap-1">
       <h2 id="gift-suggestions-title" className="text-xl font-semibold">Кому это ещё подарить</h2>
       <p className="text-sm text-muted-foreground">Ваши исполненные желания сейчас есть в публичных вишлистах других участников.</p>
@@ -4236,6 +4550,7 @@ function WishesPage({ onAdd, version }) {
   const [dropTarget, setDropTarget] = useState(null);
   const [orderedWishIds, setOrderedWishIds] = useState([]);
   const [openedGroupId, setOpenedGroupId] = useState(null);
+  const groupOpenerRef = useRef(null);
   const [removingGroupId, setRemovingGroupId] = useState(null);
   const pointerDragRef = useRef(null);
   const pointerTimerRef = useRef(null);
@@ -4372,13 +4687,7 @@ function WishesPage({ onAdd, version }) {
     if (!openedGroupId) return undefined;
     if (!openedGroup) {
       setOpenedGroupId(null);
-      return undefined;
     }
-    const closeOnEscape = (event) => { if (event.key === "Escape") setOpenedGroupId(null); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-    };
   }, [openedGroupId, openedGroup?.id]);
   if (loading) return <LoadingScreen compact />;
   const share = async () => {
@@ -4526,6 +4835,28 @@ function WishesPage({ onAdd, version }) {
     dragInitialOrderRef.current = [...orderedWishIdsRef.current];
     setDraggedWishId(wishId); lastReorderTargetRef.current = null;
   };
+  const startNativeDrag = (event, wishId, group = null) => {
+    if (pointerDragRef.current) {
+      event.preventDefault();
+      return;
+    }
+    if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) {
+      event.preventDefault();
+      return;
+    }
+    if (!event.dataTransfer) return;
+    beginDragSession(wishId, group);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", wishId);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const preview = event.currentTarget.cloneNode(true);
+    preview.classList.add("wish-card--native-preview");
+    preview.setAttribute("aria-hidden", "true");
+    preview.style.width = `${rect.width}px`;
+    document.body.appendChild(preview);
+    event.dataTransfer.setDragImage(preview, event.clientX - rect.left, event.clientY - rect.top);
+    requestAnimationFrame(() => preview.remove());
+  };
   const finishDrag = ({ persist = true, restore = false } = {}) => {
     const activeSession = dragSessionRef.current;
     const shouldRestoreOrder = activeSession && restore && orderDirtyRef.current && dragInitialOrderRef.current.length > 0;
@@ -4552,6 +4883,39 @@ function WishesPage({ onAdd, version }) {
       deferredAuthoritativeOrderRef.current = null;
       void persistOrder(orderToPersist);
     }
+  };
+  const allowNativeWishDrop = (event, wishId, targetGroupId = null) => {
+    const sourceWishId = dragSourceWishIdRef.current;
+    const dragScope = dragScopeRef.current;
+    const validTarget = dragScope?.kind === "group"
+      ? dragScope.groupId === targetGroupId && dragScope.wishIds.has(wishId)
+      : !targetGroupId;
+    if (!dragSessionRef.current || !sourceWishId || !dragScope || !validTarget) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (sourceWishId === wishId) {
+      if (hoverTargetRef.current) clearGroupIntent();
+      lastReorderTargetRef.current = null;
+      return;
+    }
+    if (dragScope.kind === "group") {
+      reorderWish(sourceWishId, wishId);
+    } else if (groupingListId) {
+      armGroupIntent(`wish:${wishId}`);
+    }
+  };
+  const allowNativeGroupDrop = (event, groupId) => {
+    if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    armGroupIntent(`group:${groupId}`);
+  };
+  const leaveNativeDropTarget = (event) => {
+    if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientX >= bounds.left && event.clientX <= bounds.right
+      && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
+    clearGroupIntent();
   };
   const createGroup = async (sourceWishId, targetWishId) => {
     finishDrag({ persist: false, restore: true });
@@ -4679,6 +5043,27 @@ function WishesPage({ onAdd, version }) {
       return false;
     }
   };
+  const dropNativeOnWish = (event, targetWishId, targetGroupId = null) => {
+    event.preventDefault();
+    const sourceWishId = dragSourceWishIdRef.current;
+    const dragScope = dragScopeRef.current;
+    if (dragScope?.kind === "group") {
+      if (dragScope.groupId === targetGroupId && dragScope.wishIds.has(targetWishId)) finishDrag();
+      else finishDrag({ persist: false, restore: true });
+    } else if (armedDropTargetRef.current === `wish:${targetWishId}`) {
+      void createGroup(sourceWishId, targetWishId);
+    } else {
+      reorderWish(sourceWishId, targetWishId);
+      finishDrag();
+    }
+  };
+  const dropNativeOnGroup = (event, groupId) => {
+    event.preventDefault();
+    const sourceWishId = dragSourceWishIdRef.current;
+    if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
+    else if (armedDropTargetRef.current === `group:${groupId}`) void addToGroup(sourceWishId, groupId);
+    else finishDrag({ persist: false, restore: true });
+  };
   const stopPointerAutoScroll = () => {
     if (pointerAutoScrollFrameRef.current !== null) cancelAnimationFrame(pointerAutoScrollFrameRef.current);
     pointerAutoScrollFrameRef.current = null;
@@ -4726,6 +5111,7 @@ function WishesPage({ onAdd, version }) {
   };
   const beginPointerDrag = (event, wishId, group = null) => {
     const pointerType = event.pointerType || "mouse";
+    if (pointerType === "mouse") return;
     if (!event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) return;
     if (pointerDragRef.current) return;
@@ -4739,7 +5125,6 @@ function WishesPage({ onAdd, version }) {
       activatePointerDrag(drag);
       return;
     }
-    if (pointerType === "mouse") return;
     pointerTimerRef.current = setTimeout(() => {
       activatePointerDrag(drag);
     }, 260);
@@ -4927,15 +5312,26 @@ function WishesPage({ onAdd, version }) {
   };
   const renderWish = (wish, group = null) => {
     const dragEnabled = !group || !removingGroupId;
-    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
+    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
-  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <div className="list-tabs"><div className="list-tabs__track"><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></div></div>}
+  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
-{openedGroup && <section className="wish-group-open" role="dialog" aria-modal="true" aria-label={`Группа «${openedGroup.title}»`}><WishGroupOpenHeader onClose={() => setOpenedGroupId(null)} /><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></section>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={() => setOpenedGroupId(group.id)} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+{openedGroup && <WishGroupDialog
+  group={openedGroup}
+  count={openedGroupWishes.length}
+  moveTargets={groupMoveTargets}
+  onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)}
+  onMove={(list) => moveGroup(openedGroup, list)}
+  onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)}
+  finalFocus={groupOpenerRef}
+  busy={Boolean(removingGroupId)}
+  suspended={Boolean(selectedWish || editingWish || listModal)}
+  onClose={() => setOpenedGroupId(null)}
+><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={(event) => { groupOpenerRef.current = event.currentTarget; setOpenedGroupId(group.id); }} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowNativeGroupDrop(event, group.id)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -4975,6 +5371,10 @@ function MediaNotesPanel({ wish }) {
   const [savedAt, setSavedAt] = useState(null);
   const formRef = useRef(form);
   const saveRequestRef = useRef(0);
+  const saveQueue = useMemo(
+    () => createLatestSaveQueue((draft) => api.patch(`/wishes/${wish.id}/media-note`, draft)),
+    [wish.id],
+  );
 
   useEffect(() => {
     setOpen(false);
@@ -4987,6 +5387,7 @@ function MediaNotesPanel({ wish }) {
     setLoadError("");
     setSavedAt(null);
     saveRequestRef.current += 1;
+    return () => { saveRequestRef.current += 1; };
   }, [wish.id]);
 
   const loadNote = useCallback(async () => {
@@ -5013,20 +5414,23 @@ function MediaNotesPanel({ wish }) {
     saveRequestRef.current = requestId;
     setSaving(true);
     try {
-      const result = await api.patch(`/wishes/${wish.id}/media-note`, candidate);
+      const { value: savedDraft, result } = await saveQueue(candidate);
       if (requestId !== saveRequestRef.current) return false;
       setSavedAt(result.note?.updatedAt || new Date().toISOString());
-      const unchanged = Object.keys(EMPTY_MEDIA_NOTE).every((key) => formRef.current[key] === candidate[key]);
+      const unchanged = Object.keys(EMPTY_MEDIA_NOTE).every((key) => formRef.current[key] === savedDraft[key]);
       if (unchanged) setDirty(false);
       if (announce) toast("Конспект сохранён");
       return true;
     } catch (error) {
-      if (requestId === saveRequestRef.current) toast(error.message, "error");
+      if (requestId === saveRequestRef.current) {
+        setDirty(true);
+        toast(error.message, "error");
+      }
       return false;
     } finally {
       if (requestId === saveRequestRef.current) setSaving(false);
     }
-  }, [loaded, toast, wish.id]);
+  }, [loaded, saveQueue, toast]);
 
   useEffect(() => {
     if (!loaded || !dirty) return undefined;
@@ -5058,7 +5462,7 @@ function MediaNotesPanel({ wish }) {
           ? "Есть записи"
           : "Личный конспект";
 
-  return <section className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border bg-card" aria-label="Конспект медиа-айтема">
+  return <section className="mx-auto w-full max-w-(--layout-compact-width) overflow-hidden rounded-2xl border bg-card" aria-label="Конспект медиа-айтема">
     <ShadcnButton type="button" variant="ghost" className="h-auto min-h-16 w-full justify-start gap-3 rounded-none px-4 py-3 text-left" aria-expanded={open} onClick={toggleOpen}>
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground"><NotebookText className="size-5" /></span>
       <span className="min-w-0 flex-1">
@@ -5196,7 +5600,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   return (
     <>
       <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DrawerContent className="wish-details-dialog">
+        <DrawerContent className="wish-details-dialog app-drawer--compact">
           <DrawerClose
             render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
           >
@@ -5204,14 +5608,14 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             <span className="sr-only">Закрыть</span>
           </DrawerClose>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
-          <Card data-slot="wish-media" className="mx-auto w-full max-w-md relative overflow-hidden p-0">
+          <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
               ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
 
-          <DrawerHeader className="mx-auto w-full max-w-md p-0 text-left!">
+          <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
             <DrawerTitle><span className="sr-only">Желание: </span>{wish.title}</DrawerTitle>
             {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
             {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
@@ -5223,7 +5627,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
 
-          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-md min-w-0 items-center gap-2">
+          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
             {owner
               ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
                   setListsOpen(open);
@@ -5249,7 +5653,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           </div>
 
-          {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-md gap-3 p-4">
+          {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-(--layout-compact-width) gap-3 p-4">
             <div className="flex flex-col gap-1">
               <h3 className="font-semibold">Кому это ещё подарить</h3>
               <p className="text-sm text-muted-foreground">Это желание сейчас есть у {participantCountLabel(giftSuggestion.participantCount)}.</p>
@@ -5259,12 +5663,12 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} />}
 
-          {wish.url && !["products", "food"].includes(resolvedSpace) && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
-          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-md" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wish.url && !["products", "food"].includes(resolvedSpace) && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
             data-slot="wish-actions"
-            className="mx-auto flex w-full max-w-md min-w-0 flex-nowrap items-center gap-2"
+            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
             aria-label="Действия с желанием"
           >
@@ -5282,7 +5686,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
               ><MoreHorizontal /></DropdownMenuTrigger>
               <DropdownMenuContent
                 id={`wish-detail-menu-${wish.id}`}
-                className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
+                className="max-h-[calc(100dvh-12px)] w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
                 align="end"
                 sideOffset={4}
                 aria-label={`Действия с желанием «${wish.title}»`}
@@ -5317,7 +5721,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                       <DropdownMenuSubTrigger className="card-menu__submenu-trigger min-h-12 gap-2 px-3 py-2 text-base" disabled={busy}><ListPlus /> <span>Добавить в список</span></DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         id={`wish-detail-action-lists-${wish.id}`}
-                        className="max-h-[calc(100dvh-12px)] w-64 max-w-[calc(100vw-12px)] rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
+                        className="max-h-[calc(100dvh-12px)] w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
                         sideOffset={4}
                         aria-label={`Списки желания «${wish.title}»`}
                       >
@@ -5334,7 +5738,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             </DropdownMenu>
           </div>
 
-          {!owner && <Alert className="mx-auto w-full max-w-md"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
+          {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
         </DrawerContent>
       </Drawer>
@@ -5389,7 +5793,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
   };
   return <>
     <Drawer open swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
-      <DrawerContent finalFocus={returnFocusRef}>
+      <DrawerContent className="app-drawer--compact" finalFocus={returnFocusRef}>
         <DrawerClose
           render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
         >
@@ -5421,7 +5825,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
             {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
           </FieldGroup>
           </div>
-          <DrawerFooter className="border-t bg-muted/50 pt-4 sm:flex-row sm:justify-end">
+          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
             <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
           </DrawerFooter>
         </form>
@@ -5459,7 +5863,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const mutationRef = useRef(null);
   const deleteTriggerRef = useRef(null);
   const listCreatorTriggerRef = useRef(null);
-  const restoreDeleteFocusRef = useRef(false);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
   const effectiveSpace = (() => {
     if (editing) {
@@ -5670,7 +6073,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     });
   }, []);
   const uploadImage = async (file) => {
-    if (!file || imageUploading) return;
+    if (!file || imageUploading || loading || deleting || mutationRef.current) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setImageError("Подойдёт изображение JPG, PNG или WEBP.");
       return;
@@ -5695,7 +6098,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (mutationRef.current || deleting) return;
+    if (mutationRef.current || deleting || imageUploading) return;
     mutationRef.current = "save";
     setLoading(true);
     try {
@@ -5715,7 +6118,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     }
   };
   const remove = async () => {
-    if (mutationRef.current || loading || deleting) return;
+    if (mutationRef.current || loading || deleting || imageUploading) return;
     mutationRef.current = "delete";
     setDeleting(true);
     try {
@@ -5742,59 +6145,19 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     cleanupUploadedImages();
     onClose();
   };
-  useEffect(() => {
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape" && !listCreatorOpen && !deleteConfirm) requestClose();
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("keydown", closeOnEscape);
-      scheduleDocumentScrollUnlock();
-    };
-  }, [loading, deleting, imageUploading, listCreatorOpen, deleteConfirm]);
   const cancelDelete = () => {
     if (deleting) return;
-    restoreDeleteFocusRef.current = true;
     setDeleteConfirm(false);
   };
-  useEffect(() => {
-    if (!editing) return undefined;
-    let settleFrame;
-    const focusFrame = window.requestAnimationFrame(() => {
-      settleFrame = window.requestAnimationFrame(() => {
-        if (deleteConfirm) return;
-        if (restoreDeleteFocusRef.current) {
-          restoreDeleteFocusRef.current = false;
-          deleteTriggerRef.current?.focus();
-        }
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      window.cancelAnimationFrame(settleFrame);
-    };
-  }, [deleteConfirm, editing]);
-
-  if (editing && deleteConfirm) {
-    return <WishDeleteAlert open wish={wish} busy={deleting} onOpenChange={cancelDelete} onConfirm={remove} />;
-  }
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
-  const editorContent = <section
-    id={fieldId("dialog-content")}
-    data-slot="wish-editor-content"
-    className={`wish-editor-screen ${editing ? "" : "wish-editor-screen--drawer"}`}
-    role={editing ? "dialog" : undefined}
-    aria-modal={editing ? "true" : undefined}
-    aria-labelledby={fieldId("dialog-title")}
-    aria-describedby={fieldId("dialog-description")}
-  >
+  const editorContent = <>
         <ShadcnButton type="button" variant="ghost" className="wish-editor-screen__close" size="icon-sm" onClick={requestClose}>
           <X />
           <span className="sr-only">Закрыть</span>
         </ShadcnButton>
         <form
-          className={`wish-editor mx-auto flex w-full max-w-lg flex-col max-[820px]:max-w-none ${editing ? "wish-editor--edit" : "wish-editor--create"}`}
+          className={`wish-editor mx-auto flex w-full flex-col ${editing ? "wish-editor--edit" : "wish-editor--create"}`}
           onSubmit={submit}
           onPaste={(event) => {
             const imageItem = [...(event.clipboardData?.items || [])]
@@ -5855,7 +6218,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
                 onChange={(event) => uploadImage(event.target.files?.[0])}
               />
-              {formPreviewImageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload /> Сменить фото</ShadcnButton>}
+              {formPreviewImageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload aria-hidden="true" /><span className="max-[820px]:sr-only">Сменить фото</span></ShadcnButton>}
             </div>
             {imageError && <FieldError id={fieldId("image-error")}>{imageError}</FieldError>}
             {browserRetailer && <p className="text-sm leading-relaxed text-muted-foreground">Фото из «{browserRetailer.label}» загружается автоматически через помощник обычного браузера.</p>}
@@ -6019,27 +6382,37 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             </ShadcnButton>
           </footer>
         </form>
-    </section>;
-  const editorSurface = editing ? editorContent : <Drawer
+    </>;
+  const editorSurface = editing ? <FullscreenDialog
+    className="wish-editor-screen"
+    id={fieldId("dialog-content")}
+    aria-labelledby={fieldId("dialog-title")}
+    aria-describedby={fieldId("dialog-description")}
+    busy={loading || deleting || imageUploading}
+    suspended={listCreatorOpen || deleteConfirm}
+    onClose={requestClose}
+  >
+    {editorContent}
+  </FullscreenDialog> : <Drawer
     open
     showSwipeHandle
     swipeDirection={isMobile ? "down" : "right"}
     onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
   >
-    <DrawerContent
-      className="wish-editor-drawer rollapp-body"
-      style={isMobile ? undefined : { "--drawer-content-width": "min(42rem, calc(100vw - 2rem))" }}
-    >
+    <DrawerContent className="wish-editor-drawer rollapp-body app-drawer--form">
       <DrawerHeader className="pr-16 text-left!">
         <DrawerTitle>Добавить желание</DrawerTitle>
         <DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription>
       </DrawerHeader>
-      {editorContent}
+      <section id={fieldId("dialog-content")} data-slot="wish-editor-content" className="wish-editor-screen wish-editor-screen--drawer">
+        {editorContent}
+      </section>
     </DrawerContent>
   </Drawer>;
 
   return <>
       {editorSurface}
+      {editing && deleteConfirm && <WishDeleteAlert open wish={wish} busy={deleting} onOpenChange={cancelDelete} onConfirm={remove} />}
       {listCreatorOpen && <ListModal
         listsCount={data?.lists?.length || 0}
         space={effectiveSpace}
@@ -6123,7 +6496,7 @@ function FriendsPage() {
   return (
     <div className="app-page friends-page typeset typeset-rollapp">
       <div className="friends-layout not-typeset">
-        <section className="friends-directory" aria-label={config.label}>
+        <section className="friends-directory page-stack" aria-label={config.label}>
           <nav className="friends-section-nav" aria-label="Разделы друзей">
             {Object.entries(friendSections).map(([key, item]) => {
               const Icon = item.icon;
@@ -6218,17 +6591,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(false);
-  const [openRouterSettings, setOpenRouterSettings] = useState({
-    loading: true,
-    available: false,
-    configured: false,
-    keyHint: "",
-    serverFallbackConfigured: false,
-  });
-  const [openRouterKey, setOpenRouterKey] = useState("");
-  const [openRouterKeyVisible, setOpenRouterKeyVisible] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
-  const [openRouterError, setOpenRouterError] = useState("");
   const contentRef = useRef(null);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
@@ -6260,19 +6623,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       .catch(() => { if (active) setYandexEnabled(false); });
     return () => { active = false; };
   }, []);
-  useEffect(() => {
-    let active = true;
-    api.get("/me/openrouter")
-      .then((settings) => {
-        if (active) setOpenRouterSettings({ ...settings, loading: false });
-      })
-      .catch((error) => {
-        if (!active) return;
-        setOpenRouterSettings((current) => ({ ...current, loading: false }));
-        setOpenRouterError(error.message || "Не удалось загрузить настройку OpenRouter.");
-      });
-    return () => { active = false; };
-  }, []);
   const uploadAvatar = async (file) => {
     if (!file || imageUploading || loading || loggingOut) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
@@ -6301,42 +6651,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
     cleanupUploadedImages();
     onClose();
   };
-  const saveOpenRouterKey = async () => {
-    const apiKey = openRouterKey.trim();
-    if (!/^sk-or-v1-[A-Za-z0-9_-]{11,}$/.test(apiKey)) {
-      setOpenRouterError("Введите API-ключ OpenRouter в формате sk-or-v1-…");
-      return;
-    }
-    setOpenRouterBusy(true);
-    setOpenRouterError("");
-    try {
-      const settings = await api.post("/me/openrouter", { apiKey });
-      setOpenRouterSettings({ ...settings, loading: false });
-      setOpenRouterKey("");
-      setOpenRouterKeyVisible(false);
-      toast("Личный ключ OpenRouter подключён");
-    } catch (error) {
-      setOpenRouterError(error.message || "Не удалось сохранить ключ OpenRouter.");
-    } finally {
-      setOpenRouterBusy(false);
-    }
-  };
-  const removeOpenRouterKey = async () => {
-    if (openRouterBusy) return;
-    setOpenRouterBusy(true);
-    setOpenRouterError("");
-    try {
-      const settings = await api.delete("/me/openrouter");
-      setOpenRouterSettings({ ...settings, loading: false });
-      setOpenRouterKey("");
-      setOpenRouterKeyVisible(false);
-      toast("Личный ключ OpenRouter удалён");
-    } catch (error) {
-      setOpenRouterError(error.message || "Не удалось удалить ключ OpenRouter.");
-    } finally {
-      setOpenRouterBusy(false);
-    }
-  };
   const submit = async (event) => {
     event.preventDefault();
     if (!changed || loading || imageUploading || loggingOut) return;
@@ -6362,7 +6676,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   return <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) close(); }}>
     <DrawerContent
       ref={contentRef}
-      className="profile-settings-dialog rollapp-body"
+      className="profile-settings-dialog rollapp-body app-drawer--form"
       initialFocus={() => window.innerWidth <= 820 ? true : contentRef.current?.querySelector("#settings-profile-name") || true}
       finalFocus={finalFocus}
     >
@@ -6372,11 +6686,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         <X />
         <span className="sr-only">Закрыть</span>
       </DrawerClose>
-      <DrawerHeader className="mx-auto h-14 w-full max-w-md p-0">
+      <DrawerHeader className="mx-auto h-14 w-full max-w-full p-0">
         <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>
         <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
       </DrawerHeader>
-      <ScrollArea className="mx-auto min-h-0 w-full max-w-md flex-1">
+      <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
         <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
           <Card className="flex flex-row items-center gap-3 p-3">
             <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
@@ -6449,96 +6763,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
                 : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
             </Card>
           )}
-          <Card className="grid gap-3 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-2.5">
-                <LockKeyhole className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0">
-                  <strong className="block text-sm font-medium">Личный ключ OpenRouter</strong>
-                  <p className="text-sm text-muted-foreground">
-                    Поиск предложений будет расходовать токены вашего аккаунта OpenRouter. Ключ хранится на сервере в зашифрованном виде.
-                  </p>
-                </div>
-              </div>
-              {openRouterSettings.configured && <Badge variant="secondary" className="shrink-0">Подключён</Badge>}
-            </div>
-            {openRouterSettings.loading ? (
-              <div className="flex min-h-12 items-center gap-2 text-sm text-muted-foreground" role="status">
-                <Spinner />Загружаем настройку…
-              </div>
-            ) : !openRouterSettings.available ? (
-              <Alert variant="destructive">
-                <AlertTitle>Хранилище ключей не настроено</AlertTitle>
-                <AlertDescription>Подключение личного ключа станет доступно после настройки защищённого хранилища на сервере.</AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                {openRouterSettings.configured && (
-                  <p className="text-sm text-muted-foreground">
-                    Сохранён ключ <span className="font-mono text-foreground">{openRouterSettings.keyHint}</span>. Вставьте новый, чтобы заменить его.
-                  </p>
-                )}
-                <Field data-invalid={Boolean(openRouterError) || undefined}>
-                  <FieldLabel htmlFor="settings-openrouter-key">API-ключ</FieldLabel>
-                  <InputGroup className="h-12">
-                    <InputGroupInput
-                      id="settings-openrouter-key"
-                      type={openRouterKeyVisible ? "text" : "password"}
-                      autoComplete="new-password"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      aria-invalid={Boolean(openRouterError) || undefined}
-                      placeholder="sk-or-v1-…"
-                      value={openRouterKey}
-                      onChange={(event) => {
-                        setOpenRouterKey(event.target.value);
-                        if (openRouterError) setOpenRouterError("");
-                      }}
-                    />
-                    <InputGroupAddon align="inline-end">
-                      <InputGroupButton
-                        size="icon-sm"
-                        aria-label={openRouterKeyVisible ? "Скрыть API-ключ" : "Показать API-ключ"}
-                        aria-pressed={openRouterKeyVisible}
-                        onClick={() => setOpenRouterKeyVisible((visible) => !visible)}
-                      >
-                        {openRouterKeyVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                      </InputGroupButton>
-                    </InputGroupAddon>
-                  </InputGroup>
-                  {openRouterError && <FieldError>{openRouterError}</FieldError>}
-                  <FieldDescription>
-                    Создать ключ можно в разделе Keys аккаунта OpenRouter. После сохранения полный ключ больше не показывается.
-                  </FieldDescription>
-                </Field>
-                <div className="flex flex-wrap gap-2">
-                  <ShadcnButton
-                    type="button"
-                    disabled={!openRouterKey.trim() || openRouterBusy}
-                    aria-busy={openRouterBusy || undefined}
-                    onClick={saveOpenRouterKey}
-                  >
-                    {openRouterBusy && <Spinner />}
-                    {openRouterSettings.configured ? "Заменить ключ" : "Подключить ключ"}
-                  </ShadcnButton>
-                  {openRouterSettings.configured && (
-                    <ShadcnButton type="button" variant="destructive" disabled={openRouterBusy} onClick={removeOpenRouterKey}>
-                      Удалить ключ
-                    </ShadcnButton>
-                  )}
-                </div>
-                {!openRouterSettings.configured && openRouterSettings.serverFallbackConfigured && (
-                  <p className="text-sm text-muted-foreground">Пока личный ключ не подключён, поиск использует ключ Rollapp.</p>
-                )}
-              </>
-            )}
-          </Card>
+          <OpenRouterSettings disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"
               variant="destructive"
-              className="h-12 gap-2 px-4"
+              className="h-12 w-full gap-2 px-4"
               disabled={loading || imageUploading || loggingOut || openRouterBusy}
               aria-busy={loggingOut || undefined}
               onClick={async () => {
@@ -6555,11 +6785,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </div>
         </form>
       </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-md rounded-none border-0 bg-transparent px-4 sm:flex-row">
+      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full rounded-none border-0 bg-transparent px-4 sm:flex-row">
         <ShadcnButton
           type="submit"
           form="profile-editor-form"
-          className="h-12"
+          className="h-12 w-full"
           disabled={!changed || imageUploading || loggingOut || loading || openRouterBusy}
           aria-busy={loading || undefined}
         >
@@ -6571,6 +6801,28 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   </Drawer>;
 }
 
+function PublicWishGrid({ wishes, allWishes, visibleLimit, ownerCollection, onReorder, onOpen, ...cardProps }) {
+  const toast = useToast();
+  const { gridRef, orderedWishes, cardProps: dragProps, suppressClickRef, saving } = useWishReorder({
+    wishes: allWishes,
+    visibleWishes: wishes,
+    enabled: ownerCollection,
+    onSave: onReorder,
+    onError: (error) => toast(error.message || "Не удалось сохранить порядок желаний", "error"),
+  });
+  return <div className="wish-grid" ref={gridRef} aria-busy={saving || undefined}>
+    {orderedWishes.slice(0, visibleLimit).map((wish) => <WishCard
+      key={wish.id}
+      {...cardProps}
+      {...dragProps(wish.id)}
+      wish={wish}
+      onOpen={(opener) => { if (!suppressClickRef.current) onOpen(wish.id, opener); }}
+      onEdit={ownerCollection ? () => cardProps.onEdit(wish.id) : undefined}
+      onCreateList={ownerCollection ? () => cardProps.onCreateList(wish.id) : undefined}
+    />)}
+  </div>;
+}
+
 function PublicProfile({ shared = false }) {
   const params = useParams();
   const navigate = useNavigate();
@@ -6580,7 +6832,7 @@ function PublicProfile({ shared = false }) {
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
-  const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get(endpoint), [endpoint]);
   const [selected, setSelected] = useState(shared ? "all" : params.listId || "all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
     const tab = new URLSearchParams(location.search).get("tab");
@@ -6637,7 +6889,7 @@ function PublicProfile({ shared = false }) {
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
-      <header className="wishes-page__topbar"><AppBrandSpacer /></header>
+      <div className="app-shell-chrome-spacer" aria-hidden="true" />
       <EmptyState
         icon={Gift}
         title={title}
@@ -6791,7 +7043,7 @@ function PublicProfile({ shared = false }) {
     ? <ShadcnButton
       type="button"
       variant="ghost"
-      className="wishes-page__identity h-auto min-h-0 p-0 hover:bg-transparent active:translate-y-0"
+      className="wishes-page__identity h-auto min-h-0 p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
       aria-label={`Редактировать профиль ${data.profile.name}`}
       title="Редактировать профиль"
       onClick={openProfileEditor}
@@ -6804,9 +7056,7 @@ function PublicProfile({ shared = false }) {
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
     </div>;
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
-    <header className="wishes-page__topbar">
-      <AppBrandSpacer />
-    </header>
+    <div className="app-shell-chrome-spacer" aria-hidden="true" />
 
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
       {identity}
@@ -6827,18 +7077,35 @@ function PublicProfile({ shared = false }) {
       </div>
     </section>
 
-    {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <div className={`list-tabs public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`} aria-label="Списки желаний">
-      <div className="list-tabs__track">
+    {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
           {showAllCollection && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания", unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания"} count={unlistedWishes.length} /></ToggleGroupItem>}
           {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
-      </div>
-    </div>}
+    </WishListNavigation>}
 
     {wishes.length
-      ? <><div className="wish-grid">{wishes.slice(0, visibleLimit).map((wish) => <WishCard key={wish.id} wish={wish} owner={data.isOwner} profile={data.profile} lists={lists} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onOpen={(opener) => openWish(wish.id, opener)} onEdit={ownerCollection ? () => editWish(wish.id) : undefined} onCreateList={ownerCollection ? () => setListModal({ attachWishId: wish.id }) : undefined} />)}</div>{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</>
+      ? <><PublicWishGrid
+        key={`${endpoint}:${selectedValue}`}
+        wishes={wishes}
+        allWishes={data.wishes}
+        visibleLimit={visibleLimit}
+        ownerCollection={ownerCollection}
+        owner={data.isOwner}
+        profile={data.profile}
+        lists={lists}
+        shareToken={shared ? params.token : ""}
+        onChanged={() => reload({ background: true })}
+        onOpen={openWish}
+        onEdit={editWish}
+        onCreateList={(wishId) => setListModal({ attachWishId: wishId })}
+        onReorder={async (wishIds) => {
+          await api.patch("/wishes/reorder", { wishIds });
+          const positions = new Map(wishIds.map((id, index) => [id, index]));
+          updateData((current) => ({ ...current, wishes: [...current.wishes].sort((a, b) => (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity)) }));
+        }}
+      />{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</>
       : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />}
     {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
     {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { BookOpen, Download, TriangleAlert } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import {
-  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty,
+  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
   IdentityReportStatus, useIdentityReport,
 } from "@/components/identity-report-manager";
 import topFivePdfUrl from "@/assets/gallup/cliftonstrengths-top-5.pdf?url";
@@ -131,7 +132,7 @@ function ReportMasthead({ report, children }) {
         <span>Gallup</span>
         <time dateTime="2023-05-19">Михаил Колосков · 19 мая 2023</time>
       </div>
-      <p className="gallup-web-report__kicker">Персональный отчёт CliftonStrengths</p>
+      <p className="gallup-web-report__kicker" data-typography="label">Персональный отчёт CliftonStrengths</p>
       <h3 id={`gallup-report-${report.id}`}>{report.title}</h3>
       <p>{report.description}</p>
       {children}
@@ -156,8 +157,8 @@ function StrengthChapterHeader({ strength, eyebrow }) {
   return (
     <header className="gallup-report-chapter__heading">
       <span className="gallup-report-chapter__rank">{strength.rank}</span>
-      <div>
-        <p>{eyebrow || GALLUP_DOMAINS[strength.domain].label}</p>
+      <div data-typeset-group>
+        <p data-typography="label">{eyebrow || GALLUP_DOMAINS[strength.domain].label}</p>
         <h4>{strength.translation}</h4>
         <span>Талант CliftonStrengths</span>
       </div>
@@ -204,17 +205,17 @@ function TopFiveWebReport({ report }) {
 
               <section className="gallup-report-chapter__insights">
                 <div className="gallup-report-block__title">
-                  <span>Персональный профиль</span>
+                  <span data-typography="label">Персональный профиль</span>
                   <h5>Как уникально проявляется талант «{strength.translation}»</h5>
                 </div>
-                <div className="gallup-report-prose">
+                <div className="gallup-report-prose" data-typeset-group>
                   {article.unique.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                 </div>
               </section>
 
               <section className="gallup-report-chapter__blends">
                 <div className="gallup-report-block__title">
-                  <span>Сочетания талантов</span>
+                  <span data-typography="label">Сочетания талантов</span>
                   <h5>Как «{strength.translation}» сочетается с другими ведущими талантами</h5>
                 </div>
                 <div className="gallup-blend-grid">
@@ -244,7 +245,7 @@ function TopFiveWebReport({ report }) {
 
       <section className="gallup-report-next" id={`${report.id}-next`}>
         <div className="gallup-report-block__title">
-          <span>Развитие</span>
+          <span data-typography="label">Развитие</span>
           <h4>{guidance.title}</h4>
           <p>{guidance.intro}</p>
         </div>
@@ -300,10 +301,10 @@ function FullProfileWebReport({ report }) {
               {personalized ? (
                 <section className="gallup-report-chapter__insights">
                   <div className="gallup-report-block__title">
-                    <span>Персональный профиль</span>
+                    <span data-typography="label">Персональный профиль</span>
                     <h5>Как уникально проявляется талант «{strength.translation}»</h5>
                   </div>
-                  <div className="gallup-report-prose gallup-report-prose--columns">
+                  <div className="gallup-report-prose gallup-report-prose--columns" data-typeset-group>
                     {personalized.unique.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                   </div>
                 </section>
@@ -316,7 +317,7 @@ function FullProfileWebReport({ report }) {
                 </section>
                 <section className="gallup-development-actions">
                   <div className="gallup-report-block__title">
-                    <span>Действия для раскрытия потенциала</span>
+                    <span data-typography="label">Действия для раскрытия потенциала</span>
                     <h5>{development.actionLead}</h5>
                   </div>
                   <ul>{development.actions.map((item) => <li key={item}>{item}</li>)}</ul>
@@ -336,7 +337,7 @@ function FullProfileWebReport({ report }) {
 
       <section className="gallup-report-next" id={`${report.id}-navigate`}>
         <div className="gallup-report-block__title">
-          <span>Темы 11-34</span>
+          <span data-typography="label">Темы 11-34</span>
           <h4>Как использовать остальные таланты</h4>
           <p>Ведущие темы дают наибольшие возможности для успеха, но все 34 таланта помогают понять вашу уникальную структуру.</p>
         </div>
@@ -353,7 +354,7 @@ function FullProfileWebReport({ report }) {
 
       <section className="gallup-weakness-guide">
         <div>
-          <p className="gallup-profile__eyebrow">Что такое слабость?</p>
+          <p className="gallup-profile__eyebrow" data-typography="label">Что такое слабость?</p>
           <h4>Всё, что мешает вашему успеху</h4>
           <p>
             Высокая тема может превратиться в слепую зону, а низкая - отнимать силы, если она необходима в вашей роли.
@@ -373,7 +374,7 @@ function FullProfileWebReport({ report }) {
 
       <section className="gallup-theme-library" id={`${report.id}-sequence`}>
         <div className="gallup-report-block__title">
-          <span>Структура талантов</span>
+          <span data-typography="label">Структура талантов</span>
           <h4>Ваша последовательность 34 талантов CliftonStrengths</h4>
           <p>Полная последовательность тем с определениями - без разбиения на страницы.</p>
         </div>
@@ -404,176 +405,178 @@ function DefaultGallupProfile() {
   const activeReport = GALLUP_REPORTS.find((report) => report.id === activeReportId) || GALLUP_REPORTS[0];
 
   return (
-    <article className="gallup-profile" aria-labelledby="gallup-profile-title">
-      <header className="gallup-profile__hero">
-        <div className="gallup-profile__hero-copy">
-          <p className="gallup-profile__eyebrow">CliftonStrengths 34</p>
-          <h2 id="gallup-profile-title">Ваш профиль ведёт Влияние</h2>
-          <p>{GALLUP_DOMAINS.influencing.description}</p>
-        </div>
-        <time dateTime="2023-05-19">19 мая 2023</time>
-      </header>
+    <article className="gallup-profile identity-report typeset-document" aria-labelledby="gallup-profile-title">
+      <div className="identity-report-section">
+        <IdentityReportOverview titleId="gallup-profile-title" eyebrow="CliftonStrengths 34" title="Ваш профиль ведёт Влияние" description={GALLUP_DOMAINS.influencing.description} date="2023-05-19" dateLabel="19 мая 2023" />
 
-      <div className="gallup-profile__domain-band" aria-label="Домены десяти ведущих талантов">
-        {DOMAIN_ORDER.map((domain) => {
-          const topTenCount = GALLUP_STRENGTHS.filter((strength) => strength.rank <= 10 && strength.domain === domain).length;
-          return (
-            <div
-              key={domain}
-              className="gallup-profile__domain-segment"
-              style={{ ...domainStyle(domain), "--top-ten-count": Math.max(topTenCount, 0.42) }}
-            >
-              <span>{GALLUP_DOMAINS[domain].label}</span>
-              <strong>{topTenCount} из 10</strong>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="gallup-profile__section-head">
-        <div>
-          <p className="gallup-profile__eyebrow">Доминирующие таланты</p>
-          <h3>Пять ведущих талантов</h3>
-        </div>
-        <p>Выберите талант, чтобы увидеть, как он проявляется и куда его направить.</p>
-      </div>
-
-      <div className="gallup-top-five">
-        <ToggleGroup
-          className="gallup-top-five__list w-full gap-0 max-[760px]:grid max-[760px]:grid-cols-5 max-[760px]:gap-[5px] max-[480px]:grid-cols-2"
-          orientation="vertical"
-          value={[String(selectedRank)]}
-          onValueChange={(values) => { if (values[0]) setSelectedRank(Number(values[0])); }}
-          aria-label="Пять ведущих талантов"
-        >
-          {GALLUP_STRENGTHS.slice(0, 5).map((strength) => {
+        <div className="identity-report-domain-grid not-typeset rollapp-body" aria-label="Домены десяти ведущих талантов">
+          {DOMAIN_ORDER.map((domain) => {
+            const topTenCount = GALLUP_STRENGTHS.filter((strength) => strength.rank <= 10 && strength.domain === domain).length;
             return (
-              <ToggleGroupItem
-                key={strength.rank}
-                value={String(strength.rank)}
-                className="gallup-strength-button grid h-auto w-full shrink grid-cols-[34px_minmax(0,1fr)_8px] justify-normal gap-2.5 rounded-none bg-transparent px-[13px] py-[11px] text-left hover:bg-[color-mix(in_oklch,var(--gallup-domain)_6%,transparent)] aria-pressed:bg-[linear-gradient(90deg,color-mix(in_oklch,var(--gallup-domain)_13%,transparent),transparent_72%)] max-[760px]:min-h-[72px] max-[760px]:grid-cols-1 max-[760px]:place-items-center max-[760px]:gap-px max-[760px]:px-[6px] max-[760px]:py-[9px] max-[760px]:text-center max-[480px]:min-h-[62px] max-[480px]:grid-cols-[28px_minmax(0,1fr)_7px] max-[480px]:justify-items-normal max-[480px]:gap-[7px] max-[480px]:px-[10px] max-[480px]:py-[8px] max-[480px]:text-left max-[480px]:last:col-span-2"
-                style={domainStyle(strength.domain)}
+              <Card
+                key={domain}
+                className="border-t-2 border-t-(--gallup-domain)"
+                style={domainStyle(domain)}
               >
-                <span className="gallup-strength-button__rank">{strength.rank}</span>
-                <span className="gallup-strength-button__copy">
-                  <strong>{strength.translation}</strong>
-                  <small>{GALLUP_DOMAINS[strength.domain].label}</small>
-                </span>
-                <span className="gallup-strength-button__marker" aria-hidden="true" />
-              </ToggleGroupItem>
+                <CardContent className="flex h-full flex-col justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">{GALLUP_DOMAINS[domain].label}</span>
+                  <div className="flex items-baseline gap-2"><strong className="text-2xl leading-8 font-semibold tabular-nums">{topTenCount}</strong><span className="text-xs text-muted-foreground">из 10</span></div>
+                </CardContent>
+              </Card>
             );
           })}
-        </ToggleGroup>
+        </div>
+      </div>
 
-        <div className="gallup-strength-detail" style={domainStyle(selectedStrength.domain)} aria-live="polite">
-          <div className="gallup-strength-detail__heading" data-not-typeset>
-            <span className="gallup-strength-detail__rank">{selectedStrength.rank}</span>
-            <div>
-              <span className="gallup-strength-detail__domain">{selectedDomain.label}</span>
-              <h3>{selectedStrength.translation}</h3>
-              <p className="gallup-strength-detail__translation">Талант CliftonStrengths</p>
+      <section className="identity-report-section" aria-labelledby="gallup-top-five-title">
+        <div className="gallup-profile__section-head">
+          <div data-typeset-group>
+            <p className="gallup-profile__eyebrow" data-typography="label">Доминирующие таланты</p>
+            <h3 id="gallup-top-five-title">Пять ведущих талантов</h3>
+          </div>
+          <p>Выберите талант, чтобы увидеть, как он проявляется и куда его направить.</p>
+        </div>
+
+        <div className="gallup-top-five">
+          <ToggleGroup
+            className="gallup-top-five__list not-typeset grid w-full grid-cols-1 gap-2"
+            variant="outline"
+            orientation="vertical"
+            value={[String(selectedRank)]}
+            onValueChange={(values) => { if (values[0]) setSelectedRank(Number(values[0])); }}
+            aria-label="Пять ведущих талантов"
+          >
+            {GALLUP_STRENGTHS.slice(0, 5).map((strength) => {
+              return (
+                <ToggleGroupItem
+                  key={strength.rank}
+                  value={String(strength.rank)}
+                  className="identity-strength-option grid h-auto w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)] justify-start gap-3 px-3 py-3 text-left whitespace-normal"
+                  style={domainStyle(strength.domain)}
+                >
+                  <span className="text-2xl leading-8 font-semibold tabular-nums text-(--gallup-domain)">{strength.rank}</span>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <strong className="font-medium">{strength.translation}</strong>
+                    <small className="text-xs text-muted-foreground">{GALLUP_DOMAINS[strength.domain].label}</small>
+                  </span>
+                </ToggleGroupItem>
+              );
+            })}
+          </ToggleGroup>
+
+          <div className="gallup-strength-detail" style={domainStyle(selectedStrength.domain)} aria-live="polite">
+            <div className="gallup-strength-detail__heading" data-not-typeset>
+              <span className="gallup-strength-detail__rank">{selectedStrength.rank}</span>
+              <div>
+                <span className="gallup-strength-detail__domain">{selectedDomain.label}</span>
+                <h3 className="m-0 text-2xl leading-8 font-semibold">{selectedStrength.translation}</h3>
+                <p className="gallup-strength-detail__translation">Талант CliftonStrengths</p>
+              </div>
+            </div>
+            <p className="gallup-strength-detail__summary">{selectedDetails.summary}</p>
+            <div className="gallup-strength-detail__action">
+              <span>Направить талант</span>
+              <p>{selectedDetails.action}</p>
             </div>
           </div>
-          <p className="gallup-strength-detail__summary">{selectedDetails.summary}</p>
-          <div className="gallup-strength-detail__action">
-            <span>Направить талант</span>
-            <p>{selectedDetails.action}</p>
+        </div>
+      </section>
+      <section className="identity-report-section" aria-labelledby="gallup-sequence-title">
+        <div className="gallup-profile__section-head gallup-profile__section-head--sequence">
+          <div data-typeset-group>
+            <p className="gallup-profile__eyebrow" data-typography="label">Структура талантов</p>
+            <h3 id="gallup-sequence-title">Все 34 таланта</h3>
           </div>
+          <p>Первые 10 — основная зона развития. Остальные темы помогают ориентироваться и подключаются по ситуации.</p>
         </div>
-      </div>
 
-      <div className="gallup-profile__section-head gallup-profile__section-head--sequence">
-        <div>
-          <p className="gallup-profile__eyebrow">Структура талантов</p>
-          <h3>Все 34 таланта</h3>
-        </div>
-        <p>Первые 10 — основная зона развития. Остальные темы помогают ориентироваться и подключаются по ситуации.</p>
-      </div>
-
-      <div className="gallup-dna" role="img" aria-label="Последовательность 34 талантов, окрашенная по четырём доменам">
-        {GALLUP_STRENGTHS.map((strength) => (
-          <span
-            key={strength.rank}
-            className={strength.rank <= 10 ? "is-dominant" : undefined}
-            style={domainStyle(strength.domain)}
-            aria-hidden="true"
-          />
-        ))}
-      </div>
-      <div className="gallup-dna__labels" aria-hidden="true">
-        <span>Развивать · 1–10</span>
-        <span>Использовать по ситуации · 11–34</span>
-      </div>
-
-      <ol className="gallup-sequence not-typeset" aria-label="Рейтинг всех 34 талантов">
-        {GALLUP_STRENGTHS.map((strength) => (
-          <li key={strength.rank} className={strength.rank <= 10 ? "is-dominant" : undefined} style={domainStyle(strength.domain)}>
-            <span className="gallup-sequence__rank">{strength.rank}</span>
-            <span className="gallup-sequence__dot" aria-hidden="true" />
-            <span className="gallup-sequence__name">{strength.translation}</span>
-            <span className="gallup-sequence__translation">{GALLUP_DOMAINS[strength.domain].label}</span>
-          </li>
-        ))}
-      </ol>
-
-      <div className="gallup-domain-legend" aria-label="Легенда доменов">
-        {DOMAIN_ORDER.map((domain) => (
-          <div key={domain} className="gallup-domain-legend__item" style={domainStyle(domain)}>
-            <span className="gallup-domain-legend__dot" aria-hidden="true" />
-            <div>
-              <strong>{GALLUP_DOMAINS[domain].label}</strong>
-              <p>{GALLUP_DOMAINS[domain].description}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <aside className="gallup-profile__note">
-        Низкая позиция темы не означает слабость: отчёт предлагает развивать ведущие таланты и осознанно подключать остальные.
-      </aside>
-
-      <div className="gallup-profile__section-head gallup-profile__section-head--reports">
-        <div>
-          <p className="gallup-profile__eyebrow">Материалы отчётов</p>
-          <h3>Читать как веб-документ</h3>
-        </div>
-        <p>Весь текст перенесён в адаптивную вёрстку: без листов PDF, разрывов страниц и перехода на Яндекс Диск.</p>
-      </div>
-
-      <div className="gallup-report-toolbar">
-        <ToggleGroup
-          className="gallup-report-switcher inline-flex w-auto items-stretch gap-[22px] rounded-none max-[760px]:w-full max-[480px]:gap-[14px]"
-          value={[activeReport.id]}
-          onValueChange={(values) => { if (values[0]) setActiveReportId(values[0]); }}
-          aria-label="Выбрать полный отчёт"
-        >
-          {GALLUP_REPORTS.map((report) => (
-            <ToggleGroupItem
-              key={report.id}
-              value={report.id}
-              className="h-auto min-h-12 min-w-0 shrink gap-2 rounded-none border-x-0 border-t-0 border-b-2 border-transparent bg-transparent px-0 py-[7px] pb-[10px] font-semibold aria-pressed:border-foreground aria-pressed:bg-transparent aria-pressed:text-foreground"
-            >
-              <span>{report.label}</span>
-              <small>{report.countLabel}</small>
-            </ToggleGroupItem>
+        <div className="gallup-dna" role="img" aria-label="Последовательность 34 талантов, окрашенная по четырём доменам">
+          {GALLUP_STRENGTHS.map((strength) => (
+            <span
+              key={strength.rank}
+              className={strength.rank <= 10 ? "is-dominant" : undefined}
+              style={domainStyle(strength.domain)}
+              aria-hidden="true"
+            />
           ))}
-        </ToggleGroup>
-        <a
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "lg" }),
-            "gallup-report-download h-auto min-h-[42px] rounded-none border-0 bg-transparent px-0",
-          )}
-          href={activeReport.pdfUrl}
-          download
-        >
-          <Download data-icon="inline-start" aria-hidden="true" />
-          <span>Скачать PDF</span>
-        </a>
-      </div>
+        </div>
+        <div className="gallup-dna__labels" aria-hidden="true">
+          <span>Развивать · 1–10</span>
+          <span>Использовать по ситуации · 11–34</span>
+        </div>
 
-      {activeReport.id === "top-five"
-        ? <TopFiveWebReport report={activeReport} />
-        : <FullProfileWebReport report={activeReport} />}
+        <ol className="gallup-sequence not-typeset" aria-label="Рейтинг всех 34 талантов">
+          {GALLUP_STRENGTHS.map((strength) => (
+            <li key={strength.rank} className={strength.rank <= 10 ? "is-dominant" : undefined} style={domainStyle(strength.domain)}>
+              <span className="gallup-sequence__rank">{strength.rank}</span>
+              <span className="gallup-sequence__dot" aria-hidden="true" />
+              <span className="gallup-sequence__name">{strength.translation}</span>
+              <span className="gallup-sequence__translation">{GALLUP_DOMAINS[strength.domain].label}</span>
+            </li>
+          ))}
+        </ol>
+
+        <div className="gallup-domain-legend" aria-label="Легенда доменов">
+          {DOMAIN_ORDER.map((domain) => (
+            <div key={domain} className="gallup-domain-legend__item" style={domainStyle(domain)}>
+              <span className="gallup-domain-legend__dot" aria-hidden="true" />
+              <div>
+                <strong>{GALLUP_DOMAINS[domain].label}</strong>
+                <p>{GALLUP_DOMAINS[domain].description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <aside className="gallup-profile__note">
+          Низкая позиция темы не означает слабость: отчёт предлагает развивать ведущие таланты и осознанно подключать остальные.
+        </aside>
+      </section>
+      <section className="identity-report-section" aria-labelledby="gallup-reports-title">
+        <div className="gallup-profile__section-head gallup-profile__section-head--reports">
+          <div data-typeset-group>
+            <p className="gallup-profile__eyebrow" data-typography="label">Материалы отчётов</p>
+            <h3 id="gallup-reports-title">Читать как веб-документ</h3>
+          </div>
+          <p>Подробные описания талантов и рекомендации из двух отчётов CliftonStrengths.</p>
+        </div>
+
+        <div className="gallup-report-toolbar">
+          <ToggleGroup
+            className="identity-report-switcher not-typeset flex w-full flex-wrap items-stretch gap-2 sm:w-auto"
+            variant="outline"
+            value={[activeReport.id]}
+            onValueChange={(values) => { if (values[0]) setActiveReportId(values[0]); }}
+            aria-label="Выбрать полный отчёт"
+          >
+            {GALLUP_REPORTS.map((report) => (
+              <ToggleGroupItem
+                key={report.id}
+                value={report.id}
+                className="h-auto min-w-0 flex-1 flex-col gap-1 px-4 py-3 whitespace-normal sm:flex-none"
+              >
+                <span>{report.label}</span>
+                <small className="text-xs text-muted-foreground">{report.countLabel}</small>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <a
+            className={cn(
+              buttonVariants({ variant: "outline", size: "lg" }),
+              "not-typeset",
+            )}
+            href={activeReport.pdfUrl}
+            download
+          >
+            <Download data-icon="inline-start" aria-hidden="true" />
+            <span>Скачать PDF</span>
+          </a>
+        </div>
+
+        {activeReport.id === "top-five"
+          ? <TopFiveWebReport report={activeReport} />
+          : <FullProfileWebReport report={activeReport} />}
+      </section>
 
       <footer className="gallup-profile__sources">
         <strong>Правовая информация</strong>
@@ -596,29 +599,27 @@ function GeneratedGallupProfile({ report }) {
     : "Дата не указана";
 
   return (
-    <article className="gallup-profile gallup-profile--generated" aria-labelledby="gallup-generated-title">
-      <header className="gallup-profile__hero">
-        <div className="gallup-profile__hero-copy">
-          <p className="gallup-profile__eyebrow">CliftonStrengths · создано из PDF</p>
-          <h2 id="gallup-generated-title">
-            {leadingDomain ? `Ваш профиль ведёт ${leadingDomain.label}` : report.title}
-          </h2>
-          <p>{leadingDomain?.description || "Содержание загруженных отчётов собрано в адаптивную веб-страницу."}</p>
-          {report.person ? <p className="identity-generated-report__person">{report.person}</p> : null}
-        </div>
-        <time dateTime={report.date || undefined}>{dateLabel}</time>
-      </header>
+    <article className="gallup-profile gallup-profile--generated identity-report typeset-document" aria-labelledby="gallup-generated-title">
+      <IdentityReportOverview
+        titleId="gallup-generated-title"
+        eyebrow="CliftonStrengths"
+        title={leadingDomain ? `Ваш профиль ведёт ${leadingDomain.label}` : report.title}
+        description={leadingDomain?.description || "Ваши ведущие таланты и рекомендации по их развитию."}
+        person={report.person}
+        date={report.date}
+        dateLabel={dateLabel}
+      />
 
       {strengths.length ? (
-        <>
+        <section className="identity-report-section" aria-label="Рейтинг талантов">
           <div className="gallup-profile__section-head">
             <div>
-              <p className="gallup-profile__eyebrow">Распознано из отчёта</p>
+              <p className="gallup-profile__eyebrow" data-typography="label">Распознано из отчёта</p>
               <h3>{strengths.length >= 34 ? "Все 34 таланта" : `${strengths.length} ведущих талантов`}</h3>
             </div>
             <p>{topStrength ? `Первый талант — ${topStrength.translation}.` : "Последовательность сформирована из PDF."}</p>
           </div>
-          <div className="gallup-dna" role="img" aria-label="Последовательность распознанных талантов">
+          <div className="gallup-dna" role="img" aria-label="Последовательность распознанных талантов" style={{ gridTemplateColumns: `repeat(${strengths.length}, minmax(0, 1fr))` }}>
             {strengths.map((strength) => (
               <span
                 key={strength.rank}
@@ -638,7 +639,7 @@ function GeneratedGallupProfile({ report }) {
               </li>
             ))}
           </ol>
-        </>
+        </section>
       ) : (
         <aside className="gallup-profile__note">Текст PDF распознан, но рейтинг талантов в документе не найден. Полное содержание доступно ниже.</aside>
       )}

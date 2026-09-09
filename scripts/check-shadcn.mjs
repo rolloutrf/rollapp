@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { checkUiComposition } from "./check-ui-compositions.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file) => readFile(path.join(root, file), "utf8");
@@ -34,6 +35,7 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
   read("vite.config.js"),
   read("jsconfig.json"),
 ]);
+const spacing = await read("src/spacing.css");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
 const jsconfig = JSON.parse(jsconfigText);
@@ -137,10 +139,14 @@ assert.match(typeset, /@media \(max-width:\s*640px\)[\s\S]*?--typeset-size:\s*1r
 assert.match(typeset, /@layer utilities\s*\{[\s\S]*?\.rollapp-body\s*\{[\s\S]*?font-family:\s*var\(--font-body\);[\s\S]*?font-size:\s*var\(--text-rollapp-body\);[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?line-height:\s*var\(--text-rollapp-body--line-height\);/, "Non-Wishlist application surfaces must expose the canonical body utility");
 assert.doesNotMatch(theme, /--text-body(?:--line-height)?:/, "Canonical Rollapp theme tokens must not collide with the legacy Wishlist --text-body token");
 assert.match(legacyStyles, /--text-caption:\s*13px;/, "The smallest legacy caption token must be 13px");
-assert.equal((app.match(/className="auth-page rollapp-body"/g) || []).length, 3, "Every authentication surface must use the canonical body utility");
+const authSurfaces = [...app.matchAll(/className="([^"]*\bauth-page\b[^"]*)"/g)];
+assert(authSurfaces.length > 0, "Authentication surfaces must be present");
+for (const [, classes] of authSurfaces) {
+  assert(classes.split(/\s+/).includes("rollapp-body"), "Every authentication surface must use the canonical body utility");
+}
 for (const surface of [
-  'className="contact-detail-drawer rollapp-body"',
-  'className="profile-settings-dialog rollapp-body"',
+  'className="contact-detail-drawer rollapp-body ',
+  'className="profile-settings-dialog rollapp-body ',
   'className="not-found rollapp-body"',
 ]) {
   assert(app.includes(surface), `Non-Wishlist surface is missing canonical body typography: ${surface}`);
@@ -171,9 +177,13 @@ for (const marker of [
   assert(legacyStyles.includes(marker), `Non-Wishlist body coverage is missing ${marker}`);
 }
 const narrativeContractStart = legacyStyles.indexOf("Non-Wishlist narrative copy consumes the shared body contract");
-const narrativeContractEnd = legacyStyles.indexOf("The persistent profile hero owns the vertical gap", narrativeContractStart);
+const narrativeContractEnd = legacyStyles.indexOf("Shared Wishlist catalog.", narrativeContractStart);
 const narrativeContract = legacyStyles.slice(narrativeContractStart, narrativeContractEnd);
 assert.match(narrativeContract, /color:\s*var\(--foreground\);/, "Non-Wishlist narrative copy must use the canonical foreground color");
+assert(spacing.includes('--persistent-profile-name-gap: var(--layout-profile-gap)'), "Profile spacing must consume the shared layout token");
+assert(spacing.includes('gap: var(--persistent-profile-name-gap)'), "Avatar and name must use the profile spacing token");
+assert(spacing.includes('var(--layout-page-gap)'), "Page compositions must use the shared page gap");
+assert(theme.includes('@import "./spacing.css"'), "The application must load the shared spacing system");
 
 function tokenBlock(selector) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -292,7 +302,8 @@ assert.doesNotMatch(workoutsSource, /<button\b/, "Workouts interactive controls 
 assert.doesNotMatch(workoutsSource, /className="[^"]*\bworkouts?(?:-|__)/, "Workouts must use shadcn utilities instead of a custom component skin");
 assert.doesNotMatch(labResultsSource, /<(?:button|details|summary)\b/, "LabResults interactive controls must use shadcn primitives");
 assert.doesNotMatch(labResultsSource, /className="[^"]*\blab-(?:results|overview|attention|trend|report|status|section)/, "LabResults must use shadcn utilities instead of its retired component skin");
-assert.match(labResultsSource, /<AccordionItem className="not-last:data-open:border-b-0"/, "An open laboratory section must not keep a redundant bottom divider");
+const laboratoryAccordionClasses = labResultsSource.match(/<AccordionItem\s+className="([^"]*)"/)?.[1].split(/\s+/) || [];
+assert(laboratoryAccordionClasses.includes("not-last:data-open:border-b-0"), "An open laboratory section must not keep a redundant bottom divider");
 assert.doesNotMatch(legacyStyles, /\.lab-(?:results|overview|attention|trend|report|status|section)\b/, "The retired laboratory CSS skin must not return");
 const healthPlaceholderSource = app.slice(app.indexOf('sphere.id === "health"'), app.indexOf(': <section aria-labelledby', app.indexOf('sphere.id === "health"')));
 for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "EmptyDescription", "EmptyContent", "Badge"]) {
@@ -300,7 +311,8 @@ for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "Em
 }
 const logoSource = app.slice(app.indexOf("function Logo"), app.indexOf("function Avatar"));
 assert.match(logoSource, /aria-label="Rollapp — в приложение"/, "The mark-only logo must keep its accessible name");
-assert.match(logoSource, /<svg[\s\S]*className="logo__mark"/, "Logo must render the vector mark as inline SVG");
+assert.match(logoSource, /function LogoMark\(\{ className = "logo__mark" \}\)[\s\S]*<svg\s+className=\{className\}/, "The reusable vector mark must render inline SVG with the navigation logo class by default");
+assert.match(logoSource, /function Logo\([\s\S]*<LogoMark\s*\/>/, "The navigation logo must use the shared vector mark");
 assert.match(logoSource, /fill="currentColor"/, "The vector logo must inherit the surrounding foreground color");
 assert.match(logoSource, /fillRule="evenodd"/, "The vector logo must preserve its transparent square cutout");
 assert.doesNotMatch(logoSource, /<(?:img|image|foreignObject)\b/, "The vector logo must not embed a raster image");
@@ -389,11 +401,13 @@ for (const file of requiredUiFiles) {
 }
 
 const expectedBaseUiImports = {
+  "accordion.jsx": "@base-ui/react/accordion",
   "alert-dialog.jsx": "@base-ui/react/alert-dialog",
   "avatar.jsx": "@base-ui/react/avatar",
   "badge.jsx": "@base-ui/react/use-render",
   "button.jsx": "@base-ui/react/button",
   "checkbox.jsx": "@base-ui/react/checkbox",
+  "combobox.jsx": "@base-ui/react",
   "dialog.jsx": "@base-ui/react/dialog",
   "drawer.jsx": "@base-ui/react/drawer",
   "dropdown-menu.jsx": "@base-ui/react/menu",
@@ -541,14 +555,14 @@ const profileLogoutEnd = profileSettingsSource.indexOf("</ShadcnButton>", profil
 const profileLogoutSource = profileSettingsSource.slice(profileLogoutStart, profileLogoutEnd + "</ShadcnButton>".length);
 assert(profileLogoutLabel >= 0 && profileLogoutStart >= 0 && profileLogoutEnd >= 0, "ProfileSettingsModal must keep its logout action");
 assert(/type="button"/.test(profileLogoutSource) && /variant="destructive"/.test(profileLogoutSource), "Profile logout must remain a native destructive shadcn Button");
-assert(!/\bw-full\b|\bjustify-start\b/.test(profileLogoutSource), "Profile logout must render as a compact button, not a full-width action row");
+assert(/\bw-full\b/.test(profileLogoutSource) && !/\bjustify-start\b/.test(profileLogoutSource), "Profile logout must fill its content rail with a centered label");
 const profileSettingsContentTag = profileSettingsSource.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
 assert(profileSettingsContentTag.includes("profile-settings-dialog"), "ProfileSettingsModal must mark its DrawerContent with the profile-settings-dialog class");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(profileSettingsContentTag), "ProfileSettingsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
 assert(!/max-h-\[min\(calc\(100dvh-2rem\),44rem\)\]/.test(profileSettingsContentTag), "ProfileSettingsModal must not restore the compact viewport height cap");
 for (const component of ["DrawerHeader", "ScrollArea", "DrawerFooter"]) {
   const tag = profileSettingsSource.match(new RegExp(`<${component}\\b[^>]*>`))?.[0] || "";
-  for (const className of ["mx-auto", "w-full", "max-w-md"]) {
+  for (const className of ["mx-auto", "w-full", "max-w-full"]) {
     assert(tag.includes(className), `ProfileSettingsModal ${component} must align to the shared 448px rail with ${className}`);
   }
 }
@@ -573,6 +587,70 @@ const listTileContentSource = app.slice(app.indexOf("function ListTileContent"),
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
 assert((app.match(/<ListTileContent\b/g) || []).length >= 4, "Personal and public collection tiles must share the overlap-safe list-tile composition");
+const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsDrawer"));
+assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 2, "Catalog cards must expose one detail trigger and one Wishlist action");
+assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
+assert(/className="[^"]*\bcatalog-wish-card__open\b[^"]*"/.test(catalogWishCardSource), "Catalog cards must use an official shadcn overlay button for details");
+for (const className of ["absolute", "inset-0", "h-full", "w-full", "bg-transparent", "hover:bg-transparent"]) {
+  assert(catalogWishCardSource.includes(className), `Catalog detail trigger must cover the card and keep ${className}`);
+}
+assert(/aria-haspopup="dialog"/.test(catalogWishCardSource) && /onClick=\{\(event\) => onOpen\(item\.id, event\.currentTarget\)\}/.test(catalogWishCardSource), "Catalog detail trigger must expose dialog semantics and preserve its opener");
+assert(/<Heart\b/.test(catalogWishCardSource), "Catalog Wishlist action must use the Heart icon");
+assert(/disabled=\{wishlistDisabled\}/.test(catalogWishCardSource), "Catalog Wishlist action must remain enabled except while catalog activity is in flight");
+assert(/onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishCardSource), "Catalog Heart must toggle the item in Wishlist");
+assert(/const wishlistLabel = item\.addedByMe[\s\S]*?Удалить[\s\S]*?Добавить/.test(catalogWishCardSource), "Catalog Heart must describe both remove and add actions");
+assert(/aria-pressed=\{Boolean\(item\.addedByMe\)\}/.test(catalogWishCardSource), "Catalog Heart must expose its Wishlist toggle state");
+assert(/item\.addedByMe \? "fill-current text-destructive" : ""/.test(catalogWishCardSource), "Catalog Heart must be filled red after the item is added to Wishlist");
+assert(!/onLike|likedByMe|likeLabel/.test(catalogWishCardSource), "Catalog cards must not keep a separate Like mutation");
+assert(!/catalog-wish-card__source|Открыть исходную ссылку|href=\{item\.url\}/.test(catalogWishCardSource), "Catalog cards must keep external item links inside the details drawer");
+assert(/<CatalogSourceAttribution source=\{item\.source\} linked=\{false\} \/>/.test(catalogWishCardSource), "Catalog cards must render external source attribution without direct navigation");
+const catalogWishDetailsSource = app.slice(app.indexOf("function CatalogWishDetailsDrawer"), app.indexOf("function WishCatalogPage"));
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerClose"]) {
+  assert(new RegExp(`<${component}\\b`).test(catalogWishDetailsSource), `Catalog details must use the official ${component} primitive`);
+}
+assert(/swipeDirection=\{isMobile \? "down" : "right"\}/.test(catalogWishDetailsSource), "Catalog details must open from the right on desktop and from the bottom on mobile");
+assert(/<Drawer open showSwipeHandle\b/.test(catalogWishDetailsSource), "Catalog details must keep the existing swipe affordance");
+assert(/finalFocus=\{returnFocusRef\}/.test(catalogWishDetailsSource), "Catalog details must restore focus to the opened card");
+assert(/className="catalog-wish-details app-drawer--compact"/.test(catalogWishDetailsSource) && !/catalog-wish-details wish-details-dialog/.test(catalogWishDetailsSource), "Catalog details must keep a distinct drawer identity while inheriting the default WishDetails geometry");
+assert(!/<DrawerFooter\b|--drawer-content-width|catalog-wish-details__(?:media|space|facts|footer)/.test(catalogWishDetailsSource), "Catalog details must not restore its bespoke wide drawer or fixed footer styling");
+assert(!/\.catalog-wish-details__/.test(legacyStyles), "Catalog details must not restore bespoke CSS that diverges from WishDetails");
+const catalogWishScrollTag = catalogWishDetailsSource.match(/<div\b[^>]*className="[^"]*overflow-y-auto[^"]*"[^>]*>/)?.[0] || "";
+for (const className of ["flex", "min-h-0", "flex-1", "flex-col", "gap-4", "overflow-y-auto", "overscroll-contain", "p-4"]) {
+  assert(catalogWishScrollTag.includes(className), `Catalog detail scroll surface must reuse the WishDetails ${className} layout`);
+}
+const catalogWishMediaTag = catalogWishDetailsSource.match(/<Card\b[^>]*data-slot="wish-media"[^>]*>/)?.[0] || "";
+const catalogWishMediaImageTag = catalogWishDetailsSource.match(/<img\b[^>]*className="[^"]*"[^>]*>/)?.[0] || "";
+assert(catalogWishMediaTag && !/aspect-\[/.test(catalogWishMediaTag), "Catalog detail media must use the existing intrinsic-ratio WishDetails composition");
+assert(/\bw-full\b/.test(catalogWishMediaImageTag) && /\bh-auto\b/.test(catalogWishMediaImageTag), "Catalog detail images must fill the shared rail and preserve their intrinsic ratio");
+for (const slot of ["wish-price-row", "wish-price", "wish-toolbar", "wish-actions"]) {
+  assert(catalogWishDetailsSource.includes(`data-slot="${slot}"`), `Catalog details must reuse the existing ${slot} WishDetails pattern`);
+}
+assert(/<MarketplaceOffers wish=\{item\} owner=\{false\} formatPrice=\{formatMoney\} \/>/.test(catalogWishDetailsSource), "Product catalog details must reuse the existing MarketplaceOffers source card");
+assert(/\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Catalog details must use MarketplaceOffers for the same spaces as WishDetails");
+assert(/item\.url && !\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Other catalog spaces must retain their direct detail-only source action");
+assert(/item\.fundraisingUrl/.test(catalogWishDetailsSource), "Catalog details must retain fundraising links inside the drawer");
+assert(/aria-label="Действия с позицией каталога"/.test(catalogWishDetailsSource), "Catalog detail actions must expose an accessible group name");
+assert(/<Heart\b/.test(catalogWishDetailsSource) && /onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishDetailsSource), "Catalog details must reuse the Wishlist Heart toggle");
+assert(/disabled=\{wishlistDisabled\}/.test(catalogWishDetailsSource) && /aria-pressed=\{Boolean\(item\.addedByMe\)\}/.test(catalogWishDetailsSource), "Catalog details must expose the same disabled and pressed states as catalog cards");
+assert(/Убрать из вишлиста/.test(catalogWishDetailsSource) && /Добавить в вишлист/.test(catalogWishDetailsSource), "Catalog details must label both Wishlist toggle directions");
+assert(!/onLike|likedByMe|likeLabel/.test(catalogWishDetailsSource), "Catalog details must not expose an independent Like action");
+assert(!/useWishActions|\breserve\b|\bfulfilled\b|\bremove\b|\brepeat\b|WishDeleteAlert|MediaNotesPanel|DropdownMenu|\bapi\./.test(catalogWishDetailsSource), "Catalog details must remain read-only apart from the delegated Wishlist toggle");
+const wishCatalogPageSource = app.slice(app.indexOf("function WishCatalogPage"), app.indexOf("function GiftSuggestionPeople"));
+assert(/api\.post\("\/catalog\/items\/add", \{ itemId: item\.id \}\)/.test(wishCatalogPageSource), "Catalog Heart must persist through the Wishlist add endpoint");
+assert(wishCatalogPageSource.includes('api.post("/catalog/items/remove", { itemId: item.id, wishId })'), "Catalog Heart must preserve the catalog entry while removing the current user's Wishlist item");
+assert(/const wishId = String\(item\.addedWishId \|\| ""\)\.trim\(\)/.test(wishCatalogPageSource), "Catalog removal must use addedWishId instead of another participant's catalog item id");
+assert(/selectedCatalogItemId/.test(wishCatalogPageSource) && /<CatalogWishDetailsDrawer\b/.test(wishCatalogPageSource), "Catalog page must open details for the selected catalog item");
+assert(/pendingWishlistIdsRef\.current\.size > 0/.test(wishCatalogPageSource) && /pendingWishlistIds\.has\(item\.id\)/.test(wishCatalogPageSource), "Catalog Heart must serialize mutations while preserving the pending state of the active item");
+assert(/const refreshLoadedCatalog = async \(requestId\)/.test(wishCatalogPageSource) && /await refreshLoadedCatalog\(requestId\)/.test(wishCatalogPageSource), "Catalog removal must refresh grouped catalog state after deleting a Wishlist item");
+assert(/limit=\$\{CATALOG_PAGE_SIZE\}&offset=\$\{offset\}/.test(wishCatalogPageSource), "Catalog refresh must preserve every already-loaded page within the API limit");
+assert(/catalogLoadMoreOperationRef\.current \|\| pendingWishlistIdsRef\.current\.size > 0/.test(wishCatalogPageSource), "Catalog pagination and Wishlist mutations must not overwrite one another");
+assert(/wishlistDisabled=\{pendingWishlistIds\.size > 0 \|\| catalog\.loadingMore\}/.test(wishCatalogPageSource), "Catalog Hearts must visibly disable while another catalog operation is active");
+assert(/disabled=\{catalog\.loadingMore \|\| pendingWishlistIds\.size > 0\}/.test(wishCatalogPageSource), "Catalog pagination must visibly disable while a Wishlist mutation is active");
+assert(!/pendingLike|toggleCatalogLike|catalog\/items\/like|onLike/.test(wishCatalogPageSource), "Catalog UI must not keep an independent Like mutation");
+const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalog-wish-card__actions"), legacyStyles.indexOf(".catalog-wish-card__body"));
+assert(!/\.is-liked\b/.test(catalogCardActionStyles), "Catalog Wishlist action must not keep a separate Like state");
+assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1;/.test(catalogCardActionStyles), "An added catalog item must keep a visible red-heart state without disabling the toggle");
+assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
 const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
 assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");
@@ -603,7 +681,7 @@ for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle
 assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
 assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
 const wishActionsTag = primaryWishDetailsDialog.match(/<div\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
-for (const className of ["flex", "w-full", "max-w-md", "flex-nowrap", "gap-2"]) {
+for (const className of ["flex", "w-full", "max-w-(--layout-compact-width)", "flex-nowrap", "gap-2"]) {
   assert(wishActionsTag.includes(className), `WishDetailsModal action group is missing ${className}`);
 }
 assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с желанием"/.test(wishActionsTag), "WishDetailsModal action group must keep its accessible group name");
@@ -626,7 +704,7 @@ for (const className of ["whitespace-nowrap", "tabular-nums", "text-3xl", "leadi
 }
 assert(!/\btext-lg\b/.test(wishPriceTag), "WishDetailsModal price must not return to the small text-lg size");
 assert(
-  /\.wish-details-dialog\s+\[data-slot="drawer-close"\]\s*,\s*\.profile-settings-dialog\s+\[data-slot="drawer-close"\]\s*\{[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*\}/s.test(theme),
+  /\.wish-details-dialog\s+\[data-slot="drawer-close"\]\s*,\s*\.catalog-wish-details\s+\[data-slot="drawer-close"\]\s*,\s*\.profile-settings-dialog\s+\[data-slot="drawer-close"\]\s*\{[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*\}/s.test(theme),
   "Drawer close actions must stay inside the viewport safe area",
 );
 assert(!/\[data-slot="dialog-close"\]/.test(theme), "Theme must not keep retired Dialog close-action overrides");
@@ -635,7 +713,7 @@ const quickListPickerStart = primaryWishDetailsDialog.indexOf(quickListPickerId)
 const quickListPickerTag = quickListPickerStart < 0 ? "" : primaryWishDetailsDialog.slice(quickListPickerStart, primaryWishDetailsDialog.indexOf(">", quickListPickerStart) + 1);
 assert(quickListPickerTag && !/\bw-64\b/.test(quickListPickerTag), "WishDetails quick-list popup must not override the trigger-width primitive with a fixed width");
 assert(/\bmax-w-\(--available-width\)/.test(quickListPickerTag), "WishDetails quick-list popup must stay inside the Base UI available width");
-assert((primaryWishDetailsDialog.match(/\bmax-w-md\b/g) || []).length === 8, "WishDetailsModal must align all eight content sections to the 448px shadcn rail");
+assert((primaryWishDetailsDialog.match(/max-w-\(--layout-compact-width\)/g) || []).length === 8, "WishDetailsModal must align all eight content sections to the 448px shadcn rail");
 assert(!/max-w-\[35rem\]/.test(primaryWishDetailsDialog), "WishDetailsModal must not restore the oversized 560px content rail");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|auto-rows-max|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(primaryWishDetailsContentTag), "WishDetailsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
 const wishDetailsDrawerTag = primaryWishDetailsDialog.match(/<Drawer\b[^>]*>/)?.[0] || "";
@@ -659,12 +737,14 @@ assert(/checked=\{form\.privacy === "private"\}/.test(listModalSource), "ListMod
 assert(/privacy: checked \? "private" : "public"/.test(listModalSource), "ListModal switch must map directly to private/public privacy");
 const wishModalSource = app.slice(app.indexOf("function WishModal"), app.indexOf("function FriendsPage"));
 const primaryWishEditorDialog = wishModalSource.slice(wishModalSource.indexOf("const fieldId"), wishModalSource.indexOf("{listCreatorOpen &&"));
-assert(/className=\{`wish-editor-screen \$\{editing \? "" : "wish-editor-screen--drawer"\}`\}/.test(primaryWishEditorDialog), "WishModal must keep distinct fullscreen-edit and drawer-create surfaces");
-assert(/role=\{editing \? "dialog" : undefined\}/.test(primaryWishEditorDialog), "WishModal must expose standalone dialog semantics only for fullscreen editing");
+assert(/<FullscreenDialog[\s\S]*?className="wish-editor-screen"/.test(primaryWishEditorDialog), "WishModal editing must compose the shared fullscreen shadcn Dialog");
+assert(/className="wish-editor-screen wish-editor-screen--drawer"/.test(primaryWishEditorDialog), "WishModal creation must retain its drawer content layout");
 assert(!/<Modal\b/.test(primaryWishEditorDialog), "WishModal must not wrap its primary editor in the legacy Modal adapter");
-assert(/const editorSurface = editing \? editorContent : <Drawer\b/.test(primaryWishEditorDialog), "WishModal creation must render in the shared Drawer");
+assert(/<\/FullscreenDialog> : <Drawer\b/.test(primaryWishEditorDialog), "WishModal creation must render in the shared Drawer");
 assert(/swipeDirection=\{isMobile \? "down" : "right"\}/.test(primaryWishEditorDialog), "WishModal creation must use a bottom drawer on mobile and a right drawer on desktop");
-assert(/<DrawerContent\b[\s\S]*?className="wish-editor-drawer rollapp-body"/.test(primaryWishEditorDialog), "WishModal creation drawer must use the Rollapp drawer surface");
+assert(/<DrawerContent\b[\s\S]*?className="wish-editor-drawer rollapp-body app-drawer--form"/.test(primaryWishEditorDialog), "WishModal creation drawer must use the Rollapp drawer surface");
+const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*className="wish-editor-drawer rollapp-body app-drawer--form"[^>]*>/)?.[0] || "";
+assert(!/--drawer-content-width/.test(primaryWishEditorContentTag), "WishModal creation drawer must inherit the shared form drawer width");
 assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use DrawerClose instead of the retired DialogClose");
 assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
 assert(!/showCloseButton=/.test(primaryWishEditorDialog), "WishModal must not re-enable the retired Dialog close API");
@@ -693,6 +773,7 @@ for (const file of sourceFiles) {
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }
   if (file.startsWith(`${uiDir}${path.sep}`)) continue;
+  if (/\.[jt]sx$/.test(file)) checkUiComposition(source, relativeFile);
   for (const match of source.matchAll(/font-size\s*:\s*([0-9]*\.?[0-9]+)(px|rem)/g)) {
     const pixels = match[2] === "rem" ? Number(match[1]) * 16 : Number(match[1]);
     assert(pixels === 0 || pixels >= 13, `${relativeFile} declares a font size below 13px: ${match[0]}`);
@@ -703,4 +784,4 @@ for (const file of sourceFiles) {
   }
 }
 
-console.log(`Strict shadcn audit passed (${requiredUiFiles.length} required UI components).`);
+console.log(`shadcn audit passed (${installedUiFiles.size} UI primitives; ${sourceFiles.filter((file) => /\.[jt]sx$/.test(file) && !file.startsWith(`${uiDir}${path.sep}`)).length} application JSX sources scanned).`);
