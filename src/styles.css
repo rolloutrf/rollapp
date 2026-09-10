@@ -4357,6 +4357,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   position: absolute;
   left: calc(100% + 14px);
   top: 50%;
+  z-index: 3;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
