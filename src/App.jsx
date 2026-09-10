@@ -3530,6 +3530,16 @@ function PersistentProfileHero({ user }) {
               <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
             </ShadcnButton>
           ) : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
+          {editable && !access.active && (
+            <Link
+              to="/app/business/access"
+              className="sphere-share-avatars__business size-12 rounded-full"
+              aria-label="Открыть бизнес-аккаунты"
+              title="Открыть бизнес-аккаунты"
+            >
+              <Plus aria-hidden="true" />
+            </Link>
+          )}
           {access.active && access.isOwner && (
             <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
               {access.people.slice(0, 3).map((person) => <Avatar key={person.id} user={person} size="sm" className="sphere-share-avatars__person !size-12" title={person.name} />)}
