@@ -456,18 +456,11 @@
     height: 1.25rem;
   }
 
-  /* The menu row and its decorative checkbox are separate Base UI controls.
-     Lock the checked palette so row hover/focus cannot erase the checkmark. */
-  .card-menu__list-row [data-slot="checkbox"][data-checked] {
-    border-color: var(--primary);
-    color: var(--primary-foreground);
-    background: var(--primary);
-  }
-
-  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked],
-  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"],
-  .card-menu__list-row:is(:hover, :focus, [data-highlighted]) [data-slot="checkbox"][data-checked] [data-slot="checkbox-indicator"] svg {
-    color: var(--primary-foreground) !important;
+  /* Menu focus utilities recolor descendants, including decorative Checkboxes.
+     Keep the mark paired with the primitive's primary fill independently of
+     inherited text color, in menus, drawers, and standalone fields alike. */
+  [data-slot="checkbox"][data-checked] > [data-slot="checkbox-indicator"] > svg {
+    stroke: var(--primary-foreground);
   }
 
   [data-slot="radio-group-item"],
