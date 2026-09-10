@@ -6184,6 +6184,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             <div
               className={`wish-editor__image aspect-[4/3] h-auto min-h-0 rounded-lg ${formPreviewImageUrl ? "has-image" : "is-empty"} ${imageDropActive ? "is-dragging" : ""}`}
               aria-busy={imageUploading || undefined}
+              role="button"
+              tabIndex={imageUploading ? -1 : 0}
+              aria-label={formPreviewImageUrl ? "Сменить фотографию желания" : "Добавить фотографию желания"}
+              onClick={() => { if (!imageUploading) imageFileRef.current?.click(); }}
+              onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !imageUploading) { event.preventDefault(); imageFileRef.current?.click(); } }}
               onDragEnter={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragOver={(event) => { event.preventDefault(); if (!imageUploading) setImageDropActive(true); }}
               onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setImageDropActive(false); }}
@@ -6201,19 +6206,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                     <EmptyTitle>{imageUploading ? "Загружаем изображение…" : "Добавить изображение"}</EmptyTitle>
                     <EmptyDescription id={fieldId("image-help")}>JPG, PNG или WEBP · до 8 МБ</EmptyDescription>
                   </EmptyHeader>
-                  <EmptyContent>
-                    <ShadcnButton
-                      type="button"
-                      variant="outline"
-                      disabled={imageUploading}
-                      aria-busy={imageUploading || undefined}
-                      aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
-                      onClick={() => imageFileRef.current?.click()}
-                    >
-                      {imageUploading ? <Spinner data-icon="inline-start" /> : <Upload data-icon="inline-start" aria-hidden="true" />}
-                      {imageUploading ? "Загрузка…" : "Выбрать файл"}
-                    </ShadcnButton>
-                  </EmptyContent>
                 </Empty>}
               <Input
                 ref={imageFileRef}
@@ -6225,7 +6217,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 aria-describedby={`${fieldId("image-help")}${imageError ? ` ${fieldId("image-error")}` : ""}`}
                 onChange={(event) => uploadImage(event.target.files?.[0])}
               />
-              {formPreviewImageUrl && <ShadcnButton type="button" variant="secondary" className="wish-editor__image-change" disabled={imageUploading} onClick={() => imageFileRef.current?.click()}><Upload aria-hidden="true" /><span className="max-[820px]:sr-only">Сменить фото</span></ShadcnButton>}
             </div>
             {imageError && <FieldError id={fieldId("image-error")}>{imageError}</FieldError>}
             {browserRetailer && <p className="text-sm leading-relaxed text-muted-foreground">Фото из «{browserRetailer.label}» загружается автоматически через помощник обычного браузера.</p>}
