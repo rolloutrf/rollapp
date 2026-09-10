@@ -146,6 +146,8 @@ const DEVELOPMENT_PLAN_SOURCE = [
   planItemsMarkdown(DEVELOPMENT_AREAS),
 ].join("\n\n");
 
+const DEVELOPMENT_GROUP_LABELS = ["Сильная сторона", "Зона развития"];
+
 function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
   const isMobile = useIsMobile();
   const fieldId = useId();
@@ -405,7 +407,7 @@ export function DevelopmentPlan() {
                               aria-label={`Категория блока «${item.title}»`}
                             >
                               {movingItem === `${groupIndex}-${itemIndex}` && <Spinner aria-hidden="true" />}
-                              <SelectValue>{(value) => plan.groups[Number(value)]?.title || "Выберите категорию"}</SelectValue>
+                              <SelectValue>{(value) => DEVELOPMENT_GROUP_LABELS[Number(value)] || plan.groups[Number(value)]?.title || "Выберите категорию"}</SelectValue>
                             </SelectTrigger>
                             <SelectContent
                               className="development-plan-editor__category-content"
@@ -418,7 +420,7 @@ export function DevelopmentPlan() {
                                   value={String(categoryIndex)}
                                   key={`${categoryIndex}-${category.title}`}
                                 >
-                                  {category.title}
+                                  {DEVELOPMENT_GROUP_LABELS[categoryIndex] || category.title}
                                 </SelectItem>
                               ))}
                             </SelectContent>
