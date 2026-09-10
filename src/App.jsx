@@ -3548,8 +3548,8 @@ function PersistentProfileHero({ user }) {
             <Link
               to="/app/business/access"
               className="sphere-share-avatars__business size-12 rounded-full"
-              aria-label="Открыть бизнес-аккаунты"
-              title="Открыть бизнес-аккаунты"
+              aria-label="Открыть доступ бизнес-аккаунтам"
+              title="Открыть доступ бизнес-аккаунтам"
             >
               <Plus aria-hidden="true" />
             </Link>
