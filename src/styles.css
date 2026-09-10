@@ -7043,7 +7043,11 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .contact-detail__edit-actions [data-slot="button"] { min-height: 44px; border-radius: 999px; padding-inline: 18px; }
 .contact-detail__edit-actions svg { width: 17px; height: 17px; }
-.contact-detail__edit-actions .contact-detail__delete { color: var(--destructive); }
+.contact-detail__edit-actions .contact-detail__delete {
+  width: 100%;
+  justify-content: center;
+  color: var(--destructive);
+}
 .contact-detail__edit-actions .contact-detail__delete:hover { color: var(--destructive); }
 
 @media (max-width: 1080px) {
