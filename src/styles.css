@@ -6921,7 +6921,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   flex-wrap: wrap;
   gap: 8px;
 }
-.contact-detail__avatar-controls [data-slot="button"] { min-height: 40px; border-radius: 999px; }
+.contact-detail__avatar-controls [data-slot="button"] { min-height: 48px; border-radius: 999px; }
 .contact-detail__avatar-controls svg { width: 16px; height: 16px; }
 .contact-detail__avatar-message {
   margin: 8px 0 0;

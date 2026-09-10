@@ -2380,7 +2380,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     }
   };
   const removeAvatar = async () => {
-    if (busy || !form.avatarUrl) return;
+    if (busy || !previewAvatarUrl) return;
     const previousId = uploadedImageIdFromUrl(form.avatarUrl);
     setForm((current) => ({ ...current, avatarUrl: "" }));
     setAvatarCleared(true);
@@ -2493,7 +2493,9 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         <ShadcnButton type="button" variant="outline" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
           {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
         </ShadcnButton>
-        {form.avatarUrl && <ShadcnButton type="button" variant="ghost" disabled={busy} onClick={removeAvatar}><Trash2 />Удалить</ShadcnButton>}
+        {previewAvatarUrl && <ShadcnButton type="button" variant="outline" disabled={busy} onClick={removeAvatar}>
+          <Trash2 data-icon="inline-start" aria-hidden="true" />Удалить
+        </ShadcnButton>}
       </div>
       {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
       <div className="contact-detail__edit-fields">
