@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
   CircleUserRound, Clapperboard, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
-  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus,
+  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
@@ -53,6 +53,7 @@ import { Workouts } from "@/components/workouts";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
@@ -3504,12 +3505,26 @@ function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
+  const profileUrl = `${window.location.origin}${publicProfilePath(profile.username)}`;
+  const qrUrl = `https://quickchart.io/qr?size=320&margin=2&text=${encodeURIComponent(profileUrl)}`;
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
         <div className="sphere-share-avatars">
+          <ShadcnButton
+            type="button"
+            variant="outline"
+            size="icon"
+            className="persistent-profile-hero__qr size-12 rounded-full"
+            aria-label={`Показать QR-код профиля ${profile.name}`}
+            title="Показать QR-код профиля"
+            onClick={() => setQrOpen(true)}
+          >
+            <QrCode aria-hidden="true" />
+          </ShadcnButton>
           {editable ? (
             <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
               <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
@@ -3538,6 +3553,18 @@ function PersistentProfileHero({ user }) {
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {access.active && access.isOwner && <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} />}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="w-[min(24rem,calc(100%-2rem))] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Профиль {profile.name}</DialogTitle>
+            <DialogDescription>Отсканируйте код, чтобы открыть профиль.</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center rounded-xl bg-white p-4">
+            <img className="size-64 max-w-full" src={qrUrl} alt={`QR-код профиля ${profile.name}`} />
+          </div>
+          <DialogClose render={<ShadcnButton type="button" variant="outline" className="min-h-12 w-full" />}>Закрыть</DialogClose>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -6300,7 +6327,6 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 {isPlaces && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><MapPin size={14} aria-hidden="true" /> Ссылка на место из Яндекс Карт — подставим название и адрес</p>}
                 {isMedia && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Clapperboard size={14} aria-hidden="true" /> {isKinopoisk ? "Ссылка на фильм или сериал с Кинопоиска — подставим постер" : isKinopoiskSite ? "Нужна ссылка на карточку фильма или сериала, а не на поиск Кинопоиска" : isVideo ? `Ссылка на видео в ${videoProviderLabel} — подставим название и превью` : "Ссылка на книгу с Bookmate, Альпины или МИФа — подставим название и обложку"}</p>}
                 {isFood && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><UtensilsCrossed size={14} aria-hidden="true" /> {browserRetailer ? `${browserRetailer.label} — помощник браузера автоматически подставит название, фото и доступную цену` : "Подставим название, фото и цену для выбранного магазином региона"}</p>}
-                {isTransport && <p className="wish-editor__link-hint col-span-2 row-start-3 m-0 flex items-center gap-1.5"><Car size={14} aria-hidden="true" /> Подставим данные объявления и сверим марку с моделью по базе «Авто»</p>}
               </Field>
 
               {metadataNotice}
