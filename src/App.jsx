@@ -3818,7 +3818,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
     <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
       {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
-      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
+      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
           {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
@@ -3976,7 +3976,7 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
     <span className="wish-group-tile__preview">
       {wishes.slice(0, 4).map((wish) => {
         const previewImageUrl = wishPreviewImageUrl(wish);
-        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <Gift />}</span>;
+        return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <Gift />}</span>;
       })}
     </span>
     </ShadcnButton>
@@ -4186,7 +4186,7 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
-              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото позиции каталога «${item.title}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото позиции каталога «${item.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift aria-hidden="true" /></span>}
           </Card>
 
@@ -5610,7 +5610,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
-              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
             {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
           </Card>
@@ -6187,7 +6187,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
               }}
             >
               {formPreviewImageUrl
-                ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="no-referrer" onError={(event) => applyRetailerPreviewFallback(event, form.url)} />
+                ? <img src={formPreviewImageUrl} alt={`Фото желания «${form.title || wish?.title || "Новое желание"}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, form.url)} />
                 : <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 transition-colors max-[380px]:gap-2 max-[380px]:p-3">
                   <EmptyHeader className="gap-1">
                     <EmptyMedia className="mb-1" variant="icon"><Image aria-hidden="true" /></EmptyMedia>
