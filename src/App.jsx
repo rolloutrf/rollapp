@@ -2717,7 +2717,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           {previewAvatarUrl && <ShadcnButton
             type="button"
             variant="outline"
-            className="contact-detail__avatar-delete absolute -right-6 bottom-1 z-10 min-h-12 rounded-full bg-popover px-4 dark:bg-popover"
+            className="contact-detail__avatar-delete min-h-12 rounded-full bg-popover px-4 dark:bg-popover"
             disabled={busy}
             onClick={removeAvatar}
           >
