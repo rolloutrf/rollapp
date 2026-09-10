@@ -5,6 +5,7 @@ import { isSphereSection, sphereSectionPath } from "./sphere-sharing.js";
 test("validates share scopes at section granularity", () => {
   assert.equal(isSphereSection("education", "courses"), true);
   assert.equal(isSphereSection("education", "medications"), false);
+  assert.equal(isSphereSection("wishlist", "wishlist"), true);
   assert.equal(isSphereSection("unknown", "courses"), false);
 });
 
@@ -16,5 +17,9 @@ test("builds an authenticated shared-section path", () => {
   assert.equal(
     sphereSectionPath({ ownerUsername: "mikhail", sphere: "contacts", section: "contacts" }),
     "/app/spheres/contacts?owner=mikhail",
+  );
+  assert.equal(
+    sphereSectionPath({ ownerUsername: "mikhail", sphere: "wishlist", section: "wishlist" }),
+    "/u/mikhail",
   );
 });

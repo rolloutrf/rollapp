@@ -98,6 +98,34 @@ test("business accounts request section access and the owner keeps consent contr
   });
   assert.equal(removeDirectGrant.status, 200);
 
+  const privateListResponse = await request("/lists", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { title: "Закрытый список для бизнеса", description: "", privacy: "private", color: "ink", space: "products", wishIds: [] },
+  });
+  assert.equal(privateListResponse.status, 201);
+  const privateList = (await privateListResponse.json()).list;
+  const profileBeforeWishlistGrant = await request("/profile/alisa", { cookie: businessCookie });
+  assert.equal((await profileBeforeWishlistGrant.json()).lists.some((list) => list.id === privateList.id), false);
+  const wishlistGrant = await request("/sphere-shares", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { viewerId: registrationPayload.user.id, sphere: "wishlist", section: "wishlist", granted: true },
+  });
+  assert.equal(wishlistGrant.status, 200);
+  const profileWithWishlistGrant = await request("/profile/alisa", { cookie: businessCookie });
+  const grantedProfile = await profileWithWishlistGrant.json();
+  assert.equal(grantedProfile.hasWishlistAccess, true);
+  assert.equal(grantedProfile.lists.some((list) => list.id === privateList.id), true);
+  const removeWishlistGrant = await request("/sphere-shares", {
+    method: "POST",
+    cookie: ownerCookie,
+    body: { viewerId: registrationPayload.user.id, sphere: "wishlist", section: "wishlist", granted: false },
+  });
+  assert.equal(removeWishlistGrant.status, 200);
+  const profileAfterWishlistRevoke = await request("/profile/alisa", { cookie: businessCookie });
+  assert.equal((await profileAfterWishlistRevoke.json()).lists.some((list) => list.id === privateList.id), false);
+
   const personalRegistration = await request("/auth/register", {
     method: "POST",
     body: { name: "Личный Тест", email: "personal-access@rollapp.test", password: "personal1234" },

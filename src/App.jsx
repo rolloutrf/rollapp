@@ -3385,10 +3385,13 @@ function BusinessAccessPage() {
   );
 }
 
-function SphereSharePicker({ open, onOpenChange }) {
+function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", onAccessChanged = null }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const access = useSphereSharing();
+  const sphere = scope?.sphere || access.sphere;
+  const section = scope?.section || access.section;
+  const isOwner = scope ? true : access.isOwner;
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
@@ -3402,9 +3405,9 @@ function SphereSharePicker({ open, onOpenChange }) {
   }, [search]);
 
   useEffect(() => {
-    if (!open || !access.isOwner || !access.section) return undefined;
+    if (!open || !isOwner || !section) return undefined;
     let current = true;
-    const query = new URLSearchParams({ sphere: access.sphere, section: access.section });
+    const query = new URLSearchParams({ sphere, section });
     if (debouncedSearch) query.set("search", debouncedSearch);
     setPeople([]);
     setLoading(true);
@@ -3417,7 +3420,7 @@ function SphereSharePicker({ open, onOpenChange }) {
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [access.isOwner, access.section, access.sphere, debouncedSearch, open]);
+  }, [debouncedSearch, isOwner, open, section, sphere]);
 
   const toggle = async (person) => {
     if (savingId) return;
@@ -3427,13 +3430,14 @@ function SphereSharePicker({ open, onOpenChange }) {
     try {
       await api.post("/sphere-shares", {
         viewerId: person.id,
-        sphere: access.sphere,
-        section: access.section,
+        sphere,
+        section,
         granted,
       });
       setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted } : item));
-      await access.reload();
-      const selectedLabel = SPHERE_SECTION_LABELS[access.section] || access.section;
+      if (scope) await onAccessChanged?.();
+      else await access.reload();
+      const selectedLabel = scopeLabel || SPHERE_SECTION_LABELS[section] || section;
       toast(granted
         ? `Доступ к «${selectedLabel}» для ${person.name} открыт`
         : `Доступ к «${selectedLabel}» для ${person.name} закрыт`, "success");
@@ -3444,7 +3448,10 @@ function SphereSharePicker({ open, onOpenChange }) {
     }
   };
 
-  const label = SPHERE_SECTION_LABELS[access.section] || access.section;
+  const label = scopeLabel || SPHERE_SECTION_LABELS[section] || section;
+  const accessDescription = sphere === "wishlist"
+    ? "Выберите бизнес-аккаунты, которым хотите открыть весь вишлист для чтения."
+    : "Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.";
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(nextOpen) => !savingId && onOpenChange(nextOpen)}>
       <DrawerContent
@@ -3458,7 +3465,7 @@ function SphereSharePicker({ open, onOpenChange }) {
         </DrawerClose>
         <DrawerHeader className="pr-16 text-left!">
           <DrawerTitle>Доступ к «{label}»</DrawerTitle>
-          <DrawerDescription>Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.</DrawerDescription>
+          <DrawerDescription>{accessDescription}</DrawerDescription>
         </DrawerHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           <InputGroup className="sphere-share-picker__search">
@@ -3467,7 +3474,7 @@ function SphereSharePicker({ open, onOpenChange }) {
           </InputGroup>
           {error && <Alert variant="destructive"><AlertTitle>Не удалось изменить доступ</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           {loading ? <div className="sphere-share-picker__status"><Spinner /><span>Загружаем людей…</span></div> : people.length ? (
-            <ul className="sphere-share-picker__list" aria-label={`Бизнес-аккаунты с доступом к пространству «${label}»`}>
+            <ul className="sphere-share-picker__list" aria-label={`Бизнес-аккаунты с доступом к «${label}»`}>
               {people.map((person) => (
                 <li key={person.id}>
                   <ShadcnButton
@@ -3504,11 +3511,13 @@ function SphereSharePicker({ open, onOpenChange }) {
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
   const toast = useToast();
+  const location = useLocation();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
+  const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && canAccessPrivateSpheres(user);
   const profileUrl = `${window.location.origin}${publicProfilePath(profile.username)}`;
   const qrUrl = `https://quickchart.io/qr?size=320&margin=2&text=${encodeURIComponent(profileUrl)}`;
   const shareProfile = async () => {
@@ -3544,15 +3553,18 @@ function PersistentProfileHero({ user }) {
               <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
             </ShadcnButton>
           ) : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
-          {editable && !access.active && (
-            <Link
-              to="/app/business/access"
+          {wishlistAccessControl && (
+            <ShadcnButton
+              type="button"
+              variant="outline"
+              size="icon"
               className="sphere-share-avatars__business size-12 rounded-full"
               aria-label="Открыть доступ бизнес-аккаунтам"
               title="Открыть доступ бизнес-аккаунтам"
+              onClick={() => setSharePickerOpen(true)}
             >
               <Plus aria-hidden="true" />
-            </Link>
+            </ShadcnButton>
           )}
           {access.active && access.isOwner && (
             <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
@@ -3576,7 +3588,12 @@ function PersistentProfileHero({ user }) {
         </span>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
-      {access.active && access.isOwner && <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} />}
+      {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
+        open={sharePickerOpen}
+        onOpenChange={setSharePickerOpen}
+        scope={wishlistAccessControl ? { sphere: "wishlist", section: "wishlist" } : null}
+        scopeLabel={wishlistAccessControl ? "Вишлист" : ""}
+      />}
       <Dialog open={qrOpen} onOpenChange={setQrOpen}>
         <DialogContent className="w-[min(24rem,calc(100%-2rem))] sm:max-w-sm">
           <DialogHeader>

@@ -4077,14 +4077,23 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const owner = found.rows[0];
   const isOwner = req.user?.id === owner.id;
+  const wishlistGrant = !isOwner && req.user?.account_type === "business"
+    ? await query(
+      `SELECT 1 FROM sphere_section_shares
+       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist' AND section='wishlist'`,
+      [owner.id, req.user.id],
+    )
+    : { rowCount: 0 };
+  const hasWishlistAccess = Boolean(wishlistGrant.rowCount);
+  const canViewFullWishlist = isOwner || hasWishlistAccess;
   const follows = req.user ? await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, owner.id]) : { rowCount: 0 };
   const follower = Boolean(follows.rowCount);
   const allLists = await getLists(owner.id);
-  const lists = allLists.filter((list) => isOwner || list.privacy === "public" || (list.privacy === "followers" && follower));
+  const lists = allLists.filter((list) => canViewFullWishlist || list.privacy === "public" || (list.privacy === "followers" && follower));
   const allowedIds = new Set(lists.map((list) => list.id));
-  const wishes = (await getWishes(owner.id, req.user?.id, isOwner))
+  const wishes = (await getWishes(owner.id, req.user?.id, canViewFullWishlist))
     .filter((wish) => isOwner || wish.status === "active")
-    .filter((wish) => wish.listIds.length === 0 || wish.listIds.some((id) => allowedIds.has(id)))
+    .filter((wish) => canViewFullWishlist || wish.listIds.length === 0 || wish.listIds.some((id) => allowedIds.has(id)))
     .map((wish) => isOwner ? wish : { ...wish, listIds: wish.listIds.filter((id) => allowedIds.has(id)) });
   const stats = await Promise.all([
     query("SELECT COUNT(*) AS count FROM follows WHERE following_id=$1", [owner.id]),
@@ -4096,7 +4105,7 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   }));
   res.json({
     profile: { ...cleanUser(owner), email: undefined }, lists: visibleLists, wishes,
-    isOwner, isFollowing: follower,
+    isOwner, isFollowing: follower, hasWishlistAccess,
     followersCount: Number(stats[0].rows[0].count), followingCount: Number(stats[1].rows[0].count),
   });
 }));

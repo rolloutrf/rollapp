@@ -1,4 +1,5 @@
 export const SPHERE_SECTIONS = {
+  wishlist: ["wishlist"],
   identity: ["four-questions", "values", "gallup", "hogan", "mission", "life-strategy", "theses"],
   career: ["about", "domain", "cv", "performance", "development-plan"],
   education: ["courses", "conferences", "coaching"],
@@ -7,6 +8,7 @@ export const SPHERE_SECTIONS = {
 };
 
 export const SPHERE_SECTION_LABELS = {
+  wishlist: "Вишлист",
   "four-questions": "4 вопроса",
   values: "Ценности",
   gallup: "Gallup",
@@ -33,12 +35,14 @@ export function isSphereSection(sphere, section) {
 }
 
 export function sphereSectionPath({ ownerUsername = "", sphere, section }) {
-  const pathname = sphere === "contacts"
+  const pathname = sphere === "wishlist"
+    ? ownerUsername ? `/u/${encodeURIComponent(ownerUsername)}` : "/app/wishes"
+    : sphere === "contacts"
     ? "/app/spheres/contacts"
     : `/app/spheres/${encodeURIComponent(sphere)}`;
   const search = new URLSearchParams();
-  if (sphere !== "contacts") search.set("tab", section);
-  if (ownerUsername) search.set("owner", ownerUsername);
+  if (!["contacts", "wishlist"].includes(sphere)) search.set("tab", section);
+  if (ownerUsername && sphere !== "wishlist") search.set("owner", ownerUsername);
   const query = search.toString();
   return query ? `${pathname}?${query}` : pathname;
 }
