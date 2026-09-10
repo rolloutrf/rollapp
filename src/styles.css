@@ -4367,6 +4367,13 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .sphere-share-avatars__business > svg { width: 20px; height: 20px; }
 .app-layout--dark .sphere-share-avatars__business:hover { background: var(--card); }
+.app-layout--dark .persistent-profile-hero__qr-code {
+  background: var(--background);
+  border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
+}
+.app-layout--dark .persistent-profile-hero__qr-code img {
+  filter: invert(1);
+}
 .app-layout--dark .persistent-profile-hero__avatar-button {
   padding: 0;
   border: 0;
