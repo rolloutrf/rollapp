@@ -4361,7 +4361,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  border: 2px solid var(--background);
+  border: 2px solid color-mix(in oklch, var(--foreground) 16%, var(--background));
   color: var(--foreground);
   background: color-mix(in oklch, var(--card) 90%, transparent);
   box-shadow: 0 8px 24px color-mix(in oklch, var(--background) 55%, transparent);
