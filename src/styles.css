@@ -6915,6 +6915,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   transition: transform 160ms ease, background-color 160ms ease;
 }
 .contact-detail__avatar-button:hover .contact-detail__avatar-button-icon { transform: scale(1.08); background: color-mix(in oklch, var(--contact-accent) 62%, white); }
+.contact-detail__avatar-delete { box-shadow: 0 2px 8px color-mix(in oklch, black 28%, transparent); }
+.contact-detail__avatar-delete:hover { background: color-mix(in oklch, var(--destructive) 10%, var(--popover)); color: var(--destructive); }
 .contact-detail__avatar-controls {
   margin-top: 14px;
   display: flex;

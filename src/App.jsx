@@ -2713,6 +2713,15 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           >
             {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
           </ShadcnButton>}
+          {previewAvatarUrl && <ShadcnButton
+            type="button"
+            variant="outline"
+            className="contact-detail__avatar-delete absolute -right-6 bottom-1 z-10 min-h-12 rounded-full bg-popover px-4 dark:bg-popover"
+            disabled={busy}
+            onClick={removeAvatar}
+          >
+            <Trash2 data-icon="inline-start" aria-hidden="true" />Удалить
+          </ShadcnButton>}
           <Input
             ref={avatarFileRef}
             className="sr-only !size-px"
@@ -2731,9 +2740,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         <ShadcnButton type="button" variant="outline" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
           {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
         </ShadcnButton>
-        {previewAvatarUrl && <ShadcnButton type="button" variant="outline" disabled={busy} onClick={removeAvatar}>
-          <Trash2 data-icon="inline-start" aria-hidden="true" />Удалить
-        </ShadcnButton>}
       </div>
       {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
       <div className="contact-detail__edit-fields">
