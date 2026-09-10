@@ -6238,7 +6238,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 <Input id={fieldId("title")} autoFocus={editing} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
               </Field>
 
-              {isTransport && <div className="grid grid-cols-2 gap-4 max-[480px]:grid-cols-1">
+              {isTransport && <div className="grid gap-4">
                 <Field className="wish-editor__field">
                   <FieldLabel htmlFor={fieldId("vehicleMake")}>Марка</FieldLabel>
                   {vehicleCatalog.status === "unavailable" ? <Input
@@ -6291,7 +6291,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                     </SelectContent>
                   </Select>}
                 </Field>
-                {(vehicleCatalog.status === "loading" || vehicleCatalog.status === "unavailable" || ["loading", "unavailable"].includes(vehicleCatalog.modelsStatus)) && <p className="col-span-2 m-0 text-sm leading-relaxed text-muted-foreground max-[480px]:col-span-1" role="status" aria-live="polite">
+                {(vehicleCatalog.status === "loading" || vehicleCatalog.status === "unavailable" || ["loading", "unavailable"].includes(vehicleCatalog.modelsStatus)) && <p className="m-0 text-sm leading-relaxed text-muted-foreground" role="status" aria-live="polite">
                   {vehicleCatalog.status === "loading" && "Загружаем марки из базы «Авто»…"}
                   {vehicleCatalog.status === "unavailable" && "Справочник «Авто» сейчас недоступен — марку и модель можно ввести вручную."}
                   {vehicleCatalog.status === "ready" && vehicleCatalog.modelsStatus === "loading" && "Загружаем модели выбранной марки…"}
