@@ -5111,7 +5111,6 @@ function WishesPage({ onAdd, version }) {
   };
   const beginPointerDrag = (event, wishId, group = null) => {
     const pointerType = event.pointerType || "mouse";
-    if (pointerType === "mouse") return;
     if (!event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) return;
     if (pointerDragRef.current) return;
