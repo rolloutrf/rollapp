@@ -6383,7 +6383,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           </div>
 
           <footer className="wish-editor-screen__footer border-t sm:flex-row">
-            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto rounded-lg px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
+            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" shape="pill" className="wish-editor__delete static mr-auto h-12 w-auto px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
             <ShadcnButton className="wish-editor__submit h-12 px-4" shape="pill" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
