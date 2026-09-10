@@ -3569,7 +3569,7 @@ function PersistentProfileHero({ user }) {
             <DialogTitle>Профиль {profile.name}</DialogTitle>
             <DialogDescription>Отсканируйте код, чтобы открыть профиль.</DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center rounded-xl bg-white p-4">
+          <div className="persistent-profile-hero__qr-code flex justify-center rounded-xl p-4">
             <img className="size-64 max-w-full" src={qrUrl} alt={`QR-код профиля ${profile.name}`} />
           </div>
           <DialogClose render={<ShadcnButton type="button" variant="outline" className="min-h-12 w-full" />}>Закрыть</DialogClose>
