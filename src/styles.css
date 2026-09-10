@@ -4353,6 +4353,20 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   transform: translateY(-50%);
   background: color-mix(in oklch, var(--card) 90%, transparent);
 }
+.app-layout--dark .sphere-share-avatars__business {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--background);
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--card) 90%, transparent);
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--background) 55%, transparent);
+}
+.app-layout--dark .sphere-share-avatars__business > svg { width: 20px; height: 20px; }
+.app-layout--dark .sphere-share-avatars__business:hover { background: var(--card); }
 .app-layout--dark .persistent-profile-hero__avatar-button {
   padding: 0;
   border: 0;
@@ -4735,6 +4749,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     height: 112px;
   }
   .app-layout--dark .sphere-share-avatars__people { left: calc(100% + 8px); }
+  .app-layout--dark .sphere-share-avatars__business { left: calc(100% + 8px); }
   .app-layout--dark .sphere-share-avatars__person { display: none; }
   .app-layout--dark .sphere-share-avatars__add { margin-left: 0; }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 36px; }
@@ -4753,6 +4768,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     height: 96px;
   }
   .app-layout--dark .sphere-share-avatars__add { width: 44px !important; height: 44px !important; }
+  .app-layout--dark .sphere-share-avatars__business { width: 44px; height: 44px; }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 30px; line-height: 1.05; }
   .app-layout--dark .wishes-page__profile-controls { padding-bottom: 26px; gap: 8px; }
   .app-layout--dark .wishes-page__friend-links > a { font-size: 14px; line-height: 19px; }
@@ -9332,6 +9348,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   gap: 12px;
 }
+.cv-builder__section-header > button {
+  min-width: 180px;
+  justify-content: center;
+}
 .cv-builder__section-header h2 {
   margin: 0;
   color: var(--foreground);
@@ -9392,7 +9412,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   white-space: pre-line;
   text-wrap: pretty;
 }
-.cv-builder__empty { color: var(--muted-foreground); }
+.cv-builder__empty {
+  margin-top: 18px;
+  color: var(--muted-foreground);
+}
 .cv-builder__education {
   min-width: 0;
   padding: 18px 0;
