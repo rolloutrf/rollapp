@@ -3503,6 +3503,7 @@ function SphereSharePicker({ open, onOpenChange }) {
 
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
+  const toast = useToast();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -3510,6 +3511,19 @@ function PersistentProfileHero({ user }) {
   const editable = !access.active || access.isOwner;
   const profileUrl = `${window.location.origin}${publicProfilePath(profile.username)}`;
   const qrUrl = `https://quickchart.io/qr?size=320&margin=2&text=${encodeURIComponent(profileUrl)}`;
+  const shareProfile = async () => {
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: `Профиль ${profile.name}`, url: profileUrl });
+      } else {
+        await navigator.clipboard.writeText(profileUrl);
+        toast("Ссылка на профиль скопирована");
+      }
+      setQrOpen(false);
+    } catch (error) {
+      if (error?.name !== "AbortError") toast("Не удалось поделиться ссылкой", "error");
+    }
+  };
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
@@ -3572,7 +3586,9 @@ function PersistentProfileHero({ user }) {
           <div className="persistent-profile-hero__qr-code flex justify-center rounded-xl p-4">
             <img className="size-64 max-w-full" src={qrUrl} alt={`QR-код профиля ${profile.name}`} />
           </div>
-          <DialogClose render={<ShadcnButton type="button" variant="outline" className="min-h-12 w-full" />}>Закрыть</DialogClose>
+          <ShadcnButton type="button" variant="outline" className="min-h-12 w-full" onClick={shareProfile}>
+            <Share2 aria-hidden="true" />Поделиться
+          </ShadcnButton>
         </DialogContent>
       </Dialog>
     </section>
