@@ -3544,7 +3544,9 @@ html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
   border-radius: 18px;
   color: color-mix(in oklch, var(--background) 52%, transparent);
   background: var(--foreground);
+  cursor: pointer;
 }
+.wish-editor__image:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .wish-editor--create .wish-editor__media { height: 100%; }
 .wish-editor--create .wish-editor__image {
   height: 100%;
