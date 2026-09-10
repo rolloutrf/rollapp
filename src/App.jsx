@@ -5680,7 +5680,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             aria-label="Действия с желанием"
           >
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : <Gift />}{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</ShadcnButton>}
-            {!owner && <ShadcnButton className="size-12 shrink-0" variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
+            {!owner && <ShadcnButton className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
             {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant="outline" disabled={busy} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</ShadcnButton>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
               setMenuOpen(open);
