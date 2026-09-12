@@ -92,7 +92,7 @@ async function commandSetup() {
   await callApi('setWebhook', {
     url: WEBHOOK_URL,
     secret_token: secret,
-    allowed_updates: ['message'],
+    allowed_updates: ['message', 'pre_checkout_query'],
   });
   await callApi('setChatMenuButton', {
     menu_button: {
@@ -102,7 +102,11 @@ async function commandSetup() {
     },
   });
   await callApi('setMyCommands', {
-    commands: [{ command: 'start', description: 'Открыть Rollapp' }],
+    commands: [
+      { command: 'start', description: 'Открыть Rollapp' },
+      { command: 'paysupport', description: 'Помощь с оплатой и возвратами' },
+      { command: 'terms', description: 'Условия покупки роллов' },
+    ],
   });
   console.log('Setup finished. Verify with: node scripts/telegram-setup.mjs status');
 }

@@ -2,13 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, Clapperboard, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
+  CircleUserRound, Clapperboard, Coins, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus, QrCode,
-  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Trash2, Upload, UserPlus,
+  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { RollsWallet } from "@/components/rolls-wallet";
+import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
+import { OrdersPage } from "@/components/orders-page";
+import { MakiIcon } from "@/components/maki-icon";
 import { buildRepeatWishPayload } from "./lib/wish-repeat.js";
 import { createLatestSaveQueue } from "./lib/latest-save-queue.js";
 import { refreshSession } from "./lib/session-refresh.js";
@@ -45,6 +49,7 @@ import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
+import { OhMyWishesBrandSelect, ohMyWishesBrandPath } from "@/components/ohmywishes-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
 import { PerformanceReview } from "@/components/performance-review";
 import { Theses } from "@/components/theses";
@@ -83,7 +88,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { APP_SHELL_ROUTE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
@@ -103,6 +108,7 @@ import {
   wishPreviewImageUrl,
 } from "../shared/kinopoisk.js";
 import { retailerPreview, retailerPreviewImageUrl } from "../shared/retailer-previews.js";
+import { formatRolls } from "../shared/rolls.js";
 import { isVideoUrl, isVkVideoUrl, isYouTubeUrl } from "../shared/video-links.js";
 import { requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
 import { initializeTelegramWebApp } from "./telegram.js";
@@ -112,6 +118,11 @@ const ToastContext = createContext(null);
 const ProfileEditorContext = createContext(null);
 const previewBackfillRequests = new Map();
 const APP_HOME = "/app/wishes";
+
+function withWishReward(message, reward) {
+  if (!reward?.granted) return message;
+  return `${message} · +${formatRolls(reward.amount)} (${reward.ordinal} из ${reward.limit})`;
+}
 
 function requestPreviewBackfill(userId) {
   if (!userId) return null;
@@ -513,10 +524,12 @@ const SPHERE_SERVICES = [
 
 const SERVICE_SWITCHER_ITEMS = [
   { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
+  { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" },
   ...SPHERE_SERVICES,
 ];
 
 function activeServiceFromPath(pathname) {
+  if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname.startsWith("/app/business")) return "business-access";
   if (pathname.startsWith("/app/wishes")) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
@@ -653,6 +666,7 @@ function GlobalAppChrome() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useSession();
+  const brandCatalog = location.pathname === APP_WISH_CATALOG_PATH && new URLSearchParams(location.search).get("source") === "ohmywishes";
   const requestedService = serviceChromeFromPath(location.pathname);
   const sharedOwner = new URLSearchParams(location.search).get("owner");
   const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user) || sharedOwner
@@ -684,7 +698,7 @@ function GlobalAppChrome() {
   return (
     <header className="global-app-chrome" aria-label="Панель приложения">
       <AppBrand />
-      {current && (
+      {brandCatalog && user ? <OhMyWishesBrandSelect /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
@@ -701,7 +715,12 @@ function GlobalAppChrome() {
           </SelectContent>
         </Select>
       )}
-      {service && <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>}
+      {service && <div className="global-app-chrome__actions">
+        <ShadcnButton asChild className="global-app-chrome__rolls !size-12 rounded-full" variant={location.pathname.startsWith("/app/rolls") ? "secondary" : "outline"} size="icon">
+          <Link to="/app/rolls" aria-label="Открыть Роллы" title="Роллы"><MakiIcon className="size-8" /></Link>
+        </ShadcnButton>
+        <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
+      </div>}
     </header>
   );
 }
@@ -1869,14 +1888,17 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const friendsRoute = friendsContext || location.pathname.startsWith("/app/friends");
   const wishesRoute = location.pathname.startsWith("/app/wishes");
   const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
+  const storeRoute = location.pathname === APP_STORE_PATH;
+  const ordersRoute = location.pathname === APP_ORDERS_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
+  const rollsRoute = location.pathname.startsWith("/app/rolls");
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !businessRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3612,29 +3634,33 @@ function PersistentProfileHero({ user }) {
   );
 }
 
-function CatalogProfileHero({ selectedSpace }) {
+function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action, backTo, backLabel = "В мой вишлист" }) {
+  const heroTitle = title || (source === "ohmywishes" ? "БРЕНДЫ" : "РОЛЛАПП");
   return (
     <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars" aria-hidden="true">
           <ShadcnAvatar size="lg" className="wishes-page__hero-avatar !size-[var(--avatar-xl-size)]">
             <AvatarFallback className="bg-transparent text-foreground">
-              <LogoMark className="size-3/5" />
+              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "ohmywishes" ? <ShoppingBag className="size-3/5" /> : <LogoMark className="size-3/5" />}
             </AvatarFallback>
           </ShadcnAvatar>
         </div>
         <div className="wishes-page__hero-copy">
-          <h1 id="catalog-profile-name">РОЛЛАПП</h1>
+          <h1 id="catalog-profile-name">{heroTitle}</h1>
         </div>
       </div>
-      <Link
-        to={`/app/wishes?tab=${encodeURIComponent(selectedSpace)}`}
-        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-12 rounded-full")}
-        aria-label="В мой вишлист"
-        title="В мой вишлист"
-      >
-        <ArrowLeft className="size-5" aria-hidden="true" />
-      </Link>
+      <div className="flex items-center gap-2">
+        {action}
+        <Link
+          to={backTo || `/app/wishes?tab=${encodeURIComponent(selectedSpace)}`}
+          className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-12 rounded-full")}
+          aria-label={backLabel}
+          title={backLabel}
+        >
+          <ArrowLeft className="size-5" aria-hidden="true" />
+        </Link>
+      </div>
     </section>
   );
 }
@@ -3669,9 +3695,99 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         >
           <LayoutGrid aria-hidden="true" />
         </Link>
+        <Link
+          to={ohMyWishesBrandPath()}
+          className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
+          aria-label="Открыть каталог брендов"
+          title="Каталог брендов"
+        >
+          <ShoppingBag aria-hidden="true" />
+        </Link>
+        <Link
+          to={APP_STORE_PATH}
+          className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
+          aria-label="Открыть магазин"
+          title="Магазин"
+        >
+          <Store aria-hidden="true" />
+        </Link>
       </div>
     </section>
   );
+}
+
+const STORE_CATS = [
+  { id: "red", name: "Красный", mood: "Злой", image: "/store/cats/red-angry.webp", accent: "#f23849" },
+  { id: "white", name: "Белый", mood: "Милаха", image: "/store/cats/white-cute.webp", accent: "#eef3f6" },
+  { id: "blue", name: "Синий", mood: "Уставший", image: "/store/cats/blue-tired.webp", accent: "#438de4" },
+  { id: "pink", name: "Розовый", mood: "Влюблён", image: "/store/cats/pink-in-love.webp", accent: "#f51a91" },
+  { id: "black", name: "Чёрный", mood: "Крутой", image: "/store/cats/black-cool.webp", accent: "#d7a945" },
+  { id: "gold", name: "Золотой", mood: "", image: "/store/cats/gold.png", accent: "#c9a06f" },
+];
+const STORE_CAT_PRICE = "1 000 ролл";
+
+function StorePage({ user }) {
+  const toast = useToast();
+  const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
+  const [purchase, setPurchase] = useState(() => restoreCatPurchase(storageKey, STORE_CATS));
+  const beginPurchase = (cat) => {
+    setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
+  };
+  return <>
+    <CatalogProfileHero selectedSpace="products" title="МАГАЗИН" icon={Store} action={
+      <Link to={APP_ORDERS_PATH} className={buttonVariants({ variant: "outline", className: "h-12 rounded-full px-5" })}>
+        <PackageCheck aria-hidden="true" />Заказы
+      </Link>
+    } />
+    <div className="app-page wish-catalog-page cat-store-page">
+      <div className="wish-grid catalog-wish-grid">
+        {STORE_CATS.map((cat) => (
+          <article className="catalog-wish-card cat-store-card" key={cat.id}>
+            <div className="catalog-wish-card__image cat-store-card__image">
+              <img src={cat.image} alt={`${cat.name} кот${cat.mood ? ` — ${cat.mood.toLowerCase()}` : ""}`} loading="lazy" />
+              <div className="catalog-wish-card__actions">
+                <ShadcnButton
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="catalog-wish-card__action !size-12 !rounded-full"
+                  aria-label={`Купить «${cat.name} кот» за ${STORE_CAT_PRICE}`}
+                  title="Купить"
+                  onClick={() => beginPurchase(cat)}
+                >
+                  <Coins className="!size-5" aria-hidden="true" />
+                </ShadcnButton>
+              </div>
+            </div>
+            <div className="catalog-wish-card__body">
+              <div className="catalog-wish-card__heading"><h2>{cat.name} кот{cat.mood ? ` — ${cat.mood}` : ""}</h2></div>
+              <p className="catalog-wish-card__meta"><Coins aria-hidden="true" />{STORE_CAT_PRICE}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+    {purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
+  </>;
+}
+
+function ProtectedStore() {
+  const location = useLocation();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  return <AppShell><StorePage key={user.id} user={user} /></AppShell>;
+}
+
+function ProtectedOrders() {
+  const location = useLocation();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  return <AppShell>
+    <CatalogProfileHero selectedSpace="products" title="ЗАКАЗЫ" icon={PackageCheck} backTo={APP_STORE_PATH} backLabel="В магазин" />
+    <OrdersPage products={STORE_CATS} />
+  </AppShell>;
 }
 
 function PrivateSphereRoute({ children }) {
@@ -3709,7 +3825,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -3794,8 +3910,11 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
     if (requireLogin()) return false;
     setBusy(true);
     try {
-      await api.post(`/wishes/${wish.id}/copy`, { shareToken: shareToken || wish.shareToken || "" });
-      toast(wish.likedByMe ? "Желание уже в вашем общем списке" : "Понравилось — желание добавлено в ваш общий список");
+      const result = await api.post(`/wishes/${wish.id}/copy`, { shareToken: shareToken || wish.shareToken || "" });
+      toast(withWishReward(
+        wish.likedByMe ? "Желание уже в вашем общем списке" : "Понравилось — желание добавлено в ваш общий список",
+        result.reward,
+      ));
       await refreshAfterMutation();
       return true;
     } catch (error) {
@@ -3822,8 +3941,8 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   const repeat = async () => {
     setBusy(true);
     try {
-      await api.post("/wishes", buildRepeatWishPayload(wish, wishSpaceId(wish, lists)));
-      toast("Желание снова добавлено в активные ✦");
+      const result = await api.post("/wishes", buildRepeatWishPayload(wish, wishSpaceId(wish, lists)));
+      toast(withWishReward("Желание снова добавлено в активные ✦", result.reward));
       await refreshAfterMutation();
       return true;
     } catch (error) {
@@ -4166,19 +4285,32 @@ function CatalogOwnerStack({ owners = [], ownerCount = owners.length }) {
   );
 }
 
-function CatalogSourceAttribution({ source, linked = true }) {
-  if (!source) return null;
-  const content = (
-    <>
-      <span className="catalog-source-attribution__logo">
-        {source.logoUrl ? <img src={source.logoUrl} alt="" loading="lazy" /> : source.label.slice(0, 1)}
-      </span>
-      <span>Каталог {source.label}</span>
-    </>
+function CatalogBrandAttribution({ brand, compact = false }) {
+  const label = String(brand?.label || "").trim();
+  if (!label) return null;
+  return (
+    <div
+      className={cn("catalog-brand-attribution", compact && "catalog-brand-attribution--compact")}
+      aria-label={`Бренд товара: ${label}`}
+    >
+      <ShadcnAvatar size="sm" className={cn("catalog-brand-attribution__logo bg-white", compact ? "!size-7" : "!size-9")}>
+        <AvatarImage src={brand.logoUrl || undefined} alt="" className="object-contain" loading="lazy" />
+        <AvatarFallback className="bg-white font-semibold text-black">{label.slice(0, 1).toLocaleUpperCase("ru-RU")}</AvatarFallback>
+      </ShadcnAvatar>
+      <span>{label}</span>
+    </div>
   );
-  return linked && source.homeUrl ? (
-    <a className="catalog-source-attribution" href={source.homeUrl} target="_blank" rel="noreferrer">{content}</a>
-  ) : <div className="catalog-source-attribution">{content}</div>;
+}
+
+function catalogMarketplaceItem(item) {
+  if (item?.source?.id !== "ohmywishes" || !item.url) return item;
+  try {
+    const host = new URL(item.url).hostname.toLowerCase().replace(/^www\./, "");
+    if (host !== "ohmywishes.com" && !host.endsWith(".ohmywishes.com")) return item;
+  } catch {
+    return item;
+  }
+  return { ...item, url: "" };
 }
 
 function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onOpen }) {
@@ -4233,9 +4365,9 @@ function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = fal
             {eventDate}
           </p>
         )}
-        {item.source
-          ? <CatalogSourceAttribution source={item.source} linked={false} />
-          : <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
+        {item.brand
+          ? <CatalogBrandAttribution brand={item.brand} />
+          : !item.source && <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
       </div>
     </article>
   );
@@ -4247,6 +4379,7 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
   const previewImageUrl = wishPreviewImageUrl(item);
   const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
   const description = String(item.description || "").trim();
+  const marketplaceItem = catalogMarketplaceItem(item);
   const wishlistLabel = item.addedByMe
     ? `Удалить «${item.title}» из вишлиста`
     : `Добавить «${item.title}» в вишлист`;
@@ -4289,10 +4422,11 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
 
           <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
             <Badge variant="secondary" className="max-w-full truncate">{space.label}</Badge>
+            {item.brand && <CatalogBrandAttribution brand={item.brand} compact />}
           </div>
 
           {["products", "food", "transport"].includes(item.space) && (
-            <MarketplaceOffers wish={item} owner={false} formatPrice={formatMoney} />
+            <MarketplaceOffers wish={marketplaceItem} owner={false} formatPrice={formatMoney} />
           )}
           {item.url && !["products", "food", "transport"].includes(item.space) && (
             <a href={item.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>
@@ -4336,8 +4470,13 @@ function WishCatalogPage() {
   const location = useLocation();
   const { user } = useSession();
   const toast = useToast();
+  const source = new URLSearchParams(location.search).get("source") === "ohmywishes" ? "ohmywishes" : "community";
+  const selectedBrand = source === "ohmywishes" ? new URLSearchParams(location.search).get("brand") || "" : "";
   const requestedSpace = new URLSearchParams(location.search).get("tab");
   const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
+  const catalogFilter = source === "ohmywishes"
+    ? `source=ohmywishes${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
+    : `source=community&space=${encodeURIComponent(selectedSpace)}`;
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
   const pendingWishlistIdsRef = useRef(new Map());
@@ -4368,7 +4507,7 @@ function WishCatalogPage() {
     setPendingWishlistIds(new Set());
     setSelectedCatalogItemId(null);
     setCatalog({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
-    api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
+    api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         const items = result.items || [];
@@ -4379,7 +4518,7 @@ function WishCatalogPage() {
         setCatalog({ items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
       });
     return () => { requestIdRef.current += 1; };
-  }, [selectedSpace]);
+  }, [catalogFilter]);
 
   useEffect(() => {
     if (selectedCatalogItemId) return undefined;
@@ -4406,7 +4545,7 @@ function WishCatalogPage() {
     catalogLoadMoreOperationRef.current = operation;
     setCatalog((current) => ({ ...current, loadingMore: true, error: null }));
     try {
-      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
+      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
       if (requestId !== requestIdRef.current) return;
       const incoming = result.items || [];
       setCatalog((current) => ({
@@ -4429,7 +4568,7 @@ function WishCatalogPage() {
     const items = [];
     let total = 0;
     for (let offset = 0; offset < targetCount; offset += CATALOG_PAGE_SIZE) {
-      const result = await api.get(`/catalog?space=${encodeURIComponent(selectedSpace)}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
+      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
       if (requestId !== requestIdRef.current) return null;
       const incoming = result.items || [];
       total = Number(result.total) || 0;
@@ -4501,14 +4640,14 @@ function WishCatalogPage() {
           } : {}),
         });
         const itemSpace = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
-        toast(
+        toast(withWishReward(
           result.created
             ? `«${item.title}» добавлено в раздел «${itemSpace.label}»`
             : result.restored
               ? `«${item.title}» возвращено в раздел «${itemSpace.label}»`
               : `«${item.title}» уже находится в разделе «${itemSpace.label}»`,
-          "success",
-        );
+          result.reward,
+        ), "success");
       }
     } catch (error) {
       if (requestId === requestIdRef.current) {
@@ -4527,9 +4666,9 @@ function WishCatalogPage() {
 
   return (
     <>
-      <CatalogProfileHero selectedSpace={selectedSpace} />
+      <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
       <div className="app-page wish-catalog-page">
-        {catalog.loading ? <LoadingScreen compact /> : catalog.items.length ? (
+        {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
           <>
             <div className="wish-grid catalog-wish-grid">
               {catalog.items.map((item) => (
@@ -4553,7 +4692,7 @@ function WishCatalogPage() {
             )}
           </>
         ) : (
-          <EmptyState icon={LayoutGrid} title={`В разделе «${space.label}» пока пусто`} text="Здесь появятся публичные позиции участников и внешних каталогов." />
+          <EmptyState icon={source === "ohmywishes" ? Gift : LayoutGrid} title={source === "ohmywishes" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "ohmywishes" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся товары, которые не относятся к селлерам.") : "Здесь появятся публичные желания участников."} />
         )}
         {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
         {selectedCatalogItem && (
@@ -6188,7 +6327,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
       const savedUploadId = uploadedImageIdFromUrl(result.wish?.imageUrl);
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
       await cleanupUploadedImages(result.wish?.imageUrl || "");
-      toast(editing ? "Изменения сохранены" : "Желание добавлено ✦");
+      toast(withWishReward(editing ? "Изменения сохранены" : "Желание добавлено ✦", result.reward));
       await onSaved?.(result.wish);
     } catch (error) {
       toast(error.message, "error");
@@ -7213,6 +7352,8 @@ export default function App() {
             <Route path="/s/:token" element={<PublicProfile shared />} />
             <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
             <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
+            <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
+            <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />

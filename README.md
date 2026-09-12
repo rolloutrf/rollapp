@@ -15,6 +15,7 @@ The product is an independent functional alternative to popular wishlist service
 - Prices, priorities, private wishes, multiple reservations, and fulfilled archive.
 - Anonymous reservations that never expose the giver to the wish owner.
 - Follows, friend search, and birthdays.
+- Rolls wallets: a one-time 100-roll welcome credit, private transaction history, and participant-to-participant transfers without fees.
 - Responsive desktop and mobile UI.
 
 ### Grocery retailer metadata
@@ -76,6 +77,42 @@ npm test
 npm run build
 npm run check
 ```
+
+### OhMyWishes brand import
+
+`npm run catalog:import:ohmywishes:brands -- --output=/tmp/ohmywishes-brands.json` reads the eleven selected public storefronts, paginates at the provider's 30-item limit, and fetches each full product card. It verifies counts, duplicate IDs and brand ownership before any database writes. The output path must not already exist.
+
+Import a reviewed snapshot with `npm run catalog:import:ohmywishes:brands -- --input=/tmp/ohmywishes-brands.json --apply`. This uses the configured production PostgreSQL and Lockbox credentials; add `--production` only when using the configured SSH tunnel. All brands and products are upserted in one transaction, with no user-wishlist changes or catalog deletions. The importer creates only its two brand metadata tables and requires the existing catalog table.
+
+The brand selector and storefront pages read these stored records. Full descriptions, prices and shop URLs are stored in `external_catalog_items`; the original product payloads (including every photo), provider URLs and brand associations are stored in `external_catalog_brand_items`. Reimports replace the current storefront snapshot without duplicating products. The selection importer preserves these brand records. Recommendation loading remains separate.
+
+Use `--input=/tmp/ohmywishes-brands.json --verify` for a read-only comparison of the production data and 48-item application pagination against the collected snapshot.
+
+### Rolls
+
+Open **Роллы** in the service switcher (`/app/rolls`). Every registered account receives 100 whole rolls once. Email and Yandex registrations create the wallet in the same transaction as the account; older accounts are covered by the explicit backfill and by first wallet access. Accounts registered after the wish-reward launch also receive 100 rolls for each of their first 10 newly created wishes, including wishes added manually, copied from another participant, or added from the catalog. Deleting, fulfilling, restoring, or editing a wish never grants the reward again. Rolls are internal community units used for transfers and purchases in the Rollapp store; they can be purchased with Telegram Stars and cannot be withdrawn.
+
+`npm run rolls:grant` checks the configured production database and reports the target without writes. `npm run rolls:grant -- --apply` creates the two additive wallet tables and credits accounts that have no welcome transaction. Repeating it does not reset balances or credit anyone twice. The audit compares every balance with the transaction ledger and checks total balances against issued rolls.
+
+`GET /api/rolls` returns only the authenticated user's balance and history (`offset` pagination). `GET /api/rolls/recipients?q=...` searches public names/usernames without exposing contact information or balances. `POST /api/rolls/transfers` accepts `{ recipientId, amount, note, idempotencyKey }`; the sender always comes from the session. Amounts are whole numbers from 1 to 1,000,000,000, comments are limited to 280 characters, and a UUID request key is required. Wallet locks are acquired in a stable order; debit, credit and ledger entry commit together. A retry with the same key returns the original transfer, while changed parameters are rejected. The browser retains unresolved request keys through reloads.
+
+The store order list is available at `/app/orders`. `GET /api/rolls/orders` returns every purchase for the authenticated user. `POST /api/rolls/orders/:purchaseId/refund` atomically marks an active order as refunded and restores its exact roll amount. Repeating a refund returns the existing result without another credit; orders owned by another user are never disclosed.
+
+Run `npm run test:rolls:production` to verify real PostgreSQL behavior. All test writes, including fixture users and wallet/schema changes, are rolled back. It never substitutes a local or in-memory database.
+
+**Пополнить** offers 100 / 500 / 1,000 rolls for 10 / 50 / 100 Telegram Stars. Purchases require a linked Telegram identity and accepted terms. Only a server-verified `successful_payment` credits the wallet; invoice retries and repeated Telegram updates are idempotent. Support is @koloskof. See [Telegram Stars setup, delivery, and verification](docs/telegram-stars.md) before rollout, including updating the external polling worker. `npm run test:stars:production` runs rollback-only PostgreSQL checks; after building, `npm run test:stars:visual` also checks desktop/mobile purchase flows without charging Stars.
+
+### CDEK pickup for store cats
+
+Buying a cat in `/app/store` first opens CDEK pickup selection, then a purchase review. Start typing in the city combobox and choose a match, then optionally enter a street, house number, metro station or pickup code in the address field below. Results are restricted to the exact CDEK city code; changing the city clears the address and selected pickup point. Three results are shown per page to keep the dialog compact. Once a point is chosen, the search controls and result list collapse into a single selected-point card with an interactive Yandex map and a control to choose another point. The selected and review states fit normal desktop and mobile viewports without nested scrollbars, and every child is constrained to the dialog width. Rolls are charged only after confirmation. The server requires `pickupPointCode`, resolves it from the production catalog and stores an authoritative delivery snapshot in `roll_store_purchases.delivery` in the same transaction as the debit. Unresolved purchases retain their request key and pickup point in session storage, including across reloads.
+
+`npm run cdek:import` checks the configured production database and downloads the official [CDEK XML feed](https://integration.cdek.ru/pvzlist.php?type=PVZ) without writes. `npm run cdek:import -- --apply` adds the catalog table and nullable delivery column, then atomically replaces the catalog snapshot. Existing orders and balances are unchanged. Only active Russian PVZ with `IsHandout=true` are included; lockers and non-handout offices are excluded. No API key is required for this public feed.
+
+`GET /api/delivery/cdek/cities` returns unique cities with region labels to distinguish namesakes. `GET /api/delivery/cdek/points?cityCode=...&q=...&offset=0` returns that city’s pickup points; an empty address returns all its points. Both endpoints require authentication. The server reads the persisted PostgreSQL catalog, refreshes it on demand after 24 hours and retries failed refreshes after five minutes. A previous snapshot is usable for at most seven days with an explicit stale notice; older data or a missing catalog returns an error. Malformed, empty or unexpectedly small feeds never replace the saved catalog. The purchase endpoint rejects unknown or expired pickup points before debiting rolls. No delivery shipment, shipping tariff or carrier label is created by this selection mechanism.
+
+Run `node --test server/cdek.test.js server/rolls.test.js` for parsing and request-validation checks. `npm run test:cdek:production` verifies real catalog search, purchase persistence, insufficient balance and idempotency using production PostgreSQL with all fixture writes rolled back. After `npm run build`, `npm run test:cdek:visual` additionally checks desktop/mobile layout, cancellation and lost-response recovery in Chrome; screenshots are written to `/tmp/rollapp-cdek-checks`.
+
+After building, `node scripts/rolls-visual-preview.mjs --rollback-preview` opens a local-only verification server at `http://127.0.0.1:5184/app/rolls`. Two fixture users and their operations exist only inside an uncommitted production PostgreSQL transaction. The server uses the real wallet routes, never authenticates as an existing user, and restricts transfers to the two fixtures. Stop it with Ctrl+C to roll everything back; it also shuts down automatically after ten minutes. This is a UI test harness, not the application server.
 
 ## Production architecture
 

@@ -17,6 +17,7 @@
     "contacts:import": "node scripts/import-obsidian-contacts.mjs",
     "contacts:avatars": "node scripts/import-contact-avatars.mjs",
     "catalog:import:ohmywishes": "node scripts/import-ohmywishes-catalog.mjs",
+    "catalog:import:ohmywishes:brands": "node scripts/import-ohmywishes-brands.mjs",
     "performance:import": "node scripts/import-obsidian-performance.mjs",
     "dev:production": "node scripts/dev-production.mjs start",
     "dev:production:status": "node scripts/dev-production.mjs status",
@@ -28,7 +29,14 @@
     "test:ui": "node scripts/check-shadcn.mjs",
     "check": "npm run test && npm run test:ui && npm run build",
     "test:visual": "node scripts/visual-smoke.mjs",
-    "telegram:configure": "node scripts/configure-telegram-bot.mjs"
+    "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
+    "test:rolls:production": "ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
+    "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",
+    "test:stars:visual": "ROLLAPP_TEST_STARS=1 STARS_TEST_UI=1 node --test server/roll-stars.integration.test.js",
+    "telegram:configure": "node scripts/configure-telegram-bot.mjs",
+    "cdek:import": "node scripts/import-cdek-points.mjs",
+    "test:cdek:production": "ROLLAPP_TEST_CDEK=1 node --test server/cdek.integration.test.js",
+    "test:cdek:visual": "ROLLAPP_TEST_CDEK=1 CDEK_TEST_UI=1 node --test server/cdek.integration.test.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -41,6 +49,7 @@
     "cookie-parser": "latest",
     "dotenv": "latest",
     "express": "latest",
+    "fast-xml-parser": "^5.11.1",
     "helmet": "latest",
     "input-otp": "^1.4.2",
     "lucide-react": "latest",

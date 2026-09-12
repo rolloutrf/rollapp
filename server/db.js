@@ -8,6 +8,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function createMemoryPool() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
+  memory.public.registerFunction({
+    name: "jsonb_typeof",
+    args: ["jsonb"],
+    returns: "text",
+    implementation: (value) => Array.isArray(value) ? "array" : value === null ? "null" : typeof value === "object" ? "object" : typeof value,
+  });
   const adapter = memory.adapters.createPg();
   return new adapter.Pool();
 }

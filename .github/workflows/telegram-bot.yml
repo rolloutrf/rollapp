@@ -56,7 +56,7 @@ jobs:
             -o /usr/local/bin/yc
           sudo chmod 0755 /usr/local/bin/yc
 
-      - name: Load Telegram token
+      - name: Load Telegram token and payment delivery secret
         env:
           YC_TELEGRAM_LOCKBOX_SECRET_ID: e6qqi6inhrnvg67mkhhs
         run: |
@@ -68,6 +68,13 @@ jobs:
             | jq -er '.entries[] | select(.key == "bot_token") | (.text_value // .textValue)')"
           echo "::add-mask::${BOT_TOKEN}"
           echo "TELEGRAM_BOT_TOKEN=${BOT_TOKEN}" >> "$GITHUB_ENV"
+          WEBHOOK_SECRET="$(yc lockbox payload get \
+            --id "$YC_TELEGRAM_LOCKBOX_SECRET_ID" \
+            --folder-id "$YC_FOLDER_ID" \
+            --format json \
+            | jq -er '.entries[] | select(.key == "webhook_secret") | (.text_value // .textValue)')"
+          echo "::add-mask::${WEBHOOK_SECRET}"
+          echo "TELEGRAM_WEBHOOK_SECRET=${WEBHOOK_SECRET}" >> "$GITHUB_ENV"
           echo "YC_IAM_TOKEN=" >> "$GITHUB_ENV"
 
       - name: Poll Telegram updates

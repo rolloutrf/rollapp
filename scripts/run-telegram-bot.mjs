@@ -1,5 +1,5 @@
 import { loadLockboxValue } from "../server/lockbox.js";
-import { getTelegramBotRuntimeConfig, startTelegramBotPolling } from "../server/telegram-bot.js";
+import { forwardTelegramPaymentUpdate, getTelegramBotRuntimeConfig, startTelegramBotPolling } from "../server/telegram-bot.js";
 
 const secretId = String(process.env.YC_TELEGRAM_LOCKBOX_SECRET_ID || "").trim();
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -10,13 +10,18 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
   );
 }
 
+if (!process.env.TELEGRAM_WEBHOOK_SECRET) {
+  if (!secretId) throw new Error("TELEGRAM_WEBHOOK_SECRET or YC_TELEGRAM_LOCKBOX_SECRET_ID is required for payment delivery");
+  process.env.TELEGRAM_WEBHOOK_SECRET = await loadLockboxValue(secretId, process.env.YC_TELEGRAM_WEBHOOK_SECRET_KEY || "webhook_secret");
+}
+
 process.env.TELEGRAM_DELIVERY_MODE = "polling";
 const config = getTelegramBotRuntimeConfig();
 const runSeconds = Math.min(
   20_400,
   Math.max(60, Number(process.env.TELEGRAM_POLLING_RUN_SECONDS) || 20_400),
 );
-const poller = startTelegramBotPolling(config);
+const poller = startTelegramBotPolling(config, { handleUpdate: (update) => forwardTelegramPaymentUpdate(update, config) });
 if (!poller) throw new Error("Telegram polling worker is not configured");
 
 let stopped = false;

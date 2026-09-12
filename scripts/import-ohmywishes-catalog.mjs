@@ -123,7 +123,11 @@ function insertBatch(client, records, syncedAt) {
        price=EXCLUDED.price,currency=EXCLUDED.currency,space=EXCLUDED.space,source_label=EXCLUDED.source_label,
        source_home_url=EXCLUDED.source_home_url,source_logo_url=EXCLUDED.source_logo_url,
        categories_json=EXCLUDED.categories_json,source_rank=EXCLUDED.source_rank,active=TRUE,
-       last_seen_at=EXCLUDED.last_seen_at,updated_at=EXCLUDED.updated_at`,
+       last_seen_at=EXCLUDED.last_seen_at,updated_at=EXCLUDED.updated_at
+     WHERE NOT EXISTS (
+       SELECT 1 FROM external_catalog_brand_items bi
+       WHERE bi.source=external_catalog_items.source AND bi.external_id=external_catalog_items.external_id
+     )`,
     values,
   );
 }
@@ -175,7 +179,11 @@ async function persist(records, complete) {
     if (complete) {
       await client.query(
         `UPDATE external_catalog_items SET active=FALSE,updated_at=$1
-         WHERE source=$2 AND last_seen_at < $1 AND active=TRUE`,
+         WHERE source=$2 AND last_seen_at < $1 AND active=TRUE
+           AND NOT EXISTS (
+             SELECT 1 FROM external_catalog_brand_items bi
+             WHERE bi.source=external_catalog_items.source AND bi.external_id=external_catalog_items.external_id
+           )`,
         [syncedAt, OHMYWISHES_SOURCE.id],
       );
     }

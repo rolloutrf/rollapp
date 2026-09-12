@@ -1,3 +1,5 @@
+import { ROLL_STAR_TERMS } from "../shared/roll-stars.js";
+
 const DEFAULT_WEB_APP_URL = "https://xn--80avakiab.xn--p1ai/";
 const WEBHOOK_SECRET_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
 
@@ -27,6 +29,7 @@ export function getTelegramBotRuntimeConfig(env = process.env) {
     botUsername,
     webAppUrl,
     deliveryMode,
+    paymentSupportUrl: String(env.TELEGRAM_PAYMENT_SUPPORT_URL || "https://t.me/koloskof"),
     apiBase: String(env.TELEGRAM_BOT_API_BASE || "https://api.telegram.org").replace(/\/$/, ""),
   };
 }
@@ -36,6 +39,11 @@ export function telegramLaunchReply(update, config = getTelegramBotRuntimeConfig
   if (!message || message.chat?.type !== "private" || !Number.isSafeInteger(message.chat.id)) return null;
   const text = typeof message.text === "string" ? message.text.trim() : "";
   const command = text.split(/\s+/, 1)[0].split("@", 1)[0].toLowerCase();
+  if (["/paysupport", "/support", "/terms"].includes(command)) {
+    return { chat_id: message.chat.id, text: command === "/terms"
+      ? `${ROLL_STAR_TERMS}\nПоддержка: ${config.paymentSupportUrl}`
+      : `По вопросам оплаты и возвратов: ${config.paymentSupportUrl}\nУкажите номер заказа из раздела «Роллы → Пополнить» и приложите квитанцию Telegram.` };
+  }
   if (!["/start", "/app"].includes(command)) return null;
 
   const firstName = typeof message.from?.first_name === "string" ? message.from.first_name.trim().slice(0, 64) : "";
@@ -90,18 +98,50 @@ function isRetryableTelegramError(error) {
     || status >= 500;
 }
 
-export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotRuntimeConfig(), fetchImpl = fetch } = {}) {
+export async function forwardTelegramPaymentUpdate(update, config, fetchImpl = fetch) {
+  if (!update?.pre_checkout_query && !update?.message?.successful_payment) return null;
+  if (!config.webhookEnabled) throw new Error("Telegram payment forwarding secret is not configured");
+  const response = await fetchImpl(new URL("/api/telegram/webhook", config.webAppUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": config.webhookSecret },
+    body: JSON.stringify(update), signal: AbortSignal.timeout(7_000),
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || (update.pre_checkout_query
+    ? result?.method !== "answerPreCheckoutQuery" || result.pre_checkout_query_id !== update.pre_checkout_query.id || typeof result.ok !== "boolean"
+    : result?.paymentProcessed !== true)) throw new Error("Rollapp did not confirm processing the Telegram payment update");
+  return result;
+}
+
+export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotRuntimeConfig(), fetchImpl = fetch, handleUpdate } = {}) {
   const updates = await callTelegramBotApi("getUpdates", {
     offset,
     limit: 1,
     timeout: 25,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "pre_checkout_query"],
   }, { ...config, fetchImpl, timeoutMs: 35_000 });
   let nextOffset = offset;
   for (const update of Array.isArray(updates) ? updates : []) {
     const updateOffset = Number.isSafeInteger(update?.update_id)
       ? Math.max(nextOffset, update.update_id + 1)
       : nextOffset;
+    const paymentUpdate = Boolean(update?.pre_checkout_query || update?.message?.successful_payment);
+    // Never acknowledge a payment before its durable processing succeeds.
+    if (paymentUpdate && !handleUpdate) throw new Error("Telegram payment update handler is not configured");
+    const handled = handleUpdate ? await handleUpdate(update) : null;
+    if (handled) {
+      if (handled.method) {
+        const { method, ...payload } = handled;
+        try { await callTelegramBotApi(method, payload, { ...config, fetchImpl }); }
+        catch (error) {
+          // A checkout query has a ten-second lifetime. Do not let an expired
+          // query permanently block later successful_payment updates.
+          if (method !== "answerPreCheckoutQuery" || isRetryableTelegramError(error)) throw error;
+        }
+      }
+      nextOffset = updateOffset;
+      continue;
+    }
     const reply = telegramLaunchReply(update, config);
     if (reply) {
       try {
@@ -116,7 +156,7 @@ export async function pollTelegramBotOnce({ offset = 0, config = getTelegramBotR
   return nextOffset;
 }
 
-export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), { retryDelayMs = 3_000, fetchImpl = fetch } = {}) {
+export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), { retryDelayMs = 3_000, fetchImpl = fetch, handleUpdate } = {}) {
   if (!config.enabled || config.deliveryMode !== "polling") return null;
   let active = true;
   const done = (async () => {
@@ -128,7 +168,7 @@ export function startTelegramBotPolling(config = getTelegramBotRuntimeConfig(), 
           await callTelegramBotApi("deleteWebhook", { drop_pending_updates: false }, { ...config, fetchImpl });
           webhookCleared = true;
         }
-        offset = await pollTelegramBotOnce({ offset, config, fetchImpl });
+        offset = await pollTelegramBotOnce({ offset, config, fetchImpl, handleUpdate });
       } catch (error) {
         if (!active) break;
         if (error?.telegramMethod === "getUpdates" && error?.status === 409) webhookCleared = false;

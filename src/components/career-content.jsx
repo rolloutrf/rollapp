@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Plus, RotateCcw, X } from "lucide-react";
 import { api } from "@/api";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -8,11 +8,14 @@ import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import { getLifeStrategyPeriods, replaceLifeStrategyPeriod } from "@/lib/life-strategy";
+import {
+  addLifeStrategyPeriod, getLifeStrategyPeriods, replaceLifeStrategyPeriod,
+} from "@/lib/life-strategy";
 
 export function useCareerContent(section, fallbackContent, scope = "career") {
   const fallbackRef = useRef(fallbackContent);
@@ -74,7 +77,7 @@ export function CareerContentError({ error, onRetry }) {
   );
 }
 
-export function CareerEditAction({ disabled = false, loading = false, label, onClick }) {
+export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
   return (
@@ -87,7 +90,9 @@ export function CareerEditAction({ disabled = false, loading = false, label, onC
           disabled={disabled || loading}
           onClick={onClick}
         >
-          {loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
+          {loading
+            ? <Spinner data-icon="inline-start" aria-hidden="true" />
+            : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}
           {loading ? "Загружаем" : label}
         </Button>
       </div>
@@ -179,11 +184,114 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
   );
 }
 
+function LifeStrategyPeriodCreator({ onOpenChange, onSave, open }) {
+  const isMobile = useIsMobile();
+  const ageFieldId = useId();
+  const contentFieldId = useId();
+  const [age, setAge] = useState("");
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setAge("");
+    setDraft("");
+    setSaving(false);
+    setError("");
+  }, [open]);
+
+  const changeOpen = (nextOpen) => {
+    if (!saving) onOpenChange(nextOpen);
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({ age, content: draft });
+      onOpenChange(false);
+    } catch (saveError) {
+      setError(saveError.message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
+      <DrawerContent className="rollapp-body app-drawer--document">
+        <DrawerClose
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          aria-label="Закрыть создание периода"
+        >
+          <X aria-hidden="true" />
+        </DrawerClose>
+        <form className="flex min-h-0 min-w-0 flex-1 flex-col" onSubmit={submit}>
+          <DrawerHeader className="pr-16 text-left!">
+            <DrawerTitle>Создать период</DrawerTitle>
+            <DrawerDescription>Добавьте новый возрастной этап жизненной стратегии.</DrawerDescription>
+          </DrawerHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle aria-hidden="true" />
+                <AlertTitle>Не удалось создать период</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Field>
+              <FieldLabel htmlFor={ageFieldId}>Возраст</FieldLabel>
+              <Input
+                className="min-h-12 text-base"
+                id={ageFieldId}
+                inputMode="numeric"
+                max="150"
+                min="1"
+                placeholder="Например, 45"
+                required
+                type="number"
+                value={age}
+                onChange={(event) => setAge(event.target.value)}
+              />
+              <FieldDescription>Период появится в списке в хронологическом порядке.</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={contentFieldId}>Содержимое</FieldLabel>
+              <Textarea
+                className="min-h-[45vh] resize-y text-base"
+                id={contentFieldId}
+                maxLength={200_000}
+                placeholder="Опишите цели, планы и ориентиры этого периода"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              <FieldDescription>
+                Поддерживаются заголовки с символом #, списки с дефисом, жирный текст **в звёздочках** и ссылки [название](https://…).
+              </FieldDescription>
+            </Field>
+          </div>
+          <DrawerFooter className="border-t pt-4">
+            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+              {saving ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Plus data-icon="inline-start" aria-hidden="true" />}
+              {saving ? "Создаём" : "Создать период"}
+            </Button>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+              Отмена
+            </DrawerClose>
+          </DrawerFooter>
+        </form>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
 export function EditableMarkdownDocument({
   className = "", collapsibleAges = false, collapsibleStrategies = false,
   hideSourceLabels = false, label, scope = "career", section, source,
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
+  const [periodCreatorOpen, setPeriodCreatorOpen] = useState(false);
   const [periodEditorId, setPeriodEditorId] = useState(null);
   const careerContent = useCareerContent(section, source, scope);
   const content = typeof careerContent.content === "string" ? careerContent.content : source;
@@ -200,12 +308,17 @@ export function EditableMarkdownDocument({
     return careerContent.save(replaceLifeStrategyPeriod(content, editingPeriod.id, draft));
   };
 
+  const createPeriod = ({ age, content: periodContent }) => (
+    careerContent.save(addLifeStrategyPeriod(content, age, periodContent))
+  );
+
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
-        label={collapsibleAges ? "Редактировать всё" : "Редактировать"}
+        icon={collapsibleAges ? Plus : undefined}
+        label={collapsibleAges ? "Создать период" : "Редактировать"}
         loading={careerContent.loading}
-        onClick={() => setEditorOpen(true)}
+        onClick={() => collapsibleAges ? setPeriodCreatorOpen(true) : setEditorOpen(true)}
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
       <MarkdownDocument
@@ -218,13 +331,21 @@ export function EditableMarkdownDocument({
         hideSourceLabels={hideSourceLabels}
         onEditAge={collapsibleAges ? editPeriod : undefined}
       />
-      <MarkdownEditorDrawer
-        content={content}
-        label={label}
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        onSave={careerContent.save}
-      />
+      {collapsibleAges ? (
+        <LifeStrategyPeriodCreator
+          open={periodCreatorOpen}
+          onOpenChange={setPeriodCreatorOpen}
+          onSave={createPeriod}
+        />
+      ) : (
+        <MarkdownEditorDrawer
+          content={content}
+          label={label}
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          onSave={careerContent.save}
+        />
+      )}
       <MarkdownEditorDrawer
         content={editingPeriod?.content || ""}
         label={editingPeriod ? `Период ${editingPeriod.title}` : "Период жизни"}

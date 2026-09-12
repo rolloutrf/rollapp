@@ -4,5 +4,5 @@ export function canAccessPrivateSpheres(user) {
 
 export function serviceSwitcherItemsForUser(items, user) {
   if (canAccessPrivateSpheres(user)) return items;
-  return items.filter((item) => item.id === "wishlist");
+  return items.filter((item) => item.id === "wishlist" || (item.id === "rolls" && Boolean(user)));
 }

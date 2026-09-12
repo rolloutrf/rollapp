@@ -10,9 +10,14 @@ import { z } from "zod";
 import { initializeDatabase } from "./schema.js";
 import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
+import { enrollWishRewards, ensureRollWallet, grantWishReward } from "./rolls.js";
+import { registerRollsRoutes } from "./rolls-routes.js";
+import { registerCdekRoutes } from "./cdek-routes.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
+import { getOhMyWishesRecommendationsPage, resolveOhMyWishesItem } from "./ohmywishes-brands.js";
+import { getStoredCatalogBrands, getStoredCatalogBrandPage } from "./external-catalog-brands.js";
 import {
   canonicalCatalogUrl, catalogActionKey, catalogIdentityKey, externalCatalogReference, groupCatalogRows, preservedCatalogRow,
 } from "./wish-catalog.js";
@@ -94,7 +99,8 @@ import {
   TelegramInitDataError,
   validateTelegramInitData,
 } from "./telegram-auth.js";
-import { getTelegramBotRuntimeConfig, telegramLaunchReply } from "./telegram-bot.js";
+import { getTelegramBotRuntimeConfig, startTelegramBotPolling, telegramLaunchReply } from "./telegram-bot.js";
+import { createStarsUpdateHandler } from "./roll-stars.js";
 import {
   createYandexAuthorization,
   exchangeYandexCode,
@@ -131,6 +137,8 @@ const birthdaySchema = z.string().date().refine(
 const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const listSpaceSchema = z.enum(listSpaceValues);
 const catalogQuerySchema = z.object({
+  source: z.enum(["community", "ohmywishes"]).default("community"),
+  brand: z.string().trim().min(1).max(100).optional(),
   space: listSpaceSchema.default("products"),
   limit: z.coerce.number().int().min(1).max(96).default(48),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
@@ -476,6 +484,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "https://telegram.org"],
       connectSrc: ["'self'"],
       fontSrc: ["'self'", "data:"],
+      frameSrc: ["'self'", "https://yandex.ru"],
       frameAncestors: ["'self'", "https://web.telegram.org", "https://*.telegram.org"],
     },
   },
@@ -1078,6 +1087,9 @@ function requireTrustedSessionMutation(req, res, next) {
 
 app.use("/api", requireTrustedSessionMutation);
 
+registerRollsRoutes(app, { requireAuth, query, transaction });
+registerCdekRoutes(app, { requireAuth, query });
+
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
   setSessionCookie(res, session);
@@ -1516,6 +1528,8 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser) {
       [randomUUID(), userId, "Мои желания", "Всё, чему я буду рад", "public", "coral", randomBytes(10).toString("base64url")],
     );
     await addDefaultFriend(client, userId);
+    await ensureRollWallet(client, userId);
+    await enrollWishRewards(client, userId);
     await saveYandexIdentity(client, yandexUser, userId);
     const session = await createSessionRecord(client, userId);
     return { kind: "success", user: created.user, session };
@@ -1919,6 +1933,7 @@ app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
   return res.json({ user: await cleanAuthenticatedUser(result.user), telegram: publicTelegramUser(identity.user) });
 }));
 
+const handleStarsUpdate = createStarsUpdateHandler({ transaction });
 app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
   const config = getTelegramBotRuntimeConfig();
   if (!config.webhookEnabled) return res.status(404).json({ error: "Telegram webhook не настроен" });
@@ -1927,6 +1942,8 @@ app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
     return res.status(401).json({ error: "Неверный Telegram webhook secret" });
   }
 
+  const handled = await handleStarsUpdate(req.body);
+  if (handled) return res.json(handled);
   const reply = telegramLaunchReply(req.body, config);
   if (reply) return res.json({ method: "sendMessage", ...reply });
   return res.json({ ok: true });
@@ -2083,6 +2100,8 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
       [randomUUID(), userId, "Мои желания", "Всё, чему я буду рад", "public", "coral", randomBytes(10).toString("base64url")],
     );
     await addDefaultFriend(client, userId);
+    await ensureRollWallet(client, userId);
+    await enrollWishRewards(client, userId);
   });
   await createSession(res, userId);
   const result = await query("SELECT * FROM users WHERE id = $1", [userId]);
@@ -2709,9 +2728,9 @@ async function resolveCatalogActionItem(itemId, client = null) {
        WHERE source=$1 AND external_id=$2 AND active=TRUE`,
       [externalReference.source, externalReference.externalId],
     );
-    return result.rowCount
-      ? { kind: "external", item: externalCatalogItemFromRow(result.rows[0]), sourceWishId: null }
-      : null;
+    const item = result.rowCount ? externalCatalogItemFromRow(result.rows[0])
+      : externalReference.source === "ohmywishes" ? await resolveOhMyWishesItem(externalReference.externalId) : null;
+    return item ? { kind: "external", item, sourceWishId: null } : null;
   }
 
   const result = await runQuery(
@@ -2761,6 +2780,7 @@ function catalogWishSnapshot({ item }) {
 async function decorateCatalogItems(items, userId, space) {
   if (!items.length) return items;
   const itemKeys = [...new Set(items.map(catalogActionKey))];
+  const itemSpaces = [...new Set(items.map((item) => item.space || space || "products"))];
   const [likes, ownedWishes] = await Promise.all([
     query(
       `SELECT item_key,COUNT(*)::int AS like_count,
@@ -2772,9 +2792,9 @@ async function decorateCatalogItems(items, userId, space) {
     ),
     query(
       `SELECT * FROM wishes
-       WHERE user_id=$1 AND status='active' AND COALESCE(space,'products')=$2
+       WHERE user_id=$1 AND status='active' AND COALESCE(space,'products')=ANY($2::text[])
        ORDER BY created_at DESC,id`,
-      [userId, space],
+      [userId, itemSpaces],
     ),
   ]);
   const likeStateByKey = new Map(likes.rows.map((row) => [row.item_key, {
@@ -2812,11 +2832,38 @@ async function decorateCatalogItems(items, userId, space) {
   });
 }
 
+app.get("/api/catalog/brands", requireAuth, asyncRoute(async (_req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ brands: await getStoredCatalogBrands(query, "ohmywishes") });
+}));
+
 app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
   const parsed = catalogQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте параметры каталога" });
-  const { space, limit, offset } = parsed.data;
-  const [result, externalCountResult] = await Promise.all([query(
+  const { source, brand, space, limit, offset } = parsed.data;
+  res.set("Cache-Control", "private, no-store");
+  if (source === "ohmywishes" && brand) {
+    const page = await getStoredCatalogBrandPage(query, source, brand, limit, offset);
+    if (!page) return res.status(404).json({ error: "Бренд не найден в каталоге" });
+    const items = await decorateCatalogItems(page.items, req.user.id, "products");
+    return res.json({ source, brand: page.brand, space: "products", total: page.total, limit, offset, items });
+  }
+  if (source === "ohmywishes") {
+    let page;
+    try { page = await getOhMyWishesRecommendationsPage(limit, offset); }
+    catch (error) { return res.status(502).json({ error: error.message }); }
+    const externalIds = page.items.map((item) => externalCatalogReference(item.id).externalId);
+    const imported = externalIds.length ? await query(
+      `SELECT * FROM external_catalog_items
+       WHERE active=TRUE AND source=$1 AND external_id=ANY($2::text[])`,
+      [source, externalIds],
+    ) : { rows: [] };
+    const importedById = new Map(imported.rows.map((row) => [row.external_id, externalCatalogItemFromRow(row)]));
+    const recommendationItems = page.items.map((item) => importedById.get(externalCatalogReference(item.id).externalId) || item);
+    const items = await decorateCatalogItems(recommendationItems, req.user.id);
+    return res.json({ source, collection: "recommendations", total: page.total, limit, offset, items });
+  }
+  const result = await query(
     `SELECT w.*,
             u.id AS owner_id,u.username AS owner_username,u.name AS owner_name,u.avatar_url AS owner_avatar_url
      FROM wishes w
@@ -2837,33 +2884,15 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
        AND (visibility.wish_id IS NULL OR visibility.has_public=1)
      ORDER BY w.created_at DESC,w.id`,
     [space],
-  ), query(
-    `SELECT COUNT(*)::int AS count FROM external_catalog_items
-     WHERE active=TRUE AND space=$1`,
-    [space],
-  )]);
+  );
   const preserved = await query("SELECT snapshot FROM catalog_preserved_items WHERE space=$1", [space]);
   const nativeItems = groupCatalogRows([...result.rows, ...preserved.rows.map((row) => row.snapshot)]);
-  const externalCount = Number(externalCountResult.rows[0]?.count || 0);
   const nativeItemsForPage = nativeItems.slice(offset, offset + limit);
-  const externalLimit = limit - nativeItemsForPage.length;
-  const externalOffset = Math.max(0, offset - nativeItems.length);
-  let externalItems = [];
-  if (externalLimit > 0 && externalOffset < externalCount) {
-    const externalResult = await query(
-      `SELECT * FROM external_catalog_items
-       WHERE active=TRUE AND space=$1
-       ORDER BY source_rank,title,external_id
-       LIMIT $2 OFFSET $3`,
-      [space, externalLimit, externalOffset],
-    );
-    externalItems = externalResult.rows.map(externalCatalogItemFromRow);
-  }
-  const items = await decorateCatalogItems([...nativeItemsForPage, ...externalItems], req.user.id, space);
-  res.set("Cache-Control", "private, no-store");
+  const items = await decorateCatalogItems(nativeItemsForPage, req.user.id, space);
   return res.json({
+    source,
     space,
-    total: nativeItems.length + externalCount,
+    total: nativeItems.length,
     limit,
     offset,
     items,
@@ -3004,7 +3033,10 @@ app.post("/api/catalog/items/add", requireAuth, asyncRoute(async (req, res) => {
         resolved.sourceWishId, itemKey,
       ],
     );
-    if (inserted.rowCount) return { status: 201, id: wishId, created: true };
+    if (inserted.rowCount) {
+      const reward = await grantWishReward(client, req.user.id, { id: wishId, title: snapshot.title });
+      return { status: 201, id: wishId, created: true, reward };
+    }
 
     const raced = await client.query(
       `SELECT id FROM wishes
@@ -3025,6 +3057,7 @@ app.post("/api/catalog/items/add", requireAuth, asyncRoute(async (req, res) => {
     wish: wishes.find((wish) => wish.id === outcome.id),
     created: outcome.created,
     restored: Boolean(outcome.restored),
+    reward: outcome.reward || null,
   });
 }));
 
@@ -3803,16 +3836,17 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
   if (data.listIds.some((id) => !ownedIds.has(id))) return res.status(403).json({ error: "Список вам не принадлежит" });
   const id = randomUUID();
-  await transaction(async (client) => {
+  const reward = await transaction(async (client) => {
     await client.query(
       `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,price,currency,priority,privacy,allow_multiple,event_date,space)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.vehicleMake, data.vehicleModel, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null],
     );
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
+    return grantWishReward(client, req.user.id, { id, title: data.title });
   });
   const result = await getWishes(req.user.id, req.user.id, true);
-  res.status(201).json({ wish: result.find((wish) => wish.id === id) });
+  res.status(201).json({ wish: result.find((wish) => wish.id === id), reward });
 }));
 
 app.post("/api/wishes/backfill-previews", requireAuth, previewBackfillRateLimit, asyncRoute(async (req, res) => {
@@ -3970,12 +4004,12 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
     );
   if (!target.rowCount) return res.status(400).json({ error: "Сначала создайте список желаний" });
 
-  const id = await withMutationLock(`wish-like:${req.user.id}:${source.id}`, () => transaction(async (client) => {
+  const outcome = await withMutationLock(`wish-like:${req.user.id}:${source.id}`, () => transaction(async (client) => {
     const existing = await client.query(
       "SELECT id FROM wishes WHERE user_id=$1 AND source_wish_id=$2 LIMIT 1",
       [req.user.id, source.id],
     );
-    if (existing.rowCount) return existing.rows[0].id;
+    if (existing.rowCount) return { id: existing.rows[0].id, created: false, reward: null };
     const copyId = randomUUID();
     await client.query(
       `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,price,currency,priority,privacy,allow_multiple,event_date,space,source_wish_id)
@@ -3983,10 +4017,14 @@ app.post("/api/wishes/:id/copy", requireAuth, asyncRoute(async (req, res) => {
       [copyId, req.user.id, source.title, source.description, source.url, source.image_url, source.fundraising_url, source.vehicle_make, source.vehicle_model, source.price, source.currency, source.priority, source.event_date, source.space, source.id],
     );
     await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [target.rows[0].id, copyId]);
-    return copyId;
+    const reward = await grantWishReward(client, req.user.id, { id: copyId, title: source.title });
+    return { id: copyId, created: true, reward };
   }));
   const wishes = await getWishes(req.user.id, req.user.id, true);
-  res.status(201).json({ wish: wishes.find((wish) => wish.id === id) });
+  res.status(outcome.created ? 201 : 200).json({
+    wish: wishes.find((wish) => wish.id === outcome.id),
+    reward: outcome.reward,
+  });
 }));
 
 app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req, res) => {
@@ -6402,11 +6440,14 @@ app.use((error, req, res, _next) => {
 
 await initializeDatabase();
 
+const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
+
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp server listening on ${port}`);
 });
 
 async function shutdown() {
+  telegramPoller?.stop();
   server.close(async () => {
     if (backgroundTasks.size) {
       await Promise.race([
