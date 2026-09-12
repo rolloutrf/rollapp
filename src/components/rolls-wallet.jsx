@@ -17,6 +17,12 @@ import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/rolls.js";
 
 const TonWallet = lazy(() => import("@/components/ton-wallet").then((module) => ({ default: module.TonWallet })));
 
+function RollsHeroIcon() {
+  return <div className="rolls-hero-icon flex shrink-0 items-center justify-center rounded-full border border-border bg-card/60">
+    <Coins className="size-3/5 text-amber-300" aria-hidden="true" />
+  </div>;
+}
+
 function PersonAvatar({ person }) {
   return <Avatar className="size-12 shrink-0">
     {person.avatarUrl && <AvatarImage src={person.avatarUrl} alt="" />}
@@ -180,10 +186,11 @@ export function RollsWallet({ user }) {
         <span>{loadError}</span><Button variant="outline" onClick={() => refresh()} disabled={loading}>Повторить</Button>
       </AlertDescription></Alert>}
 
-      {topupView ? <RollsTopup user={user} onBack={() => setTopupView(false)} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
-          <div className="flex items-center gap-3">
-            <h1 id="rolls-transfer-title" className="font-heading text-3xl leading-9 font-semibold">Перевод роллов</h1>
-          </div>
+      {topupView && wallet?.features?.starsPurchases ? <RollsTopup user={user} onBack={() => setTopupView(false)} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
+          <header className="flex min-w-0 flex-col items-center gap-3 text-center">
+            <RollsHeroIcon />
+            <h1 id="rolls-transfer-title" className="rolls-balance__value">Перевод</h1>
+          </header>
           <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); sendTransfer(); } }}>
               <Field>
                 <FieldLabel htmlFor="rolls-recipient">Получатель</FieldLabel>
@@ -219,24 +226,24 @@ export function RollsWallet({ user }) {
           </form>
         </section> : <>
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
-            <div className="flex size-28 shrink-0 items-center justify-center rounded-full border border-border bg-card/60">
-              <Coins className="size-14 text-amber-300" aria-hidden="true" />
-            </div>
-            <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
-              {wallet ? new Intl.NumberFormat("ru-RU").format(wallet.balance) : loading ? <span className="flex items-center gap-2 text-base"><Spinner /> Загружаем баланс</span> : "Баланс недоступен"}
-            </div>
+            <RollsHeroIcon />
+            {wallet ? <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
+              {new Intl.NumberFormat("ru-RU").format(wallet.balance)}
+            </div> : <div className="flex min-h-15 items-center justify-center gap-2 text-base text-muted-foreground" role="status" aria-live="polite" aria-atomic="true" data-rolls-balance>
+              {loading && <Spinner />}
+              <span>{loading ? "Загружаем баланс…" : "Баланс недоступен"}</span>
+            </div>}
             <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
-              <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>
-              <Button type="button" variant="outline" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
+              {wallet?.features?.starsPurchases && <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
+              <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
 
-          <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
+          {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
-          </Suspense>
+          </Suspense>}
 
-          <section className="flex min-w-0 flex-col gap-4" aria-labelledby="rolls-history-title">
-            <div><h2 id="rolls-history-title" className="font-heading text-3xl leading-9 font-semibold">История операций</h2></div>
+          <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
             {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col">
               {wallet.transactions.map((item) => {
                 const incoming = item.direction === "incoming";
