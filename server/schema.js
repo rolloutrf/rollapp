@@ -4,6 +4,8 @@ import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
 import { isMemoryDatabase, query, transaction } from "./db.js";
 import { backfillWishGroupSpaces } from "./wish-groups.js";
+import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
+import { rollsSchema } from "./rolls.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -21,6 +23,8 @@ const schema = `
     phone_verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ${rollsSchema}
 
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
@@ -226,6 +230,8 @@ const schema = `
 
   CREATE INDEX IF NOT EXISTS idx_external_catalog_items_space
     ON external_catalog_items(space, active, source_rank);
+
+  ${externalCatalogBrandsSchema}
 
   CREATE TABLE IF NOT EXISTS catalog_preserved_items (
     id TEXT PRIMARY KEY,

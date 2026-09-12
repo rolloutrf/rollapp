@@ -329,9 +329,10 @@ for (const [, attributes, children] of topbarShareButtons) {
   assert(/^\s*<Share2\s+aria-hidden="true"\s*\/>\s*$/.test(children), "The topbar Share action must render only its decorative icon, without visible text");
 }
 assert(
-  /\.global-app-chrome__share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
+  /\.global-app-chrome__share,\s*\.global-app-chrome__rolls\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
+assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"><MakiIcon className="size-8" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
 const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileControls"), app.indexOf("function ProtectedApp"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
@@ -587,6 +588,11 @@ const listTileContentSource = app.slice(app.indexOf("function ListTileContent"),
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
 assert((app.match(/<ListTileContent\b/g) || []).length >= 4, "Personal and public collection tiles must share the overlap-safe list-tile composition");
+const catalogBrandAttributionSource = app.slice(app.indexOf("function CatalogBrandAttribution"), app.indexOf("function CatalogWishCard"));
+assert(/const label = String\(brand\?\.label \|\| ""\)\.trim\(\)/.test(catalogBrandAttributionSource), "Catalog attribution must use the product's verified brand label");
+assert(/<AvatarImage src=\{brand\.logoUrl \|\| undefined\}/.test(catalogBrandAttributionSource), "Catalog attribution must use the brand's own logo");
+assert(/aria-label=\{`Бренд товара: \$\{label\}`\}/.test(catalogBrandAttributionSource), "Catalog brand attribution must expose an accessible label");
+assert(!/OhMyWishes|source\.(?:label|logoUrl|homeUrl)|Каталог \{/.test(catalogBrandAttributionSource), "Catalog brand attribution must not fall back to provider branding");
 const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsDrawer"));
 assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 2, "Catalog cards must expose one detail trigger and one Wishlist action");
 assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
@@ -603,7 +609,9 @@ assert(/aria-pressed=\{Boolean\(item\.addedByMe\)\}/.test(catalogWishCardSource)
 assert(/item\.addedByMe \? "fill-current text-destructive" : ""/.test(catalogWishCardSource), "Catalog Heart must be filled red after the item is added to Wishlist");
 assert(!/onLike|likedByMe|likeLabel/.test(catalogWishCardSource), "Catalog cards must not keep a separate Like mutation");
 assert(!/catalog-wish-card__source|Открыть исходную ссылку|href=\{item\.url\}/.test(catalogWishCardSource), "Catalog cards must keep external item links inside the details drawer");
-assert(/<CatalogSourceAttribution source=\{item\.source\} linked=\{false\} \/>/.test(catalogWishCardSource), "Catalog cards must render external source attribution without direct navigation");
+assert(/item\.brand[\s\S]*?<CatalogBrandAttribution brand=\{item\.brand\} \/>/.test(catalogWishCardSource), "Catalog cards must render the verified product brand");
+assert(/!item\.source && <CatalogOwnerStack/.test(catalogWishCardSource), "Community catalog cards must keep participant attribution");
+assert(!/CatalogSourceAttribution|source\.label|source\.logoUrl/.test(catalogWishCardSource), "Catalog cards must not display the external provider's branding");
 const catalogWishDetailsSource = app.slice(app.indexOf("function CatalogWishDetailsDrawer"), app.indexOf("function WishCatalogPage"));
 for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerClose"]) {
   assert(new RegExp(`<${component}\\b`).test(catalogWishDetailsSource), `Catalog details must use the official ${component} primitive`);
@@ -625,11 +633,14 @@ assert(/\bw-full\b/.test(catalogWishMediaImageTag) && /\bh-auto\b/.test(catalogW
 for (const slot of ["wish-price-row", "wish-price", "wish-toolbar", "wish-actions"]) {
   assert(catalogWishDetailsSource.includes(`data-slot="${slot}"`), `Catalog details must reuse the existing ${slot} WishDetails pattern`);
 }
-assert(/<MarketplaceOffers wish=\{item\} owner=\{false\} formatPrice=\{formatMoney\} \/>/.test(catalogWishDetailsSource), "Product catalog details must reuse the existing MarketplaceOffers source card");
+const catalogMarketplaceItemSource = app.slice(app.indexOf("function catalogMarketplaceItem"), app.indexOf("function CatalogWishCard"));
+assert(/item\?\.source\?\.id !== "ohmywishes"/.test(catalogMarketplaceItemSource) && /host !== "ohmywishes\.com"/.test(catalogMarketplaceItemSource) && /return \{ \.\.\.item, url: "" \}/.test(catalogMarketplaceItemSource), "Catalog marketplace offers must suppress upstream provider URLs");
+assert(/const marketplaceItem = catalogMarketplaceItem\(item\)/.test(catalogWishDetailsSource) && /<MarketplaceOffers wish=\{marketplaceItem\} owner=\{false\} formatPrice=\{formatMoney\} \/>/.test(catalogWishDetailsSource), "Product catalog details must reuse MarketplaceOffers without exposing the provider as a store");
 assert(/\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Catalog details must use MarketplaceOffers for the same spaces as WishDetails");
 assert(/item\.url && !\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Other catalog spaces must retain their direct detail-only source action");
 assert(/item\.fundraisingUrl/.test(catalogWishDetailsSource), "Catalog details must retain fundraising links inside the drawer");
 assert(/aria-label="Действия с позицией каталога"/.test(catalogWishDetailsSource), "Catalog detail actions must expose an accessible group name");
+assert(/item\.brand && <CatalogBrandAttribution brand=\{item\.brand\} compact \/>/.test(catalogWishDetailsSource), "Catalog details must identify the verified product brand");
 assert(/<Heart\b/.test(catalogWishDetailsSource) && /onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishDetailsSource), "Catalog details must reuse the Wishlist Heart toggle");
 assert(/disabled=\{wishlistDisabled\}/.test(catalogWishDetailsSource) && /aria-pressed=\{Boolean\(item\.addedByMe\)\}/.test(catalogWishDetailsSource), "Catalog details must expose the same disabled and pressed states as catalog cards");
 assert(/Убрать из вишлиста/.test(catalogWishDetailsSource) && /Добавить в вишлист/.test(catalogWishDetailsSource), "Catalog details must label both Wishlist toggle directions");
@@ -651,6 +662,12 @@ const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalo
 assert(!/\.is-liked\b/.test(catalogCardActionStyles), "Catalog Wishlist action must not keep a separate Like state");
 assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1;/.test(catalogCardActionStyles), "An added catalog item must keep a visible red-heart state without disabling the toggle");
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
+assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
+assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
+const catalogProfileHeroSource = app.slice(app.indexOf("function CatalogProfileHero"), app.indexOf("function WishesProfileControls"));
+assert(/source === "ohmywishes" \? "БРЕНДЫ" : "РОЛЛАПП"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
+const brandSelectSource = read("src/components/ohmywishes-brands.jsx");
+assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
 const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
 assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");

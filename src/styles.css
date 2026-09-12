@@ -4944,12 +4944,18 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     justify-self: center;
   }
 }
-.global-app-chrome__share {
+.global-app-chrome__actions {
   grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
+}
+.global-app-chrome__share,
+.global-app-chrome__rolls {
   width: 48px;
   height: 48px;
   min-height: 48px;
-  justify-self: end;
   padding: 0;
   border-radius: var(--radius-pill);
 }
@@ -10055,7 +10061,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   font-size: 13px;
   font-weight: 700;
 }
-.catalog-source-attribution {
+.catalog-brand-attribution {
   width: fit-content;
   margin-top: 11px;
   display: inline-flex;
@@ -10066,26 +10072,24 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   line-height: 16px;
   text-decoration: none;
 }
-a.catalog-source-attribution:hover { color: var(--foreground); }
-.catalog-source-attribution__logo {
-  width: 36px;
-  height: 36px;
+.catalog-brand-attribution__logo {
   flex: 0 0 36px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
-  border-radius: 999px;
-  color: var(--foreground);
-  background: #fff;
-  font-size: 13px;
-  font-weight: 700;
 }
-.catalog-source-attribution__logo img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
+.catalog-brand-attribution--compact {
+  min-width: 0;
+  margin-top: 0;
+  margin-left: auto;
+  gap: 7px;
+  color: var(--foreground);
+  font-weight: 600;
+}
+.catalog-brand-attribution--compact .catalog-brand-attribution__logo {
+  flex-basis: 28px;
+}
+.catalog-brand-attribution--compact > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .wish-catalog-page__more {
   padding-top: 44px;
@@ -10094,6 +10098,70 @@ a.catalog-source-attribution:hover { color: var(--foreground); }
 }
 .wish-catalog-page__more > .button { min-width: 190px; }
 .wish-catalog-page__error { margin-top: 24px; }
+
+/* Store follows the Wishlist catalog composition and product typography. */
+.cat-store-page { width: 100%; }
+.cat-store-card__image { background: #deddda; }
+.cat-store-card__image img { object-position: center; }
+.cat-store-card .catalog-wish-card__meta { display: flex; align-items: center; gap: 5px; }
+.cat-store-card .catalog-wish-card__meta svg { width: 15px; height: 15px; }
+
+.app-layout--dark .app-page.orders-page {
+  display: flex;
+  width: 100%;
+  max-width: calc(var(--layout-compact-width) + 2 * var(--layout-page-inset));
+  flex-direction: column;
+  gap: var(--layout-section-gap);
+  padding-block-start: var(--layout-section-gap);
+}
+.orders-page__intro { display: flex; align-items: end; justify-content: space-between; gap: var(--layout-page-gap); }
+.orders-page__intro > div:first-child { max-width: 680px; }
+.orders-page__eyebrow { margin: 0 0 8px; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.orders-page__intro h1 { margin: 0; font-family: var(--font-heading); font-size: var(--text-3xl); line-height: var(--text-3xl--line-height); font-weight: 600; }
+.orders-page__intro h1 + p { margin: 10px 0 0; color: var(--muted-foreground); text-wrap: pretty; }
+.orders-page__summary { display: grid; grid-template-columns: auto auto; align-items: baseline; gap: 2px 10px; min-width: 150px; border: 1px solid var(--border); border-radius: 20px; padding: 16px 18px; }
+.orders-page__summary strong { font-family: var(--font-heading); font-size: var(--text-2xl); line-height: var(--text-2xl--line-height); font-weight: 600; font-variant-numeric: tabular-nums; }
+.orders-page__summary span { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.orders-page__list { display: flex; flex-direction: column; gap: 16px; }
+.orders-card { display: flex; min-width: 0; gap: 24px; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; padding: 20px; background: color-mix(in srgb, var(--card) 94%, transparent); }
+.orders-card__media { position: relative; display: flex; width: 180px; min-height: 180px; flex: 0 0 180px; align-items: center; justify-content: center; overflow: hidden; border-radius: 18px; background: #deddda; color: var(--muted-foreground); }
+.orders-card__media > img { width: 100%; height: 100%; object-fit: cover; }
+.orders-card__media > svg { width: 48px; height: 48px; }
+.orders-card__number { position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); overflow: hidden; border-radius: 999px; padding: 5px 9px; background: rgba(10,10,10,.76); color: white; font-size: var(--text-xs); line-height: var(--text-xs--line-height); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; backdrop-filter: blur(8px); }
+.orders-card__content { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 14px; }
+.orders-card__heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.orders-card__date { margin: 0 0 4px; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.orders-card__heading h2 { margin: 0; font-family: var(--font-heading); font-size: var(--text-xl); line-height: var(--text-xl--line-height); font-weight: 600; text-wrap: pretty; }
+.orders-card__status { min-height: 28px; padding-inline: 10px; }
+.orders-card__price { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.orders-card__price > svg { width: 18px; height: 18px; color: #f3c64e; }
+.orders-card__price > span { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.orders-card__delivery { display: flex; min-width: 0; align-items: start; gap: 10px; border-radius: 16px; padding: 12px 14px; background: var(--muted); }
+.orders-card__delivery > svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.orders-card__delivery > div { display: flex; flex-direction: column; gap: 2px; }
+.orders-card__delivery span, .orders-card__delivery small { color: var(--muted-foreground); overflow-wrap: anywhere; }
+.orders-card__delivery small { font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.orders-card__return { align-self: flex-start; min-width: 170px; }
+.orders-card__refunded { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); }
+.orders-card__refunded > svg { width: 18px; height: 18px; }
+.orders-card[data-order-status="refunded"] .orders-card__media { filter: saturate(.35); opacity: .8; }
+.orders-card__image { width: 180px; min-height: 180px; flex: 0 0 180px; border-radius: 18px; }
+
+@media (max-width: 680px) {
+  .orders-page__intro { align-items: stretch; flex-direction: column; }
+  .orders-page__summary { width: 100%; grid-template-columns: auto 1fr auto 1fr; }
+  .orders-card { gap: 16px; border-radius: 20px; padding: 14px; }
+  .orders-card__media, .orders-card__image { width: 112px; min-height: 112px; flex-basis: 112px; }
+  .orders-card__heading { flex-direction: column-reverse; gap: 8px; }
+  .orders-card__delivery { margin-left: -128px; }
+  .orders-card__return, .orders-card__refunded { align-self: auto; margin-left: -128px; }
+}
+
+@media (max-width: 420px) {
+  .orders-card { display: grid; grid-template-columns: 92px minmax(0, 1fr); }
+  .orders-card__media, .orders-card__image { width: 92px; min-height: 92px; flex-basis: 92px; }
+  .orders-card__delivery, .orders-card__return, .orders-card__refunded { margin-left: -108px; }
+}
 
 @media (max-width: 560px) {
   .catalog-wish-card__image { border-radius: 15px; }
@@ -10105,3 +10173,15 @@ a.catalog-source-attribution:hover { color: var(--foreground); }
 }
 
 }
+
+/* Rolls uses the shared prose/body presets; the balance is a display value. */
+.app-layout--dark .app-page.rolls-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-section-gap);
+  max-width: calc(var(--layout-compact-width) + 2 * var(--layout-page-inset));
+  padding-block-start: var(--layout-section-gap);
+}
+.rolls-page :where(p, li) { text-wrap: pretty; }
+.rolls-page__columns { display: flex; flex-direction: column; gap: var(--layout-page-gap); }
+.rolls-balance__value { font-family: var(--font-heading); font-size: var(--text-4xl); line-height: var(--text-4xl--line-height); font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

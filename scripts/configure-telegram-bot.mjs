@@ -32,7 +32,7 @@ if (["polling", "external-polling"].includes(config.deliveryMode)) {
   await callTelegramBotApi("setWebhook", {
     url: webhookUrl,
     secret_token: config.webhookSecret,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "pre_checkout_query"],
     drop_pending_updates: false,
   }, config);
 }
@@ -47,6 +47,8 @@ await callTelegramBotApi("setMyCommands", {
   commands: [
     { command: "start", description: "Открыть Rollapp" },
     { command: "app", description: "Мои желания" },
+    { command: "paysupport", description: "Помощь с оплатой и возвратами" },
+    { command: "terms", description: "Условия покупки роллов" },
   ],
 }, config);
 

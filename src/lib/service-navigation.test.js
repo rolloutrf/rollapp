@@ -4,6 +4,7 @@ import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./service-
 
 const services = [
   { id: "wishlist" },
+  { id: "rolls" },
   { id: "identity" },
   { id: "career" },
 ];
@@ -21,10 +22,10 @@ test("the private-sphere owner can discover every service", () => {
   );
 });
 
-test("other users and guests can discover only the wishlist", () => {
+test("registered users discover rolls; guests discover only the wishlist", () => {
   assert.deepEqual(
     serviceSwitcherItemsForUser(services, { canDiscoverSpheres: false }),
-    [{ id: "wishlist" }],
+    [{ id: "wishlist" }, { id: "rolls" }],
   );
   assert.deepEqual(serviceSwitcherItemsForUser(services, null), [{ id: "wishlist" }]);
 });
