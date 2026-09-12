@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, useCareerContent,
 } from "@/components/career-content";
@@ -151,14 +152,14 @@ export function Theses() {
     <div className="sphere-text-page page-stack">
       {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
         <Button
-          className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-          shape="pill"
+          className="min-h-12 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
           type="button"
           disabled={careerContent.loading}
+          aria-label="Добавить тезис"
           onClick={() => setEditor({ mode: "add" })}
         >
           {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
-          {careerContent.loading ? "Загружаем" : "Добавить тезис"}
+          Добавить
         </Button>
       </header>}
 
@@ -175,30 +176,20 @@ export function Theses() {
                   ))}
                 </blockquote>
                 {!readOnly && <div className="not-typeset flex shrink-0 items-center gap-1">
-                  <Button
-                    className="size-12 rounded-full"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
+                  <CareerIconAction
                     disabled={careerContent.loading}
-                    aria-label={`Редактировать тезис ${index + 1}`}
-                    title="Редактировать тезис"
+                    label={`Редактировать тезис ${index + 1}`}
                     onClick={() => setEditor({ mode: "edit", index })}
                   >
                     <Pencil aria-hidden="true" />
-                  </Button>
-                  <Button
-                    className="size-12 rounded-full"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
+                  </CareerIconAction>
+                  <CareerIconAction
                     disabled={careerContent.loading}
-                    aria-label={`Удалить тезис ${index + 1}`}
-                    title="Удалить тезис"
+                    label={`Удалить тезис ${index + 1}`}
                     onClick={() => setDeleteIndex(index)}
                   >
                     <Trash2 className="text-destructive" aria-hidden="true" />
-                  </Button>
+                  </CareerIconAction>
                 </div>}
               </div>
             ))}

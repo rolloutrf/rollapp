@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Coins, MapPin, Search } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -212,12 +212,12 @@ export function CatCheckout({ purchase, storageKey, onClose, onSuccess }) {
       </div>
 
       <DialogFooter className="shrink-0">
-        {success ? <Button onClick={onClose}><Check aria-hidden="true" />Готово</Button> : step === "pickup" ? <>
-          <Button variant="outline" onClick={onClose}>Отмена</Button>
-          <Button disabled={!point} onClick={() => setStep("review")}>Продолжить<ArrowRight aria-hidden="true" /></Button>
+        {success ? <Button className="rounded-full" onClick={onClose}>Готово</Button> : step === "pickup" ? <>
+          <Button className="rounded-full" variant="outline" onClick={onClose}>Отмена</Button>
+          <Button className="rounded-full" disabled={!point} onClick={() => setStep("review")}>Продолжить</Button>
         </> : <>
-          <Button variant="outline" disabled={busy} onClick={() => pending ? onClose() : setStep("pickup")}><ArrowLeft aria-hidden="true" />{pending ? "Позже" : "Изменить пункт"}</Button>
-          <Button disabled={busy || !point} onClick={confirm}>{busy ? <Spinner /> : <Coins aria-hidden="true" />}{busy ? "Проверяем…" : pending ? "Проверить покупку" : "Купить за 1 000 роллов"}</Button>
+          <Button className="rounded-full" variant="outline" disabled={busy} onClick={() => pending ? onClose() : setStep("pickup")}>{pending ? "Позже" : "Изменить пункт"}</Button>
+          <Button className="rounded-full" disabled={busy || !point} onClick={confirm}>{busy ? <Spinner /> : null}{busy ? "Проверяем…" : pending ? "Проверить покупку" : "Купить за 1 000 роллов"}</Button>
         </>}
       </DialogFooter>
     </DialogContent>

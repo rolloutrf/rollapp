@@ -159,12 +159,10 @@ test("Stars orders on production PostgreSQL; all fixtures and schema changes rol
             await page.getByRole("button", { name: "Пополнить", exact: true }).click();
             const buy = page.getByRole("button", { name: "Купить за 10 Stars", exact: true });
             await buy.waitFor();
-            assert.equal(await buy.isDisabled(), true);
+            assert.equal(await buy.isEnabled(), true);
             await page.getByRole("radio", { name: "500 роллов 50 Stars" }).check();
             assert.equal(await page.getByRole("button", { name: "Купить за 50 Stars" }).count(), 1);
             await page.getByRole("radio", { name: "100 роллов 10 Stars" }).check();
-            await page.getByRole("checkbox", { name: "Принимаю условия покупки роллов" }).check();
-            assert.equal(await buy.isEnabled(), true);
             await page.evaluate(() => window.scrollTo(0, 0));
             await page.screenshot({ path: `exports/stars/${name}-packages.png`, fullPage: true });
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

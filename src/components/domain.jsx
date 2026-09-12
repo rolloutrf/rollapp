@@ -8,6 +8,7 @@ export function Domain() {
       source={domainSource}
       label="Домен"
       className="career-domain"
+      showActionLabel
     />
   );
 }

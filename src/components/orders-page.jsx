@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck } from "lucide-react";
+import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "@/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -53,8 +53,7 @@ function OrderCard({ order, product, busy, onRefund }) {
         <MapPin aria-hidden="true" />
         <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
       </section>}
-      {refunded ? <div className="orders-card__refunded"><CheckCircle2 aria-hidden="true" /><span>Возврат выполнен {dateFormatter.format(new Date(order.refundedAt))}</span></div>
-        : <Button variant="outline" className="orders-card__return" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
+      {!refunded && <Button variant="outline" className="orders-card__return" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
     </div>
   </article>;
 }
@@ -90,11 +89,6 @@ export function OrdersPage({ products }) {
 
   const activeCount = orders.filter((order) => order.status !== "refunded").length;
   return <div className="app-page orders-page rollapp-body">
-    <header className="orders-page__intro">
-      <div><p className="orders-page__eyebrow">Ваши покупки</p><h1>Все заказы в одном месте</h1><p>Следите за оформленными товарами, пунктами выдачи и возвращайте покупку, если передумали.</p></div>
-      {!loading && orders.length > 0 && <div className="orders-page__summary" aria-label="Сводка заказов"><strong>{orders.length}</strong><span>всего</span><strong>{activeCount}</strong><span>активных</span></div>}
-    </header>
-
     {error && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{error}<Button variant="outline" onClick={load}>Попробовать снова</Button></AlertDescription></Alert>}
     {loading ? <div className="orders-page__list" aria-label="Загрузка заказов"><OrderSkeleton /><OrderSkeleton /></div>
       : !error && orders.length === 0 ? <Empty className="orders-page__empty border min-h-80">

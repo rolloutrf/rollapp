@@ -13,8 +13,8 @@
     --font-heading: var(--font-sans);
     --font-body: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
-    --text-rollapp-body: 0.9375rem;
-    --text-rollapp-body--line-height: 1.640625rem;
+    --text-rollapp-body: 1.125rem;
+    --text-rollapp-body--line-height: 1.75rem;
     --text-xs: 0.8125rem;
     --text-xs--line-height: 1rem;
     --color-sidebar-ring: var(--sidebar-ring);
@@ -305,8 +305,8 @@
   :is([class~="group/button"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"]) {
     min-inline-size: 3rem;
     min-block-size: 3rem;
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: var(--text-rollapp-body);
+    line-height: var(--text-rollapp-body--line-height);
   }
 
   :is([class~="group/button"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"])
@@ -323,8 +323,8 @@
     [data-slot="select-trigger"]
   ) {
     min-block-size: 3rem;
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: var(--text-rollapp-body);
+    line-height: var(--text-rollapp-body--line-height);
   }
 
   :is([data-slot="input"]:not(.sr-only), [data-slot="native-select"], [data-slot="select-trigger"]) {
@@ -374,14 +374,14 @@
   :is([data-slot="textarea"], textarea[data-slot="input-group-control"]) {
     min-block-size: 6rem;
     padding: 0.75rem 1rem;
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: var(--text-rollapp-body);
+    line-height: var(--text-rollapp-body--line-height);
   }
 
   [data-slot="input-otp-slot"] {
     width: 3rem;
     height: 3rem;
-    font-size: 1rem;
+    font-size: var(--text-rollapp-body);
   }
 
   :is(
@@ -394,8 +394,8 @@
     [data-slot="select-scroll-down-button"]
   ) {
     min-block-size: 3rem;
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: var(--text-rollapp-body);
+    line-height: var(--text-rollapp-body--line-height);
   }
 
   :is(
@@ -478,6 +478,11 @@
 
   [data-slot="field"]:has([data-slot="switch"], [data-slot="checkbox"], [data-slot="radio-group-item"]) {
     min-block-size: 3rem;
+  }
+
+  /* Prose checklist rows follow their label height, not Large form sizing. */
+  .life-strategy-source .task-list-item__field[data-slot="field"] {
+    min-block-size: 0;
   }
 
   [data-slot="dropdown-menu-item"][data-variant="destructive"].app-destructive-menu-item {
@@ -582,7 +587,7 @@
   @media (max-width: 820px) {
     .friends-search [data-slot="input-group-control"] {
       padding-inline-start: 0;
-      font-size: 1rem;
+      font-size: var(--text-rollapp-body);
     }
 
     .wishes-page .list-tabs [data-slot="toggle-group-item"] {

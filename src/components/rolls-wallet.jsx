@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Check, Gift, RefreshCw, Search, Send, Sparkles } from "lucide-react";
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -180,10 +180,9 @@ export function RollsWallet({ user }) {
 
       {topupView ? <RollsTopup user={user} onBack={() => setTopupView(false)} onPaid={() => refresh({ quiet: true })} /> : transferView ? <section className="rolls-transfer flex min-w-0 flex-col gap-6" aria-labelledby="rolls-transfer-title">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" size="icon" aria-label="Вернуться к кошельку" disabled={busy} onClick={() => setTransferView(false)}><ArrowLeft aria-hidden="true" /></Button>
             <h1 id="rolls-transfer-title" className="font-heading text-3xl leading-9 font-semibold">Перевод роллов</h1>
           </div>
-          <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); setConfirmOpen(true); } }}>
+          <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); sendTransfer(); } }}>
               <Field>
                 <FieldLabel htmlFor="rolls-recipient">Получатель</FieldLabel>
                 {recipient ? <div className="flex min-w-0 items-center gap-3 rounded-xl border p-3">
@@ -214,23 +213,25 @@ export function RollsWallet({ user }) {
                 <Textarea id="rolls-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={280} rows={2} placeholder="Спасибо за помощь!" disabled={busy || Boolean(pending)} />
               </Field>
               {pending && <Alert><AlertDescription>У вас есть перевод, результат которого нужно проверить.</AlertDescription></Alert>}
-              <Button type="submit" className="w-full" disabled={busy || (!pending && !canReview)}><Send aria-hidden="true" />{pending ? "Проверить перевод" : "Продолжить"}</Button>
+              <Button type="submit" className="w-full" disabled={busy || (!pending && !canReview)}>{pending ? "Проверить перевод" : "Продолжить"}</Button>
           </form>
         </section> : <>
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
-            <MakiIcon className="h-14 w-16 shrink-0" />
-            <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
-              {wallet ? formatRolls(wallet.balance) : loading ? <span className="flex items-center gap-2 text-base"><Spinner /> Загружаем баланс</span> : "Баланс недоступен"}
+            <div className="flex size-28 shrink-0 items-center justify-center rounded-full border border-border bg-card/60">
+              <Coins className="size-14 text-amber-300" aria-hidden="true" />
             </div>
-            <div className="grid w-full max-w-sm grid-cols-2 gap-3" aria-label="Действия с роллами">
-              <Button type="button" onClick={() => setTopupView(true)} disabled={!wallet || busy}><ArrowDownLeft aria-hidden="true" />Пополнить</Button>
-              <Button type="button" variant="outline" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><Send aria-hidden="true" />Отправить</Button>
+            <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
+              {wallet ? new Intl.NumberFormat("ru-RU").format(wallet.balance) : loading ? <span className="flex items-center gap-2 text-base"><Spinner /> Загружаем баланс</span> : "Баланс недоступен"}
+            </div>
+            <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
+              <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>
+              <Button type="button" variant="outline" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
 
           <section className="flex min-w-0 flex-col gap-4" aria-labelledby="rolls-history-title">
-            <div className="flex items-center justify-between gap-3"><h2 id="rolls-history-title" className="font-heading text-3xl leading-9 font-semibold">История операций</h2><Button variant="ghost" size="icon" aria-label="Обновить баланс и историю" onClick={() => refresh()} disabled={loading || busy}><RefreshCw aria-hidden="true" /></Button></div>
-            {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col divide-y divide-border">
+            <div><h2 id="rolls-history-title" className="font-heading text-3xl leading-9 font-semibold">История операций</h2></div>
+            {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col">
               {wallet.transactions.map((item) => {
                 const incoming = item.direction === "incoming";
                 const reward = item.kind === "wish_reward";
@@ -239,14 +240,11 @@ export function RollsWallet({ user }) {
                 const Icon = item.kind === "welcome" ? Gift : reward || grant ? Sparkles : incoming ? ArrowDownLeft : ArrowUpRight;
                 const title = item.kind === "welcome"
                   ? "Добро пожаловать в Rollapp"
-                  : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? "Пополнение через Telegram Stars" : `${incoming ? "От" : "Для"} ${item.person.name}`;
+                  : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? "Пополнение через Telegram Stars" : `${incoming ? "От " : ""}${item.person.name}`;
                 return <li key={item.id} className="flex min-w-0 items-start gap-3 py-4" data-rolls-transaction={item.kind}>
                   <span className={`flex size-12 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-amber-400/10 text-amber-300" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" aria-hidden="true" /></span>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><span className="break-words">{title}</span><span className={`shrink-0 tabular-nums ${incoming ? "text-amber-300" : "text-foreground"}`}>{incoming ? "+" : "−"}{formatRolls(item.amount)}</span></div>
-                    {item.person && <span className="break-all text-xs text-muted-foreground">@{item.person.username}</span>}
-                    {item.note && <p className="whitespace-pre-wrap break-words">{item.note}</p>}
-                    <time className="text-xs text-muted-foreground" dateTime={item.createdAt}>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(item.createdAt))}</time>
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4"><span className="min-w-0 break-words text-base">{title}</span><span className={`shrink-0 text-right text-base tabular-nums ${incoming ? "text-amber-300" : "text-foreground"}`}>{incoming ? "+" : "−"}{formatRolls(item.amount)}</span>{item.note || item.kind === "welcome" ? <span className="min-w-0 whitespace-pre-wrap break-words text-base text-muted-foreground">{item.kind === "welcome" ? "Начисление" : item.note === "Начисление по запросу пользователя" ? "Начисление по запросу" : item.note}</span> : item.person ? <span className="min-w-0 break-all text-base text-muted-foreground">@{item.person.username}</span> : <span /> }<time className="whitespace-nowrap text-right text-base text-muted-foreground" dateTime={item.createdAt}>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(item.createdAt))}</time></div>
                   </div>
                 </li>;
               })}

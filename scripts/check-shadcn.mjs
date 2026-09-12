@@ -100,8 +100,8 @@ for (const marker of [
 assert.match(theme, /--text-xs:\s*0\.8125rem;/, "The smallest shadcn text token must be 13px");
 assert.match(theme, /--text-xs--line-height:\s*1rem;/, "The 13px shadcn text token must keep a compact 16px line height");
 assert.match(theme, /--font-body:\s*var\(--font-sans\);/, "Rollapp body copy must use the shared sans-serif family");
-assert.match(theme, /--text-rollapp-body:\s*0\.9375rem;/, "Rollapp desktop body copy must remain 15px");
-assert.match(theme, /--text-rollapp-body--line-height:\s*1\.640625rem;/, "Rollapp desktop body copy must retain its 26.25px reading line height");
+assert.match(theme, /--text-rollapp-body:\s*1\.125rem;/, "Rollapp primary body copy must remain 18px");
+assert.match(theme, /--text-rollapp-body--line-height:\s*1\.75rem;/, "Rollapp primary body copy must retain its 28px reading line height");
 assert.match(typeset, /\.typeset-rollapp\s*\{[\s\S]*?--typeset-font-body:\s*var\(--font-body\);[\s\S]*?--typeset-size:\s*var\(--text-rollapp-body\);[\s\S]*?--typeset-leading:\s*var\(--text-rollapp-body--line-height\);/, "The Rollapp content preset must consume the canonical body tokens");
 assert.match(typeset, /&:where\(p, li\)\s*\{[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?text-wrap:\s*pretty;/, "Rollapp body copy must remain regular, untracked, and readable");
 assert.match(typeset, /&:where\(h1 \+ p, h2 \+ p\)\s*\{[\s\S]*?color:\s*var\(--foreground\);/, "Rollapp lead paragraphs must use the same foreground as body copy");
@@ -111,7 +111,10 @@ assert.match(typeset, /&:where\(h1 \+ \*, h2 \+ \*, h3 \+ \*, h4 \+ \*, h5 \+ \*
 assert.match(typeset, /&:where\(hr\)\s*\{[\s\S]*?margin-block-start:\s*calc\(var\(--typeset-flow\) \* 2\.4\);[\s\S]*?margin-block-end:\s*0;/, "Dividers must derive their one-directional spacing from the shared flow token");
 assert.match(typeset, /&:where\(ul > li\)::marker,[\s\S]*?&:where\(ol > li\)::marker\s*\{[\s\S]*?color:\s*var\(--foreground\);/, "List markers must inherit the neutral prose foreground instead of introducing a blue accent");
 assert.match(typeset, /&:where\(ul\.contains-task-list\)\s*\{[\s\S]*?list-style-type:\s*none;[\s\S]*?padding-inline-start:\s*0\.25em;/, "GFM task lists must use the official shadcn\/typeset layout");
-assert.match(typeset, /&:where\(li\.task-list-item > input\[type="checkbox"\]\)\s*\{[\s\S]*?accent-color:\s*var\(--color-primary, currentColor\);/, "GFM task checkboxes must use the official primary theme token");
+assert.match(lifeStrategySource, /import \{ Checkbox \} from "@\/components\/ui\/checkbox";/, "GFM task lists must use the installed shadcn Checkbox primitive");
+assert.match(typeset, /\.typeset-rollapp \.task-list-item \[data-slot="checkbox"\]\s*\{[\s\S]*?margin-block-start:\s*0\.125rem;/, "GFM task checkboxes must align with the first line of their label");
+assert.doesNotMatch(lifeStrategySource, /<input\s+type="checkbox"/, "GFM task lists must not fall back to a native checkbox skin");
+assert.doesNotMatch(lifeStrategySource, /<Checkbox(?:(?!\/>)[\s\S])*?className="[^"]*\bsize-/, "GFM task checkboxes must not override the official shadcn geometry with local utilities");
 assert.doesNotMatch(typeset, /:last-child\b|:has\(|:empty\b/, "Typeset layout must remain append-stable without forward-looking selectors");
 assert.doesNotMatch(lifeStrategySource, /life-strategy-source__space/, "Markdown blank lines must not render spacer elements");
 assert.doesNotMatch(lifeStrategySource, /<hr\b/, "Markdown thematic breaks must not render decorative lines");
@@ -131,12 +134,14 @@ if (agents) {
     "margin-block-start",
     "not-typeset",
     "do not use `space-x-*` or `space-y-*`",
+    "`1.125rem/1.75rem` (`18px/28px`)",
   ]) {
     assert(agents.includes(rule), `Workspace typography rules must document ${rule}`);
   }
 }
-assert.match(typeset, /@media \(max-width:\s*640px\)[\s\S]*?--typeset-size:\s*1rem;[\s\S]*?--typeset-leading:\s*1\.75rem;/, "Rollapp mobile body copy must remain 16px with a 28px line height");
-assert.match(typeset, /@layer utilities\s*\{[\s\S]*?\.rollapp-body\s*\{[\s\S]*?font-family:\s*var\(--font-body\);[\s\S]*?font-size:\s*var\(--text-rollapp-body\);[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?line-height:\s*var\(--text-rollapp-body--line-height\);/, "Non-Wishlist application surfaces must expose the canonical body utility");
+assert.doesNotMatch(typeset, /@media \(max-width:\s*640px\)[\s\S]*?(?:--typeset-size|\.rollapp-body\s*\{[\s\S]*?font-size)/, "Rollapp mobile body copy must not override the shared 18px/28px tokens");
+assert.match(legacyStyles, /body\s*\{[^}]*font-size:\s*var\(--text-rollapp-body\);[^}]*line-height:\s*var\(--text-rollapp-body--line-height\);/, "The application body must inherit the canonical 18px/28px tokens");
+assert.match(typeset, /@layer utilities\s*\{[\s\S]*?\.rollapp-body\s*\{[\s\S]*?font-family:\s*var\(--font-body\);[\s\S]*?font-size:\s*var\(--text-rollapp-body\);[\s\S]*?font-weight:\s*400;[\s\S]*?letter-spacing:\s*0;[\s\S]*?line-height:\s*var\(--text-rollapp-body--line-height\);/, "Application surfaces must expose the canonical body utility");
 assert.doesNotMatch(theme, /--text-body(?:--line-height)?:/, "Canonical Rollapp theme tokens must not collide with the legacy Wishlist --text-body token");
 assert.match(legacyStyles, /--text-caption:\s*13px;/, "The smallest legacy caption token must be 13px");
 const authSurfaces = [...app.matchAll(/className="([^"]*\bauth-page\b[^"]*)"/g)];
@@ -332,7 +337,7 @@ assert(
   /\.global-app-chrome__share,\s*\.global-app-chrome__rolls\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
-assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"><MakiIcon className="size-8" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
+assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
 const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileControls"), app.indexOf("function ProtectedApp"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
@@ -665,7 +670,7 @@ assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog H
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
 const catalogProfileHeroSource = app.slice(app.indexOf("function CatalogProfileHero"), app.indexOf("function WishesProfileControls"));
-assert(/source === "ohmywishes" \? "БРЕНДЫ" : "РОЛЛАПП"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
+assert(/source === "ohmywishes" \? "Бренды" : "Лента"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
 const brandSelectSource = read("src/components/ohmywishes-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
