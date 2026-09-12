@@ -217,4 +217,5 @@ jobs:
           TELEGRAM_BOT_USERNAME: rollappRFbot
           TELEGRAM_WEB_APP_URL: https://xn--80avakiab.xn--p1ai/
           TELEGRAM_DELIVERY_MODE: external-polling
+          TELEGRAM_REQUIRE_MAIN_WEB_APP: "true"
         run: npm run telegram:configure

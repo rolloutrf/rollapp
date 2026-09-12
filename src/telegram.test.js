@@ -42,3 +42,27 @@ test("Telegram SDK still loads before the app on ordinary routes", async () => {
   assert.equal(appendedScript.src, "https://telegram.org/js/telegram-web-app.js");
   assert.equal(appendedScript.async, true);
 });
+
+test("Telegram SDK cannot block the application indefinitely", async () => {
+  let timeoutCallback;
+  let clearedTimeout;
+  const documentRef = {
+    createElement: () => ({ addEventListener: () => {} }),
+    head: { appendChild: () => {} },
+  };
+
+  const loading = loadTelegramWebAppSdk({
+    windowRef: { location: { pathname: "/app" } },
+    documentRef,
+    timeoutMs: 5_000,
+    setTimeoutRef: (callback) => {
+      timeoutCallback = callback;
+      return 17;
+    },
+    clearTimeoutRef: (timeoutId) => { clearedTimeout = timeoutId; },
+  });
+
+  timeoutCallback();
+  await loading;
+  assert.equal(clearedTimeout, 17);
+});
