@@ -254,8 +254,8 @@ export function LabResults() {
       {selectedReport && !readOnly && (
         <div className="page-actions w-full justify-center" role="group" aria-label="Действия с анализом">
           <Button
-            className="min-h-12 shrink-0 gap-2 px-5 text-destructive hover:text-destructive"
-            variant="outline"
+            className="min-h-12 shrink-0 rounded-full px-5"
+            variant="destructive"
             size="lg"
             type="button"
             disabled={deleteState.busy || uploadState.loading}
@@ -263,7 +263,6 @@ export function LabResults() {
             title="Удалить анализ"
             onClick={() => requestDeleteReport(selectedReport)}
           >
-            <Trash2 data-icon="inline-start" aria-hidden="true" />
             Удалить
           </Button>
         </div>

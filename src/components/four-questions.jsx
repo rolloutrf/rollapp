@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, X } from "lucide-react";
 import { api } from "@/api";
 import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
+import { CareerIconAction } from "@/components/career-icon-action";
 import { CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -186,18 +187,13 @@ export function FourQuestions() {
                 <div className="four-question__heading-row" data-typeset-group>
                   <h3 id={`four-question-${index + 1}`}>{IDENTITY_QUESTION_TITLES[index]}</h3>
                   {!readOnly && (
-                    <Button
-                      className="not-typeset rollapp-body size-12 shrink-0 rounded-full"
-                      variant="ghost"
-                      size="icon"
-                      type="button"
+                    <CareerIconAction
                       disabled={state.loading}
-                      aria-label={`Редактировать ответ на вопрос «${IDENTITY_QUESTION_TITLES[index]}»`}
-                      title="Редактировать ответ"
+                      label={`Редактировать ответ на вопрос «${IDENTITY_QUESTION_TITLES[index]}»`}
                       onClick={() => setEditingIndex(index)}
                     >
                       <Pencil aria-hidden="true" />
-                    </Button>
+                    </CareerIconAction>
                   )}
                 </div>
                 <div className="four-question__answer" data-typeset-group>

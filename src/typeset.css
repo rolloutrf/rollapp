@@ -194,14 +194,25 @@
 
     /* GFM task lists. */
     &:where(ul.contains-task-list) {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
       list-style-type: none;
       padding-inline-start: 0.25em;
     }
 
-    &:where(li.task-list-item > input[type="checkbox"]) {
-      margin-inline-end: 0.5em;
-      vertical-align: -0.1em;
-      accent-color: var(--color-primary, currentColor);
+    &:where(li.task-list-item) {
+      margin-block-start: 0;
+    }
+
+    &:where(li.task-list-item .task-list-item__label) {
+      color: var(--foreground);
+      cursor: pointer;
+      text-wrap: pretty;
+    }
+
+    &:where(li.task-list-item .task-list-item__field[data-disabled="true"] .task-list-item__label) {
+      cursor: not-allowed;
     }
 
     /* Disclosures and definition lists. */
@@ -471,15 +482,32 @@
     margin-block-start: 0;
   }
 
-  @media (max-width: 640px) {
-    .typeset-rollapp {
-      --typeset-size: 1rem;
-      --typeset-leading: 1.75rem;
-    }
-  }
 }
 
 @layer utilities {
+  /* Align a Large Checkbox with the first 28px line of a multiline label. */
+  .typeset-rollapp .task-list-item__field {
+    align-items: flex-start;
+  }
+
+  .typeset-rollapp .task-list-item [data-slot="checkbox"] {
+    margin-block-start: 0.125rem;
+  }
+
+  /* Checklist copy uses the product label size with prose weight and leading.
+     Apply after FieldLabel utilities so checked/saving states keep one font. */
+  .typeset-rollapp .task-list-item__label {
+    display: block;
+    min-width: 0;
+    font-size: var(--text-rollapp-body);
+    font-weight: 400;
+    line-height: var(--text-rollapp-body--line-height);
+  }
+
+  .typeset-rollapp .task-list-item__label a {
+    overflow-wrap: anywhere;
+  }
+
   /* Canonical text contract for application surfaces that are not prose. */
   .rollapp-body {
     color: var(--foreground);
@@ -491,10 +519,4 @@
     line-height: var(--text-rollapp-body--line-height);
   }
 
-  @media (max-width: 640px) {
-    .rollapp-body {
-      font-size: 1rem;
-      line-height: 1.75rem;
-    }
-  }
 }

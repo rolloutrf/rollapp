@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
   CircleUserRound, Clapperboard, Coins, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
-  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, NotebookText, PackageCheck, Pencil, Phone, Plus, QrCode,
+  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
@@ -524,9 +524,10 @@ const SPHERE_SERVICES = [
 
 const SERVICE_SWITCHER_ITEMS = [
   { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
-  { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" },
   ...SPHERE_SERVICES,
 ];
+
+const ROLLS_SERVICE = { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" };
 
 function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/rolls")) return "rolls";
@@ -717,7 +718,7 @@ function GlobalAppChrome() {
       )}
       {service && <div className="global-app-chrome__actions">
         <ShadcnButton asChild className="global-app-chrome__rolls !size-12 rounded-full" variant={location.pathname.startsWith("/app/rolls") ? "secondary" : "outline"} size="icon">
-          <Link to="/app/rolls" aria-label="Открыть Роллы" title="Роллы"><MakiIcon className="size-8" /></Link>
+          <Link to="/app/rolls" aria-label="Открыть Роллы" title="Роллы"><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>
         </ShadcnButton>
         <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
@@ -1110,6 +1111,8 @@ function serviceChromeFromPath(pathname) {
   if (!serviceId) return null;
   const service = serviceId === "wishlist"
     ? SERVICE_SWITCHER_ITEMS[0]
+    : serviceId === "rolls"
+      ? ROLLS_SERVICE
     : SPHERE_SERVICES.find((item) => item.id === serviceId);
   return service ? { ...service, tabs: SERVICE_TABS[serviceId] || [] } : null;
 }
@@ -2743,7 +2746,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             disabled={busy}
             onClick={removeAvatar}
           >
-            <Trash2 data-icon="inline-start" aria-hidden="true" />Удалить
+            Удалить
           </ShadcnButton>}
           <Input
             ref={avatarFileRef}
@@ -3635,7 +3638,7 @@ function PersistentProfileHero({ user }) {
 }
 
 function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action, backTo, backLabel = "В мой вишлист" }) {
-  const heroTitle = title || (source === "ohmywishes" ? "БРЕНДЫ" : "РОЛЛАПП");
+  const heroTitle = title || (source === "ohmywishes" ? "Бренды" : "Лента");
   return (
     <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
@@ -3652,14 +3655,6 @@ function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, acti
       </div>
       <div className="flex items-center gap-2">
         {action}
-        <Link
-          to={backTo || `/app/wishes?tab=${encodeURIComponent(selectedSpace)}`}
-          className={cn(buttonVariants({ variant: "outline", size: "icon" }), "size-12 rounded-full")}
-          aria-label={backLabel}
-          title={backLabel}
-        >
-          <ArrowLeft className="size-5" aria-hidden="true" />
-        </Link>
       </div>
     </section>
   );
@@ -3690,10 +3685,10 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
-          aria-label="Открыть каталог"
-          title="Каталог"
+          aria-label="Открыть ленту"
+          title="Лента"
         >
-          <LayoutGrid aria-hidden="true" />
+          <Newspaper aria-hidden="true" />
         </Link>
         <Link
           to={ohMyWishesBrandPath()}
@@ -3727,15 +3722,14 @@ const STORE_CATS = [
 const STORE_CAT_PRICE = "1 000 ролл";
 
 function StorePage({ user }) {
-  const toast = useToast();
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
   const [purchase, setPurchase] = useState(() => restoreCatPurchase(storageKey, STORE_CATS));
   const beginPurchase = (cat) => {
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <CatalogProfileHero selectedSpace="products" title="МАГАЗИН" icon={Store} action={
-      <Link to={APP_ORDERS_PATH} className={buttonVariants({ variant: "outline", className: "h-12 rounded-full px-5" })}>
+    <CatalogProfileHero selectedSpace="products" title="Магазин" icon={Store} action={
+      <Link to={APP_ORDERS_PATH} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
         <PackageCheck aria-hidden="true" />Заказы
       </Link>
     } />
@@ -3750,12 +3744,12 @@ function StorePage({ user }) {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="catalog-wish-card__action !size-12 !rounded-full"
+                  className="catalog-wish-card__action !size-12 !rounded-full !border-black !bg-black !p-0 !text-white hover:!bg-black/85"
                   aria-label={`Купить «${cat.name} кот» за ${STORE_CAT_PRICE}`}
                   title="Купить"
                   onClick={() => beginPurchase(cat)}
                 >
-                  <Coins className="!size-5" aria-hidden="true" />
+                  <Coins className="size-5 text-amber-300" aria-hidden="true" />
                 </ShadcnButton>
               </div>
             </div>
@@ -3785,7 +3779,7 @@ function ProtectedOrders() {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
   return <AppShell>
-    <CatalogProfileHero selectedSpace="products" title="ЗАКАЗЫ" icon={PackageCheck} backTo={APP_STORE_PATH} backLabel="В магазин" />
+    <CatalogProfileHero selectedSpace="products" title="Заказы" icon={PackageCheck} backTo={APP_STORE_PATH} backLabel="В магазин" />
     <OrdersPage products={STORE_CATS} />
   </AppShell>;
 }
@@ -4342,7 +4336,7 @@ function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = fal
             type="button"
             variant="outline"
             size="icon"
-            className={`catalog-wish-card__action !size-12 !rounded-full ${item.addedByMe ? "is-added" : ""}`}
+            className={`catalog-wish-card__action !size-12 !rounded-full !text-destructive hover:!text-destructive ${item.addedByMe ? "is-added" : ""}`}
             disabled={wishlistDisabled}
             aria-label={wishlistLabel}
             aria-pressed={Boolean(item.addedByMe)}

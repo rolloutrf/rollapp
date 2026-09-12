@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import cvSource from "@/data/cv.md?raw";
+import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, useCareerContent,
 } from "@/components/career-content";
@@ -271,22 +272,21 @@ function CvEditor({ cv, editor, onOpenChange, onSave }) {
 
 function SectionAction({ children, label, onClick }) {
   return (
-    <Button className="min-h-12 px-4 text-base" variant="outline" type="button" onClick={onClick}>
+    <CareerIconAction label={label} onClick={onClick}>
       {children}
-      <span>{label}</span>
-    </Button>
+    </CareerIconAction>
   );
 }
 
 function ItemActions({ editLabel, onDelete, onEdit }) {
   return (
     <div className="not-typeset flex shrink-0 items-center gap-1">
-      <Button className="size-12 rounded-full" variant="ghost" size="icon" type="button" aria-label={editLabel} title={editLabel} onClick={onEdit}>
+      <CareerIconAction label={editLabel} onClick={onEdit}>
         <Pencil aria-hidden="true" />
-      </Button>
-      <Button className="size-12 rounded-full" variant="ghost" size="icon" type="button" aria-label="Удалить" title="Удалить" onClick={onDelete}>
+      </CareerIconAction>
+      <CareerIconAction label="Удалить" onClick={onDelete}>
         <Trash2 className="text-destructive" aria-hidden="true" />
-      </Button>
+      </CareerIconAction>
     </div>
   );
 }
@@ -373,8 +373,9 @@ export function CvResume() {
   return (
     <div className="page-stack">
       <CareerEditAction
-        label={hasStructuredContent ? "Редактировать основное" : "Заполнить CV"}
+        label="Редактировать"
         loading={careerContent.loading}
+        showLabel
         onClick={() => setEditor({ kind: "profile" })}
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />

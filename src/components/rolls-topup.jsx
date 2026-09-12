@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, ExternalLink, RefreshCw, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
@@ -23,7 +21,6 @@ export function RollsTopup({ user, onBack, onPaid }) {
   const [order, setOrder] = useState(null);
   const [config, setConfig] = useState(null);
   const [packageId, setPackageId] = useState(pending?.request.packageId || "rolls-100");
-  const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -101,7 +98,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
   };
 
   const buy = async () => {
-    if (sending.current || !config?.enabled || !config.linked || (!pending && !accepted)) return;
+    if (sending.current || !config?.enabled || !config.linked) return;
     const intent = pending || { request: { packageId, idempotencyKey: crypto.randomUUID(), termsVersion: config.termsVersion } };
     try { sessionStorage.setItem(storageKey, JSON.stringify(intent)); }
     catch { setError("Разрешите хранение данных, чтобы сохранить и проверить счёт после оплаты."); return; }
@@ -122,7 +119,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
       if (mounted.current) {
         if (cause.status === 400 && !intent.orderId) {
           sessionStorage.removeItem(storageKey);
-          setPending(null); setAccepted(false);
+          setPending(null);
         }
         setError(cause.message);
       }
@@ -135,22 +132,24 @@ export function RollsTopup({ user, onBack, onPaid }) {
   const newOrder = () => {
     sessionStorage.removeItem(storageKey);
     activeOrderId.current = null;
-    setPending(null); setOrder(null); setAccepted(false); setNotice(""); setError("");
+    setPending(null); setOrder(null); setNotice(""); setError("");
   };
   const selected = config?.packages.find((item) => item.id === packageId);
   const safeInvoice = order?.invoiceUrl && /^https:\/\/t\.me\/\$[A-Za-z0-9_-]+$/.test(order.invoiceUrl);
+  const purchaseRolls = order?.rolls ?? selected?.rolls;
+  const purchaseStars = order?.stars ?? selected?.stars;
+  const topupTitle = purchaseRolls != null && purchaseStars != null
+    ? `${formatRolls(purchaseRolls)} за ${purchaseStars} Stars`
+    : "Пополнить роллы";
 
   return <section className="flex min-w-0 flex-col gap-6" aria-labelledby="rolls-topup-title">
-    <div className="flex items-center gap-3">
-      <Button variant="ghost" size="icon" aria-label="Вернуться к кошельку" onClick={onBack} disabled={busy}><ArrowLeft aria-hidden="true" /></Button>
-      <h1 id="rolls-topup-title" className="font-heading text-3xl leading-9 font-semibold">Пополнить роллы</h1>
+    <div className="flex flex-col items-start gap-1">
+      <h1 id="rolls-topup-title" className="font-heading text-3xl leading-9 font-semibold">{topupTitle}</h1>
+      {order && <p className="break-all text-muted-foreground">Номер заказа: {order.id}</p>}
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {!config ? <div role="status" className="flex items-center gap-3">{error ? <Button variant="outline" onClick={loadConfig}>Повторить</Button> : <><Spinner />Загружаем пакеты…</>}</div> : <>
-      <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-4">
-        <Star className="size-8 shrink-0 text-amber-400" aria-hidden="true" />
-        <div className="flex flex-col gap-1"><span className="font-medium">Telegram Stars</span><p className="text-muted-foreground">100 роллов = 10 Stars · без подписки</p></div>
-      </div>
+      {safeInvoice && order?.status === "pending" && <p>Оплачивайте из аккаунта Telegram, привязанного к Rollapp. После оплаты вернитесь сюда — баланс обновится автоматически.</p>}
       {!config.enabled && <Alert><AlertDescription>Покупка роллов временно недоступна. Попробуйте позже.</AlertDescription></Alert>}
       {!config.linked && <Alert><AlertDescription className="flex flex-col gap-3"><p>Для оплаты привяжите Telegram: откройте Rollapp из бота и войдите в свой аккаунт.</p><a href={config.botUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Открыть бота Rollapp</a><Button variant="outline" onClick={loadConfig}>Проверить привязку</Button></AlertDescription></Alert>}
       {!order ? <>
@@ -160,26 +159,19 @@ export function RollsTopup({ user, onBack, onPaid }) {
             <FieldLabel htmlFor={pack.id} className="flex flex-1 flex-wrap items-center justify-between gap-3"><span>{formatRolls(pack.rolls)}</span><span className="flex items-center gap-2 tabular-nums"><Star className="size-4 text-amber-400" aria-hidden="true" />{pack.stars} Stars</span></FieldLabel>
           </Field>)}
         </RadioGroup>
-        <Accordion className="rounded-xl border px-4"><AccordionItem value="terms"><AccordionTrigger>Условия покупки</AccordionTrigger><AccordionContent><p className="text-muted-foreground">{config.terms}</p></AccordionContent></AccordionItem></Accordion>
-        <Field orientation="horizontal"><Checkbox id="stars-terms" checked={accepted || Boolean(pending)} onCheckedChange={setAccepted} disabled={busy || Boolean(pending)} /><FieldLabel htmlFor="stars-terms">Принимаю условия покупки роллов</FieldLabel></Field>
-        <Button onClick={buy} disabled={busy || !config.enabled || !config.linked || (!accepted && !pending)}>{busy ? <Spinner /> : <Star aria-hidden="true" />}{busy ? "Создаём счёт…" : pending ? "Получить сохранённый счёт" : `Купить за ${selected?.stars ?? "—"} Stars`}</Button>
-      </> : <div className="flex flex-col gap-4 rounded-xl border p-5">
-        <div role="status" aria-live="polite" className="flex items-start gap-3">
-          {order.status === "paid" ? <Check className="size-6 shrink-0 text-primary" aria-hidden="true" /> : <Star className="size-6 shrink-0 text-amber-400" aria-hidden="true" />}
-          <div className="flex flex-col gap-1"><p className="font-medium">{order.status === "paid" ? `${formatRolls(order.rolls)} зачислено` : order.status === "expired" ? "Срок действия счёта истёк" : order.status === "processing" ? "Ожидаем подтверждение Telegram" : `К оплате ${order.stars} Stars`}</p><p className="text-muted-foreground">{order.status === "paid" ? "Баланс обновлён. Покупка появилась в истории операций." : `Пополнение на ${formatRolls(order.rolls)}.`}</p></div>
-        </div>
+        <Button onClick={buy} disabled={busy || !config.enabled || !config.linked}>{busy && <Spinner />}{busy ? "Создаём счёт…" : pending ? "Получить сохранённый счёт" : `Купить за ${selected?.stars ?? "—"} Stars`}</Button>
+      </> : <>
         {notice && order.status !== "paid" && <p className="text-muted-foreground">{notice}</p>}
-        {safeInvoice && order.status === "pending" && <>
-          {window.Telegram?.WebApp?.initData && <Button onClick={() => openInvoice(order)}><Star aria-hidden="true" />Оплатить в Telegram</Button>}
-          <Button variant="outline" render={<a href={order.invoiceUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink aria-hidden="true" />Открыть счёт в Telegram</Button>
-          <p className="text-muted-foreground">Оплачивайте из аккаунта Telegram, привязанного к Rollapp. После оплаты вернитесь сюда — баланс обновится автоматически.</p>
-        </>}
-        <p className="break-all text-xs text-muted-foreground">Заказ {order.id}</p>
-        {!["paid", "expired"].includes(order.status) && <Button variant="outline" onClick={checkOrder}><RefreshCw aria-hidden="true" />Проверить оплату</Button>}
         {order.status === "processing" && <p className="text-muted-foreground">Если вы отменили оплату, можно создать новый счёт. Уже завершённая оплата будет учтена независимо от открытого экрана.</p>}
-        <Button variant={order.status === "paid" ? "default" : "ghost"} onClick={newOrder}>{order.status === "paid" ? "Пополнить ещё" : "Создать новый счёт"}</Button>
-      </div>}
-      {config.supportUrl && <a href={config.supportUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground underline underline-offset-4">Помощь с оплатой и возвратами</a>}
+        <div className="flex flex-col gap-3">
+          {safeInvoice && order.status === "pending" && <>
+            {window.Telegram?.WebApp?.initData && <Button onClick={() => openInvoice(order)}>Оплатить в Telegram</Button>}
+            <Button render={<a href={order.invoiceUrl} target="_blank" rel="noopener noreferrer" />}>Открыть счёт в Telegram</Button>
+          </>}
+          {!["paid", "expired"].includes(order.status) && <Button variant="outline" onClick={checkOrder}>Проверить оплату</Button>}
+          <Button variant={order.status === "paid" ? "default" : "ghost"} onClick={newOrder}>{order.status === "paid" ? "Пополнить ещё" : "Создать новый счёт"}</Button>
+        </div>
+      </>}
     </>}
   </section>;
 }

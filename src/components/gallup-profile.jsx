@@ -141,14 +141,29 @@ function ReportMasthead({ report, children }) {
 }
 
 function StrengthNavigation({ reportId, strengths }) {
+  const [selectedRank, setSelectedRank] = useState([]);
+
   return (
-    <nav className="gallup-web-report__nav" aria-label="Разделы отчёта">
-      {strengths.map((strength) => (
-        <a key={strength.rank} href={`#${reportId}-strength-${strength.rank}`} style={domainStyle(strength.domain)}>
-          <span>{strength.rank}</span>
-          {strength.translation}
-        </a>
-      ))}
+    <nav className="not-typeset mt-6 max-w-full overflow-x-auto p-1" aria-label="Разделы отчёта">
+      <ToggleGroup
+        aria-label="Таланты CliftonStrengths"
+        multiple={false}
+        value={selectedRank}
+        onValueChange={(values) => { if (values.length) setSelectedRank(values); }}
+      >
+        {strengths.map((strength) => (
+          <ToggleGroupItem
+            key={strength.rank}
+            value={String(strength.rank)}
+            onClick={() => {
+              window.location.hash = `${reportId}-strength-${strength.rank}`;
+            }}
+          >
+            <span className="tabular-nums">{strength.rank}</span>
+            {strength.translation}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </nav>
   );
 }

@@ -2,6 +2,19 @@ const AGE_HEADING_PATTERN = /^#[ \t]+(\d+[ \t]+y\.o\.?)[ \t]*\r?$/gimu;
 const LEADING_NEWLINES_PATTERN = /^(?:\r?\n)*/u;
 const TRAILING_NEWLINES_PATTERN = /(?:\r?\n)*$/u;
 const SECTION_SEPARATOR_PATTERN = /(?:\r?\n)*---[ \t]*(?:\r?\n)*$/u;
+const CHECKLIST_LINE_PATTERN = /^(- \[)[ xX](\].*?)(\r?)$/u;
+
+export function setLifeStrategyChecklistItem(source, lineIndex, checked) {
+  const lines = String(source || "").split("\n");
+  if (!Number.isSafeInteger(lineIndex) || lineIndex < 0 || lineIndex >= lines.length) {
+    throw new Error("Пункт жизненной стратегии не найден");
+  }
+
+  const match = lines[lineIndex].match(CHECKLIST_LINE_PATTERN);
+  if (!match) throw new Error("Пункт жизненной стратегии не является чекбоксом");
+  lines[lineIndex] = `${match[1]}${checked ? "x" : " "}${match[2]}${match[3]}`;
+  return lines.join("\n");
+}
 
 export function getLifeStrategyPeriods(source) {
   const document = String(source || "");
@@ -42,6 +55,25 @@ export function replaceLifeStrategyPeriod(source, periodId, content) {
     .replace(/\n+$/u, "");
 
   return `${document.slice(0, period.contentStart)}${nextContent}${document.slice(period.contentEnd)}`;
+}
+
+export function removeLifeStrategyPeriod(source, periodId) {
+  const document = String(source || "");
+  const periods = getLifeStrategyPeriods(document);
+  const periodIndex = periods.findIndex((period) => period.id === periodId);
+  if (periodIndex < 0) throw new Error("Период жизненной стратегии не найден");
+
+  const headings = [...document.matchAll(AGE_HEADING_PATTERN)];
+  let removalStart = headings[periodIndex].index;
+  const removalEnd = headings[periodIndex + 1]?.index ?? document.length;
+
+  if (periodIndex === periods.length - 1 && periodIndex > 0) {
+    const prefix = document.slice(0, removalStart);
+    const separator = prefix.match(/(?:\r?\n)*---[ \t]*(?:\r?\n)*$/u);
+    if (separator?.index !== undefined) removalStart = separator.index;
+  }
+
+  return `${document.slice(0, removalStart)}${document.slice(removalEnd)}`;
 }
 
 export function addLifeStrategyPeriod(source, age, content = "") {

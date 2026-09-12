@@ -10,6 +10,7 @@ export function Mission() {
       label="Миссия"
       className="mission-text"
       hideSourceLabels
+      showActionLabel
     />
   );
 }

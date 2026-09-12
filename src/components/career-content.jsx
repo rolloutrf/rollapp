@@ -1,8 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Plus, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { api } from "@/api";
+import { CareerIconAction } from "@/components/career-icon-action";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -14,7 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
-  addLifeStrategyPeriod, getLifeStrategyPeriods, replaceLifeStrategyPeriod,
+  addLifeStrategyPeriod, getLifeStrategyPeriods, removeLifeStrategyPeriod, replaceLifeStrategyPeriod,
+  setLifeStrategyChecklistItem,
 } from "@/lib/life-strategy";
 
 export function useCareerContent(section, fallbackContent, scope = "career") {
@@ -77,24 +83,38 @@ export function CareerContentError({ error, onRetry }) {
   );
 }
 
-export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick }) {
+export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
+  const ActionIcon = Icon || Pencil;
+  const buttonContent = <>
+    {loading
+      ? <Spinner data-icon={showLabel ? "inline-start" : undefined} aria-hidden="true" />
+      : showLabel ? null : <ActionIcon aria-hidden="true" />}
+    {showLabel ? label : null}
+  </>;
   return (
     <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
       <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Редактирование раздела">
-        <Button
-          className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-          shape="pill"
-          type="button"
-          disabled={disabled || loading}
-          onClick={onClick}
-        >
-          {loading
-            ? <Spinner data-icon="inline-start" aria-hidden="true" />
-            : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}
-          {loading ? "Загружаем" : label}
-        </Button>
+        {showLabel ? (
+          <Button
+            className="min-h-12 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
+            type="button"
+            disabled={disabled || loading}
+            aria-label={label}
+            onClick={onClick}
+          >
+            {buttonContent}
+          </Button>
+        ) : (
+          <CareerIconAction
+            label={loading ? `Загружаем: ${label}` : label}
+            disabled={disabled || loading}
+            onClick={onClick}
+          >
+            {buttonContent}
+          </CareerIconAction>
+        )}
       </div>
     </header>
   );
@@ -288,19 +308,36 @@ function LifeStrategyPeriodCreator({ onOpenChange, onSave, open }) {
 
 export function EditableMarkdownDocument({
   className = "", collapsibleAges = false, collapsibleStrategies = false,
-  hideSourceLabels = false, label, scope = "career", section, source,
+  hideSourceLabels = false, label, scope = "career", section, showActionLabel = false, source,
 }) {
+  const { readOnly } = useSphereSharing();
   const [editorOpen, setEditorOpen] = useState(false);
   const [periodCreatorOpen, setPeriodCreatorOpen] = useState(false);
   const [periodEditorId, setPeriodEditorId] = useState(null);
+  const [deletePeriodId, setDeletePeriodId] = useState(null);
+  const [deletingPeriod, setDeletingPeriod] = useState(false);
+  const [taskContent, setTaskContent] = useState(null);
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState("");
   const careerContent = useCareerContent(section, source, scope);
   const content = typeof careerContent.content === "string" ? careerContent.content : source;
-  const periods = collapsibleAges ? getLifeStrategyPeriods(content) : [];
+  const renderedContent = taskContent ?? content;
+  const periods = collapsibleAges ? getLifeStrategyPeriods(renderedContent) : [];
   const editingPeriod = periods.find((period) => period.id === periodEditorId) || null;
+  const deletePeriod = periods.find((period) => period.id === deletePeriodId) || null;
+
+  useEffect(() => {
+    setTaskContent(null);
+  }, [content]);
 
   const editPeriod = (title) => {
     const period = periods.find((item) => item.title === title);
     if (period) setPeriodEditorId(period.id);
+  };
+
+  const requestDeletePeriod = (title) => {
+    const period = periods.find((item) => item.title === title);
+    if (period) setDeletePeriodId(period.id);
   };
 
   const savePeriod = async (draft) => {
@@ -312,24 +349,73 @@ export function EditableMarkdownDocument({
     careerContent.save(addLifeStrategyPeriod(content, age, periodContent))
   );
 
+  const confirmDeletePeriod = async () => {
+    if (!deletePeriod) return;
+    setDeletingPeriod(true);
+    setTaskError("");
+    try {
+      await careerContent.save(removeLifeStrategyPeriod(content, deletePeriod.id));
+      setDeletePeriodId(null);
+    } catch (error) {
+      setTaskError(error.message);
+    } finally {
+      setDeletingPeriod(false);
+    }
+  };
+
+  const toggleTask = async (lineIndex, checked) => {
+    if (readOnly || taskSaving || careerContent.loading || careerContent.error) return;
+    let nextContent;
+    try {
+      nextContent = setLifeStrategyChecklistItem(renderedContent, lineIndex, checked);
+    } catch (error) {
+      setTaskError(error.message);
+      return;
+    }
+    setTaskContent(nextContent);
+    setTaskSaving(true);
+    setTaskError("");
+    try {
+      await careerContent.save(nextContent);
+    } catch (error) {
+      setTaskContent(null);
+      setTaskError(error.message);
+    } finally {
+      setTaskSaving(false);
+    }
+  };
+
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
         icon={collapsibleAges ? Plus : undefined}
-        label={collapsibleAges ? "Создать период" : "Редактировать"}
+        label={collapsibleAges ? "Добавить" : "Редактировать"}
         loading={careerContent.loading}
+        showLabel={collapsibleAges || showActionLabel}
         onClick={() => collapsibleAges ? setPeriodCreatorOpen(true) : setEditorOpen(true)}
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
+      {taskError && (
+        <Alert className="not-typeset rollapp-body" variant="destructive">
+          <AlertTriangle aria-hidden="true" />
+          <AlertTitle>Не удалось сохранить отметку</AlertTitle>
+          <AlertDescription>{taskError}</AlertDescription>
+        </Alert>
+      )}
       <MarkdownDocument
-        source={content}
+        source={renderedContent}
         label={label}
         className={className}
         collapsibleAges={collapsibleAges}
         collapsibleStrategies={collapsibleStrategies}
-        ageEditDisabled={careerContent.loading}
+        ageDeleteDisabled={careerContent.loading || deletingPeriod || taskSaving || Boolean(careerContent.error)}
+        ageEditDisabled={careerContent.loading || deletingPeriod || taskSaving || Boolean(careerContent.error)}
         hideSourceLabels={hideSourceLabels}
-        onEditAge={collapsibleAges ? editPeriod : undefined}
+        onDeleteAge={collapsibleAges && !readOnly ? requestDeletePeriod : undefined}
+        onEditAge={collapsibleAges && !readOnly ? editPeriod : undefined}
+        onTaskCheckedChange={readOnly ? undefined : toggleTask}
+        taskDisabled={readOnly || careerContent.loading || Boolean(careerContent.error)}
+        taskReadOnly={taskSaving || deletingPeriod}
       />
       {collapsibleAges ? (
         <LifeStrategyPeriodCreator
@@ -355,6 +441,26 @@ export function EditableMarkdownDocument({
         }}
         onSave={savePeriod}
       />
+      {!readOnly && collapsibleAges && (
+        <AlertDialog
+          open={Boolean(deletePeriod)}
+          onOpenChange={(open) => !deletingPeriod && !open && setDeletePeriodId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Удалить период {deletePeriod?.title}?</AlertDialogTitle>
+              <AlertDialogDescription>Период и всё его содержимое будут удалены без возможности восстановления.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingPeriod}>Отмена</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" disabled={deletingPeriod} onClick={confirmDeletePeriod}>
+                {deletingPeriod ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+                {deletingPeriod ? "Удаляем" : "Удалить период"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

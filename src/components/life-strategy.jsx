@@ -1,12 +1,14 @@
 import { Fragment, useId } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
+import { CareerIconAction } from "@/components/career-icon-action";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import lifeStrategySource from "@/data/life-strategy.md?raw";
 
 const INLINE_PATTERN = /(\*\*[^*]+\*\*|\[[^\]]*\]\((?:https?:\/\/|\/)[^)]+\)|https?:\/\/[^\s]+)/gu;
@@ -111,17 +113,26 @@ function getListItem(line) {
   return bullet ? { kind: "bullet", text: bullet[1] } : null;
 }
 
-function SourceList({ items, taskList }) {
+function SourceList({ items, onTaskCheckedChange, taskDisabled = false, taskReadOnly = false, taskList }) {
   const listId = useId();
+  const interactive = taskList && typeof onTaskCheckedChange === "function";
   return (
     <ul className={taskList ? "contains-task-list" : undefined}>
       {items.map(({ checked, index, text }) => (
         <li className={taskList ? "task-list-item" : undefined} key={`${index}-${text}`}>
           {taskList ? (
-            <>
-              <input type="checkbox" checked={checked} disabled readOnly aria-labelledby={`${listId}-${index}`} />
-              <span id={`${listId}-${index}`}><InlineContent text={text} lineIndex={index} /></span>
-            </>
+            <Field className="task-list-item__field" data-disabled={taskDisabled || !interactive} orientation="horizontal">
+              <Checkbox
+                checked={checked}
+                disabled={taskDisabled || !interactive}
+                readOnly={taskReadOnly}
+                id={`${listId}-${index}`}
+                onCheckedChange={(nextChecked) => onTaskCheckedChange?.(index, nextChecked === true)}
+              />
+              <FieldLabel className="task-list-item__label" htmlFor={`${listId}-${index}`}>
+                <InlineContent text={text} lineIndex={index} />
+              </FieldLabel>
+            </Field>
           ) : <InlineContent text={text} lineIndex={index} />}
         </li>
       ))}
@@ -129,26 +140,26 @@ function SourceList({ items, taskList }) {
   );
 }
 
-function renderSourceBlocks(lines) {
+function renderSourceBlocks(lines, taskOptions = {}) {
   const blocks = [];
 
   for (let index = 0; index < lines.length;) {
-    const firstItem = getListItem(lines[index]);
+    const firstItem = getListItem(lines[index].text);
     if (!firstItem) {
-      blocks.push(<SourceLine key={`${index}-${lines[index]}`} line={lines[index]} index={index} />);
+      blocks.push(<SourceLine key={`${lines[index].index}-${lines[index].text}`} line={lines[index].text} index={lines[index].index} />);
       index += 1;
       continue;
     }
 
-    const startIndex = index;
+    const startIndex = lines[index].index;
     const items = [];
     while (index < lines.length) {
-      const item = getListItem(lines[index]);
+      const item = getListItem(lines[index].text);
       if (!item || item.kind !== firstItem.kind) break;
-      items.push({ ...item, index });
+      items.push({ ...item, index: lines[index].index });
       index += 1;
     }
-    blocks.push(<SourceList key={`list-${startIndex}`} items={items} taskList={firstItem.kind === "task"} />);
+    blocks.push(<SourceList key={`list-${startIndex}`} items={items} taskList={firstItem.kind === "task"} {...taskOptions} />);
   }
 
   return blocks;
@@ -160,7 +171,7 @@ function splitAgeSections(lines) {
   let currentSection = null;
 
   lines.forEach((line) => {
-    const ageHeading = line.match(AGE_HEADING_PATTERN);
+    const ageHeading = line.text.match(AGE_HEADING_PATTERN);
     if (ageHeading) {
       const age = ageHeading[1];
       currentSection = {
@@ -185,7 +196,7 @@ function splitStrategySections(lines) {
   let currentSection = null;
 
   lines.forEach((line) => {
-    const sectionHeading = line.match(STRATEGY_HEADING_PATTERN);
+    const sectionHeading = line.text.match(STRATEGY_HEADING_PATTERN);
     if (sectionHeading) {
       const title = sectionHeading[1];
       currentSection = {
@@ -204,14 +215,15 @@ function splitStrategySections(lines) {
   return { introduction, sections };
 }
 
-function StrategySections({ lines }) {
+function StrategySections({ lines, onTaskCheckedChange, taskDisabled, taskReadOnly }) {
   const { introduction, sections } = splitStrategySections(lines);
+  const taskOptions = { onTaskCheckedChange, taskDisabled, taskReadOnly };
 
-  if (!sections.length) return <>{renderSourceBlocks(introduction)}</>;
+  if (!sections.length) return <>{renderSourceBlocks(introduction, taskOptions)}</>;
 
   return (
     <>
-      {renderSourceBlocks(introduction)}
+      {renderSourceBlocks(introduction, taskOptions)}
       <Accordion
         className="document-accordion"
         hiddenUntilFound
@@ -229,7 +241,7 @@ function StrategySections({ lines }) {
             </AccordionTrigger>
             <AccordionContent className="pb-8 [&_p:not(:last-child)]:mb-0">
               <section data-typeset-group>
-                {renderSourceBlocks(section.lines)}
+                {renderSourceBlocks(section.lines, taskOptions)}
               </section>
             </AccordionContent>
           </AccordionItem>
@@ -239,14 +251,15 @@ function StrategySections({ lines }) {
   );
 }
 
-function AgeSections({ editDisabled = false, lines, onEditAge }) {
+function AgeSections({ deleteDisabled = false, editDisabled = false, lines, onDeleteAge, onEditAge, onTaskCheckedChange, taskDisabled, taskReadOnly }) {
   const { introduction, sections } = splitAgeSections(lines);
+  const taskOptions = { onTaskCheckedChange, taskDisabled, taskReadOnly };
 
-  if (!sections.length) return <StrategySections lines={introduction} />;
+  if (!sections.length) return <StrategySections lines={introduction} {...taskOptions} />;
 
   return (
     <>
-      <StrategySections lines={introduction} />
+      <StrategySections lines={introduction} {...taskOptions} />
       <Accordion
         className="document-accordion"
         hiddenUntilFound
@@ -257,19 +270,27 @@ function AgeSections({ editDisabled = false, lines, onEditAge }) {
             <AccordionTrigger
               className="min-h-12 w-full items-center py-4 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
               headerAs="h1"
-              action={onEditAge ? (
-                <Button
-                  className="size-12 shrink-0 self-center rounded-full"
-                  variant="ghost"
-                  size="icon"
-                  type="button"
-                  disabled={editDisabled}
-                  aria-label={`Редактировать период ${section.title}`}
-                  title={`Редактировать период ${section.title}`}
-                  onClick={() => onEditAge(section.title)}
-                >
-                  <Pencil aria-hidden="true" />
-                </Button>
+              action={onEditAge || onDeleteAge ? (
+                <div className="not-typeset flex items-center gap-2 self-center" role="group" aria-label={`Действия периода ${section.title}`}>
+                  {onEditAge && (
+                    <CareerIconAction
+                      disabled={editDisabled}
+                      label={`Редактировать период ${section.title}`}
+                      onClick={() => onEditAge(section.title)}
+                    >
+                      <Pencil aria-hidden="true" />
+                    </CareerIconAction>
+                  )}
+                  {onDeleteAge && (
+                    <CareerIconAction
+                      disabled={deleteDisabled}
+                      label={`Удалить период ${section.title}`}
+                      onClick={() => onDeleteAge(section.title)}
+                    >
+                      <Trash2 className="text-destructive" aria-hidden="true" />
+                    </CareerIconAction>
+                  )}
+                </div>
               ) : null}
             >
               <span className="text-4xl leading-10 font-extrabold tracking-tight text-foreground">
@@ -278,7 +299,7 @@ function AgeSections({ editDisabled = false, lines, onEditAge }) {
             </AccordionTrigger>
             <AccordionContent className="pb-8 [&_p:not(:last-child)]:mb-0">
               <section data-typeset-group>
-                {renderSourceBlocks(section.lines)}
+                {renderSourceBlocks(section.lines, taskOptions)}
               </section>
             </AccordionContent>
           </AccordionItem>
@@ -290,19 +311,22 @@ function AgeSections({ editDisabled = false, lines, onEditAge }) {
 
 export function MarkdownDocument({
   source, label, className = "", collapsibleAges = false, collapsibleStrategies = false,
-  ageEditDisabled = false, hideSourceLabels = false, onEditAge,
+  ageDeleteDisabled = false, ageEditDisabled = false, hideSourceLabels = false, onDeleteAge, onEditAge,
+  onTaskCheckedChange, taskDisabled = false, taskReadOnly = false,
 }) {
   const lines = source
     .replace(/\n$/u, "")
     .split("\n")
-    .filter((line) => !hideSourceLabels || !/^:::label\s+/u.test(line));
+    .map((text, index) => ({ index, text }))
+    .filter((line) => !hideSourceLabels || !/^:::label\s+/u.test(line.text));
+  const taskOptions = { onTaskCheckedChange, taskDisabled, taskReadOnly };
   return (
     <article className={`life-strategy-source typeset typeset-rollapp typeset-document ${className}`.trim()} aria-label={label}>
       {collapsibleAges
-        ? <AgeSections lines={lines} editDisabled={ageEditDisabled} onEditAge={onEditAge} />
+        ? <AgeSections lines={lines} deleteDisabled={ageDeleteDisabled} editDisabled={ageEditDisabled} onDeleteAge={onDeleteAge} onEditAge={onEditAge} {...taskOptions} />
         : collapsibleStrategies
-          ? <StrategySections lines={lines} />
-          : renderSourceBlocks(lines)}
+          ? <StrategySections lines={lines} {...taskOptions} />
+          : renderSourceBlocks(lines, taskOptions)}
     </article>
   );
 }

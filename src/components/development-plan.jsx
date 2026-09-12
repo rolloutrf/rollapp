@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, MarkdownEditorDrawer, useCareerContent,
 } from "@/components/career-content";
@@ -243,10 +244,9 @@ function EntryList({ disabled, items, onAdd, onDelete, onEdit, readOnly, title }
       <header className="development-plan-editor__list-header">
         <h4>{title}</h4>
         {!readOnly && (
-          <Button variant="outline" type="button" disabled={disabled} onClick={onAdd}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Добавить пункт
-          </Button>
+          <CareerIconAction label={`Добавить пункт в раздел «${title}»`} disabled={disabled} onClick={onAdd}>
+            <Plus aria-hidden="true" />
+          </CareerIconAction>
         )}
       </header>
       {items.length ? (
@@ -256,30 +256,20 @@ function EntryList({ disabled, items, onAdd, onDelete, onEdit, readOnly, title }
               <span>{entry}</span>
               {!readOnly && (
                 <div className="not-typeset development-plan-editor__item-actions">
-                  <Button
-                    className="size-12 rounded-full"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
+                  <CareerIconAction
                     disabled={disabled}
-                    aria-label={`Редактировать пункт ${index + 1}`}
-                    title="Редактировать пункт"
+                    label={`Редактировать пункт ${index + 1}`}
                     onClick={() => onEdit(index)}
                   >
                     <Pencil aria-hidden="true" />
-                  </Button>
-                  <Button
-                    className="size-12 rounded-full"
-                    variant="ghost"
-                    size="icon"
-                    type="button"
+                  </CareerIconAction>
+                  <CareerIconAction
                     disabled={disabled}
-                    aria-label={`Удалить пункт ${index + 1}`}
-                    title="Удалить пункт"
+                    label={`Удалить пункт ${index + 1}`}
                     onClick={() => onDelete(index)}
                   >
                     <Trash2 className="text-destructive" aria-hidden="true" />
-                  </Button>
+                  </CareerIconAction>
                 </div>
               )}
             </li>
@@ -376,8 +366,9 @@ export function DevelopmentPlan() {
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
-        label="Редактировать всё"
+        label="Редактировать"
         loading={careerContent.loading}
+        showLabel
         onClick={() => setWholeEditorOpen(true)}
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />

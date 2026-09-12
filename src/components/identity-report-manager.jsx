@@ -134,7 +134,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
             Загрузить
           </Button>
         ) : (
-          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" variant="outline" disabled={busy} onClick={() => setDeleteOpen(true)}>
+          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" variant="destructive" disabled={busy} onClick={() => setDeleteOpen(true)}>
             {busy && <Spinner data-icon="inline-start" />}
             Удалить
           </Button>

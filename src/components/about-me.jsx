@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, X } from "lucide-react";
 import aboutMeSource from "@/data/about-me.md?raw";
+import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, useCareerContent,
 } from "@/components/career-content";
@@ -145,8 +146,9 @@ export function AboutMe() {
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
-        label="Добавить вопрос"
+        label="Редактировать"
         loading={careerContent.loading}
+        showLabel
         onClick={() => setEditor({ mode: "add" })}
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
@@ -163,18 +165,13 @@ export function AboutMe() {
               className="about-me-question__document"
             />
             {!readOnly && (
-              <Button
-                className="not-typeset rollapp-body size-12 shrink-0 rounded-full"
-                variant="ghost"
-                size="icon"
-                type="button"
+              <CareerIconAction
                 disabled={careerContent.loading}
-                aria-label={`Редактировать вопрос «${entry.question}»`}
-                title="Редактировать вопрос"
+                label={`Редактировать вопрос «${entry.question}»`}
                 onClick={() => setEditor({ mode: "edit", index })}
               >
                 <Pencil aria-hidden="true" />
-              </Button>
+              </CareerIconAction>
             )}
           </article>
         ))}
