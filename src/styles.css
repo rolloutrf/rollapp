@@ -10241,4 +10241,17 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .rolls-page :where(p, li) { text-wrap: pretty; }
 .rolls-page__columns { display: flex; flex-direction: column; gap: var(--layout-page-gap); }
+.rolls-hero-icon { width: 160px; height: 160px; }
 .rolls-balance__value { font-family: var(--font-heading); font-size: clamp(40px, 6vw, 60px); line-height: 1; font-weight: 760; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -.05em; }
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .rolls-hero-icon { width: 136px; height: 136px; }
+}
+
+@media (max-width: 820px) {
+  .rolls-hero-icon { width: 112px; height: 112px; }
+}
+
+@media (max-width: 560px) {
+  .rolls-hero-icon { width: 96px; height: 96px; }
+}

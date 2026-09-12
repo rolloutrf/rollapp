@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import {
-  AlertTriangle, MapPin, Pencil, Plus, Trash2, X,
+  AlertTriangle, Pencil, Plus, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import cvSource from "@/data/cv.md?raw";
@@ -381,20 +381,6 @@ export function CvResume() {
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
       <article className="cv-builder rollapp-body" aria-label="CV">
-        <header className="cv-builder__hero">
-          <div className="cv-builder__hero-copy">
-            <span className="cv-builder__eyebrow">Желаемая должность</span>
-            <h1>{cv.desiredPosition || "Укажите желаемую должность"}</h1>
-            {cv.specialization && <p>{cv.specialization}</p>}
-            <div className="cv-builder__meta">
-              {cv.city && <span><MapPin aria-hidden="true" />{cv.city}</span>}
-              <span>{cv.employment}</span>
-              <span>{cv.schedule}</span>
-            </div>
-          </div>
-          {cv.salary && <strong className="cv-builder__salary">{cv.salary}</strong>}
-        </header>
-
         <section className="cv-builder__section" aria-labelledby="cv-experience-title">
           <header className="cv-builder__section-header">
             <div><h2 id="cv-experience-title">Опыт работы</h2></div>

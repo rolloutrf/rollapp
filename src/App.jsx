@@ -3653,7 +3653,7 @@ function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, acti
         <div className="sphere-share-avatars" aria-hidden="true">
           <ShadcnAvatar size="lg" className="wishes-page__hero-avatar !size-[var(--avatar-xl-size)]">
             <AvatarFallback className="bg-transparent text-foreground">
-              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "ohmywishes" ? <ShoppingBag className="size-3/5" /> : <LogoMark className="size-3/5" />}
+              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "ohmywishes" ? <ShoppingBag className="size-3/5" /> : <Newspaper className="size-3/5" />}
             </AvatarFallback>
           </ShadcnAvatar>
         </div>

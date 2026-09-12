@@ -4,7 +4,7 @@ import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } f
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
 import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
-export function registerRollsRoutes(app, { requireAuth, query, transaction, starsConfig = getStarsConfig, createInvoice = createStarInvoice }) {
+export function registerRollsRoutes(app, { requireAuth, query, transaction, starsConfig = getStarsConfig, createInvoice = createStarInvoice, env = process.env }) {
   registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
   const handle = (handler) => async (req, res, next) => {
     res.set("Cache-Control", "no-store");
@@ -45,7 +45,11 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.get("/api/rolls", requireAuth, handle(async (req, res) => {
     const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) return res.status(400).json({ error: "Некорректная страница истории" });
-    res.json(await transaction((client) => readRollWallet(client, req.user.id, { offset })));
+    const wallet = await transaction((client) => readRollWallet(client, req.user.id, { offset }));
+    res.json({ ...wallet, features: {
+      starsPurchases: starsConfig().enabled,
+      tonWallet: env.TON_WALLET_ENABLED === "true",
+    } });
   }));
 
   app.get("/api/rolls/recipients", requireAuth, searchLimit, handle(async (req, res) => {
