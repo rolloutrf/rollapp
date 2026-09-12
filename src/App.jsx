@@ -2941,8 +2941,8 @@ function ContactCreateDrawer({ onClose, onCreated }) {
 function ContactsProfileControls({ onAdd }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
-      <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия с контактами">
-        <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
+      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
+        <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
       </div>
     </section>
   );
@@ -3679,9 +3679,9 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           Подписчики
         </Link>
       </nav>
-      <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия со списком желаний">
-        {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
-        <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={onAdd}>Добавить</Button>
+      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
+        {selectedList && <Button className="h-12 shrink-0 whitespace-nowrap px-5 text-base" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
+        <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}

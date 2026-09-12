@@ -7,6 +7,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { formatRolls } from "../../shared/rolls.js";
+import { isStarInvoiceUrl } from "../../shared/roll-stars.js";
 
 function readPending(key) {
   try {
@@ -83,7 +84,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
 
   const openInvoice = (next) => {
     const telegram = window.Telegram?.WebApp;
-    if (!telegram?.initData || typeof telegram.openInvoice !== "function" || next.status !== "pending") return;
+    if (!telegram?.initData || typeof telegram.openInvoice !== "function" || next.status !== "pending" || !isStarInvoiceUrl(next.invoiceUrl)) return;
     try {
       telegram.openInvoice(next.invoiceUrl, (status) => {
         if (!mounted.current || next.id !== activeOrderId.current) return;
@@ -135,7 +136,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
     setPending(null); setOrder(null); setNotice(""); setError("");
   };
   const selected = config?.packages.find((item) => item.id === packageId);
-  const safeInvoice = order?.invoiceUrl && /^https:\/\/t\.me\/\$[A-Za-z0-9_-]+$/.test(order.invoiceUrl);
+  const safeInvoice = isStarInvoiceUrl(order?.invoiceUrl);
   const purchaseRolls = order?.rolls ?? selected?.rolls;
   const purchaseStars = order?.stars ?? selected?.stars;
   const topupTitle = purchaseRolls != null && purchaseStars != null
@@ -161,6 +162,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
         </RadioGroup>
         <Button onClick={buy} disabled={busy || !config.enabled || !config.linked}>{busy && <Spinner />}{busy ? "Создаём счёт…" : pending ? "Получить сохранённый счёт" : `Купить за ${selected?.stars ?? "—"} Stars`}</Button>
       </> : <>
+        {!safeInvoice && order.status === "pending" && <p role="status">Готовим счёт Telegram. Ссылка появится автоматически — можно оставить эту страницу открытой или вернуться позже.</p>}
         {notice && order.status !== "paid" && <p className="text-muted-foreground">{notice}</p>}
         {order.status === "processing" && <p className="text-muted-foreground">Если вы отменили оплату, можно создать новый счёт. Уже завершённая оплата будет учтена независимо от открытого экрана.</p>}
         <div className="flex flex-col gap-3">

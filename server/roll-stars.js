@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
+import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS_VERSION, isStarInvoiceUrl, starInvoicePayload } from "../shared/roll-stars.js";
 import { ROLLS_MAX_BALANCE } from "../shared/rolls.js";
 import { ensureRollWallet, RollsError } from "./rolls.js";
 import { callTelegramBotApi, getTelegramBotRuntimeConfig } from "./telegram-bot.js";
@@ -22,6 +22,7 @@ export function getStarsConfig(env = process.env) {
     enabled: bot.enabled && (bot.deliveryMode === "polling" || bot.webhookEnabled)
       && Boolean(supportUrl) && env.TELEGRAM_STARS_ENABLED !== "false",
     supportUrl,
+    invoiceDelivery: bot.deliveryMode === "external-polling" ? "worker" : "direct",
     botUrl: `https://t.me/${bot.botUsername}`,
   };
 }
@@ -59,13 +60,8 @@ export async function createStarOrder(client, userId, input) {
 }
 
 export async function createStarInvoice(order, config = getTelegramBotRuntimeConfig(), callApi = callTelegramBotApi) {
-  const url = await callApi("createInvoiceLink", {
-    title: `${order.rolls} роллов`,
-    description: `Пополнение баланса Rollapp на ${order.rolls} роллов. Разовая покупка.`,
-    payload: `rolls:${order.id}`, provider_token: "", currency: "XTR",
-    prices: [{ label: `${order.rolls} роллов`, amount: order.stars }],
-  }, config);
-  if (typeof url !== "string" || !/^https:\/\/t\.me\/\$[A-Za-z0-9_-]+$/.test(url)) throw new Error("Telegram returned an invalid invoice URL");
+  const url = await callApi("createInvoiceLink", starInvoicePayload(order), config);
+  if (!isStarInvoiceUrl(url)) throw new Error("Telegram returned an invalid invoice URL");
   return url;
 }
 

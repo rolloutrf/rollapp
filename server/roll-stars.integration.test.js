@@ -7,6 +7,7 @@ import { createStarOrder, approveStarCheckout, settleStarPayment, createStarsUpd
 import { rollsSchema, readRollWallet } from "./rolls.js";
 import { ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
 import { registerRollsRoutes } from "./rolls-routes.js";
+import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
 test("Stars orders on production PostgreSQL; all fixtures and schema changes rolled back", { skip: process.env.ROLLAPP_TEST_STARS !== "1" }, async (t) => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -33,7 +34,8 @@ test("Stars orders on production PostgreSQL; all fixtures and schema changes rol
     const message = (order, charge = randomUUID()) => ({ from: { id: Number(order.telegram_user_id) }, successful_payment: { currency: "XTR", total_amount: order.stars, invoice_payload: `rolls:${order.id}`, telegram_payment_charge_id: charge } });
     const balance = async () => Number((await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [users[0]])).rows[0].balance);
     const reject = async (callback, code) => assert.rejects(transaction(callback), (error) => error.code === code);
-    const config = () => ({ ...getStarsConfig({}), enabled: true });
+    let invoiceDelivery = "direct";
+    const config = () => ({ ...getStarsConfig({}), enabled: true, invoiceDelivery });
 
     await t.test("server prices, identity binding and idempotent order creation", async () => {
       const request = input();
@@ -105,6 +107,36 @@ test("Stars orders on production PostgreSQL; all fixtures and schema changes rol
       assert.deepEqual(await handler({ message: message(order) }), { ok: true, paymentProcessed: true });
     });
 
+    await t.test("authenticated worker delivers once without crediting the wallet", async () => {
+      const app = express();
+      app.use(express.json());
+      registerStarInvoiceWorkerRoutes(app, {
+        query: (...args) => client.query(...args),
+        starsConfig: () => ({ enabled: true, invoiceDelivery: "worker" }),
+        botConfig: () => ({ webhookEnabled: true, webhookSecret: "test-worker-secret" }),
+      });
+      const listener = await new Promise((resolve) => { const s = app.listen(0, "127.0.0.1", () => resolve(s)); });
+      try {
+        const base = `http://127.0.0.1:${listener.address().port}/api/telegram/star-invoices`;
+        const headers = { "Content-Type": "application/json", "X-Telegram-Bot-Api-Secret-Token": "test-worker-secret" };
+        assert.equal((await fetch(base)).status, 401);
+        const queue = await (await fetch(base, { headers })).json();
+        assert(queue.orders.every((entry) => Object.keys(entry).sort().join() === "id,rolls,stars"));
+        const order = await makeOrder();
+        const before = await balance();
+        const post = (invoiceUrl, auth = headers) => fetch(`${base}/${order.id}`, { method: "POST", headers: auth, body: JSON.stringify({ invoiceUrl }) });
+        assert.equal((await post("https://t.me/$test", { "Content-Type": "application/json" })).status, 401);
+        assert.equal((await post("https://attacker.example")).status, 400);
+        assert.equal((await post("https://t.me/$first")).status, 200);
+        assert.equal((await post("https://t.me/$second")).status, 200);
+        const stored = (await client.query("SELECT invoice_url,paid_at,checkout_query_id FROM roll_star_orders WHERE id=$1", [order.id])).rows[0];
+        assert.deepEqual(stored, { invoice_url: "https://t.me/$first", paid_at: null, checkout_query_id: null });
+        assert.equal(await balance(), before);
+        await client.query("UPDATE roll_star_orders SET expires_at='2000-01-01' WHERE id=$1", [order.id]);
+        assert.equal((await post("https://t.me/$third")).status, 409);
+      } finally { await new Promise((resolve) => listener.close(resolve)); }
+    });
+
     await t.test("HTTP invoice retry after provider failure and private order reads", async () => {
       const app = express();
       app.use(express.json());
@@ -140,6 +172,17 @@ test("Stars orders on production PostgreSQL; all fixtures and schema changes rol
       assert.equal((await fetch(path)).status, 401);
       assert.equal((await fetch(path, { headers: { "X-Test-User": users[1] } })).status, 404);
       assert.equal((await fetch(path, { headers: { "X-Test-User": users[0] } })).status, 200);
+
+      invoiceDelivery = "worker";
+      try {
+        const workerRequest = input();
+        const calls = providerCalls;
+        const pending = (await (await post(workerRequest)).json()).order;
+        assert.equal(pending.status, "pending");
+        assert.equal(pending.invoiceUrl, null);
+        assert.equal((await (await post(workerRequest)).json()).order.id, pending.id);
+        assert.equal(providerCalls, calls, "external mode never calls Telegram from the VM");
+      } finally { invoiceDelivery = "direct"; }
 
       if (process.env.STARS_TEST_UI === "1") {
         app.use("/api", (_req, res) => res.sendStatus(404));
