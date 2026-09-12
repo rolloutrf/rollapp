@@ -7,11 +7,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { TonBalance } from "@/components/ton-balance";
+import { TonTopup } from "@/components/ton-topup";
 import { createTonStorage, loadTonConfig, tonConnectionError, walletConnectionSource } from "@/lib/ton-connect";
 
 const SUPPORTED_WALLETS = ["tonkeeper", "mytonwallet", "telegram-wallet"];
 
-export function TonWallet({ userId }) {
+export function TonWallet({ userId, onPaid }) {
   const runtime = useRef(null);
   const pending = useRef(null);
   const connectionSignal = useRef(null);
@@ -170,6 +172,7 @@ export function TonWallet({ userId }) {
       </div>
     </div>
     {wallet ? <>
+      <TonBalance key={`${wallet.account.chain}:${wallet.account.address}`} address={wallet.account.address} chain={wallet.account.chain} />
       <p className="break-all" aria-label="Адрес кошелька TON">{address}</p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" onClick={async () => {
@@ -178,6 +181,7 @@ export function TonWallet({ userId }) {
         }}><Copy aria-hidden="true" />Копировать</Button>
         <Button type="button" variant="ghost" disabled={busy} onClick={disconnect}>{busy ? <Spinner /> : <Unplug aria-hidden="true" />}Отключить</Button>
       </div>
+      <TonTopup key={`${wallet.account.chain}:${wallet.account.address}`} wallet={wallet} connector={runtime.current} onPaid={onPaid} />
     </> : <>
       <p>Подключите свой кошелёк. Криптовалюта остаётся у вас, а подключение сохраняется на этом устройстве.</p>
       <Button ref={connectButton} type="button" className="w-full sm:w-auto sm:self-start" disabled={!ready || busy} onClick={() => { setError(""); setOpen(true); }}>

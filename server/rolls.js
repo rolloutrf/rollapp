@@ -9,6 +9,8 @@ import {
 } from "../shared/rolls.js";
 import { cdekSchema, resolveCdekPoint } from "./cdek.js";
 import { rollStarsSchema } from "./roll-stars-schema.js";
+import { tonRollsSchema } from "./roll-ton-schema.js";
+import { formatTon } from "../shared/ton.js";
 
 export const rollsSchema = `
   CREATE TABLE IF NOT EXISTS roll_wallets (
@@ -79,6 +81,7 @@ export const rollsSchema = `
   ALTER TABLE roll_store_purchases ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ;
   ${cdekSchema}
   ${rollStarsSchema}
+  ${tonRollsSchema}
 `;
 
 export class RollsError extends Error {
@@ -243,7 +246,7 @@ function transactionFromRow(row, userId) {
     kind: row.kind,
     direction: outgoing ? "outgoing" : "incoming",
     amount: Number(row.amount),
-    note: row.note,
+    note: row.kind === "ton_topup" ? `${formatTon(String(row.note))} TON` : row.note,
     wishTitle: row.wish_title || null,
     createdAt: row.created_at,
     person: row.kind === "transfer" ? {
@@ -275,6 +278,10 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
        SELECT id,'stars_topup' AS kind,NULL::text AS sender_id,user_id AS recipient_id,
               rolls AS amount,stars::text || ' Telegram Stars' AS note,NULL::text AS wish_title,paid_at AS created_at
        FROM roll_star_orders WHERE user_id=$1 AND paid_at IS NOT NULL
+       UNION ALL
+       SELECT id,'ton_topup' AS kind,NULL::text AS sender_id,user_id AS recipient_id,
+              rolls AS amount,nanotons::text AS note,NULL::text AS wish_title,paid_at AS created_at
+       FROM roll_ton_orders WHERE user_id=$1 AND paid_at IS NOT NULL
      )
      SELECT h.*,u.name AS person_name,u.username AS person_username,u.avatar_url AS person_avatar_url
      FROM history h

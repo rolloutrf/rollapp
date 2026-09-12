@@ -42,6 +42,7 @@
     "@base-ui/react": "^1.7.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@ton/core": "^0.63.1",
     "@tonconnect/sdk": "^4.0.2",
     "@vitejs/plugin-react": "latest",
     "class-variance-authority": "^0.7.1",

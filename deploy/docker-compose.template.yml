@@ -27,6 +27,10 @@ services:
       YC_AUTO_DATABASE_LOCKBOX_SECRET_ID: ""
       YC_AUTO_DATABASE_LOCKBOX_SECRET_KEY: "postgresql_password"
       PUBLIC_APP_URL: "https://xn--80avakiab.xn--p1ai"
+      TON_ROLLS_ENABLED: "true"
+      TON_ROLLS_WORKER_ENABLED: "true"
+      TON_ROLLS_RECEIVER: "UQCEFkv5HNGWHb6CB_X8XFh7nC7wL8-e5Ynll9k3gorpZ-fU"
+      TON_ROLLS_PER_TON: "100"
       # Verified Cloud Postbox identity: роллапп.рф.
       EMAIL_PROVIDER: "yandex"
       EMAIL_FROM: "noreply@xn--80avakiab.xn--p1ai"

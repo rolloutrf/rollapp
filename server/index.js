@@ -4,6 +4,8 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
 import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./ton-connect.js";
+import { registerTonBalanceRoutes } from "./ton-balance.js";
+import { registerTonRollsRoutes, startTonPaymentPolling } from "./roll-ton.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -1090,6 +1092,8 @@ function requireTrustedSessionMutation(req, res, next) {
 app.use("/api", requireTrustedSessionMutation);
 
 registerRollsRoutes(app, { requireAuth, query, transaction });
+registerTonBalanceRoutes(app, { requireAuth });
+registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 
 async function createSession(res, userId) {
@@ -6443,6 +6447,7 @@ app.use((error, req, res, _next) => {
 await initializeDatabase();
 
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
+const tonPaymentPoller = startTonPaymentPolling({ query, transaction });
 
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp server listening on ${port}`);
@@ -6450,6 +6455,7 @@ const server = app.listen(port, "0.0.0.0", () => {
 
 async function shutdown() {
   telegramPoller?.stop();
+  tonPaymentPoller.stop();
   server.close(async () => {
     if (backgroundTasks.size) {
       await Promise.race([

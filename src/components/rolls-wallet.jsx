@@ -232,7 +232,7 @@ export function RollsWallet({ user }) {
           </section>
 
           <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
-            <TonWallet key={user.id} userId={user.id} />
+            <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>
 
           <section className="flex min-w-0 flex-col gap-4" aria-labelledby="rolls-history-title">
@@ -242,11 +242,11 @@ export function RollsWallet({ user }) {
                 const incoming = item.direction === "incoming";
                 const reward = item.kind === "wish_reward";
                 const grant = item.kind === "manual_grant";
-                const topup = item.kind === "stars_topup";
+                const topup = item.kind === "stars_topup" || item.kind === "ton_topup";
                 const Icon = item.kind === "welcome" ? Gift : reward || grant ? Sparkles : incoming ? ArrowDownLeft : ArrowUpRight;
                 const title = item.kind === "welcome"
                   ? "Добро пожаловать в Rollapp"
-                  : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? "Пополнение через Telegram Stars" : `${incoming ? "От " : ""}${item.person.name}`;
+                  : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? (item.kind === "ton_topup" ? "Пополнение за TON" : "Пополнение через Telegram Stars") : `${incoming ? "От " : ""}${item.person.name}`;
                 return <li key={item.id} className="flex min-w-0 items-start gap-3 py-4" data-rolls-transaction={item.kind}>
                   <span className={`flex size-12 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-amber-400/10 text-amber-300" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" aria-hidden="true" /></span>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
