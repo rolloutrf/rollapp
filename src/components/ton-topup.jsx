@@ -64,7 +64,7 @@ export function TonTopup({ wallet, connector, onPaid }) {
 
   // Digital purchases inside Telegram continue to use Stars, without links to
   // alternative payment methods. This checkout is for the ordinary website.
-  if (inTelegram) return null;
+  if (inTelegram || !config?.enabled) return null;
   const sameWallet = config?.recipient === wallet.account.address.toLowerCase();
   const wrongNetwork = wallet.account.chain !== TON_MAINNET;
   const price = config?.rate ? ((BigInt(amount) * 1_000_000_000n + BigInt(config.rate) - 1n) / BigInt(config.rate)).toString() : "0";
@@ -72,6 +72,8 @@ export function TonTopup({ wallet, connector, onPaid }) {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setError("");
     try {
+      const settings = await request("");
+      if (!settings.enabled) { setConfig(settings); return; }
       let current = existing;
       if (!current) {
         intent.current ||= { rolls: amount, sender: wallet.account.address, chain: wallet.account.chain, idempotencyKey: crypto.randomUUID(), acceptedTerms: true };

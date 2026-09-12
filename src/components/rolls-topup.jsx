@@ -83,6 +83,7 @@ export function RollsTopup({ user, onBack, onPaid }) {
   }, [pending?.orderId, order?.status, checkOrder]);
 
   const openInvoice = (next) => {
+    if (!config?.enabled) return;
     const telegram = window.Telegram?.WebApp;
     if (!telegram?.initData || typeof telegram.openInvoice !== "function" || next.status !== "pending" || !isStarInvoiceUrl(next.invoiceUrl)) return;
     try {
@@ -135,6 +136,16 @@ export function RollsTopup({ user, onBack, onPaid }) {
     activeOrderId.current = null;
     setPending(null); setOrder(null); setNotice(""); setError("");
   };
+  if (config && !config.enabled) return <section className="flex flex-col gap-4" aria-label="Пополнение роллов">
+    <h1 className="font-heading text-3xl leading-9 font-semibold">Пополнение роллов</h1>
+    <p role="status">Покупка роллов временно отключена.</p>
+    {pending?.orderId && <>
+      <p>Уже завершённая оплата будет учтена. Можно проверить её статус.</p>
+      <Button variant="outline" onClick={checkOrder}>Проверить оплату</Button>
+    </>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+    <Button variant="outline" onClick={onBack}>Назад к кошельку</Button>
+  </section>;
   const selected = config?.packages.find((item) => item.id === packageId);
   const safeInvoice = isStarInvoiceUrl(order?.invoiceUrl);
   const purchaseRolls = order?.rolls ?? selected?.rolls;
