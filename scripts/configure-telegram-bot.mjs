@@ -52,6 +52,25 @@ await callTelegramBotApi("setMyCommands", {
   ],
 }, config);
 
+const [configuredBot, menuButton] = await Promise.all([
+  callTelegramBotApi("getMe", {}, config),
+  callTelegramBotApi("getChatMenuButton", {}, config),
+]);
+const configuredMenuUrl = menuButton?.web_app?.url;
+if (
+  menuButton?.type !== "web_app"
+  || menuButton.text !== "Открыть Rollapp"
+  || configuredMenuUrl !== config.webAppUrl
+) {
+  throw new Error(`Telegram menu button verification failed for ${config.webAppUrl}`);
+}
+if (process.env.TELEGRAM_REQUIRE_MAIN_WEB_APP === "true" && !configuredBot.has_main_web_app) {
+  throw new Error(
+    "Telegram Main Mini App is disabled. Enable it in @BotFather: Bot Settings → Configure Mini App → Enable Mini App",
+  );
+}
+
 console.log(`Telegram bot @${bot.username} configured`);
 console.log(`Mini App: ${config.webAppUrl}`);
+console.log(`Main Mini App: ${configuredBot.has_main_web_app ? "enabled" : "disabled"}`);
 console.log(["polling", "external-polling"].includes(config.deliveryMode) ? "Updates: long polling" : `Webhook: ${webhookUrl}`);

@@ -1,18 +1,34 @@
 const TELEGRAM_BACKGROUND = "#0a0a0a";
 const TELEGRAM_SDK_URL = "https://telegram.org/js/telegram-web-app.js";
+const TELEGRAM_SDK_TIMEOUT_MS = 5_000;
 
 export function shouldLoadTelegramWebAppSdk(pathname) {
   return !/^\/reset-password\/?$/.test(String(pathname || ""));
 }
 
-export async function loadTelegramWebAppSdk({ documentRef = document, windowRef = window } = {}) {
+export async function loadTelegramWebAppSdk({
+  documentRef = document,
+  windowRef = window,
+  timeoutMs = TELEGRAM_SDK_TIMEOUT_MS,
+  setTimeoutRef = setTimeout,
+  clearTimeoutRef = clearTimeout,
+} = {}) {
   if (windowRef.Telegram?.WebApp || !shouldLoadTelegramWebAppSdk(windowRef.location?.pathname)) return;
   await new Promise((resolve) => {
     const script = documentRef.createElement("script");
     script.src = TELEGRAM_SDK_URL;
     script.async = true;
-    script.addEventListener("load", resolve, { once: true });
-    script.addEventListener("error", resolve, { once: true });
+    let settled = false;
+    let timeoutId;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeoutRef(timeoutId);
+      resolve();
+    };
+    script.addEventListener("load", finish, { once: true });
+    script.addEventListener("error", finish, { once: true });
+    timeoutId = setTimeoutRef(finish, timeoutMs);
     documentRef.head.appendChild(script);
   });
 }
