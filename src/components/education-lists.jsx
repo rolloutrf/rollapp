@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { FolderInput, ListPlus, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
 import { api } from "@/api";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -155,13 +156,13 @@ export function EducationItemListMenu({
   );
 }
 
-export function EducationSectionHeader({ title, titleId, selectedList, onAdd, onEditList }) {
+export function EducationSectionHeader({ title, titleId, selectedList, onAdd, onEditList, sphereId = "education" }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
     <header className="page-toolbar w-full justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
-      <div className="page-actions wishes-page__hero-actions" role="group" aria-label={`Действия раздела «${title}»`}>
+      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
         {selectedList && (
           <Button
             className="h-12 px-5 text-base max-[560px]:flex-1"
@@ -181,6 +182,7 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
         >
           Добавить
         </Button>
+        <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
   );

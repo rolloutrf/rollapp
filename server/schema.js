@@ -6,6 +6,7 @@ import { isMemoryDatabase, query, transaction } from "./db.js";
 import { backfillWishGroupSpaces } from "./wish-groups.js";
 import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
 import { rollsSchema } from "./rolls.js";
+import { businessMarketplaceSchema } from "./business-marketplace.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -25,6 +26,8 @@ const schema = `
   );
 
   ${rollsSchema}
+
+  ${businessMarketplaceSchema}
 
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;

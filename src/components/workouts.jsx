@@ -593,6 +593,7 @@ export function Workouts() {
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="workouts-title">
       <EducationSectionHeader
+        sphereId="health"
         title="Спорт"
         titleId="workouts-title"
         selectedList={selectedList}

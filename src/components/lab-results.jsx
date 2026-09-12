@@ -3,6 +3,7 @@ import {
   AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/api";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -251,20 +252,21 @@ export function LabResults() {
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
-      {selectedReport && !readOnly && (
-        <div className="page-actions w-full justify-center" role="group" aria-label="Действия с анализом">
-          <Button
-            className="min-h-12 shrink-0 rounded-full px-5"
-            variant="destructive"
-            size="lg"
-            type="button"
-            disabled={deleteState.busy || uploadState.loading}
-            aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
-            title="Удалить анализ"
-            onClick={() => requestDeleteReport(selectedReport)}
-          >
-            Удалить
-          </Button>
+      {!readOnly && (
+        <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
+          {selectedReport && <Button
+              className="min-h-12 shrink-0 rounded-full px-5"
+              variant="destructive"
+              size="lg"
+              type="button"
+              disabled={deleteState.busy || uploadState.loading}
+              aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
+              title="Удалить анализ"
+              onClick={() => requestDeleteReport(selectedReport)}
+            >
+              Удалить
+            </Button>}
+          <SphereBusinessControls sphereId="health" />
         </div>
       )}
       <section className="min-w-0 max-w-none">

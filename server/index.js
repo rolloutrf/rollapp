@@ -16,6 +16,7 @@ import { addDefaultFriend } from "./default-friend.js";
 import { enrollWishRewards, ensureRollWallet, grantWishReward } from "./rolls.js";
 import { registerRollsRoutes } from "./rolls-routes.js";
 import { registerCdekRoutes } from "./cdek-routes.js";
+import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
@@ -1095,6 +1096,7 @@ registerRollsRoutes(app, { requireAuth, query, transaction });
 registerTonBalanceRoutes(app, { requireAuth });
 registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
+registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);

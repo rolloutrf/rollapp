@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -127,7 +128,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
         disabled={uploadDisabled}
         onChange={upload}
       />}
-      {(canUpload || canDelete) && <div className="identity-report-manager__actions">
+      {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
         {canUpload ? (
           <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
             {busy && <Spinner data-icon="inline-start" />}
@@ -139,6 +140,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
             Удалить
           </Button>
         )}
+        <SphereBusinessControls sphereId="identity" />
       </div>}
       {state.files?.length ? (
         <Card className="identity-report-files" aria-label="Исходные PDF">
