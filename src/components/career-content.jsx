@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { CareerIconAction } from "@/components/career-icon-action";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -83,7 +84,7 @@ export function CareerContentError({ error, onRetry }) {
   );
 }
 
-export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false }) {
+export function CareerEditAction({ disabled = false, icon: Icon, loading = false, label, onClick, showLabel = false, sphereId = "career" }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
   const ActionIcon = Icon || Pencil;
@@ -95,7 +96,7 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
   </>;
   return (
     <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
-      <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Редактирование раздела">
+      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Редактирование раздела">
         {showLabel ? (
           <Button
             className="min-h-12 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
@@ -115,6 +116,7 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
             {buttonContent}
           </CareerIconAction>
         )}
+        <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
   );
@@ -388,6 +390,7 @@ export function EditableMarkdownDocument({
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
+        sphereId={scope}
         icon={collapsibleAges ? Plus : undefined}
         label={collapsibleAges ? "Добавить" : "Редактировать"}
         loading={careerContent.loading}

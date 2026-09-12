@@ -4,6 +4,7 @@ import {
   ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/api";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -816,7 +817,7 @@ export function Medications() {
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" data-group-navigation aria-labelledby="medications-title">
       {!readOnly && <header className="page-toolbar w-full justify-center">
         <h2 className="sr-only" id="medications-title">Препараты</h2>
-        <div className="page-actions wishes-page__hero-actions" role="group" aria-label="Действия раздела «Препараты»">
+        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
           {selectedGroup && (
             <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
               Настройки группы
@@ -825,6 +826,7 @@ export function Medications() {
           <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" type="button" onClick={addMedication}>
             Добавить
           </Button>
+          <SphereBusinessControls sphereId="health" />
         </div>
       </header>}
 

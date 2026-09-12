@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { CareerIconAction } from "@/components/career-icon-action";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   CareerContentError, useCareerContent,
 } from "@/components/career-content";
@@ -151,16 +152,19 @@ export function Theses() {
   return (
     <div className="sphere-text-page page-stack">
       {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
-        <Button
-          className="min-h-12 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
-          type="button"
-          disabled={careerContent.loading}
-          aria-label="Добавить тезис"
-          onClick={() => setEditor({ mode: "add" })}
-        >
-          {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
-          Добавить
-        </Button>
+        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Тезисы»">
+          <Button
+            className="min-h-12 shrink-0 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
+            type="button"
+            disabled={careerContent.loading}
+            aria-label="Добавить тезис"
+            onClick={() => setEditor({ mode: "add" })}
+          >
+            {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
+            Добавить
+          </Button>
+          <SphereBusinessControls sphereId="identity" />
+        </div>
       </header>}
 
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />

@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/api";
+import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   Accordion,
   AccordionContent,
@@ -382,7 +383,7 @@ export function PerformanceReview() {
   return (
     <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
-        <div className="page-actions wishes-page__hero-actions flex flex-wrap justify-center gap-2" role="group" aria-label="Действия с перфоманс-ревью">
+        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
           <Button
             className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
             shape="pill"
@@ -404,6 +405,7 @@ export function PerformanceReview() {
             {importing && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {importing ? "Разбираем PDF" : "Импортировать PDF"}
           </Button>
+          <SphereBusinessControls sphereId="career" />
           <input
             ref={fileInputRef}
             className="sr-only"
