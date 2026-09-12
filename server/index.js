@@ -3,6 +3,7 @@ import compression from "compression";
 import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
+import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./ton-connect.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -482,7 +483,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "https://telegram.org"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", ...TON_CONNECT_BRIDGE_ORIGINS],
       fontSrc: ["'self'", "data:"],
       frameSrc: ["'self'", "https://yandex.ru"],
       frameAncestors: ["'self'", "https://web.telegram.org", "https://*.telegram.org"],
@@ -494,6 +495,7 @@ app.use(helmet({
 app.use(compression());
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
+registerTonConnectRoutes(app);
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const passwordResetRequestRateLimit = createRateLimit({

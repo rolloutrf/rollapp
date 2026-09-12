@@ -14,6 +14,10 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/tonconnect-manifest.json": {
+        target: "http://127.0.0.1:8080",
+        changeOrigin: false,
+      },
       "/api": {
         target: "http://127.0.0.1:8080",
         // Preserve the browser-facing host so same-origin CSRF checks also

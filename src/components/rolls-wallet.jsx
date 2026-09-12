@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
@@ -14,6 +14,8 @@ import { RollsTopup } from "@/components/rolls-topup";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/rolls.js";
+
+const TonWallet = lazy(() => import("@/components/ton-wallet").then((module) => ({ default: module.TonWallet })));
 
 function PersonAvatar({ person }) {
   return <Avatar className="size-12 shrink-0">
@@ -228,6 +230,10 @@ export function RollsWallet({ user }) {
               <Button type="button" variant="outline" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
+
+          <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
+            <TonWallet key={user.id} userId={user.id} />
+          </Suspense>
 
           <section className="flex min-w-0 flex-col gap-4" aria-labelledby="rolls-history-title">
             <div><h2 id="rolls-history-title" className="font-heading text-3xl leading-9 font-semibold">История операций</h2></div>
