@@ -1,5 +1,6 @@
 import { loadLockboxValue } from "../server/lockbox.js";
 import { forwardTelegramPaymentUpdate, getTelegramBotRuntimeConfig, startTelegramBotPolling } from "../server/telegram-bot.js";
+import { startStarInvoiceWorker } from "../server/star-invoice-worker.js";
 
 const secretId = String(process.env.YC_TELEGRAM_LOCKBOX_SECRET_ID || "").trim();
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -23,18 +24,20 @@ const runSeconds = Math.min(
 );
 const poller = startTelegramBotPolling(config, { handleUpdate: (update) => forwardTelegramPaymentUpdate(update, config) });
 if (!poller) throw new Error("Telegram polling worker is not configured");
+const invoices = startStarInvoiceWorker(config);
 
 let stopped = false;
 const stop = () => {
   if (stopped) return;
   stopped = true;
   poller.stop();
+  invoices.stop();
 };
 const timer = setTimeout(stop, runSeconds * 1_000);
 process.once("SIGINT", stop);
 process.once("SIGTERM", stop);
 
 console.log(`Telegram bot @${config.botUsername} polling worker started`);
-await poller.done;
+await Promise.all([poller.done, invoices.done]);
 clearTimeout(timer);
 console.log(`Telegram bot @${config.botUsername} polling worker stopped`);

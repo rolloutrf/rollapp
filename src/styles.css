@@ -4700,6 +4700,19 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   justify-content: center;
   flex-wrap: wrap;
 }
+.app-layout--dark .horizontal-action-scroller {
+  max-width: 100%;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+.app-layout--dark .horizontal-action-scroller::-webkit-scrollbar { display: none; }
+.app-layout--dark .horizontal-action-scroller > * { flex: 0 0 auto; }
 .app-layout--dark .wishes-page__hero-actions > .button { min-height: 48px; }
 .app-layout--dark .wishes-page__hero-actions > [class~="group/button"]:has(> svg:only-child) {
   border-radius: var(--radius-pill);
@@ -4785,12 +4798,12 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     display: flex;
     gap: 8px;
   }
-  .app-layout--dark .wishes-page__hero-actions > .button {
+  .app-layout--dark .wishes-page__hero-actions:not(.horizontal-action-scroller) > .button {
     width: auto;
     min-width: 0;
     flex: 1;
   }
-  .app-layout--dark .wishes-page__hero-actions > .button:only-child {
+  .app-layout--dark .wishes-page__hero-actions:not(.horizontal-action-scroller) > .button:only-child {
     width: min(180px, 100%);
     flex: 0 1 180px;
   }

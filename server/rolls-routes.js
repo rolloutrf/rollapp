@@ -2,8 +2,10 @@ import { createRateLimit } from "./rate-limit.js";
 import { purchaseWithRolls, readRollOrders, readRollWallet, refundRollPurchase, RollsError, transferRolls } from "./rolls.js";
 import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
+import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
 export function registerRollsRoutes(app, { requireAuth, query, transaction, starsConfig = getStarsConfig, createInvoice = createStarInvoice }) {
+  registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
   const handle = (handler) => async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     try { await handler(req, res); } catch (error) {
@@ -23,7 +25,7 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.post("/api/rolls/stars/orders", requireAuth, transferLimit, handle(async (req, res) => {
     if (!starsConfig().enabled) throw new RollsError("Покупка роллов временно недоступна", "STARS_UNAVAILABLE", 503);
     let order = await transaction((client) => createStarOrder(client, req.user.id, req.body));
-    if (!order.invoice_url && publicStarOrder(order).status === "pending") {
+    if (starsConfig().invoiceDelivery !== "worker" && !order.invoice_url && publicStarOrder(order).status === "pending") {
       let url;
       try { url = await createInvoice(order); }
       catch { throw new RollsError("Не удалось получить счёт Telegram. Повторите попытку", "STAR_INVOICE_UNAVAILABLE", 502); }
