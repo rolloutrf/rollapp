@@ -3372,8 +3372,8 @@ html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__close 
 html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor {
   max-width: none;
   min-height: 0;
-  height: 100%;
   flex: 1;
+  overflow: hidden;
 }
 html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__content {
   min-height: 0;
