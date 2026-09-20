@@ -15,7 +15,7 @@ export function FullscreenDialog({ busy = false, suspended = false, onClose, cla
       }}
     >
       <DialogContent
-        className={cn("app-fullscreen-dialog app-layout--dark inset-0! block h-dvh! max-h-none! w-full! max-w-none! translate-none! transform-none! rounded-none bg-background p-0! ring-0 data-open:animate-none data-closed:animate-none", className)}
+        className={cn("app-fullscreen-dialog app-layout--dark inset-x-0! top-(--app-visual-top,0px)! bottom-auto! block h-(--app-visual-height,100dvh)! min-h-0! max-h-none! w-full! max-w-none! translate-none! transform-none! rounded-none bg-background p-0! ring-0 data-open:animate-none data-closed:animate-none", className)}
         showCloseButton={false}
         {...props}
       >

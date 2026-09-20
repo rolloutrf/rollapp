@@ -1,0 +1,96 @@
+/* Product overlay layout. Base UI owns modality, focus trapping and gestures;
+   all portalled surfaces share the same visible (above-keyboard) viewport. */
+@layer utilities {
+  /* Measured --drawer-height must not freeze the smaller keyboard height
+     after the keyboard closes. Snap-point drawers keep their own sizing. */
+  [data-slot="drawer-popup"]:not([data-snap-points]) {
+    --drawer-content-height: auto;
+  }
+  [data-slot="drawer-popup"][data-swipe-axis="y"] {
+    --drawer-content-max-height: min(calc(100dvh - 6rem), calc(var(--app-visual-height, 100dvh) - max(0.75rem, env(safe-area-inset-top))));
+  }
+  [data-slot="drawer-popup"][data-swipe-direction="down"] {
+    bottom: var(--app-visual-bottom, 0px);
+  }
+  [data-slot="drawer-popup"][data-swipe-direction="up"] {
+    top: var(--app-visual-top, 0px);
+  }
+  [data-slot="drawer-popup"][data-swipe-axis="x"] {
+    top: var(--app-visual-top, 0px);
+    bottom: var(--app-visual-bottom, 0px);
+    max-height: var(--app-visual-height, 100dvh);
+  }
+  [data-overlay-keyboard] [data-slot="drawer-popup"][data-swipe-axis="y"],
+  [data-overlay-compact] [data-slot="drawer-popup"][data-swipe-axis="y"] {
+    --drawer-content-max-height: calc(var(--app-visual-height, 100dvh) - max(0.75rem, env(safe-area-inset-top)));
+  }
+  [data-overlay-keyboard] [data-slot="drawer-popup"] {
+    /* The keyboard already animates viewport height. A second height animation
+       leaves focus/scroll measurements chasing a moving target. */
+    transition-property: transform, opacity, filter;
+  }
+  .app-drawer-body,
+  [data-slot="drawer-popup"] [data-slot="scroll-area-viewport"],
+  .wish-editor-screen__content {
+    overscroll-behavior-y: contain;
+    scroll-padding-block: 1rem;
+  }
+  .app-drawer-body > * { flex-shrink: 0; }
+  [data-slot="drawer-footer"] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  [data-overlay-keyboard] [data-slot="drawer-footer"] { padding-bottom: 1rem; }
+  /* At short keyboard/landscape heights, reserve room for the active field.
+     Descriptions remain accessible and return as soon as space is available. */
+  [data-overlay-compact] [data-slot="drawer-header"] [data-slot="drawer-description"] {
+    @apply sr-only;
+  }
+  [data-overlay-compact] [data-slot="drawer-footer"] {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  [data-overlay-compact] [data-slot="drawer-footer"] > * {
+    flex: 1 1 0;
+    min-width: 0;
+    height: auto;
+    padding-block: 0.5rem;
+    white-space: normal;
+  }
+  .business-access-form {
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]):not(.education-group-overlay, .app-fullscreen-dialog) {
+    top: calc(var(--app-visual-top, 0px) + var(--app-visual-height, 100dvh) / 2);
+    max-block-size: calc(var(--app-visual-height, 100dvh) - 2rem);
+  }
+
+  .app-fullscreen-dialog .wish-editor-screen__close { position: absolute; }
+  [data-overlay-compact] .app-fullscreen-dialog.wish-editor-screen > .wish-editor {
+    padding-top: calc(4rem + env(safe-area-inset-top));
+  }
+  [data-overlay-compact] .app-fullscreen-dialog .wish-editor-screen__close {
+    top: max(0.5rem, env(safe-area-inset-top));
+  }
+  [data-overlay-compact] .app-fullscreen-dialog .wish-editor-screen__footer {
+    padding-block: 0.75rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  [data-overlay-keyboard][data-overlay-compact] .app-fullscreen-dialog .wish-editor-screen__footer {
+    padding-bottom: 0.75rem;
+  }
+
+  /* Legacy full-screen padding must not survive inside the creation drawer:
+     it stole 96px of scroll space and pushed the submit action below the sheet. */
+  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor {
+    height: auto;
+    margin: 0;
+    padding: 0;
+  }
+  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__media { position: static; }
+}

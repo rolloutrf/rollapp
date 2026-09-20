@@ -20,7 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCardReorder } from "@/hooks/use-card-reorder";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { savedOrder } from "@/lib/card-order";
 import { logoUrlAfterResourceChange, siteLogoUrl } from "@/lib/education-logo";
 import {
@@ -349,7 +349,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle aria-hidden="true" />
@@ -432,7 +432,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                   id={`${formId}-title`}
                   required
                   maxLength={160}
-                  autoFocus
+                  autoFocus={canAutofocusForm()}
                   placeholder="Например, Fintech Design Conf"
                   value={form.title}
                   onChange={(event) => update("title", event.target.value)}

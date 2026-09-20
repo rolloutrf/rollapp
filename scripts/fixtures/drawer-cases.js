@@ -1,0 +1,23 @@
+// Fresh form props only; no persisted records or database fixtures.
+export const drawerCases = [
+  ['about', 'about-me', 'AboutMeQuestionEditor', { mode: 'create' }],
+  ['character-trait', 'character-traits', 'CharacterTraitEditor', {mode:'create'}],
+  ['thesis', 'theses', 'ThesisEditor', { mode: 'create' }],
+  ['question', 'four-questions', 'FourQuestionEditor', { questionIndex: 0 }],
+  ['markdown', 'career-content', 'MarkdownEditorDrawer', {content: '', label: 'Документ'}],
+  ['life-period', 'career-content', 'LifeStrategyPeriodCreator', {}],
+  ['development', 'development-plan', 'EntryEditor', {}],
+  ['coaching', 'coaching-sessions', 'CoachingSessionDrawer', {}],
+  ['course', 'courses', 'CourseDrawer', {}],
+  ['conference', 'conferences', 'ConferenceDrawer', {}],
+  ['education-list', 'education-lists', 'EducationListDrawer', {section:'courses', itemPlural:'курсов'}],
+  ['medication', 'medications', 'MedicationDrawer', {groups:[]}],
+  ['medication-group', 'medications', 'MedicationGroupDrawer', {}],
+  ['workout', 'workouts', 'WorkoutDrawer', {}],
+  ['cv-experience', 'cv-resume', 'CvEditor', {cv:{}, editor:{kind:'experience'}}],
+  ['cv-education', 'cv-resume', 'CvEditor', {cv:{}, editor:{kind:'education'}}],
+  ['cv-about', 'cv-resume', 'CvEditor', {cv:{about:'',skills:[]}, editor:{kind:'about'}}],
+  ['performance', 'performance-editor', 'PerformanceEditor', {content:{heading:'',description:'',cycles:[{id:'new',season:'',year:2026,projects:[],interaction:[]}]},activeCycleId:'new'}],
+  ['wish-list', '../App', 'ListModal', {}],
+  ['contact', '../App', 'ContactCreateDrawer', {}],
+];

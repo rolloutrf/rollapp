@@ -80,7 +80,7 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
             <DrawerTitle>{editing ? "Редактировать вопрос" : "Новый вопрос"}</DrawerTitle>
             <DrawerDescription>Добавьте формулировку вопроса и развёрнутое описание.</DrawerDescription>
           </DrawerHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle aria-hidden="true" />

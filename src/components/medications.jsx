@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { localDateInputValue } from "@/lib/workouts";
 import { normalizeMedicationTimes, sortMedications } from "@/lib/medications";
 import { useSphereSharing } from "@/lib/sphere-sharing";
@@ -327,7 +327,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
             <DrawerDescription>Сохраните назначение, схему и период приёма. Медицинские решения согласуйте со специалистом.</DrawerDescription>
           </DrawerHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle aria-hidden="true" />
@@ -358,7 +358,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
                 id={`${formId}-name`}
                 required
                 maxLength={160}
-                autoFocus
+                autoFocus={canAutofocusForm()}
                 placeholder="Например, Витамин D3"
                 value={form.name}
                 onChange={(event) => update("name", event.target.value)}
@@ -608,7 +608,7 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
               <DrawerTitle>{group ? "Настройки группы" : "Новая группа"}</DrawerTitle>
               <DrawerDescription>Объедините препараты по курсу, назначению или удобному для вас признаку.</DrawerDescription>
             </DrawerHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertTriangle aria-hidden="true" />
@@ -623,7 +623,7 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
                   id={`${formId}-title`}
                   required
                   maxLength={60}
-                  autoFocus
+                  autoFocus={canAutofocusForm()}
                   placeholder="Например, Витамины"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}

@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { useCardReorder } from "@/hooks/use-card-reorder";
 import { sortCourses } from "@/lib/course-order";
 import { courseLogoUrls } from "@/lib/education-logo";
@@ -635,7 +635,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle aria-hidden="true" />
@@ -718,7 +718,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
                   id={`${formId}-title`}
                   required
                   maxLength={160}
-                  autoFocus
+                  autoFocus={canAutofocusForm()}
                   placeholder="Например, Product Strategy"
                   value={form.title}
                   onChange={(event) => update("title", event.target.value)}
