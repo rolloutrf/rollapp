@@ -99,6 +99,7 @@ function DrawerContent({
     swipeDirection === "down" || swipeDirection === "up" ? "y" : "x"
 
   return (
+    <DrawerPrimitive.VirtualKeyboardProvider>
     <DrawerPortal data-slot="drawer-portal">
       {modal === true && (
         <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />
@@ -136,6 +137,7 @@ function DrawerContent({
         </DrawerPrimitive.Popup>
       </DrawerPrimitive.Viewport>
     </DrawerPortal>
+    </DrawerPrimitive.VirtualKeyboardProvider>
   );
 }
 

@@ -46,7 +46,7 @@ test("disbanding a group keeps its wishes in the list and rejects a different ow
   }
 });
 
-test("removing one wish keeps a valid group and dissolves it below two members", async () => {
+test("removing wishes keeps a singleton group and dissolves it when empty", async () => {
   const list = (await query("SELECT id,user_id FROM wishlists LIMIT 1")).rows[0];
   const groupId = randomUUID();
   const wishIds = [randomUUID(), randomUUID(), randomUUID()];
@@ -97,8 +97,18 @@ test("removing one wish keeps a valid group and dissolves it below two members",
     wishId: wishIds[0],
     userId: list.user_id,
   });
-  assert.equal(dissolved.dissolved, true);
-  assert.equal(dissolved.group, null);
+  assert.equal(dissolved.dissolved, false);
+  assert.deepEqual(dissolved.group.wishIds, [wishIds[1]]);
+  assert.equal((await query("SELECT 1 FROM wish_groups WHERE id=$1", [groupId])).rowCount, 1);
+
+  const emptied = await removeWishFromOwnedGroup({
+    groupId,
+    listId: list.id,
+    wishId: wishIds[1],
+    userId: list.user_id,
+  });
+  assert.equal(emptied.dissolved, true);
+  assert.equal(emptied.group, null);
   assert.equal((await query("SELECT 1 FROM wish_groups WHERE id=$1", [groupId])).rowCount, 0);
   for (const wishId of wishIds) {
     assert.equal((await query(

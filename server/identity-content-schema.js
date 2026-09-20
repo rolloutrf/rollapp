@@ -12,6 +12,16 @@ export const identityValuesSchema = z.object({
     .refine((values) => new Set(values.map((value) => value.id)).size === values.length),
 }).strict();
 
+const identityCharacterTraitSchema = z.union([
+  z.string().trim().min(1).max(120).transform((title) => ({ title, description: "" })),
+  z.object({
+    title: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(20_000),
+  }).strict(),
+]);
+
+export const identityCharacterSchema = z.array(identityCharacterTraitSchema).max(200);
+
 export const identityFourQuestionsSchema = z.object({
   questions: z.array(z.object({
     title: z.string().trim().max(240).optional(),

@@ -72,7 +72,7 @@ export async function moveOwnedWishGroup({
     [groupId],
   );
   const wishIds = members.rows.map((row) => row.wish_id);
-  if (wishIds.length < 2) return { status: 409, error: "Группа больше не содержит достаточно желаний" };
+  if (wishIds.length < 1) return { status: 409, error: "Группа не содержит желаний" };
   const group = groupResult.rows[0];
   const targetSpace = isGeneralWishList(targetList) ? group.space : targetList.space;
   const placeholders = wishIds.map((_, index) => `$${index + 3}`).join(",");
@@ -148,7 +148,7 @@ export async function removeWishFromOwnedGroup({ client = { query }, groupId, li
     "SELECT wish_id FROM wish_group_members WHERE group_id=$1 ORDER BY wish_id",
     [groupId],
   );
-  const dissolved = remaining.rowCount < 2;
+  const dissolved = remaining.rowCount === 0;
   if (dissolved) await client.query("DELETE FROM wish_groups WHERE id=$1", [groupId]);
   return {
     dissolved,

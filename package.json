@@ -29,6 +29,7 @@
     "test:ui": "node scripts/check-shadcn.mjs",
     "check": "npm run test && npm run test:ui && npm run build",
     "test:visual": "node scripts/visual-smoke.mjs",
+    "test:drawers": "DRAWER_REAL_FORMS=1 node scripts/drawer-smoke.mjs",
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
     "test:rolls:production": "ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
     "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",

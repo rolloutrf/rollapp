@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
   CircleUserRound, Clapperboard, Coins, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
-  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, Pencil, Phone, Plus, QrCode,
+  LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CharacterTraits } from "@/components/character-traits";
 import { CoachingSessions } from "@/components/coaching-sessions";
 import { Conferences } from "@/components/conferences";
 import { Courses } from "@/components/courses";
@@ -81,7 +82,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { useWishReorder } from "@/hooks/use-wish-reorder";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import {
@@ -742,6 +744,11 @@ const IDENTITY_TABS = [
     id: "values",
     label: "Ценности",
     description: "Личные принципы и критерии, на которые вы опираетесь в решениях.",
+  },
+  {
+    id: "character",
+    label: "Характер",
+    description: "Черты характера, устойчивые способы реагировать и проявлять себя.",
   },
   {
     id: "gallup",
@@ -2388,22 +2395,24 @@ function TabbedSpherePage({ sphereId, tabs }) {
                     ? <HoganReport />
                     : sphere.id === "identity" && tab.id === "values"
                       ? <Values />
-                      : sphere.id === "identity" && tab.id === "mission"
-                        ? <Mission />
-                        : sphere.id === "identity" && tab.id === "life-strategy"
-                          ? <EditableLifeStrategy />
-                        : sphere.id === "education" && tab.id === "courses"
-                          ? <Courses />
-                          : sphere.id === "education" && tab.id === "conferences"
-                            ? <Conferences />
-                            : sphere.id === "education" && tab.id === "coaching"
-                              ? <CoachingSessions />
-                              : sphere.id === "health" && tab.id === "lab-results"
-                                ? <LabResults />
-                                : sphere.id === "health" && tab.id === "sport"
-                                  ? <Workouts />
-                                  : sphere.id === "health" && tab.id === "medications"
-                                    ? <Medications />
+                      : sphere.id === "identity" && tab.id === "character"
+                        ? <CharacterTraits />
+                        : sphere.id === "identity" && tab.id === "mission"
+                          ? <Mission />
+                          : sphere.id === "identity" && tab.id === "life-strategy"
+                            ? <EditableLifeStrategy />
+                            : sphere.id === "education" && tab.id === "courses"
+                              ? <Courses />
+                              : sphere.id === "education" && tab.id === "conferences"
+                                ? <Conferences />
+                                : sphere.id === "education" && tab.id === "coaching"
+                                  ? <CoachingSessions />
+                                  : sphere.id === "health" && tab.id === "lab-results"
+                                    ? <LabResults />
+                                    : sphere.id === "health" && tab.id === "sport"
+                                      ? <Workouts />
+                                      : sphere.id === "health" && tab.id === "medications"
+                                        ? <Medications />
                                 : sphere.id === "career" && tab.id === "cv"
                                   ? <CvResume />
                           : sphere.id === "career" && tab.id === "about"
@@ -2778,7 +2787,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       <div className="contact-detail__edit-fields">
         <Field className="contact-detail__edit-field--wide">
           <FieldLabel htmlFor={`${contactFieldId}-name`}>Имя</FieldLabel>
-          <Input id={`${contactFieldId}-name`} value={form.name} maxLength={120} required autoFocus onChange={(event) => setField("name", event.target.value)} />
+          <Input id={`${contactFieldId}-name`} value={form.name} maxLength={120} required autoFocus={canAutofocusForm()} onChange={(event) => setField("name", event.target.value)} />
         </Field>
         <Field className="contact-detail__edit-field--wide">
           <FieldLabel htmlFor={`${contactFieldId}-company`}>Компания</FieldLabel>
@@ -3404,13 +3413,15 @@ function BusinessAccessPage() {
             <DrawerDescription>{selectedPerson ? `${selectedPerson.name} увидит запрос и сам решит, открыть ли пространство.` : ""}</DrawerDescription>
           </DrawerHeader>
           <form className="business-access-form" onSubmit={sendRequest}>
+            <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
             <FieldGroup className="gap-4">
               <Field><FieldLabel htmlFor="business-access-sphere">Сфера</FieldLabel><Select value={sphere} onValueChange={selectSphere} disabled={saving}><SelectTrigger id="business-access-sphere" className="w-full"><SelectValue>{() => SPHERE_SERVICES.find((item) => item.id === sphere)?.label || sphere}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SERVICES.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
               <Field><FieldLabel htmlFor="business-access-section">Пространство</FieldLabel><Select value={section} onValueChange={setSection} disabled={saving}><SelectTrigger id="business-access-section" className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SECTIONS[sphere].map((item) => <SelectItem key={item} value={item}>{SPHERE_SECTION_LABELS[item] || item}</SelectItem>)}</SelectContent></Select></Field>
               <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
             </FieldGroup>
-            <DrawerFooter className="border-t px-0 pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+            </div>
+            <DrawerFooter className="border-t pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
           </form>
         </DrawerContent>
       </Drawer>
@@ -3500,10 +3511,10 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
           <DrawerTitle>Доступ к «{label}»</DrawerTitle>
           <DrawerDescription>{accessDescription}</DrawerDescription>
         </DrawerHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           <InputGroup className="sphere-share-picker__search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput autoFocus type="search" aria-label="Найти бизнес-аккаунт" placeholder="Название или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <InputGroupInput autoFocus={canAutofocusForm()} type="search" aria-label="Найти бизнес-аккаунт" placeholder="Название или username" value={search} onChange={(event) => setSearch(event.target.value)} />
           </InputGroup>
           {error && <Alert variant="destructive"><AlertTitle>Не удалось изменить доступ</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           {loading ? <div className="sphere-share-picker__status"><Spinner /><span>Загружаем людей…</span></div> : people.length ? (
@@ -3964,14 +3975,49 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   return { busy, reserve, remove, fulfilled, share, save, update, repeat };
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
+function WishGroupingSubmenu({ wish, groups = [], busy = false, onCreate, onAdd }) {
+  return <DropdownMenuSub>
+    <DropdownMenuSubTrigger className="card-menu__submenu-trigger min-h-12 gap-2 px-3 py-2 text-base" disabled={busy}>
+      <PackagePlus /> <span>Добавить в группу</span>
+    </DropdownMenuSubTrigger>
+    <DropdownMenuSubContent
+      id={`wish-groups-${wish.id}`}
+      className="w-70 max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
+      sideOffset={4}
+      aria-label={`Группы для желания «${wish.title}»`}
+    >
+      <DropdownMenuGroup>
+        <DropdownMenuLabel className="px-2 py-2 text-sm">Группы</DropdownMenuLabel>
+        <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={onCreate}>
+          <PackagePlus /> Новая группа
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+      {groups.length > 0 && <DropdownMenuSeparator />}
+      <div className="max-h-[22.75rem] overflow-y-auto overscroll-contain">
+        {groups.map((group) => <DropdownMenuItem
+          key={group.id}
+          className="min-h-12 gap-2 px-3 py-2 text-base"
+          disabled={busy}
+          onClick={() => onAdd(group.id)}
+        >
+          <LayoutGrid />
+          <span className="min-w-0 flex-1 truncate">{group.title}</span>
+          <span className="shrink-0 text-sm text-muted-foreground">{group.wishIds?.length || 0}</span>
+        </DropdownMenuItem>)}
+      </div>
+    </DropdownMenuSubContent>
+  </DropdownMenuSub>;
+}
+
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [grouping, setGrouping] = useState(false);
   const [removingFromGroup, setRemovingFromGroup] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
   const listMutationRef = useRef(false);
   const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
-  const interactionBusy = busy || removingFromGroup || groupBusy;
+  const interactionBusy = busy || grouping || removingFromGroup || groupBusy;
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const cardSpace = wishSpaceId(wish, lists);
   const visibleLists = categoryLists.filter((list) => listSpace(list) === cardSpace);
@@ -4016,6 +4062,16 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
       await onRemoveFromGroup();
     } finally {
       setRemovingFromGroup(false);
+    }
+  };
+
+  const runGroupAction = async (action) => {
+    if (!action || interactionBusy) return;
+    setGrouping(true);
+    try {
+      await action();
+    } finally {
+      setGrouping(false);
     }
   };
 
@@ -4105,6 +4161,13 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                   </div>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>}
+              {owner && onCreateGroup && <WishGroupingSubmenu
+                wish={wish}
+                groups={groupOptions}
+                busy={interactionBusy}
+                onCreate={() => runGroupAction(onCreateGroup)}
+                onAdd={(groupId) => runGroupAction(() => onAddToGroup?.(groupId))}
+              />}
               {owner && onRemoveFromGroup && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>
@@ -4406,7 +4469,7 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
           <span className="sr-only">Закрыть</span>
         </DrawerClose>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
+        <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
               ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото позиции каталога «${item.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
@@ -5146,11 +5209,12 @@ function WishesPage({ onAdd, version }) {
       && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
     clearGroupIntent();
   };
-  const createGroup = async (sourceWishId, targetWishId) => {
+  const createGroup = async (sourceWishId, targetWishId = null) => {
     finishDrag({ persist: false, restore: true });
-    if (!sourceWishId || sourceWishId === targetWishId || !groupingListId) return;
+    if (!sourceWishId || sourceWishId === targetWishId || !groupingListId) return false;
+    const wishIds = [sourceWishId, targetWishId].filter(Boolean);
     try {
-      const { group } = await api.post(`/lists/${groupingListId}/groups`, { wishIds: [sourceWishId, targetWishId], space: selectedSpace });
+      const { group } = await api.post(`/lists/${groupingListId}/groups`, { wishIds, space: selectedSpace });
       updateData((current) => {
         const linked = attachWishesToDashboardList(current, groupingListId, group.wishIds);
         return {
@@ -5160,11 +5224,12 @@ function WishesPage({ onAdd, version }) {
       });
       toast("Группа создана");
       void reload({ background: true }).catch(() => {});
-    } catch (error) { toast(error.message, "error"); }
+      return true;
+    } catch (error) { toast(error.message, "error"); return false; }
   };
   const addToGroup = async (sourceWishId, groupId) => {
     finishDrag({ persist: false, restore: true });
-    if (!sourceWishId || !groupingListId) return;
+    if (!sourceWishId || !groupingListId) return false;
     try {
       await api.post(`/lists/${groupingListId}/groups/${groupId}/wishes`, { wishId: sourceWishId });
       updateData((current) => {
@@ -5178,7 +5243,8 @@ function WishesPage({ onAdd, version }) {
       });
       toast("Добавлено в группу");
       void reload({ background: true }).catch(() => {});
-    } catch (error) { toast(error.message, "error"); }
+      return true;
+    } catch (error) { toast(error.message, "error"); return false; }
   };
   const restoreFocusAfterGroupRemoval = (groupId, wishId) => {
     requestAnimationFrame(() => {
@@ -5540,7 +5606,7 @@ function WishesPage({ onAdd, version }) {
   };
   const renderWish = (wish, group = null) => {
     const dragEnabled = !group || !removingGroupId;
-    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
+    return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} groupOptions={group ? [] : groups} onCreateGroup={!group && groupingListId ? () => createGroup(wish.id) : undefined} onAddToGroup={!group && groupingListId ? (groupId) => addToGroup(wish.id, groupId) : undefined} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
     if (suppressOpenRef.current) return;
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
@@ -5835,7 +5901,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
             <X />
             <span className="sr-only">Закрыть</span>
           </DrawerClose>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
               ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
@@ -6020,7 +6086,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
     }
   };
   return <>
-    <Drawer open swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
+    <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
       <DrawerContent className="app-drawer--compact" finalFocus={returnFocusRef}>
         <DrawerClose
           render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
@@ -6029,15 +6095,15 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
           <span className="sr-only">Закрыть</span>
         </DrawerClose>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
-          <DrawerHeader className="text-left!">
+          <DrawerHeader className="pr-16 text-left!">
             <DrawerTitle>{editing ? "Изменить список" : "Создать список"}</DrawerTitle>
             <DrawerDescription>{editing ? "Измените название, описание и приватность списка." : "Задайте название, описание и приватность нового списка."}</DrawerDescription>
           </DrawerHeader>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor={titleId}>Название</FieldLabel>
-              <Input id={titleId} autoFocus required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+              <Input id={titleId} autoFocus={canAutofocusForm()} required placeholder="Например, Новоселье" value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
             </Field>
             <Field>
               <FieldLabel htmlFor={descriptionId}>Описание</FieldLabel>
@@ -6369,7 +6435,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   }));
   const metadataNotice = metadata.status !== "idle" && <div className={`metadata-status metadata-status--${metadata.status}`} role="status" aria-live="polite"><span className="metadata-status__icon">{["waiting", "loading"].includes(metadata.status) ? <LoaderCircle className="spin" /> : metadata.status === "success" ? <CheckCircle2 /> : <X />}</span><div><strong>{metadata.status === "waiting" ? "Готовим автозаполнение" : metadata.status === "loading" ? (isPlaces ? "Читаем место в Яндекс Картах" : isVideo ? `Читаем видео в ${videoProviderLabel}` : isKinopoisk ? "Загружаем постер Кинопоиска" : isMedia ? "Загружаем обложку" : isTransport ? "Читаем объявление автомобиля" : "Читаем карточку товара") : metadata.status === "success" ? "Готово" : "Не получилось автоматически"}</strong><span>{metadata.message}</span></div>{metadata.status === "error" && metadata.retryable !== false && form.url && <ShadcnButton variant="ghost" type="button" onClick={() => recognize(form.url)}>Повторить</ShadcnButton>}</div>;
   const requestClose = () => {
-    if (loading || deleting || imageUploading) return;
+    if (loading || deleting || imageUploading || listCreatorOpen || deleteConfirm) return;
     cleanupUploadedImages();
     onClose();
   };
@@ -6447,7 +6513,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             <div className="wish-editor__scroll flex h-auto w-full flex-col gap-4 overflow-visible p-0 [scrollbar-gutter:auto]">
               <Field className="wish-editor__field">
                 <FieldLabel htmlFor={fieldId("title")}>Название</FieldLabel>
-                <Input id={fieldId("title")} autoFocus={editing} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+                <Input id={fieldId("title")} autoFocus={editing && canAutofocusForm()} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
               </Field>
 
               {isTransport && <div className="grid gap-4">
@@ -6513,7 +6579,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
               <Field className="wish-editor__field wish-editor__field--link grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-start-1 row-start-1" htmlFor={fieldId("url")}>{isPlaces ? "Ссылка из Яндекс Карт" : isFood ? "Ссылка на продукт" : "Ссылка"}</FieldLabel>
-                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : isTransport ? "https://auto.ru/cars/used/sale/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
+                <Input className="col-span-2 row-start-2" id={fieldId("url")} autoFocus={!editing && canAutofocusForm()} type="url" inputMode="url" value={form.url} placeholder={isPlaces ? "https://yandex.ru/maps/…" : isFood ? "https://lenta.com/product/…" : isTransport ? "https://auto.ru/cars/used/sale/…" : "https://…"} onChange={(event) => updateMetadataField("url", event.target.value)} />
                 <ShadcnButton className="wish-editor__link-action col-start-2 row-start-1 justify-self-end" type="button" variant="ghost" disabled={!form.url.trim() || metadata.status === "loading"} onClick={() => recognize(form.url)}>
                   {metadata.status === "loading" ? <LoaderCircle className="spin" /> : <Sparkles />}
                   <span>{metadata.status === "loading" ? "Заполняем…" : "Заполнить по ссылке"}</span>
@@ -6613,6 +6679,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     {editorContent}
   </FullscreenDialog> : <Drawer
     open
+    modal={!listCreatorOpen}
+    disablePointerDismissal={listCreatorOpen}
     showSwipeHandle
     swipeDirection={isMobile ? "down" : "right"}
     onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
@@ -6895,7 +6963,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
     <DrawerContent
       ref={contentRef}
       className="profile-settings-dialog rollapp-body app-drawer--form"
-      initialFocus={() => window.innerWidth <= 820 ? true : contentRef.current?.querySelector("#settings-profile-name") || true}
+      initialFocus={() => canAutofocusForm() ? contentRef.current?.querySelector("#settings-profile-name") || true : true}
       finalFocus={finalFocus}
     >
       <DrawerClose
@@ -7346,6 +7414,7 @@ function LegacyProfileRedirect() {
 }
 
 export default function App() {
+  useVisualViewport();
   return (
     <ToastProvider>
       <SessionProvider>

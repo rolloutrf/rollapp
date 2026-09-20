@@ -5,6 +5,7 @@
 @import "./typeset.css";
 @import "./spacing.css";
 @import "./containers.css";
+@import "./overlays.css";
 @import "./identity-reports.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -291,7 +292,7 @@
      including mobile landscape. */
   :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]):not(.education-group-overlay, .app-fullscreen-dialog) {
     inline-size: calc(100% - 2rem);
-    max-block-size: calc(100dvh - 2rem);
+    max-block-size: calc(var(--app-visual-height, 100dvh) - 2rem);
     overflow-y: auto;
     overscroll-behavior: contain;
   }

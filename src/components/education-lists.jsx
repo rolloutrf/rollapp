@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
   educationListItemCount,
@@ -335,7 +335,7 @@ export function EducationListDrawer({
                 {editing ? "Измените название и описание списка." : `Соберите связанные ${itemPlural} в отдельный список.`}
               </DrawerDescription>
             </DrawerHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertTitle>Не удалось сохранить список</AlertTitle>
@@ -348,7 +348,7 @@ export function EducationListDrawer({
                   <Input
                     className="min-h-12 text-base"
                     id={titleId}
-                    autoFocus
+                    autoFocus={canAutofocusForm()}
                     required
                     maxLength={80}
                     placeholder="Например, На этот год"

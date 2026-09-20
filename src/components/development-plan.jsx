@@ -202,7 +202,7 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
             <DrawerTitle>{editing ? "Редактировать пункт" : "Новый пункт"}</DrawerTitle>
             <DrawerDescription>Каждый пункт сохраняется отдельно от остальных.</DrawerDescription>
           </DrawerHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle aria-hidden="true" />

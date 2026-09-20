@@ -5,12 +5,13 @@ import test from "node:test";
 const root = new URL("../../", import.meta.url);
 
 test("plain sphere pages share one centered content rail", async () => {
-  const [styles, careerContent, aboutMe, fourQuestions, theses, lifeStrategy, developmentPlan, domain, mission, editableLifeStrategy] = await Promise.all([
+  const [styles, careerContent, aboutMe, fourQuestions, theses, characterTraits, lifeStrategy, developmentPlan, domain, mission, editableLifeStrategy] = await Promise.all([
     readFile(new URL("src/styles.css", root), "utf8"),
     readFile(new URL("src/components/career-content.jsx", root), "utf8"),
     readFile(new URL("src/components/about-me.jsx", root), "utf8"),
     readFile(new URL("src/components/four-questions.jsx", root), "utf8"),
     readFile(new URL("src/components/theses.jsx", root), "utf8"),
+    readFile(new URL("src/components/character-traits.jsx", root), "utf8"),
     readFile(new URL("src/components/life-strategy.jsx", root), "utf8"),
     readFile(new URL("src/components/development-plan.jsx", root), "utf8"),
     readFile(new URL("src/components/domain.jsx", root), "utf8"),
@@ -60,6 +61,7 @@ test("plain sphere pages share one centered content rail", async () => {
     ["About me", aboutMe],
     ["Four questions", fourQuestions],
     ["Theses", theses],
+    ["Character traits", characterTraits],
     ["standalone life strategy", lifeStrategy],
     ["Development plan", developmentPlan],
   ]) {

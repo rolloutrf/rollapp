@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
-import { identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
+import { identityCharacterSchema, identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
+
+test("character traits are trimmed and empty traits are rejected", () => {
+  assert.deepEqual(identityCharacterSchema.parse([
+    "  Решительность  ",
+    { title: "  Самостоятельность ", description: "  Опираюсь на собственное решение.  " },
+  ]), [
+    { title: "Решительность", description: "" },
+    { title: "Самостоятельность", description: "Опираюсь на собственное решение." },
+  ]);
+  assert.equal(identityCharacterSchema.safeParse([""]).success, false);
+  assert.equal(identityCharacterSchema.safeParse([{ title: "", description: "Описание" }]).success, false);
+});
 
 test("custom identity values preserve their description", () => {
   const result = identityValuesSchema.parse({

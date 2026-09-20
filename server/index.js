@@ -53,7 +53,9 @@ import {
 } from "./lab-pdf.js";
 import { generateIdentityReport, identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
 import { parsePerformanceReviewPdf } from "./performance-review-pdf.js";
-import { identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
+import {
+  identityCharacterSchema, identityFourQuestionsSchema, identityValuesSchema,
+} from "./identity-content-schema.js";
 import {
   previewBackfillPatch,
   resolvePreviewBackfillMetadata,
@@ -468,11 +470,12 @@ const careerContentSchemas = {
   domain: careerMarkdownSchema,
   performance: careerPerformanceSchema,
 };
-const identitySectionSchema = z.enum(["four-questions", "theses", "values", "mission", "life-strategy"]);
+const identitySectionSchema = z.enum(["four-questions", "theses", "values", "character", "mission", "life-strategy"]);
 const identityReportSectionSchema = z.enum(["hogan", "gallup"]);
 const identityContentSchemas = {
   theses: careerMarkdownSchema,
   values: identityValuesSchema,
+  character: identityCharacterSchema,
   mission: careerMarkdownSchema,
   "life-strategy": careerMarkdownSchema,
   "four-questions": identityFourQuestionsSchema,
@@ -3224,35 +3227,42 @@ function inferWishGroupSpace(list, wishes, requestedSpace) {
 
 app.post("/api/lists/:id/groups", requireAuth, asyncRoute(async (req, res) => {
   const parsed = z.object({
-    wishIds: z.array(z.string()).length(2).refine((ids) => new Set(ids).size === 2),
+    wishIds: z.array(z.string().min(1)).min(1).max(2)
+      .refine((ids) => new Set(ids).size === ids.length),
     space: listSpaceSchema.optional(),
   }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Выберите два разных желания" });
+  if (!parsed.success) return res.status(400).json({ error: "Выберите одно или два разных желания" });
   const outcome = await runWishGroupTransaction(req.params.id, async (client) => {
     const list = await client.query("SELECT id,space FROM wishlists WHERE id=$1 AND user_id=$2 FOR UPDATE", [req.params.id, req.user.id]);
     if (!list.rowCount) return { status: 404, error: "Список не найден" };
+    const wishPlaceholders = parsed.data.wishIds.map((_, index) => `$${index + 2}`).join(",");
     const wishes = await client.query(
-      "SELECT id,space FROM wishes WHERE user_id=$1 AND id IN ($2,$3) ORDER BY id FOR UPDATE",
+      `SELECT id,space FROM wishes WHERE user_id=$1 AND id IN (${wishPlaceholders}) ORDER BY id FOR UPDATE`,
       [req.user.id, ...parsed.data.wishIds],
     );
-    if (wishes.rowCount !== 2) return { status: 404, error: "Одно из желаний не найдено" };
+    if (wishes.rowCount !== parsed.data.wishIds.length) return { status: 404, error: "Одно из желаний не найдено" };
     const space = inferWishGroupSpace(list.rows[0], wishes.rows, parsed.data.space);
+    const occupiedPlaceholders = parsed.data.wishIds.map((_, index) => `$${index + 3}`).join(",");
     const occupied = await client.query(
-      "SELECT wish_id FROM wish_group_members WHERE wishlist_id=$1 AND space=$2 AND wish_id IN ($3,$4)",
+      `SELECT wish_id FROM wish_group_members WHERE wishlist_id=$1 AND space=$2 AND wish_id IN (${occupiedPlaceholders})`,
       [req.params.id, space, ...parsed.data.wishIds],
     );
     if (occupied.rowCount) return { status: 409, error: "Желание уже в группе" };
     const id = randomUUID();
-    await client.query(
-      `INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2),($1,$3)
-       ON CONFLICT (wishlist_id,wish_id) DO NOTHING`,
-      [req.params.id, ...parsed.data.wishIds],
-    );
+    for (const wishId of parsed.data.wishIds) {
+      await client.query(
+        `INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)
+         ON CONFLICT (wishlist_id,wish_id) DO NOTHING`,
+        [req.params.id, wishId],
+      );
+    }
     await client.query("INSERT INTO wish_groups (id,wishlist_id,space) VALUES ($1,$2,$3)", [id, req.params.id, space]);
-    await client.query(
-      "INSERT INTO wish_group_members (group_id,wishlist_id,space,wish_id) VALUES ($1,$2,$3,$4),($1,$2,$3,$5)",
-      [id, req.params.id, space, ...parsed.data.wishIds],
-    );
+    for (const wishId of parsed.data.wishIds) {
+      await client.query(
+        "INSERT INTO wish_group_members (group_id,wishlist_id,space,wish_id) VALUES ($1,$2,$3,$4)",
+        [id, req.params.id, space, wishId],
+      );
+    }
     return { id, space };
   });
   if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });

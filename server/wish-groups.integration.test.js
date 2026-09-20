@@ -71,8 +71,22 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   const second = await createWish("Вторая карточка", cookie);
   const third = await createWish("Третья карточка", cookie);
   const fourth = await createWish("Четвёртая карточка", cookie);
+  const single = await createWish("Одиночная карточка", cookie);
   assert.deepEqual(first.listIds, []);
   assert.deepEqual(second.listIds, []);
+
+  const singleCreateResponse = await post(`/lists/${list.id}/groups`, { wishIds: [single.id] }, cookie);
+  const singleCreatePayload = await singleCreateResponse.json();
+  assert.equal(singleCreateResponse.status, 201, JSON.stringify(singleCreatePayload));
+  assert.deepEqual(singleCreatePayload.group.wishIds, [single.id]);
+  const singleRemoveResponse = await remove(
+    `/lists/${list.id}/groups/${singleCreatePayload.group.id}/wishes/${single.id}`,
+    cookie,
+  );
+  const singleRemovePayload = await singleRemoveResponse.json();
+  assert.equal(singleRemoveResponse.status, 200, JSON.stringify(singleRemovePayload));
+  assert.equal(singleRemovePayload.dissolved, true);
+  assert.equal(singleRemovePayload.group, null);
 
   const createResponse = await post(`/lists/${list.id}/groups`, { wishIds: [first.id, second.id] }, cookie);
   const createPayload = await createResponse.json();
@@ -139,8 +153,19 @@ test("group mutations attach unlisted wishes in the same request", async (t) => 
   const dissolveResponse = await remove(`/lists/${list.id}/groups/${group.id}/wishes/${first.id}`, cookie);
   const dissolvePayload = await dissolveResponse.json();
   assert.equal(dissolveResponse.status, 200, JSON.stringify(dissolvePayload));
-  assert.equal(dissolvePayload.dissolved, true);
-  assert.equal(dissolvePayload.group, null);
+  assert.equal(dissolvePayload.dissolved, false);
+  assert.deepEqual(dissolvePayload.group.wishIds, [second.id]);
+
+  const singletonDashboardResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
+  assert.equal(singletonDashboardResponse.status, 200);
+  const singletonDashboard = await singletonDashboardResponse.json();
+  assert.deepEqual(singletonDashboard.groups.find((item) => item.id === group.id)?.wishIds, [second.id]);
+
+  const removeLastResponse = await remove(`/lists/${list.id}/groups/${group.id}/wishes/${second.id}`, cookie);
+  const removeLastPayload = await removeLastResponse.json();
+  assert.equal(removeLastResponse.status, 200, JSON.stringify(removeLastPayload));
+  assert.equal(removeLastPayload.dissolved, true);
+  assert.equal(removeLastPayload.group, null);
 
   const afterDissolveResponse = await fetch(`${baseUrl}/dashboard`, { headers: { Cookie: cookie } });
   assert.equal(afterDissolveResponse.status, 200);
