@@ -6465,7 +6465,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           <h2 id={fieldId("dialog-title")} className="sr-only">{editing ? `Редактирование желания «${wish.title}»` : "Создание желания"}</h2>
           <p id={fieldId("dialog-description")} className="sr-only">{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</p>
 
-          <div className="wish-editor-screen__content px-4 max-[820px]:px-0" aria-label="Поля желания">
+          <div className="wish-editor-screen__content px-4" aria-label="Поля желания">
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3 max-[820px]:pr-0">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div

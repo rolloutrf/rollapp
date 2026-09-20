@@ -70,6 +70,11 @@ try {
       await page.waitForTimeout(600);
       await boundsVisible(popup, 0, viewport.height, `${viewport.width} ${mode} initial`);
       const initial = await popup.boundingBox();
+      if (mode === 'wish' || mode === 'fullscreen') {
+        const content = await popup.locator('.wish-editor-screen__content > :first-child').boundingBox();
+        assert(content.x >= initial.x + 14, `${viewport.width} ${mode}: content touches the left edge`);
+        assert(content.x + content.width <= initial.x + initial.width - 14, `${viewport.width} ${mode}: content touches the right edge`);
+      }
       const scrollBefore = await page.evaluate(() => scrollY);
       const height = Math.max(260, viewport.height - 340);
       for (const fieldName of ['Поле 1', 'Поле 12', 'Описание', 'Поле 2']) {
