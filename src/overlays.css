@@ -39,6 +39,15 @@
   [data-slot="drawer-footer"] {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+  :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button {
+    min-height: 3rem;
+    border-radius: 9999px;
+  }
+  :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button:only-child {
+    width: auto;
+    align-self: flex-end;
+    padding-inline: 1rem;
+  }
   [data-overlay-keyboard] [data-slot="drawer-footer"] { padding-bottom: 1rem; }
   /* At short keyboard/landscape heights, reserve room for the active field.
      Descriptions remain accessible and return as soon as space is available. */

@@ -142,6 +142,13 @@ try {
         await page.waitForTimeout(450);
         assert(!await page.evaluate(() => document.activeElement?.matches('input,textarea')), `${name}: mobile form autofocus opens the keyboard`);
         const original = await popup.boundingBox();
+        if (name === 'wish-list') {
+          const action = popup.locator('[data-slot="drawer-footer"] > button:only-child');
+          const actionBox = await action.boundingBox();
+          const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
+          assert(actionBox.width < original.width - 32, `${name}: single action still stretches across the drawer`);
+          assert(actionRadius >= actionBox.height / 2 - 1, `${name}: single action is not pill-shaped`);
+        }
         const fields = popup.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
         const count = await fields.count();
         assert(count > 0, `${name}: no editable fields tested`);
