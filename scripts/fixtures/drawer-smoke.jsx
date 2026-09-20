@@ -35,7 +35,7 @@ function Fixture() {
       <DrawerContent className={`rollapp-body app-drawer--form ${mode === 'wish' ? 'wish-editor-drawer' : ''}`}>
         <DrawerClose render={<Button className="absolute right-2 top-2 z-10" variant="ghost" />} aria-label="Закрыть">×</DrawerClose>
         {mode === 'wish' ? <><DrawerHeader className="pr-16"><DrawerTitle>Добавить желание</DrawerTitle><DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription></DrawerHeader>
-          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content">{body}</div><footer className="wish-editor-screen__footer"><Button type="button">Сохранить</Button></footer></form></section></>
+          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4">{body}</div><footer className="wish-editor-screen__footer"><Button type="button">Сохранить</Button></footer></form></section></>
         : <form className="flex min-h-0 flex-1 flex-col"><DrawerHeader className="pr-16"><DrawerTitle>Форма</DrawerTitle><DrawerDescription>Проверка полей, прокрутки и действий.</DrawerDescription></DrawerHeader>
           {mode === 'scroll-area' ? <ScrollArea className="min-h-0 flex-1"><div className="p-4">{body}</div></ScrollArea> : <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">{body}</div>}
           <DrawerFooter className="border-t pt-4"><Button type="button">Сохранить</Button><DrawerClose render={<Button type="button" variant="outline" />}>Отмена</DrawerClose></DrawerFooter></form>}
