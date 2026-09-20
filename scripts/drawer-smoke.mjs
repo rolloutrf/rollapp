@@ -75,6 +75,13 @@ try {
         assert(content.x >= initial.x + 14, `${viewport.width} ${mode}: content touches the left edge`);
         assert(content.x + content.width <= initial.x + initial.width - 14, `${viewport.width} ${mode}: content touches the right edge`);
       }
+      if (mode === 'wish' && viewport.width <= 820) {
+        const action = popup.getByRole('button', {name: 'Сохранить', exact: true});
+        const actionBox = await action.boundingBox();
+        const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
+        assert(Math.abs(actionBox.width - (initial.width - 32)) < 3, `${viewport.width} ${mode}: action does not span the footer`);
+        assert(actionRadius < actionBox.height / 2 - 2, `${viewport.width} ${mode}: action is still pill-shaped`);
+      }
       const scrollBefore = await page.evaluate(() => scrollY);
       const height = Math.max(260, viewport.height - 340);
       for (const fieldName of ['Поле 1', 'Поле 12', 'Описание', 'Поле 2']) {
@@ -142,12 +149,12 @@ try {
         await page.waitForTimeout(450);
         assert(!await page.evaluate(() => document.activeElement?.matches('input,textarea')), `${name}: mobile form autofocus opens the keyboard`);
         const original = await popup.boundingBox();
-        if (name === 'wish-list') {
+        if (name === 'wish-list' && viewport.width <= 820) {
           const action = popup.locator('[data-slot="drawer-footer"] > button:only-child');
           const actionBox = await action.boundingBox();
           const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
-          assert(actionBox.width < original.width - 32, `${name}: single action still stretches across the drawer`);
-          assert(actionRadius >= actionBox.height / 2 - 1, `${name}: single action is not pill-shaped`);
+          assert(Math.abs(actionBox.width - (original.width - 32)) < 3, `${name}: single action does not span the drawer footer`);
+          assert(actionRadius < actionBox.height / 2 - 2, `${name}: single action is still pill-shaped`);
         }
         const fields = popup.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
         const count = await fields.count();
