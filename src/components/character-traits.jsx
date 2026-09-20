@@ -199,7 +199,7 @@ export function CharacterTraits() {
           <div className="flex flex-col gap-6" data-typeset-group role="list">
             {traits.map((trait, index) => (
               <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2" key={`${index}-${trait.title}`} role="listitem">
-                <div className="min-w-0 pl-4" data-typeset-group>
+                <div className="min-w-0" data-typeset-group>
                   <h3>{trait.title}</h3>
                   {trait.description
                     ? trait.description.split(/\n\s*\n/gu).map((paragraph, paragraphIndex) => (
