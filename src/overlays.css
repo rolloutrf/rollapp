@@ -41,11 +41,10 @@
   }
   :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button {
     min-height: 3rem;
-    border-radius: 9999px;
   }
   :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button:only-child {
-    width: auto;
-    align-self: flex-end;
+    width: 100%;
+    align-self: stretch;
     padding-inline: 1rem;
   }
   [data-overlay-keyboard] [data-slot="drawer-footer"] { padding-bottom: 1rem; }
@@ -100,6 +99,11 @@
   }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
+    width: 100%;
+    min-width: 0;
+    border-radius: var(--radius);
   }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__media { position: static; }
 }
