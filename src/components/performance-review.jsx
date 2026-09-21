@@ -383,9 +383,9 @@ export function PerformanceReview() {
   return (
     <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
-        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
+        <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
           <Button
-            className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
+            className="h-12 shrink-0 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
             shape="pill"
             type="button"
             disabled={!activeCycle || careerContent.loading || importing || deleting}
@@ -395,7 +395,7 @@ export function PerformanceReview() {
             {careerContent.loading ? "Загружаем" : "Редактировать"}
           </Button>
           <Button
-            className="h-12 px-5 text-base"
+            className="h-12 shrink-0 px-5 text-base"
             shape="pill"
             variant="outline"
             type="button"

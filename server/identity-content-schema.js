@@ -20,7 +20,31 @@ const identityCharacterTraitSchema = z.union([
   }).strict(),
 ]);
 
-export const identityCharacterSchema = z.array(identityCharacterTraitSchema).max(200);
+const identityCharacterSelectionSchema = z.object({
+  selected: z.array(z.string().trim().min(1).max(120)).max(200)
+    .refine((traits) => new Set(traits).size === traits.length),
+  custom: z.array(z.object({
+    id: z.string().trim().min(1).max(120),
+    label: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(20_000).default(""),
+  }).strict()).max(200)
+    .refine((traits) => new Set(traits.map((trait) => trait.id)).size === traits.length),
+}).strict();
+
+const legacyIdentityCharacterSchema = z.array(identityCharacterTraitSchema).max(200)
+  .transform((traits) => ({
+    selected: traits.map((_, index) => `legacy:${index}`),
+    custom: traits.map((trait, index) => ({
+      id: `legacy:${index}`,
+      label: trait.title,
+      description: trait.description,
+    })),
+  }));
+
+export const identityCharacterSchema = z.union([
+  identityCharacterSelectionSchema,
+  legacyIdentityCharacterSchema,
+]);
 
 export const identityFourQuestionsSchema = z.object({
   questions: z.array(z.object({

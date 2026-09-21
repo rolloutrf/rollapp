@@ -3,16 +3,27 @@ import test from "node:test";
 import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
 import { identityCharacterSchema, identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
 
-test("character traits are trimmed and empty traits are rejected", () => {
+test("legacy character traits are preserved as selectable custom traits", () => {
   assert.deepEqual(identityCharacterSchema.parse([
     "  Решительность  ",
     { title: "  Самостоятельность ", description: "  Опираюсь на собственное решение.  " },
-  ]), [
-    { title: "Решительность", description: "" },
-    { title: "Самостоятельность", description: "Опираюсь на собственное решение." },
-  ]);
+  ]), {
+    selected: ["legacy:0", "legacy:1"],
+    custom: [
+      { id: "legacy:0", label: "Решительность", description: "" },
+      { id: "legacy:1", label: "Самостоятельность", description: "Опираюсь на собственное решение." },
+    ],
+  });
   assert.equal(identityCharacterSchema.safeParse([""]).success, false);
   assert.equal(identityCharacterSchema.safeParse([{ title: "", description: "Описание" }]).success, false);
+});
+
+test("selected character traits have unique IDs", () => {
+  assert.equal(identityCharacterSchema.safeParse({ selected: ["curiosity", "curiosity"], custom: [] }).success, false);
+  assert.equal(identityCharacterSchema.safeParse({
+    selected: ["custom:curiosity"],
+    custom: [{ id: "custom:curiosity", label: "Любопытство", description: "Интересоваться новым." }],
+  }).success, true);
 });
 
 test("custom identity values preserve their description", () => {

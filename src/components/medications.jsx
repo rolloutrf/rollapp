@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
+import { ListTileContent } from "@/components/education-lists";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -218,13 +219,15 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
       </Button>
       <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
         <CardHeader>
-          <CardTitle><h4 className="m-0 font-heading text-base leading-snug font-medium">{medication.name}</h4></CardTitle>
-          <CardDescription>{medication.purpose || MEDICATION_FORMS[medication.medicationForm]}</CardDescription>
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
+          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
+            <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{medication.name}</h4>
             <Badge variant={status.variant}>
               <StatusIcon data-icon="inline-start" aria-hidden="true" />
               {status.label}
             </Badge>
+          </CardTitle>
+          <CardDescription className="min-w-0 wrap-anywhere">{medication.purpose || MEDICATION_FORMS[medication.medicationForm]}</CardDescription>
+          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
             <MedicationGroupMenu
               currentGroupId={medication.groupId}
               disabled={moveDisabled}
@@ -687,8 +690,7 @@ function MedicationGroupTabs({ groups, medications, value, onValueChange, onCrea
             const count = countForGroup(group.id);
             return (
               <ToggleGroupItem key={group.id} value={group.id} aria-label={`${group.title}, ${count} ${medicationCountLabel(count)}`}>
-                <strong data-slot="list-tile-label">{group.title}</strong>
-                <span data-slot="list-tile-count">{count}</span>
+                <ListTileContent title={group.title} count={count} />
               </ToggleGroupItem>
             );
           })}
@@ -819,7 +821,7 @@ export function Medications() {
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
           {selectedGroup && (
-            <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
+            <Button className="h-12 shrink-0 px-5 text-base" variant="outline" shape="pill" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
               Настройки группы
             </Button>
           )}

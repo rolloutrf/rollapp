@@ -61,12 +61,17 @@ test("plain sphere pages share one centered content rail", async () => {
     ["About me", aboutMe],
     ["Four questions", fourQuestions],
     ["Theses", theses],
-    ["Character traits", characterTraits],
     ["standalone life strategy", lifeStrategy],
     ["Development plan", developmentPlan],
   ]) {
     assert.match(source, /className="sphere-text-page page-stack"/u, `${label} must use the shared text rail`);
   }
+
+  assert.match(
+    characterTraits,
+    /max-w-\(--layout-collection-width\)/u,
+    "Character traits must use the shared collection measure",
+  );
 
   for (const [label, source] of [
     ["Domain", domain],

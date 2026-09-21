@@ -51,6 +51,26 @@
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
   }
 
+  @media (max-width: 390px) {
+    .global-app-chrome .global-service-select {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      padding-inline: 0.5rem;
+      gap: 0.25rem;
+    }
+
+    .global-service-select [data-slot="select-value"] {
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .global-service-select [data-slot="select-value"] svg {
+      display: none;
+    }
+  }
+
   .app-shell-chrome-spacer {
     height: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
     flex-basis: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));

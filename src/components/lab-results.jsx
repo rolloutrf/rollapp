@@ -83,7 +83,7 @@ function ReportGroup({ group }) {
         headerAs="h2"
       >
         <span className="flex min-w-0 flex-1 items-center gap-3 pr-3">
-          <span className="min-w-0 flex-1 truncate text-left text-3xl leading-9 font-semibold tracking-tight">
+          <span className="min-w-0 flex-1 text-left text-3xl leading-9 font-semibold tracking-tight whitespace-normal wrap-anywhere">
             {group.title}
           </span>
           <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
@@ -269,14 +269,14 @@ export function LabResults() {
           <SphereBusinessControls sphereId="health" />
         </div>
       )}
-      <section className="min-w-0 max-w-none">
+      <section className="min-w-0 max-w-none" data-report-navigation>
         {selectedReport ? (
           <Tabs className="min-w-0" value={selectedReport.id} onValueChange={setSelectedReportId}>
-            <TabsList className="h-auto! min-w-0 w-full flex-wrap gap-1" aria-label="Дата исследования">
+            <TabsList className="list-tabs mb-0 h-auto! min-w-0 w-full flex-nowrap gap-1 bg-transparent p-0" data-tab-scroller aria-label="Дата исследования">
               {reports.map((report, index) => (
-                <TabsTrigger className="h-auto min-w-0 basis-48 flex-col items-start px-3! py-2.5! text-left whitespace-normal wrap-anywhere" key={report.id} value={report.id}>
-                  <span className="w-full">{report.dateLabel}</span>
-                  <span className="w-full text-xs font-normal text-muted-foreground">
+                <TabsTrigger data-report-tile key={report.id} value={report.id}>
+                  <span data-slot="list-tile-label">{report.dateLabel}</span>
+                  <span data-slot="list-tile-meta" title={index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}>
                     {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
                   </span>
                 </TabsTrigger>

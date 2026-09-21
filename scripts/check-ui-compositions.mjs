@@ -10,7 +10,8 @@ export function checkUiComposition(source, file) {
   assert.doesNotMatch(source, /createPortal|(?:window|globalThis)\.(?:alert|confirm|prompt)\s*\(/, `${file}: use the shared Dialog, AlertDialog or portal component`);
 
   for (const [tag] of source.matchAll(/<TabsList\b[\s\S]*?>/g)) {
-    assert.doesNotMatch(tag, /\b(?:overflow(?:-[xy])?-(?:auto|scroll)|flex-nowrap)\b/, `${file}: tab navigation must wrap without a nested scrollbar`);
+    const intentionalHorizontalScroller = /\bdata-tab-scroller\b/.test(tag);
+    assert(intentionalHorizontalScroller || !/\b(?:overflow(?:-[xy])?-(?:auto|scroll)|flex-nowrap)\b/.test(tag), `${file}: tab navigation must wrap unless it declares data-tab-scroller`);
   }
 
   for (const [tag] of source.matchAll(/<input\b[\s\S]*?\/>/g)) {

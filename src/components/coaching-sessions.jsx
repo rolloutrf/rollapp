@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import {
   AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin,
-  RotateCcw, Ungroup, Video, X,
+  RotateCcw, Video, X,
 } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -148,13 +148,15 @@ function CoachingSessionCard({
       </Button>
       <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
         <CardHeader>
-          <CardTitle><h3 className="m-0 font-heading text-base leading-snug font-medium">{session.title}</h3></CardTitle>
-          {session.coach && <CardDescription className="truncate">{session.coach}</CardDescription>}
-          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
+          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
+            <h3 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{session.title}</h3>
             <Badge variant={status.variant}>
               <StatusIcon data-icon="inline-start" aria-hidden="true" />
               {status.label}
             </Badge>
+          </CardTitle>
+          {session.coach && <CardDescription className="min-w-0 truncate">{session.coach}</CardDescription>}
+          <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
             <EducationItemListMenu
               currentListId={session.listId}
               grouping={grouping}
@@ -165,21 +167,9 @@ function CoachingSessionCard({
               moving={moving}
               onCreateList={onCreateList}
               onMove={(listId) => onMoveToList(session, listId)}
+              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(session) : undefined}
+              removeBusy={removeBusy}
             />
-            {onRemoveFromGroup && (
-              <Button
-                className="pointer-events-auto relative z-20 size-9 rounded-full"
-                variant="ghost"
-                size="icon-lg"
-                type="button"
-                disabled={removeBusy}
-                aria-label={`Убрать коучинг-сессию «${session.title}» из группы`}
-                title="Убрать из группы"
-                onClick={() => onRemoveFromGroup(session)}
-              >
-                {removeBusy ? <Spinner aria-hidden="true" /> : <Ungroup aria-hidden="true" />}
-              </Button>
-            )}
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-4">

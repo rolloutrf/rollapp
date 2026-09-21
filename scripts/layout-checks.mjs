@@ -30,14 +30,26 @@ export function measureApplicationLayout() {
       const bounds = box(element);
       const style = getComputedStyle(element);
       const items = [...element.querySelectorAll('[data-slot="tabs-trigger"], [data-slot="toggle-group-item"], .list-tabs__add')].map(box);
-      const tiles = [...element.querySelectorAll('[data-slot="toggle-group-item"]')].map(box);
+      const tiles = [...element.querySelectorAll('[data-slot="toggle-group-item"], [data-report-tile]')].map(box);
       return {
         label: element.getAttribute("aria-label") || element.className,
-        horizontalList: element.hasAttribute("data-wishlist-list-navigation"),
+        horizontalList: element.hasAttribute("data-wishlist-list-navigation")
+          || element.hasAttribute("data-tab-scroller") || Boolean(element.closest("[data-group-navigation]")),
         singleRow: tiles.every((tile) => Math.abs(tile.top - tiles[0].top) <= 1),
         verticalOverflow: element.scrollHeight > element.clientHeight + 1 || items.some((rect) => rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1),
         scrollable: [style.overflowX, style.overflowY].some((value) => /^(auto|scroll)$/.test(value)),
         clipped: items.some((rect) => rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1),
+      };
+    }),
+    actionRails: [...document.querySelectorAll(".page-actions.horizontal-action-scroller, .identity-report-manager__actions.horizontal-action-scroller")].filter(visible).map((element) => {
+      const bounds = box(element);
+      const actions = [...element.querySelectorAll("button, a")].filter(visible).map(box);
+      return {
+        singleRow: actions.every((action) => Math.abs(action.top - actions[0].top) <= 1),
+        undersized: actions.some((action) => action.width < 47 || action.height < 47),
+        unreachableStart: element.scrollLeft === 0 && actions.some((action) => action.left < bounds.left - 1),
+        overlap: actions.some((action, index) => actions.slice(index + 1).some((next) =>
+          action.left < next.right && action.right > next.left && action.top < next.bottom && action.bottom > next.top)),
       };
     }),
     emptyAccordions: [...document.querySelectorAll(".document-accordion")]
@@ -75,8 +87,14 @@ export function assertApplicationLayout(result, label = "Application layout") {
   if (result.headerOverlap) errors.push("overlapping header controls");
   for (const navigation of result.tabNavigation || []) {
     if (navigation.horizontalList) {
-      if (!navigation.singleRow || navigation.verticalOverflow) errors.push("wrapped or vertically clipped wishlist lists: " + navigation.label);
+      if (!navigation.singleRow || navigation.verticalOverflow) errors.push("wrapped or vertically clipped list navigation: " + navigation.label);
     } else if (navigation.scrollable || navigation.clipped) errors.push("scrollable or clipped tab navigation: " + navigation.label);
+  }
+  for (const rail of result.actionRails || []) {
+    if (!rail.singleRow) errors.push("wrapped primary actions");
+    if (rail.undersized) errors.push("primary action below Large control size");
+    if (rail.unreachableStart) errors.push("unreachable start of action scroller");
+    if (rail.overlap) errors.push("overlapping primary actions");
   }
   if (result.scrollY === 0 && result.firstSurface?.top < result.backdropBottom - 1) errors.push("first content underneath the header backdrop");
   if (result.emptyAccordions) errors.push("empty document accordion reserving layout space");

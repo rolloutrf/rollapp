@@ -23,3 +23,8 @@ test("only permits invisible file handles and immutable Typeset task markers", (
 test("accepts standard shadcn compositions", () => {
   checkUiComposition('<Dialog><DialogContent><Select><SelectTrigger /><SelectContent><SelectItem /></SelectContent></Select><Input /><Checkbox /><Button /></DialogContent></Dialog>', "src/components/editor.jsx");
 });
+
+test("horizontal report tiles require an explicit scroller contract", () => {
+  checkUiComposition('<TabsList data-tab-scroller className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx");
+  assert.throws(() => checkUiComposition('<TabsList className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx"), /data-tab-scroller/);
+});

@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import aboutMeSource from "@/data/about-me.md?raw";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
@@ -7,6 +8,10 @@ import {
 } from "@/components/career-content";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -131,6 +136,8 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
 export function AboutMe() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
+  const [deleteIndex, setDeleteIndex] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const careerContent = useCareerContent("about", aboutMeSource);
   const content = typeof careerContent.content === "string" ? careerContent.content : aboutMeSource;
   const parsed = parseAboutMeMarkdown(content);
@@ -143,10 +150,25 @@ export function AboutMe() {
     return careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
   };
 
+  const removeQuestion = async () => {
+    if (deleteIndex === null) return;
+    setDeleting(true);
+    try {
+      const questions = parsed.questions.filter((_, index) => index !== deleteIndex);
+      await careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
+      setDeleteIndex(null);
+      toast.success("Вопрос удалён");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="sphere-text-page page-stack">
       <CareerEditAction
-        label="Редактировать"
+        label="Добавить"
         loading={careerContent.loading}
         showLabel
         onClick={() => setEditor({ mode: "add" })}
@@ -165,13 +187,22 @@ export function AboutMe() {
               className="about-me-question__document career-action-copy"
             />
             {!readOnly && (
-              <CareerIconAction
-                disabled={careerContent.loading}
-                label={`Редактировать вопрос «${entry.question}»`}
-                onClick={() => setEditor({ mode: "edit", index })}
-              >
-                <Pencil aria-hidden="true" />
-              </CareerIconAction>
+              <div className="not-typeset flex shrink-0 items-center gap-1">
+                <CareerIconAction
+                  disabled={careerContent.loading}
+                  label={`Редактировать вопрос «${entry.question}»`}
+                  onClick={() => setEditor({ mode: "edit", index })}
+                >
+                  <Pencil aria-hidden="true" />
+                </CareerIconAction>
+                <CareerIconAction
+                  disabled={careerContent.loading}
+                  label={`Удалить вопрос «${entry.question}»`}
+                  onClick={() => setDeleteIndex(index)}
+                >
+                  <Trash2 className="text-destructive" aria-hidden="true" />
+                </CareerIconAction>
+              </div>
             )}
           </article>
         ))}
@@ -186,6 +217,21 @@ export function AboutMe() {
         }}
         onSave={saveQuestion}
       />
+      {!readOnly && <AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !deleting && !open && setDeleteIndex(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить этот вопрос?</AlertDialogTitle>
+            <AlertDialogDescription>Вопрос и ответ будут удалены без возможности восстановления.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeQuestion}>
+              {deleting ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+              Удалить вопрос
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>}
     </div>
   );
 }
