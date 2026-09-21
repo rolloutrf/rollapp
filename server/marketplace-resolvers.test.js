@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   fetchMarketplaceResolvedOffers,
   filterDirectOffersForWish,
+  hasLiveMarketplaceOffer,
   mergeDirectOffers,
   normalizeYandexMarketOffers,
   normalizeWildberriesOffers,
@@ -227,6 +228,28 @@ test("deduplicates and ranks direct offers", () => {
   const worseLive = { ...live, id: "worse", url: "https://www.wildberries.ru/catalog/2/detail.aspx", score: 80, price: 13_000 };
   assert.deepEqual(
     mergeDirectOffers([saved, yandexLive], [live, worseLive, live]).map((offer) => offer.id),
-    ["saved", "live"],
+    ["yandex-live", "live"],
   );
+});
+
+test("keeps live data when it resolves the saved source URL", () => {
+  const saved = { id: "saved", marketplaceId: "ozon", url: "https://www.ozon.ru/product/kindle-1/", available: false, price: 16_000, source: true };
+  const live = { id: "ozon-live", marketplaceId: "ozon", url: saved.url, title: "Kindle Paperwhite 16 GB", available: true, score: 98, price: 14_000 };
+  const offers = mergeDirectOffers([saved], [live]);
+  assert.equal(offers.length, 1);
+  assert.equal(offers[0].id, "ozon-live");
+  assert.equal(offers[0].source, true);
+  assert.equal(offers[0].sourceUpdated, true);
+  assert.equal(offers[0].price, 14_000);
+  assert.equal(offers[0].available, true);
+  assert.equal(hasLiveMarketplaceOffer(offers), true);
+});
+
+test("does not treat unchanged source-only offers as a live marketplace refresh", () => {
+  assert.equal(hasLiveMarketplaceOffer([
+    { id: "source:ozon", marketplaceId: "ozon", url: "https://www.ozon.ru/product/kindle-1/", source: true },
+  ]), false);
+  assert.equal(hasLiveMarketplaceOffer([
+    { id: "wildberries:1", marketplaceId: "wildberries", url: "https://www.wildberries.ru/catalog/1/detail.aspx" },
+  ]), true);
 });

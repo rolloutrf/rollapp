@@ -458,7 +458,11 @@ export function CoachingSessions() {
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleSessions = educationItemsInList(requestState.sessions, resolvedListId);
   const visibleListId = educationApiListId(resolvedListId) || null;
-  const visibleGroups = requestState.groups.filter((group) => group.listId === visibleListId && group.itemIds?.length >= 2);
+  const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
+  const visibleGroups = requestState.groups.filter((group) => (
+    group.listId === visibleListId
+    && (group.itemIds || []).some((itemId) => visibleSessionIds.has(itemId))
+  ));
   const groupedSessionIds = new Set(visibleGroups.flatMap((group) => group.itemIds || []));
   const ungroupedSessions = visibleSessions.filter((session) => !groupedSessionIds.has(session.id));
   const openedGroup = requestState.groups.find((group) => group.id === openedGroupId) || null;

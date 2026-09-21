@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./wish-groups.js";
+import {
+  buildWishGroupGridItems,
+  disbandWishGroupFromDashboard,
+  filterWishGroups,
+  moveWishGroupInDashboard,
+  moveWishGroupToTarget,
+} from "./wish-groups.js";
 
 test("general-list groups are visible only in their own space", () => {
   const groups = [
@@ -34,6 +40,65 @@ test("empty group tiles are not rendered for the current collection", () => {
     scopeBySpace: true,
     visibleWishIds: new Set(["unrelated-product"]),
   }), []);
+});
+
+test("wish group grid items keep groups in the first member's visible position", () => {
+  const wishes = [
+    { id: "first" },
+    { id: "group-second" },
+    { id: "single" },
+    { id: "group-first" },
+  ];
+  const groups = [{ id: "group", wishIds: ["group-first", "group-second"] }];
+
+  assert.deepEqual(
+    buildWishGroupGridItems({ wishes, groups }).map((item) => [item.type, item.id, item.wishes?.map((wish) => wish.id)]),
+    [
+      ["wish", "first", undefined],
+      ["group", "group", ["group-second", "group-first"]],
+      ["wish", "single", undefined],
+    ],
+  );
+});
+
+test("moveWishGroupToTarget moves all group members as one block", () => {
+  const order = ["group-first", "outside-first", "group-second", "outside-second", "target"];
+
+  assert.deepEqual(
+    moveWishGroupToTarget(order, ["group-first", "group-second"], ["target"]),
+    ["outside-first", "outside-second", "target", "group-first", "group-second"],
+  );
+  assert.deepEqual(order, ["group-first", "outside-first", "group-second", "outside-second", "target"]);
+});
+
+test("moveWishGroupToTarget can move a later group into an earlier card slot", () => {
+  assert.deepEqual(
+    moveWishGroupToTarget(
+      ["target", "outside", "group-first", "group-second"],
+      ["group-first", "group-second"],
+      ["target"],
+    ),
+    ["group-first", "group-second", "target", "outside"],
+  );
+});
+
+test("moveWishGroupToTarget does not split the target group", () => {
+  assert.deepEqual(
+    moveWishGroupToTarget(
+      ["moving", "outside", "target-first", "target-second"],
+      ["moving"],
+      ["target-first", "target-second"],
+    ),
+    ["outside", "target-first", "target-second", "moving"],
+  );
+});
+
+test("moveWishGroupToTarget keeps order for missing or overlapping targets", () => {
+  const order = ["first", "second", "third"];
+
+  assert.equal(moveWishGroupToTarget(order, ["first"], ["first"]), order);
+  assert.equal(moveWishGroupToTarget(order, ["missing"], ["second"]), order);
+  assert.equal(moveWishGroupToTarget(order, ["first"], ["missing"]), order);
 });
 
 test("a selected category list is scoped by list id while legacy groups fall back to visible members", () => {

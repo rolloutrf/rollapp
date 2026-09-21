@@ -588,7 +588,11 @@ export function Conferences() {
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleConferences = educationItemsInList(requestState.conferences, resolvedListId);
   const visibleListId = educationApiListId(resolvedListId) || null;
-  const visibleGroups = requestState.groups.filter((group) => group.listId === visibleListId && group.itemIds?.length >= 2);
+  const visibleConferenceIds = new Set(visibleConferences.map((conference) => conference.id));
+  const visibleGroups = requestState.groups.filter((group) => (
+    group.listId === visibleListId
+    && (group.itemIds || []).some((itemId) => visibleConferenceIds.has(itemId))
+  ));
   const groupedConferenceIds = new Set(visibleGroups.flatMap((group) => group.itemIds || []));
   const ungroupedConferences = visibleConferences.filter((conference) => !groupedConferenceIds.has(conference.id));
   const openedGroup = requestState.groups.find((group) => group.id === openedGroupId) || null;

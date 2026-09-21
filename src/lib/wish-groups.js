@@ -8,6 +8,53 @@ export function filterWishGroups({ groups = [], listId, selectedSpace, scopeBySp
   ));
 }
 
+export function buildWishGroupGridItems({ wishes = [], groups = [] }) {
+  const groupsByWishId = new Map();
+  const emittedGroupIds = new Set();
+  const groupWishes = new Map(groups.map((group) => [group.id, []]));
+  for (const group of groups) {
+    for (const wishId of group.wishIds || []) groupsByWishId.set(wishId, group);
+  }
+  for (const wish of wishes) {
+    const group = groupsByWishId.get(wish.id);
+    if (group) groupWishes.get(group.id)?.push(wish);
+  }
+  return wishes.flatMap((wish) => {
+    const group = groupsByWishId.get(wish.id);
+    if (!group) return [{ type: "wish", id: wish.id, wish }];
+    if (emittedGroupIds.has(group.id)) return [];
+    emittedGroupIds.add(group.id);
+    return [{ type: "group", id: group.id, group, wishes: groupWishes.get(group.id) || [] }];
+  });
+}
+
+export function moveWishGroupToTarget(wishIds, sourceWishIds = [], targetWishIds = []) {
+  const sourceIds = new Set(sourceWishIds);
+  const targetIds = new Set(targetWishIds);
+  if (!sourceIds.size || !targetIds.size) return wishIds;
+  if ([...targetIds].some((wishId) => sourceIds.has(wishId))) return wishIds;
+
+  const sourceBlock = wishIds.filter((wishId) => sourceIds.has(wishId));
+  if (!sourceBlock.length) return wishIds;
+
+  const sourceIndex = wishIds.findIndex((wishId) => sourceIds.has(wishId));
+  const targetIndex = wishIds.findIndex((wishId) => targetIds.has(wishId));
+  if (sourceIndex < 0 || targetIndex < 0) return wishIds;
+
+  const withoutSource = wishIds.filter((wishId) => !sourceIds.has(wishId));
+  const targetIndexes = withoutSource
+    .map((wishId, index) => targetIds.has(wishId) ? index : -1)
+    .filter((index) => index >= 0);
+  if (!targetIndexes.length) return wishIds;
+  const insertIndex = sourceIndex < targetIndex
+    ? Math.max(...targetIndexes) + 1
+    : Math.min(...targetIndexes);
+  const next = [...withoutSource];
+  next.splice(insertIndex, 0, ...sourceBlock);
+  if (next.length === wishIds.length && next.every((wishId, index) => wishId === wishIds[index])) return wishIds;
+  return next;
+}
+
 export function disbandWishGroupFromDashboard(dashboard, groupId) {
   if (!dashboard || !Array.isArray(dashboard.groups)) return dashboard;
   const groups = dashboard.groups.filter((group) => group.id !== groupId);

@@ -95,7 +95,13 @@ import { APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG
 import { BUSINESS_MARKETPLACE_KINDS } from "../shared/business-marketplace.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
-import { disbandWishGroupFromDashboard, filterWishGroups, moveWishGroupInDashboard } from "./lib/wish-groups.js";
+import {
+  buildWishGroupGridItems,
+  disbandWishGroupFromDashboard,
+  filterWishGroups,
+  moveWishGroupInDashboard,
+  moveWishGroupToTarget,
+} from "./lib/wish-groups.js";
 import { filterWishesWithoutList, initialWishListIds } from "./lib/wish-lists.js";
 import { GROUP_INTENT_DELAY_MS } from "./lib/card-order.js";
 import {
@@ -4203,7 +4209,25 @@ function WishGroupMoveSubmenu({ lists, busy, onMove }) {
   </DropdownMenuSub>;
 }
 
-function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMove, onDisband, onDragOver, onDragLeave, onDrop, isDropTarget }) {
+function WishGroupTile({
+  group,
+  wishes,
+  moveTargets = [],
+  draggable = false,
+  nativeDraggable = false,
+  onOpen,
+  onRename,
+  onMove,
+  onDisband,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onPointerDown,
+  isDragging = false,
+  isDropTarget,
+}) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [busy, setBusy] = useState(false);
@@ -4243,15 +4267,15 @@ function WishGroupTile({ group, wishes, moveTargets = [], onOpen, onRename, onMo
     setBusy(false);
   };
   return <>
-  <div data-group-id={group.id} className={`wish-group-tile ${isDropTarget ? "is-drop-target" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-    <ShadcnButton type="button" variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`}>
+  <div data-group-id={group.id} draggable={nativeDraggable} className={`wish-group-tile ${draggable ? "is-draggable" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown}>
+    <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`} title={draggable ? "Нажмите, чтобы открыть. Перетащите, чтобы изменить порядок" : undefined} />
     <span className="wish-group-tile__preview">
       {wishes.slice(0, 4).map((wish) => {
         const previewImageUrl = wishPreviewImageUrl(wish);
         return <span key={wish.id}>{previewImageUrl ? <img src={previewImageUrl} alt="" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <Gift />}</span>;
       })}
     </span>
-    </ShadcnButton>
+    {draggable && <span className="wish-card__drag-handle wish-group-tile__drag-handle" data-wish-group-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
     <div className="wish-card__body wish-group-tile__meta">
       {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
@@ -4839,6 +4863,7 @@ function WishesPage({ onAdd, version }) {
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
+  const [draggedGroupId, setDraggedGroupId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [orderedWishIds, setOrderedWishIds] = useState([]);
   const [openedGroupId, setOpenedGroupId] = useState(null);
@@ -4861,6 +4886,7 @@ function WishesPage({ onAdd, version }) {
   const suppressOpenRef = useRef(false);
   const dragSessionRef = useRef(false);
   const dragSourceWishIdRef = useRef(null);
+  const dragSourceGroupRef = useRef(null);
   const dragScopeRef = useRef(null);
   const orderDirtyRef = useRef(false);
   const pendingOrderRef = useRef(null);
@@ -4913,10 +4939,11 @@ function WishesPage({ onAdd, version }) {
   }, []);
   useLayoutEffect(() => {
     if (!flipPositionsRef.current.size) return;
-    const cards = document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wish-group-open > .wish-grid [data-group-wish-id]");
+    const cards = document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wishes-page > .wish-grid [data-group-id], .wish-group-open > .wish-grid [data-group-wish-id]");
     cards.forEach((card) => {
-      const previous = flipPositionsRef.current.get(card.dataset.groupWishId);
-      if (!previous || card.dataset.groupWishId === draggedWishId) return;
+      const key = card.dataset.groupWishId ? `wish:${card.dataset.groupWishId}` : `group:${card.dataset.groupId}`;
+      const previous = flipPositionsRef.current.get(key);
+      if (!previous || card.dataset.groupWishId === draggedWishId || card.dataset.groupId === draggedGroupId) return;
       const next = card.getBoundingClientRect();
       const deltaX = previous.left - next.left;
       const deltaY = previous.top - next.top;
@@ -4927,7 +4954,7 @@ function WishesPage({ onAdd, version }) {
       );
     });
     flipPositionsRef.current = new Map();
-  }, [orderedWishIds, draggedWishId]);
+  }, [orderedWishIds, draggedWishId, draggedGroupId]);
   const orderIndex = new Map(orderedWishIds.map((id, index) => [id, index]));
   const dashboardWishes = data?.wishes || [];
   const dashboardLists = data?.lists || [];
@@ -4958,6 +4985,8 @@ function WishesPage({ onAdd, version }) {
   const ungroupedWishes = wishes.filter((wish) => !groupedWishIds.has(wish.id));
   const openedGroup = groups.find((group) => group.id === openedGroupId) || null;
   const openedGroupWishes = openedGroup ? wishes.filter((wish) => openedGroup.wishIds.includes(wish.id)) : [];
+  const groupsById = new Map(groups.map((group) => [group.id, group]));
+  const gridItems = buildWishGroupGridItems({ wishes, groups });
   const selectedList = categoryLists.find((list) => list.id === selectedValue) || null;
   const groupMoveTargets = [
     ...(generalList && groupingListId !== generalList.id ? [{ ...generalList, title: UNSORTED_LIST_TITLE }] : []),
@@ -5026,8 +5055,9 @@ function WishesPage({ onAdd, version }) {
   };
   const captureGridPositions = () => {
     const positions = new Map();
-    document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wish-group-open > .wish-grid [data-group-wish-id]").forEach((card) => {
-      positions.set(card.dataset.groupWishId, card.getBoundingClientRect());
+    document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wishes-page > .wish-grid [data-group-id], .wish-group-open > .wish-grid [data-group-wish-id]").forEach((card) => {
+      const key = card.dataset.groupWishId ? `wish:${card.dataset.groupWishId}` : `group:${card.dataset.groupId}`;
+      positions.set(key, card.getBoundingClientRect());
     });
     flipPositionsRef.current = positions;
   };
@@ -5100,6 +5130,22 @@ function WishesPage({ onAdd, version }) {
     captureGridPositions();
     setOrderedWishIds(next);
   };
+  const reorderGroup = (sourceGroupId, target) => {
+    if (!sourceGroupId || !target?.id) return;
+    const targetKey = `${target.kind}:${target.id}`;
+    if (sourceGroupId === target.id || lastReorderTargetRef.current === targetKey) return;
+    const sourceGroup = groupsById.get(sourceGroupId);
+    const targetWishIds = target.kind === "group"
+      ? groupsById.get(target.id)?.wishIds
+      : [target.id];
+    const next = moveWishGroupToTarget(orderedWishIdsRef.current, sourceGroup?.wishIds, targetWishIds);
+    if (next === orderedWishIdsRef.current) return;
+    lastReorderTargetRef.current = targetKey;
+    orderDirtyRef.current = true;
+    orderedWishIdsRef.current = next;
+    captureGridPositions();
+    setOrderedWishIds(next);
+  };
   const armGroupIntent = (target) => {
     if (hoverTargetRef.current === target) return;
     clearTimeout(groupTimerRef.current);
@@ -5121,11 +5167,21 @@ function WishesPage({ onAdd, version }) {
     );
     dragSessionRef.current = true; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = wishId;
+    dragSourceGroupRef.current = null;
     dragScopeRef.current = group
       ? { kind: "group", groupId: group.id, wishIds: scopeWishIds }
       : { kind: "list", groupId: null, wishIds: scopeWishIds };
     dragInitialOrderRef.current = [...orderedWishIdsRef.current];
     setDraggedWishId(wishId); lastReorderTargetRef.current = null;
+  };
+  const beginGroupDragSession = (group) => {
+    if (!group) return;
+    dragSessionRef.current = true; orderDirtyRef.current = false;
+    dragSourceWishIdRef.current = null;
+    dragSourceGroupRef.current = group;
+    dragScopeRef.current = { kind: "grid-group", groupId: group.id, wishIds: new Set(group.wishIds || []) };
+    dragInitialOrderRef.current = [...orderedWishIdsRef.current];
+    setDraggedGroupId(group.id); lastReorderTargetRef.current = null;
   };
   const startNativeDrag = (event, wishId, group = null) => {
     if (pointerDragRef.current) {
@@ -5143,6 +5199,29 @@ function WishesPage({ onAdd, version }) {
     const rect = event.currentTarget.getBoundingClientRect();
     const preview = event.currentTarget.cloneNode(true);
     preview.classList.add("wish-card--native-preview");
+    preview.setAttribute("aria-hidden", "true");
+    preview.style.width = `${rect.width}px`;
+    document.body.appendChild(preview);
+    event.dataTransfer.setDragImage(preview, event.clientX - rect.left, event.clientY - rect.top);
+    requestAnimationFrame(() => preview.remove());
+  };
+  const startNativeGroupDrag = (event, group) => {
+    if (pointerDragRef.current) {
+      event.preventDefault();
+      return;
+    }
+    if (!event.target.closest?.(".wish-group-tile__open, [data-wish-group-drag-handle]")) {
+      event.preventDefault();
+      return;
+    }
+    if (!event.dataTransfer) return;
+    beginGroupDragSession(group);
+    suppressOpenRef.current = true;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", group.id);
+    const rect = event.currentTarget.getBoundingClientRect();
+    const preview = event.currentTarget.cloneNode(true);
+    preview.classList.add("wish-card--native-preview", "wish-group-tile--native-preview");
     preview.setAttribute("aria-hidden", "true");
     preview.style.width = `${rect.width}px`;
     document.body.appendChild(preview);
@@ -5168,9 +5247,10 @@ function WishesPage({ onAdd, version }) {
     }
     dragSessionRef.current = false; orderDirtyRef.current = false;
     dragSourceWishIdRef.current = null;
+    dragSourceGroupRef.current = null;
     dragScopeRef.current = null;
     dragInitialOrderRef.current = [];
-    stopPointerAutoScroll(); clearGroupIntent(); removePointerGhost(); setDraggedWishId(null); lastReorderTargetRef.current = null;
+    stopPointerAutoScroll(); clearGroupIntent(); removePointerGhost(); setDraggedWishId(null); setDraggedGroupId(null); lastReorderTargetRef.current = null;
     if (shouldPersistOrder) {
       deferredAuthoritativeOrderRef.current = null;
       void persistOrder(orderToPersist);
@@ -5178,7 +5258,16 @@ function WishesPage({ onAdd, version }) {
   };
   const allowNativeWishDrop = (event, wishId, targetGroupId = null) => {
     const sourceWishId = dragSourceWishIdRef.current;
+    const sourceGroup = dragSourceGroupRef.current;
     const dragScope = dragScopeRef.current;
+    if (dragScope?.kind === "grid-group") {
+      if (!dragSessionRef.current || !sourceGroup || targetGroupId || dragScope.wishIds.has(wishId)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      reorderGroup(sourceGroup.id, { kind: "wish", id: wishId });
+      clearGroupIntent();
+      return;
+    }
     const validTarget = dragScope?.kind === "group"
       ? dragScope.groupId === targetGroupId && dragScope.wishIds.has(wishId)
       : !targetGroupId;
@@ -5197,6 +5286,15 @@ function WishesPage({ onAdd, version }) {
     }
   };
   const allowNativeGroupDrop = (event, groupId) => {
+    const sourceGroup = dragSourceGroupRef.current;
+    if (dragScopeRef.current?.kind === "grid-group") {
+      if (!dragSessionRef.current || !sourceGroup || sourceGroup.id === groupId) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      reorderGroup(sourceGroup.id, { kind: "group", id: groupId });
+      clearGroupIntent();
+      return;
+    }
     if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -5341,8 +5439,12 @@ function WishesPage({ onAdd, version }) {
   const dropNativeOnWish = (event, targetWishId, targetGroupId = null) => {
     event.preventDefault();
     const sourceWishId = dragSourceWishIdRef.current;
+    const sourceGroup = dragSourceGroupRef.current;
     const dragScope = dragScopeRef.current;
-    if (dragScope?.kind === "group") {
+    if (dragScope?.kind === "grid-group") {
+      if (sourceGroup && !targetGroupId && !dragScope.wishIds.has(targetWishId)) reorderGroup(sourceGroup.id, { kind: "wish", id: targetWishId });
+      finishDrag();
+    } else if (dragScope?.kind === "group") {
       if (dragScope.groupId === targetGroupId && dragScope.wishIds.has(targetWishId)) finishDrag();
       else finishDrag({ persist: false, restore: true });
     } else if (armedDropTargetRef.current === `wish:${targetWishId}`) {
@@ -5355,7 +5457,11 @@ function WishesPage({ onAdd, version }) {
   const dropNativeOnGroup = (event, groupId) => {
     event.preventDefault();
     const sourceWishId = dragSourceWishIdRef.current;
-    if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
+    const sourceGroup = dragSourceGroupRef.current;
+    if (dragScopeRef.current?.kind === "grid-group") {
+      if (sourceGroup && sourceGroup.id !== groupId) reorderGroup(sourceGroup.id, { kind: "group", id: groupId });
+      finishDrag();
+    } else if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
     else if (armedDropTargetRef.current === `group:${groupId}`) void addToGroup(sourceWishId, groupId);
     else finishDrag({ persist: false, restore: true });
   };
@@ -5399,7 +5505,8 @@ function WishesPage({ onAdd, version }) {
     try { drag.captureTarget.setPointerCapture?.(drag.pointerId); } catch {}
     drag.active = true;
     suppressOpenRef.current = true;
-    beginDragSession(drag.wishId, drag.group);
+    if (drag.kind === "group") beginGroupDragSession(drag.group);
+    else beginDragSession(drag.wishId, drag.group);
     createPointerGhost(drag.source, drag.startX, drag.startY);
     startPointerAutoScroll(drag);
     navigator.vibrate?.(18);
@@ -5423,11 +5530,53 @@ function WishesPage({ onAdd, version }) {
       activatePointerDrag(drag);
     }, 260);
   };
+  const beginPointerGroupDrag = (event, group) => {
+    const pointerType = event.pointerType || "mouse";
+    if (!event.isPrimary || event.button !== 0 || !group) return;
+    if (!event.target.closest?.(".wish-group-tile__open, [data-wish-group-drag-handle]")) return;
+    if (pointerDragRef.current) return;
+    const drag = { kind: "group", group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
+    pointerDragRef.current = drag;
+    clearTimeout(pointerTimerRef.current);
+    clearPointerListeners();
+    listenForPointerDrag();
+    if (event.target.closest?.("[data-wish-group-drag-handle]")) {
+      event.preventDefault();
+      activatePointerDrag(drag);
+      return;
+    }
+    pointerTimerRef.current = setTimeout(() => {
+      activatePointerDrag(drag);
+    }, 260);
+  };
   const updatePointerDragPosition = (drag, clientX, clientY) => {
     movePointerGhost(clientX, clientY);
     const element = document.elementFromPoint(clientX, clientY);
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
     const pointerWishCard = element?.closest?.("[data-group-wish-id]");
+    if (drag.kind === "group") {
+      const targetGroupId = groupId && groupId !== drag.group.id ? groupId : null;
+      const targetWishId = pointerWishCard?.dataset.groupWishId || null;
+      if (targetGroupId) {
+        const target = `group:${targetGroupId}`;
+        if (drag.hoverTarget !== target) {
+          drag.hoverTarget = target;
+          reorderGroup(drag.group.id, { kind: "group", id: targetGroupId });
+        }
+        return;
+      }
+      if (targetWishId && !(drag.group.wishIds || []).includes(targetWishId)) {
+        const target = `wish:${targetWishId}`;
+        if (drag.hoverTarget !== target) {
+          drag.hoverTarget = target;
+          reorderGroup(drag.group.id, { kind: "wish", id: targetWishId });
+        }
+        return;
+      }
+      drag.hoverTarget = null;
+      lastReorderTargetRef.current = null;
+      return;
+    }
     const dragGroupId = drag.group?.id || null;
     let wishCard = pointerWishCard;
     let overlapGroupTarget = false;
@@ -5574,6 +5723,14 @@ function WishesPage({ onAdd, version }) {
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
     const wishId = wishCard?.dataset.groupWishId;
     const targetGroupId = wishCard?.dataset.wishGroupId || null;
+    if (drag.kind === "group") {
+      if (groupId && groupId !== drag.group.id) reorderGroup(drag.group.id, { kind: "group", id: groupId });
+      else if (wishId && !(drag.group.wishIds || []).includes(wishId) && !targetGroupId) reorderGroup(drag.group.id, { kind: "wish", id: wishId });
+      if (orderDirtyRef.current) finishDrag();
+      else finishDrag({ persist: false, restore: true });
+      setTimeout(() => { suppressOpenRef.current = false; }, 0);
+      return;
+    }
     const dragGroupId = drag.group?.id || null;
     const hoverGroupTarget = drag.hoverTarget?.startsWith("group:")
       ? drag.hoverTarget.slice("group:".length)
@@ -5611,6 +5768,38 @@ function WishesPage({ onAdd, version }) {
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
+  const renderGroupTile = (group, groupWishes) => <WishGroupTile
+    key={group.id}
+    group={group}
+    wishes={groupWishes}
+    moveTargets={groupMoveTargets}
+    draggable={!removingGroupId}
+    nativeDraggable={!removingGroupId}
+    isDragging={draggedGroupId === group.id}
+    isDropTarget={dropTarget === `group:${group.id}`}
+    onOpen={(event) => {
+      if (suppressOpenRef.current) return;
+      groupOpenerRef.current = event.currentTarget;
+      setOpenedGroupId(group.id);
+    }}
+    onRename={(title) => renameGroup(group.id, group.listId, title)}
+    onMove={(targetList) => moveGroup(group, targetList)}
+    onDisband={() => disbandGroup(group.id, group.listId)}
+    onDragStart={(event) => startNativeGroupDrag(event, group)}
+    onDragEnd={() => {
+      finishDrag({ persist: false, restore: true });
+      setTimeout(() => { suppressOpenRef.current = false; }, 0);
+    }}
+    onDragOver={(event) => allowNativeGroupDrop(event, group.id)}
+    onDragLeave={leaveNativeDropTarget}
+    onDrop={(event) => dropNativeOnGroup(event, group.id)}
+    onPointerDown={(event) => { if (!removingGroupId) beginPointerGroupDrag(event, group); }}
+  />;
+  const renderGridItem = (item) => (
+    item.type === "group"
+      ? renderGroupTile(item.group, item.wishes)
+      : renderWish(item.wish)
+  );
   return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
@@ -5625,7 +5814,7 @@ function WishesPage({ onAdd, version }) {
   suspended={Boolean(selectedWish || editingWish || listModal)}
   onClose={() => setOpenedGroupId(null)}
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{groups.map((group) => <WishGroupTile key={group.id} group={group} wishes={wishes.filter((wish) => group.wishIds.includes(wish.id))} moveTargets={groupMoveTargets} onOpen={(event) => { groupOpenerRef.current = event.currentTarget; setOpenedGroupId(group.id); }} onRename={(title) => renameGroup(group.id, group.listId, title)} onMove={(targetList) => moveGroup(group, targetList)} onDisband={() => disbandGroup(group.id, group.listId)} isDropTarget={dropTarget === `group:${group.id}`} onDragOver={(event) => allowNativeGroupDrop(event, group.id)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnGroup(event, group.id)} />)}{ungroupedWishes.map((wish) => renderWish(wish))}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -7347,7 +7536,7 @@ function PublicProfile({ shared = false }) {
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
       {identity}
       {relationshipBlock}
-      <div className={`page-actions wishes-page__hero-actions ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
+      <div className={`page-actions wishes-page__hero-actions ${ownerCollection ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {ownerCollection ? <>
           {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => setListModal(selectedList)}>Настройки списка</Button>}
           <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</Button>

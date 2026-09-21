@@ -62,8 +62,8 @@ test("keeps the original source alongside a saved search snapshot", () => {
     { id: "wb", marketplace: "Wildberries", url: "https://www.wildberries.ru/catalog/1/detail.aspx" },
   ], source);
   assert.equal(merged.length, 2);
-  assert.equal(merged[0].url, "https://rimowa-official.com.ru/product/essential-cabin/");
-  assert.equal(merged[0].source, true);
+  const original = merged.find((offer) => offer.url === "https://rimowa-official.com.ru/product/essential-cabin/");
+  assert.equal(original?.source, true);
 });
 
 test("marks a matching snapshot URL as the original without duplicating it", () => {
@@ -77,7 +77,7 @@ test("marks a matching snapshot URL as the original without duplicating it", () 
   assert.equal(merged[0].source, true);
 });
 
-test("keeps only one best link per service and prioritizes its original link", () => {
+test("keeps only one best link per service and prefers live results over the original fallback", () => {
   const merged = mergeMarketplaceOffers([
     { id: "wb-low", marketplaceId: "wildberries", url: "https://www.wildberries.ru/catalog/1/detail.aspx", available: true, score: 80, price: 1_000 },
     { id: "wb-best", marketplaceId: "wildberries", url: "https://www.wildberries.ru/catalog/2/detail.aspx", available: true, score: 95, price: 1_200 },
@@ -89,8 +89,35 @@ test("keeps only one best link per service and prioritizes its original link", (
     url: "https://market.yandex.ru/cc/original",
     price: 16_000,
   }]);
-  assert.deepEqual(merged.map((offer) => offer.id), ["source", "wb-best"]);
+  assert.deepEqual(merged.map((offer) => offer.id), ["yandex-live", "wb-best"]);
+  assert.equal(merged[0].source, undefined);
+});
+
+test("keeps live snapshot fields when the saved source has the same URL", () => {
+  const merged = mergeMarketplaceOffers([{
+    id: "ozon-live",
+    marketplaceId: "ozon",
+    marketplace: "Ozon",
+    url: "https://www.ozon.ru/product/kindle-1/",
+    title: "Kindle Paperwhite 16 GB",
+    available: true,
+    score: 98,
+    price: 14_000,
+  }], [{
+    id: "source",
+    marketplaceId: "ozon",
+    marketplace: "Ozon",
+    url: "https://www.ozon.ru/product/kindle-1/",
+    title: "Saved title",
+    price: 16_000,
+  }]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].id, "ozon-live");
   assert.equal(merged[0].source, true);
+  assert.equal(merged[0].sourceUpdated, true);
+  assert.equal(merged[0].title, "Kindle Paperwhite 16 GB");
+  assert.equal(merged[0].price, 14_000);
+  assert.equal(merged[0].available, true);
 });
 
 test("does not expose marketplace search pages when the wish has no source link", () => {
