@@ -854,7 +854,11 @@ export function Courses() {
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleCourses = educationItemsInList(requestState.courses, resolvedListId);
   const visibleListId = educationApiListId(resolvedListId) || null;
-  const visibleGroups = requestState.groups.filter((group) => group.listId === visibleListId && group.courseIds?.length >= 2);
+  const visibleCourseIds = new Set(visibleCourses.map((course) => course.id));
+  const visibleGroups = requestState.groups.filter((group) => (
+    group.listId === visibleListId
+    && (group.courseIds || []).some((courseId) => visibleCourseIds.has(courseId))
+  ));
   const groupedCourseIds = new Set(visibleGroups.flatMap((group) => group.courseIds || []));
   const ungroupedCourses = visibleCourses.filter((course) => !groupedCourseIds.has(course.id));
   const openedGroup = requestState.groups.find((group) => group.id === openedGroupId) || null;

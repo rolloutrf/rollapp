@@ -137,6 +137,7 @@ export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
       ...source,
       ...merged[existingIndex],
       source: true,
+      sourceUpdated: !merged[existingIndex]?.source || merged[existingIndex]?.sourceUpdated,
     };
   }
 
@@ -149,7 +150,7 @@ export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
     }
   };
   const compare = (left, right) => (
-    Number(Boolean(right.source)) - Number(Boolean(left.source))
+    Number(Boolean(left.source)) - Number(Boolean(right.source))
     || Number(right.available) - Number(left.available)
     || Number(right.score || 0) - Number(left.score || 0)
     || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
@@ -165,7 +166,7 @@ export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {
       continue;
     }
     const current = selected[currentIndex];
-    if ((offer.source && !current.source) || (Boolean(offer.source) === Boolean(current.source) && compare(offer, current) < 0)) {
+    if (compare(offer, current) < 0) {
       selected[currentIndex] = offer;
     }
   }

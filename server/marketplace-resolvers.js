@@ -269,14 +269,23 @@ export function filterDirectOffersForWish(wish, offers) {
 }
 
 export function mergeDirectOffers(...collections) {
-  const seen = new Set();
-  const unique = collections.flat().filter((offer) => {
-    if (!offer?.url || seen.has(offer.url)) return false;
-    seen.add(offer.url);
-    return true;
-  });
+  const offersByUrl = new Map();
+  for (const offer of collections.flat()) {
+    if (!offer?.url) continue;
+    const current = offersByUrl.get(offer.url);
+    if (!current) {
+      offersByUrl.set(offer.url, offer);
+      continue;
+    }
+    if (current.source && !offer.source) {
+      offersByUrl.set(offer.url, { ...current, ...offer, source: true, sourceUpdated: true });
+    } else if (!current.source && offer.source) {
+      offersByUrl.set(offer.url, { ...offer, ...current, source: true, sourceUpdated: true });
+    }
+  }
+  const unique = [...offersByUrl.values()];
   const compare = (left, right) => (
-    Number(Boolean(right.source)) - Number(Boolean(left.source))
+    Number(Boolean(left.source)) - Number(Boolean(right.source))
     || Number(right.available) - Number(left.available)
     || Number(right.score || 0) - Number(left.score || 0)
     || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
@@ -293,9 +302,13 @@ export function mergeDirectOffers(...collections) {
   for (const offer of unique) {
     const key = serviceKey(offer);
     const current = bestByService.get(key);
-    if (!current || (offer.source && !current.source) || (Boolean(offer.source) === Boolean(current.source) && compare(offer, current) < 0)) {
+    if (!current || compare(offer, current) < 0) {
       bestByService.set(key, offer);
     }
   }
   return [...bestByService.values()].sort(compare).slice(0, 8);
+}
+
+export function hasLiveMarketplaceOffer(offers) {
+  return (Array.isArray(offers) ? offers : []).some((offer) => offer && (!offer.source || offer.sourceUpdated));
 }

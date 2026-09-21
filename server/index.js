@@ -32,7 +32,7 @@ import { courseLogoHandler } from "./course-logo-resolver.js";
 import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
 import { DEFAULT_MODEL, fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
-import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, mergeDirectOffers } from "./marketplace-resolvers.js";
+import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers } from "./marketplace-resolvers.js";
 import {
   encryptUserCredential,
   userCredentialHint,
@@ -3707,9 +3707,9 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       resolvedOffers,
       filterDirectOffersForWish(owned.rows[0], result.offers),
     );
-    if (!result.offers.length) {
+    if (!hasLiveMarketplaceOffer(result.offers)) {
       if (openRouterSearch.status === "rejected") throw openRouterSearch.reason;
-      throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти прямые объявления автомобиля" : "Не удалось найти прямые карточки товара", {
+      throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти новые прямые объявления автомобиля" : "Не удалось найти новые прямые карточки товара", {
         status: 422,
         code: "marketplace_offers_not_found",
       });

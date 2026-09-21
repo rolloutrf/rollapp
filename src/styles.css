@@ -358,11 +358,12 @@ input.phone-otp__code {
 .wish-card__drag-handle svg { width: 22px; height: 22px; pointer-events: none; }
 @media (hover: none), (any-pointer: coarse) {
   .wish-card.is-draggable .wish-card__drag-handle { display: grid; }
+  .wish-group-tile.is-draggable .wish-card__drag-handle { display: grid; }
 }
 .wish-card.is-dragging { z-index: 6; opacity: .18; transform: scale(.97); filter: saturate(.75); }
 .wish-card.is-draggable:not(.is-dragging) { transition: transform .28s cubic-bezier(.2,.82,.2,1), box-shadow .24s ease, opacity .2s ease; }
 .wish-card--native-preview,
-.wish-card--drag-preview { overflow: visible !important; border-radius: 20px; opacity: .96; background: var(--background); box-shadow: 0 26px 64px #0009, 5px 7px 0 -2px var(--background), 5px 7px 0 0 #307cff; transform: scale(1.035) rotate(.7deg); }
+.wish-card--drag-preview { overflow: visible !important; border-radius: 20px; opacity: .96; background: var(--background); box-shadow: 0 26px 64px #0009; transform: scale(1.035) rotate(.7deg); }
 .wish-card--native-preview { position: fixed; z-index: -1; left: -10000px; top: -10000px; pointer-events: none; }
 .wish-card--drag-preview { width: var(--drag-width) !important; margin: 0 !important; position: fixed !important; z-index: 120; left: 0; top: 0; opacity: .94 !important; transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.035) rotate(.7deg) !important; transition: none !important; pointer-events: none; will-change: transform; }
 .wish-card--native-preview .wish-card__open,
@@ -370,7 +371,11 @@ input.phone-otp__code {
 .wish-card--native-preview .wish-card__drag-handle,
 .wish-card--drag-preview .wish-card__open,
 .wish-card--drag-preview .wish-card__menu-trigger,
-.wish-card--drag-preview .wish-card__drag-handle { display: none !important; }
+.wish-card--drag-preview .wish-card__drag-handle,
+.wish-card--native-preview .wish-group-tile__open,
+.wish-card--native-preview .wish-group-tile__menu,
+.wish-card--drag-preview .wish-group-tile__open,
+.wish-card--drag-preview .wish-group-tile__menu { display: none !important; }
 
 /* Education cards share the Wishlist pointer/long-press sorting language. */
 .education-card.is-draggable {
@@ -421,14 +426,19 @@ input.phone-otp__code {
   .education-group-overlay { transition: none !important; animation: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wish-card.is-draggable, .wish-card--drag-preview { transition: none !important; }
+  .wish-card.is-draggable, .wish-group-tile.is-draggable, .wish-card--drag-preview { transition: none !important; }
 }
 .wish-card.is-group-target .wish-card__image { outline: 3px solid var(--foreground); outline-offset: 4px; transform: scale(.97); }
 .grouping-hint { margin: -8px 0 18px; display: flex; align-items: center; gap: 8px; color: var(--app-muted); font-size: 13px; }
 .grouping-hint svg { width: 16px; height: 16px; color: #7892ff; }
-.wish-group-tile { width: 100% !important; height: auto !important; min-width: 0; min-height: 0; padding: 0 !important; position: relative; align-self: start; display: grid !important; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto 58px !important; gap: 0 !important; overflow: visible; border: 0; border-radius: 0; color: inherit; background: transparent; text-align: left; white-space: normal; cursor: pointer; }
+.wish-group-tile { width: 100%; height: auto !important; min-width: 0; min-height: 0; padding: 0 !important; position: relative; align-self: start; display: grid !important; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto 58px !important; gap: 0 !important; overflow: visible; border: 0; border-radius: 0; color: inherit; background: transparent; text-align: left; white-space: normal; cursor: pointer; }
 .wish-group-tile:hover { color: inherit !important; background: transparent !important; }
-.wish-group-tile__open { width: 100% !important; height: auto !important; min-width: 0; padding: 0 !important; display: block !important; border: 0 !important; border-radius: 20px; background: transparent !important; }
+.wish-group-tile.is-draggable { cursor: grab; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.wish-group-tile.is-draggable:active { cursor: grabbing; }
+.wish-group-tile.is-draggable:not(.is-dragging) { transition: transform .28s cubic-bezier(.2,.82,.2,1), opacity .2s ease; }
+.wish-group-tile.is-dragging { z-index: 6; opacity: .18; transform: scale(.97); filter: saturate(.75); }
+.wish-group-tile__open { width: 100% !important; height: auto !important; min-width: 0; aspect-ratio: 236 / 286; padding: 0 !important; position: absolute; z-index: 2; left: 0; top: 0; display: block !important; border: 0 !important; border-radius: 20px; background: transparent !important; }
+.wish-group-tile__drag-handle { display: none; }
 .wish-group-tile__preview { width: 100%; min-width: 0; aspect-ratio: 236 / 286; padding: 12%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 7%; overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--muted); transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .wish-group-tile:hover .wish-group-tile__preview { transform: none; border-color: var(--app-line); }
 .wish-group-tile.is-drop-target .wish-group-tile__preview { transform: scale(.96); border-color: var(--foreground); box-shadow: 0 0 0 4px color-mix(in oklch, var(--foreground) 22%, transparent); }
@@ -4797,6 +4807,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .horizontal-action-scroller::-webkit-scrollbar { display: none; }
 .app-layout--dark .horizontal-action-scroller > * { flex: 0 0 auto; }
+.app-layout--dark .wishes-page .page-actions.horizontal-action-scroller,
+.app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller {
+  flex-wrap: nowrap;
+}
 .app-layout--dark .wishes-page__hero-actions > .button { min-height: 48px; }
 .app-layout--dark .wishes-page__hero-actions > [class~="group/button"]:has(> svg:only-child) {
   border-radius: var(--radius-pill);
