@@ -99,7 +99,6 @@ test("key validation makes only a read-only request to the fixed OpenRouter endp
 test("key validation rejects invalid/management keys without exposing upstream errors", async () => {
   for (const response of [
     { ok: false, status: 401 },
-    { ok: false, status: 403 },
     ok({ is_management_key: true }),
     ok({ is_provisioning_key: true }),
     { ok: true, json: async () => { throw new Error("malformed body"); } },
@@ -112,6 +111,12 @@ test("key validation rejects invalid/management keys without exposing upstream e
   ]) {
     await assert.rejects(validateOpenRouterKey("private-key", { fetchImpl }), (error) => error.status === 503 && !error.message.includes("private-key"));
   }
+});
+
+test("an upstream access block does not label a saved key invalid", async () => {
+  await assert.rejects(validateOpenRouterKey("private-key", {
+    fetchImpl: async () => ({ ok: false, status: 403 }),
+  }), (error) => error.status === 503 && error.code === "openrouter_access_denied" && !error.message.includes("private-key"));
 });
 
 test("personal model preferences never change the shared server model", () => {

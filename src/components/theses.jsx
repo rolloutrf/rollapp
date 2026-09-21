@@ -174,7 +174,7 @@ export function Theses() {
           <div className="flex flex-col gap-6" data-typeset-group>
             {theses.map((thesis, index) => (
               <div className="group/thesis grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2" key={`${index}-${thesis}`}>
-                <blockquote className="mt-0! min-w-0">
+                <blockquote className="career-action-copy mt-0! min-w-0">
                   {thesis.split(/\n\s*\n/gu).map((paragraph, paragraphIndex) => (
                     <p className="whitespace-pre-line" key={paragraphIndex}>{paragraph}</p>
                   ))}

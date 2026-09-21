@@ -18,7 +18,7 @@ import { registerRollsRoutes } from "./rolls-routes.js";
 import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
-import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup } from "./wish-groups.js";
+import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
 import { getOhMyWishesRecommendationsPage, resolveOhMyWishesItem } from "./ohmywishes-brands.js";
 import { getStoredCatalogBrands, getStoredCatalogBrandPage } from "./external-catalog-brands.js";
@@ -33,14 +33,10 @@ import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
 import { DEFAULT_MODEL, fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
 import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers } from "./marketplace-resolvers.js";
-import {
-  encryptUserCredential,
-  userCredentialHint,
-  userCredentialsConfigured,
-  UserCredentialsError,
-} from "./user-credentials.js";
+import { userCredentialsConfigured } from "./user-credentials.js";
 import { resolveOpenRouterCredential } from "./openrouter-credential.js";
-import { listOpenRouterModels, OpenRouterSettingsError, resolveOpenRouterModel, validateOpenRouterKey, validateOpenRouterModel } from "./openrouter-settings.js";
+import { resolveOpenRouterModel } from "./openrouter-settings.js";
+import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
 import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
@@ -167,12 +163,6 @@ const phoneVerifySchema = z.object({
 const telegramInitDataSchema = z.object({
   initData: z.string().min(1).max(16_384),
 }).strict();
-const openRouterCredentialSchema = z.object({
-  apiKey: z.string().trim().min(20).max(512).regex(/^sk-or-v1-[A-Za-z0-9_-]+$/),
-  model: z.string().trim().min(1).max(200).optional(),
-}).strict();
-const openRouterModelSchema = z.object({ model: z.string().trim().min(1).max(200) }).strict();
-const OPENROUTER_CREDENTIAL_PROVIDER = "openrouter";
 const contactLinkSchema = z.object({
   label: z.string().trim().min(1).max(40),
   url: z.string().trim().max(2_000).url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
@@ -2190,14 +2180,7 @@ app.get("/api/me", asyncRoute(async (req, res) => {
   res.json({ user: await cleanAuthenticatedUser(req.user) });
 }));
 
-async function openRouterCredentialRow(userId) {
-  const result = await query(
-    `SELECT encrypted_secret,secret_hint,model,updated_at
-     FROM user_ai_credentials WHERE user_id=$1 AND provider=$2`,
-    [userId, OPENROUTER_CREDENTIAL_PROVIDER],
-  );
-  return result.rows[0] || null;
-}
+const openRouterCredentialRow = (userId) => readOpenRouterCredential(query, userId);
 
 async function resolveOpenRouterApiKey(userId) {
   const credential = await openRouterCredentialRow(userId);
@@ -2205,104 +2188,7 @@ async function resolveOpenRouterApiKey(userId) {
   return { ...resolved, model: resolveOpenRouterModel(credential, { source: resolved.source, defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL }) };
 }
 
-function openRouterCredentialStatus(credential) {
-  return {
-    available: userCredentialsConfigured(),
-    configured: Boolean(credential),
-    keyHint: credential?.secret_hint || "",
-    model: credential?.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
-    defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
-    serverFallbackConfigured: Boolean(process.env.OPENROUTER_API_KEY),
-  };
-}
-
-app.get("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
-  const credential = await openRouterCredentialRow(req.user.id);
-  res.set("Cache-Control", "private, no-store");
-  return res.json(openRouterCredentialStatus(credential));
-}));
-
-app.get("/api/me/openrouter/models", requireAuth, asyncRoute(async (_req, res) => {
-  res.set("Cache-Control", "private, no-store");
-  try {
-    return res.json({ models: await listOpenRouterModels() });
-  } catch (error) {
-    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
-    throw error;
-  }
-}));
-
-app.patch("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
-  const parsed = openRouterModelSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Выберите модель OpenRouter", code: "openrouter_model_invalid" });
-  const credential = await openRouterCredentialRow(req.user.id);
-  if (!credential) return res.status(409).json({ error: "Сначала подключите личный ключ OpenRouter", code: "openrouter_key_required" });
-  try {
-    await validateOpenRouterModel(parsed.data.model);
-  } catch (error) {
-    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
-    throw error;
-  }
-  const result = await query(
-    `UPDATE user_ai_credentials SET model=$3,updated_at=CURRENT_TIMESTAMP
-     WHERE user_id=$1 AND provider=$2 RETURNING secret_hint,model,updated_at`,
-    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, parsed.data.model],
-  );
-  if (!result.rowCount) return res.status(409).json({ error: "Ключ был отключён. Подключите его заново.", code: "openrouter_key_required" });
-  res.set("Cache-Control", "private, no-store");
-  return res.json(openRouterCredentialStatus(result.rows[0]));
-}));
-
-app.post("/api/me/openrouter", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
-  const parsed = openRouterCredentialSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: "Введите действующий API-ключ OpenRouter в формате sk-or-v1-…",
-      code: "openrouter_key_invalid",
-    });
-  }
-  let encryptedSecret;
-  let model;
-  try {
-    const current = await openRouterCredentialRow(req.user.id);
-    model = parsed.data.model || current?.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-    encryptedSecret = encryptUserCredential(parsed.data.apiKey, {
-      userId: req.user.id,
-      provider: OPENROUTER_CREDENTIAL_PROVIDER,
-    });
-    await validateOpenRouterKey(parsed.data.apiKey);
-    await validateOpenRouterModel(model);
-  } catch (error) {
-    if (error instanceof OpenRouterSettingsError) return res.status(error.status).json({ error: error.message, code: error.code });
-    if (error instanceof UserCredentialsError) {
-      return res.status(503).json({ error: error.message, code: error.code });
-    }
-    throw error;
-  }
-  const hint = userCredentialHint(parsed.data.apiKey);
-  const result = await query(
-    `INSERT INTO user_ai_credentials (user_id,provider,encrypted_secret,secret_hint,model)
-     VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (user_id,provider) DO UPDATE SET
-       encrypted_secret=EXCLUDED.encrypted_secret,
-       secret_hint=EXCLUDED.secret_hint,
-       model=EXCLUDED.model,
-       updated_at=CURRENT_TIMESTAMP
-     RETURNING secret_hint,model,updated_at`,
-    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER, encryptedSecret, hint, model],
-  );
-  res.set("Cache-Control", "private, no-store");
-  return res.json(openRouterCredentialStatus(result.rows[0]));
-}));
-
-app.delete("/api/me/openrouter", requireAuth, asyncRoute(async (req, res) => {
-  await query(
-    "DELETE FROM user_ai_credentials WHERE user_id=$1 AND provider=$2",
-    [req.user.id, OPENROUTER_CREDENTIAL_PROVIDER],
-  );
-  res.set("Cache-Control", "private, no-store");
-  return res.json(openRouterCredentialStatus(null));
-}));
+registerOpenRouterRoutes(app, { query, requireAuth, authRateLimit, asyncRoute });
 
 app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
   const result = await query(
@@ -3922,24 +3808,7 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
     }
     await client.query("DELETE FROM wishlist_wishes WHERE wish_id=$1", [current.id]);
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, current.id]);
-    await client.query(
-      "DELETE FROM wish_group_members WHERE wish_id=$1 AND NOT (wishlist_id = ANY($2::text[]))",
-      [current.id, data.listIds],
-    );
-    const ownedGroupMembers = await client.query(
-      `SELECT g.id,m.wish_id FROM wish_groups g
-       JOIN wishlists l ON l.id=g.wishlist_id
-       LEFT JOIN wish_group_members m ON m.group_id=g.id
-       WHERE l.user_id=$1`,
-      [req.user.id],
-    );
-    const groupMemberCounts = new Map();
-    for (const row of ownedGroupMembers.rows) {
-      groupMemberCounts.set(row.id, (groupMemberCounts.get(row.id) || 0) + (row.wish_id ? 1 : 0));
-    }
-    for (const [groupId, memberCount] of groupMemberCounts) {
-      if (memberCount < 2) await client.query("DELETE FROM wish_groups WHERE id=$1", [groupId]);
-    }
+    await syncWishGroupMemberships({ client, wishId: current.id, listIds: data.listIds, userId: req.user.id });
     return { status: 200, id: current.id };
   }));
   if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });

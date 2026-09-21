@@ -2,6 +2,25 @@ import { query } from "./db.js";
 
 const wishGroupSpaces = new Set(["products", "places", "events", "media", "food", "transport"]);
 
+export async function syncWishGroupMemberships({ client, wishId, listIds, userId }) {
+  const removed = await client.query(
+    `DELETE FROM wish_group_members
+     WHERE wish_id=$1 AND NOT (wishlist_id = ANY($2::text[]))
+       AND wishlist_id IN (SELECT id FROM wishlists WHERE user_id=$3)
+     RETURNING group_id`,
+    [wishId, listIds, userId],
+  );
+  if (!removed.rowCount) return;
+
+  // A single wish is a valid group. Only dissolve groups emptied by this edit.
+  await client.query(
+    `DELETE FROM wish_groups g
+     WHERE g.id = ANY($1::text[])
+       AND NOT EXISTS (SELECT 1 FROM wish_group_members m WHERE m.group_id=g.id)`,
+    [[...new Set(removed.rows.map((row) => row.group_id))]],
+  );
+}
+
 export async function backfillWishGroupSpaces(client) {
   const result = await client.query(
     `SELECT g.id,l.space AS list_space,m.wish_id,w.space AS wish_space

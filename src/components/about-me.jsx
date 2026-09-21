@@ -155,14 +155,14 @@ export function AboutMe() {
 
       <section className="about-me-questions" aria-label="Вопросы обо мне">
         {parsed.preamble && (
-          <MarkdownDocument source={parsed.preamble} label="О себе — введение" className="about-me-question__document" />
+          <MarkdownDocument source={parsed.preamble} label="О себе — введение" className="about-me-question__document career-action-copy" />
         )}
         {parsed.questions.map((entry, index) => (
           <article className="about-me-question" key={`${index}-${entry.question}`}>
             <MarkdownDocument
               source={`### ${entry.question}\n\n${entry.description}`}
               label={entry.question}
-              className="about-me-question__document"
+              className="about-me-question__document career-action-copy"
             />
             {!readOnly && (
               <CareerIconAction

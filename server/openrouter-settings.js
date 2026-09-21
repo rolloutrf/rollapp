@@ -89,7 +89,12 @@ export async function validateOpenRouterKey(apiKey, { fetchImpl = fetch } = {}) 
   } catch {
     throw new OpenRouterSettingsError("Не удалось проверить ключ OpenRouter. Попробуйте ещё раз.");
   }
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 403) {
+    throw new OpenRouterSettingsError("OpenRouter ограничил доступ с сервера. Сохранённые ключ и модель не изменены. Попробуйте позже.", {
+      code: "openrouter_access_denied",
+    });
+  }
+  if (response.status === 401) {
     throw new OpenRouterSettingsError("OpenRouter отклонил ключ. Проверьте его и попробуйте ещё раз.", {
       status: 400,
       code: "openrouter_key_invalid",
