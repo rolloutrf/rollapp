@@ -5756,7 +5756,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .development-plan-editor__card { gap: 24px; padding-bottom: 32px; }
   .development-plan-editor__card-title-row { flex-direction: column; gap: 16px; }
   .development-plan-editor__category-field { width: 100%; }
-  .development-plan-editor__list-header { align-items: stretch; flex-direction: column; }
+  .development-plan-editor__list-header { align-items: center; }
   .development-plan-editor__list-header [data-slot="button"] { width: 48px; }
   .development-plan-editor__list > li { grid-template-columns: minmax(0, 1fr); padding: 8px 0; }
   .development-plan-editor__item-actions { justify-content: flex-end; }
@@ -9574,8 +9574,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .cv-builder__hero h1 { font-size: 1.875rem; line-height: 2.25rem; }
   .cv-builder__salary { grid-row: 2; }
   .cv-builder__section { padding: 0; }
-  .cv-builder__section-header { align-items: flex-start; flex-direction: column; }
-  .cv-builder__section-header > button { width: 48px; }
+  .cv-builder__section-header { align-items: center; }
+  .cv-builder__section-header > button { width: 48px; margin-inline-start: auto; }
   .cv-builder__section-header h2 { font-size: 1.5rem; line-height: 2rem; }
   .cv-builder__entry { grid-template-columns: minmax(0, 1fr) auto; gap: 14px; }
   .cv-builder__entry-period { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 5px; }

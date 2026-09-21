@@ -161,13 +161,13 @@ function CourseCard({
         <CardHeader>
           <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
             <CourseLogo course={course} />
-            <div className="min-w-0">
-              <h3 className="m-0 truncate font-heading text-base leading-snug font-medium">{course.title}</h3>
-              <Badge className="mt-2 w-fit" variant={status.variant}>
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium">{course.title}</h3>
+              <Badge variant={status.variant}>
                 <StatusIcon data-icon="inline-start" aria-hidden="true" />
                 {status.label}
               </Badge>
-              {course.provider && <span className="mt-1 block truncate text-sm font-normal text-muted-foreground">{course.provider}</span>}
+              {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground">{course.provider}</span>}
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
@@ -181,21 +181,9 @@ function CourseCard({
               moving={moving}
               onCreateList={onCreateList}
               onMove={(listId) => onMoveToList(course, listId)}
+              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(course) : undefined}
+              removeBusy={removeBusy}
             />
-            {onRemoveFromGroup && (
-              <Button
-                className="pointer-events-auto relative z-20 size-9 rounded-full"
-                variant="ghost"
-                size="icon-lg"
-                type="button"
-                disabled={removeBusy}
-                aria-label={`Убрать курс «${course.title}» из группы`}
-                title="Убрать из группы"
-                onClick={() => onRemoveFromGroup(course)}
-              >
-                {removeBusy ? <Spinner aria-hidden="true" /> : <Ungroup aria-hidden="true" />}
-              </Button>
-            )}
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-4">

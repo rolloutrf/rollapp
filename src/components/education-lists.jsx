@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { FolderInput, ListPlus, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
+import { FolderInput, ListPlus, MoreHorizontal, Plus, Trash2, Ungroup, X } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
@@ -40,7 +40,7 @@ const LIST_TILE_STYLE = {
   lineHeight: "19px",
 };
 
-function ListTileContent({ title, count }) {
+export function ListTileContent({ title, count }) {
   return (
     <>
       <strong data-slot="list-tile-label" style={{ fontSize: 16, lineHeight: "19px" }}>{title}</strong>
@@ -61,7 +61,9 @@ export function EducationItemListMenu({
   moving = false,
   onCreateList,
   onDelete,
+  onRemoveFromGroup,
   onMove,
+  removeBusy = false,
 }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return null;
@@ -78,7 +80,7 @@ export function EducationItemListMenu({
             disabled={disabled}
           />
         )}
-        aria-label={grouping ? `Действия: ${itemTitle}` : `Переместить ${itemLabel} «${itemTitle}» в другой список`}
+        aria-label={grouping || onRemoveFromGroup || onDelete ? `Действия: ${itemTitle}` : `Переместить ${itemLabel} «${itemTitle}» в другой список`}
       >
         {moving ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
       </DropdownMenuTrigger>
@@ -151,6 +153,20 @@ export function EducationItemListMenu({
             </DropdownMenuItem>
           </>
         )}
+        {onRemoveFromGroup && (
+          <>
+            <DropdownMenuSeparator className="my-2" />
+            <DropdownMenuItem
+              variant="destructive"
+              className="app-destructive-menu-item min-h-14 gap-3 rounded-2xl px-3 text-base"
+              disabled={moving || removeBusy}
+              onClick={onRemoveFromGroup}
+            >
+              {removeBusy ? <Spinner aria-hidden="true" /> : <Ungroup aria-hidden="true" />}
+              Убрать из группы
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -162,10 +178,10 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
   return (
     <header className="page-toolbar w-full justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
-      <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
+      <div className="page-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
         {selectedList && (
           <Button
-            className="h-12 px-5 text-base max-[560px]:flex-1"
+            className="h-12 shrink-0 px-5 text-base"
             variant="outline"
             shape="pill"
             type="button"
@@ -175,7 +191,7 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
           </Button>
         )}
         <Button
-          className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
+          className="h-12 shrink-0 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
           shape="pill"
           type="button"
           onClick={onAdd}

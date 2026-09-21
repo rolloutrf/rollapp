@@ -380,10 +380,10 @@ export function CvResume() {
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
-      <article className="cv-builder rollapp-body" aria-label="CV">
+      <article className="cv-builder typeset-document rollapp-body" aria-label="CV">
         <section className="cv-builder__section" aria-labelledby="cv-experience-title">
           <header className="cv-builder__section-header">
-            <div><h2 id="cv-experience-title">Опыт работы</h2></div>
+            <div data-typeset-group><h2 id="cv-experience-title">Опыт работы</h2></div>
             {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "experience" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.experiences.length ? (
@@ -395,7 +395,7 @@ export function CvResume() {
                     <span>—</span>
                     <span>{experience.current ? "по настоящее время" : formatMonth(experience.endDate)}</span>
                   </div>
-                  <div className="cv-builder__entry-copy career-action-copy">
+                  <div className="cv-builder__entry-copy career-action-copy" data-typeset-group>
                     <h3>{experience.position}</h3>
                     <strong>{experience.company}</strong>
                     {experience.description && <p>{experience.description}</p>}
@@ -415,7 +415,7 @@ export function CvResume() {
 
         <section className="cv-builder__section" aria-labelledby="cv-education-title">
           <header className="cv-builder__section-header">
-            <div><h2 id="cv-education-title">Образование</h2></div>
+            <div data-typeset-group><h2 id="cv-education-title">Образование</h2></div>
             {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "education" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.education.length ? (
@@ -423,7 +423,7 @@ export function CvResume() {
               {cv.education.map((education, index) => (
                 <article className="cv-builder__education" key={education.id}>
                   <span>{education.graduationYear || "—"}</span>
-                  <div className="career-action-copy">
+                  <div className="career-action-copy" data-typeset-group>
                     <h3>{education.institution}</h3>
                     {education.faculty && <p>{education.faculty}</p>}
                     {education.specialization && <p>{education.specialization}</p>}
@@ -443,7 +443,7 @@ export function CvResume() {
 
         <section className="cv-builder__section" aria-labelledby="cv-about-title">
           <header className="cv-builder__section-header">
-            <div><h2 id="cv-about-title">Навыки и о себе</h2></div>
+            <div data-typeset-group><h2 id="cv-about-title">Навыки и о себе</h2></div>
             {!readOnly && <SectionAction label="Редактировать" onClick={() => setEditor({ kind: "about" })}><Pencil aria-hidden="true" /></SectionAction>}
           </header>
           {cv.skills.length > 0 && <div className="cv-builder__skills">{cv.skills.map((skill) => <span key={skill}>{skill}</span>)}</div>}

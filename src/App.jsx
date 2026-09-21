@@ -2916,6 +2916,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": accent }}>
+        <DrawerTitle className="sr-only">{contact?.name || "Карточка контакта"}</DrawerTitle>
         <div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2">
           <DrawerClose
             render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}
@@ -2952,6 +2953,7 @@ function ContactCreateDrawer({ onClose, onCreated }) {
   return (
     <Drawer open showSwipeHandle={isMobile} swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form" style={{ "--contact-accent": contactAccent("") }}>
+        <DrawerTitle className="sr-only">Добавить контакт</DrawerTitle>
         <div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2">
           <DrawerClose
             render={<ShadcnButton type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />}

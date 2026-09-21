@@ -79,8 +79,8 @@
 
 .identity-report-manager__actions {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  justify-content: safe center;
   gap: var(--layout-inline-gap);
 }
 
@@ -156,18 +156,6 @@
 .hogan-report--generated .identity-generated-documents,
 .gallup-profile--generated .identity-generated-documents {
   border-block-start: 1px solid var(--border);
-}
-
-@media (max-width: 640px) {
-  .identity-report-manager__actions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .identity-report-manager__actions > * {
-    width: 100%;
-  }
-
 }
 
 :root {
@@ -253,6 +241,37 @@
 }
 
 @layer utilities {
+  /* One action rail across spheres. Safe centering keeps the first action
+     reachable when the controls need horizontal scrolling. */
+  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline: 0;
+    padding-inline: 0;
+    align-items: center;
+    justify-content: safe center;
+    flex-wrap: nowrap;
+    gap: var(--layout-inline-gap);
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scroll-padding-inline: 0;
+    scrollbar-width: none;
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller::-webkit-scrollbar { display: none; }
+
+  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller > :not(.sr-only),
+  .app-layout--dark .sphere-business-controls > a {
+    flex: 0 0 auto;
+  }
+
+  .app-layout--dark .sphere-business-controls { display: contents; }
+
   /* Keep full-screen editor actions in the layout, with an independent form
      scroller. The footer cannot cover fields when content is long. */
   .app-fullscreen-dialog.wish-editor-screen {
@@ -575,6 +594,92 @@
   }
 
   :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"] > :is([data-slot="list-tile-meta"], [data-slot="list-tile-count"]) {
+    color: color-mix(in oklch, var(--primary-foreground) 72%, transparent);
+  }
+
+  [data-report-navigation] .list-tabs {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: safe center;
+    gap: var(--layout-inline-gap);
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [data-report-navigation] .list-tabs::-webkit-scrollbar { display: none; }
+
+  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile] {
+    width: 8.125rem;
+    min-width: 8.125rem;
+    height: 6.25rem;
+    min-height: 6.25rem;
+    padding: 0.75rem;
+    flex: 0 0 8.125rem;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    align-items: stretch;
+    justify-content: normal;
+    justify-items: start;
+    row-gap: 0.25rem;
+    overflow: hidden;
+    border-width: 0;
+    border-radius: 1.125rem;
+    color: var(--secondary-foreground);
+    background-color: var(--secondary);
+    background-image: none;
+    font-size: 1rem;
+    line-height: 1.1875rem;
+    text-align: left;
+    white-space: normal;
+  }
+
+  [data-report-navigation] .list-tabs [data-slot="list-tile-label"] {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: -webkit-box;
+    align-self: start;
+    overflow: hidden;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  [data-report-navigation] .list-tabs [data-slot="list-tile-meta"] {
+    width: 100%;
+    min-width: 0;
+    display: block;
+    align-self: end;
+    overflow: hidden;
+    margin: 0;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile]:is(:hover, :focus-visible) {
+    background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
+  }
+
+  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile][data-active] {
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+    background-color: var(--primary);
+  }
+
+  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile][data-active] [data-slot="list-tile-meta"] {
     color: color-mix(in oklch, var(--primary-foreground) 72%, transparent);
   }
 

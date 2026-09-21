@@ -134,16 +134,18 @@ function WorkoutCard({
       </Button>
       <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
         <CardHeader>
-          <CardTitle><h4 className="m-0 font-heading text-base leading-snug font-medium">{workout.title}</h4></CardTitle>
+          <CardTitle className="flex min-w-0 flex-col items-start gap-1">
+            <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{workout.title}</h4>
+            <Badge variant={status.variant}>
+              <StatusIcon data-icon="inline-start" aria-hidden="true" />
+              {status.label}
+            </Badge>
+          </CardTitle>
           <CardDescription className="flex items-center gap-2">
             <TypeIcon className="size-4" aria-hidden="true" />
             {type.label}
           </CardDescription>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <Badge variant={status.variant}>
-              <StatusIcon data-icon="inline-start" aria-hidden="true" />
-              {status.label}
-            </Badge>
             <EducationItemListMenu
               currentListId={workout.listId}
               disabled={moveDisabled}

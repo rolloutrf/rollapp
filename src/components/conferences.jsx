@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3,
-  ImagePlus, RotateCcw, TicketCheck, Trash2, Ungroup, Users, X,
+  ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -156,16 +156,16 @@ function ConferenceCard({
         <CardHeader>
           <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
             <ConferenceLogo conference={conference} />
-            <div className="min-w-0">
-              <h3 className="m-0 truncate font-heading text-base leading-snug font-medium">{conference.title}</h3>
-              {conference.location && <CardDescription className="mt-1 truncate">{conference.location}</CardDescription>}
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium">{conference.title}</h3>
+              <Badge variant={status.variant}>
+                <StatusIcon data-icon="inline-start" aria-hidden="true" />
+                {status.label}
+              </Badge>
+              {conference.location && <CardDescription className="w-full truncate">{conference.location}</CardDescription>}
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
-            <Badge variant={status.variant}>
-              <StatusIcon data-icon="inline-start" aria-hidden="true" />
-              {status.label}
-            </Badge>
             <EducationItemListMenu
               currentListId={conference.listId}
               grouping={grouping}
@@ -176,21 +176,9 @@ function ConferenceCard({
               moving={moving}
               onCreateList={onCreateList}
               onMove={(listId) => onMoveToList(conference, listId)}
+              onRemoveFromGroup={onRemoveFromGroup ? () => onRemoveFromGroup(conference) : undefined}
+              removeBusy={removeBusy}
             />
-            {onRemoveFromGroup && (
-              <Button
-                className="pointer-events-auto relative z-20 size-9 rounded-full"
-                variant="ghost"
-                size="icon-lg"
-                type="button"
-                disabled={removeBusy}
-                aria-label={`Убрать конференцию «${conference.title}» из группы`}
-                title="Убрать из группы"
-                onClick={() => onRemoveFromGroup(conference)}
-              >
-                {removeBusy ? <Spinner aria-hidden="true" /> : <Ungroup aria-hidden="true" />}
-              </Button>
-            )}
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-4">

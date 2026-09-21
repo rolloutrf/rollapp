@@ -373,7 +373,7 @@ export function DevelopmentPlan() {
       />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
-      <article className="development-plan-editor rollapp-body" aria-label="Индивидуальный план развития">
+      <article className="development-plan-editor typeset-document rollapp-body" aria-label="Индивидуальный план развития">
         {plan.groups.map((group, groupIndex) => (
           <section className="development-plan-editor__group" key={`${groupIndex}-${group.title}`}>
             <header className="development-plan-editor__group-header">
