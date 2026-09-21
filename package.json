@@ -33,6 +33,7 @@
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
     "test:rolls:production": "ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
     "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",
+    "test:openrouter:production": "ROLLAPP_TEST_OPENROUTER=1 node --test server/openrouter-persistence.integration.test.js",
     "test:stars:visual": "ROLLAPP_TEST_STARS=1 STARS_TEST_UI=1 node --test server/roll-stars.integration.test.js",
     "telegram:configure": "node scripts/configure-telegram-bot.mjs",
     "cdek:import": "node scripts/import-cdek-points.mjs",

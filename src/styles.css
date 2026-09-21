@@ -446,7 +446,7 @@ input.phone-otp__code {
 .wish-group-tile__preview img { width: 100%; height: 100%; object-fit: cover; }
 .wish-group-tile__preview svg { width: 24px; height: 24px; }
 .wish-group-tile__meta { width: 100%; position: static; overflow: visible; }
-.wish-group-tile__meta h3 { max-width: calc(100% - 46px); }
+.wish-group-tile__meta h3 { width: calc(100% - 46px); min-width: 0; }
 .wish-group-tile__title[data-slot="button"] { width: 100%; min-width: 0; height: auto !important; min-height: 0 !important; margin: 0; padding: 0 !important; justify-content: flex-start !important; overflow: hidden; border: 0; color: inherit; background: transparent !important; font: inherit !important; line-height: inherit; letter-spacing: inherit; text-align: left !important; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .wish-group-tile__title:focus-visible { border-radius: 3px; outline: 2px solid var(--ring); outline-offset: 2px; }
 .wish-group-tile__meta input { width: calc(100% - 46px); height: 32px; margin: -5px 0 6px; padding: 0 8px; order: 1; font-size: 16px; }
@@ -4814,6 +4814,29 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .app-layout--dark .wishes-page__hero-actions > .button { min-height: 48px; }
 .app-layout--dark .wishes-page__hero-actions > [class~="group/button"]:has(> svg:only-child) {
   border-radius: var(--radius-pill);
+}
+
+@media (max-width: 820px) {
+  .app-layout--dark :is(
+    .page-toolbar > .horizontal-action-scroller,
+    .wishes-page__hero-actions.horizontal-action-scroller,
+    .page-actions:has(> .sphere-business-controls),
+    .identity-report-manager__actions:has(> .sphere-business-controls)
+  ) {
+    width: calc(100% + 2 * var(--layout-page-inset));
+    max-width: none;
+    margin-inline: calc(-1 * var(--layout-page-inset));
+    padding-inline: var(--layout-page-inset) 0;
+    justify-content: flex-start;
+    scroll-padding-inline: var(--layout-page-inset) 0;
+  }
+
+  .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller {
+    width: calc(100% + 2 * var(--wishes-viewport-inset));
+    margin-inline: calc(-1 * var(--wishes-viewport-inset));
+    padding-inline-start: var(--wishes-viewport-inset);
+    scroll-padding-inline-start: var(--wishes-viewport-inset);
+  }
 }
 
 @media (min-width: 821px) and (max-width: 1180px) {
@@ -9340,6 +9363,9 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   width: 100%;
   margin: 0;
   padding: 0;
+}
+.career-action-copy p {
+  padding-inline-end: var(--layout-page-inset);
 }
 .cv-source { padding-top: 0; }
 

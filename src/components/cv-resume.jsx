@@ -395,7 +395,7 @@ export function CvResume() {
                     <span>—</span>
                     <span>{experience.current ? "по настоящее время" : formatMonth(experience.endDate)}</span>
                   </div>
-                  <div className="cv-builder__entry-copy">
+                  <div className="cv-builder__entry-copy career-action-copy">
                     <h3>{experience.position}</h3>
                     <strong>{experience.company}</strong>
                     {experience.description && <p>{experience.description}</p>}
@@ -423,7 +423,7 @@ export function CvResume() {
               {cv.education.map((education, index) => (
                 <article className="cv-builder__education" key={education.id}>
                   <span>{education.graduationYear || "—"}</span>
-                  <div>
+                  <div className="career-action-copy">
                     <h3>{education.institution}</h3>
                     {education.faculty && <p>{education.faculty}</p>}
                     {education.specialization && <p>{education.specialization}</p>}

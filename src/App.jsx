@@ -391,6 +391,7 @@ function useAsync(load, dependencies = []) {
 }
 
 function ToastProvider({ children }) {
+  const isMobile = useIsMobile();
   const show = useCallback((message, tone = "default") => {
     if (tone === "error") return sonnerToast.error(message);
     if (tone === "success") return sonnerToast.success(message);
@@ -401,9 +402,14 @@ function ToastProvider({ children }) {
       {children}
       <Toaster
         theme="dark"
-        position="bottom-left"
+        position={isMobile ? "top-center" : "bottom-left"}
         offset={16}
-        mobileOffset={{ bottom: "calc(12px + env(safe-area-inset-bottom))", left: 12, right: 12 }}
+        mobileOffset={{
+          top: "calc(12px + env(safe-area-inset-top))",
+          bottom: "calc(12px + env(safe-area-inset-bottom))",
+          left: 12,
+          right: 12,
+        }}
         richColors
         closeButton
       />
@@ -7128,7 +7134,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!changed || loading || imageUploading || loggingOut) return;
+    if (!changed || loading || imageUploading || loggingOut || openRouterBusy) return;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
       if (form[key] === initialForm[key]) return;
@@ -7238,7 +7244,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
                 : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
             </Card>
           )}
-          <OpenRouterSettings disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
+          <OpenRouterSettings key={user.id} disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"

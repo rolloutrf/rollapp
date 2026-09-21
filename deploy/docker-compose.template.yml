@@ -57,7 +57,7 @@ services:
       YC_TELEGRAM_BOT_TOKEN_KEY: "bot_token"
       YC_TELEGRAM_WEBHOOK_SECRET_KEY: "webhook_secret"
       OPENROUTER_MODEL: "mistralai/mistral-small-2603"
-      YC_OPENROUTER_LOCKBOX_SECRET_ID: ""
+      YC_OPENROUTER_LOCKBOX_SECRET_ID: "e6qkgbgcvu4727knndhq"
       YC_OPENROUTER_API_KEY_KEY: "api_key"
       YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID: ""
       YC_USER_CREDENTIALS_SECRET_KEY: "encryption_secret"

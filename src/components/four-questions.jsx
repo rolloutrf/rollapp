@@ -196,7 +196,7 @@ export function FourQuestions() {
                     </CareerIconAction>
                   )}
                 </div>
-                <div className="four-question__answer" data-typeset-group>
+                <div className="four-question__answer career-action-copy" data-typeset-group>
                   {question.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
                 </div>
               </article>

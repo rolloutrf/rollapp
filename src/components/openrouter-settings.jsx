@@ -25,33 +25,37 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
   const [error, setError] = useState("");
   const mounted = useRef(false);
   const busyRef = useRef(false);
+  const settingsRequest = useRef(0);
+  const modelsRequest = useRef(0);
   const modelAnchor = useRef(null);
 
   const loadSettings = useCallback(async () => {
+    const requestId = ++settingsRequest.current;
     setLoading(true);
     setSettingsError("");
     try {
       const next = await api.get("/me/openrouter");
-      if (!mounted.current) return;
+      if (!mounted.current || requestId !== settingsRequest.current) return;
       setSettings(next);
       setModelId(next.model);
     } catch (loadError) {
-      if (mounted.current) setSettingsError(loadError.message);
+      if (mounted.current && requestId === settingsRequest.current) setSettingsError(loadError.message);
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current && requestId === settingsRequest.current) setLoading(false);
     }
   }, []);
 
   const loadModels = useCallback(async () => {
+    const requestId = ++modelsRequest.current;
     setModelsLoading(true);
     setModelsError("");
     try {
       const result = await api.get("/me/openrouter/models");
-      if (mounted.current) setModels(result.models);
+      if (mounted.current && requestId === modelsRequest.current) setModels(result.models);
     } catch (loadError) {
-      if (mounted.current) setModelsError(loadError.message);
+      if (mounted.current && requestId === modelsRequest.current) setModelsError(loadError.message);
     } finally {
-      if (mounted.current) setModelsLoading(false);
+      if (mounted.current && requestId === modelsRequest.current) setModelsLoading(false);
     }
   }, []);
 
@@ -59,10 +63,17 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
     mounted.current = true;
     loadSettings();
     loadModels();
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      settingsRequest.current++;
+      modelsRequest.current++;
+    };
   }, [loadSettings, loadModels]);
 
-  const selectedModel = models.find((model) => model.id === modelId);
+  const availableModel = models.find((model) => model.id === modelId);
+  // Keep the persisted choice visible even if the model catalogue is offline.
+  const selectedModel = availableModel || (modelId ? { id: modelId, name: modelId, unavailable: true } : null);
+  const modelOptions = selectedModel && !availableModel ? [selectedModel, ...models] : models;
   const changed = Boolean(apiKey.trim()) || Boolean(settings?.configured && modelId !== settings.model);
   const controlsDisabled = disabled || busy || loading;
 
@@ -92,7 +103,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
   };
 
   const save = () => {
-    if (controlsDisabled || !settings?.available || !selectedModel || !changed) return;
+    if (controlsDisabled || !settings?.available || !availableModel || !changed) return;
     const key = apiKey.trim();
     if (key && !/^sk-or-v1-[A-Za-z0-9_-]{11,503}$/.test(key)) {
       setError("Введите API-ключ OpenRouter в формате sk-or-v1-…");
@@ -116,6 +127,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
           {settings?.configured && <Badge variant="secondary">Подключён</Badge>}
         </div>
         <p>Подключите свой ключ и выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
+        <p className="text-xs text-muted-foreground">Ключ и модель сохраняются в аккаунте и восстанавливаются после повторного входа на любом устройстве. Сохраните их отдельной кнопкой ниже.</p>
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-4">
         {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
@@ -137,7 +149,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
                   value={apiKey}
                   disabled={controlsDisabled || !settings.available}
                   onChange={(event) => { setApiKey(event.target.value); setError(""); }}
-                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); save(); } }}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); save(); } }}
                 />
                 <InputGroupAddon align="inline-end">
                   <InputGroupButton size="icon-sm" disabled={controlsDisabled} aria-label={keyVisible ? "Скрыть API-ключ" : "Показать API-ключ"} onClick={() => setKeyVisible((value) => !value)}>
@@ -150,7 +162,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
             <Field>
               <FieldLabel htmlFor="settings-openrouter-model">Модель</FieldLabel>
               <Combobox
-                items={models}
+                items={modelOptions}
                 value={selectedModel || null}
                 onValueChange={(model) => { if (model) { setModelId(model.id); setError(""); } }}
                 itemToStringLabel={(model) => model.name}
@@ -163,18 +175,18 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
                 </div>
                 <ComboboxContent anchor={modelAnchor} className="not-typeset rollapp-body min-w-0 w-(--anchor-width)">
                   <ComboboxEmpty>Модель не найдена</ComboboxEmpty>
-                  <ComboboxList>{(model) => <ComboboxItem key={model.id} value={model} className="min-h-12 px-3 py-2 pr-8 text-base">
+                  <ComboboxList>{(model) => <ComboboxItem key={model.id} value={model} disabled={model.unavailable} className="min-h-12 px-3 py-2 pr-8 text-base">
                     <div className="flex min-w-0 flex-col gap-1"><span className="whitespace-normal">{model.name}</span><span className="text-xs text-muted-foreground wrap-anywhere">{model.id}</span></div>
                   </ComboboxItem>}</ComboboxList>
                 </ComboboxContent>
               </Combobox>
               <FieldDescription>Модели с поддержкой инструментов поиска и структурированных ответов.</FieldDescription>
-              {!modelsLoading && !modelsError && modelId && !selectedModel && <p className="text-xs text-muted-foreground">Модель {modelId} сейчас недоступна. Выберите другую.</p>}
+              {!modelsLoading && !modelsError && modelId && !availableModel && <p className="text-xs text-muted-foreground">Модель {modelId} сейчас недоступна. Сохранённый выбор не изменён. Выберите другую модель.</p>}
               {modelsError && <Alert variant="destructive"><AlertDescription>{modelsError}<Button type="button" variant="outline" className="h-auto min-h-12 whitespace-normal" onClick={loadModels}>Повторить загрузку моделей</Button></AlertDescription></Alert>}
             </Field>
             {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
             <div className="flex flex-col gap-2">
-              <Button type="button" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled || !settings.available || !selectedModel || !changed} aria-busy={busy || undefined} onClick={save}>
+              <Button type="button" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled || !settings.available || !availableModel || !changed} aria-busy={busy || undefined} onClick={save}>
                 {busy && <Spinner />}{settings.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter"}
               </Button>
               {settings.configured && <Button type="button" variant="destructive" className="w-full" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
