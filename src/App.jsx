@@ -1,3 +1,5 @@
+import { isBrandCatalogSearch } from "../shared/catalog-links.js";
+import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -51,7 +53,7 @@ import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
-import { OhMyWishesBrandSelect, ohMyWishesBrandPath } from "@/components/ohmywishes-brands";
+import { BrandCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
 import { PerformanceReview } from "@/components/performance-review";
 import { Theses } from "@/components/theses";
@@ -122,6 +124,15 @@ import { formatRolls } from "../shared/rolls.js";
 import { isVideoUrl, isVkVideoUrl, isYouTubeUrl } from "../shared/video-links.js";
 import { requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
 import { initializeTelegramWebApp } from "./telegram.js";
+
+import { publicProfilePath, publicSpacePath, publicListPath, publicWishPath, publicProfileRoute, renamedProfileLocation } from "../shared/profile-links.js";
+
+const CollectionNavigationContext = createContext(null);
+function CollectionNavigationProvider({ children }) {
+  const [collection, setCollection] = useState(null);
+  const value = useMemo(() => ({ collection, setCollection }), [collection]);
+  return <CollectionNavigationContext.Provider value={value}>{children}</CollectionNavigationContext.Provider>;
+}
 
 const SessionContext = createContext(null);
 const ToastContext = createContext(null);
@@ -286,14 +297,12 @@ const listTileAccessibleName = (title, count, privateList = false) => `${title},
 const isWishSecret = (wish, lists = []) => wish?.privacy === "private" || lists.some((list) => (
   list.privacy === "private" && wish?.listIds?.includes(list.id)
 ));
-const publicProfilePath = (username = "") => `/${encodeURIComponent(username)}`;
-const publicListPath = (username, listId) => `${publicProfilePath(username)}/lists/${encodeURIComponent(listId)}`;
-const publicWishPath = (username, wishId) => `${publicProfilePath(username)}/wishes/${encodeURIComponent(wishId)}`;
+
 const wishSharePath = ({ wish, profile, lists = [], shareToken = "" }) => {
   if (shareToken) return `/s/${encodeURIComponent(shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
   const linkedLists = lists.filter((list) => wish.listIds?.includes(list.id));
   const linkList = linkedLists.find((list) => list.privacy === "link" && list.shareToken);
-  const publiclyReachable = linkedLists.some((list) => ["public", "followers"].includes(list.privacy));
+  const publiclyReachable = linkedLists.some((list) => list.privacy === "public");
   if (!publiclyReachable && linkList) return `/s/${encodeURIComponent(linkList.shareToken)}/wishes/${encodeURIComponent(wish.id)}`;
   return publicWishPath(profile?.username, wish.id);
 };
@@ -463,7 +472,9 @@ function useLogout() {
 }
 
 function ProfileEditorProvider({ children }) {
-  const { user, refresh } = useSession();
+  const { user, setSession } = useSession();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const returnFocusRef = useRef(null);
   const openProfileEditor = useCallback((event) => {
@@ -480,8 +491,10 @@ function ProfileEditorProvider({ children }) {
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
-        onSaved={async () => {
-          await refresh();
+        onSaved={async (savedUser) => {
+          const target = renamedProfileLocation(location, user.username, savedUser.username);
+          setSession({ user: savedUser, loading: false, error: null });
+          if (target !== `${location.pathname}${location.search}${location.hash}`) navigate(target, { replace: true, state: location.state });
           closeProfileEditor();
         }}
       />}
@@ -600,11 +613,11 @@ function SphereSwitcher() {
         </svg>
       </PopoverTrigger>
       <PopoverContent
-        className="sphere-switcher__panel !w-[min(28rem,calc(100vw-2rem))] !gap-3 !rounded-3xl !p-4 max-[560px]:!rounded-2xl"
+        className="sphere-switcher__panel !w-[min(20rem,calc(100vw-2rem))] !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl"
         align="start"
         sideOffset={10}
       >
-        <nav className="sphere-switcher__grid" aria-label="Сервисы и сферы Rollapp">
+        <nav className="sphere-switcher__list" aria-label="Сервисы и сферы Rollapp">
           {visibleServices.map(({ id, label, path, icon: Icon }) => {
             const active = id === activeService && !sharedOwner;
             return (
@@ -613,14 +626,14 @@ function SphereSwitcher() {
                 to={path}
                 className={buttonVariants({
                   variant: active ? "secondary" : "ghost",
-                  className: "sphere-switcher__item !h-auto !min-h-20 !whitespace-normal !rounded-xl !px-1 !py-1",
+                  className: "sphere-switcher__item !h-auto !min-h-12 !justify-start !gap-4 !font-normal !whitespace-normal !rounded-xl !px-4 !py-3",
                 })}
                 data-active={active ? "true" : undefined}
                 aria-current={active ? "page" : undefined}
                 onClick={() => setOpen(false)}
               >
                 <span className="sphere-switcher__icon">
-                  <Icon aria-hidden="true" />
+                  <Icon className="size-6" aria-hidden="true" />
                 </span>
                 <span>{label}</span>
               </Link>
@@ -632,7 +645,7 @@ function SphereSwitcher() {
             <strong>Доступно мне</strong>
             <span>Разделы других людей</span>
           </div>
-          <nav className="sphere-switcher__grid sphere-switcher__grid--shared" aria-label="Разделы, доступные для чтения">
+          <nav className="sphere-switcher__list" aria-label="Разделы, доступные для чтения">
             {incomingShares.map((share) => {
               const path = sphereSectionPath({ ownerUsername: share.owner.username, sphere: share.sphere, section: share.section });
               const active = `${location.pathname}${location.search}` === path;
@@ -642,14 +655,16 @@ function SphereSwitcher() {
                   to={path}
                   className={buttonVariants({
                     variant: active ? "secondary" : "ghost",
-                    className: "sphere-switcher__item sphere-switcher__shared-item !h-auto !min-h-32 !whitespace-normal !rounded-xl !px-2 !py-3",
+                    className: "sphere-switcher__item !h-auto !min-h-12 !justify-start !gap-4 !font-normal !whitespace-normal !rounded-xl !px-4 !py-3",
                   })}
                   aria-current={active ? "page" : undefined}
                   onClick={() => setOpen(false)}
                 >
-                  <Avatar user={share.owner} size="sm" className="!size-12" />
-                  <span>{SPHERE_SECTION_LABELS[share.section] || share.section}</span>
-                  <small>{share.owner.name}</small>
+                  <Avatar user={share.owner} size="sm" />
+                  <span className="sphere-switcher__shared-copy">
+                    <span>{SPHERE_SECTION_LABELS[share.section] || share.section}</span>
+                    <small>{share.owner.name}</small>
+                  </span>
                 </Link>
               );
             })}
@@ -670,7 +685,7 @@ function useGlobalShareHandler() {
     const handleShare = (event) => {
       if (!handlerRef.current) return;
       event.detail.handled = true;
-      void handlerRef.current();
+      void Promise.resolve().then(() => handlerRef.current?.()).catch(() => sonnerToast.error("Не удалось скопировать ссылку"));
     };
     window.addEventListener("rollapp:share-request", handleShare);
     return () => window.removeEventListener("rollapp:share-request", handleShare);
@@ -683,20 +698,27 @@ function GlobalAppChrome() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useSession();
-  const brandCatalog = location.pathname === APP_WISH_CATALOG_PATH && new URLSearchParams(location.search).get("source") === "ohmywishes";
+  const { collection } = useContext(CollectionNavigationContext);
+  const collectionSpace = collection?.pathname === location.pathname ? collection.space : null;
+  const brandCatalog = location.pathname === APP_WISH_CATALOG_PATH && isBrandCatalogSearch(location.search);
   const requestedService = serviceChromeFromPath(location.pathname);
   const sharedOwner = new URLSearchParams(location.search).get("owner");
   const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user) || sharedOwner
     ? requestedService
     : null;
-  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const publicRoute = publicProfileRoute(location.pathname);
+  const requestedTab = publicRoute?.space || collectionSpace || new URLSearchParams(location.search).get("tab");
   const serviceOptions = service?.tabs || [];
-  const options = sharedOwner
+  const options = location.pathname.startsWith("/s/") ? [] : sharedOwner
     ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
     : serviceOptions;
   const current = options.find((option) => option.id === requestedTab) || options[0] || null;
   const selectTab = (tabId) => {
     if (!tabId || tabId === current?.id) return;
+    if (publicRoute) {
+      navigate(publicSpacePath(publicRoute.username, tabId));
+      return;
+    }
     const search = new URLSearchParams(location.search);
     search.set("tab", tabId);
     navigate({ pathname: location.pathname, search: `?${search.toString()}`, hash: location.hash }, { replace: true });
@@ -715,7 +737,7 @@ function GlobalAppChrome() {
   return (
     <header className="global-app-chrome" aria-label="Панель приложения">
       <AppBrand />
-      {brandCatalog && user ? <OhMyWishesBrandSelect /> : current && (
+      {brandCatalog && user ? <BrandCatalogSelect /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
@@ -733,9 +755,9 @@ function GlobalAppChrome() {
         </Select>
       )}
       {service && <div className="global-app-chrome__actions">
-        <ShadcnButton asChild className="global-app-chrome__rolls !size-12 rounded-full" variant={location.pathname.startsWith("/app/rolls") ? "secondary" : "outline"} size="icon">
+        {user && <ShadcnButton asChild className="global-app-chrome__rolls !size-12 rounded-full" variant={location.pathname.startsWith("/app/rolls") ? "secondary" : "outline"} size="icon">
           <Link to="/app/rolls" aria-label="Открыть Роллы" title="Роллы"><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>
-        </ShadcnButton>
+        </ShadcnButton>}
         <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </header>
@@ -3671,14 +3693,14 @@ function PersistentProfileHero({ user }) {
 }
 
 function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action, backTo, backLabel = "В мой вишлист" }) {
-  const heroTitle = title || (source === "ohmywishes" ? "Бренды" : "Лента");
+  const heroTitle = title || (source === "brands" ? "Бренды" : "Лента");
   return (
     <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars" aria-hidden="true">
           <ShadcnAvatar size="lg" className="wishes-page__hero-avatar !size-[var(--avatar-xl-size)]">
             <AvatarFallback className="bg-transparent text-foreground">
-              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "ohmywishes" ? <ShoppingBag className="size-3/5" /> : <Newspaper className="size-3/5" />}
+              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "brands" ? <ShoppingBag className="size-3/5" /> : <Newspaper className="size-3/5" />}
             </AvatarFallback>
           </ShadcnAvatar>
         </div>
@@ -3724,7 +3746,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           <Newspaper aria-hidden="true" />
         </Link>
         <Link
-          to={ohMyWishesBrandPath()}
+          to={brandCatalogPath()}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
           aria-label="Открыть каталог брендов"
           title="Каталог брендов"
@@ -4187,7 +4209,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>
               </>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-              {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
+              {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
               {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
               {owner && <>
                 <DropdownMenuSeparator />
@@ -4288,7 +4310,7 @@ function WishGroupTile({
       {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
-        {!editing && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
+        {!editing && onRename && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
       </div>
     </div>
   </div>
@@ -4407,14 +4429,7 @@ function CatalogBrandAttribution({ brand, compact = false }) {
 }
 
 function catalogMarketplaceItem(item) {
-  if (item?.source?.id !== "ohmywishes" || !item.url) return item;
-  try {
-    const host = new URL(item.url).hostname.toLowerCase().replace(/^www\./, "");
-    if (host !== "ohmywishes.com" && !host.endsWith(".ohmywishes.com")) return item;
-  } catch {
-    return item;
-  }
-  return { ...item, url: "" };
+  return { ...item, url: merchantProductUrl(item?.url) };
 }
 
 function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onOpen }) {
@@ -4572,14 +4587,21 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
 
 function WishCatalogPage() {
   const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const search = new URLSearchParams(location.search);
+    if (!isBrandCatalogSearch(location.search) || search.get("source") === "brands") return;
+    search.set("source", "brands");
+    navigate({ pathname: location.pathname, search: `?${search}` }, { replace: true });
+  }, [location.pathname, location.search, navigate]);
   const { user } = useSession();
   const toast = useToast();
-  const source = new URLSearchParams(location.search).get("source") === "ohmywishes" ? "ohmywishes" : "community";
-  const selectedBrand = source === "ohmywishes" ? new URLSearchParams(location.search).get("brand") || "" : "";
+  const source = isBrandCatalogSearch(location.search) ? "brands" : "community";
+  const selectedBrand = source === "brands" ? new URLSearchParams(location.search).get("brand") || "" : "";
   const requestedSpace = new URLSearchParams(location.search).get("tab");
   const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
-  const catalogFilter = source === "ohmywishes"
-    ? `source=ohmywishes${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
+  const catalogFilter = source === "brands"
+    ? `source=brands${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
     : `source=community&space=${encodeURIComponent(selectedSpace)}`;
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
@@ -4796,7 +4818,7 @@ function WishCatalogPage() {
             )}
           </>
         ) : (
-          <EmptyState icon={source === "ohmywishes" ? Gift : LayoutGrid} title={source === "ohmywishes" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "ohmywishes" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся товары, которые не относятся к селлерам.") : "Здесь появятся публичные желания участников."} />
+          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся товары, которые не относятся к селлерам.") : "Здесь появятся публичные желания участников."} />
         )}
         {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
         {selectedCatalogItem && (
@@ -5025,7 +5047,7 @@ function WishesPage({ onAdd, version }) {
       return;
     }
     const url = selectedValue === "all"
-      ? `${window.location.origin}${publicProfilePath(user.username)}`
+      ? `${window.location.origin}${publicSpacePath(user.username, selectedSpace)}`
       : selectedList?.privacy === "link"
         ? `${window.location.origin}/s/${selectedList.shareToken}`
         : `${window.location.origin}${publicListPath(user.username, selectedList?.id)}`;
@@ -5995,7 +6017,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
   const isMobile = useIsMobile();
   const resolvedSpace = wishSpaceId(wish, lists);
   const offerWish = useMemo(
-    () => wish.space === resolvedSpace ? wish : { ...wish, space: resolvedSpace },
+    () => ({ ...wish, space: resolvedSpace, url: merchantProductUrl(wish.url) }),
     [resolvedSpace, wish],
   );
   const categoryLists = useMemo(() => lists.filter((list) => !isGeneralList(list)), [lists]);
@@ -6154,7 +6176,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} />}
 
-          {wish.url && !["products", "food"].includes(resolvedSpace) && <a href={wish.url} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           <div
@@ -6221,7 +6243,7 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
                     </DropdownMenuSub>
                   </>}
                   {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
-                  {!owner && wish.url && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.url} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
+                  {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
                   {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
                   {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
@@ -7284,26 +7306,38 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   </Drawer>;
 }
 
-function PublicWishGrid({ wishes, allWishes, visibleLimit, ownerCollection, onReorder, onOpen, ...cardProps }) {
+function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, initialGroupId = null, visibleLimit, ownerCollection, onReorder, onOpen, ...cardProps }) {
+  const [openedGroupId, setOpenedGroupId] = useState(initialGroupId);
+  useEffect(() => { setOpenedGroupId(initialGroupId); }, [initialGroupId]);
+  const openedGroup = groups.find((group) => group.id === openedGroupId);
   const toast = useToast();
   const { gridRef, orderedWishes, cardProps: dragProps, suppressClickRef, saving } = useWishReorder({
     wishes: allWishes,
     visibleWishes: wishes,
-    enabled: ownerCollection,
+    enabled: ownerCollection && groups.length === 0,
     onSave: onReorder,
     onError: (error) => toast(error.message || "Не удалось сохранить порядок желаний", "error"),
   });
-  return <div className="wish-grid" ref={gridRef} aria-busy={saving || undefined}>
-    {orderedWishes.slice(0, visibleLimit).map((wish) => <WishCard
-      key={wish.id}
-      {...cardProps}
-      {...dragProps(wish.id)}
-      wish={wish}
-      onOpen={(opener) => { if (!suppressClickRef.current) onOpen(wish.id, opener); }}
-      onEdit={ownerCollection ? () => cardProps.onEdit(wish.id) : undefined}
-      onCreateList={ownerCollection ? () => cardProps.onCreateList(wish.id) : undefined}
-    />)}
-  </div>;
+  const renderWish = (wish) => <WishCard
+    key={wish.id}
+    {...cardProps}
+    {...dragProps(wish.id)}
+    wish={wish}
+    onOpen={(opener) => { if (!suppressClickRef.current) onOpen(wish.id, opener, openedGroupId); }}
+    onEdit={ownerCollection ? () => cardProps.onEdit(wish.id) : undefined}
+    onCreateList={ownerCollection ? () => cardProps.onCreateList(wish.id) : undefined}
+  />;
+  return <>
+    <div className="wish-grid" ref={gridRef} aria-busy={saving || undefined}>
+      {buildWishGroupGridItems({ wishes: orderedWishes, groups }).slice(0, visibleLimit).map((item) => item.type === "group"
+        ? <WishGroupTile key={item.id} group={item.group} wishes={item.wishes} onOpen={() => setOpenedGroupId(item.id)} />
+        : renderWish(item.wish))}
+    </div>
+    {openedGroup && <GroupDialog onClose={() => setOpenedGroupId(null)} suspended={detailsOpen} className="wish-group-open" aria-label={`Группа «${openedGroup.title}»`}>
+      <GroupDialogHeader title={openedGroup.title} description={`${orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).length} желаний`} />
+      <div className="wish-grid">{orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).map(renderWish)}</div>
+    </GroupDialog>}
+  </>;
 }
 
 function PublicProfile({ shared = false }) {
@@ -7314,13 +7348,12 @@ function PublicProfile({ shared = false }) {
   const { openProfileEditor } = useProfileEditor();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
+  const { setCollection } = useContext(CollectionNavigationContext);
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get(endpoint), [endpoint]);
-  const [selected, setSelected] = useState(shared ? "all" : params.listId || "all");
-  const [selectedSpace, setSelectedSpace] = useState(() => {
-    const tab = new URLSearchParams(location.search).get("tab");
-    return SPACE_IDS.includes(tab) ? tab : "products";
-  });
+  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user]);
+  const selected = shared ? "all" : params.listId || (params.wishId ? location.state?.listId : null) || "all";
+  const requestedSpace = params.space || new URLSearchParams(location.search).get("tab") || (params.wishId ? location.state?.collectionSpace : null);
+  const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
   const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
@@ -7330,23 +7363,8 @@ function PublicProfile({ shared = false }) {
   const loadMoreRef = useRef(null);
   const lastWishOpenerRef = useRef(null);
 
-  useEffect(() => {
-    const tab = new URLSearchParams(location.search).get("tab");
-    const nextSpace = SPACE_IDS.includes(tab) ? tab : "products";
-    if (nextSpace === selectedSpace) return;
-    setSelectedSpace(nextSpace);
-    setSelected("all");
-  }, [location.search, selectedSpace]);
-
-  useEffect(() => {
-    if (!params.wishId) {
-      setSelected(shared ? "all" : params.listId || "all");
-    }
-    setSelectedWishId(params.wishId || null);
-  }, [params.listId, params.wishId, shared]);
-
-  useEffect(() => { setVisibleLimit(20); }, [selected, endpoint]);
-
+  useEffect(() => { setSelectedWishId(params.wishId || null); }, [params.wishId, endpoint]);
+  useEffect(() => { setVisibleLimit(20); }, [selected, selectedSpace, endpoint]);
   useEffect(() => {
     const node = loadMoreRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return undefined;
@@ -7355,20 +7373,20 @@ function PublicProfile({ shared = false }) {
     }, { rootMargin: "500px 0px" });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [visibleLimit, data?.wishes?.length, selected]);
+  }, [visibleLimit, data, selected, selectedSpace]);
 
   useEffect(() => {
-    if (loading || sessionLoading || !data || shared || !data.isOwner || selected !== "all" || params.wishId) return;
-    const ownerLists = data.lists || [];
-    const categoryLists = ownerLists.filter((list) => !isGeneralList(list) && listSpace(list) === selectedSpace);
-    const listsById = new Map(ownerLists.map((list) => [list.id, list]));
-    const spaceWishes = (data.wishes || []).filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
-    const unlistedWishes = filterWishesWithoutList(spaceWishes, ownerLists.filter((list) => !isGeneralList(list)));
-    const nextSelected = resolveVisibleListSelection("all", categoryLists, shouldShowUnsortedList(unlistedWishes.length));
-    if (nextSelected === "all") return;
-    setSelected(nextSelected);
-    navigate(publicListPath(data.profile.username, nextSelected), { replace: true });
-  }, [data, loading, navigate, params.wishId, selected, selectedSpace, sessionLoading, shared]);
+    const lists = shared ? [data?.list].filter(Boolean) : data?.lists || [];
+    const list = lists.find((item) => item.id === params.listId) || (shared ? data?.list : null);
+    const wish = data?.wishes?.find((item) => item.id === params.wishId);
+    setCollection({ pathname: location.pathname, space: list ? listSpace(list) : wish ? wishSpaceId(wish, lists) : selectedSpace });
+    return () => setCollection(null);
+  }, [data, params.listId, params.wishId, shared, selectedSpace, location.pathname, setCollection]);
+
+  useEffect(() => {
+    if (shared || loading || data?.requestEndpoint !== endpoint || !data?.profile?.username || !params.username || params.username === data.profile.username) return;
+    navigate(renamedProfileLocation(location, params.username, data.profile.username), { replace: true, state: location.state });
+  }, [data?.profile?.username, data?.requestEndpoint, endpoint, loading, shared, params.username, location, navigate]);
 
   const renderCollectionState = ({ title, text, returnPath = APP_HOME, returnLabel = "В приложение", friendsContext = !shared }) => {
     const page = <div className="app-page wishes-page public-collection-page" data-public-collection-state>
@@ -7384,24 +7402,23 @@ function PublicProfile({ shared = false }) {
     return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{page}</main></div>;
   };
 
-  if (loading || sessionLoading) return <LoadingScreen />;
+  if (loading || sessionLoading || (data && data.requestEndpoint !== endpoint)) return <LoadingScreen />;
   if (error && !data) return renderCollectionState({ title: "Такой список не нашёлся", text: error.message });
 
   const lists = shared ? [data.list] : data.lists;
   const visibleWishes = data.isOwner
     ? data.wishes
     : data.wishes.filter((wish) => wish.status === "active");
-  const routeList = lists.find((list) => list.id === selected);
+  const routeWish = params.wishId ? visibleWishes.find((wish) => wish.id === params.wishId) : null;
+  const routeList = lists.find((list) => list.id === selected) || (routeWish && !location.state?.collectionPath ? lists.find((list) => !isGeneralList(list) && routeWish.listIds.includes(list.id)) : null);
   const routeSelectedList = routeList && !isGeneralList(routeList) ? routeList : null;
-  const activeSpace = routeSelectedList ? listSpace(routeSelectedList) : selectedSpace;
+  const activeSpace = routeSelectedList ? listSpace(routeSelectedList) : routeWish ? wishSpaceId(routeWish, lists) : selectedSpace;
   const navigationLists = shared ? lists : lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace);
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const spaceWishes = shared ? visibleWishes : visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
-  const unlistedWishes = !shared && data.isOwner
-    ? filterWishesWithoutList(spaceWishes, lists.filter((list) => !isGeneralList(list)))
-    : spaceWishes;
+  const unlistedWishes = shared ? spaceWishes : filterWishesWithoutList(spaceWishes, lists.filter((list) => !isGeneralList(list)));
   const ownerCollection = data.isOwner && !shared;
-  const showAllCollection = !ownerCollection || shouldShowUnsortedList(unlistedWishes.length);
+  const showAllCollection = shared || shouldShowUnsortedList(unlistedWishes.length) || navigationLists.length === 0;
   const selectedValue = resolveVisibleListSelection(routeSelectedList?.id || "all", navigationLists, showAllCollection);
   const selectedList = navigationLists.find((list) => list.id === selectedValue) || null;
   const wishes = shared
@@ -7411,7 +7428,7 @@ function PublicProfile({ shared = false }) {
       : spaceWishes.filter((wish) => wish.listIds.includes(selectedValue));
   const selectedWish = selectedWishId ? visibleWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
-  const invalidSelection = (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
+  const invalidSelection = (params.space && !SPACE_IDS.includes(params.space)) || (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
   if (invalidSelection) {
     const notFoundTitle = params.wishId ? "Желание не найдено" : "Список не найден";
     const returnPath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
@@ -7427,28 +7444,29 @@ function PublicProfile({ shared = false }) {
   const profileBasePath = shared ? `/s/${params.token}` : publicProfilePath(data.profile.username);
   const currentCollectionPath = shared
     ? profileBasePath
-    : selectedList
-      ? publicListPath(data.profile.username, selectedList.id)
-      : publicProfilePath(data.profile.username);
+    : params.wishId && location.state?.collectionPath?.startsWith(`${profileBasePath}/`)
+      ? location.state.collectionPath
+      : selectedList && (params.listId || params.wishId)
+        ? publicListPath(data.profile.username, selectedList.id)
+        : publicSpacePath(data.profile.username, activeSpace);
 
   const selectCollection = (value) => {
-    setSelected(value);
     setSelectedWishId(null);
     if (shared) return;
-    navigate(value === "all" ? publicProfilePath(data.profile.username) : publicListPath(data.profile.username, value));
+    navigate(value === "all" ? publicSpacePath(data.profile.username, activeSpace) : publicListPath(data.profile.username, value));
   };
 
-  const openWish = (id, opener = null) => {
+  const openWish = (id, opener = null, groupId = null) => {
     lastWishOpenerRef.current = opener;
     setSelectedWishId(id);
-    navigate(`${profileBasePath}/wishes/${id}`);
+    navigate(`${profileBasePath}/wishes/${encodeURIComponent(id)}`, { state: { listId: selectedList?.id, collectionSpace: activeSpace, collectionPath: currentCollectionPath, groupId } });
   };
 
   const closeWish = () => {
     const wishId = selectedWishId;
     const opener = lastWishOpenerRef.current;
     setSelectedWishId(null);
-    navigate(currentCollectionPath, { replace: true });
+    navigate(currentCollectionPath, { replace: true, state: { groupId: location.state?.groupId } });
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       const fallback = [...document.querySelectorAll(".wish-card__open")].find((element) => element.dataset.wishId === wishId);
       const target = opener?.isConnected ? opener : fallback;
@@ -7562,7 +7580,7 @@ function PublicProfile({ shared = false }) {
 
     {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-          {showAllCollection && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания", unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : ownerCollection ? UNSORTED_LIST_TITLE : "Все желания"} count={unlistedWishes.length} /></ToggleGroupItem>}
+          {showAllCollection && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}
           {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
@@ -7570,9 +7588,12 @@ function PublicProfile({ shared = false }) {
 
     {wishes.length
       ? <><PublicWishGrid
-        key={`${endpoint}:${selectedValue}`}
+        key={`${endpoint}:${activeSpace}:${selectedValue}`}
         wishes={wishes}
         allWishes={data.wishes}
+        detailsOpen={Boolean(selectedWish)}
+        initialGroupId={location.state?.groupId || null}
+        groups={filterWishGroups({ groups: data.groups, listId: shared ? data.list.id : selectedList?.id || lists.find(isGeneralList)?.id, selectedSpace: activeSpace, scopeBySpace: !selectedList, visibleWishIds: new Set(wishes.map((wish) => wish.id)) })}
         visibleLimit={visibleLimit}
         ownerCollection={ownerCollection}
         owner={data.isOwner}
@@ -7616,6 +7637,7 @@ export default function App() {
     <ToastProvider>
       <SessionProvider>
         <ProfileEditorProvider>
+          <CollectionNavigationProvider>
           <GlobalAppChrome />
           <Routes>
             <Route path="/" element={<RootRoute />} />
@@ -7633,10 +7655,12 @@ export default function App() {
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/:username" element={<PublicProfile />} />
+            <Route path="/:username/:space" element={<PublicProfile />} />
             <Route path="/:username/lists/:listId" element={<PublicProfile />} />
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </CollectionNavigationProvider>
         </ProfileEditorProvider>
       </SessionProvider>
     </ToastProvider>

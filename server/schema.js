@@ -1,3 +1,4 @@
+import { profileAliasesSchema } from "./profile-aliases.js";
 import { randomUUID } from "node:crypto";
 import { backfillDefaultFriend } from "./default-friend.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
@@ -24,6 +25,8 @@ const schema = `
     phone_verified_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  ${profileAliasesSchema}
 
   ${rollsSchema}
 

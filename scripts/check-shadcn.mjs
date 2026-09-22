@@ -337,7 +337,7 @@ assert(
   /\.global-app-chrome__share,\s*\.global-app-chrome__rolls\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
-assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
+assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"[^>]*><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
 const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileControls"), app.indexOf("function ProtectedApp"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
@@ -639,7 +639,7 @@ for (const slot of ["wish-price-row", "wish-price", "wish-toolbar", "wish-action
   assert(catalogWishDetailsSource.includes(`data-slot="${slot}"`), `Catalog details must reuse the existing ${slot} WishDetails pattern`);
 }
 const catalogMarketplaceItemSource = app.slice(app.indexOf("function catalogMarketplaceItem"), app.indexOf("function CatalogWishCard"));
-assert(/item\?\.source\?\.id !== "ohmywishes"/.test(catalogMarketplaceItemSource) && /host !== "ohmywishes\.com"/.test(catalogMarketplaceItemSource) && /return \{ \.\.\.item, url: "" \}/.test(catalogMarketplaceItemSource), "Catalog marketplace offers must suppress upstream provider URLs");
+assert(/merchantProductUrl\(item\?\.url\)/.test(catalogMarketplaceItemSource), "Catalog marketplace links must use the shared merchant URL sanitizer");
 assert(/const marketplaceItem = catalogMarketplaceItem\(item\)/.test(catalogWishDetailsSource) && /<MarketplaceOffers wish=\{marketplaceItem\} owner=\{false\} formatPrice=\{formatMoney\} \/>/.test(catalogWishDetailsSource), "Product catalog details must reuse MarketplaceOffers without exposing the provider as a store");
 assert(/\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Catalog details must use MarketplaceOffers for the same spaces as WishDetails");
 assert(/item\.url && !\["products", "food", "transport"\]\.includes\(item\.space\)/.test(catalogWishDetailsSource), "Other catalog spaces must retain their direct detail-only source action");
@@ -670,8 +670,8 @@ assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog H
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
 const catalogProfileHeroSource = app.slice(app.indexOf("function CatalogProfileHero"), app.indexOf("function WishesProfileControls"));
-assert(/source === "ohmywishes" \? "Бренды" : "Лента"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
-const brandSelectSource = read("src/components/ohmywishes-brands.jsx");
+assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
+const brandSelectSource = read("src/components/catalog-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
 const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("function WishesPage"));
