@@ -4032,7 +4032,7 @@ function WishGroupingSubmenu({ wish, groups = [], busy = false, onCreate, onAdd 
       <DropdownMenuGroup>
         <DropdownMenuLabel className="px-2 py-2 text-sm">Группы</DropdownMenuLabel>
         <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={onCreate}>
-          <PackagePlus /> Новая группа
+          <PackagePlus /> Обернуть в группу
         </DropdownMenuItem>
       </DropdownMenuGroup>
       {groups.length > 0 && <DropdownMenuSeparator />}
