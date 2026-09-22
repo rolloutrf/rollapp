@@ -96,6 +96,22 @@ test("key validation makes only a read-only request to the fixed OpenRouter endp
   assert.equal(calls, 1);
 });
 
+test("key validation retries a transport failure but does not retry an HTTP rejection", async () => {
+  let attempts = 0;
+  await validateOpenRouterKey("test-key-not-a-real-secret", { fetchImpl: async () => {
+    if (++attempts === 1) throw new Error("connection reset");
+    return ok({ is_management_key: false });
+  } });
+  assert.equal(attempts, 2);
+
+  attempts = 0;
+  await assert.rejects(validateOpenRouterKey("test-key-not-a-real-secret", { fetchImpl: async () => {
+    attempts++;
+    return { ok: false, status: 401 };
+  } }), (error) => error.code === "openrouter_key_invalid");
+  assert.equal(attempts, 1);
+});
+
 test("key validation rejects invalid/management keys without exposing upstream errors", async () => {
   for (const response of [
     { ok: false, status: 401 },
