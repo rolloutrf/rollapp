@@ -92,11 +92,10 @@ Local development reads this secret through the existing Yandex CLI identity.
 The ignored `.env.local` contains its ID and entry name only. The secret value
 is never written to source files or returned to the browser.
 
-## Pending production permission
+## Production permission
 
-The following permission change was rejected by automatic approval review and
-has **not** been applied. It requires explicit approval for this recipient and
-resource before execution:
+On 2026-09-22, the owner approved and the runtime service account was granted
+read access to this one encryption secret:
 
 ```sh
 yc lockbox secret add-access-binding e6qr4ur1fhbthc7ecujj \
@@ -104,20 +103,17 @@ yc lockbox secret add-access-binding e6qr4ur1fhbthc7ecujj \
   --service-account-id ajers2ngi708sf3i1t4g
 ```
 
-This grants the existing Rollapp runtime service account read access to this
-single encryption secret. It grants no access to other secrets and no edit or
-delete permission. After approval and verification, the production Compose
-configuration can set:
+The binding was verified with `yc lockbox secret list-access-bindings`. It grants
+no access to other secrets and no edit or delete permission. The production
+Compose configuration now sets:
 
 ```yaml
 YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID: "e6qr4ur1fhbthc7ecujj"
 YC_USER_CREDENTIALS_SECRET_KEY: "encryption_secret"
 ```
 
-The personal encryption secret reference remains empty until runtime access exists:
-startup loads the configured secret before starting the API. The feature has not
-been deployed by this task. Keep this encryption value stable; rotation requires
-migrating existing encrypted credentials.
+Startup loads the configured secret before starting the API. Keep this encryption
+value stable; rotation requires migrating existing encrypted credentials.
 
 ## Verification
 
