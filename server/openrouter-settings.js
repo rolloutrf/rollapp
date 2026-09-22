@@ -80,14 +80,20 @@ export async function validateOpenRouterModel(modelId, { listModels = listOpenRo
 
 export async function validateOpenRouterKey(apiKey, { fetchImpl = fetch } = {}) {
   let response;
-  try {
-    response = await fetchImpl(KEY_URL, {
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-      redirect: "error",
-    });
-  } catch {
-    throw new OpenRouterSettingsError("Не удалось проверить ключ OpenRouter. Попробуйте ещё раз.");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await fetchImpl(KEY_URL, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+        redirect: "error",
+      });
+      break;
+    } catch {
+      if (attempt === 0) continue;
+      throw new OpenRouterSettingsError("Сервер не смог связаться с OpenRouter. Проверьте соединение и попробуйте ещё раз.", {
+        code: "openrouter_connection_failed",
+      });
+    }
   }
   if (response.status === 403) {
     throw new OpenRouterSettingsError("OpenRouter ограничил доступ с сервера. Сохранённые ключ и модель не изменены. Попробуйте позже.", {
