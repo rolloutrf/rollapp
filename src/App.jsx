@@ -755,9 +755,16 @@ function GlobalAppChrome() {
         </Select>
       )}
       {service && <div className="global-app-chrome__actions">
-        {user && <ShadcnButton asChild className="global-app-chrome__rolls !size-12 rounded-full" variant={location.pathname.startsWith("/app/rolls") ? "secondary" : "outline"} size="icon">
-          <Link to="/app/rolls" aria-label="Открыть Роллы" title="Роллы"><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>
-        </ShadcnButton>}
+        {user && <Link
+          to="/app/rolls"
+          aria-label="Открыть Роллы"
+          title="Роллы"
+          className={buttonVariants({
+            variant: location.pathname.startsWith("/app/rolls") ? "secondary" : "outline",
+            size: "icon",
+            className: "global-app-chrome__rolls !size-12 rounded-full",
+          })}
+        ><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>}
         <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </header>

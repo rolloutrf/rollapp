@@ -337,7 +337,11 @@ assert(
   /\.global-app-chrome__share,\s*\.global-app-chrome__rolls\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
 );
-assert.match(app, /<Link to="\/app\/rolls" aria-label="Открыть Роллы" title="Роллы"[^>]*><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/, "The persistent application chrome must provide an accessible Rolls entry beside Share");
+assert.match(
+  app,
+  /<Link\s+to="\/app\/rolls"\s+aria-label="Открыть Роллы"\s+title="Роллы"[^>]*><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/,
+  "The persistent application chrome must provide an accessible Rolls entry beside Share",
+);
 const relationshipHeroSource = app.slice(app.indexOf("function WishesProfileControls"), app.indexOf("function ProtectedApp"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public owner"]]) {
