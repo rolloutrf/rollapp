@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
@@ -117,26 +115,24 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
   };
 
   return (
-    <Card className="openrouter-settings not-typeset rollapp-body" aria-label="Настройки OpenRouter">
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <LockKeyhole className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <strong className="font-medium">OpenRouter</strong>
-          </div>
-          {settings?.configured && <Badge variant="secondary">Подключён</Badge>}
-        </div>
-        <p>Подключите свой ключ и выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
-        <p className="text-xs text-muted-foreground">Ключ и модель сохраняются в аккаунте и восстанавливаются после повторного входа на любом устройстве. Сохраните их отдельной кнопкой ниже.</p>
-      </CardHeader>
-      <CardContent className="flex min-w-0 flex-col gap-4">
-        {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
-          : settingsError ? <Alert variant="destructive"><AlertTitle>Не удалось загрузить настройки</AlertTitle><AlertDescription>{settingsError}<Button type="button" variant="outline" onClick={loadSettings}>Повторить</Button></AlertDescription></Alert>
-          : <>
-            {!settings.available && <Alert variant="destructive"><AlertTitle>Подключение временно недоступно</AlertTitle><AlertDescription>На сервере нужно подключить защищённое хранилище ключей.</AlertDescription></Alert>}
-            {settings.configured && <p className="text-xs text-muted-foreground">Сохранён ключ {settings.keyHint}. Оставьте поле пустым, чтобы изменить только модель.</p>}
+    <section className="openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5 border-t pt-6" aria-labelledby="openrouter-settings-title">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="openrouter-settings-title" className="flex items-center gap-2 font-heading font-medium">
+          <LockKeyhole className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />OpenRouter
+        </h2>
+        {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
+      </div>
+      {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
+        : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
+        : !settings.available ? <>
+          <p className="text-destructive" role="status">Настройки OpenRouter временно недоступны: на сервере не настроено защищённое хранилище ключей.</p>
+          {settings.configured && <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-muted-foreground">Сохранён ключ {settings.keyHint}</span><Button type="button" variant="ghost" className="text-destructive hover:text-destructive" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить ключ</Button></div>}
+          {error && <p className="text-destructive" role="alert">{error}</p>}
+        </> : <>
+            <p className="text-muted-foreground">Выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
             <Field>
               <FieldLabel htmlFor="settings-openrouter-key">{settings.configured ? "Новый API-ключ" : "API-ключ"}</FieldLabel>
+              {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}. Оставьте поле пустым, чтобы изменить только модель.</p>}
               <InputGroup>
                 <InputGroupInput
                   id="settings-openrouter-key"
@@ -157,7 +153,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
                   </InputGroupButton>
                 </InputGroupAddon>
               </InputGroup>
-              <FieldDescription><a className="underline underline-offset-4" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">Создать ключ в OpenRouter</a>. Ключ хранится в зашифрованном виде и после сохранения целиком не показывается.</FieldDescription>
+              <FieldDescription><a className="underline underline-offset-4" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">Создать ключ</a> · После сохранения ключ целиком не показывается.</FieldDescription>
             </Field>
             <Field>
               <FieldLabel htmlFor="settings-openrouter-model">Модель</FieldLabel>
@@ -180,20 +176,18 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
                   </ComboboxItem>}</ComboboxList>
                 </ComboboxContent>
               </Combobox>
-              <FieldDescription>Модели с поддержкой инструментов поиска и структурированных ответов.</FieldDescription>
               {!modelsLoading && !modelsError && modelId && !availableModel && <p className="text-xs text-muted-foreground">Модель {modelId} сейчас недоступна. Сохранённый выбор не изменён. Выберите другую модель.</p>}
-              {modelsError && <Alert variant="destructive"><AlertDescription>{modelsError}<Button type="button" variant="outline" className="h-auto min-h-12 whitespace-normal" onClick={loadModels}>Повторить загрузку моделей</Button></AlertDescription></Alert>}
+              {modelsError && <div className="flex flex-wrap items-center gap-2 text-destructive" role="status"><span>{modelsError}</span><Button type="button" variant="ghost" className="h-auto min-h-12 whitespace-normal text-destructive hover:text-destructive" onClick={loadModels}>Повторить загрузку</Button></div>}
             </Field>
-            {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+            {error && <p className="text-destructive" role="alert">{error}</p>}
             <div className="flex flex-col gap-2">
               <Button type="button" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled || !settings.available || !availableModel || !changed} aria-busy={busy || undefined} onClick={save}>
                 {busy && <Spinner />}{settings.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter"}
               </Button>
-              {settings.configured && <Button type="button" variant="destructive" className="w-full" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
+              {settings.configured && <Button type="button" variant="ghost" className="self-start text-destructive hover:text-destructive" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
             </div>
             {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
           </>}
-      </CardContent>
-    </Card>
+    </section>
   );
 }
