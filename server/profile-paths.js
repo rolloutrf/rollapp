@@ -14,8 +14,6 @@ const RESERVED_PROFILE_USERNAMES = new Set([
   "avatars",
 ]);
 
-const segment = (value) => encodeURIComponent(String(value || ""));
-
 export function isReservedProfileUsername(value) {
   return RESERVED_PROFILE_USERNAMES.has(String(value || "").trim().toLowerCase());
 }
@@ -29,17 +27,8 @@ export function profileUsernameCandidates(base, limit = 20) {
   return candidates;
 }
 
-export function publicProfilePath(username) {
-  return `/${segment(username)}`;
-}
-
-export function publicListPath(username, listId) {
-  return `${publicProfilePath(username)}/lists/${segment(listId)}`;
-}
-
-export function publicWishPath(username, wishId) {
-  return `${publicProfilePath(username)}/wishes/${segment(wishId)}`;
-}
+export { publicProfilePath, publicListPath, publicWishPath } from "../shared/profile-links.js";
+import { publicProfilePath, publicListPath, publicWishPath } from "../shared/profile-links.js";
 
 export function legacyProfileTarget(params, originalUrl = "") {
   const path = params.listId

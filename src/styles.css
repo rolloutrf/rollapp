@@ -621,10 +621,6 @@ input.phone-otp__code {
   .public-profile .wish-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 760px) {
-  .sphere-switcher__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
 @media (max-width: 560px) {
   .logo { font-size: 20px; }
   .auth-form h1 { font-size: 34px; }
@@ -1512,7 +1508,7 @@ input.phone-otp__code {
   .wish-detail__actions > .button { width: 100%; min-height: 50px; flex-basis: auto; }
 }
 
-/* Ohmywishes parity — measured from the live desktop and iPhone layouts. */
+/* Wishlist desktop and mobile layouts. */
 .logo { font-family: var(--font-ui); font-weight: 700; }
 .button {
   min-height: 40px;
@@ -2284,7 +2280,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
 @media (max-width: 560px) {
 }
 
-/* Owner/profile desktop shell — the full-width composition used by Ohmywishes. */
+/* Owner/profile desktop shell — full-width composition. */
 .profile-header__dock { width: 162px; grid-template-columns: repeat(2, 1fr); }
 .profile-header__dock > a:first-child,
 .profile-header__dock > a:first-child:hover { color: color-mix(in oklch, var(--foreground) 48%, transparent); background: transparent; }
@@ -2776,7 +2772,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   .public-profile--dark .wish-card--public .wish-card__body { padding-top: 12px; }
 }
 
-/* Friends directory — flat Ohmywishes-style subscriptions and followers. */
+/* Friends directory — flat subscriptions and followers. */
 .friends-topbar { display: none; }
 
 .app-layout--friends .friends-page {
@@ -3042,7 +3038,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   background: color-mix(in oklch, var(--foreground) 4%, transparent);
 }
 
-/* Wish-card actions mirror the compact, layered Ohmywishes interaction. */
+/* Wish-card actions use compact, layered interactions. */
 .card-menu__dismiss-layer {
   position: fixed;
   z-index: 149;
@@ -3295,7 +3291,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   }
 }
 
-/* Ohmywishes-parity wish editor: full workspace, fixed media and an independent form rail. */
+/* Wish editor: full workspace, fixed media and an independent form rail. */
 html .wish-editor-screen {
   width: 100vw;
   height: 100dvh;
@@ -4701,16 +4697,20 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 
 .sphere-switcher__shared-heading {
-  padding-top: 12px;
+  padding: 12px 16px 0;
   border-top: 1px solid var(--border);
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
 }
 .sphere-switcher__shared-heading > span { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
-.sphere-switcher__shared-item { gap: 8px; }
-.sphere-switcher__shared-item > small {
+.sphere-switcher__shared-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sphere-switcher__shared-copy > small {
   max-width: 100%;
   overflow: hidden;
   color: var(--muted-foreground);
@@ -5118,43 +5118,24 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   box-shadow: 0 26px 80px color-mix(in oklch, var(--background) 68%, transparent);
   scrollbar-width: thin;
 }
-.sphere-switcher__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-.sphere-switcher__grid:not(.sphere-switcher__grid--shared) {
-  grid-template-columns: repeat(3, minmax(0, 8rem));
-  justify-content: center;
-  column-gap: 12px;
-  row-gap: 4px;
+.sphere-switcher__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .sphere-switcher__item {
   min-width: 0;
-  flex-direction: column;
+  width: 100%;
   justify-content: flex-start;
-  gap: 10px;
-  font-size: 16px;
-  line-height: 22px;
-  font-weight: 600;
-  text-align: center;
+  gap: 16px;
+  font-size: var(--text-rollapp-body);
+  line-height: var(--text-rollapp-body--line-height);
+  font-weight: 400;
+  text-align: left;
   overflow-wrap: normal;
   word-break: normal;
-  text-wrap: balance;
+  text-wrap: pretty;
 }
-.sphere-switcher__item:hover {
-  background: transparent !important;
-}
-.sphere-switcher__item[data-active="true"],
-.sphere-switcher__item[data-active="true"]:hover {
-  background: transparent !important;
-}
-.sphere-switcher__item[data-active="true"] .sphere-switcher__icon {
-  color: var(--background);
-  border-color: var(--foreground);
-  background: var(--foreground);
-}
-.sphere-switcher__icon,
 .sphere-page__icon {
   display: grid;
   place-items: center;
@@ -5163,16 +5144,13 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
 }
 .sphere-switcher__icon {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  color: var(--foreground);
-  background: var(--secondary);
-  box-shadow: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
 }
-.sphere-switcher__icon svg { width: 18px; height: 18px; stroke-width: 1.8; }
+.sphere-switcher__icon svg { width: 24px; height: 24px; stroke-width: 1.8; }
 .app-layout--dark .wishes-page__topbar > .app-brand { justify-self: start; }
 .app-layout--dark .wishes-page__topbar > .app-brand-spacer { justify-self: start; }
 .app-layout--dark .wishes-page__topbar > .space-select { grid-column: 2; }
@@ -6467,10 +6445,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .app-brand .logo { min-width: 40px; }
   .app-brand-spacer { width: 86px; min-width: 86px; flex-basis: 86px; }
   .app-shell-chrome-spacer { height: calc(62px + env(safe-area-inset-top)); flex-basis: calc(62px + env(safe-area-inset-top)); }
-  .sphere-switcher__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sphere-switcher__grid:not(.sphere-switcher__grid--shared) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sphere-switcher__icon { width: 38px; height: 38px; flex-basis: 38px; }
-  .sphere-switcher__icon svg { width: 17px; height: 17px; }
   .sphere-page__content { padding: 32px 22px; border-radius: 26px; }
   .sphere-page--tabbed { padding-top: 26px; }
   .sphere-page--tabbed .tabbed-sphere { padding: 24px 18px; }

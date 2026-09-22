@@ -1,3 +1,4 @@
+import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
@@ -139,7 +140,7 @@ const birthdaySchema = z.string().date().refine(
 const listSpaceValues = ["products", "places", "events", "media", "food", "transport"];
 const listSpaceSchema = z.enum(listSpaceValues);
 const catalogQuerySchema = z.object({
-  source: z.enum(["community", "ohmywishes"]).default("community"),
+  source: z.enum(["community", "brands", "ohmywishes"]).default("community").transform((source) => source === "brands" ? "ohmywishes" : source),
   brand: z.string().trim().min(1).max(100).optional(),
   space: listSpaceSchema.default("products"),
   limit: z.coerce.number().int().min(1).max(96).default(48),
@@ -1026,10 +1027,11 @@ async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
     `SELECT u.*,TRUE AS can_discover_spheres
      FROM users u
      JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE u.username=$1`,
+     WHERE (u.username=$1 OR u.id IN (SELECT user_id FROM profile_username_aliases WHERE username=$1))`,
     [ownerUsername],
   );
   if (!owner.rowCount) return { status: 404, error: "Владелец раздела не найден" };
+  if (owner.rows[0].id === viewer.id) return { owner: owner.rows[0], isOwner: true };
   if (viewer.account_type !== "business") {
     return { status: 403, error: "Раздел доступен только бизнес-аккаунтам", code: "BUSINESS_ACCOUNT_REQUIRED" };
   }
@@ -1147,7 +1149,7 @@ function yandexLoginRedirect(nextPath, errorCode, successCode) {
 async function uniqueUsername(name, client = { query }) {
   const base = slugify(name);
   for (const candidate of profileUsernameCandidates(base)) {
-    const found = await client.query("SELECT 1 FROM users WHERE username = $1", [candidate]);
+    const found = await findProfileByUsername(client, candidate);
     if (!found.rowCount) return candidate;
   }
   return `${base}-${randomBytes(3).toString("hex")}`;
@@ -1470,7 +1472,9 @@ async function insertYandexUser(client, yandexUser, userId, unusablePasswordHash
     ...profileUsernameCandidates(base),
     ...Array.from({ length: 5 }, () => `${base.slice(0, 25)}-${randomBytes(3).toString("hex")}`),
   ];
+  await lockProfileUsernames(client, isMemoryDatabase);
   for (const username of candidates) {
+    if ((await findProfileByUsername(client, username)).rowCount) continue;
     const created = await client.query(
       `INSERT INTO users (id,email,username,name,password_hash,avatar_url)
        VALUES ($1,$2,$3,$4,$5,$6)
@@ -2088,9 +2092,10 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
   if (exists.rowCount) return res.status(409).json({ error: "Аккаунт с таким email уже есть" });
 
   const userId = randomUUID();
-  const username = await uniqueUsername(name);
   const passwordHash = await hashPassword(password);
   await transaction(async (client) => {
+    await lockProfileUsernames(client, isMemoryDatabase);
+    const username = await uniqueUsername(name, client);
     await client.query(
       "INSERT INTO users (id,email,username,name,password_hash,account_type) VALUES ($1,$2,$3,$4,$5,$6)",
       [userId, email, username, name, passwordHash, accountType],
@@ -2489,18 +2494,21 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     const uploadedAvatar = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2 LIMIT 1", [uploadedAvatarId, req.user.id]);
     if (!uploadedAvatar.rowCount) return res.status(400).json({ error: "Загруженное изображение не найдено" });
   }
-  const next = {
-    name: parsed.data.name ?? req.user.name,
-    username: parsed.data.username ?? req.user.username,
-    bio: parsed.data.bio ?? req.user.bio,
-    birthday: parsed.data.birthday === undefined ? req.user.birthday : parsed.data.birthday,
-    avatarUrl: parsed.data.avatarUrl ?? req.user.avatar_url,
-  };
   try {
-    const result = await query(
-      `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5 WHERE id=$6 RETURNING *`,
-      [next.name, next.username, next.bio, next.birthday, next.avatarUrl, req.user.id],
-    );
+    const result = await transaction(async (client) => {
+      await lockProfileUsernames(client, isMemoryDatabase);
+      const current = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+      const previous = current.rows[0];
+      const username = parsed.data.username ?? previous.username;
+      await preserveProfileUsername(client, req.user.id, previous.username);
+      await preserveProfileUsername(client, req.user.id, username);
+      return client.query(
+        `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5 WHERE id=$6 RETURNING *`,
+        [parsed.data.name ?? previous.name, username, parsed.data.bio ?? previous.bio,
+          parsed.data.birthday === undefined ? previous.birthday : parsed.data.birthday,
+          parsed.data.avatarUrl ?? previous.avatar_url, req.user.id],
+      );
+    });
     res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "Такое имя профиля уже занято" });
@@ -3997,8 +4005,28 @@ app.post("/api/metadata", requireAuth, metadataRateLimit, asyncRoute(async (req,
   }
 }));
 
+async function getVisibleWishGroups(userId, lists, wishes) {
+  const allowedLists = new Set(lists.map((list) => list.id));
+  const allowedWishes = new Set(wishes.map((wish) => wish.id));
+  const result = await query(
+    `SELECT g.id,g.wishlist_id,g.space,g.title,m.wish_id
+     FROM wish_groups g JOIN wishlists l ON l.id=g.wishlist_id
+     JOIN wish_group_members m ON m.group_id=g.id
+     WHERE l.user_id=$1 ORDER BY g.created_at,m.wish_id`, [userId],
+  );
+  const groups = new Map();
+  for (const row of result.rows) {
+    if (!allowedLists.has(row.wishlist_id) || !allowedWishes.has(row.wish_id)) continue;
+    if (!groups.has(row.id)) groups.set(row.id, { id: row.id, listId: row.wishlist_id, space: row.space, title: row.title, wishIds: [] });
+    groups.get(row.id).wishIds.push(row.wish_id);
+  }
+  return [...groups.values()];
+}
+
 app.get("/api/profile/:username", asyncRoute(async (req, res) => {
-  const found = await query("SELECT * FROM users WHERE username=$1", [req.params.username.toLowerCase()]);
+  res.set("Cache-Control", "private, no-store");
+  res.vary("Cookie");
+  const found = await findProfileByUsername({ query }, req.params.username);
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const owner = found.rows[0];
   const isOwner = req.user?.id === owner.id;
@@ -4029,13 +4057,16 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
     wishCount: wishes.filter((wish) => wish.status === "active" && wish.listIds.includes(list.id)).length,
   }));
   res.json({
-    profile: { ...cleanUser(owner), email: undefined }, lists: visibleLists, wishes,
+    profile: { ...shareUser(owner), bio: owner.bio, birthday: owner.birthday }, lists: visibleLists, wishes,
+    groups: await getVisibleWishGroups(owner.id, visibleLists, wishes),
     isOwner, isFollowing: follower, hasWishlistAccess,
     followersCount: Number(stats[0].rows[0].count), followingCount: Number(stats[1].rows[0].count),
   });
 }));
 
 app.get("/api/shared/:token", asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  res.vary("Cookie");
   const found = await query(
     `SELECT l.*,u.username,u.name,u.bio,u.avatar_url,u.birthday FROM wishlists l JOIN users u ON u.id=l.user_id WHERE l.share_token=$1`,
     [req.params.token],
@@ -4060,11 +4091,11 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
     .filter((wish) => wish.listIds.includes(row.id))
     .filter((wish) => isOwner || wish.status === "active")
     .map((wish) => ({ ...wish, listIds: isOwner ? wish.listIds : [row.id], shareToken: req.params.token }));
-  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, isOwner, isFollowing: Boolean(follows.rowCount) });
+  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, groups: await getVisibleWishGroups(row.user_id, [list], wishes), isOwner, isFollowing: Boolean(follows.rowCount) });
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
-  const found = await query("SELECT id,name,username FROM users WHERE username=$1", [req.params.username.toLowerCase()]);
+  const found = await findProfileByUsername({ query }, req.params.username);
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const target = found.rows[0];
   if (target.id === req.user.id) return res.status(400).json({ error: "На себя уже можно положиться" });

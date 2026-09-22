@@ -7,8 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 
-export function ohMyWishesBrandPath(brand = "") {
-  const search = new URLSearchParams({ source: "ohmywishes" });
+export function brandCatalogPath(brand = "") {
+  const search = new URLSearchParams({ source: "brands" });
   if (brand) search.set("brand", brand);
   return `${APP_WISH_CATALOG_PATH}?${search}`;
 }
@@ -34,13 +34,13 @@ function BrandAvatar({ brand, large = false }) {
   </Avatar>;
 }
 
-export function OhMyWishesBrandSelect() {
+export function BrandCatalogSelect() {
   const location = useLocation();
   const navigate = useNavigate();
   const { brands, loading, error } = useBrands();
   const selected = new URLSearchParams(location.search).get("brand") || "";
   const current = brands.find((brand) => brand.slug === selected);
-  return <Select value={selected || "recommendations"} onValueChange={(slug) => navigate(ohMyWishesBrandPath(slug === "recommendations" ? "" : slug))}>
+  return <Select value={selected || "recommendations"} onValueChange={(slug) => navigate(brandCatalogPath(slug === "recommendations" ? "" : slug))}>
     <SelectTrigger className="space-select global-service-select rounded-full" aria-label="Бренд каталога" title={error?.message || "Бренды"} disabled={loading || Boolean(error)}>
       <SelectValue>{() => <>{loading ? <Spinner /> : current ? <BrandAvatar brand={current} /> : <Sparkles aria-hidden="true" />}<span className="space-select__label">{error ? "Бренды недоступны" : current?.label || (selected ? "Бренд не найден" : "Рекомендации")}</span></>}</SelectValue>
     </SelectTrigger>
