@@ -19,7 +19,7 @@ const SphereSharingContext = createContext({
 export function sphereScopeFromLocation(pathname, search, tabsBySphere = {}) {
   const sphere = pathname.match(/^\/app\/spheres\/([^/]+)/)?.[1] || "";
   if (!sphere) return null;
-  if (sphere === "contacts") return { sphere, section: "contacts" };
+  if (sphere === "contacts") return { sphere: "career", section: "contacts" };
   const tabs = tabsBySphere[sphere] || [];
   const requested = new URLSearchParams(search).get("tab");
   const section = tabs.some((tab) => tab.id === requested) ? requested : tabs[0]?.id;

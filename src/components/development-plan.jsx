@@ -1,14 +1,11 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, MarkdownEditorDrawer, useCareerContent,
 } from "@/components/career-content";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,11 +40,13 @@ const DEVELOPMENT_PLAN_SOURCE = [];
 
 const DEVELOPMENT_GROUP_LABELS = ["Сильная сторона", "Зона развития"];
 
-function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
+function EntryEditor({ initialValue = "", onDelete, onOpenChange, onSave, open }) {
   const isMobile = useIsMobile();
   const fieldId = useId();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const busy = saving || deleting;
   const [error, setError] = useState("");
   const editing = Boolean(initialValue);
 
@@ -59,11 +58,12 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
   }, [initialValue, open]);
 
   const changeOpen = (nextOpen) => {
-    if (!saving) onOpenChange(nextOpen);
+    if (!busy) onOpenChange(nextOpen);
   };
 
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     const value = draft.trim();
     if (!value) {
       setError("Напишите текст пункта.");
@@ -86,7 +86,7 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
         className="rollapp-body app-drawer--document"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
           aria-label="Закрыть редактор пункта"
         >
           <X aria-hidden="true" />
@@ -116,13 +116,22 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
               />
               <FieldDescription>Сформулируйте одно действие или практику.</FieldDescription>
             </Field>
+            {onDelete && <EditorDeleteAction
+              label="Удалить пункт"
+              title="Удалить этот пункт?"
+              description="Пункт будет удалён без возможности восстановления."
+              disabled={saving}
+              onBusyChange={setDeleting}
+              onDelete={onDelete}
+              onDeleted={() => onOpenChange(false)}
+            />}
           </div>
           <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить пункт"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
             </DrawerClose>
           </DrawerFooter>
@@ -132,7 +141,7 @@ function EntryEditor({ initialValue = "", onOpenChange, onSave, open }) {
   );
 }
 
-function EntryList({ disabled, items, onAdd, onDelete, onEdit, readOnly, title }) {
+function EntryList({ disabled, items, onAdd, onEdit, readOnly, title }) {
   return (
     <section className="development-plan-editor__list-section">
       <header className="development-plan-editor__list-header">
@@ -157,13 +166,6 @@ function EntryList({ disabled, items, onAdd, onDelete, onEdit, readOnly, title }
                   >
                     <Pencil aria-hidden="true" />
                   </CareerIconAction>
-                  <CareerIconAction
-                    disabled={disabled}
-                    label={`Удалить пункт ${index + 1}`}
-                    onClick={() => onDelete(index)}
-                  >
-                    <Trash2 className="text-destructive" aria-hidden="true" />
-                  </CareerIconAction>
                 </div>
               )}
             </li>
@@ -180,8 +182,6 @@ export function DevelopmentPlan() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
   const [wholeEditorOpen, setWholeEditorOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const [movingItem, setMovingItem] = useState("");
   const careerContent = useCareerContent("development", DEVELOPMENT_PLAN_SOURCE);
   const content = typeof careerContent.content === "string" ? careerContent.content : DEVELOPMENT_PLAN_SOURCE;
@@ -212,25 +212,17 @@ export function DevelopmentPlan() {
   };
 
   const removeEntry = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const groups = plan.groups.map((group, groupIndex) => groupIndex !== deleteTarget.groupIndex ? group : {
-        ...group,
-        items: group.items.map((item, itemIndex) => itemIndex !== deleteTarget.itemIndex ? item : {
-          ...item,
-          [deleteTarget.listKey]: item[deleteTarget.listKey]
-            .filter((_, entryIndex) => entryIndex !== deleteTarget.entryIndex),
-        }),
-      });
-      await savePlan(groups);
-      setDeleteTarget(null);
-      toast.success("Пункт удалён");
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setDeleting(false);
-    }
+    if (!editor || editor.entryIndex === undefined) return;
+    const groups = plan.groups.map((group, groupIndex) => groupIndex !== editor.groupIndex ? group : {
+      ...group,
+      items: group.items.map((item, itemIndex) => itemIndex !== editor.itemIndex ? item : {
+        ...item,
+        [editor.listKey]: item[editor.listKey]
+          .filter((_, entryIndex) => entryIndex !== editor.entryIndex),
+      }),
+    });
+    await savePlan(groups);
+    toast.success("Пункт удалён");
   };
 
   const moveItem = async (fromGroupIndex, itemIndex, targetGroup) => {
@@ -254,7 +246,6 @@ export function DevelopmentPlan() {
     readOnly,
     onAdd: () => setEditor({ groupIndex, itemIndex, listKey }),
     onEdit: (entryIndex) => setEditor({ groupIndex, itemIndex, listKey, entryIndex }),
-    onDelete: (entryIndex) => setDeleteTarget({ groupIndex, itemIndex, listKey, entryIndex }),
   });
 
   return (
@@ -339,6 +330,7 @@ export function DevelopmentPlan() {
           onOpenChange={(open) => {
             if (!open) setEditor(null);
           }}
+          onDelete={editor?.entryIndex === undefined ? undefined : removeEntry}
           onSave={saveEntry}
         />
       )}
@@ -350,26 +342,6 @@ export function DevelopmentPlan() {
           onOpenChange={setWholeEditorOpen}
           onSave={careerContent.save}
         />
-      )}
-      {!readOnly && (
-        <AlertDialog
-          open={Boolean(deleteTarget)}
-          onOpenChange={(open) => !deleting && !open && setDeleteTarget(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Удалить этот пункт?</AlertDialogTitle>
-              <AlertDialogDescription>Пункт будет удалён без возможности восстановления.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeEntry}>
-                {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-                Удалить пункт
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       )}
     </div>
   );

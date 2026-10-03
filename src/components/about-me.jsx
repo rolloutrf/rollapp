@@ -1,17 +1,14 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import aboutMeSource from "@/data/about-me.md?raw";
+import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, useCareerContent,
 } from "@/components/career-content";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -24,12 +21,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { parseAboutMeMarkdown, serializeAboutMeMarkdown } from "@/lib/about-me";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
-function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
+function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, open }) {
   const isMobile = useIsMobile();
   const questionId = useId();
   const descriptionId = useId();
   const [draft, setDraft] = useState({ question: "", description: "" });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const busy = saving || deleting;
   const [error, setError] = useState("");
   const editing = mode === "edit";
 
@@ -44,11 +43,12 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
   }, [entry, open]);
 
   const changeOpen = (nextOpen) => {
-    if (!saving) onOpenChange(nextOpen);
+    if (!busy) onOpenChange(nextOpen);
   };
 
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     const nextEntry = {
       question: draft.question.trim(),
       description: draft.description.trim(),
@@ -75,7 +75,7 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
         className="rollapp-body app-drawer--document"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
           aria-label="Закрыть редактор вопроса"
         >
           <X aria-hidden="true" />
@@ -117,13 +117,22 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
                 <FieldDescription>Оставьте пустую строку между абзацами. Ссылки можно добавлять в формате Markdown.</FieldDescription>
               </Field>
             </FieldGroup>
+            {editing && onDelete && <EditorDeleteAction
+              label="Удалить вопрос"
+              title="Удалить этот вопрос?"
+              description="Вопрос и ответ будут удалены без возможности восстановления."
+              disabled={saving}
+              onBusyChange={setDeleting}
+              onDelete={onDelete}
+              onDeleted={() => onOpenChange(false)}
+            />}
           </div>
           <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить вопрос"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
             </DrawerClose>
           </DrawerFooter>
@@ -136,8 +145,6 @@ function AboutMeQuestionEditor({ entry, mode, onOpenChange, onSave, open }) {
 export function AboutMe() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
-  const [deleteIndex, setDeleteIndex] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const careerContent = useCareerContent("about", aboutMeSource);
   const content = typeof careerContent.content === "string" ? careerContent.content : aboutMeSource;
   const parsed = parseAboutMeMarkdown(content);
@@ -151,18 +158,10 @@ export function AboutMe() {
   };
 
   const removeQuestion = async () => {
-    if (deleteIndex === null) return;
-    setDeleting(true);
-    try {
-      const questions = parsed.questions.filter((_, index) => index !== deleteIndex);
-      await careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
-      setDeleteIndex(null);
-      toast.success("Вопрос удалён");
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setDeleting(false);
-    }
+    if (editingIndex === null) return;
+    const questions = parsed.questions.filter((_, index) => index !== editingIndex);
+    await careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
+    toast.success("Вопрос удалён");
   };
 
   return (
@@ -195,13 +194,6 @@ export function AboutMe() {
                 >
                   <Pencil aria-hidden="true" />
                 </CareerIconAction>
-                <CareerIconAction
-                  disabled={careerContent.loading}
-                  label={`Удалить вопрос «${entry.question}»`}
-                  onClick={() => setDeleteIndex(index)}
-                >
-                  <Trash2 className="text-destructive" aria-hidden="true" />
-                </CareerIconAction>
               </div>
             )}
           </article>
@@ -215,23 +207,9 @@ export function AboutMe() {
         onOpenChange={(open) => {
           if (!open) setEditor(null);
         }}
+        onDelete={readOnly ? undefined : removeQuestion}
         onSave={saveQuestion}
       />
-      {!readOnly && <AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !deleting && !open && setDeleteIndex(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Удалить этот вопрос?</AlertDialogTitle>
-            <AlertDialogDescription>Вопрос и ответ будут удалены без возможности восстановления.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeQuestion}>
-              {deleting ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-              Удалить вопрос
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>}
     </div>
   );
 }

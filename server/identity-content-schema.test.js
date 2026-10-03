@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { IDENTITY_QUESTION_TITLES } from "../shared/identity-questions.js";
-import { identityCharacterSchema, identityFourQuestionsSchema, identityValuesSchema } from "./identity-content-schema.js";
+import { identityCharacterSchema, identityContentSchemas, identityFourQuestionsSchema, identitySectionSchema, identityValuesSchema } from "./identity-content-schema.js";
+
+test("principles accept Markdown and clearing, with the same limits as theses", () => {
+  assert.equal(identitySectionSchema.parse("principles"), "principles");
+  assert.equal(identitySectionSchema.safeParse("unknown").success, false);
+  for (const section of ["theses", "principles"]) {
+    const schema = identityContentSchemas[section];
+    for (const content of ["", "> Держать слово.\n>\n> Предупреждать об изменениях.\n", "а".repeat(200_000)]) {
+      assert.equal(schema.parse(content), content);
+    }
+    assert.equal(schema.safeParse("а".repeat(200_001)).success, false);
+    assert.equal(schema.safeParse({ content: "текст" }).success, false);
+    assert.equal(schema.safeParse(null).success, false);
+  }
+});
 
 test("legacy character traits are preserved as selectable custom traits", () => {
   assert.deepEqual(identityCharacterSchema.parse([

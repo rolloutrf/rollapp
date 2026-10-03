@@ -51,7 +51,7 @@ import {
 import { generateIdentityReport, identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
 import { parsePerformanceReviewPdf } from "./performance-review-pdf.js";
 import {
-  identityCharacterSchema, identityFourQuestionsSchema, identityValuesSchema,
+  identityContentSchemas, identityFourQuestionsSchema, identitySectionSchema,
 } from "./identity-content-schema.js";
 import {
   previewBackfillPatch,
@@ -94,7 +94,7 @@ import {
 import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
-import { isSphereSection } from "../shared/sphere-sharing.js";
+import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/sphere-sharing.js";
 import { getSmsConfig, sendSms } from "./sms.js";
 import {
   getTelegramAuthConfig,
@@ -461,16 +461,7 @@ const careerContentSchemas = {
   domain: careerMarkdownSchema,
   performance: careerPerformanceSchema,
 };
-const identitySectionSchema = z.enum(["four-questions", "theses", "values", "character", "mission", "life-strategy"]);
 const identityReportSectionSchema = z.enum(["hogan", "gallup"]);
-const identityContentSchemas = {
-  theses: careerMarkdownSchema,
-  values: identityValuesSchema,
-  character: identityCharacterSchema,
-  mission: careerMarkdownSchema,
-  "life-strategy": careerMarkdownSchema,
-  "four-questions": identityFourQuestionsSchema,
-};
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -1018,6 +1009,7 @@ function shareUser(row) {
 
 async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
   if (!isSphereSection(sphere, section)) return { status: 404, error: "Раздел не найден" };
+  ({ sphere, section } = sphereSectionStorageScope(sphere, section));
   const ownerUsername = String(requestedOwner || "").trim().toLowerCase();
   if (!ownerUsername || ownerUsername === viewer.username) {
     if (!viewer.can_discover_spheres) return { status: 403, error: "Раздел доступен только владельцу профиля" };
@@ -2207,8 +2199,7 @@ app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyn
   res.set("Cache-Control", "private, no-store");
   return res.json({
     shares: result.rows.map((row) => ({
-      sphere: row.sphere,
-      section: row.section,
+      ...canonicalSphereSection(row.sphere, row.section),
       createdAt: row.created_at,
       owner: shareUser(row),
     })),
@@ -2216,8 +2207,7 @@ app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyn
 }));
 
 app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) => {
-  const sphere = String(req.query.sphere || "");
-  const section = String(req.query.section || "");
+  const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
   const access = await sphereShareOwner(req.user, req.query.owner, sphere, section);
   if (access.error) return res.status(access.status).json({ error: access.error, code: access.code });
   let people = [];
@@ -2252,12 +2242,11 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
     }));
   }
   res.set("Cache-Control", "private, no-store");
-  return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, sphere, section });
+  return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
 }));
 
 app.get("/api/sphere-shares/candidates", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
-  const sphere = String(req.query.sphere || "");
-  const section = String(req.query.section || "");
+  const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
   if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
   const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
   const result = await query(
@@ -2308,8 +2297,7 @@ app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, as
   return res.json({
     requests: result.rows.map((row) => ({
       id: row.id,
-      sphere: row.sphere,
-      section: row.section,
+      ...canonicalSphereSection(row.sphere, row.section),
       message: row.message,
       status: row.status,
       createdAt: row.created_at,
@@ -2330,7 +2318,8 @@ app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, a
   if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
     return res.status(400).json({ error: "Выберите пользователя и конкретное пространство" });
   }
-  const { ownerId, sphere, section, message } = parsed.data;
+  const { ownerId, message } = parsed.data;
+  const { sphere, section } = sphereSectionStorageScope(parsed.data.sphere, parsed.data.section);
   if (ownerId === req.user.id) return res.status(400).json({ error: "Нельзя запросить доступ у себя" });
   const owner = await query(
     `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
@@ -2370,8 +2359,7 @@ app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, a
   return res.status(201).json({
     request: {
       id: result.rows[0].id,
-      sphere,
-      section,
+      ...canonicalSphereSection(sphere, section),
       message,
       status: result.rows[0].status,
       createdAt: result.rows[0].created_at,
@@ -2449,7 +2437,8 @@ app.post("/api/sphere-shares", requireAuth, requirePrivateSphereOwner, asyncRout
   if (!parsed.success || !isSphereSection(parsed.data?.sphere, parsed.data?.section)) {
     return res.status(400).json({ error: "Не удалось изменить доступ к разделу" });
   }
-  const { viewerId, sphere, section, granted } = parsed.data;
+  const { viewerId, granted } = parsed.data;
+  const { sphere, section } = sphereSectionStorageScope(parsed.data.sphere, parsed.data.section);
   if (viewerId === req.user.id) return res.status(400).json({ error: "Владелец уже имеет доступ к разделу" });
   const viewer = await query("SELECT id,account_type FROM users WHERE id=$1", [viewerId]);
   if (!viewer.rowCount) return res.status(404).json({ error: "Пользователь не найден" });
@@ -4458,7 +4447,7 @@ async function labResultsPayload(userId, ownerUsername = "", client = null) {
   };
 }
 
-app.get("/api/contacts", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
+app.get("/api/contacts", requireAuth, requireSphereReadAccess("career", "contacts"), asyncRoute(async (req, res) => {
   const [overrides, favoriteIds] = await Promise.all([
     contactOverrides(req.user.id),
     contactFavoriteIds(req.user.id),
@@ -6096,7 +6085,7 @@ app.get("/api/health/lab-results/uploads/:id/pdf", requireAuth, requireSphereRea
   return res.type(file.mime_type).send(file.pdf_data);
 }));
 
-app.get("/api/contacts/:contactId/avatar", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
+app.get("/api/contacts/:contactId/avatar", requireAuth, requireSphereReadAccess("career", "contacts"), asyncRoute(async (req, res) => {
   const contact = await contactForUser(req.user.id, req.params.contactId);
   if (!contact || !contactAvatarPath(contact)) return res.status(404).end();
   try {
@@ -6133,7 +6122,7 @@ app.get("/api/contacts/:contactId/avatar", requireAuth, requireSphereReadAccess(
   }
 }));
 
-app.get("/api/contacts/:contactId", requireAuth, requireSphereReadAccess("contacts", "contacts"), asyncRoute(async (req, res) => {
+app.get("/api/contacts/:contactId", requireAuth, requireSphereReadAccess("career", "contacts"), asyncRoute(async (req, res) => {
   const contact = await contactForUser(req.user.id, req.params.contactId);
   if (!contact) return res.status(404).json({ error: "Контакт не найден" });
   res.set("Cache-Control", "private, no-store");

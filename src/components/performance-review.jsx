@@ -5,7 +5,6 @@ import {
   FileUp,
   MessageSquareQuote,
   Sparkles,
-  Trash2,
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -15,10 +14,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -297,7 +292,6 @@ export function PerformanceReview() {
   const { readOnly } = useSphereSharing();
   const [activeCycleId, setActiveCycleId] = useState(PERFORMANCE_CYCLES[0]?.id || "");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState(null);
@@ -371,10 +365,8 @@ export function PerformanceReview() {
     try {
       await careerContent.save({ ...performanceContent, cycles: remainingCycles });
       setActiveCycleId(nextCycle?.id || "");
-      setDeleteOpen(false);
+      setEditorOpen(false);
       setActionFeedback({ tone: "success", message: `Цикл «${activeCycle.season} ${activeCycle.year}» удалён.` });
-    } catch (error) {
-      setActionFeedback({ tone: "error", message: error.message });
     } finally {
       setDeleting(false);
     }
@@ -453,18 +445,6 @@ export function PerformanceReview() {
               </TabsTrigger>
             ))}
           </TabsList>
-          {!readOnly && <Button
-            className="size-12 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            variant="ghost"
-            size="icon"
-            type="button"
-            aria-label={`Удалить цикл «${activeCycle.season} ${activeCycle.year}»`}
-            title="Удалить выбранный цикл"
-            disabled={careerContent.loading || importing || deleting}
-            onClick={() => setDeleteOpen(true)}
-          >
-            <Trash2 aria-hidden="true" />
-          </Button>}
         </div>
 
         <TabsContent className="flex min-w-0 flex-col gap-6" value={activeCycle.id}>
@@ -527,25 +507,9 @@ export function PerformanceReview() {
         content={performanceContent}
         open={editorOpen}
         onOpenChange={setEditorOpen}
+        onDelete={deleteActiveCycle}
         onSave={careerContent.save}
       />}
-      {!readOnly && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Удалить цикл ревью?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Цикл «{activeCycle?.season} {activeCycle?.year}» вместе со всеми проектами и отзывами будет удалён без возможности восстановления.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={deleting || importing || careerContent.loading} onClick={deleteActiveCycle}>
-              {deleting && <Spinner data-icon="inline-start" aria-hidden="true" />}
-              {deleting ? "Удаляем" : "Удалить цикл"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>}
     </article>
   );
 }

@@ -2,10 +2,8 @@ import "dotenv/config";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { productionConnectionMode } from "./production-dev-config.mjs";
 import {
-  createProductionDatabaseEnvironment,
-  readTunnelConfig,
-  startTunnel,
   stopTunnel,
   tunnelStatus,
 } from "./production-db-tunnel.mjs";
@@ -26,29 +24,28 @@ function runDevService(command, environment = process.env) {
 }
 
 async function startProductionService() {
-  const config = readTunnelConfig();
-  const tunnel = await startTunnel();
-  if (!tunnel.ready) throw new Error("SSH-туннель не стал готов за 20 секунд.");
+  productionConnectionMode(process.env);
 
-  const stopCode = await runDevService("stop");
-  if (stopCode !== 0) throw new Error("Не удалось остановить предыдущий dev-сервис.");
-
-  const environment = createProductionDatabaseEnvironment(process.env, config);
-  const startCode = await runDevService("start", environment);
+  const startCode = await runDevService("start", { ...process.env, DEMO_MODE: "false" });
   if (startCode !== 0) process.exitCode = startCode;
 }
 
 async function showStatus() {
-  const tunnel = await tunnelStatus();
-  console.log(`SSH-туннель: ${tunnel.ready ? "готов" : tunnel.running ? "переподключается" : "остановлен"} (${tunnel.detail}).`);
+  if (productionConnectionMode(process.env) === "tunnel") {
+    const tunnel = await tunnelStatus();
+    console.log(`SSH-туннель: ${tunnel.ready ? "готов" : tunnel.running ? "переподключается" : "остановлен"} (${tunnel.detail}).`);
+    if (!tunnel.ready) process.exitCode = 1;
+  } else console.log("Production PostgreSQL: прямое подключение с проверкой TLS.");
   const serviceCode = await runDevService("status");
-  if (!tunnel.ready || serviceCode !== 0) process.exitCode = 1;
+  if (serviceCode !== 0) process.exitCode = 1;
 }
 
 async function stopProductionService() {
   const serviceCode = await runDevService("stop");
-  const tunnel = await stopTunnel();
-  console.log(`SSH-туннель: ${tunnel.detail}.`);
+  if (productionConnectionMode(process.env) === "tunnel") {
+    const tunnel = await stopTunnel();
+    console.log(`SSH-туннель: ${tunnel.detail}.`);
+  }
   if (serviceCode !== 0) process.exitCode = serviceCode;
 }
 

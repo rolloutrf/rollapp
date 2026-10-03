@@ -1,4 +1,5 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import { spawn, execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
@@ -11,6 +12,7 @@ const scriptDirectory = path.dirname(scriptPath);
 const projectDirectory = path.resolve(scriptDirectory, "..");
 const pidFilePath = path.join(projectDirectory, ".rollapp-db-tunnel.pid");
 const logFilePath = path.join(projectDirectory, ".rollapp-db-tunnel.log");
+dotenv.config({ path: path.join(projectDirectory, ".env.local"), override: false, quiet: true });
 
 const wait = (duration) => new Promise((resolve) => setTimeout(resolve, duration));
 
@@ -153,16 +155,18 @@ function isProcessAlive(pid) {
   }
 }
 
-function processMatches(record) {
+export function tunnelProcessMatches(record, inspect = execFileSync) {
   try {
-    const command = execFileSync(
+    const command = inspect(
       "ps",
       ["-ww", "-p", String(record.pid), "-o", "command="],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
     );
     return command.includes(scriptPath) && command.includes("supervise") && command.includes(record.token);
   } catch {
-    return false;
+    // A sandbox can deny ps even though the controller is alive. Never unlink
+    // its PID file or start a competing controller when ownership is unknown.
+    throw new Error(`Не удалось проверить процесс ${record.pid}. Повторите команду вне sandbox; PID-файл сохранён.`);
   }
 }
 
@@ -183,10 +187,29 @@ async function isTunnelListening(port) {
 async function waitForTunnel(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await isTunnelListening(port)) return true;
+    if (await isPostgresReachable(port)) return true;
     await wait(250);
   }
   return false;
+}
+
+async function isPostgresReachable(port) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const complete = (ready) => { socket.destroy(); resolve(ready); };
+    socket.once("connect", () => {
+      // PostgreSQL SSLRequest: checks the forwarded endpoint without credentials
+      // or data changes. The application still verifies TLS and authenticates.
+      const request = Buffer.alloc(8);
+      request.writeInt32BE(8, 0);
+      request.writeInt32BE(80877103, 4);
+      socket.write(request);
+    });
+    socket.once("data", (data) => complete(data[0] === 0x53));
+    socket.once("error", () => complete(false));
+    socket.once("end", () => complete(false));
+    socket.setTimeout(3_000, () => complete(false));
+  });
 }
 
 function writeLog(message) {
@@ -228,10 +251,28 @@ async function supervise(token) {
     while (!stopping) {
       writeLog(`Подключение SSH-туннеля к ${config.database.host}:${config.database.port}.`);
       sshChild = spawn("ssh", buildSshArguments(config), { stdio: "inherit" });
-      const result = await waitForChildExit(sshChild);
+      const startedAt = Date.now();
+      let probing = false;
+      let failures = 0;
+      const monitoredChild = sshChild;
+      const healthTimer = setInterval(async () => {
+        if (probing || stopping) return;
+        probing = true;
+        try {
+          failures = await isPostgresReachable(config.localPort) ? 0 : failures + 1;
+          if (failures >= 3 && sshChild === monitoredChild) {
+            writeLog("PostgreSQL не отвечает через туннель; переподключение.");
+            monitoredChild.kill("SIGTERM");
+          }
+        } finally { probing = false; }
+      }, 20_000);
+      let result;
+      try { result = await waitForChildExit(sshChild); }
+      finally { clearInterval(healthTimer); }
       sshChild = undefined;
       if (stopping) break;
 
+      if (Date.now() - startedAt >= 60_000) attempt = 0;
       attempt += 1;
       const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5));
       writeLog(`SSH-туннель остановлен (${result.error?.message || result.signal || result.code || "unknown"}); повтор через ${Math.round(delay / 1_000)} с.`);
@@ -255,31 +296,35 @@ export async function tunnelStatus() {
   if (current.kind !== "valid") {
     return { running: false, ready: false, detail: current.kind === "missing" ? "контроллер не запущен" : "PID-файл повреждён" };
   }
-  if (!isProcessAlive(current.value.pid) || !processMatches(current.value)) {
+  if (!isProcessAlive(current.value.pid) || !tunnelProcessMatches(current.value)) {
     removePidFile();
     return { running: false, ready: false, detail: "stale PID-файл удалён" };
   }
   const config = readTunnelConfig();
-  const ready = await isTunnelListening(config.localPort);
+  const ready = await isPostgresReachable(config.localPort);
   return { running: true, ready, detail: ready ? `127.0.0.1:${config.localPort}` : "переподключение" };
 }
 
 export async function startTunnel() {
   const config = readTunnelConfig();
   const current = readPidRecord();
-  if (current.kind === "valid" && isProcessAlive(current.value.pid) && processMatches(current.value)) {
+  if (current.kind === "valid" && isProcessAlive(current.value.pid) && tunnelProcessMatches(current.value)) {
     const ready = await waitForTunnel(config.localPort, 20_000);
     return { started: false, ready, config };
   }
-  if (current.kind === "valid" || current.kind === "invalid") removePidFile();
+  if (current.kind === "invalid") throw new Error("PID-файл туннеля повреждён; проверьте контроллер перед повторным запуском.");
+  if (current.kind === "valid") removePidFile();
   if (await isTunnelListening(config.localPort)) {
     throw new Error(`Порт 127.0.0.1:${config.localPort} уже занят другим процессом. Остановите старый туннель перед запуском контроллера.`);
   }
 
   const token = randomBytes(16).toString("hex");
-  const logDescriptor = fs.openSync(logFilePath, "a", 0o600);
+  // Reserve before spawning so concurrent starts cannot launch two controllers.
+  const pidDescriptor = fs.openSync(pidFilePath, "wx", 0o600);
+  let logDescriptor;
   let child;
   try {
+    logDescriptor = fs.openSync(logFilePath, "a", 0o600);
     child = spawn(process.execPath, [scriptPath, "supervise", token], {
       argv0: `rollapp-db-tunnel:${token}`,
       cwd: projectDirectory,
@@ -296,14 +341,15 @@ export async function startTunnel() {
       cwd: projectDirectory,
       script: scriptPath,
     };
-    fs.writeFileSync(pidFilePath, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    fs.writeFileSync(pidDescriptor, `${JSON.stringify(record, null, 2)}\n`);
     child.unref();
   } catch (error) {
     if (child?.pid) child.kill("SIGTERM");
     removePidFile();
     throw error;
   } finally {
-    fs.closeSync(logDescriptor);
+    fs.closeSync(pidDescriptor);
+    if (logDescriptor !== undefined) fs.closeSync(logDescriptor);
   }
 
   const ready = await waitForTunnel(config.localPort, 20_000);
@@ -313,7 +359,8 @@ export async function startTunnel() {
 export async function stopTunnel() {
   const current = readPidRecord();
   if (current.kind === "missing") return { stopped: false, detail: "контроллер уже остановлен" };
-  if (current.kind !== "valid" || !isProcessAlive(current.value.pid) || !processMatches(current.value)) {
+  if (current.kind === "invalid") throw new Error("PID-файл туннеля повреждён; автоматическая остановка небезопасна.");
+  if (!isProcessAlive(current.value.pid) || !tunnelProcessMatches(current.value)) {
     removePidFile();
     return { stopped: false, detail: "stale PID-файл удалён" };
   }

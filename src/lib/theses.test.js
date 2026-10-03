@@ -14,3 +14,12 @@ test("serializeThesesMarkdown preserves individual theses after removal and addi
   assert.equal(source, "> Первый тезис\n\n> Новый\n> тезис\n");
   assert.deepEqual(parseThesesMarkdown(source), ["Первый тезис", "Новый\nтезис"]);
 });
+
+test("principles preserve paragraphs and literal headings when saved and reopened", () => {
+  const principles = ["Держать слово.\n\nПредупреждать, если планы меняются.", "# Принципы", "# Тезисы"];
+  const source = serializeThesesMarkdown(principles);
+
+  assert.deepEqual(parseThesesMarkdown(source, "Принципы"), principles);
+  assert.deepEqual(parseThesesMarkdown(`# Принципы\n\n${source}`, "Принципы"), principles);
+  assert.deepEqual(parseThesesMarkdown(serializeThesesMarkdown([]), "Принципы"), []);
+});

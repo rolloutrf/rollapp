@@ -1,14 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, RotateCcw, X } from "lucide-react";
 import { api } from "@/api";
+import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -122,11 +119,16 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
   );
 }
 
-export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, open }) {
+export function MarkdownEditorDrawer({
+  content, deleteLabel = "Удалить", deleteTitle, deleteDescription, label,
+  onDelete, onOpenChange, onSave, open,
+}) {
   const isMobile = useIsMobile();
   const fieldId = useId();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const busy = saving || deleting;
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -137,11 +139,12 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
   }, [content, open]);
 
   const changeOpen = (nextOpen) => {
-    if (!saving) onOpenChange(nextOpen);
+    if (!busy) onOpenChange(nextOpen);
   };
 
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     setSaving(true);
     setError("");
     try {
@@ -159,7 +162,7 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
         className="rollapp-body app-drawer--document"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
           aria-label={`Закрыть редактирование раздела «${label}»`}
         >
           <X aria-hidden="true" />
@@ -190,13 +193,22 @@ export function MarkdownEditorDrawer({ content, label, onOpenChange, onSave, ope
                 Поддерживаются заголовки с символом #, списки с дефисом, жирный текст **в звёздочках** и ссылки [название](https://…).
               </FieldDescription>
             </Field>
+            {onDelete && <EditorDeleteAction
+              label={deleteLabel}
+              title={deleteTitle}
+              description={deleteDescription}
+              disabled={saving}
+              onBusyChange={setDeleting}
+              onDelete={onDelete}
+              onDeleted={() => onOpenChange(false)}
+            />}
           </div>
           <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить изменения"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
             </DrawerClose>
           </DrawerFooter>
@@ -316,7 +328,6 @@ export function EditableMarkdownDocument({
   const [editorOpen, setEditorOpen] = useState(false);
   const [periodCreatorOpen, setPeriodCreatorOpen] = useState(false);
   const [periodEditorId, setPeriodEditorId] = useState(null);
-  const [deletePeriodId, setDeletePeriodId] = useState(null);
   const [deletingPeriod, setDeletingPeriod] = useState(false);
   const [taskContent, setTaskContent] = useState(null);
   const [taskSaving, setTaskSaving] = useState(false);
@@ -326,7 +337,6 @@ export function EditableMarkdownDocument({
   const renderedContent = taskContent ?? content;
   const periods = collapsibleAges ? getLifeStrategyPeriods(renderedContent) : [];
   const editingPeriod = periods.find((period) => period.id === periodEditorId) || null;
-  const deletePeriod = periods.find((period) => period.id === deletePeriodId) || null;
 
   useEffect(() => {
     setTaskContent(null);
@@ -335,11 +345,6 @@ export function EditableMarkdownDocument({
   const editPeriod = (title) => {
     const period = periods.find((item) => item.title === title);
     if (period) setPeriodEditorId(period.id);
-  };
-
-  const requestDeletePeriod = (title) => {
-    const period = periods.find((item) => item.title === title);
-    if (period) setDeletePeriodId(period.id);
   };
 
   const savePeriod = async (draft) => {
@@ -351,15 +356,11 @@ export function EditableMarkdownDocument({
     careerContent.save(addLifeStrategyPeriod(content, age, periodContent))
   );
 
-  const confirmDeletePeriod = async () => {
-    if (!deletePeriod) return;
+  const removePeriod = async () => {
+    if (!editingPeriod) throw new Error("Период жизненной стратегии не найден");
     setDeletingPeriod(true);
-    setTaskError("");
     try {
-      await careerContent.save(removeLifeStrategyPeriod(content, deletePeriod.id));
-      setDeletePeriodId(null);
-    } catch (error) {
-      setTaskError(error.message);
+      await careerContent.save(removeLifeStrategyPeriod(content, editingPeriod.id));
     } finally {
       setDeletingPeriod(false);
     }
@@ -411,10 +412,8 @@ export function EditableMarkdownDocument({
         className={className}
         collapsibleAges={collapsibleAges}
         collapsibleStrategies={collapsibleStrategies}
-        ageDeleteDisabled={careerContent.loading || deletingPeriod || taskSaving || Boolean(careerContent.error)}
         ageEditDisabled={careerContent.loading || deletingPeriod || taskSaving || Boolean(careerContent.error)}
         hideSourceLabels={hideSourceLabels}
-        onDeleteAge={collapsibleAges && !readOnly ? requestDeletePeriod : undefined}
         onEditAge={collapsibleAges && !readOnly ? editPeriod : undefined}
         onTaskCheckedChange={readOnly ? undefined : toggleTask}
         taskDisabled={readOnly || careerContent.loading || Boolean(careerContent.error)}
@@ -442,28 +441,12 @@ export function EditableMarkdownDocument({
         onOpenChange={(open) => {
           if (!open) setPeriodEditorId(null);
         }}
+        deleteLabel="Удалить период"
+        deleteTitle={`Удалить период ${editingPeriod?.title}?`}
+        deleteDescription="Период и всё его содержимое будут удалены без возможности восстановления."
+        onDelete={readOnly ? undefined : removePeriod}
         onSave={savePeriod}
       />
-      {!readOnly && collapsibleAges && (
-        <AlertDialog
-          open={Boolean(deletePeriod)}
-          onOpenChange={(open) => !deletingPeriod && !open && setDeletePeriodId(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Удалить период {deletePeriod?.title}?</AlertDialogTitle>
-              <AlertDialogDescription>Период и всё его содержимое будут удалены без возможности восстановления.</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deletingPeriod}>Отмена</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" disabled={deletingPeriod} onClick={confirmDeletePeriod}>
-                {deletingPeriod ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-                {deletingPeriod ? "Удаляем" : "Удалить период"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 }

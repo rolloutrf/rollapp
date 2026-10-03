@@ -1,18 +1,14 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import {
-  AlertTriangle, Pencil, Plus, Trash2, X,
+  AlertTriangle, Pencil, Plus, X,
 } from "lucide-react";
-import { toast } from "sonner";
 import cvSource from "@/data/cv.md?raw";
+import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
   CareerContentError, CareerEditAction, useCareerContent,
 } from "@/components/career-content";
 import { MarkdownDocument } from "@/components/life-strategy";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -65,11 +61,13 @@ function editorDraft(editor, cv) {
   return {};
 }
 
-function CvEditor({ cv, editor, onOpenChange, onSave }) {
+function CvEditor({ cv, editor, onDelete, onOpenChange, onSave }) {
   const isMobile = useIsMobile();
   const formId = useId();
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const busy = saving || deleting;
   const [error, setError] = useState("");
   const open = Boolean(editor);
   const editingEntry = editor?.index !== undefined;
@@ -83,11 +81,12 @@ function CvEditor({ cv, editor, onOpenChange, onSave }) {
 
   const update = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
   const changeOpen = (nextOpen) => {
-    if (!saving) onOpenChange(nextOpen);
+    if (!busy) onOpenChange(nextOpen);
   };
 
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     if (editor.kind === "profile" && !draft.desiredPosition?.trim()) {
       setError("Укажите желаемую должность.");
       return;
@@ -125,7 +124,7 @@ function CvEditor({ cv, editor, onOpenChange, onSave }) {
         className="rollapp-body app-drawer--document"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
           aria-label="Закрыть редактор CV"
         >
           <X aria-hidden="true" />
@@ -254,13 +253,22 @@ function CvEditor({ cv, editor, onOpenChange, onSave }) {
                 </Field>
               </FieldGroup>
             )}
+            {editingEntry && onDelete && <EditorDeleteAction
+              label="Удалить запись"
+              title="Удалить запись из CV?"
+              description="Запись будет удалена без возможности восстановления."
+              disabled={saving}
+              onBusyChange={setDeleting}
+              onDelete={onDelete}
+              onDeleted={() => onOpenChange(false)}
+            />}
           </div>
           <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
             </DrawerClose>
           </DrawerFooter>
@@ -278,14 +286,11 @@ function SectionAction({ children, label, onClick }) {
   );
 }
 
-function ItemActions({ editLabel, onDelete, onEdit }) {
+function ItemActions({ editLabel, onEdit }) {
   return (
     <div className="not-typeset flex shrink-0 items-center gap-1">
       <CareerIconAction label={editLabel} onClick={onEdit}>
         <Pencil aria-hidden="true" />
-      </CareerIconAction>
-      <CareerIconAction label="Удалить" onClick={onDelete}>
-        <Trash2 className="text-destructive" aria-hidden="true" />
       </CareerIconAction>
     </div>
   );
@@ -301,8 +306,6 @@ function formatMonth(value) {
 export function CvResume() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
   const careerContent = useCareerContent("cv", normalizeCvContent(null, cvSource));
   const cv = useMemo(() => normalizeCvContent(careerContent.content, cvSource), [careerContent.content]);
   const hasStructuredContent = cvHasStructuredContent(cv);
@@ -357,17 +360,9 @@ export function CvResume() {
   };
 
   const removeItem = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const key = deleteTarget.kind === "experience" ? "experiences" : "education";
-      await careerContent.save({ ...cv, [key]: cv[key].filter((_, index) => index !== deleteTarget.index) });
-      setDeleteTarget(null);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setDeleting(false);
-    }
+    if (!editor || editor.index === undefined) return;
+    const key = editor.kind === "experience" ? "experiences" : "education";
+    await careerContent.save({ ...cv, [key]: cv[key].filter((_, index) => index !== editor.index) });
   };
 
   return (
@@ -404,7 +399,6 @@ export function CvResume() {
                     <ItemActions
                       editLabel={`Редактировать опыт в ${experience.company}`}
                       onEdit={() => setEditor({ kind: "experience", index })}
-                      onDelete={() => setDeleteTarget({ kind: "experience", index })}
                     />
                   )}
                 </article>
@@ -432,7 +426,6 @@ export function CvResume() {
                     <ItemActions
                       editLabel={`Редактировать образование «${education.institution}»`}
                       onEdit={() => setEditor({ kind: "education", index })}
-                      onDelete={() => setDeleteTarget({ kind: "education", index })}
                     />
                   )}
                 </article>
@@ -462,23 +455,7 @@ export function CvResume() {
         )}
       </article>
 
-      <CvEditor cv={cv} editor={editor} onOpenChange={(open) => !open && setEditor(null)} onSave={saveEditor} />
-
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !deleting && !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Удалить запись из CV?</AlertDialogTitle>
-            <AlertDialogDescription>Запись будет удалена без возможности восстановления.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={deleting} onClick={removeItem}>
-              {deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-              Удалить
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CvEditor onDelete={readOnly ? undefined : removeItem} cv={cv} editor={editor} onOpenChange={(open) => !open && setEditor(null)} onSave={saveEditor} />
     </div>
   );
 }

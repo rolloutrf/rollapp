@@ -3,6 +3,7 @@ export const drawerCases = [
   ['about', 'about-me', 'AboutMeQuestionEditor', { mode: 'create' }],
   ['character-trait', 'character-traits', 'CharacterTraitEditor', {mode:'create'}],
   ['thesis', 'theses', 'ThesisEditor', { mode: 'create' }],
+  ['principle', 'theses', 'ThesisEditor', { mode: 'create', section: 'principles' }],
   ['question', 'four-questions', 'FourQuestionEditor', { questionIndex: 0 }],
   ['markdown', 'career-content', 'MarkdownEditorDrawer', {content: '', label: 'Документ'}],
   ['life-period', 'career-content', 'LifeStrategyPeriodCreator', {}],
