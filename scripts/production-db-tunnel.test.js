@@ -4,6 +4,7 @@ import {
   buildSshArguments,
   createProductionDatabaseEnvironment,
   readTunnelConfig,
+  tunnelProcessMatches,
 } from "./production-db-tunnel.mjs";
 
 const environment = {
@@ -22,6 +23,12 @@ test("production tunnel preserves the database hostname for TLS", () => {
   assert.equal(new URL(updated.DATABASE_URL).port, "15432");
   assert.equal(updated.PGSSL_SERVERNAME, "cluster.example.net");
   assert.equal(updated.DEMO_MODE, "false");
+});
+
+test("an unavailable process inspection cannot be mistaken for a stale tunnel", () => {
+  const record = { pid: 123, token: "a".repeat(32) };
+  assert.throws(() => tunnelProcessMatches(record, () => { throw Object.assign(new Error("denied"), { code: "EPERM" }); }), /PID-файл сохранён/);
+  assert.equal(tunnelProcessMatches(record, () => "some other process"), false);
 });
 
 test("production tunnel forwards only through localhost", () => {

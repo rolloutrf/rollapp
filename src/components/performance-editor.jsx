@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Plus, Trash2, X } from "lucide-react";
+import { EditorDeleteAction } from "@/components/editor-delete-action";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -278,11 +279,13 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
   );
 }
 
-export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave, open }) {
+export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChange, onSave, open }) {
   const isMobile = useIsMobile();
   const formId = useId();
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const busy = saving || deleting;
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -294,15 +297,17 @@ export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave
 
   const cycleIndex = Math.max(0, draft.cycles.findIndex((cycle) => cycle.id === activeCycleId));
   const cycle = draft.cycles[cycleIndex];
+  const savedCycle = content.cycles.find((item) => item.id === activeCycleId);
   const updateCycle = (nextCycle) => setDraft((value) => ({
     ...value,
     cycles: replaceAt(value.cycles, cycleIndex, nextCycle),
   }));
   const changeOpen = (nextOpen) => {
-    if (!saving) onOpenChange(nextOpen);
+    if (!busy) onOpenChange(nextOpen);
   };
   const submit = async (event) => {
     event.preventDefault();
+    if (busy) return;
     setSaving(true);
     setError("");
     try {
@@ -333,7 +338,7 @@ export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave
         className="rollapp-body app-drawer--wide"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
           aria-label="Закрыть редактирование перфоманса"
         >
           <X aria-hidden="true" />
@@ -465,13 +470,22 @@ export function PerformanceEditor({ activeCycleId, content, onOpenChange, onSave
                 </div>
               </TabsContent>
             </Tabs>
+            {onDelete && <EditorDeleteAction
+              label="Удалить цикл"
+              title="Удалить цикл ревью?"
+              description={`Цикл «${savedCycle?.season} ${savedCycle?.year}» вместе со всеми проектами и отзывами будет удалён без возможности восстановления.`}
+              disabled={saving}
+              onBusyChange={setDeleting}
+              onDelete={onDelete}
+              onDeleted={() => onOpenChange(false)}
+            />}
           </div>
           <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={saving}>
+            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить изменения"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={saving} />}>
+            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
             </DrawerClose>
           </DrawerFooter>

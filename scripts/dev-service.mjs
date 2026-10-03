@@ -1,17 +1,20 @@
 import "dotenv/config";
+import dotenv from "dotenv";
 import { randomBytes } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { developmentFrontendPort } from "./production-dev-config.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectDirectory = path.resolve(scriptDirectory, "..");
+dotenv.config({ path: path.join(projectDirectory, ".env.local"), override: false, quiet: true });
 const devScriptPath = path.join(scriptDirectory, "dev.mjs");
 const pidFilePath = path.join(projectDirectory, ".dev-server.pid");
 const logFilePath = path.join(projectDirectory, ".dev-server.log");
 const backendUrl = process.env.ROLLAPP_DEV_BACKEND_URL || `http://127.0.0.1:${process.env.PORT || 8080}/api/healthz`;
-const frontendUrl = process.env.ROLLAPP_DEV_FRONTEND_URL || "http://127.0.0.1:5173/login";
+const frontendUrl = process.env.ROLLAPP_DEV_FRONTEND_URL || `http://127.0.0.1:${developmentFrontendPort(process.env)}/login`;
 const configuredStartTimeout = Number(process.env.ROLLAPP_DEV_START_TIMEOUT_MS || 75_000);
 const startTimeoutMs = Number.isFinite(configuredStartTimeout)
   ? Math.min(Math.max(configuredStartTimeout, 1_000), 300_000)
@@ -100,7 +103,7 @@ function processCommandMatches(record) {
     );
     return command.includes(devScriptPath) && command.includes(record.token);
   } catch {
-    return false;
+    throw new Error(`Не удалось проверить владельца PID ${record.pid}. Повторите команду вне sandbox; PID-файл сохранён.`);
   }
 }
 
@@ -338,7 +341,7 @@ async function statusService() {
   console.log(`Rollapp dev service: ${health.ready ? "готов" : "не готов"} (PID ${current.value.pid}).`);
   console.log(healthSummary(health));
   console.log(`Frontend: ${frontendUrl}`);
-  console.log(`Лог: ${logFilePath}`);
+  console.log(`Лог: ${current.value.logPath || logFilePath}`);
   if (!health.ready) process.exitCode = 1;
 }
 

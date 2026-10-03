@@ -56,7 +56,7 @@ import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BrandCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
 import { PerformanceReview } from "@/components/performance-review";
-import { Theses } from "@/components/theses";
+import { Principles, Theses } from "@/components/theses";
 import { Values } from "@/components/values";
 import { Workouts } from "@/components/workouts";
 import {
@@ -548,7 +548,6 @@ const SPHERE_SERVICES = [
   { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
   { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
   { id: "health", label: "Здоровье", path: "/app/spheres/health", icon: HeartPulse, color: "#43bd83" },
-  { id: "contacts", label: "Контакты", path: "/app/spheres/contacts", icon: ContactRound, color: "#9b72e8" },
 ];
 
 const SERVICE_SWITCHER_ITEMS = [
@@ -563,7 +562,8 @@ function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/business")) return "business-access";
   if (pathname.startsWith("/app/wishes")) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
-  if (pathname.startsWith("/app/friends")) return "contacts";
+  if (pathname.startsWith("/app/friends")) return "wishlist";
+  if (pathname.startsWith("/app/spheres/contacts")) return "career";
   const sphereId = pathname.match(/^\/app\/spheres\/([^/]+)/)?.[1];
   if (SPHERE_SERVICES.some((sphere) => sphere.id === sphereId)) return sphereId;
   const reserved = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/ideas"];
@@ -816,6 +816,11 @@ const IDENTITY_TABS = [
     label: "Тезисы",
     description: "Ключевые мысли, гипотезы и формулировки, к которым важно возвращаться.",
   },
+  {
+    id: "principles",
+    label: "Принципы",
+    description: "Личные правила, на которые вы опираетесь в решениях и поступках.",
+  },
 ];
 
 const CAREER_TABS = [
@@ -845,6 +850,7 @@ const CAREER_TABS = [
     label: "ИПР",
     description: "Индивидуальный план развития: навыки, действия и контрольные точки.",
   },
+  { id: "contacts", label: "Контакты", icon: ContactRound },
 ];
 
 const EDUCATION_TABS = [
@@ -883,17 +889,12 @@ const HEALTH_TABS = [
   },
 ];
 
-const CONTACT_TABS = [
-  { id: "contacts", label: "Контакты", icon: ContactRound },
-];
-
 const SERVICE_TABS = {
   wishlist: SPACES,
   identity: IDENTITY_TABS,
   career: CAREER_TABS,
   education: EDUCATION_TABS,
   health: HEALTH_TABS,
-  contacts: CONTACT_TABS,
 };
 
 const HOGAN_PROFILES = [
@@ -2430,6 +2431,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                 ? <FourQuestions />
                 : sphere.id === "identity" && tab.id === "theses"
                   ? <Theses />
+                : sphere.id === "identity" && tab.id === "principles"
+                  ? <Principles />
                 : sphere.id === "identity" && tab.id === "gallup"
                   ? <GallupProfile />
                   : sphere.id === "identity" && tab.id === "hogan"
@@ -2997,12 +3000,26 @@ function ContactCreateDrawer({ onClose, onCreated }) {
   );
 }
 
+function CareerSpherePage() {
+  const location = useLocation();
+  return new URLSearchParams(location.search).get("tab") === "contacts"
+    ? <ContactsSpherePage />
+    : <TabbedSpherePage sphereId="career" tabs={CAREER_TABS} />;
+}
+
+function LegacyContactsRedirect() {
+  const location = useLocation();
+  const search = new URLSearchParams(location.search);
+  search.set("tab", "contacts");
+  return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
+}
+
 function ContactsProfileControls({ onAdd }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
         <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
-        <SphereBusinessControls sphereId="contacts" />
+        <SphereBusinessControls sphereId="career" />
       </div>
     </section>
   );
@@ -3043,7 +3060,7 @@ function ContactsSpherePage() {
   const start = data?.total ? (data.page - 1) * data.pageSize + 1 : 0;
   const end = data?.total ? Math.min(data.total, start + contacts.length - 1) : 0;
   globalShareRef.current = async () => {
-    const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "contacts", section: "contacts" });
+    const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "career", section: "contacts" });
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${path}`);
       toast(access.isOwner ? "Ссылка на раздел скопирована. Открыть её смогут выбранные люди." : "Ссылка на раздел скопирована");
@@ -3878,6 +3895,7 @@ function ProtectedWishCatalog() {
 
 function BusinessMarketplaceRoute() {
   const { sphereId = "", kind = "" } = useParams();
+  if (sphereId === "contacts" && BUSINESS_MARKETPLACE_KINDS.includes(kind)) return <LegacyContactsRedirect />;
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
   if (!sphere || !BUSINESS_MARKETPLACE_KINDS.includes(kind)) return <Navigate to={APP_HOME} replace />;
   return <BusinessMarketplacePage sphere={sphere} kind={kind} />;
@@ -3888,7 +3906,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/:kind" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><TabbedSpherePage sphereId="career" tabs={CAREER_TABS} /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<PrivateSphereRoute><ContactsSpherePage /></PrivateSphereRoute>} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/:kind" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {

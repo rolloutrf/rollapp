@@ -4,6 +4,8 @@
 
 - Always use the repository's configured production database for Rollapp development, previews, diagnostics, and verification.
 - Never silently substitute an in-memory, demo, mock, or local database when the production database is unavailable. Report the connection problem instead.
+- Keep the production development connection running between tasks. Use direct TLS access by default; use the SSH tunnel only when `ROLLAPP_DATABASE_CONNECTION=tunnel` is explicitly configured. On this Mac, `npm run dev:keepalive` enables the persistent service and `npm run dev:keepalive:status` checks it. Do not stop it after verification unless the user asks.
+- If sandbox restrictions prevent network or process checks, repeat the check with the required permissions. An unavailable process inspection is not proof that a PID is stale; never remove a live service's PID file on that basis.
 - Connecting to the production database does not by itself authorize destructive schema changes, bulk data mutations, or data deletion. Require an explicit user request for those operations and verify the exact target first.
 
 ## Typography

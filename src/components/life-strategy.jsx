@@ -1,5 +1,5 @@
 import { Fragment, useId } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
   Accordion,
@@ -251,7 +251,7 @@ function StrategySections({ lines, onTaskCheckedChange, taskDisabled, taskReadOn
   );
 }
 
-function AgeSections({ deleteDisabled = false, editDisabled = false, lines, onDeleteAge, onEditAge, onTaskCheckedChange, taskDisabled, taskReadOnly }) {
+function AgeSections({ editDisabled = false, lines, onEditAge, onTaskCheckedChange, taskDisabled, taskReadOnly }) {
   const { introduction, sections } = splitAgeSections(lines);
   const taskOptions = { onTaskCheckedChange, taskDisabled, taskReadOnly };
 
@@ -270,7 +270,7 @@ function AgeSections({ deleteDisabled = false, editDisabled = false, lines, onDe
             <AccordionTrigger
               className="min-h-12 w-full items-center py-4 hover:no-underline [&_[data-slot=accordion-trigger-icon]]:size-5"
               headerAs="h1"
-              action={onEditAge || onDeleteAge ? (
+              action={onEditAge ? (
                 <div className="not-typeset flex items-center gap-2 self-center" role="group" aria-label={`Действия периода ${section.title}`}>
                   {onEditAge && (
                     <CareerIconAction
@@ -279,15 +279,6 @@ function AgeSections({ deleteDisabled = false, editDisabled = false, lines, onDe
                       onClick={() => onEditAge(section.title)}
                     >
                       <Pencil aria-hidden="true" />
-                    </CareerIconAction>
-                  )}
-                  {onDeleteAge && (
-                    <CareerIconAction
-                      disabled={deleteDisabled}
-                      label={`Удалить период ${section.title}`}
-                      onClick={() => onDeleteAge(section.title)}
-                    >
-                      <Trash2 className="text-destructive" aria-hidden="true" />
                     </CareerIconAction>
                   )}
                 </div>
@@ -311,7 +302,7 @@ function AgeSections({ deleteDisabled = false, editDisabled = false, lines, onDe
 
 export function MarkdownDocument({
   source, label, className = "", collapsibleAges = false, collapsibleStrategies = false,
-  ageDeleteDisabled = false, ageEditDisabled = false, hideSourceLabels = false, onDeleteAge, onEditAge,
+  ageEditDisabled = false, hideSourceLabels = false, onEditAge,
   onTaskCheckedChange, taskDisabled = false, taskReadOnly = false,
 }) {
   const lines = source
@@ -323,7 +314,7 @@ export function MarkdownDocument({
   return (
     <article className={`life-strategy-source typeset typeset-rollapp typeset-document ${className}`.trim()} aria-label={label}>
       {collapsibleAges
-        ? <AgeSections lines={lines} deleteDisabled={ageDeleteDisabled} editDisabled={ageEditDisabled} onDeleteAge={onDeleteAge} onEditAge={onEditAge} {...taskOptions} />
+        ? <AgeSections lines={lines} editDisabled={ageEditDisabled} onEditAge={onEditAge} {...taskOptions} />
         : collapsibleStrategies
           ? <StrategySections lines={lines} {...taskOptions} />
           : renderSourceBlocks(lines, taskOptions)}

@@ -56,19 +56,24 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. When `DATABASE_URL`/`PGHOST` is absent, the server uses an in-memory PostgreSQL-compatible demo database. Use **Try demo** or sign in as `demo@rollapp.test` / `demo1234`.
+Open `http://localhost:5172` (override with `ROLLAPP_DEV_FRONTEND_PORT`). Local development requires the configured production PostgreSQL database and always disables demo fallback. Configure `DATABASE_URL` or `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and the existing Lockbox credentials in `.env`. TLS certificate verification stays enabled.
 
-`APP_ORIGIN` must contain the local frontend origin (normally `http://localhost:5173`). The development server treats it as trusted when Vite proxies `/api` to port 8080. To keep the local copy connected to persistent PostgreSQL, set `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and either `PGPASSWORD` or the Yandex Lockbox variables in `.env`, then run `npm run dev`. For a private Managed PostgreSQL cluster through an SSH tunnel, point the connection at `127.0.0.1:<local-port>` and set `PGSSL_SERVERNAME` to the original cluster FQDN; TLS certificate verification stays enabled.
+`APP_ORIGIN` should contain the frontend origin. The frontend and its readiness check use the same configured port.
 
-### Persistent production database tunnel
+### Persistent production connection
 
-For local work with a private production database, set `ROLLAPP_TUNNEL_SSH_HOST`, `ROLLAPP_TUNNEL_SSH_USER` and (when needed) `ROLLAPP_TUNNEL_SSH_KEY` in the untracked `.env`. Then use:
+Direct TLS access to the configured production database is the default (`ROLLAPP_DATABASE_CONNECTION=direct`). On macOS, enable a persistent development service with:
 
 ```bash
-npm run dev:production
+npm run dev:keepalive
+npm run dev:keepalive:status
 ```
 
-The command starts a localhost-only SSH tunnel, reconnects it after network changes or Mac sleep, and restarts the local dev service with `PGSSL_SERVERNAME` set to the original database host. Check and stop the pair with `npm run dev:production:status` and `npm run dev:production:stop`.
+The service starts at login and macOS restarts it after an exit. Every 30 seconds it checks the API health endpoint, which runs `SELECT 1` against production PostgreSQL. Three consecutive failures restart the development processes; the PostgreSQL pool reconnects after transient network changes. While the Mac sleeps or the network is offline, connectivity cannot be maintained; the service recovers when connectivity returns. No database credentials are written to the LaunchAgent: the application reads its existing configuration and Lockbox credentials at startup.
+
+Leave this service running between tasks. To explicitly disable both autostart and the running service, use `npm run dev:keepalive:stop`. `npm run dev:production` starts a background session without installing autostart; its status and stop commands are `dev:production:status` and `dev:production:stop`.
+
+For a private-only database, set `ROLLAPP_DATABASE_CONNECTION=tunnel` and configure `ROLLAPP_TUNNEL_SSH_HOST`, `ROLLAPP_TUNNEL_SSH_USER` and, when needed, `ROLLAPP_TUNNEL_SSH_KEY`. The tunnel reconnects automatically and keeps `PGSSL_SERVERNAME` set to the original database hostname. Its readiness check requires a PostgreSQL response, not just a listening local port. Use `db:tunnel:status` to diagnose it. Process-inspection permission failures preserve the PID file instead of launching duplicate controllers.
 
 Useful commands:
 

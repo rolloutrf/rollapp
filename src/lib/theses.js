@@ -1,17 +1,19 @@
 const BLOCK_SEPARATOR_PATTERN = /\r?\n[ \t]*\r?\n/gu;
 const QUOTE_PREFIX_PATTERN = /^>[ \t]?/u;
-const LEGACY_HEADING_PATTERN = /^#{1,6}[ \t]+Тезисы[ \t]*$/iu;
+const HEADING_PREFIX_PATTERN = /^#{1,6}[ \t]+/u;
 
-export function parseThesesMarkdown(source) {
+export function parseThesesMarkdown(source, legacyHeading = "Тезисы") {
   return String(source || "")
     .trim()
     .split(BLOCK_SEPARATOR_PATTERN)
+    .filter((block) => !(HEADING_PREFIX_PATTERN.test(block)
+      && block.replace(HEADING_PREFIX_PATTERN, "").trim().toLowerCase() === legacyHeading.toLowerCase()))
     .map((block) => block
       .split(/\r?\n/gu)
       .map((line) => line.replace(QUOTE_PREFIX_PATTERN, ""))
       .join("\n")
       .trim())
-    .filter((thesis) => thesis && !LEGACY_HEADING_PATTERN.test(thesis));
+    .filter(Boolean);
 }
 
 export function serializeThesesMarkdown(theses) {

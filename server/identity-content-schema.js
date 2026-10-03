@@ -57,3 +57,17 @@ export const identityFourQuestionsSchema = z.object({
     paragraphs,
   })),
 }));
+
+const identityMarkdownSchema = z.string().max(200_000);
+
+export const identityContentSchemas = {
+  theses: identityMarkdownSchema,
+  principles: identityMarkdownSchema,
+  values: identityValuesSchema,
+  character: identityCharacterSchema,
+  mission: identityMarkdownSchema,
+  "life-strategy": identityMarkdownSchema,
+  "four-questions": identityFourQuestionsSchema,
+};
+
+export const identitySectionSchema = z.enum(Object.keys(identityContentSchemas));
