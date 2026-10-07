@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
-  CircleUserRound, Clapperboard, Coins, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
+  CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
@@ -14,6 +14,8 @@ import { api } from "./api.js";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
+import { PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
+import { PlanningSpace, PLANNING_TABS } from "@/components/planning-space";
 import { MakiIcon } from "@/components/maki-icon";
 import { buildRepeatWishPayload } from "./lib/wish-repeat.js";
 import { createLatestSaveQueue } from "./lib/latest-save-queue.js";
@@ -73,7 +75,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import {
-  Popover, PopoverContent, PopoverTrigger,
+  Popover, PopoverContent, PopoverTitle, PopoverTrigger,
 } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -556,9 +558,11 @@ const SERVICE_SWITCHER_ITEMS = [
 ];
 
 const ROLLS_SERVICE = { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" };
+const PLANNING_SERVICE = { id: "planning", label: "Планирование", path: "/app/planning", icon: Columns3 };
 
 function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/rolls")) return "rolls";
+  if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
   if (pathname.startsWith("/app/wishes")) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
@@ -679,6 +683,39 @@ function AppBrand() {
   return <div className="app-brand"><Logo className="app-shell-logo" /><SphereSwitcher /></div>;
 }
 
+function PlanningFab() {
+  const { user } = useSession();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [location.pathname, location.search]);
+  if (!user) return null;
+  const inPlanning = location.pathname === PLANNING_SERVICE.path;
+  const currentTab = new URLSearchParams(location.search).get("tab") === "calendar" ? "calendar" : "kanban";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={<ShadcnButton className="planning-fab !size-14 !rounded-full" size="icon" type="button" />}
+        aria-label="Открыть планирование"
+        title="Планирование"
+      >
+        {open ? <X aria-hidden="true" /> : <Columns3 aria-hidden="true" />}
+      </PopoverTrigger>
+      <PopoverContent className="planning-fab__panel rollapp-body !w-[min(20rem,calc(100vw-2rem))] !rounded-2xl !p-2" side="top" align="end" sideOffset={12}>
+        <PopoverTitle className="px-3 py-2">Планирование</PopoverTitle>
+        <nav className="flex flex-col gap-1" aria-label="Инструменты планирования">
+          {PLANNING_TABS.map(({ id, label, icon: Icon }) => (
+            <Link key={id} to={`${PLANNING_SERVICE.path}?tab=${id}`}
+              className={buttonVariants({ variant: inPlanning && currentTab === id ? "secondary" : "ghost", className: "!h-auto !min-h-12 !justify-start !gap-3 !rounded-xl !px-3 !py-3" })}
+              aria-current={inPlanning && currentTab === id ? "page" : undefined}
+              onClick={() => setOpen(false)}
+            ><Icon aria-hidden="true" /><span>{label}</span></Link>
+          ))}
+        </nav>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function useGlobalShareHandler() {
   const handlerRef = useRef(null);
   useEffect(() => {
@@ -703,7 +740,7 @@ function GlobalAppChrome() {
   const brandCatalog = location.pathname === APP_WISH_CATALOG_PATH && isBrandCatalogSearch(location.search);
   const requestedService = serviceChromeFromPath(location.pathname);
   const sharedOwner = new URLSearchParams(location.search).get("owner");
-  const service = requestedService?.id === "wishlist" || canAccessPrivateSpheres(user) || sharedOwner
+  const service = ["wishlist", "planning"].includes(requestedService?.id) || canAccessPrivateSpheres(user) || sharedOwner
     ? requestedService
     : null;
   const publicRoute = publicProfileRoute(location.pathname);
@@ -737,7 +774,7 @@ function GlobalAppChrome() {
   return (
     <header className="global-app-chrome" aria-label="Панель приложения">
       <AppBrand />
-      {brandCatalog && user ? <BrandCatalogSelect /> : current && (
+      {service?.id === "planning" && user ? <PlanningSpaceSwitcher /> : brandCatalog && user ? <BrandCatalogSelect /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
@@ -1164,7 +1201,9 @@ function serviceChromeFromPath(pathname) {
     ? SERVICE_SWITCHER_ITEMS[0]
     : serviceId === "rolls"
       ? ROLLS_SERVICE
-    : SPHERE_SERVICES.find((item) => item.id === serviceId);
+    : serviceId === "planning"
+      ? PLANNING_SERVICE
+    : SERVICE_SWITCHER_ITEMS.find((item) => item.id === serviceId);
   return service ? { ...service, tabs: SERVICE_TABS[serviceId] || [] } : null;
 }
 
@@ -1946,13 +1985,14 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const ordersRoute = location.pathname === APP_ORDERS_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
+  const planningRoute = location.pathname === "/app/planning";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      <div className={`app-layout app-layout--dark ${friendsRoute ? "app-layout--friends" : ""}`}>
+      <div className={`app-layout app-layout--dark ${planningRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3906,7 +3946,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/:kind" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/:kind" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -7664,6 +7704,7 @@ export default function App() {
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
           <GlobalAppChrome />
+          <PlanningFab />
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
