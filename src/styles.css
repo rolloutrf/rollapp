@@ -5151,6 +5151,23 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   flex: 0 0 24px;
 }
 .sphere-switcher__icon svg { width: 24px; height: 24px; stroke-width: 1.8; }
+.planning-fab {
+  position: fixed;
+  z-index: 40;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  box-shadow: 0 8px 28px rgb(0 0 0 / 28%);
+}
+.planning-fab__panel {
+  max-height: var(--available-height);
+  overflow-y: auto;
+}
+@media (max-width: 560px) {
+  .planning-fab {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
 .app-layout--dark .wishes-page__topbar > .app-brand { justify-self: start; }
 .app-layout--dark .wishes-page__topbar > .app-brand-spacer { justify-self: start; }
 .app-layout--dark .wishes-page__topbar > .space-select { grid-column: 2; }
