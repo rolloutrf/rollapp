@@ -2,7 +2,7 @@
   admin off
 }
 
-{$REDIRECT_HOSTS:rollapp.51-250-110-17.sslip.io, www.xn--80avakiab.xn--p1ai} {
+{$REDIRECT_HOSTS:rollapp.130-193-58-26.sslip.io, www.xn--80avakiab.xn--p1ai} {
   redir https://xn--80avakiab.xn--p1ai{uri} permanent
 }
 

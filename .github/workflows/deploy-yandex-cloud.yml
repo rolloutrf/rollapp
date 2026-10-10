@@ -20,7 +20,7 @@ env:
   YC_DEPLOY_SA_ID: ajea75b2e3r8kiigmice
   YC_RUNTIME_SA_ID: ajers2ngi708sf3i1t4g
   YC_REGISTRY_ID: crpvg7pqnbpjl26q93f6
-  YC_VM_ID: epdn3osv2a7l82iqoo3v
+  YC_VM_ID: fv4chl6pdb4lnhsj7139
   IMAGE_REPOSITORY: cr.yandex/crpvg7pqnbpjl26q93f6/rollapp
   PUBLIC_URL: https://xn--80avakiab.xn--p1ai
 
@@ -189,7 +189,7 @@ jobs:
             echo "::warning::Marketplace AI search is not configured; production will use direct catalogues only"
           fi
           for redirect_url in \
-            "https://rollapp.51-250-110-17.sslip.io/api/healthz" \
+            "https://rollapp.130-193-58-26.sslip.io/api/healthz" \
             "https://www.xn--80avakiab.xn--p1ai/api/healthz"; do
             redirect_result="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code} %{redirect_url}' "$redirect_url")"
             if [ "$redirect_result" != "301 ${PUBLIC_URL}/api/healthz" ]; then
