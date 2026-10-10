@@ -138,14 +138,21 @@ Production URL: [https://роллапп.рф](https://роллапп.рф)
 Yandex Cloud resources:
 
 - folder `b1gebpfrhvkd43r38q98`;
-- Managed PostgreSQL cluster `c9q11j9k294u5dmlk127`, database `rollapp`, user `rollapp_app`;
+- Managed PostgreSQL cluster `c9q73m0flac0ai0kj468`, database `rollapp`, user `rollapp_app`;
 - Container Registry `crpvg7pqnbpjl26q93f6`;
-- recovered Compute VM `epdn3osv2a7l82iqoo3v`;
+- recovered Compute VM `fv4chl6pdb4lnhsj7139`;
 - runtime service account `ajers2ngi708sf3i1t4g`;
 - CI service account `ajea75b2e3r8kiigmice`;
 - database password stays in Connection Manager Lockbox secret `e6qn7uuqpp2jg3krbh4u`;
 - Telegram bot token and webhook secret stay in protected Lockbox secret `e6qqi6inhrnvg67mkhhs`;
-- static IP `51.250.110.17`; `роллапп.рф` is canonical, while `www.роллапп.рф` and `rollapp.51-250-110-17.sslip.io` permanently redirect to it so authentication stays on one cookie host.
+- static IP `130.193.58.26`; `роллапп.рф` is canonical, while `www.роллапп.рф` and `rollapp.130-193-58-26.sslip.io` permanently redirect to it so authentication stays on one cookie host.
+
+Production was recovered in `ru-central1-d` on 10 October 2026 from the backup
+completed on 6 October at 23:18 UTC (7 October, 02:18 MSK). The original resources
+in `ru-central1-b` are preserved. The replacement VM uses a 20 GiB HDD, the current
+emergency quota; keep disk usage in view before accumulating deployment images.
+See [the recovery record](docs/production-outage-2026-10-09.md) for resource IDs,
+verification, and deployment-access details.
 
 No long-lived Yandex key is stored in GitHub. The federated credential accepts only the immutable GitHub subject for `rolloutrf/rollapp` on `refs/heads/main`. CI can push to this registry, update this VM, and read only the Telegram deployment secret; runtime can pull images and read the database and Telegram runtime secrets.
 
