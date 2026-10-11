@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Check, ChevronDown, Columns3, Plus } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Columns3, ListTodo, Plus } from "lucide-react";
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -10,16 +10,17 @@ import { Input } from "@/components/ui/input";
 
 export function PlanningSpaceSwitcher() {
   const [search, setSearch] = useSearchParams();
-  const kind = search.get("tab") === "calendar" ? "calendar" : "kanban";
+  const tab = search.get("tab");
+  const kind = tab === "calendar" ? "calendar" : "kanban";
   // A tool change also resets any pending fetch or creation form.
-  return <SpaceSwitcher key={kind} kind={kind} selected={search.get("space") || "main"} onSelect={(id) => {
+  return <SpaceSwitcher key={kind} kind={kind} todo={tab === "todo"} selected={search.get("space") || "main"} onSelect={(id) => {
     setSearch((current) => { const next = new URLSearchParams(current); if (id === "main") next.delete("space"); else next.set("space", id); return next; });
   }} />;
 }
 
-function SpaceSwitcher({ kind, selected, onSelect }) {
+function SpaceSwitcher({ kind, todo, selected, onSelect }) {
   const calendar = kind === "calendar";
-  const Icon = calendar ? CalendarDays : Columns3;
+  const Icon = calendar ? CalendarDays : todo ? ListTodo : Columns3;
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,7 +43,7 @@ function SpaceSwitcher({ kind, selected, onSelect }) {
   const createLabel = calendar ? "Создать календарь" : "Создать доску";
   return <>
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select rounded-full" aria-label={calendar ? "Выбрать календарь" : "Выбрать доску"} />}>
+      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select rounded-full" aria-label={calendar ? "Выбрать календарь" : "Выбрать доску задач"} />}>
         <Icon aria-hidden="true" /><span className="space-select__label">{label}</span><ChevronDown aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="rollapp-body global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)" align="center">
