@@ -17,7 +17,7 @@ confirmed `capabilities.marketplaceAi: true` after the container reloaded.
 ### Remaining production access failure
 
 The configured flag confirms key loading, not upstream availability. A real
-search from the production container still failed on 2026-09-21. Both the
+search from the production container failed on 2026-09-21. Both the
 authenticated `/api/v1/key` endpoint and public `/api/v1/models` endpoint
 returned HTTP 403 with this JSON response:
 
@@ -25,12 +25,34 @@ returned HTTP 403 with this JSON response:
 { "success": false, "error": "Access denied by security policy." }
 ```
 
-The same key validates successfully from the development environment. This is
+The same key validated successfully from the development environment. This is
 an upstream access block from the production server, rather than a missing key
-or a model-specific error. Direct store search remains available. The
-production VM's configured public IP is `51.250.110.17`; ask OpenRouter support
-to identify and resolve the access block before considering AI search working.
-Do not rotate the key or change models to conceal this failure.
+or a model-specific error. Direct store search remains available. Do not rotate
+the key or change models to conceal this failure.
+
+On 2026-10-11, the current production VM in `ru-central1-d` had public IP
+`130.193.58.26`. Its unauthenticated `GET /api/v1/models` again returned HTTP
+403 with the same security-policy response (Cloudflare ray
+`a48e2ee87ac7c76f-HEL`, 13:24:07 UTC). The same public request from the
+development Mac returned HTTP 200. A real search for the owner's `GEL-Ventx`
+wish showed "OpenRouter не смог выполнить поиск" and no new offers. Ask
+OpenRouter support to review the current server IP before considering AI search
+working. The official support-ticket form requires an OpenRouter account sign-in;
+no ticket was sent during this check.
+
+An authenticated HTTP CONNECT proxy supplied by the owner was probed on
+2026-10-11 using only the public model catalogue, without an API key or wish
+data. Both the development Mac and the production VM received HTTP 200 through
+the proxy, with TLS certificate verification enabled. Direct access from the
+production VM still returned 403. This establishes a viable network path;
+proxying does not remove OpenRouter's upstream block.
+
+The application supports an optional `OPENROUTER_PROXY_URL` that applies only
+to OpenRouter requests. Production loads the full authenticated HTTP proxy URL
+from the `proxy_url` entry in its dedicated Yandex Lockbox secret, identified by
+`YC_OPENROUTER_PROXY_LOCKBOX_SECRET_ID` in Compose. Do not put the URL or
+credentials in Compose metadata, source control, or logs. The OpenRouter
+connection remains HTTPS with normal certificate verification.
 
 Network diagnostics on 2026-09-21 found no HTTP/HTTPS/ALL proxy environment
 variables in either runtime and no system HTTP proxy on the development Mac.
@@ -43,12 +65,14 @@ policy issue but does not establish the exact rule causing the block.
 
 Suggested support request (not sent):
 
-> Our Rollapp server in Yandex Cloud, public IP 51.250.110.17, receives HTTP 403
-> with `Access denied by security policy.` from both GET /api/v1/models and
-> authenticated GET /api/v1/key, as well as completion requests. The same key
-> validates from our development environment. Could you identify the policy
-> blocking this server and advise whether access can be enabled? Observed on
-> 2026-09-21. No API key is included in this request.
+> Our Rollapp production server in Yandex Cloud, public IP 130.193.58.26,
+> receives HTTP 403 with `Access denied by security policy.` from the public
+> GET https://openrouter.ai/api/v1/models endpoint. The response on 2026-10-11
+> at 13:24:07 UTC had Cloudflare ray `a48e2ee87ac7c76f-HEL`. The same public
+> request from our development machine returns HTTP 200. Authenticated
+> marketplace search also fails. Could you review the security-policy block for
+> this IP and enable legitimate API access or explain the restriction? No API
+> key is included in this request.
 
 The shared model is `mistralai/mistral-small-2603`. Startup loads the key from
 Lockbox before starting the API. When diagnosing disabled search, check both the

@@ -1,3 +1,5 @@
+import { openRouterFetch } from "./openrouter-fetch.js";
+
 const MODELS_URL = "https://openrouter.ai/api/v1/models";
 const KEY_URL = "https://openrouter.ai/api/v1/key";
 const CACHE_MS = 5 * 60_000;
@@ -36,7 +38,7 @@ export function normalizeOpenRouterModels(payload) {
   return [...models.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function createOpenRouterModelCatalog({ fetchImpl = fetch, now = Date.now } = {}) {
+export function createOpenRouterModelCatalog({ fetchImpl = openRouterFetch, now = Date.now } = {}) {
   let cached = null;
   let expiresAt = 0;
   let pending = null;
@@ -78,7 +80,7 @@ export async function validateOpenRouterModel(modelId, { listModels = listOpenRo
   return modelId;
 }
 
-export async function validateOpenRouterKey(apiKey, { fetchImpl = fetch } = {}) {
+export async function validateOpenRouterKey(apiKey, { fetchImpl = openRouterFetch } = {}) {
   let response;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
