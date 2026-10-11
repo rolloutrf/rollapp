@@ -690,7 +690,8 @@ function PlanningFab() {
   useEffect(() => setOpen(false), [location.pathname, location.search]);
   if (!user) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
-  const currentTab = new URLSearchParams(location.search).get("tab") === "calendar" ? "calendar" : "kanban";
+  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger

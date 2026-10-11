@@ -205,7 +205,7 @@ https://xn--80avakiab.xn--p1ai/api/auth/yandex/callback
 ```
 
 For local development, register a separate application with
-`http://localhost:5173/api/auth/yandex/callback`. Set
+`http://127.0.0.1:5172/api/auth/yandex/callback`. Set
 `YANDEX_OAUTH_CLIENT_ID` and `YANDEX_OAUTH_CLIENT_SECRET`; the callback is
 derived from `PUBLIC_APP_URL` unless `YANDEX_OAUTH_REDIRECT_URI` is set. In
 production, store `client_id` and `client_secret` in Yandex Lockbox and set

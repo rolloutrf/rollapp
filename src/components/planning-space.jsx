@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Columns3, X } from "lucide-react";
+import { CalendarDays, Columns3, ListTodo, X } from "lucide-react";
 import { toast } from "sonner";
 import { planningApi } from "@/lib/planning-api";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { PlanningCalendar } from "@/components/planning-calendar";
+import { PlanningDailyTodo } from "@/components/planning-daily-todo";
 import { scheduleError } from "../../shared/planning-calendar.js";
 import { PlanningKanban } from "@/components/planning-kanban";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -22,6 +23,7 @@ import "./planning-space.css";
 export const PLANNING_TABS = [
   { id: "kanban", label: "Kanban-доска", icon: Columns3 },
   { id: "calendar", label: "Календарь", icon: CalendarDays },
+  { id: "todo", label: "To Do на каждый день", icon: ListTodo },
 ];
 const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60 };
 function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
@@ -96,7 +98,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
 
 export function PlanningSpace() {
   const [search] = useSearchParams();
-  const activeTab = search.get("tab") === "calendar" ? "calendar" : "kanban";
+  const activeTab = PLANNING_TABS.some(({ id }) => id === search.get("tab")) ? search.get("tab") : "kanban";
   const spaceId = search.get("space") || "main";
   return <PlanningSpaceContent key={spaceId} spaceId={spaceId} activeTab={activeTab} />;
 }
@@ -129,13 +131,15 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     setTasks((current) => current.filter((task) => task.id !== id));
     toast.success("Задача удалена");
   };
-  return <section className={`app-page planning-space typeset typeset-rollapp ${activeTab === "kanban" ? "planning-space--kanban" : "planning-space--calendar"}`}>
-    <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : "Kanban-доска"}</h1>
+  return <section className={`app-page planning-space typeset typeset-rollapp planning-space--${activeTab}`}>
+    <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : activeTab === "todo" ? "To Do на каждый день" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
         <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} onCreate={() => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false })} />
-      ) : (
+      ) : activeTab === "calendar" ? (
         <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={setEditor} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
+      ) : (
+        <PlanningDailyTodo tasks={tasks} columns={columns} onEdit={setEditor} onSave={save} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, ...schedule })} />
       )}
     </div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={save} onDelete={remove} />}
