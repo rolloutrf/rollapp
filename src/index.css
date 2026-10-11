@@ -329,6 +329,14 @@
     line-height: var(--text-rollapp-body--line-height);
   }
 
+  /* Calendar cells keep the shadcn grid geometry inside the product's Large controls. */
+  [data-slot="calendar"] [data-slot="button"] {
+    min-inline-size: var(--cell-size);
+    min-block-size: var(--cell-size);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+  }
+
   :is([class~="group/button"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"])
     svg:not([class*="size-"]) {
     width: 1.25rem;

@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
+import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { scheduleError } from "../../shared/planning-calendar.js";
 import { PlanningKanban } from "@/components/planning-kanban";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -70,7 +71,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
               <Field><FieldLabel htmlFor={`${id}-title`}>Название</FieldLabel><Input id={`${id}-title`} required maxLength={200} placeholder="Что нужно сделать?" value={form.title} onChange={(e) => change("title", e.target.value)} /></Field>
               <Field><FieldLabel htmlFor={`${id}-description`}>Описание</FieldLabel><Textarea id={`${id}-description`} maxLength={5000} rows={4} placeholder="Детали и заметки" value={form.description} onChange={(e) => change("description", e.target.value)} /></Field>
               <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectContent></Select></Field>
-              <Field><FieldLabel htmlFor={`${id}-date`}>Дата</FieldLabel><Input id={`${id}-date`} type="date" min="0001-01-01" max="9999-12-31" value={form.dueOn} onChange={(e) => { change("dueOn", e.target.value); if (!e.target.value) setAllDay(true); }} /></Field>
+              <Field><FieldLabel htmlFor={`${id}-date`}>Дата</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) setAllDay(true); }} label="Дата задачи" clearable className="w-full" /></Field>
             {form.dueOn && <>
                 <Field orientation="horizontal"><FieldLabel htmlFor={`${id}-all-day`}>Весь день</FieldLabel><Switch id={`${id}-all-day`} checked={allDay} onCheckedChange={(checked) => { setAllDay(checked); if (!checked && !form.startTime) change("startTime", "09:00"); }} /></Field>
                 {!allDay && <>
