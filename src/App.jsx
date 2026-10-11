@@ -701,7 +701,7 @@ function PlanningFab() {
         {open ? <X aria-hidden="true" /> : <Columns3 aria-hidden="true" />}
       </PopoverTrigger>
       <PopoverContent className="planning-fab__panel rollapp-body !w-[min(20rem,calc(100vw-2rem))] !rounded-2xl !p-2" side="top" align="end" sideOffset={12}>
-        <PopoverTitle className="px-3 py-2">Планирование</PopoverTitle>
+        <PopoverTitle className="sr-only">Планирование</PopoverTitle>
         <nav className="flex flex-col gap-1" aria-label="Инструменты планирования">
           {PLANNING_TABS.map(({ id, label, icon: Icon }) => (
             <Link key={id} to={`${PLANNING_SERVICE.path}?tab=${id}`}
@@ -796,11 +796,11 @@ function GlobalAppChrome() {
           to="/app/rolls"
           aria-label="Открыть Роллы"
           title="Роллы"
-          className={buttonVariants({
+          className={cn(buttonVariants({
             variant: location.pathname.startsWith("/app/rolls") ? "secondary" : "outline",
             size: "icon",
             className: "global-app-chrome__rolls !size-12 rounded-full",
-          })}
+          }))}
         ><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>}
         <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}

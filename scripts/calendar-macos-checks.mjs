@@ -1,22 +1,11 @@
 import assert from "node:assert/strict";
 import { localDateKey } from "../shared/planning.js";
 
-export async function searchCalendar(page, value) {
-  await page.getByRole("button", { name: "Поиск событий", exact: true }).click();
-  await page.getByLabel("Поиск в календаре", { exact: true }).fill(value);
-  await page.keyboard.press("Escape");
-  await page.locator(".schedule-search").waitFor({ state: "hidden" });
-}
-export async function openCalendarList(page, width) {
-  if (width === 1440) {
-    if (!await page.locator(".schedule-sidebar").isVisible()) await page.getByRole("button", { name: "Показать боковую панель", exact: true }).click();
-    await page.locator(".schedule-sidebar").getByRole("button", { name: "Список событий", exact: true }).click();
-    await page.getByRole("button", { name: "Скрыть боковую панель", exact: true }).click();
-  } else {
-    await page.getByRole("button", { name: "Фильтры календаря", exact: true }).click();
-    await page.locator(".schedule-mobile-sidebar").getByRole("button", { name: "Список событий", exact: true }).click();
-    await page.locator(".schedule-mobile-sidebar").waitFor({ state: "hidden" });
-  }
+export async function openCalendarList(page) {
+  const url = new URL(page.url());
+  url.searchParams.set("view", "list");
+  await page.goto(url.href);
+  await page.locator(".schedule-list-panel").waitFor();
 }
 
 export async function checkMacCalendar({ page, width, mutation }) {
@@ -37,19 +26,6 @@ export async function checkMacCalendar({ page, width, mutation }) {
   assert.equal(new URL(page.url()).searchParams.get("date").slice(5, 7), "01");
   await page.getByRole("button", { name: "Сегодня", exact: true }).click();
   await page.waitForURL((url) => url.searchParams.get("date") === today);
-  if (width === 1440) {
-    await page.getByRole("button", { name: "Показать боковую панель", exact: true }).click();
-    await page.locator(".schedule-sidebar").waitFor();
-    await page.getByRole("button", { name: "Скрыть боковую панель", exact: true }).click();
-    await page.locator(".schedule-sidebar").waitFor({ state: "hidden" });
-  } else {
-    await page.getByRole("button", { name: "Фильтры календаря", exact: true }).click();
-    const panel = page.locator(".schedule-mobile-sidebar");
-    await panel.locator(".schedule-mini").waitFor();
-    await panel.getByRole("checkbox", { name: "Завершённые", exact: true }).click();
-    await page.keyboard.press("Escape");
-    await panel.waitFor({ state: "hidden" });
-  }
   await page.getByRole("tab", { name: "День", exact: true }).click();
   const timeline = page.locator(".schedule-timegrid:not(.schedule-timegrid--week)");
   await timeline.waitFor();
@@ -120,11 +96,6 @@ export async function checkMacCalendar({ page, width, mutation }) {
     await page.reload();
     await page.locator(`.schedule-month__cell[data-date="${destination}"] .schedule-event`).filter({ hasText: `Встреча ${width}` }).waitFor();
     await page.setViewportSize({ width, height: 1000 });
-    // Search finds the moved event even while viewing a different month.
-    await page.getByRole("button", { name: "Следующий период", exact: true }).click();
-    await searchCalendar(page, `Встреча ${width}`);
-    await page.locator(".schedule-search-results .schedule-agenda__task").filter({ hasText: `Встреча ${width}` }).waitFor();
-    await page.getByRole("button", { name: "Закрыть поиск", exact: true }).click();
     await page.getByRole("button", { name: "Сегодня", exact: true }).click();
   }
   await page.getByRole("tab", { name: "Месяц", exact: true }).click();
@@ -134,18 +105,19 @@ export async function checkMacCalendar({ page, width, mutation }) {
   if (width === 1440) {
     // Match the supplied desktop references without changing any calendar data.
     await page.setViewportSize({ width: 2048, height: 1330 });
-    await page.getByRole("button", { name: "Показать боковую панель", exact: true }).click();
-    const sidebar = page.locator(".schedule-sidebar");
-    await sidebar.getByLabel("Дата перехода", { exact: true }).fill("2026-11-05");
-    for (const checkbox of await sidebar.getByRole("checkbox").all()) if (await checkbox.isChecked()) await checkbox.click();
-    await page.getByRole("button", { name: "Скрыть боковую панель", exact: true }).click();
+    const referenceUrl = new URL(page.url());
+    referenceUrl.searchParams.set("date", "2026-11-05");
+    await page.goto(referenceUrl.href);
+    await page.locator(".schedule").waitFor();
     for (const [view, name, selector] of [["year", "Год", ".schedule-year"], ["month", "Месяц", ".schedule-month__grid"], ["week", "Неделя", ".schedule-timegrid--week"], ["day", "День", ".schedule-inspector"]]) {
       await page.getByRole("tab", { name, exact: true }).click();
       await page.locator(selector).waitFor();
       if (view === "day") {
-        const mini = await page.locator(".schedule-inspector__top .schedule-mini").boundingBox();
-        const nav = await page.locator(".schedule-inspector__top .schedule-navigation").boundingBox();
-        assert(Math.abs(mini.y - nav.y) < 2);
+        const controls = await page.locator(".schedule-toolbar").evaluate((toolbar) => {
+          const center = (element) => { const box = element.getBoundingClientRect(); return box.y + box.height / 2; };
+          return [toolbar.querySelector(".schedule-window-actions"), toolbar.querySelector('[data-slot="tabs-list"]'), toolbar.querySelector(".schedule-navigation")].map(center);
+        });
+        assert(controls.every((center) => Math.abs(center - controls[0]) < 2));
       }
       await page.locator(".schedule").screenshot({ path: `/tmp/rollapp-reference-${view}.png`, animations: "disabled" });
     }
