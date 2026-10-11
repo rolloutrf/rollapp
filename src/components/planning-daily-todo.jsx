@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { addCalendarDays, dateFromKey, sortCalendarTasks } from "../../shared/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../shared/planning.js";
 import "./planning-daily-todo.css";
@@ -73,7 +74,7 @@ export function PlanningDailyTodo({ tasks, columns, onCreate, onEdit, onSave }) 
           <Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft /></Button>
           <Button variant="outline" className="rounded-full" onClick={() => setDate(today)}>Сегодня</Button>
           <Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight /></Button>
-          <Input className="daily-todo__date" type="date" aria-label="Перейти к дате" min="0001-01-01" max="9999-12-31" value={selected} onChange={(event) => setDate(event.target.value)} />
+          <PlanningDatePicker className="daily-todo__date" value={selected} onChange={setDate} />
         </div>
       </header>
 

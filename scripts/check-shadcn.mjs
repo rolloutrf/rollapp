@@ -388,6 +388,7 @@ const requiredUiFiles = [
   "avatar.jsx",
   "badge.jsx",
   "button.jsx",
+  "calendar.jsx",
   "card.jsx",
   "checkbox.jsx",
   "dialog.jsx",
@@ -408,6 +409,17 @@ const uiDir = path.join(root, "src/components/ui");
 const installedUiFiles = new Set(await readdir(uiDir));
 for (const file of requiredUiFiles) {
   assert(installedUiFiles.has(file), `Official shadcn component is not installed: ${file}`);
+}
+const calendarSource = await read("src/components/ui/calendar.jsx");
+const datePickerSource = await read("src/components/planning-date-picker.jsx");
+const dailyTodoSource = await read("src/components/planning-daily-todo.jsx");
+const planningSpaceSource = await read("src/components/planning-space.jsx");
+assert(dependencies["react-day-picker"] && dependencies["date-fns"], "shadcn Calendar dependencies must be installed");
+assert(/from "react-day-picker"/.test(calendarSource) && /<DayPicker\b/.test(calendarSource), "Calendar must compose React DayPicker as the shadcn component does");
+assert(/from "@\/components\/ui\/calendar"/.test(datePickerSource) && /from "@\/components\/ui\/popover"/.test(datePickerSource), "The planning date picker must compose shadcn Calendar and Popover");
+for (const [source, name] of [[dailyTodoSource, "PlanningDailyTodo"], [planningSpaceSource, "PlanningSpace"]]) {
+  assert(/<PlanningDatePicker\b/.test(source), `${name} must use the shared shadcn date picker`);
+  assert(!/\btype=["']date["']/.test(source), `${name} must not open a browser-native date picker`);
 }
 
 const expectedBaseUiImports = {
@@ -782,6 +794,16 @@ assert(
 );
 
 const sourceFiles = [];
+// Existing native date fields outside Planning are tracked until they are migrated.
+// Any new native date field fails this audit, including one added to a new file.
+const legacyNativeDateFields = new Map([
+  ["src/App.jsx", 2],
+  ["src/components/coaching-sessions.jsx", 1],
+  ["src/components/conferences.jsx", 2],
+  ["src/components/courses.jsx", 2],
+  ["src/components/medications.jsx", 2],
+  ["src/components/workouts.jsx", 1],
+]);
 async function collect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
@@ -793,6 +815,8 @@ await collect(path.join(root, "src"));
 for (const file of sourceFiles) {
   const source = await readFile(file, "utf8");
   const relativeFile = path.relative(root, file);
+  const nativeDateFields = [...source.matchAll(/\btype=["']date["']/g)].length;
+  assert(nativeDateFields <= (legacyNativeDateFields.get(relativeFile) ?? 0), `${relativeFile} adds a browser-native date picker; use shadcn Calendar and Popover`);
   assert(!source.includes("@radix-ui/"), `Base Nova source must not import Radix: ${relativeFile}`);
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
