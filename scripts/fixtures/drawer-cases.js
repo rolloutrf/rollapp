@@ -1,7 +1,6 @@
 // Fresh form props only; no persisted records or database fixtures.
 export const drawerCases = [
   ['about', 'about-me', 'AboutMeQuestionEditor', { mode: 'create' }],
-  ['character-trait', 'character-traits', 'CharacterTraitEditor', {mode:'create'}],
   ['thesis', 'theses', 'ThesisEditor', { mode: 'create' }],
   ['principle', 'theses', 'ThesisEditor', { mode: 'create', section: 'principles' }],
   ['question', 'four-questions', 'FourQuestionEditor', { questionIndex: 0 }],

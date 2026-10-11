@@ -16,8 +16,14 @@ application layout.
   `ScrollArea`, between the header and footer. Preserve `min-h-0` throughout the
   flex chain. Fields must not shrink to fit instead of scrolling.
 - Header, close action and footer remain outside the body scroller. Footer padding
-  respects the safe area. Under 420px of visible height, footer actions share a
-  row and header descriptions become visually hidden (still accessible).
+  respects the safe area; while the keyboard is open, its own 16px padding
+  replaces the home-indicator inset below the keyboard. Under 420px of visible
+  height, footer actions share a row and header descriptions become visually
+  hidden (still accessible).
+- The wish editor body disables native scroll anchoring, and its empty image
+  placeholder can shrink on phones so focused fields remain reachable. Defer
+  drawer field-reveal correction until the sheet's initial reveal has settled;
+  an immediate scroll write can cancel that motion.
 - `canAutofocusForm()` permits initial field autofocus only on wide screens with
   a fine pointer and hover. Opening a mobile form, including in landscape, does
   not summon the keyboard. Explicit inline rename actions may focus their input.

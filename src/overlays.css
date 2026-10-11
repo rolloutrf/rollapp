@@ -100,6 +100,20 @@
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+  [data-overlay-keyboard] .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
+    /* The home indicator is below the keyboard, outside this sheet. */
+    padding-bottom: 1rem;
+  }
+  .wish-editor-drawer .wish-editor-screen__content {
+    /* Keep keyboard focus scrolling independent of image/metadata reflow. */
+    overflow-anchor: none;
+  }
+  @media (max-width: 767px) {
+    .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__image.is-empty {
+      aspect-ratio: auto;
+      min-height: 8rem;
+    }
+  }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
     width: 100%;
     min-width: 0;

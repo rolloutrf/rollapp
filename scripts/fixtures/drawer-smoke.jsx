@@ -4,6 +4,8 @@ import { Drawer, DrawerContent, DrawerClose, DrawerHeader, DrawerTitle, DrawerDe
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+import { Image } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FullscreenDialog } from '@/components/fullscreen-dialog';
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -18,6 +20,22 @@ import '../../src/index.css';
 function Fields() {
   return <>{Array.from({length: 12}, (_, i) => <label key={i} className="grid gap-2">Поле {i + 1}<Input aria-label={`Поле ${i + 1}`} /></label>)}
     <label className="grid gap-2">Описание<Textarea aria-label="Описание" rows={3} /></label></>;
+}
+function WishFields({ children }) {
+  return <div className="wish-editor__layout flex flex-col gap-4">
+    <section className="wish-editor__media">
+      <div className="wish-editor__image is-empty" role="button" tabIndex={0} aria-label="Добавить изображение">
+        <Empty className="wish-editor__image-empty h-full gap-3 rounded-[inherit] border bg-muted/30 p-4 max-[380px]:gap-2 max-[380px]:p-3">
+          <EmptyHeader className="gap-1">
+            <EmptyMedia className="mb-1" variant="icon"><Image aria-hidden="true" /></EmptyMedia>
+            <EmptyTitle>Добавить изображение</EmptyTitle>
+            <EmptyDescription>JPG, PNG или WEBP · до 8 МБ</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    </section>
+    <section className="wish-editor__panel"><div className="wish-editor__scroll flex flex-col gap-4 overflow-visible">{children}</div></section>
+  </div>;
 }
 function Fixture() {
   useVisualViewport();
@@ -35,7 +53,7 @@ function Fixture() {
       <DrawerContent className={`rollapp-body app-drawer--form ${mode === 'wish' ? 'wish-editor-drawer' : ''}`}>
         <DrawerClose render={<Button className="absolute right-2 top-2 z-10" variant="ghost" />} aria-label="Закрыть">×</DrawerClose>
         {mode === 'wish' ? <><DrawerHeader className="pr-16"><DrawerTitle>Добавить желание</DrawerTitle><DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription></DrawerHeader>
-          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4">{body}</div><footer className="wish-editor-screen__footer"><Button className="wish-editor__submit h-12 px-4" type="button">Сохранить</Button></footer></form></section></>
+          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4"><WishFields>{body}</WishFields></div><footer className="wish-editor-screen__footer"><Button className="wish-editor__submit h-12 px-4" type="button">Сохранить</Button></footer></form></section></>
         : <form className="flex min-h-0 flex-1 flex-col"><DrawerHeader className="pr-16"><DrawerTitle>Форма</DrawerTitle><DrawerDescription>Проверка полей, прокрутки и действий.</DrawerDescription></DrawerHeader>
           {mode === 'scroll-area' ? <ScrollArea className="min-h-0 flex-1"><div className="p-4">{body}</div></ScrollArea> : <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">{body}</div>}
           <DrawerFooter className="border-t pt-4"><Button type="button">Сохранить</Button><DrawerClose render={<Button type="button" variant="outline" />}>Отмена</DrawerClose></DrawerFooter></form>}

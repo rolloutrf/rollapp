@@ -57,6 +57,22 @@ export async function runPlanningResponsiveChecks({ origin, token }) {
           if (width < 1200) assert.equal(await page.locator('.schedule-inspector').count(), 0, `${label}: cramped day inspector`);
         }
         if (view === 'kanban') {
+          const board = await page.locator('.planning-board').evaluate(el => ({
+            width: el.clientWidth, scrollWidth: el.scrollWidth,
+            columns: [...el.querySelectorAll('.planning-column')].map(column => {
+              const box = column.getBoundingClientRect();
+              return { x: box.x, y: box.y, bottom: box.bottom, width: box.width };
+            }),
+          }));
+          if (width < 768) {
+            assert(board.scrollWidth <= board.width + 1, `${label}: checklist scrolls horizontally`);
+            for (const [index, column] of board.columns.entries()) {
+              assert(Math.abs(column.x - board.columns[0].x) <= 1, `${label}: sections are not aligned`);
+              if (index) assert(column.y >= board.columns[index - 1].bottom, `${label}: sections overlap`);
+            }
+          } else {
+            assert.equal(board.columns[0].y, board.columns[1].y, `${label}: desktop columns must remain side by side`);
+          }
           await page.locator('.planning-board').evaluate(el => { el.scrollTop = el.scrollHeight; el.scrollLeft = el.scrollWidth; });
           await page.getByRole('button', { name: 'Добавить список', exact: true }).scrollIntoViewIfNeeded();
           await page.locator('.planning-board').evaluate(el => { el.scrollTop = 0; el.scrollLeft = 0; });

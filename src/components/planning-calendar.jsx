@@ -1,12 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Search, PanelLeft, Copy, Pencil, CalendarDays, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { MiniMonth } from "@/components/calendar-mini-month";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -153,7 +151,6 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
   const view = CALENDAR_VIEWS.some((item) => item.id === search.get("view")) ? search.get("view") : "month";
-  const [query, setQuery] = useState("");
   const monthGrid = useRef(null);
   const [monthEventLimit, setMonthEventLimit] = useState(1);
   useEffect(() => {
@@ -163,12 +160,7 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     const observer = new ResizeObserver(measure);
     observer.observe(grid); measure();
     return () => observer.disconnect();
-  }, [view, query]);
-  const [hidden, setHidden] = useState([]);
-  const [showCompleted, setShowCompleted] = useState(true);
-  const [sidebar, setSidebar] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  }, [view]);
   const [inspectedId, setInspectedId] = useState(null);
   const mobile = useIsMobile();
   const [wide, setWide] = useState(() => window.matchMedia("(min-width: 1200px)").matches);
@@ -179,10 +171,8 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     return () => media.removeEventListener("change", update);
   }, []);
   useEffect(() => setInspectedId(null), [selected, view]);
-  const [miniMonth, setMiniMonth] = useState(selected);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
-  useEffect(() => setMiniMonth(selected), [selected]);
   const navigate = (date, mode = view) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; });
   const saveSchedule = async (task, patch) => {
     if (saving.current) return;
@@ -199,20 +189,17 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     const task = tasks.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
     if (task && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
   };
-  const visible = sortCalendarTasks(tasks.filter((task) => !task.archived && !hidden.includes(task.columnId) && (showCompleted || !task.completed)));
-  const found = visible.filter((task) => task.dueOn && `${task.title} ${task.description}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru").trim()));
+  const visible = sortCalendarTasks(tasks.filter((task) => !task.archived));
   const dayTasks = visible.filter((task) => task.dueOn === selected);
   const month = selected.slice(0, 7);
-  const listed = query.trim() ? found : visible.filter((task) => task.dueOn?.startsWith(month));
+  const listed = visible.filter((task) => task.dueOn?.startsWith(month));
   const groupedDates = [...new Set(listed.map((task) => task.dueOn))];
-  const inspectInSidebar = view === "day" && wide && !query.trim();
+  const inspectInSidebar = view === "day" && wide;
   const inspected = visible.find((task) => task.id === inspectedId && task.dueOn === selected);
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
-  const filters = <div className="schedule-filters"><span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Списки Kanban</span>{columns.map((column) => <label key={column.id} className="schedule-filter"><Checkbox checked={!hidden.includes(column.id)} onCheckedChange={(checked) => setHidden((current) => checked ? current.filter((id) => id !== column.id) : [...current, column.id])} /><span className="schedule-filter__name">{column.title}</span><span className="schedule-caption">{tasks.filter((task) => !task.archived && task.columnId === column.id && task.dueOn).length}</span></label>)}<label className="schedule-filter schedule-filter--completed"><Checkbox checked={showCompleted} onCheckedChange={setShowCompleted} /><span className="schedule-filter__name">Завершённые</span></label></div>;
-  const mini = <MiniMonth month={miniMonth} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, view === "year" ? "month" : view)} onMonthChange={setMiniMonth} />;
   const agendaProps = { columns, onEdit, onCreate };
-  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>{query.trim() ? "События не найдены" : "В этом месяце планов нет."}</p>{!query.trim() && <Button variant="outline" onClick={() => onCreate({ dueOn: selected })}><Plus />Добавить задачу</Button>}</div>}</div>;
+  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>В этом месяце планов нет.</p><Button variant="outline" onClick={() => onCreate({ dueOn: selected })}><Plus />Добавить задачу</Button></div>}</div>;
   const keyboard = (event) => {
     if (event.target.closest('input, textarea, [contenteditable="true"], [data-slot="popover-content"]') || !(event.metaKey || event.ctrlKey)) return;
     if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); navigate(shiftCalendarDate(selected, view, event.key === "ArrowLeft" ? -1 : 1)); }
@@ -222,27 +209,24 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
   };
   const navigation = <div className="schedule-navigation"><Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="rounded-full" onClick={() => navigate(today)}>Сегодня</Button><Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
   return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask, inspectInSidebar, inspectedId, onInspect: setInspectedId }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
-    <Tabs value={view} onValueChange={(value) => { setQuery(""); navigate(selected, value); }} className="schedule-window">
+    <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <div className="schedule-toolbar">
-        <div className="schedule-window-actions"><Button variant="outline" size="icon" className="schedule-sidebar-toggle rounded-full" aria-label={sidebar ? "Скрыть боковую панель" : "Показать боковую панель"} aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}><PanelLeft /></Button><Popover open={filterOpen} onOpenChange={setFilterOpen}><PopoverTrigger render={<Button variant="outline" size="icon" className="schedule-filter-toggle rounded-full" aria-label="Фильтры календаря" />}><PanelLeft /></PopoverTrigger><PopoverContent className="rollapp-body schedule-mobile-sidebar" align="start"><PopoverTitle>Календарь</PopoverTitle>{mini}{filters}<Button variant="ghost" onClick={() => { setFilterOpen(false); navigate(selected, "list"); }}>Список событий</Button></PopoverContent></Popover><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
-        <TabsList aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <Popover open={searchOpen} onOpenChange={setSearchOpen}><PopoverTrigger render={<Button variant="outline" size="icon" className="schedule-search-toggle rounded-full" aria-label="Поиск событий" />}><Search /></PopoverTrigger><PopoverContent className="rollapp-body schedule-search" align="end"><PopoverTitle>Поиск событий</PopoverTitle><Input aria-label="Поиск в календаре" placeholder="Название или заметка" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <Button variant="ghost" aria-label="Очистить поиск календаря" onClick={() => setQuery("")}><X />Очистить поиск</Button>}</PopoverContent></Popover>
+        <div className="schedule-window-actions"><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
+        <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
+        {navigation}
       </div>
-      <div className="schedule-layout" data-sidebar={sidebar || undefined}>
-        {sidebar && <aside className="schedule-sidebar">{filters}<Button variant="ghost" onClick={() => navigate(selected, "list")}>Список событий</Button><label className="flex flex-col gap-2"><span className="schedule-caption">Перейти к дате</span><Input type="date" aria-label="Дата перехода" value={selected} onChange={(event) => { if (isPlanningDate(event.target.value)) navigate(event.target.value); }} /></label></aside>}
+      <div className="schedule-layout">
         <div className="schedule-main" data-inspector={inspectInSidebar || undefined}>
-          <header className="schedule-header"><div className="schedule-heading"><h2 className="text-4xl" aria-live="polite">{query.trim() ? "Результаты поиска" : title}</h2>{view === "day" && !query.trim() && <p>{label(selected, { weekday: "long" })}</p>}</div>{!inspectInSidebar && navigation}</header>
-          {inspectInSidebar && <aside className="schedule-inspector" aria-label="Выбранное событие"><div className="schedule-inspector__top"><MiniMonth compact month={selected} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} />{navigation}</div>{inspected ? <section className="schedule-inspector__details"><header className="flex items-start justify-between gap-2"><h3 className="text-xl font-semibold">{inspected.title}</h3><Button variant="ghost" size="icon" aria-label="Снять выбор события" onClick={() => setInspectedId(null)}><X /></Button></header><EventDetails task={inspected} /></section> : <div className="schedule-inspector__empty">Нет выбранных событий</div>}</aside>}
-          {query.trim() ? <div className="schedule-search-results"><div className="flex items-center justify-between gap-2 px-5 py-3"><p className="schedule-caption" role="status">Найдено: {found.length} · Все даты</p><Button variant="ghost" onClick={() => { setQuery(""); setSearchOpen(false); }}>Закрыть поиск</Button></div>{listContent}</div> : <>
+          <header className="schedule-header"><div className="schedule-heading"><h2 className="text-4xl" aria-live="polite">{title}</h2>{view === "day" && <p>{label(selected, { weekday: "long" })}</p>}</div></header>
+          {inspectInSidebar && <aside className="schedule-inspector" aria-label="Выбранное событие"><div className="schedule-inspector__top"><MiniMonth compact month={selected} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} /></div>{inspected ? <section className="schedule-inspector__details"><header className="flex items-start justify-between gap-2"><h3 className="text-xl font-semibold">{inspected.title}</h3><Button variant="ghost" size="icon" aria-label="Снять выбор события" onClick={() => setInspectedId(null)}><X /></Button></header><EventDetails task={inspected} /></section> : <div className="schedule-inspector__empty">Нет выбранных событий</div>}</aside>}
           <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div ref={monthGrid} className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
             const shown = events.length > monthEventLimit ? Math.max(0, monthEventLimit - 1) : monthEventLimit;
-            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)} onDoubleClick={(event) => { if (!event.target.closest(".schedule-event-wrap")) onCreate({ dueOn: key }); }}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key)}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}</span><span className="schedule-mobile-dot" data-has-events={events.length > 0 || undefined} /></Button><div className="schedule-month__events">{events.slice(0, shown).map((task) => <EventButton key={task.id} task={task} compact />)}{events.length > shown && <Button variant="ghost" className="schedule-more" onClick={() => navigate(key, "day")}>Ещё {events.length - shown}</Button>}</div></div>;
+            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)} onDoubleClick={(event) => { if (!event.target.closest(".schedule-event-wrap")) onCreate({ dueOn: key }); }}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key)}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}</span><span className="schedule-mobile-dot" data-has-events={events.length > 0 || undefined} /></Button><div className="schedule-month__events">{events.slice(0, shown).map((task) => <EventButton key={task.id} task={task} compact />)}{events.length > shown && <Button variant="ghost" className="schedule-more" onClick={() => navigate(key, "day")}>Ещё {events.length - shown}</Button>}</div></div>;
           })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} />}</TabsContent>
           {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} />}</TabsContent>)}
           <TabsContent value="year" className="schedule-year-panel"><div className="schedule-year">{Array.from({ length: 12 }, (_, index) => <MiniMonth key={index} month={`${selected.slice(0, 4)}-${String(index + 1).padStart(2, "0")}-01`} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} onOpenMonth={(date) => navigate(date, "month")} />)}</div></TabsContent>
           <TabsContent value="list" className="schedule-list-panel">{listContent}</TabsContent>
-        </>}
         </div>
       </div>
     </Tabs>

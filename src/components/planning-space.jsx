@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Columns3, Plus, X } from "lucide-react";
+import { CalendarDays, Columns3, X } from "lucide-react";
 import { toast } from "sonner";
 import { planningApi } from "@/lib/planning-api";
 import { Button } from "@/components/ui/button";
@@ -130,13 +130,10 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     toast.success("Задача удалена");
   };
   return <section className={`app-page planning-space typeset typeset-rollapp ${activeTab === "kanban" ? "planning-space--kanban" : "planning-space--calendar"}`}>
-    {activeTab === "calendar" ? <h1 className="sr-only">Календарь планирования</h1> : <header className="planning-space__header">
-      <div data-typeset-group><h1>Планирование</h1></div>
-      <Button className="not-typeset" disabled={loading || Boolean(error)} onClick={() => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, dueOn: "" })}><Plus aria-hidden="true" />Новая задача</Button>
-    </header>}
+    <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
-        <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
+        <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} onCreate={() => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false })} />
       ) : (
         <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={setEditor} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       )}

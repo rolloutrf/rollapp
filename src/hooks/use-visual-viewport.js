@@ -16,15 +16,18 @@ export function measureVisualViewport(windowObject) {
   };
 }
 
-// Base UI reveals drawer fields for overlay keyboards. Handle dialogs and
-// keyboards that resize the layout viewport too, moving only overlay scrollers.
-function revealOverlayField(metrics) {
+// Recheck every overlay after viewport layout settles, including drawers:
+// WebKit can undo the initial focus reveal while its keyboard is animating.
+// Only move a field that is clipped; leave Base UI's centering intact otherwise.
+function revealOverlayField(metrics, settled = false) {
   if (Math.abs((window.visualViewport?.scale ?? 1) - 1) > 0.01) return;
   const field = document.activeElement;
   if (!field?.matches('input, textarea, [contenteditable="true"]')) return;
-  const selector = '[data-slot="dialog-content"], [data-slot="alert-dialog-content"]';
-  const popup = field.closest(metrics.keyboard ? selector : `${selector}, [data-slot="drawer-popup"]`);
+  const popup = field.closest('[data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="drawer-popup"]');
   if (!popup) return;
+  // Let the drawer finish its initial smooth reveal before correcting native
+  // scroll anchoring. An immediate scrollTop write would cancel that animation.
+  if (metrics.keyboard && popup.matches('[data-slot="drawer-popup"]') && !settled) return;
   for (let parent = field.parentElement; parent && popup.contains(parent); parent = parent.parentElement) {
     if (!/auto|scroll/.test(getComputedStyle(parent).overflowY)) continue;
     const area = parent.getBoundingClientRect();
@@ -58,7 +61,7 @@ export function useVisualViewport() {
       // Native viewport resizing can reconcile scroll anchoring after resize
       // listeners run. Reveal again after layout and its native settle pass.
       revealFrame = requestAnimationFrame(() => revealOverlayField(measureVisualViewport(window)));
-      settleTimer = setTimeout(() => revealOverlayField(measureVisualViewport(window)), 150);
+      settleTimer = setTimeout(() => revealOverlayField(measureVisualViewport(window), true), 350);
     };
     const schedule = () => {
       cancelAnimationFrame(frame);

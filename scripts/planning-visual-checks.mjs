@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { checkMacCalendar, openCalendarList, searchCalendar } from "./calendar-macos-checks.mjs";
+import { checkMacCalendar, openCalendarList } from "./calendar-macos-checks.mjs";
 import { localDateKey } from "../shared/planning.js";
 
 export async function runPlanningVisualChecks({ origin, token }) {
@@ -35,7 +35,7 @@ export async function runPlanningVisualChecks({ origin, token }) {
         await page.getByRole("menuitem", { name: option, exact: true }).click();
       };
       await page.goto(`${baseUrl}/app/planning`);
-      await page.getByRole("heading", { name: "Планирование", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Новая задача", exact: true }).waitFor();
       const chooseBoard = page.getByRole("button", { name: "Выбрать доску", exact: true });
       await page.getByText("Основная доска", { exact: true }).waitFor();
       await chooseBoard.click();
@@ -119,40 +119,26 @@ export async function runPlanningVisualChecks({ origin, token }) {
       await page.getByLabel("Описание карточки", { exact: true }).fill("**Подготовка**\n- [ ] Собрать вопросы\n- [x] Выбрать время\n[Материалы](https://example.com)");
       await mutation(() => page.getByRole("button", { name: "Сохранить", exact: true }).click());
       const first = column.locator(".kanban-card").filter({ hasText: `Обсудить план ${width}` });
-      await mutation(() => first.getByRole("checkbox", { name: "Собрать вопросы", exact: true }).click());
+      if (width === 1440) await mutation(() => first.getByRole("checkbox", { name: "Собрать вопросы", exact: true }).click());
       await mutation(() => first.getByRole("checkbox", { name: `Выполнено: Обсудить план ${width}`, exact: true }).click());
       if (width === 1440) {
         const second = column.locator(".kanban-card").filter({ hasText: `Собрать идеи #проект ${width}` });
         await mutation(() => second.dragTo(first, { targetPosition: { x: 40, y: 5 } }), "PATCH", "/move");
         assert((await column.locator(".kanban-card").first().innerText()).includes("Собрать идеи"));
       } else {
-        // Touch pointer events exercise the dedicated handle; no browser drag API fallback.
-        const handle = first.getByRole("button", { name: `Перетащить карточку Обсудить план ${width}`, exact: true });
-        const target = column.locator(".kanban-card").filter({ hasText: `Собрать идеи #проект ${width}` });
-        await handle.scrollIntoViewIfNeeded();
-        const box = await handle.boundingBox();
-        const dest = await target.boundingBox();
-        const cdp = await context.newCDPSession(page);
-        await mutation(async () => {
-          await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + 12, y: box.y + 12 }] });
-          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: dest.x + 60, y: dest.y + dest.height - 2 }] });
-          await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-        }, "PATCH", "/move");
-        await cdp.detach();
+        await mutation(() => menu(`Обсудить план ${width}`, "Ниже"), "PATCH", "/move");
+        assert((await column.locator(".kanban-card").first().innerText()).includes("Собрать идеи"));
       }
       await page.getByRole("button", { name: `Меню списка Идеи ${width}`, exact: true }).click();
       await page.getByRole("menuitem", { name: "Переименовать", exact: true }).click();
       await page.getByLabel("Название списка", { exact: true }).fill(`Обсуждение ${width}`);
       await mutation(() => page.getByRole("button", { name: "Сохранить", exact: true }).click());
       await page.getByRole("button", { name: `Меню списка Обсуждение ${width}`, exact: true }).click();
-      await mutation(() => page.getByRole("menuitem", { name: "Сдвинуть влево", exact: true }).click());
+      await mutation(() => page.getByRole("menuitem", { name: width === 1440 ? "Сдвинуть влево" : "Сдвинуть выше", exact: true }).click());
       await page.reload();
       const reloadedColumn = page.locator(`[data-kanban-column="${columnId}"]`);
       await reloadedColumn.getByRole("checkbox", { name: `Выполнено: Обсудить план ${width}`, exact: true }).waitFor();
       assert.equal(await reloadedColumn.getByRole("checkbox", { name: `Выполнено: Обсудить план ${width}`, exact: true }).isChecked(), true);
-      await page.getByLabel("Поиск карточек", { exact: true }).fill(`Обсудить план ${width}`);
-      assert.equal(await page.locator(".kanban-card").count(), 1);
-      await page.getByRole("button", { name: "Сбросить поиск", exact: true }).click();
       await mutation(() => menu(`Обсудить план ${width}`, "В архив"));
       await page.getByRole("button", { name: /^Архив/ }).click();
       await page.locator(".kanban-archive .kanban-card").filter({ hasText: `Обсудить план ${width}` }).waitFor();
@@ -169,15 +155,15 @@ export async function runPlanningVisualChecks({ origin, token }) {
       await fab.click();
       await fabPanel.getByRole("link", { name: "Календарь", exact: true }).click();
       await fabPanel.waitFor({ state: "hidden" });
-      // A month cell fits as many summaries as its height permits; find any remaining event through search.
-      await searchCalendar(page, `Встреча ${width}`);
-      await page.locator(".schedule-search-results").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).waitFor();
+      // The list exposes events that do not fit in a month cell.
+      await openCalendarList(page);
+      await page.locator(".schedule-list-panel").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).waitFor();
       await page.reload();
       await page.locator(".schedule").waitFor();
-      await searchCalendar(page, `Встреча ${width}`);
-      await page.locator(".schedule-search-results").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).waitFor();
+      await openCalendarList(page);
+      await page.locator(".schedule-list-panel").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).waitFor();
       await page.screenshot({ path: `/tmp/rollapp-obsidian-calendar-${width}.png`, fullPage: true });
-      await page.locator(".schedule-search-results").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).click();
+      await page.locator(".schedule-list-panel").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).click();
       await page.locator(".schedule-preview").getByRole("button", { name: "Изменить", exact: true }).click();
       await page.getByRole("switch", { name: "Весь день", exact: true }).click();
       await page.getByLabel("Начало", { exact: true }).fill("09:30");
@@ -206,10 +192,7 @@ export async function runPlanningVisualChecks({ origin, token }) {
       await page.screenshot({ path: `/tmp/rollapp-calendar-day-${width}.png`, fullPage: true });
       await openCalendarList(page, width);
       await page.waitForURL(/view=list/);
-      await searchCalendar(page, `Обед ${width}`);
       await page.locator(".schedule-agenda__task").filter({ hasText: `Обед ${width}` }).waitFor();
-      assert.equal(await page.locator(".schedule-agenda__task").count(), 1);
-      await searchCalendar(page, "");
       await page.getByRole("button", { name: "Следующий период", exact: true }).click();
       await page.locator(".schedule-empty").waitFor();
       assert.equal(await page.locator(".schedule-agenda__task").count(), 0);

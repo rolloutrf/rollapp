@@ -81,6 +81,10 @@ try {
         const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
         assert(Math.abs(actionBox.width - (initial.width - 32)) < 3, `${viewport.width} ${mode}: action does not span the footer`);
         assert(actionRadius < actionBox.height / 2 - 2, `${viewport.width} ${mode}: action is still pill-shaped`);
+        if (viewport.width < 768) {
+          const upload = await popup.getByRole('button', {name:'Добавить изображение',exact:true}).boundingBox();
+          assert(upload.height <= 160, 'Empty mobile upload crowds out the form fields');
+        }
       }
       const scrollBefore = await page.evaluate(() => scrollY);
       const height = Math.max(260, viewport.height - 340);
@@ -93,7 +97,20 @@ try {
         const footerBox = await footer.boundingBox();
         await boundsVisible(footer, 0, height, `${viewport.width} ${mode} footer`);
         await boundsVisible(field, 0, footerBox.y, `${viewport.width} ${mode} ${fieldName}`);
+        const bodyBox = await popup.locator('.app-drawer-body, [data-slot="scroll-area-viewport"], .wish-editor-screen__content').first().boundingBox();
+        await boundsVisible(field, bodyBox.y, bodyBox.y + bodyBox.height, `${mode} ${fieldName} inside scroller`);
         assert.equal(await page.evaluate(() => scrollY), scrollBefore, 'Background scrolled during keyboard focus');
+      }
+      if (mode === 'wish') {
+        // Native previous/next focus can move without another viewport resize.
+        for (const name of ['Поле 12', 'Поле 1']) {
+          const field = popup.getByRole('textbox', {name,exact:true});
+          await field.evaluate(el => el.focus({preventScroll:true}));
+          await page.waitForTimeout(850);
+          const body = await popup.locator('.wish-editor-screen__content').boundingBox();
+          await boundsVisible(field,body.y,body.y+body.height,`Native next/previous ${name}`);
+        }
+        if (viewport.width === 390) await page.screenshot({path:'/tmp/rollapp-wish-keyboard.png'});
       }
       // iOS can pan the visual viewport while keeping the layout viewport fixed.
       if (viewport.height > 600) {
