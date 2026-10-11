@@ -82,6 +82,16 @@ async function loadOpenRouterLockboxSecret() {
   console.log("Runtime OpenRouter credential loaded from Yandex Lockbox");
 }
 
+async function loadOpenRouterProxyLockboxSecret() {
+  const secretId = process.env.YC_OPENROUTER_PROXY_LOCKBOX_SECRET_ID;
+  if (!secretId || process.env.OPENROUTER_PROXY_URL) return;
+  process.env.OPENROUTER_PROXY_URL = await loadLockboxValue(
+    secretId,
+    process.env.YC_OPENROUTER_PROXY_SECRET_KEY || "proxy_url",
+  );
+  console.log("Runtime OpenRouter proxy loaded from Yandex Lockbox");
+}
+
 async function loadUserCredentialsLockboxSecret() {
   const secretId = process.env.YC_USER_CREDENTIALS_LOCKBOX_SECRET_ID;
   if (!secretId || process.env.USER_CREDENTIALS_SECRET) return;
@@ -98,6 +108,7 @@ await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 await loadYandexOauthSecrets();
 await loadOpenRouterLockboxSecret();
+await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {

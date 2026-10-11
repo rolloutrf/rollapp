@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { openRouterFetch } from "./openrouter-fetch.js";
 import { canonicalRetailerProductUrl, retailerPreview } from "../shared/retailer-previews.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -377,7 +378,7 @@ export class OpenRouterOffersError extends Error {
 
 export async function fetchOpenRouterMarketplaceOffers(wish, {
   apiKey = process.env.OPENROUTER_API_KEY,
-  fetchImpl = fetch,
+  fetchImpl = openRouterFetch,
   signal,
   model,
   now = () => new Date(),
