@@ -182,6 +182,29 @@ test("accepts an offers array returned by Mistral structured output", () => {
   assert.match(result.summary, /отсортированы/);
 });
 
+test("accepts tool-call JSON and ignores one malformed offer", () => {
+  const result = normalizeOpenRouterOffers({
+    choices: [{ message: {
+      content: "Вот найденные варианты:\n",
+      tool_calls: [{ function: { arguments: JSON.stringify({
+        offers: [
+          validOffer,
+          { marketplace: "Ozon", title: "без ссылки", url: "not-a-url" },
+        ],
+      }) } }],
+    } }],
+  });
+  assert.equal(result.offers.length, 1);
+  assert.equal(result.offers[0].marketplaceId, "ozon");
+});
+
+test("recovers JSON wrapped in provider commentary", () => {
+  const result = normalizeOpenRouterOffers({
+    choices: [{ message: { content: `Готово. ${JSON.stringify({ offers: [validOffer] })}` } }],
+  });
+  assert.equal(result.offers.length, 1);
+});
+
 test("flattens marketplace groups returned by a web-search model", () => {
   const result = normalizeOpenRouterOffers({
     choices: [{ message: { content: JSON.stringify([
