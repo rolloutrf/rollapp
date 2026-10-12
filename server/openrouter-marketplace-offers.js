@@ -38,11 +38,6 @@ const rawOfferSchema = z.object({
   reason: z.string().trim().min(1).max(300),
 });
 
-const rawResponseSchema = z.object({
-  offers: z.array(rawOfferSchema).max(12),
-  summary: z.string().trim().max(500),
-});
-
 const responseFormat = {
   type: "json_schema",
   json_schema: {
@@ -132,16 +127,32 @@ function directProductUrl(value, marketplaceIds) {
 }
 
 function responseText(payload) {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content.map((part) => typeof part === "string" ? part : part?.text || "").join("");
+  const message = payload?.choices?.[0]?.message;
+  const content = message?.content;
+  const toolCall = message?.tool_calls?.find((call) => typeof call?.function?.arguments === "string");
+  if (typeof content === "string" && /^[\s`]*[\[{]/.test(content)) return content;
+  if (Array.isArray(content)) {
+    const text = content.map((part) => typeof part === "string" ? part : part?.text || "").join("");
+    if (/^[\s`]*[\[{]/.test(text)) return text;
+  }
+  if (toolCall) return toolCall.function.arguments;
+  return typeof content === "string" ? content : "";
 }
 
 function parseJsonText(value) {
   const trimmed = String(value || "").trim();
   const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  return JSON.parse(unfenced);
+  try {
+    return JSON.parse(unfenced);
+  } catch (error) {
+    // Some providers prepend a short explanation despite response_format.
+    // Recover the first complete JSON object/array instead of discarding all offers.
+    const starts = [unfenced.indexOf("{"), unfenced.indexOf("[")].filter((index) => index >= 0);
+    const start = starts.length ? Math.min(...starts) : -1;
+    const end = Math.max(unfenced.lastIndexOf("}"), unfenced.lastIndexOf("]"));
+    if (start >= 0 && end > start) return JSON.parse(unfenced.slice(start, end + 1));
+    throw error;
+  }
 }
 
 function responseEnvelope(raw) {
@@ -249,15 +260,16 @@ export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOS
     ...(Array.isArray(envelope?.offers) ? envelope.offers : []),
     ...annotationCandidates(payload),
   ];
-  const parsed = rawResponseSchema.parse({
-    offers: candidates.map(canonicalOffer).flatMap((candidate) => {
+  const parsedOffers = candidates.map(canonicalOffer).flatMap((candidate) => {
       const result = rawOfferSchema.safeParse(candidate);
       return result.success ? [result.data] : [];
-    }).slice(0, 12),
+    }).slice(0, 12);
+  const parsed = {
+    offers: parsedOffers,
     summary: typeof envelope?.summary === "string" && envelope.summary.trim()
       ? envelope.summary
       : "Найдены прямые карточки товара и проверены на совпадение модели.",
-  });
+  };
   const seenUrls = new Set();
   const offers = [];
 
