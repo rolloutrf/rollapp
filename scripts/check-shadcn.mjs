@@ -36,6 +36,9 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
   read("jsconfig.json"),
 ]);
 const spacing = await read("src/spacing.css");
+const pageActionButton = await read("src/components/page-action-button.jsx");
+assert.match(pageActionButton, /cn\(className, "min-h-12 rounded-full px-6"\)/, "PageActionButton must apply the shared 48px height and 24px padding after caller classes");
+assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
 const jsconfig = JSON.parse(jsconfigText);
@@ -418,9 +421,9 @@ assert(dependencies["react-day-picker"] && dependencies["date-fns"], "shadcn Cal
 assert(/from "react-day-picker"/.test(calendarSource) && /<DayPicker\b/.test(calendarSource), "Calendar must compose React DayPicker as the shadcn component does");
 assert(/from "@\/components\/ui\/calendar"/.test(datePickerSource) && /from "@\/components\/ui\/popover"/.test(datePickerSource), "The planning date picker must compose shadcn Calendar and Popover");
 for (const [source, name] of [[dailyTodoSource, "PlanningDailyTodo"], [planningSpaceSource, "PlanningSpace"]]) {
-  assert(/<PlanningDatePicker\b/.test(source), `${name} must use the shared shadcn date picker`);
   assert(!/\btype=["']date["']/.test(source), `${name} must not open a browser-native date picker`);
 }
+assert(/<PlanningDatePicker\b/.test(planningSpaceSource), "PlanningSpace must use the shared shadcn date picker in its task editor");
 
 const expectedBaseUiImports = {
   "accordion.jsx": "@base-ui/react/accordion",

@@ -9,6 +9,7 @@ import {
 } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PageActionButton } from "@/components/page-action-button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -195,8 +196,8 @@ function IdentityStatements({ section }) {
     <div className="sphere-text-page page-stack">
       {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
         <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${labels.title}»`}>
-          <Button
-            className="min-h-12 shrink-0 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
+          <PageActionButton
+            className="bg-white text-base text-black hover:bg-white/90"
             type="button"
             disabled={careerContent.loading || Boolean(careerContent.error)}
             aria-label={`Добавить ${labels.item}`}
@@ -204,7 +205,7 @@ function IdentityStatements({ section }) {
           >
             {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
             Добавить
-          </Button>
+          </PageActionButton>
           <SphereBusinessControls sphereId="identity" />
         </div>
       </header>}

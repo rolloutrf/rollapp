@@ -133,6 +133,10 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     assert.equal((await request("PATCH", `/${namedTask.id}${scoped}`, { title: "Сохранено" })).body.task.title, "Сохранено");
     assert.equal((await request("DELETE", `/${namedTask.id}${scoped}`)).status, 200);
 
+    if (process.env.PLANNING_RECURRENCE_UI === "1") {
+      const { runRecurrenceChecks } = await import("../scripts/planning-recurrence-checks.mjs");
+      await runRecurrenceChecks({ origin, token: tokens[0] });
+    }
     if (process.env.PLANNING_TEST_UI === "1") {
       const { runPlanningVisualChecks } = await import("../scripts/planning-visual-checks.mjs");
       browser = await runPlanningVisualChecks({ origin, token: tokens[0] });

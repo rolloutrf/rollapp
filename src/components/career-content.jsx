@@ -7,6 +7,7 @@ import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PageActionButton } from "@/components/page-action-button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/ui/drawer";
@@ -95,15 +96,15 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
     <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Редактирование раздела">
         {showLabel ? (
-          <Button
-            className="min-h-12 rounded-full bg-white px-6 text-base text-black hover:bg-white/90"
+          <PageActionButton
+            className="bg-white text-base text-black hover:bg-white/90"
             type="button"
             disabled={disabled || loading}
             aria-label={label}
             onClick={onClick}
           >
             {buttonContent}
-          </Button>
+          </PageActionButton>
         ) : (
           <CareerIconAction
             label={loading ? `Загружаем: ${label}` : label}

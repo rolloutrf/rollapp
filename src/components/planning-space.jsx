@@ -10,15 +10,17 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { scheduleError } from "../../shared/planning-calendar.js";
+import { RECURRENCE_OPTIONS, recurrenceError } from "../../shared/planning-recurrence.js";
 import { PlanningKanban } from "@/components/planning-kanban";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePlanningSpaces } from "@/hooks/use-planning-spaces";
 import "./planning-space.css";
 
 export const PLANNING_TABS = [
@@ -26,7 +28,7 @@ export const PLANNING_TABS = [
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
 ];
-const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60 };
+const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null };
 function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const id = useId();
   const mobile = useIsMobile();
@@ -35,16 +37,16 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const change = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const change = (key, value) => { setError(""); setForm((current) => ({ ...current, [key]: value })); };
   const save = async (event) => {
     event.preventDefault();
     if (busy) return;
-    const invalid = scheduleError({ ...form, startTime: allDay ? "" : form.startTime });
+    const invalid = scheduleError({ ...form, startTime: allDay ? "" : form.startTime }) || recurrenceError(form);
     if (invalid) { setError(invalid); return; }
     setBusy(true);
     setError("");
     try {
-      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: allDay ? "" : form.startTime, durationMinutes: form.durationMinutes || 60 });
+      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: allDay ? "" : form.startTime, durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence });
       onClose();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
@@ -63,16 +65,18 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={save}>
           <DrawerHeader className="pr-16 text-left!">
             <DrawerTitle>{task.id ? "Редактировать задачу" : "Новая задача"}</DrawerTitle>
-            <DrawerDescription>Добавьте дату, чтобы задача появилась в календаре.</DrawerDescription>
+            <DrawerDescription>{task.id && task.recurrence ? "Изменения применяются ко всей серии событий." : "Добавьте дату, чтобы задача появилась в календаре."}</DrawerDescription>
           </DrawerHeader>
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             <FieldGroup>
               <Field><FieldLabel htmlFor={`${id}-title`}>Название</FieldLabel><Input id={`${id}-title`} required maxLength={200} placeholder="Что нужно сделать?" value={form.title} onChange={(e) => change("title", e.target.value)} /></Field>
               <Field><FieldLabel htmlFor={`${id}-description`}>Описание</FieldLabel><Textarea id={`${id}-description`} maxLength={5000} rows={4} placeholder="Детали и заметки" value={form.description} onChange={(e) => change("description", e.target.value)} /></Field>
-              <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectContent></Select></Field>
-              <Field><FieldLabel htmlFor={`${id}-date`}>Дата</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) setAllDay(true); }} label="Дата задачи" clearable className="w-full" /></Field>
+              <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+              <Field><FieldLabel htmlFor={`${id}-date`}>{form.recurrence ? "Начало серии" : "Дата"}</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) { setAllDay(true); change("recurrence", null); } }} label="Дата задачи" clearable className="w-full" /></Field>
             {form.dueOn && <>
+                <Field><FieldLabel htmlFor={`${id}-repeat`}>Повторение</FieldLabel><Select value={form.recurrence?.frequency || "none"} onValueChange={(frequency) => change("recurrence", frequency === "none" ? null : { frequency, until: form.recurrence?.until || "" })}><SelectTrigger id={`${id}-repeat`}><SelectValue>{RECURRENCE_OPTIONS.find(({ id }) => id === (form.recurrence?.frequency || "none"))?.label}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{RECURRENCE_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+                {form.recurrence && <Field><FieldLabel htmlFor={`${id}-repeat-until`}>Окончание повторения</FieldLabel><PlanningDatePicker id={`${id}-repeat-until`} value={form.recurrence.until} onChange={(until) => change("recurrence", { ...form.recurrence, until })} label="Окончание повторения" clearable className="w-full">{form.recurrence.until ? undefined : "Без окончания"}</PlanningDatePicker><p className="text-muted-foreground text-xs">{form.recurrence.until ? "Включая выбранную дату. " : "Повторяется без ограничения по дате. "}{["monthly", "yearly"].includes(form.recurrence.frequency) && "Если такой даты нет в месяце, повтор пропускается."}{form.recurrence.frequency === "weekdays" && "С понедельника по пятницу."}</p></Field>}
                 <Field orientation="horizontal"><FieldLabel htmlFor={`${id}-all-day`}>Весь день</FieldLabel><Switch id={`${id}-all-day`} checked={allDay} onCheckedChange={(checked) => { setAllDay(checked); if (!checked && !form.startTime) change("startTime", "09:00"); }} /></Field>
                 {!allDay && <>
                   <Field><FieldLabel htmlFor={`${id}-time`}>Начало</FieldLabel><Input id={`${id}-time`} type="time" required value={form.startTime} onChange={(event) => change("startTime", event.target.value)} /></Field>
@@ -83,14 +87,14 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
           </div>
           <DrawerFooter className="gap-2">
             <Button type="submit" disabled={busy || !form.title.trim()}>{busy && <Spinner />}Сохранить</Button>
-            {task.id && <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirmDelete(true)}>Удалить задачу</Button>}
+            {task.id && <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirmDelete(true)}>{task.recurrence ? "Удалить всю серию" : "Удалить задачу"}</Button>}
           </DrawerFooter>
         </form>
       </DrawerContent>
     </Drawer>
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <AlertDialogContent className="rollapp-body">
-        <AlertDialogHeader><AlertDialogTitle>Удалить задачу?</AlertDialogTitle><AlertDialogDescription>«{task.title}» исчезнет из доски и календаря.</AlertDialogDescription></AlertDialogHeader>
+        <AlertDialogHeader><AlertDialogTitle>{task.recurrence ? "Удалить всю серию?" : "Удалить задачу?"}</AlertDialogTitle><AlertDialogDescription>«{task.title}» исчезнет из доски и календаря.{task.recurrence && " Все повторы будут удалены."}</AlertDialogDescription></AlertDialogHeader>
         <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={remove}>Удалить</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -98,10 +102,40 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
 }
 
 export function PlanningSpace() {
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const activeTab = PLANNING_TABS.some(({ id }) => id === search.get("tab")) ? search.get("tab") : "kanban";
-  const spaceId = search.get("space") || "main";
+  // Daily To Do has no board selection, including when opened from an old link.
+  const spaceId = activeTab === "todo" ? "main" : search.get("space") || "main";
+  useEffect(() => {
+    if (activeTab !== "todo" || !search.has("space")) return;
+    setSearch((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("space");
+      return next;
+    }, { replace: true });
+  }, [activeTab, search, setSearch]);
+  if (activeTab === "kanban" && spaceId === "main") return <PlanningBoardStart />;
   return <PlanningSpaceContent key={spaceId} spaceId={spaceId} activeTab={activeTab} />;
+}
+
+function PlanningBoardStart() {
+  const [, setSearch] = useSearchParams();
+  const { spaces, loading, error, reload } = usePlanningSpaces("kanban");
+  const firstBoardId = spaces[0]?.id;
+  useEffect(() => {
+    if (loading || error || !firstBoardId) return;
+    setSearch((current) => {
+      const next = new URLSearchParams(current);
+      next.set("space", firstBoardId);
+      return next;
+    }, { replace: true });
+  }, [loading, error, firstBoardId, setSearch]);
+  return <section className="app-page planning-space typeset typeset-rollapp planning-space--kanban">
+    <h1 className="sr-only">Kanban-доска</h1>
+    <div className="not-typeset planning-tools rollapp-body">
+      {error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={reload}>Повторить</Button></AlertDescription></Alert> : loading || firstBoardId ? <div className="planning-space__status" role="status"><Spinner />Загружаем доски…</div> : <div className="planning-space__status"><p>Пока нет досок. Создайте первую через меню выбора доски вверху.</p></div>}
+    </div>
+  </section>;
 }
 
 function PlanningSpaceContent({ spaceId, activeTab }) {
@@ -127,6 +161,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     if (!quiet) toast.success(id ? "Задача сохранена" : "Задача добавлена");
     return task;
   };
+  const edit = (task) => setEditor(task.sourceId ? tasks.find((item) => item.id === task.sourceId) : task);
   const remove = async (id) => {
     await api.delete(`tasks/${id}`);
     setTasks((current) => current.filter((task) => task.id !== id));
@@ -138,9 +173,9 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
         <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} onCreate={() => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false })} />
       ) : activeTab === "calendar" ? (
-        <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={setEditor} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
+        <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
-        <PlanningDailyTodo tasks={tasks} columns={columns} onEdit={setEditor} onSave={save} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, ...schedule })} />
+        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} />
       )}
     </div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={save} onDelete={remove} />}

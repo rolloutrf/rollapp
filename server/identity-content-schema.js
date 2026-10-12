@@ -66,6 +66,7 @@ export const identityContentSchemas = {
   values: identityValuesSchema,
   character: identityCharacterSchema,
   mission: identityMarkdownSchema,
+  "ideal-state": identityMarkdownSchema,
   "life-strategy": identityMarkdownSchema,
   "four-questions": identityFourQuestionsSchema,
 };

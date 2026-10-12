@@ -30,16 +30,13 @@ export async function checkMacCalendar({ page, width, mutation }) {
   const timeline = page.locator(".schedule-timegrid:not(.schedule-timegrid--week)");
   await timeline.waitFor();
   const event = timeline.locator(".schedule-event-wrap").filter({ has: page.getByRole("button", { name: new RegExp(`^Обед ${width},`) }) });
-  if (width === 1440) {
-    await page.locator(".schedule-inspector__empty").waitFor();
-    const inspector = await page.locator(".schedule-inspector").boundingBox();
-    const grid = await timeline.boundingBox();
-    assert(inspector.x >= grid.x + grid.width - 1);
-    assert.equal(await timeline.locator(".schedule-day-heading").count(), 0);
-    await page.locator(".schedule-inspector .schedule-mini").waitFor();
-  }
+  assert.equal(await page.locator(".schedule-inspector").count(), 0);
+  const main = await page.locator(".schedule-main").boundingBox();
+  const grid = await timeline.boundingBox();
+  assert(Math.abs(grid.width - main.width) < 2);
+  assert.equal(await timeline.locator(".schedule-day-heading").count(), 0);
   await event.locator(".schedule-event").click();
-  await page.locator(width === 1440 ? ".schedule-inspector__details" : ".schedule-preview").getByRole("button", { name: "Дублировать", exact: true }).click();
+  await page.locator(".schedule-preview").getByRole("button", { name: "Дублировать", exact: true }).click();
   assert.equal(await page.getByLabel("Название", { exact: true }).inputValue(), `Обед ${width} — копия`);
   await page.getByRole("button", { name: "Закрыть задачу", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
@@ -84,18 +81,11 @@ export async function checkMacCalendar({ page, width, mutation }) {
     await page.getByRole("button", { name: "Сегодня", exact: true }).click();
     await page.getByRole("tab", { name: "Месяц", exact: true }).click();
     await page.locator(".schedule-month__grid").waitFor();
-    // Use a tall viewport so this busy day has room for the event summary being dragged.
-    await page.setViewportSize({ width, height: 1500 });
-    const source = page.locator(`.schedule-month__cell[data-date="${today}"] .schedule-event`).filter({ hasText: `Встреча ${width}` });
-    const next = new Date(`${today}T12:00:00`); next.setDate(next.getDate() + 1);
-    const destination = localDateKey(next);
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
-    await source.hover();
-    await mutation(() => source.dragTo(page.locator(`.schedule-month__cell[data-date="${destination}"]`), { targetPosition: { x: 20, y: 20 } }));
-    await page.locator(`.schedule-month__cell[data-date="${destination}"] .schedule-event`).filter({ hasText: `Встреча ${width}` }).waitFor();
-    await page.reload();
-    await page.locator(`.schedule-month__cell[data-date="${destination}"] .schedule-event`).filter({ hasText: `Встреча ${width}` }).waitFor();
-    await page.setViewportSize({ width, height: 1000 });
+    const cell = page.locator(`.schedule-month__cell[data-date="${today}"]`);
+    await cell.locator('.schedule-month__indicator[data-has-events]').waitFor();
+    assert.equal(await cell.locator('.schedule-event, .schedule-more').count(), 0);
+    await cell.locator('.schedule-month__date').click();
+    await page.waitForURL((url) => url.searchParams.get("view") === "day" && url.searchParams.get("date") === today);
     await page.getByRole("button", { name: "Сегодня", exact: true }).click();
   }
   await page.getByRole("tab", { name: "Месяц", exact: true }).click();
@@ -109,7 +99,7 @@ export async function checkMacCalendar({ page, width, mutation }) {
     referenceUrl.searchParams.set("date", "2026-11-05");
     await page.goto(referenceUrl.href);
     await page.locator(".schedule").waitFor();
-    for (const [view, name, selector] of [["year", "Год", ".schedule-year"], ["month", "Месяц", ".schedule-month__grid"], ["week", "Неделя", ".schedule-timegrid--week"], ["day", "День", ".schedule-inspector"]]) {
+    for (const [view, name, selector] of [["year", "Год", ".schedule-year"], ["month", "Месяц", ".schedule-month__grid"], ["week", "Неделя", ".schedule-timegrid--week"], ["day", "День", ".schedule-timegrid:not(.schedule-timegrid--week)"]]) {
       await page.getByRole("tab", { name, exact: true }).click();
       await page.locator(selector).waitFor();
       if (view === "day") {
