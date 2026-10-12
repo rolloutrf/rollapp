@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { MiniMonth } from "@/components/calendar-mini-month";
@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/compone
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { calendarDays, isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { CALENDAR_VIEWS, calendarRange, calendarMove, calendarResize, timeMinutes, calendarWeek, dateFromKey, layoutCalendarEvents, minutesTime, shiftCalendarDate, sortCalendarTasks, taskTimeLabel } from "../../shared/planning-calendar.js";
+import { expandRecurringTasks, recurrenceLabel } from "../../shared/planning-recurrence.js";
 import "./planning-calendar.css";
 
 const label = (key, options = { day: "numeric", month: "long" }) => new Intl.DateTimeFormat("ru-RU", options).format(dateFromKey(key));
@@ -21,19 +22,19 @@ function EventDetails({ task, onAction }) {
   return <>
     <p className="schedule-caption">{task.dueOn ? label(task.dueOn, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Без даты"} · {taskTimeLabel(task)}</p>
     <p className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}{task.completed ? " · Завершено" : ""}</p>
+    {task.recurrence && <p className="schedule-caption">{recurrenceLabel(task.recurrence)}. Изменения применяются ко всей серии.</p>}
     {task.description && <p className="schedule-preview__description">{task.description}</p>}
-    <div className="flex flex-wrap gap-2"><Button onClick={() => { onAction?.(); onEdit(task); }}><Pencil />Изменить</Button><Button variant="outline" onClick={() => { onAction?.(); const { id, ...copy } = task; onCreate({ ...copy, completed: false, title: `${task.title.slice(0, 190)} — копия` }); }}><Copy />Дублировать</Button></div>
+    <div className="flex flex-wrap gap-2"><Button onClick={() => { onAction?.(); onEdit(task); }}><Pencil />{task.recurrence ? "Изменить серию" : "Изменить"}</Button><Button variant="outline" onClick={() => { onAction?.(); const { id, sourceId, occurrenceDate, seriesDueOn, recurrenceCompletedDates, ...copy } = task; onCreate({ ...copy, completed: false, title: `${task.title.slice(0, 190)} — копия` }); }}><Copy />Дублировать</Button></div>
   </>;
 }
 function EventPreview({ task, children, className, ...props }) {
-  const { onEdit, busy, inspectInSidebar, onInspect, inspectedId } = useContext(CalendarActions);
+  const { onEdit, busy } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
   const interaction = {
-    draggable: !busy,
+    draggable: !busy && !task.recurrence,
     onDoubleClick: () => { setOpen(false); onEdit(task); },
-    onDragStart: (event) => { setOpen(false); event.dataTransfer.setData("application/x-rollapp-calendar", task.id); event.dataTransfer.effectAllowed = "move"; },
+    onDragStart: (event) => { if (task.recurrence) { event.preventDefault(); return; } setOpen(false); event.dataTransfer.setData("application/x-rollapp-calendar", task.id); event.dataTransfer.effectAllowed = "move"; },
   };
-  if (inspectInSidebar) return <Button variant="ghost" className={className} {...props} {...interaction} aria-pressed={inspectedId === task.id} onClick={() => onInspect(task.id)}>{children}</Button>;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={<Button variant="ghost" className={className} {...props} />} {...interaction}>{children}</PopoverTrigger>
     <PopoverContent className="rollapp-body schedule-preview" side="right" align="start"><PopoverTitle className="text-xl font-semibold">{task.title}</PopoverTitle><EventDetails task={task} onAction={() => setOpen(false)} /></PopoverContent>
@@ -44,7 +45,7 @@ function EventButton({ task, compact = false, style, onResize }) {
     <EventPreview task={task} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
       {compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}
     </EventPreview>
-    {onResize && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
+    {onResize && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
   </div>;
 }
 
@@ -128,7 +129,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
         <span className="schedule-caption schedule-all-day-label">Весь день</span>
-        {dates.map((date) => <div className="schedule-all-day" key={date} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, null)}>{tasks.filter((task) => task.dueOn === date && !task.startTime).slice(0, allDayLimit).map((task) => <EventButton key={task.id} task={task} compact />)}{tasks.filter((task) => task.dueOn === date && !task.startTime).length > allDayLimit && <Button variant="ghost" className="schedule-more" onClick={() => onSelect(date, "list")}>Ещё {tasks.filter((task) => task.dueOn === date && !task.startTime).length - allDayLimit}</Button>}{!tasks.some((task) => task.dueOn === date && !task.startTime) && <Button variant="ghost" size="icon" aria-label={`Добавить на весь день, ${label(date)}`} onClick={() => onCreate({ dueOn: date })}><Plus className="size-4" /></Button>}</div>)}
+        {dates.map((date) => <div className="schedule-all-day" key={date} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, null)}>{tasks.filter((task) => task.dueOn === date && !task.startTime).slice(0, allDayLimit).map((task) => <EventButton key={task.id} task={task} compact />)}{tasks.filter((task) => task.dueOn === date && !task.startTime).length > allDayLimit && <Button variant="ghost" className="schedule-more" onClick={() => onSelect(date, "list")}>Ещё {tasks.filter((task) => task.dueOn === date && !task.startTime).length - allDayLimit}</Button>}</div>)}
       </div>
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
@@ -151,26 +152,7 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
   const view = CALENDAR_VIEWS.some((item) => item.id === search.get("view")) ? search.get("view") : "month";
-  const monthGrid = useRef(null);
-  const [monthEventLimit, setMonthEventLimit] = useState(1);
-  useEffect(() => {
-    const grid = monthGrid.current;
-    if (!grid) return;
-    const measure = () => setMonthEventLimit(Math.max(0, Math.min(4, Math.floor((grid.clientHeight / 6 - 36) / 34))));
-    const observer = new ResizeObserver(measure);
-    observer.observe(grid); measure();
-    return () => observer.disconnect();
-  }, [view]);
-  const [inspectedId, setInspectedId] = useState(null);
   const mobile = useIsMobile();
-  const [wide, setWide] = useState(() => window.matchMedia("(min-width: 1200px)").matches);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1200px)");
-    const update = () => setWide(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  useEffect(() => setInspectedId(null), [selected, view]);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const navigate = (date, mode = view) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; });
@@ -187,15 +169,17 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
   const dropTask = (event, date, minute, preserveTime = false) => {
     event.preventDefault(); event.stopPropagation();
     const task = tasks.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
-    if (task && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
+    if (task && !task.recurrence && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
   };
-  const visible = sortCalendarTasks(tasks.filter((task) => !task.archived));
+  const dates = view === "year" ? [`${selected.slice(0, 4)}-01-01`, `${selected.slice(0, 4)}-12-31`]
+    : view === "week" ? calendarWeek(selected)
+    : view === "day" ? [selected]
+    : calendarDays(dateFromKey(selected)).map(localDateKey);
+  const visible = sortCalendarTasks(expandRecurringTasks(tasks, dates[0], dates.at(-1)));
   const dayTasks = visible.filter((task) => task.dueOn === selected);
   const month = selected.slice(0, 7);
   const listed = visible.filter((task) => task.dueOn?.startsWith(month));
   const groupedDates = [...new Set(listed.map((task) => task.dueOn))];
-  const inspectInSidebar = view === "day" && wide;
-  const inspected = visible.find((task) => task.id === inspectedId && task.dueOn === selected);
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
   const agendaProps = { columns, onEdit, onCreate };
@@ -208,7 +192,7 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="rounded-full" onClick={() => navigate(today)}>Сегодня</Button><Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask, inspectInSidebar, inspectedId, onInspect: setInspectedId }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <div className="schedule-toolbar">
         <div className="schedule-window-actions"><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
@@ -216,13 +200,11 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
         {navigation}
       </div>
       <div className="schedule-layout">
-        <div className="schedule-main" data-inspector={inspectInSidebar || undefined}>
+        <div className="schedule-main">
           <header className="schedule-header"><div className="schedule-heading"><h2 className="text-4xl" aria-live="polite">{title}</h2>{view === "day" && <p>{label(selected, { weekday: "long" })}</p>}</div></header>
-          {inspectInSidebar && <aside className="schedule-inspector" aria-label="Выбранное событие"><div className="schedule-inspector__top"><MiniMonth compact month={selected} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} /></div>{inspected ? <section className="schedule-inspector__details"><header className="flex items-start justify-between gap-2"><h3 className="text-xl font-semibold">{inspected.title}</h3><Button variant="ghost" size="icon" aria-label="Снять выбор события" onClick={() => setInspectedId(null)}><X /></Button></header><EventDetails task={inspected} /></section> : <div className="schedule-inspector__empty">Нет выбранных событий</div>}</aside>}
-          <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div ref={monthGrid} className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
+          <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
-            const shown = events.length > monthEventLimit ? Math.max(0, monthEventLimit - 1) : monthEventLimit;
-            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)} onDoubleClick={(event) => { if (!event.target.closest(".schedule-event-wrap")) onCreate({ dueOn: key }); }}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key)}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}</span><span className="schedule-mobile-dot" data-has-events={events.length > 0 || undefined} /></Button><div className="schedule-month__events">{events.slice(0, shown).map((task) => <EventButton key={task.id} task={task} compact />)}{events.length > shown && <Button variant="ghost" className="schedule-more" onClick={() => navigate(key, "day")}>Ещё {events.length - shown}</Button>}</div></div>;
+            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button></div>;
           })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} />}</TabsContent>
           {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} />}</TabsContent>)}
           <TabsContent value="year" className="schedule-year-panel"><div className="schedule-year">{Array.from({ length: 12 }, (_, index) => <MiniMonth key={index} month={`${selected.slice(0, 4)}-${String(index + 1).padStart(2, "0")}-01`} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} onOpenMonth={(date) => navigate(date, "month")} />)}</div></TabsContent>

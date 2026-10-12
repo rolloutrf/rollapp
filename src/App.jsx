@@ -53,6 +53,7 @@ import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
 import { LabResults } from "@/components/lab-results";
 import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
+import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BrandCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
@@ -695,7 +696,7 @@ function PlanningFab() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className="planning-fab !size-14 !rounded-full" size="icon" type="button" />}
+        render={<ShadcnButton className="planning-fab !size-14 !rounded-full" size="icon" type="button" data-daily-todo={inPlanning && currentTab === "todo" || undefined} />}
         aria-label="Открыть планирование"
         title="Планирование"
       >
@@ -843,6 +844,11 @@ const IDENTITY_TABS = [
     id: "mission",
     label: "Миссия",
     description: "Формулировка личной миссии и ориентиров для принятия решений.",
+  },
+  {
+    id: "ideal-state",
+    label: "Идеальное состояние",
+    description: "Жизнь и самоощущение, к которым вы стремитесь.",
   },
   {
     id: "life-strategy",
@@ -2246,6 +2252,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                         ? <CharacterTraits />
                         : sphere.id === "identity" && tab.id === "mission"
                           ? <Mission />
+                          : sphere.id === "identity" && tab.id === "ideal-state"
+                            ? <IdealState />
                           : sphere.id === "identity" && tab.id === "life-strategy"
                             ? <EditableLifeStrategy />
                             : sphere.id === "education" && tab.id === "courses"

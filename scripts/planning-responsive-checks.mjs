@@ -54,7 +54,7 @@ export async function runPlanningResponsiveChecks({ origin, token }) {
             });
             assert(selectedVisible, `${label}: selected day is outside the week viewport`);
           }
-          if (width < 1200) assert.equal(await page.locator('.schedule-inspector').count(), 0, `${label}: cramped day inspector`);
+          assert.equal(await page.locator('.schedule-inspector').count(), 0, `${label}: removed day inspector`);
         }
         if (view === 'kanban') {
           const board = await page.locator('.planning-board').evaluate(el => ({

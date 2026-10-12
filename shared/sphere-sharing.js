@@ -1,6 +1,6 @@
 export const SPHERE_SECTIONS = {
   wishlist: ["wishlist"],
-  identity: ["four-questions", "values", "character", "gallup", "hogan", "mission", "life-strategy", "theses", "principles"],
+  identity: ["four-questions", "values", "character", "gallup", "hogan", "mission", "ideal-state", "life-strategy", "theses", "principles"],
   career: ["about", "domain", "cv", "performance", "development-plan", "contacts"],
   education: ["courses", "conferences", "coaching"],
   health: ["lab-results", "sport", "medications"],
@@ -15,6 +15,7 @@ export const SPHERE_SECTION_LABELS = {
   gallup: "Gallup",
   hogan: "Hogan",
   mission: "Миссия",
+  "ideal-state": "Идеальное состояние",
   "life-strategy": "Жизненная стратегия",
   theses: "Тезисы",
   principles: "Принципы",

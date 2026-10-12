@@ -209,8 +209,8 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
   };
   return <div className="kanban-workspace" aria-busy={busy}>
     <div className="kanban-toolbar">
-      <Button className="rounded-full" onClick={onCreate}><Plus aria-hidden="true" />Новая задача</Button>
-      <div className="flex items-center gap-2"><Button variant="outline" className="rounded-full aria-pressed:bg-accent" onClick={() => { setArchive(!archive); setEditingCard(null); }} aria-pressed={archive}><Archive />Архив<Badge variant="secondary">{tasks.filter((task) => task.archived).length}</Badge></Button>
+      <Button className="rounded-full" onClick={onCreate}>Новая задача</Button>
+      <div className="flex items-center gap-2"><Button variant="outline" className="rounded-full aria-pressed:bg-accent" onClick={() => { setArchive(!archive); setEditingCard(null); }} aria-pressed={archive}>Архив<Badge variant="secondary">{tasks.filter((task) => task.archived).length}</Badge></Button>
         <Button variant="outline" size="icon" className="rounded-full" aria-label="Скачать Markdown" title="Скачать Markdown" onClick={exportBoard}><Download /></Button></div>
     </div>
     <span role="status" className="sr-only">{announcement}</span>
