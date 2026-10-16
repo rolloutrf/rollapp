@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { access } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
+
+let executablePath;
+for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].filter(Boolean)) {
+  try { await access(candidate); executablePath = candidate; break; } catch {}
+}
+assert(executablePath, "Install Chrome or set CHROME_PATH");
 
 // Actual picker, Router and task editor; unsaved props only, all API forbidden.
 const server = await createServer({
@@ -20,7 +27,7 @@ const server = await createServer({
   }],
 });
 await server.listen();
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
+const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
 try {
   for (const width of (process.env.DATE_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width < 768 ? [844, 400] : [844]) {
