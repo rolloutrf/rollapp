@@ -439,6 +439,8 @@ const planningSpaceSource = await read("src/components/planning-space.jsx");
 assert(dependencies["react-day-picker"] && dependencies["date-fns"], "shadcn Calendar dependencies must be installed");
 assert(/from "react-day-picker"/.test(calendarSource) && /<DayPicker\b/.test(calendarSource), "Calendar must compose React DayPicker as the shadcn component does");
 assert(/from "@\/components\/ui\/calendar"/.test(datePickerSource) && /from "@\/components\/ui\/popover"/.test(datePickerSource), "The planning date picker must compose shadcn Calendar and Popover");
+assert(/<MobileFormScreen\b/.test(datePickerSource) && /onAfterClose=/.test(datePickerSource) && !/<Dialog\b/.test(datePickerSource), "Mobile dates must use a native page and apply selection after returning to its owner");
+assert(packageJson.scripts["check:release"].includes("npm run test:dates"), "Date-page history and draft checks must run before release");
 for (const [source, name] of [[dailyTodoSource, "PlanningDailyTodo"], [planningSpaceSource, "PlanningSpace"]]) {
   assert(!/\btype=["']date["']/.test(source), `${name} must not open a browser-native date picker`);
 }

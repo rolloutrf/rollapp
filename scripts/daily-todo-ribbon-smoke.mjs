@@ -19,7 +19,7 @@ try{
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');
     const dateTrigger=page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true});
-    await dateTrigger.click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog').waitFor({state:'hidden'});
+    await dateTrigger.click();const datePage=page.locator('[data-mobile-form-page]:visible');await datePage.getByRole('heading',{name:'Выбрать дату',exact:true}).waitFor();await datePage.getByRole('button',{name:'Назад',exact:true}).click();await datePage.waitFor({state:'hidden'});await page.waitForURL(url=>!url.searchParams.has('formScreen'));
     const owner=page.locator('.daily-todo');await owner.evaluate(e=>{e.scrollTop=e.scrollHeight});
     const navTop=await page.locator('.planning-fab-controls').evaluate(e=>e.getBoundingClientRect().top);
     if(!empty){const last=await page.locator('.daily-todo__item').last().boundingBox();assert(last.y+last.height<=navTop-15,'Last task cannot scroll above navigation');}

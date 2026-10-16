@@ -32,10 +32,20 @@ export function MobileFormPages({ children }) {
   const entriesRef = useRef(new Map());
   const timers = useRef(new Map());
   const pendingClose = useRef(null);
+  const closeCallbacks = useRef(new Map());
   const reconcileFrame = useRef(0);
   const [entries, setEntries] = useState([]);
   const [targets, setTargets] = useState(new Map());
   const sync = useCallback(() => setEntries([...entriesRef.current.values()]), []);
+  const finishClose = useCallback((activeId) => {
+    for (const [id, callback] of closeCallbacks.current) {
+      if (id === activeId) continue;
+      closeCallbacks.current.delete(id);
+      // The owner must see its restored Router location before a selection
+      // callback updates search params, otherwise it can retain formScreen.
+      requestAnimationFrame(() => callback.current?.());
+    }
+  }, []);
   const setTarget = useCallback((id, node) => setTargets((current) => {
     if (current.get(id) === node || (!node && !current.has(id))) return current;
     const next = new Map(current);
@@ -66,16 +76,17 @@ export function MobileFormPages({ children }) {
       if (!entry) return;
       entriesRef.current.delete(id);
       sync();
+      if (entry.afterClose?.current) closeCallbacks.current.set(id, entry.afterClose);
       if (formToken(window.location.search) === id) {
         pendingClose.current = id;
         navigate(-1);
-      }
+      } else finishClose(formToken(window.location.search));
       requestAnimationFrame(() => {
         window.scrollTo(0, entry.scrollY);
         if (entry.opener?.isConnected) entry.opener.focus?.({ preventScroll: true });
       });
     }, 0));
-  }, [navigate, sync]);
+  }, [navigate, sync, finishClose]);
   const reconcileHistory = useCallback((id) => {
     cancelAnimationFrame(reconcileFrame.current);
     if (pendingClose.current && id !== pendingClose.current) pendingClose.current = null;
@@ -101,13 +112,14 @@ export function MobileFormPages({ children }) {
   useLayoutEffect(() => {
     const id = formToken(location.search);
     if (id !== formToken(window.location.search)) return;
+    finishClose(id);
     if (!entriesRef.current.size) {
       // A transient form URL after reload returns to its owning section.
       if (id && !pendingClose.current) navigate(withForm(location, null), { replace: true, state: location.state });
       return;
     }
     reconcileHistory(id);
-  }, [location, navigate, reconcileHistory]);
+  }, [location, navigate, reconcileHistory, finishClose]);
   useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); }, []);
   const value = useMemo(() => ({ register, unregister, targets, active: entries.length > 0 }), [register, unregister, targets, entries.length]);
   const active = entries.at(-1)?.id;
@@ -117,7 +129,7 @@ export function MobileFormPages({ children }) {
   </MobileFormsContext.Provider>;
 }
 
-export function MobileFormScreen({ open = true, onOpenChange, children }) {
+export function MobileFormScreen({ open = true, onOpenChange, onAfterClose, children }) {
   const pages = useContext(MobileFormsContext);
   const instanceId = useId();
   const id = useRef(`form-${instanceId.replace(/[^a-zA-Z0-9_-]/g, "")}`);
@@ -125,12 +137,14 @@ export function MobileFormScreen({ open = true, onOpenChange, children }) {
   openRef.current = open;
   const close = useRef(null);
   close.current = () => onOpenChange?.(false, { reason: "close-press", cancel() {} });
+  const afterClose = useRef(onAfterClose);
+  afterClose.current = onAfterClose;
   const register = pages?.register;
   const unregister = pages?.unregister;
   useLayoutEffect(() => {
     if (!open || !register) return;
     openRef.current = true;
-    register({ id: id.current, close, open: openRef });
+    register({ id: id.current, close, open: openRef, afterClose });
     return () => { openRef.current = false; unregister(id.current); };
   }, [open, register, unregister]);
   if (!pages) throw new Error("Mobile form screens require MobileFormPages");

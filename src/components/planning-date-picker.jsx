@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MobileFormScreen } from "@/components/mobile-form-pages";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -40,23 +40,33 @@ const calendarClassNames = {
 
 export function PlanningDatePicker({ id, value, onChange, label = "Перейти к дате", clearable = false, className = "", children }) {
   const [open, setOpen] = useState(false);
+  const pendingSelection = useRef(null);
   const mobile = useIsMobile();
   const date = isPlanningDate(value) ? dateFromKey(value) : undefined;
   const accessibleLabel = `${label}: ${date ? formatDate(date) : "не выбрана"}`;
+  const select = (key) => {
+    if (mobile) pendingSelection.current = key;
+    else onChange(key);
+    setOpen(false);
+  };
   const content = <>
-      <Calendar mode="single" hideNavigation required selected={date} defaultMonth={date} onSelect={(next) => { if (!next) return; onChange(localDateKey(next)); setOpen(false); }} locale={ru} weekStartsOn={1} captionLayout="dropdown" components={calendarComponents} labels={calendarLabels} classNames={calendarClassNames} startMonth={new Date(1900, 0, 1)} endMonth={new Date(2100, 11, 1)} className="[--cell-size:2.5rem] max-[380px]:[--cell-size:2.25rem]" />
-      {clearable && value && <div className="border-t border-border p-2"><Button type="button" variant="ghost" className="w-full justify-center" onClick={() => { onChange(""); setOpen(false); }}>Очистить дату</Button></div>}
+      <Calendar mode="single" hideNavigation required selected={date} defaultMonth={date} onSelect={(next) => { if (next) select(localDateKey(next)); }} locale={ru} weekStartsOn={1} captionLayout="dropdown" components={calendarComponents} labels={calendarLabels} classNames={mobile ? { ...calendarClassNames, root: "w-full" } : calendarClassNames} startMonth={new Date(1900, 0, 1)} endMonth={new Date(2100, 11, 1)} className={mobile ? "planning-date-page__calendar" : "[--cell-size:2.5rem] max-[380px]:[--cell-size:2.25rem]"} />
+      {clearable && value && <div className="p-2"><Button type="button" variant="ghost" className="w-full justify-center" onClick={() => select("")}>Очистить дату</Button></div>}
     </>;
   const button = <Button id={id} type="button" variant="outline" className={`rounded-full ${className}`} aria-label={accessibleLabel} />;
   const buttonContent = children ?? <><span>{date ? formatDate(date) : "Выберите дату"}</span><CalendarDays aria-hidden="true" /></>;
   if (mobile) return <>
-    <Button id={id} type="button" variant="outline" className={`rounded-full ${className}`} aria-label={accessibleLabel} onClick={() => setOpen(true)}>{buttonContent}</Button>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="not-typeset rollapp-body max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] w-fit gap-0 overflow-y-auto p-2">
-        <DialogHeader className="px-2 pt-1 text-left"><DialogTitle>{label}</DialogTitle></DialogHeader>
+    <Button id={id} type="button" variant="outline" className={`rounded-full ${className}`} aria-label={accessibleLabel} onClick={() => { pendingSelection.current = null; setOpen(true); }}>{buttonContent}</Button>
+    <MobileFormScreen open={open} onOpenChange={setOpen} onAfterClose={() => {
+      const key = pendingSelection.current;
+      pendingSelection.current = null;
+      if (key !== null) onChange(key);
+    }}>
+      <section className="mobile-form-page__surface planning-date-page not-typeset" aria-label={label}>
+        <header className="mobile-form-page__header"><h1 className="text-2xl font-semibold" tabIndex={-1} ref={(node) => node?.focus({ preventScroll: true })}>{label}</h1></header>
         {content}
-      </DialogContent>
-    </Dialog>
+      </section>
+    </MobileFormScreen>
   </>;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={button}>{buttonContent}</PopoverTrigger>
