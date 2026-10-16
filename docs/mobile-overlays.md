@@ -6,8 +6,10 @@ and bottom offset to the document. It handles overlay keyboards, resized layout
 viewports, browser chrome and iOS viewport panning. Pinch zoom does not resize the
 application layout.
 
-- Base UI owns focus trapping, return focus, page scroll locking, touch gestures
-  and drawer field reveal via `Drawer.VirtualKeyboardProvider`.
+- For actual modal drawers/dialogs, Base UI owns focus trapping, return focus,
+  page scroll locking, touch gestures and field reveal via
+  `Drawer.VirtualKeyboardProvider`. Native mobile form pages have no modal trap
+  or scroll lock; their separate contract is described below.
 - Viewport CSS must update synchronously before Base UI's queued focus alignment.
   Otherwise it can retain padding calculated from the pre-keyboard rectangle.
 - Non-snap drawers use intrinsic height, capped by the available viewport.
@@ -65,10 +67,11 @@ checks placement, menus, safe area, keyboard geometry, source hiding and desktop
 header preservation using presentation props only; all API calls are rejected.
 
 Planning uses a fixed viewport shell with `top: --app-visual-top` and
-`height: --app-visual-height`, just like the overlay coordinate system. This
-keeps iOS keyboard panning from moving its in-flow form off screen. The To Do
-list owns scrolling, with scroll anchoring disabled; the composer stays outside
-that scroller and the floating controls use `--app-visual-bottom`.
+`height: --app-visual-height`. The To Do surface owns its vertical scroll with
+scroll anchoring disabled. On mobile its top date/Add row scrolls with the list;
+Add opens a separate native task page, with no inline composer. Desktop retains
+its date ribbon and composer composition. Floating controls use the shared
+VisualViewport/safe-area navigation inset.
 
 On phones below 768px, wish creation follows the native mobile form-page
 contract described below. Desktop drawer sizing is unchanged.
@@ -111,12 +114,18 @@ longer forms grow with the document. Their minimum height uses
 resizing the layout viewport. The document is the only scroll owner. Smooth
 scrolling is disabled while a form page is active so keyboard focus and WebKit
 panning do not trigger a competing animation.
+Entry and source-scroll restoration use explicit `behavior: "instant"` as well:
+once the form unmounts, the source's global smooth-scroll CSS is active again.
+Restoring its saved position must not animate from the top. `test:form-pages`
+checks both page and browser Back from a deep source position, frame by frame.
 
 `MobileFormFooter` keeps Back, submit and optional delete in one fixed
 `ControlBar`, with 48px controls and 8px gaps. Its bottom uses
 `--layout-navigation-bottom`: visual viewport offset plus 16px or the larger
 safe area; keyboard mode omits the home-indicator inset. The row has no background
-slab, border or extra padding; individual controls are opaque. A document tail of
+slab, border or extra padding; individual controls are opaque.
+Disabled controls use the product's solid muted surface/text at full opacity;
+they must conceal scrolled fields just like enabled controls. A document tail of
 one control height plus two 16px gaps and the safe area lets the final field
 scroll above it. Never position Back independently when a form footer exists.
 Forms without a footer (such as date selection) retain the shared fixed Back.

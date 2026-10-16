@@ -77,8 +77,10 @@ jobs:
           echo "YC_IAM_TOKEN=${IAM_TOKEN}" >> "$GITHUB_ENV"
 
       - name: Install pinned Yandex Cloud CLI
+        timeout-minutes: 6
         run: |
-          sudo curl -fsSL \
+          sudo curl -fsSL --connect-timeout 15 --max-time 120 \
+            --retry 2 --retry-max-time 300 \
             https://storage.yandexcloud.net/yandexcloud-yc/release/0.201.0/linux/amd64/yc \
             -o /usr/local/bin/yc
           sudo chmod 0755 /usr/local/bin/yc
@@ -169,14 +171,9 @@ jobs:
               '.ok == true and .service == "rollapp" and (.version | type == "string") and .version != $expected' \
               <<<"$current_health" >/dev/null 2>&1; then
               stale_version="$(jq -r '.version' <<<"$current_health")"
-              echo "Production is healthy but stale at ${stale_version}; restarting the VM once to reconcile container metadata"
-              yc compute instance restart \
-                --id "$YC_VM_ID" \
-                --folder-id "$YC_FOLDER_ID"
-              if ! wait_for_expected_version 90; then
-                echo "Production stayed stale after the one-time VM restart: $(read_health)" >&2
-                exit 1
-              fi
+              echo "Production is healthy but stale at ${stale_version}; keeping the running service available" >&2
+              echo "Inspect COI pull errors and VM disk space before any manual restart; see docs/verification.md" >&2
+              exit 1
             else
               echo "Production became unhealthy while deploying; refusing an automatic restart: ${current_health}" >&2
               exit 1

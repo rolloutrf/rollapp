@@ -1,15 +1,19 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
+import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',server:{host:'127.0.0.1',port:5191,strictPort:true,hmr:false,watch:null},plugins:[{name:'todo-ribbon-fixture',transform(source,id){if(id.includes('planning-space.jsx?drawer-smoke-export=TaskEditor'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
  if(!req.url.startsWith('/__todo-ribbon'))return next();
  res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/daily-todo-ribbon.jsx"></script></body></html>'));
 });}}]});
 await server.listen();
-const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of width<768?[844,400]:[844]){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
+  // Date-only scenarios must survive midnight and not depend on the day the
+  // audit runs. Keep timers/animations moving while fixing Date's wall clock.
+  await page.clock.setFixedTime(new Date('2026-10-16T12:00:00+03:00'));
   page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
   for(const empty of [false,true]){
    await page.goto(`http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
@@ -112,4 +116,22 @@ try{
   }
   assert.deepEqual(errors,[]);await page.close();
  }
+ const page=await browser.newPage({viewport:{width:390,height:844}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
+ await page.clock.setFixedTime(new Date('2026-10-17T12:00:00+03:00'));
+ await page.goto('http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17');
+ await page.getByRole('button',{name:'Предыдущий день',exact:true}).click();
+ await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Следующий день',exact:true}).click();
+ await page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true}).waitFor();
+ await page.waitForURL(url=>!url.searchParams.has('date'));
+ await page.getByRole('button',{name:'Добавить задачу',exact:true}).click();
+ const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
+ await screen.getByRole('textbox',{name:'Название',exact:true}).fill('Задача на сегодня');
+ await screen.getByRole('button',{name:'Сохранить',exact:true}).click();await screen.waitFor({state:'hidden'});
+ assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()).dueOn,'2026-10-17','Omitted today URL lost the task date');
+ await page.waitForURL(url=>!url.searchParams.has('date')&&!url.searchParams.has('formScreen'));
+ assert.deepEqual(errors,[]);await page.close();
+ console.log('PASS today shorthand: omitted date URL preserves the selected day in a new task');
 }finally{await browser.close();await server.close();}

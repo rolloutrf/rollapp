@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
+import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port:5190,strictPort:true,hmr:false,watch:null},plugins:[{
   name:'action-rails-fixture',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
@@ -9,7 +10,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke
   });}
 }]});
 await server.listen();
-const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];

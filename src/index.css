@@ -294,6 +294,28 @@
     background-clip: border-box !important;
   }
 
+  /* Product navigation outlines must not inherit Base Nova's translucent
+     dark input surface. Keep the original primitives unchanged. */
+  [data-control-bar] :is([class~="group/button"][class~="bg-background"], [data-slot="select-trigger"], [data-control-icon]:not([class~="bg-primary"])),
+  [data-native-form-actions] [class~="group/button"]:not([type="submit"]) {
+    background-color: var(--card);
+  }
+  [data-control-bar] :is([class~="group/button"][class~="bg-background"], [data-slot="select-trigger"], [data-control-icon]:not([class~="bg-primary"])):is(:hover, [aria-expanded="true"]),
+  [data-native-form-actions] [class~="group/button"]:not([type="submit"]):hover {
+    background-color: var(--muted);
+  }
+  [data-control-bar] [class~="group/button"][class~="bg-primary"]:hover:not(:disabled) {
+    background-color: color-mix(in oklch, var(--primary) 80%, var(--background));
+  }
+
+  /* Fixed controls must conceal the scrolling content even when unavailable.
+     Dim their solid colors instead of the primitive's whole-element opacity. */
+  [data-control-bar] :is([class~="group/button"], [data-slot="select-trigger"], [data-slot="tabs-trigger"]):is(:disabled, [aria-disabled="true"], [data-disabled]) {
+    opacity: 1;
+    background-color: var(--muted);
+    color: var(--muted-foreground);
+  }
+
   /* Calendar cells keep the shadcn grid geometry inside the product's Large controls. */
   [data-slot="calendar"] [data-slot="button"] {
     min-inline-size: var(--cell-size);

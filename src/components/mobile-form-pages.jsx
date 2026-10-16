@@ -79,7 +79,7 @@ export function MobileFormPages({ children }) {
       // route render with a fast Back before its effect ever sees this token.
       registered.ready = true;
     });
-    window.scrollTo(0, 0);
+    window.scrollTo({ left: 0, top: 0, behavior: "instant" });
   }, [navigate, sync]);
   const unregister = useCallback((id) => {
     // StrictMode re-runs effects; a re-registration cancels this disposal.
@@ -95,7 +95,9 @@ export function MobileFormPages({ children }) {
         navigate(-1);
       } else finishClose(formToken(window.location.search));
       requestAnimationFrame(() => {
-        window.scrollTo(0, entry.scrollY);
+        // The source's smooth-scroll CSS is active again after the form closes.
+        // Restoring history position must not animate through the whole page.
+        window.scrollTo({ left: 0, top: entry.scrollY, behavior: "instant" });
         if (entry.opener?.isConnected) entry.opener.focus?.({ preventScroll: true });
       });
     }, 0));
