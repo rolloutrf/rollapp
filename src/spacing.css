@@ -12,8 +12,8 @@
     --layout-profile-gap: 1rem;
     --layout-safe-top: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px));
     --layout-screen-top: calc(var(--layout-safe-top) + var(--layout-inline-gap));
-    --layout-navigation-control: 3.5rem;
-    --layout-planning-control: 3rem;
+    --layout-control-size: 3rem;
+    --layout-control-icon-size: 1.25rem;
     --layout-navigation-bottom: calc(var(--app-visual-bottom, 0px) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
     --layout-chrome-top: 1.5rem;
     --layout-chrome-tail: 1.5rem;
@@ -46,6 +46,31 @@
 }
 
 @layer utilities {
+  /* One navigation size everywhere. These dimensions intentionally outrank
+     primitive sizes and caller utilities; changing a screen cannot silently
+     create another control scale. Text labels keep their available width. */
+  [data-control-bar] :is([class~="group/button"], [data-slot="select-trigger"], [data-slot="tabs-trigger"]) {
+    height: var(--layout-control-size) !important;
+    min-height: var(--layout-control-size) !important;
+    max-height: var(--layout-control-size) !important;
+    padding-block: 0;
+  }
+  [data-control-bar] [data-control-icon] {
+    width: var(--layout-control-size) !important;
+    min-width: var(--layout-control-size) !important;
+    max-width: var(--layout-control-size) !important;
+    padding: 0;
+  }
+  [data-control-bar] :is([class~="group/button"], [data-slot="select-trigger"], [data-slot="tabs-trigger"]) svg {
+    width: var(--layout-control-icon-size) !important;
+    height: var(--layout-control-icon-size) !important;
+  }
+  [data-control-bar] [data-slot="tabs-list"] {
+    height: var(--layout-control-size);
+    min-height: var(--layout-control-size);
+    padding: 0;
+  }
+
   @media (max-width: 767px) {
     :root[data-overlay-keyboard] { --layout-navigation-bottom: calc(var(--app-visual-bottom, 0px) + var(--layout-item-gap)); }
     .mobile-content-page__nav {
@@ -53,19 +78,19 @@
       z-index: 45;
       left: max(var(--layout-page-inset), env(safe-area-inset-left));
       bottom: var(--layout-navigation-bottom);
-      width: var(--layout-navigation-control);
+      width: var(--layout-control-size);
       padding: 0;
     }
     .mobile-content-page__nav > span { display: none; }
     .mobile-content-page__nav [data-slot="button"] {
-      width: var(--layout-navigation-control);
-      height: var(--layout-navigation-control);
-      min-height: var(--layout-navigation-control);
+      width: var(--layout-control-size);
+      height: var(--layout-control-size);
+      min-height: var(--layout-control-size);
       background-color: var(--card);
     }
     .mobile-content-page__nav [data-slot="button"]:hover { background-color: var(--muted); }
     .mobile-content-page:not(.mobile-form-page) {
-      padding-block-end: calc(var(--layout-navigation-control) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
+      padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
     }
     .global-app-chrome[data-mobile-navigation] { grid-template-columns: 1fr auto; }
     .global-app-chrome[data-mobile-navigation] .global-app-chrome__actions { grid-column: 2; }
@@ -76,13 +101,13 @@
       right: max(var(--layout-page-inset), env(safe-area-inset-right));
       bottom: var(--layout-navigation-bottom);
       display: grid;
-      grid-template-columns: var(--layout-navigation-control) minmax(0, 1fr);
+      grid-template-columns: var(--layout-control-size) minmax(0, 1fr);
       align-items: center;
       gap: var(--layout-inline-gap);
       pointer-events: none;
     }
     .mobile-app-navigation[data-has-planning] {
-      right: calc(max(var(--layout-page-inset), env(safe-area-inset-right)) + var(--layout-navigation-control) + var(--layout-inline-gap));
+      right: calc(max(var(--layout-page-inset), env(safe-area-inset-right)) + var(--layout-control-size) + var(--layout-inline-gap));
     }
     .mobile-app-navigation > * { pointer-events: auto; }
     .mobile-app-navigation__section { min-width: 0; }
@@ -90,8 +115,8 @@
       width: 100%;
       max-width: none;
       min-width: 0;
-      height: var(--layout-navigation-control);
-      min-height: var(--layout-navigation-control);
+      height: var(--layout-control-size);
+      min-height: var(--layout-control-size);
       padding-inline: var(--layout-item-gap);
     }
     .mobile-app-navigation [data-slot="select-value"] { min-width: 0; }
@@ -103,19 +128,17 @@
       right: max(var(--layout-page-inset), env(safe-area-inset-right));
       bottom: var(--layout-navigation-bottom);
     }
-    .sphere-switcher__panel { max-height: min(var(--available-height), calc(var(--app-visual-height, 100dvh) - var(--layout-navigation-control) - var(--layout-item-gap) * 2)); }
+    .sphere-switcher__panel { max-height: min(var(--available-height), calc(var(--app-visual-height, 100dvh) - var(--layout-control-size) - var(--layout-item-gap) * 2)); }
     :is(.sphere-switcher__panel, .global-service-select__content, .planning-fab__panel).app-navigation-popup {
       width: calc(100vw - var(--layout-page-inset) * 2);
       max-width: calc(100vw - var(--layout-page-inset) * 2);
     }
     .planning-fab-controls[data-has-back] {
-      --layout-navigation-control: var(--layout-planning-control);
       left: max(var(--layout-page-inset), env(safe-area-inset-left));
       right: max(var(--layout-page-inset), env(safe-area-inset-right));
     }
-    .app-layout--planning { --layout-navigation-control: var(--layout-planning-control); }
     .app-layout--dark:not(.app-layout--planning) .app-page {
-      padding-block-end: max(var(--layout-page-end), calc(var(--layout-navigation-control) + var(--layout-item-gap) * 2 + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px))));
+      padding-block-end: max(var(--layout-page-end), calc(var(--layout-control-size) + var(--layout-item-gap) * 2 + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px))));
     }
   }
 }

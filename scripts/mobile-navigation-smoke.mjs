@@ -19,7 +19,7 @@ try{
    const s=await sphere.boundingBox(),c=await select.boundingBox();
    if(width<768){
     assert(s.y>600&&c.y>600,`${route}: navigation stayed at top`);
-    assert.equal(s.height,56);assert.equal(c.height,56);assert(Math.abs(s.y-c.y)<1);
+    assert.equal(s.height,48);assert.equal(c.height,48);assert(Math.abs(s.y-c.y)<1);
     assert(s.x+s.width<=c.x&&c.x+c.width<=width-16,`${route}: controls overlap`);
     assert.equal(await page.locator('.global-app-chrome .sphere-switcher__trigger,.global-app-chrome .global-service-select').count(),0);
     const planner=page.getByRole('button',{name:'Открыть планирование',exact:true});

@@ -13,6 +13,7 @@ import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
 import { ContentPage } from "@/components/content-page";
 import { MobileFormPages } from "@/components/mobile-form-pages";
+import { ControlBar } from "@/components/control-bar";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
@@ -608,7 +609,7 @@ function SphereSwitcher({ docked = false }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className={cn("sphere-switcher__trigger !size-12 !rounded-full", docked && "!size-14")} variant="outline" size="icon" type="button" />}
+        render={<ShadcnButton data-control-icon className="sphere-switcher__trigger rounded-full" variant="outline" size="icon" type="button" />}
         aria-label="Открыть переключатель сфер"
         title="Сферы"
       >
@@ -704,12 +705,12 @@ function PlanningFab() {
   const requestedTab = new URLSearchParams(location.search).get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
   return (
-    <div className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      {inPlanning && <Link to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back !size-(--layout-navigation-control) !rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
+    <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
+      {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className="planning-fab !size-(--layout-navigation-control) !rounded-full" size="icon" type="button" />}
+        render={<ShadcnButton data-control-icon className="planning-fab rounded-full" size="icon" type="button" />}
         aria-label="Открыть планирование"
         title="Планирование"
       >
@@ -728,7 +729,7 @@ function PlanningFab() {
         </nav>
       </PopoverContent>
     </Popover>
-    </div>
+    </ControlBar>
   );
 }
 
@@ -807,7 +808,7 @@ function GlobalAppChrome() {
         </Select>
       );
   return <>
-    <header className="global-app-chrome" data-mobile-navigation={isMobile || undefined} aria-label="Панель приложения">
+    <ControlBar as="header" className="global-app-chrome" data-mobile-navigation={isMobile || undefined} aria-label="Панель приложения">
       <AppBrand showSwitcher={!isMobile} />
       {!isMobile && sectionSelector}
       {service && <div className="global-app-chrome__actions">
@@ -815,19 +816,20 @@ function GlobalAppChrome() {
           to="/app/rolls"
           aria-label="Открыть Роллы"
           title="Роллы"
+          data-control-icon
           className={cn(buttonVariants({
             variant: location.pathname.startsWith("/app/rolls") ? "secondary" : "outline",
             size: "icon",
-            className: "global-app-chrome__rolls !size-12 rounded-full",
+            className: "global-app-chrome__rolls rounded-full",
           }))}
         ><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>}
-        <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
+        <ShadcnButton data-control-icon className="global-app-chrome__share rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
-    </header>
-    {isMobile && <nav className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
+    </ControlBar>
+    {isMobile && <ControlBar as="nav" className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
       <SphereSwitcher docked />
       {sectionSelector && <div className="mobile-app-navigation__section">{sectionSelector}</div>}
-    </nav>}
+    </ControlBar>}
   </>;
 }
 

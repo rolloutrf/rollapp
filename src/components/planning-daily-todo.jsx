@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,12 +57,12 @@ function DayRibbon({ selected, today, onChange }) {
 
   return <header className="daily-todo__header">
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
-    <div ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
-      {dates.map((date) => <Button key={date} variant={date === selected ? "default" : "outline"} size="icon" className="daily-todo__day !size-14 !rounded-full" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
+    <ControlBar ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
+      {dates.map((date) => <Button key={date} variant={date === selected ? "default" : "outline"} size="icon" className="daily-todo__day rounded-full" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
         <span className="daily-todo__weekday" aria-hidden="true">{weekdayLabel.format(dateFromKey(date))}</span>
         <span className="text-rollapp-body font-semibold tabular-nums" aria-hidden="true">{dateFromKey(date).getDate()}</span>
       </Button>)}
-    </div>
+    </ControlBar>
   </header>;
 }
 
@@ -115,12 +116,12 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const done = dayTasks.filter((task) => task.completed);
   const controls = <footer className="daily-todo__footer">
       <div className="daily-todo__content">
-        {mobile ? <div className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
-          <Button type="button" variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft aria-hidden="true" /></Button>
+        {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
+          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft aria-hidden="true" /></Button>
           <PlanningDatePicker value={selected} onChange={setDate} label="Выбрать дату" className="w-full"><span className="truncate">{compactDateLabel(selected)}</span></PlanningDatePicker>
-          <Button type="button" variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight aria-hidden="true" /></Button>
-          <Button type="button" variant="outline" size="icon" className="rounded-full" aria-label="Добавить задачу" onClick={() => onCreate(selected)}><Plus aria-hidden="true" /></Button>
-        </div> : <>
+          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight aria-hidden="true" /></Button>
+          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Добавить задачу" onClick={() => onCreate(selected)}><Plus aria-hidden="true" /></Button>
+        </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
           <Textarea className="field-sizing-fixed resize-none" rows={2} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />

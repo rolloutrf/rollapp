@@ -1,3 +1,4 @@
+import { ControlBar } from "@/components/control-bar";
 import { calendarTaskSchedule } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -184,14 +185,14 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     const mode = CALENDAR_VIEWS[Number(event.key) - 1];
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
-  const navigation = <div className="schedule-navigation"><Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
+  const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
   return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
-      <div className="schedule-toolbar">
+      <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <div className="schedule-window-actions"><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
-      </div>
+        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
+      </ControlBar>
       <div className="schedule-layout">
         <div className="schedule-main">
           <h2 className="sr-only" aria-live="polite">{title}{view === "day" && `, ${label(selected, { weekday: "long" })}`}</h2>

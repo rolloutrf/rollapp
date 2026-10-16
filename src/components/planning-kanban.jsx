@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
+import { ControlBar } from "@/components/control-bar";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -218,13 +219,13 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     </article>;
   };
   return <div className="kanban-workspace" aria-busy={busy}>
-    <div ref={toolbarRef} className="kanban-toolbar">
+    <ControlBar ref={toolbarRef} className="kanban-toolbar">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted aria-pressed:!bg-accent" aria-label="Архив" title="Архив" aria-pressed={archive} onClick={() => { setArchive(!archive); setEditingCard(null); }}><Archive aria-hidden="true" /></Button>
-      <Button variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted" aria-label="Скачать Markdown" title="Скачать Markdown" onClick={exportBoard}><Download /></Button>
+        <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted aria-pressed:!bg-accent" aria-label="Архив" title="Архив" aria-pressed={archive} onClick={() => { setArchive(!archive); setEditingCard(null); }}><Archive aria-hidden="true" /></Button>
+      <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted" aria-label="Скачать Markdown" title="Скачать Markdown" onClick={exportBoard}><Download /></Button>
       </div>
       <PageActionButton onClick={onCreate}>Новая задача</PageActionButton>
-    </div>
+    </ControlBar>
     <span role="status" className="sr-only">{announcement}</span>
     {archive ? <section className="kanban-archive" aria-label="Архив карточек">{visibleTasks.length ? visibleTasks.map(cardView) : <p className="kanban-empty">В архиве пока нет карточек</p>}</section> : <div ref={boardRef} className="planning-board" aria-label="Kanban-доска" onDragOver={(event) => {
       if (!drag || !event.dataTransfer.types.includes("application/x-rollapp-kanban")) return;

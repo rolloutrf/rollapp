@@ -207,15 +207,15 @@
     padding-block-end: var(--layout-item-gap);
   }
   @media (max-width: 767px) {
-    html:has(.mobile-form-page:not([hidden])) { scroll-padding-block-end: calc(var(--layout-navigation-control) + var(--layout-item-gap) * 2); }
-    .mobile-form-page :is(input, textarea, [contenteditable="true"]) { scroll-margin-block-end: calc(var(--layout-navigation-control) + var(--layout-item-gap) * 2); }
+    html:has(.mobile-form-page:not([hidden])) { scroll-padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2); }
+    .mobile-form-page :is(input, textarea, [contenteditable="true"]) { scroll-margin-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2); }
     /* Reserve only the part of the footer actually behind the fixed Back
        control; centered, narrower form rails keep their normal inner inset. */
     .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
-      padding-inline-start: max(var(--layout-item-gap), calc((100% - 100vw) / 2 + max(var(--layout-page-inset), env(safe-area-inset-left)) + var(--layout-navigation-control) + var(--layout-inline-gap)));
+      padding-inline-start: max(var(--layout-item-gap), calc((100% - 100vw) / 2 + max(var(--layout-page-inset), env(safe-area-inset-left)) + var(--layout-control-size) + var(--layout-inline-gap)));
     }
     .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) > [data-slot="button"] {
-      min-height: var(--layout-navigation-control);
+      min-height: var(--layout-control-size);
       height: auto;
       white-space: normal;
     }

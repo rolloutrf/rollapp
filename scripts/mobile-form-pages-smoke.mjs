@@ -61,7 +61,7 @@ try{
     const rect=await last.boundingBox();assert(rect.y<360&&rect.y+rect.height>0,`${name}: field unreachable`);
     const back=screen.getByRole('button',{name:'Назад',exact:true});
     let backBox=await back.boundingBox();
-    assert.equal(backBox.height,56,`${name}: Back size`);
+    assert.equal(backBox.height,48,`${name}: Back size`);
     assert(backBox.y>=280&&backBox.y+backBox.height<=360,`${name}: Back is not at the bottom`);
     assert(await back.evaluate(element=>{const r=element.getBoundingClientRect();return element.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),`${name}: Back is covered by form content`);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${name}: horizontal overflow`);

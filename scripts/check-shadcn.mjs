@@ -37,10 +37,27 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
 ]);
 const spacing = await read("src/spacing.css");
 const pageActionButton = await read("src/components/page-action-button.jsx");
-assert.match(pageActionButton, /cn\(className, "min-h-12 rounded-full px-6"\)/, "PageActionButton must apply the shared 48px height and 24px padding after caller classes");
+assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes");
+assert.deepEqual([...spacing.matchAll(/--layout-control-size\s*:\s*([^;{}]+)/g)].map((match) => match[1].trim()), ["3rem"], "Navigation must have exactly one 48px size declaration, without responsive or local rebinding");
+assert(!/--layout-(?:navigation|planning)-control\b/.test(spacing), "Do not restore separate navigation/planning control scales");
+const controlBar = await read("src/components/control-bar.jsx");
+assert.match(controlBar, /data-control-bar/, "ControlBar must expose the shared sizing boundary");
+for (const [file, classes] of [
+  ["src/App.jsx", ["global-app-chrome", "mobile-app-navigation", "planning-fab-controls"]],
+  ["src/components/planning-calendar.jsx", ["schedule-toolbar"]],
+  ["src/components/planning-daily-todo.jsx", ["daily-todo__toolbar", "daily-todo__ribbon"]],
+  ["src/components/planning-kanban.jsx", ["kanban-toolbar"]],
+  ["src/components/content-page.jsx", ["mobile-content-page__nav"]],
+  ["src/components/mobile-form-pages.jsx", ["mobile-content-page__nav"]],
+]) {
+  const source = await read(file);
+  for (const name of classes) assert.match(source, new RegExp(`<ControlBar\\b[^>]*className="${name}"`), `${file}: ${name} must use ControlBar`);
+}
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
+assert.equal(packageJson.scripts["test:controls"], "node scripts/control-size-smoke.mjs", "Control geometry must have a required browser check");
+assert(packageJson.scripts["check:release"].includes("npm run test:controls"), "Every release must run the control geometry check");
 const jsconfig = JSON.parse(jsconfigText);
 
 assert.equal(config.$schema, "https://ui.shadcn.com/schema.json", "components.json must use the official schema");
@@ -483,16 +500,16 @@ assert(theme.includes("Rollapp's product-level Large control contract"), "The ap
 const largePolicyStart = theme.indexOf("Rollapp's product-level Large control contract");
 const largePolicyEnd = theme.indexOf(".wishes-page .list-tabs", largePolicyStart);
 const largePolicy = theme.slice(largePolicyStart, largePolicyEnd < 0 ? undefined : largePolicyEnd);
-assert(/\[class~="group\/button"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "App buttons must keep a minimum 48px Large height");
+assert(/\[class~="group\/button"\][\s\S]*?min-(?:block-size|height):\s*var\(--layout-control-size\)/.test(largePolicy), "App buttons must keep a minimum 48px Large height");
 for (const slot of ["toggle", "toggle-group-item", "tabs-trigger"]) {
   assert(largePolicy.includes(`[data-slot="${slot}"]`), `App ${slot} controls must participate in the 48px Large policy`);
 }
 assert(/\[data-slot="input"\]:not\(\.sr-only\)/.test(largePolicy) && /\[data-slot="input-group"\]/.test(largePolicy), "App Input and InputGroup sizing must exclude hidden file inputs");
 assert(/\[data-slot="input-otp-slot"\]\s*\{[^}]*width:\s*3rem;[^}]*height:\s*3rem;/s.test(largePolicy), "App OTP cells must keep the 48px Large geometry");
 assert(largePolicy.includes('[data-slot="native-select"]'), "App NativeSelect controls must participate in the 48px Large policy");
-assert(/\[data-slot="select-trigger"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "App Select triggers must keep a minimum 48px Large height");
+assert(/\[data-slot="select-trigger"\][\s\S]*?min-(?:block-size|height):\s*var\(--layout-control-size\)/.test(largePolicy), "App Select triggers must keep a minimum 48px Large height");
 assert(/\[data-slot="textarea"\][\s\S]*?min-(?:block-size|height):\s*6rem/.test(largePolicy), "App Textareas must keep a minimum 96px Large height");
-assert(/\[data-slot="dropdown-menu-item"\][\s\S]*?\[data-slot="select-item"\][\s\S]*?min-(?:block-size|height):\s*3rem/.test(largePolicy), "Portalled menu and Select rows must keep a minimum 48px Large height");
+assert(/\[data-slot="dropdown-menu-item"\][\s\S]*?\[data-slot="select-item"\][\s\S]*?min-(?:block-size|height):\s*var\(--layout-control-size\)/.test(largePolicy), "Portalled menu and Select rows must keep a minimum 48px Large height");
 assert(/\[data-slot="switch"\]\s*\{[^}]*width:\s*2\.75rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Switches must keep the 44x24 Large track");
 assert(/\[data-slot="switch"\]\s*>\s*\[data-slot="switch-thumb"\]\s*\{[^}]*width:\s*1\.25rem;[^}]*height:\s*1\.25rem;/s.test(largePolicy), "App Switches must keep the 20px Large thumb");
 assert(/\[data-slot="checkbox"\]\s*\{[^}]*width:\s*1\.5rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Checkboxes must keep the 24px Large geometry");
@@ -819,6 +836,8 @@ await collect(path.join(root, "src"));
 for (const file of sourceFiles) {
   const source = await readFile(file, "utf8");
   const relativeFile = path.relative(root, file);
+  if (relativeFile !== "src/spacing.css") assert(!/--layout-control-size\s*:/.test(source), `${relativeFile}: do not override the shared control size`);
+  assert(!/--layout-(?:navigation|planning)-control\b/.test(source), `${relativeFile}: use the one shared control size`);
   const nativeDateFields = [...source.matchAll(/\btype=["']date["']/g)].length;
   assert(nativeDateFields <= (legacyNativeDateFields.get(relativeFile) ?? 0), `${relativeFile} adds a browser-native date picker; use shadcn Calendar and Popover`);
   assert(!source.includes("@radix-ui/"), `Base Nova source must not import Radix: ${relativeFile}`);

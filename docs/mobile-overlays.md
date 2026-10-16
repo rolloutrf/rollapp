@@ -111,13 +111,13 @@ area, with no additional page padding below it. Mobile form headers and action
 footers have transparent backgrounds and no separator slab; controls retain
 their own fills. A shared Back action and browser Back close the page through
 the original busy/close guard. On phones the shared Back action is fixed at the
-bottom left, with an opaque 56px surface. Form footer actions reserve the space
+bottom left, with an opaque 48px surface. Form footer actions reserve the space
 beside it, wrap long labels and retain the one bottom inset. Detail pages use
 the same Back position and a scroll tail; no top navigation row is reserved.
 The mobile task editor keeps Save and Delete in one row alongside Back. Save
 takes the remaining width; Delete uses the short visible label «Удалить» with
 the full task/series action in its accessible label and confirmation dialog.
-Both actions remain at least 56px high, including at 320px width.
+Both actions remain at least 48px high, including at 320px width.
 Nested forms have their own history entries and
 return to the parent's unchanged draft. A form is marked as entered when its
 browser history entry is written, so a fast Back cannot skip reconciliation

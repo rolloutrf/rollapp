@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPortal } from "@/components/ui/screen-portal";
+import { ControlBar } from "@/components/control-bar";
 
 const MobileFormsContext = createContext(null);
 const FORM_QUERY = "formScreen";
@@ -16,9 +17,9 @@ function withForm(location, id) {
 function FormPageHost({ entry, active, setTarget }) {
   const ref = useCallback((node) => setTarget(entry.id, node), [entry.id, setTarget]);
   return <main hidden={!active} className="mobile-form-page mobile-content-page rollapp-body" data-mobile-form-page={entry.id}>
-    <nav className="mobile-content-page__nav" aria-label="Навигация формы">
-      <Button variant="outline" size="icon" className="rounded-full" aria-label="Назад" onClick={() => entry.close.current()}><ArrowLeft aria-hidden="true" /></Button>
-    </nav>
+    <ControlBar as="nav" className="mobile-content-page__nav" aria-label="Навигация формы">
+      <Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Назад" onClick={() => entry.close.current()}><ArrowLeft aria-hidden="true" /></Button>
+    </ControlBar>
     <div ref={ref} className="mobile-form-page__content" />
   </main>;
 }
