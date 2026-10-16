@@ -70,7 +70,7 @@ function ColumnComposer({ initial = "", onSave, onCancel, busy }) {
   </form>;
 }
 
-export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsChange, onSave, onEdit, onCreate }) {
+export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsChange, onSave, onEdit }) {
   const mobile = useIsMobile();
   const [archive, setArchive] = useState(false);
   const [addingColumn, setAddingColumn] = useState(false);
@@ -223,7 +223,6 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
         <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted aria-pressed:!bg-accent" aria-label="Архив" title="Архив" aria-pressed={archive} onClick={() => { setArchive(!archive); setEditingCard(null); }}><Archive aria-hidden="true" /></Button>
       <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted" aria-label="Скачать Markdown" title="Скачать Markdown" onClick={exportBoard}><Download /></Button>
       </div>
-      <Button data-control-icon size="icon" className="rounded-full" aria-label="Новая задача" title="Новая задача" onClick={onCreate}><Plus aria-hidden="true" /></Button>
     </ControlBar>
     <span role="status" className="sr-only">{announcement}</span>
     {archive ? <section className="kanban-archive" aria-label="Архив карточек">{visibleTasks.length ? visibleTasks.map(cardView) : <p className="kanban-empty">В архиве пока нет карточек</p>}</section> : <div ref={boardRef} className="planning-board" aria-label="Kanban-доска" onDragOver={(event) => {

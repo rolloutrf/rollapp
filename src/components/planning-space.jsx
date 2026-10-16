@@ -157,7 +157,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : activeTab === "todo" ? "To Do на каждый день" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
-        <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} onCreate={() => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false })} />
+        <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
       ) : activeTab === "calendar" ? (
         <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
