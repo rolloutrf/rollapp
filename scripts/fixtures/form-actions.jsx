@@ -6,6 +6,7 @@ import { TaskEditor } from "@/components/planning-space.jsx?drawer-smoke-export=
 import { MarkdownEditorDrawer } from "@/components/career-content.jsx?drawer-smoke-export=MarkdownEditorDrawer";
 import { MedicationGroupDrawer } from "@/components/medications.jsx?drawer-smoke-export=MedicationGroupDrawer";
 import { ConferenceDrawer } from "@/components/conferences.jsx?drawer-smoke-export=ConferenceDrawer";
+import { CoachingSessionDrawer } from "@/components/coaching-sessions.jsx?drawer-smoke-export=CoachingSessionDrawer";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/form-surface";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
@@ -19,6 +20,7 @@ function Fixture() {
   if (!open) return null;
   const close = () => setOpen(false);
   const name = new URLSearchParams(location.search).get("form");
+  if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
   if (name === "wish") return <WishModal onClose={close} />;
