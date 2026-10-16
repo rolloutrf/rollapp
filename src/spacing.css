@@ -78,17 +78,31 @@
       z-index: 45;
       left: max(var(--layout-page-inset), env(safe-area-inset-left));
       bottom: var(--layout-navigation-bottom);
-      width: var(--layout-control-size);
+      right: max(var(--layout-page-inset), env(safe-area-inset-right));
       padding: 0;
+      pointer-events: none;
     }
+    .mobile-content-page__nav > [data-slot="button"] { flex-shrink: 0; pointer-events: auto; }
+    .mobile-content-page__actions-host { display: contents; }
+    .mobile-content-page__nav .content-page-actions {
+      flex: 1 1 0;
+      width: auto;
+      min-width: 0;
+      max-width: none;
+      margin: 0;
+      pointer-events: auto;
+    }
+    .mobile-content-page__nav .content-page-actions [class~="group/button"] { border-radius: 9999px; }
+    .mobile-content-page__nav .content-page-actions [data-control-icon] { background-color: var(--card); }
+    .mobile-content-page__nav .content-page-actions [data-control-icon]:hover { background-color: var(--muted); }
     .mobile-content-page__nav > span { display: none; }
-    .mobile-content-page__nav [data-slot="button"] {
+    .mobile-content-page__nav > [data-slot="button"] {
       width: var(--layout-control-size);
       height: var(--layout-control-size);
       min-height: var(--layout-control-size);
       background-color: var(--card);
     }
-    .mobile-content-page__nav [data-slot="button"]:hover { background-color: var(--muted); }
+    .mobile-content-page__nav > [data-slot="button"]:hover { background-color: var(--muted); }
     .mobile-content-page:not(.mobile-form-page) {
       padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
     }
@@ -411,6 +425,7 @@
     gap: var(--layout-inline-gap);
     padding: var(--layout-inline-gap) var(--layout-page-inset);
   }
+  .mobile-content-page__actions-host { display: none; }
   :is(.catalog-item-page, .wish-item-page) > .app-drawer-body {
     width: 100%;
     max-width: calc(var(--layout-compact-width) + 2 * var(--layout-page-inset));

@@ -75,7 +75,7 @@ contract described below. Desktop drawer sizing is unchanged.
 
 Catalog item details now navigate on mobile to `/app/wishes/catalog/item/:itemId`.
 This is an independent protected route with a read-only item endpoint, normal
-page scrolling and browser history. No Drawer, backdrop, portal or scroll lock
+page scrolling and browser history. No Drawer, backdrop or scroll lock
 is mounted on that route. Reloading the URL reloads the same item; unavailable
 and private items return an error instead of falling back to another record.
 The catalog uses its right-hand Drawer on desktop.
@@ -113,7 +113,18 @@ their own fills. A shared Back action and browser Back close the page through
 the original busy/close guard. On phones the shared Back action is fixed at the
 bottom left, with an opaque 48px surface. Form footer actions reserve the space
 beside it, wrap long labels and retain the one bottom inset. Detail pages use
-the same Back position and a scroll tail; no top navigation row is reserved.
+`ContentPageActions` to move the original controls through `ScreenPortal` into
+the same fixed row as Back: 48px Back, flexible accent action, 48px overflow,
+with 8px gaps. Catalog details without overflow use Back and the accent action.
+Owner product details put marketplace search in the primary slot; fulfillment
+remains available in overflow. Other details keep their primary action there,
+with compact visible labels and complete accessible names. The document tail
+lets the final content scroll above the row; no top navigation row is reserved.
+The action row preserves its position with visual-viewport/keyboard changes,
+has no background slab, and retains opaque individual surfaces. Desktop actions
+stay in their original content position. `npm run test:details` checks these
+states at 320/390px, short viewports and desktop transition/wide breakpoints,
+including overflow focus return, scroll reachability and Back.
 The mobile task editor keeps Save and Delete in one row alongside Back. Save
 takes the remaining width; Delete uses the short visible label «Удалить» with
 the full task/series action in its accessible label and confirmation dialog.
