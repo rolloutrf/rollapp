@@ -142,8 +142,24 @@ suspended and their portals hidden while a native form page is open.
 Form URLs represent transient editing sessions, not persisted drafts. Reloading
 such a URL returns to its owning section and never replays an operation. File
 uploads, validation, cancellation and explicit saves retain their existing
-behavior. Confirmation dialogs and date-selection popovers keep their shared
-modal primitives.
+behavior. Confirmation dialogs keep their shared modal primitives.
+
+`PlanningDatePicker` uses an independent `MobileFormScreen` below 768px, with
+the heading and calendar on the page and the shared 48px Back at the bottom.
+There is no dialog, backdrop, rounded sheet or document scroll lock. The calendar
+fills its form rail; one document scroller reveals the last week and optional
+clear action above Back even in a short viewport. Month and year selectors
+remain the installed shadcn Select. Desktop keeps its anchored Popover.
+
+Selecting or clearing closes the date page and then applies the local date key.
+`MobileFormScreen.onAfterClose` waits for the owner's Router history to restore
+before running this callback, so a URL-based date change cannot retain or revive
+the dismissed `formScreen` entry. Back cancels. A picker opened from a task form
+has its own history entry and returns to the same unsaved draft. The parent form's
+Save is still the only operation that persists the task. `npm run test:dates`
+covers this in StrictMode, including leap days, clearing, URL/list preservation,
+both Back actions, short mobile viewports and desktop popovers; all API requests
+are rejected. It is required by `check:release`.
 
 `node scripts/mobile-form-pages-smoke.mjs` tests all component form fixtures at
 320/390/640/767px, key desktop breakpoints, native scrolling, viewport shrink, Back,

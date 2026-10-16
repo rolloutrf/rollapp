@@ -237,6 +237,15 @@
     }
   }
   .mobile-form-page .mobile-form-page__header { padding-inline-end: var(--layout-page-inset); }
+  .mobile-form-page .planning-date-page {
+    padding: var(--layout-item-gap) var(--layout-page-inset);
+    padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2 + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+    gap: var(--layout-item-gap);
+  }
+  .planning-date-page__calendar {
+    --cell-size: calc((min(100vw, var(--layout-form-width)) - var(--layout-page-inset) * 2 - var(--layout-item-gap)) / 7);
+    width: 100%;
+  }
 }
 
 @layer utilities {
