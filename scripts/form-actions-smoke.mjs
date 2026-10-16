@@ -54,7 +54,7 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,markdown,contact,wish,medication-group,conference").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,markdown,contact,wish,medication-group,conference,coaching-edit").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
@@ -66,6 +66,25 @@ try {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
           const before = await geometry(page);
+          if (name === "coaching-edit") {
+            for (const bottom of [true, false]) {
+              const frames = await page.evaluate(async bottom => {
+                const samples = [], start = performance.now();
+                scrollTo({ top: bottom ? document.documentElement.scrollHeight : 0, behavior: "smooth" });
+                await new Promise(resolve => {
+                  const sample = () => {
+                    const row = document.querySelector('[data-native-form-actions]');
+                    samples.push({ scroll: scrollY, buttons: [...row.querySelectorAll("button")].map(button => button.getBoundingClientRect().y) });
+                    if (performance.now() - start < 800) requestAnimationFrame(sample); else resolve();
+                  };
+                  requestAnimationFrame(sample);
+                });
+                return samples;
+              }, bottom);
+              assert(new Set(frames.map(frame => frame.scroll)).size > 3, "Motion check did not scroll the coaching editor");
+              assert(frames.every(frame => frame.buttons.every(y => Math.abs(y - before.y) < 1)), "Back and Save separated during animated scrolling");
+            }
+          }
           for (const ratio of [0, 0.5, 1, 0]) {
             await page.evaluate(ratio => scrollTo({ top: document.documentElement.scrollHeight * ratio, behavior: "instant" }), ratio);
             const after = await geometry(page);
