@@ -503,6 +503,7 @@ const largePolicyStart = theme.indexOf("Rollapp's product-level Large control co
 const largePolicyEnd = theme.indexOf(".wishes-page .list-tabs", largePolicyStart);
 const largePolicy = theme.slice(largePolicyStart, largePolicyEnd < 0 ? undefined : largePolicyEnd);
 assert(/\[class~="group\/button"\][\s\S]*?min-(?:block-size|height):\s*var\(--layout-control-size\)/.test(largePolicy), "App buttons must keep a minimum 48px Large height");
+assert(/background-clip:\s*border-box\s*!important/.test(largePolicy), "Filled controls must paint their full outer size, including transparent borders");
 for (const slot of ["toggle", "toggle-group-item", "tabs-trigger"]) {
   assert(largePolicy.includes(`[data-slot="${slot}"]`), `App ${slot} controls must participate in the 48px Large policy`);
 }

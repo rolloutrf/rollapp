@@ -289,6 +289,9 @@
     min-block-size: var(--layout-control-size);
     font-size: var(--text-rollapp-body);
     line-height: var(--text-rollapp-body--line-height);
+    /* Paint the full outer control, including a transparent primitive border.
+       padding-box made a 48px filled button look 46px beside a 48px outline. */
+    background-clip: border-box !important;
   }
 
   /* Calendar cells keep the shadcn grid geometry inside the product's Large controls. */
