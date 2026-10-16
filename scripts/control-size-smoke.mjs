@@ -82,8 +82,7 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
-        if (route.includes("tab=kanban")) await paintedHeight(page.getByRole("button", { name: "Новая задача", exact: true }), label);
-        else if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
+        if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
         if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
           window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
