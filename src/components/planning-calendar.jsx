@@ -1,3 +1,4 @@
+import { calendarTaskSchedule } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
@@ -64,14 +65,6 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   const [preview, setPreview] = useState(null);
   const [now, setNow] = useState(() => new Date());
   const dateSignature = dates.join();
-  const [short, setShort] = useState(() => window.matchMedia("(max-height: 500px)").matches);
-  useEffect(() => {
-    const media = window.matchMedia("(max-height: 500px)");
-    const update = () => setShort(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  const allDayLimit = short ? 0 : 2;
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
@@ -128,8 +121,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <div className="schedule-timegrid__head">
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
-        <span className="schedule-caption schedule-all-day-label">Весь день</span>
-        {dates.map((date) => <div className="schedule-all-day" key={date} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, null)}>{tasks.filter((task) => task.dueOn === date && !task.startTime).slice(0, allDayLimit).map((task) => <EventButton key={task.id} task={task} compact />)}{tasks.filter((task) => task.dueOn === date && !task.startTime).length > allDayLimit && <Button variant="ghost" className="schedule-more" onClick={() => onSelect(date, "list")}>Ещё {tasks.filter((task) => task.dueOn === date && !task.startTime).length - allDayLimit}</Button>}</div>)}
+
       </div>
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
@@ -147,7 +139,8 @@ function allowDrop(event) {
   if (event.dataTransfer.types.includes("application/x-rollapp-calendar")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
 }
 
-export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
+export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
+  const tasks = sourceTasks.map(calendarTaskSchedule);
   const [search, setSearch] = useSearchParams();
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
@@ -160,7 +153,7 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     if (saving.current) return;
     saving.current = true; setBusy(true);
     try {
-      await onSave(task.id, patch, { quiet: true });
+      await onSave(task.id, { startTime: task.startTime, durationMinutes: task.durationMinutes, ...patch }, { quiet: true });
       const previous = Object.fromEntries(Object.keys(patch).map((key) => [key, task[key] ?? ""]));
       toast.success("Расписание обновлено", { action: { label: "Отменить", onClick: () => onSave(task.id, previous).catch((error) => toast.error(error.message)) } });
     } catch (error) { toast.error(error.message); }
@@ -191,17 +184,17 @@ export function PlanningCalendar({ tasks, columns, onEdit, onCreate, onSave }) {
     const mode = CALENDAR_VIEWS[Number(event.key) - 1];
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
-  const navigation = <div className="schedule-navigation"><Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="rounded-full" onClick={() => navigate(today)}>Сегодня</Button><Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
+  const navigation = <div className="schedule-navigation"><Button variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
   return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <div className="schedule-toolbar">
-        <div className="schedule-window-actions"><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
-        <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
         {navigation}
+        <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
+        <div className="schedule-window-actions"><Button variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
       </div>
       <div className="schedule-layout">
         <div className="schedule-main">
-          <header className="schedule-header"><div className="schedule-heading"><h2 className="text-4xl" aria-live="polite">{title}</h2>{view === "day" && <p>{label(selected, { weekday: "long" })}</p>}</div></header>
+          <h2 className="sr-only" aria-live="polite">{title}{view === "day" && `, ${label(selected, { weekday: "long" })}`}</h2>
           <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
             return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button></div>;

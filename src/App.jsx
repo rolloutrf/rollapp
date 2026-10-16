@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { ContentPage } from "@/components/content-page";
+import { MobileFormPages } from "@/components/mobile-form-pages";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
@@ -64,7 +66,7 @@ import { Values } from "@/components/values";
 import { Workouts } from "@/components/workouts";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
-} from "@/components/ui/drawer";
+} from "@/components/form-surface";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
@@ -96,7 +98,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { BUSINESS_MARKETPLACE_KINDS } from "../shared/business-marketplace.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
@@ -576,7 +578,7 @@ function activeServiceFromPath(pathname) {
   return null;
 }
 
-function SphereSwitcher() {
+function SphereSwitcher({ docked = false }) {
   const location = useLocation();
   const { pathname } = location;
   const { user } = useSession();
@@ -606,7 +608,7 @@ function SphereSwitcher() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className="sphere-switcher__trigger !size-12 !rounded-full" variant="outline" size="icon" type="button" />}
+        render={<ShadcnButton className={cn("sphere-switcher__trigger !size-12 !rounded-full", docked && "!size-14")} variant="outline" size="icon" type="button" />}
         aria-label="Открыть переключатель сфер"
         title="Сферы"
       >
@@ -618,8 +620,9 @@ function SphereSwitcher() {
         </svg>
       </PopoverTrigger>
       <PopoverContent
-        className="sphere-switcher__panel !w-[min(20rem,calc(100vw-2rem))] !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl"
+        className={cn("sphere-switcher__panel !gap-3 !rounded-3xl !p-2 max-[560px]:!rounded-2xl", docked ? "app-navigation-popup" : "!w-[min(20rem,calc(100vw-2rem))]")}
         align="start"
+        side={docked ? "top" : "bottom"}
         sideOffset={10}
       >
         <nav className="sphere-switcher__list" aria-label="Сервисы и сферы Rollapp">
@@ -680,29 +683,39 @@ function SphereSwitcher() {
   );
 }
 
-function AppBrand() {
-  return <div className="app-brand"><Logo className="app-shell-logo" /><SphereSwitcher /></div>;
+function AppBrand({ showSwitcher = true }) {
+  return <div className="app-brand"><Logo className="app-shell-logo" />{showSwitcher && <SphereSwitcher />}</div>;
 }
 
 function PlanningFab() {
   const { user } = useSession();
   const location = useLocation();
+  const isMobile = useIsMobile();
+  const returnPath = useRef(APP_HOME);
+  useEffect(() => {
+    if (location.pathname !== PLANNING_SERVICE.path) {
+      returnPath.current = `${location.pathname}${location.search}${location.hash}`;
+    }
+  }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [location.pathname, location.search]);
-  if (!user) return null;
+  if (!user || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
   const requestedTab = new URLSearchParams(location.search).get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
   return (
+    <div className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
+      {inPlanning && <Link to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back !size-(--layout-navigation-control) !rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
+      {inPlanning && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<ShadcnButton className="planning-fab !size-14 !rounded-full" size="icon" type="button" data-daily-todo={inPlanning && currentTab === "todo" || undefined} />}
+        render={<ShadcnButton className="planning-fab !size-(--layout-navigation-control) !rounded-full" size="icon" type="button" />}
         aria-label="Открыть планирование"
         title="Планирование"
       >
         {open ? <X aria-hidden="true" /> : <Columns3 aria-hidden="true" />}
       </PopoverTrigger>
-      <PopoverContent className="planning-fab__panel rollapp-body !w-[min(20rem,calc(100vw-2rem))] !rounded-2xl !p-2" side="top" align="end" sideOffset={12}>
+      <PopoverContent className="planning-fab__panel app-navigation-popup rollapp-body w-80 max-w-(--available-width) !rounded-2xl !p-2" side="top" align="end" sideOffset={12}>
         <PopoverTitle className="sr-only">Планирование</PopoverTitle>
         <nav className="flex flex-col gap-1" aria-label="Инструменты планирования">
           {PLANNING_TABS.map(({ id, label, icon: Icon }) => (
@@ -715,6 +728,7 @@ function PlanningFab() {
         </nav>
       </PopoverContent>
     </Popover>
+    </div>
   );
 }
 
@@ -734,6 +748,7 @@ function useGlobalShareHandler() {
 
 function GlobalAppChrome() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useSession();
@@ -747,7 +762,7 @@ function GlobalAppChrome() {
     : null;
   const publicRoute = publicProfileRoute(location.pathname);
   const requestedTab = publicRoute?.space || collectionSpace || new URLSearchParams(location.search).get("tab");
-  const serviceOptions = service?.tabs || [];
+  const serviceOptions = service?.id === "planning" ? [] : service?.tabs || [];
   const options = location.pathname.startsWith("/s/") ? [] : sharedOwner
     ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
     : serviceOptions;
@@ -773,10 +788,8 @@ function GlobalAppChrome() {
       toast("Не удалось скопировать ссылку", "error");
     }
   };
-  return (
-    <header className="global-app-chrome" aria-label="Панель приложения">
-      <AppBrand />
-      {service?.id === "planning" && user ? <PlanningSpaceSwitcher /> : brandCatalog && user ? <BrandCatalogSelect /> : current && (
+  if (location.pathname === PLANNING_SERVICE.path || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
+  const sectionSelector = brandCatalog && user ? <BrandCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
@@ -785,14 +798,18 @@ function GlobalAppChrome() {
               return <>{Icon && <Icon aria-hidden="true" />}<span className="space-select__label">{option.label}</span></>;
             }}</SelectValue>
           </SelectTrigger>
-          <SelectContent className="space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)" alignItemWithTrigger={false}>
+          <SelectContent className={cn("space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)", isMobile && "app-navigation-popup")} side={isMobile ? "top" : "bottom"} align={isMobile && !user ? "end" : "center"} alignItemWithTrigger={false}>
             {options.map((option) => {
               const Icon = option.icon || service.icon;
               return <SelectItem key={option.id} value={option.id}>{Icon && <Icon aria-hidden="true" />}<span>{option.label}</span></SelectItem>;
             })}
           </SelectContent>
         </Select>
-      )}
+      );
+  return <>
+    <header className="global-app-chrome" data-mobile-navigation={isMobile || undefined} aria-label="Панель приложения">
+      <AppBrand showSwitcher={!isMobile} />
+      {!isMobile && sectionSelector}
       {service && <div className="global-app-chrome__actions">
         {user && <Link
           to="/app/rolls"
@@ -807,7 +824,11 @@ function GlobalAppChrome() {
         <ShadcnButton className="global-app-chrome__share !size-12 rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </header>
-  );
+    {isMobile && <nav className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
+      <SphereSwitcher docked />
+      {sectionSelector && <div className="mobile-app-navigation__section">{sectionSelector}</div>}
+    </nav>}
+  </>;
 }
 
 function AppBrandSpacer() {
@@ -1998,7 +2019,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-          {!collectionChrome && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
@@ -4566,8 +4587,9 @@ function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = fal
   );
 }
 
-function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onClose, returnFocusRef }) {
-  const isMobile = useIsMobile();
+function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, screen = false }) {
+  const Title = screen ? "h1" : DrawerTitle;
+  const Description = screen ? "p" : DrawerDescription;
   const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
   const previewImageUrl = wishPreviewImageUrl(item);
   const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
@@ -4578,18 +4600,6 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
     : `Добавить «${item.title}» в вишлист`;
 
   return (
-    <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DrawerContent
-        className="catalog-wish-details app-drawer--compact"
-        finalFocus={returnFocusRef}
-      >
-        <DrawerClose
-          render={<ShadcnButton type="button" variant="ghost" size="icon-sm" className="absolute top-2 right-2 z-10" />}
-        >
-          <X aria-hidden="true" />
-          <span className="sr-only">Закрыть</span>
-        </DrawerClose>
-
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
@@ -4598,7 +4608,7 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
           </Card>
 
           <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
-            <DrawerTitle><span className="sr-only">Позиция каталога: </span>{item.title}</DrawerTitle>
+            <Title className={screen ? "text-2xl font-semibold" : undefined}><span className="sr-only">Позиция каталога: </span>{item.title}</Title>
             {(item.vehicleMake || item.vehicleModel) && (
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[item.vehicleMake, item.vehicleModel].filter(Boolean).join(" ")}</span>
             )}
@@ -4608,9 +4618,9 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
                 {eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{eventDate}</span>}
               </div>
             )}
-            <DrawerDescription>
+            <Description className={screen ? "text-muted-foreground" : undefined}>
               {description || "Автор пока не добавил описание — иногда желание говорит само за себя."}
-            </DrawerDescription>
+            </Description>
           </DrawerHeader>
 
           <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
@@ -4654,14 +4664,52 @@ function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPend
             </ShadcnButton>
           </div>
         </div>
-      </DrawerContent>
-    </Drawer>
   );
+}
+
+function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onClose, returnFocusRef }) {
+  const isMobile = useIsMobile();
+  const location = useLocation();
+  if (isMobile) return <Navigate replace to={`${APP_WISH_CATALOG_PATH}/item/${encodeURIComponent(item.id)}`} state={{ returnTo: `${location.pathname}${location.search}` }} />;
+  return <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) onClose(); }}>
+    <DrawerContent className="catalog-wish-details app-drawer--compact" finalFocus={returnFocusRef}>
+      <DrawerClose render={<ShadcnButton type="button" variant="ghost" size="icon-sm" className="absolute top-2 right-2 z-10" />}><X aria-hidden="true" /><span className="sr-only">Закрыть</span></DrawerClose>
+      <CatalogWishDetailsContent item={item} wishlistDisabled={wishlistDisabled} wishlistPending={wishlistPending} onToggleWishlist={onToggleWishlist} />
+    </DrawerContent>
+  </Drawer>;
+}
+
+function CatalogItemPage() {
+  const { itemId } = useParams();
+  const { user, loading: sessionLoading } = useSession();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data, loading, error, reload } = useAsync(() => api.get(`/catalog/items/${encodeURIComponent(itemId)}`), [itemId]);
+  const [busy, setBusy] = useState(false);
+  const returnTo = location.state?.returnTo?.startsWith(`${APP_WISH_CATALOG_PATH}?`) || location.state?.returnTo === APP_WISH_CATALOG_PATH ? location.state.returnTo : APP_WISH_CATALOG_PATH;
+  const back = () => location.state?.fromCatalog ? navigate(-1) : navigate(returnTo, { replace: true });
+  if (sessionLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  const toggle = async (item) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (item.addedByMe) await api.post("/catalog/items/remove", { itemId: item.id, wishId: item.addedWishId });
+      else await api.post("/catalog/items/add", { itemId: item.id });
+      await reload();
+    } catch (cause) { toast(cause.message, "error"); }
+    finally { setBusy(false); }
+  };
+  return <ContentPage key={itemId} title="Каталог" onBack={back} className="catalog-item-page">
+    {loading && !data ? <LoadingScreen /> : error && !data ? <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription><ShadcnButton onClick={() => reload().catch(() => {})}>Повторить</ShadcnButton></Alert> : data && <CatalogWishDetailsContent screen item={data.item} wishlistDisabled={busy} wishlistPending={busy} onToggleWishlist={toggle} />}
+  </ContentPage>;
 }
 
 function WishCatalogPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   useEffect(() => {
     const search = new URLSearchParams(location.search);
     if (!isBrandCatalogSearch(location.search) || search.get("source") === "brands") return;
@@ -4726,6 +4774,10 @@ function WishCatalogPage() {
   }, [selectedCatalogItemId]);
 
   const openCatalogItem = (itemId, opener) => {
+    if (isMobile) {
+      navigate(`${APP_WISH_CATALOG_PATH}/item/${encodeURIComponent(itemId)}`, { state: { returnTo: `${location.pathname}${location.search}`, fromCatalog: true } });
+      return;
+    }
     lastCatalogOpenerRef.current = opener;
     setSelectedCatalogItemId(itemId);
   };
@@ -6087,7 +6139,18 @@ function MediaNotesPanel({ wish }) {
   </section>;
 }
 
-function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists = [], giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
+function ScreenNavigation({ to }) {
+  const navigate = useNavigate();
+  const navigated = useRef(false);
+  useLayoutEffect(() => {
+    if (navigated.current) return;
+    navigated.current = true;
+    navigate(to);
+  }, [navigate, to]);
+  return <LoadingScreen />;
+}
+
+function WishDetailsModal({ wish, screen = false, owner = false, profile, shareToken = "", lists = [], giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
   const isMobile = useIsMobile();
   const resolvedSpace = wishSpaceId(wish, lists);
   const offerWish = useMemo(
@@ -6184,16 +6247,12 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
     </div>
   </>;
 
-  return (
-    <>
-      <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) onClose(); }}>
-        <DrawerContent className="wish-details-dialog app-drawer--compact">
-          <DrawerClose
-            render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
-          >
-            <X />
-            <span className="sr-only">Закрыть</span>
-          </DrawerClose>
+  if (isMobile && !screen) {
+    return <ScreenNavigation to={shareToken ? `/s/${encodeURIComponent(shareToken)}/wishes/${encodeURIComponent(wish.id)}` : publicWishPath(profile.username, wish.id)} />;
+  }
+  const Title = screen ? "h1" : DrawerTitle;
+  const Description = screen ? "p" : DrawerDescription;
+  const detailsContent = (
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
@@ -6203,13 +6262,13 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
           </Card>
 
           <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
-            <DrawerTitle><span className="sr-only">Желание: </span>{wish.title}</DrawerTitle>
+            <Title className={screen ? "text-2xl font-semibold" : undefined}><span className="sr-only">Желание: </span>{wish.title}</Title>
             {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
             {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
               {wish.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>}
               {wish.eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{formatEventDate(wish.eventDate)}</span>}
             </div>}
-            <DrawerDescription>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</DrawerDescription>
+            <Description className={screen ? "text-muted-foreground" : undefined}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</Description>
           </DrawerHeader>
 
           {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
@@ -6327,11 +6386,16 @@ function WishDetailsModal({ wish, owner = false, profile, shareToken = "", lists
 
           {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
-        </DrawerContent>
-      </Drawer>
-      {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
-    </>
   );
+  return <>
+    {screen ? <ContentPage title="Желание" onBack={onClose} className="wish-item-page">{detailsContent}</ContentPage> : <Drawer open showSwipeHandle swipeDirection="right" onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DrawerContent className="wish-details-dialog app-drawer--compact">
+        <DrawerClose render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}><X /><span className="sr-only">Закрыть</span></DrawerClose>
+        {detailsContent}
+      </DrawerContent>
+    </Drawer>}
+      {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
+    </>;
 }
 
 function ListModal({ list = null, listsCount = 0, space = "products", onClose, onSaved, onDeleted, returnFocusRef }) {
@@ -6974,11 +7038,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     open
     modal={!listCreatorOpen}
     disablePointerDismissal={listCreatorOpen}
-    showSwipeHandle
+    showSwipeHandle={!isMobile}
     swipeDirection={isMobile ? "down" : "right"}
     onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
   >
-    <DrawerContent className="wish-editor-drawer rollapp-body app-drawer--form">
+    <DrawerContent className="wish-editor-drawer app-mobile-screen rollapp-body app-drawer--form">
       <DrawerHeader className="pr-16 text-left!">
         <DrawerTitle>Добавить желание</DrawerTitle>
         <DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription>
@@ -7416,6 +7480,7 @@ function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, i
 
 function PublicProfile({ shared = false }) {
   const params = useParams();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading } = useSession();
@@ -7630,6 +7695,9 @@ function PublicProfile({ shared = false }) {
       <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
     </div>;
+  if (isMobile && selectedWish && !editingWish) {
+    return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
+  }
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <div className="app-shell-chrome-spacer" aria-hidden="true" />
 
@@ -7712,6 +7780,7 @@ export default function App() {
       <SessionProvider>
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
+          <MobileFormPages>
           <GlobalAppChrome />
           <PlanningFab />
           <Routes>
@@ -7721,8 +7790,9 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />
-            <Route path="/s/:token" element={<PublicProfile shared />} />
             <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
+            <Route path="/s/:token" element={<PublicProfile shared />} />
+            <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
             <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
             <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
             <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
@@ -7735,6 +7805,7 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </MobileFormPages>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>
       </SessionProvider>

@@ -13,7 +13,6 @@ export function measureApplicationLayout() {
       && style.visibility !== "hidden" && !["absolute", "fixed"].includes(style.position);
   };
   const header = document.querySelector(".global-app-chrome");
-  const backdrop = header && getComputedStyle(header, "::before");
   const controls = header ? [...header.children].filter(visible).map(box) : [];
   const page = document.querySelector(".app-page");
   const firstSurface = document.querySelector(".persistent-profile-hero .sphere-share-avatars, .public-collection-page__hero .wishes-page__hero-avatar, .auth-form")
@@ -24,7 +23,7 @@ export function measureApplicationLayout() {
     overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     headerOverlap: controls.some((a, index) => controls.slice(index + 1).some((b) =>
       a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top)),
-    backdropBottom: backdrop ? Number.parseFloat(backdrop.top) + Number.parseFloat(backdrop.height) : 0,
+    headerBottom: header ? box(header).bottom : 0,
     firstSurface: box(firstSurface),
     tabNavigation: [...document.querySelectorAll('[data-slot="tabs-list"], .list-tabs, .public-list-tabs')].filter(visible).map((element) => {
       const bounds = box(element);
@@ -45,6 +44,8 @@ export function measureApplicationLayout() {
       const bounds = box(element);
       const actions = [...element.querySelectorAll("button, a")].filter(visible).map(box);
       return {
+        insetViewport: innerWidth <= 820 && (Math.abs(bounds.left) > 1 || Math.abs(bounds.right - innerWidth) > 1),
+        offCenter: actions.length > 0 && element.scrollWidth <= element.clientWidth + 1 && Math.abs((actions[0].left + actions.at(-1).right - bounds.left - bounds.right) / 2) > 1,
         singleRow: actions.every((action) => Math.abs(action.top - actions[0].top) <= 1),
         undersized: actions.some((action) => action.width < 47 || action.height < 47),
         unreachableStart: element.scrollLeft === 0 && actions.some((action) => action.left < bounds.left - 1),
@@ -91,12 +92,14 @@ export function assertApplicationLayout(result, label = "Application layout") {
     } else if (navigation.scrollable || navigation.clipped) errors.push("scrollable or clipped tab navigation: " + navigation.label);
   }
   for (const rail of result.actionRails || []) {
+    if (rail.insetViewport) errors.push("action scroller stops before the viewport edge");
+    if (rail.offCenter) errors.push("fitting primary action group is not centered");
     if (!rail.singleRow) errors.push("wrapped primary actions");
     if (rail.undersized) errors.push("primary action below Large control size");
     if (rail.unreachableStart) errors.push("unreachable start of action scroller");
     if (rail.overlap) errors.push("overlapping primary actions");
   }
-  if (result.scrollY === 0 && result.firstSurface?.top < result.backdropBottom - 1) errors.push("first content underneath the header backdrop");
+  if (result.scrollY === 0 && result.firstSurface?.top < result.headerBottom - 1) errors.push("first content underneath the header controls");
   if (result.emptyAccordions) errors.push("empty document accordion reserving layout space");
   for (const stack of result.stacks) {
     if (stack.gaps.some((gap) => Math.abs(gap - stack.expectedGap) > 1)) errors.push("stack gap differs from its token: " + stack.className + " (" + stack.gaps.join(", ") + ")");

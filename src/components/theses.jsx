@@ -1,8 +1,7 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
-import { CareerIconAction } from "@/components/career-icon-action";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   CareerContentError, useCareerContent,
@@ -12,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
-} from "@/components/ui/drawer";
+} from "@/components/form-surface";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
@@ -216,21 +215,21 @@ function IdentityStatements({ section }) {
         <article className="life-strategy-source theses-source typeset typeset-rollapp typeset-document" aria-label={labels.title}>
           <div className="flex flex-col gap-6" data-typeset-group>
             {theses.map((thesis, index) => (
-              <div className="group/thesis grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2" key={`${index}-${thesis}`}>
-                <blockquote className="career-action-copy mt-0! min-w-0">
+              <div className="relative min-h-12 min-w-0" key={`${index}-${thesis}`}>
+                <blockquote className="mt-0! min-w-0 border-0! p-0!">
                   {thesis.split(/\n\s*\n/gu).map((paragraph, paragraphIndex) => (
                     <p className="whitespace-pre-line" key={paragraphIndex}>{paragraph}</p>
                   ))}
                 </blockquote>
-                {!readOnly && <div className="not-typeset flex shrink-0 items-center gap-1">
-                  <CareerIconAction
-                    disabled={careerContent.loading || Boolean(careerContent.error)}
-                    label={`Редактировать ${labels.item} ${index + 1}`}
-                    onClick={() => setEditor({ mode: "edit", index })}
-                  >
-                    <Pencil aria-hidden="true" />
-                  </CareerIconAction>
-                </div>}
+                {!readOnly && <Button
+                  className="not-typeset absolute inset-0 h-full w-full rounded-sm border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
+                  variant="ghost"
+                  type="button"
+                  disabled={careerContent.loading || Boolean(careerContent.error)}
+                  aria-label={`Редактировать ${labels.item} ${index + 1}`}
+                  aria-description={thesis}
+                  onClick={() => setEditor({ mode: "edit", index })}
+                />}
               </div>
             ))}
           </div>

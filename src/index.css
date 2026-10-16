@@ -77,13 +77,6 @@
   padding-block: 0;
 }
 
-.identity-report-manager__actions {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: safe center;
-  gap: var(--layout-inline-gap);
-}
-
 .identity-report-empty,
 .identity-report-loading,
 .identity-report-error {
@@ -241,37 +234,6 @@
 }
 
 @layer utilities {
-  /* One action rail across spheres. Safe centering keeps the first action
-     reachable when the controls need horizontal scrolling. */
-  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    margin-inline: 0;
-    padding-inline: 0;
-    align-items: center;
-    justify-content: safe center;
-    flex-wrap: nowrap;
-    gap: var(--layout-inline-gap);
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-padding-inline: 0;
-    scrollbar-width: none;
-    touch-action: pan-x;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller::-webkit-scrollbar { display: none; }
-
-  .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller > :not(.sr-only),
-  .app-layout--dark .sphere-business-controls > a {
-    flex: 0 0 auto;
-  }
-
-  .app-layout--dark .sphere-business-controls { display: contents; }
-
   /* Keep full-screen editor actions in the layout, with an independent form
      scroller. The footer cannot cover fields when content is long. */
   .app-fullscreen-dialog.wish-editor-screen {
@@ -719,5 +681,27 @@
       font-size: 13px;
       line-height: 14px;
     }
+  }
+}
+
+@layer utilities {
+  .planning-fab-controls .planning-fab-space .space-select {
+    height: var(--layout-navigation-control);
+    min-height: var(--layout-navigation-control);
+  }
+
+  /* Floating controls need solid individual surfaces over scrolling content. */
+  .global-app-chrome :is(.global-app-chrome__rolls, .global-app-chrome__share),
+  .planning-fab-controls .planning-fab--back,
+  .planning-fab-controls .planning-fab-space .space-select {
+    background-color: var(--card);
+  }
+
+  .global-app-chrome :is(.global-app-chrome__rolls, .global-app-chrome__share):hover,
+  .planning-fab-controls .planning-fab--back:hover,
+  .planning-fab-controls .planning-fab-space .space-select:hover,
+  .planning-fab-controls .planning-fab-space .space-select[aria-expanded="true"],
+  .planning-fab-controls .planning-fab-space .space-select[data-popup-open] {
+    background-color: var(--muted);
   }
 }

@@ -20,6 +20,9 @@
 @layer components {
   /* Tab shells never constrain the content role chosen by the child page. */
   .sphere-page--tabbed .tabbed-sphere { width: 100%; }
+  /* A capped section stays centered inside the page rail. Its mobile action
+     scroller can then break out symmetrically to the viewport edges. */
+  .sphere-tabs__content > section { margin-inline: auto; }
 
   .auth-form { max-width: var(--layout-compact-width); }
   .friends-directory { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }

@@ -45,9 +45,15 @@ export function scheduleError({ dueOn, startTime, durationMinutes = 60 }) {
   if (start + durationMinutes > 1440) return "Задача должна заканчиваться в пределах выбранного дня";
   return "";
 }
+export function calendarTaskSchedule(task) {
+  return task.dueOn && !task.startTime
+    ? { ...task, startTime: "00:00", durationMinutes: 1440 }
+    : task;
+}
+
 export function taskTimeLabel(task) {
   const start = timeMinutes(task.startTime);
-  return start === null ? "Весь день" : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
+  return start === null ? (task.dueOn ? "00:00–24:00" : "Без времени") : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
 }
 export function sortCalendarTasks(tasks) {
   return [...tasks].sort((a, b) => (a.dueOn || "9999").localeCompare(b.dueOn || "9999")

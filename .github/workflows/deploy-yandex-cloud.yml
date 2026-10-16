@@ -43,7 +43,7 @@ jobs:
         run: npm ci
 
       - name: Test and build
-        run: npm run check
+        run: npm run check:release
 
       - name: Log in to Yandex Container Registry via OIDC
         uses: yc-actions/yc-cr-login@v3

@@ -6,7 +6,7 @@ import { MarkdownDocument } from "@/components/life-strategy";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

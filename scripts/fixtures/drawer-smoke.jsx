@@ -1,3 +1,5 @@
+import { BrowserRouter } from 'react-router-dom';
+import { MobileFormPages } from '@/components/mobile-form-pages';
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Drawer, DrawerContent, DrawerClose, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer';
@@ -49,8 +51,8 @@ function Fixture() {
       <Button className="wish-editor-screen__close" aria-label="Закрыть редактор" onClick={() => setMode(null)}>×</Button>
       <DialogTitle className="sr-only">Полный экран</DialogTitle><DialogDescription className="sr-only">Проверка клавиатуры</DialogDescription>
       <form className="wish-editor flex flex-col"><div className="wish-editor-screen__content"><Fields /></div><footer className="wish-editor-screen__footer"><Button type="button" onClick={() => setMode(null)}>Закрыть</Button></footer></form>
-    </FullscreenDialog> : <Drawer open={!!mode} showSwipeHandle swipeDirection={mobile ? 'down' : 'right'} onOpenChange={open => !open && setMode(null)}>
-      <DrawerContent className={`rollapp-body app-drawer--form ${mode === 'wish' ? 'wish-editor-drawer' : ''}`}>
+    </FullscreenDialog> : <Drawer open={!!mode} showSwipeHandle={mode !== 'wish' || !mobile} swipeDirection={mobile ? 'down' : 'right'} onOpenChange={open => !open && setMode(null)}>
+      <DrawerContent className={`rollapp-body app-drawer--form ${mode === 'wish' ? 'wish-editor-drawer app-mobile-screen' : ''}`}>
         <DrawerClose render={<Button className="absolute right-2 top-2 z-10" variant="ghost" />} aria-label="Закрыть">×</DrawerClose>
         {mode === 'wish' ? <><DrawerHeader className="pr-16"><DrawerTitle>Добавить желание</DrawerTitle><DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription></DrawerHeader>
           <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4"><WishFields>{body}</WishFields></div><footer className="wish-editor-screen__footer"><Button className="wish-editor__submit h-12 px-4" type="button">Сохранить</Button></footer></form></section></>
@@ -73,5 +75,5 @@ if (formName) {
     const [open, setOpen] = useState(true);
     return open ? <Component {...props} open onOpenChange={setOpen} onClose={() => setOpen(false)} /> : null;
   }
-  createRoot(document.getElementById('root')).render(<RealForm />);
+  createRoot(document.getElementById('root')).render(<BrowserRouter><MobileFormPages><RealForm /></MobileFormPages></BrowserRouter>);
 } else createRoot(document.getElementById('root')).render(<Fixture />);

@@ -27,13 +27,15 @@ export const planningSchema = `
   CREATE TABLE IF NOT EXISTS planning_spaces (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK (kind IN ('kanban', 'calendar')),
+    kind TEXT NOT NULL CHECK (kind IN ('kanban', 'calendar', 'todo')),
     title TEXT NOT NULL,
     columns_json JSONB NOT NULL,
     task_order JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_planning_spaces_user ON planning_spaces(user_id);
+  ALTER TABLE planning_spaces DROP CONSTRAINT IF EXISTS planning_spaces_kind_check;
+  ALTER TABLE planning_spaces ADD CONSTRAINT planning_spaces_kind_check CHECK (kind IN ('kanban', 'calendar', 'todo'));
   CREATE TABLE IF NOT EXISTS planning_boards (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     columns_json JSONB NOT NULL,
@@ -76,6 +78,7 @@ const taskColumns = `id, title, description, status, to_char(due_on, 'YYYY-MM-DD
   to_char(start_time, 'HH24:MI') AS "startTime", duration_minutes AS "durationMinutes",
   recurrence, recurrence_completed_dates AS "recurrenceCompletedDates"`;
 const fail = (status, message) => Object.assign(new Error(message), { planningStatus: status });
+export const planningSpaceSchema = z.object({ kind: z.enum(["kanban", "calendar", "todo"]), title: z.string().trim().min(1).max(100) });
 
 export function registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute }) {
   const readBoard = async (q, userId, spaceId = "main") => {
@@ -117,11 +120,11 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
       throw error;
     }
   });
-  const spaceFields = z.object({ kind: z.enum(["kanban", "calendar"]), title: z.string().trim().min(1).max(100) });
+  const spaceFields = planningSpaceSchema;
   app.get("/api/planning/spaces", requireAuth, asyncRoute(async (req, res) => {
     const kind = spaceFields.shape.kind.parse(req.query.kind);
     const result = await query("SELECT id,kind,title FROM planning_spaces WHERE user_id=$1 AND kind=$2 ORDER BY created_at,id", [req.user.id, kind]);
-    res.set("Cache-Control", "no-store").json({ spaces: [{ id: "main", kind, title: kind === "kanban" ? "Основная доска" : "Основной календарь" }, ...result.rows] });
+    res.set("Cache-Control", "no-store").json({ spaces: [{ id: "main", kind, title: kind === "kanban" ? "Основная доска" : kind === "todo" ? "Основной To Do-лист" : "Основной календарь" }, ...result.rows] });
   }));
   app.post("/api/planning/spaces", requireAuth, asyncRoute(async (req, res) => {
     const { kind, title } = spaceFields.parse(req.body);

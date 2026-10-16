@@ -526,7 +526,7 @@ for (const component of [
   "toggle-group",
 ]) {
   assert(
-    app.includes(`@/components/ui/${component}`),
+    (component === "drawer" ? app.includes("@/components/form-surface") : app.includes(`@/components/ui/${component}`)),
     `App.jsx does not use the installed shadcn ${component} component`,
   );
 }
@@ -617,7 +617,7 @@ assert(/const label = String\(brand\?\.label \|\| ""\)\.trim\(\)/.test(catalogBr
 assert(/<AvatarImage src=\{brand\.logoUrl \|\| undefined\}/.test(catalogBrandAttributionSource), "Catalog attribution must use the brand's own logo");
 assert(/aria-label=\{`Бренд товара: \$\{label\}`\}/.test(catalogBrandAttributionSource), "Catalog brand attribution must expose an accessible label");
 assert(!/OhMyWishes|source\.(?:label|logoUrl|homeUrl)|Каталог \{/.test(catalogBrandAttributionSource), "Catalog brand attribution must not fall back to provider branding");
-const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsDrawer"));
+const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsContent"));
 assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 2, "Catalog cards must expose one detail trigger and one Wishlist action");
 assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
 assert(/className="[^"]*\bcatalog-wish-card__open\b[^"]*"/.test(catalogWishCardSource), "Catalog cards must use an official shadcn overlay button for details");
@@ -636,12 +636,12 @@ assert(!/catalog-wish-card__source|Открыть исходную ссылку|
 assert(/item\.brand[\s\S]*?<CatalogBrandAttribution brand=\{item\.brand\} \/>/.test(catalogWishCardSource), "Catalog cards must render the verified product brand");
 assert(/!item\.source && <CatalogOwnerStack/.test(catalogWishCardSource), "Community catalog cards must keep participant attribution");
 assert(!/CatalogSourceAttribution|source\.label|source\.logoUrl/.test(catalogWishCardSource), "Catalog cards must not display the external provider's branding");
-const catalogWishDetailsSource = app.slice(app.indexOf("function CatalogWishDetailsDrawer"), app.indexOf("function WishCatalogPage"));
-for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription", "DrawerClose"]) {
+const catalogWishDetailsSource = app.slice(app.indexOf("function CatalogWishDetailsContent"), app.indexOf("function CatalogItemPage"));
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerClose"]) {
   assert(new RegExp(`<${component}\\b`).test(catalogWishDetailsSource), `Catalog details must use the official ${component} primitive`);
 }
-assert(/swipeDirection=\{isMobile \? "down" : "right"\}/.test(catalogWishDetailsSource), "Catalog details must open from the right on desktop and from the bottom on mobile");
-assert(/<Drawer open showSwipeHandle\b/.test(catalogWishDetailsSource), "Catalog details must keep the existing swipe affordance");
+assert(/swipeDirection="right"/.test(catalogWishDetailsSource) && /<Navigate\b[^>]*to=/.test(catalogWishDetailsSource), "Catalog details must navigate on mobile and use a right drawer on desktop");
+assert(/<Drawer open showSwipeHandle\b/.test(catalogWishDetailsSource), "Catalog details must declare its responsive swipe affordance");
 assert(/finalFocus=\{returnFocusRef\}/.test(catalogWishDetailsSource), "Catalog details must restore focus to the opened card");
 assert(/className="catalog-wish-details app-drawer--compact"/.test(catalogWishDetailsSource) && !/catalog-wish-details wish-details-dialog/.test(catalogWishDetailsSource), "Catalog details must keep a distinct drawer identity while inheriting the default WishDetails geometry");
 assert(!/<DrawerFooter\b|--drawer-content-width|catalog-wish-details__(?:media|space|facts|footer)/.test(catalogWishDetailsSource), "Catalog details must not restore its bespoke wide drawer or fixed footer styling");
@@ -704,7 +704,7 @@ assert((primaryWishDetailsDialog.match(/onClick=\{reserve\}/g) || []).length >= 
 assert(/Забронировать/.test(primaryWishDetailsDialog) && /Снять бронь/.test(primaryWishDetailsDialog), "WishDetailsModal must retain reserve and unreserve labels");
 assert(/import \{ Checkbox \} from "@\/components\/ui\/checkbox";/.test(app), "WishDetailsModal must import the official shadcn Checkbox primitive");
 const detailListPickerStart = primaryWishDetailsDialog.indexOf("const renderListPickerBody");
-const detailListPickerEnd = primaryWishDetailsDialog.indexOf("\n\n  return (", detailListPickerStart);
+const detailListPickerEnd = primaryWishDetailsDialog.indexOf("\n\n  if (isMobile && !screen)", detailListPickerStart);
 const detailListPickerSource = detailListPickerStart < 0 || detailListPickerEnd < 0
   ? ""
   : primaryWishDetailsDialog.slice(detailListPickerStart, detailListPickerEnd);
@@ -716,9 +716,10 @@ assert(/className="[^"]*\bpointer-events-none\b[^"]*\bml-auto\b[^"]*"/.test(deta
 assert(/\[&_\[data-slot=dropdown-menu-checkbox-item-indicator\]\]:hidden/.test(detailListPickerSource), "WishDetails list picker must hide the duplicate DropdownMenu checkbox indicator");
 assert(!/card-menu__list-state|selected\s*\?\s*<Check\s*\/>\s*:\s*<Plus\s*\/>/.test(detailListPickerSource), "WishDetails list picker must not restore the legacy circular plus/check state");
 assert(!/\.card-menu__list-state\b/.test(legacyStyles), "Legacy styles must not restore the circular WishDetails list state");
-for (const component of ["Drawer", "DrawerContent", "DrawerHeader", "DrawerTitle", "DrawerDescription"]) {
+for (const component of ["Drawer", "DrawerContent", "DrawerHeader"]) {
   assert(new RegExp(`<${component}\\b`).test(primaryWishDetailsDialog), `WishDetailsModal must compose the official shadcn ${component} directly`);
 }
+assert(/const Title = screen \? "h1" : DrawerTitle/.test(primaryWishDetailsDialog) && /const Description = screen \? "p" : DrawerDescription/.test(primaryWishDetailsDialog), "Wish details must use semantic page titles on mobile and Drawer semantics on desktop");
 assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
 assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
 const wishActionsTag = primaryWishDetailsDialog.match(/<div\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
@@ -783,8 +784,8 @@ assert(/className="wish-editor-screen wish-editor-screen--drawer"/.test(primaryW
 assert(!/<Modal\b/.test(primaryWishEditorDialog), "WishModal must not wrap its primary editor in the legacy Modal adapter");
 assert(/<\/FullscreenDialog> : <Drawer\b/.test(primaryWishEditorDialog), "WishModal creation must render in the shared Drawer");
 assert(/swipeDirection=\{isMobile \? "down" : "right"\}/.test(primaryWishEditorDialog), "WishModal creation must use a bottom drawer on mobile and a right drawer on desktop");
-assert(/<DrawerContent\b[\s\S]*?className="wish-editor-drawer rollapp-body app-drawer--form"/.test(primaryWishEditorDialog), "WishModal creation drawer must use the Rollapp drawer surface");
-const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*className="wish-editor-drawer rollapp-body app-drawer--form"[^>]*>/)?.[0] || "";
+assert(/<DrawerContent\b[\s\S]*?className="wish-editor-drawer app-mobile-screen rollapp-body app-drawer--form"/.test(primaryWishEditorDialog), "WishModal creation drawer must use the Rollapp drawer surface");
+const primaryWishEditorContentTag = primaryWishEditorDialog.match(/<DrawerContent\b[^>]*className="wish-editor-drawer app-mobile-screen rollapp-body app-drawer--form"[^>]*>/)?.[0] || "";
 assert(!/--drawer-content-width/.test(primaryWishEditorContentTag), "WishModal creation drawer must inherit the shared form drawer width");
 assert(!/<DialogClose\b/.test(primaryWishEditorDialog), "WishModal must use DrawerClose instead of the retired DialogClose");
 assert(!/viewportClassName=/.test(primaryWishEditorDialog), "WishModal must use the native shadcn Drawer overlay and positioning");
@@ -823,6 +824,7 @@ for (const file of sourceFiles) {
   assert(!source.includes("@radix-ui/"), `Base Nova source must not import Radix: ${relativeFile}`);
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
+    if (source.includes('@/components/ui/drawer')) assert.equal(relativeFile, 'src/components/form-surface.jsx', `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }
   if (file.startsWith(`${uiDir}${path.sep}`)) continue;
