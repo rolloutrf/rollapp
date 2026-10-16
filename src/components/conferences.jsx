@@ -548,9 +548,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
           </div>
 
           <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <Button className="min-h-12 px-4 text-base" variant="outline" type="button" onClick={() => changeOpen(false)} disabled={saving || logoUploading}>
-              Отмена
-            </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить конференцию"}

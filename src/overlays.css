@@ -97,10 +97,10 @@
     margin: 0;
     padding: 0;
   }
-  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
+  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer:not([data-native-form-actions]) {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
-  [data-overlay-keyboard] .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer {
+  [data-overlay-keyboard] .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer:not([data-native-form-actions]) {
     /* The home indicator is below the keyboard, outside this sheet. */
     padding-bottom: 1rem;
   }
@@ -143,8 +143,7 @@
 }
 
 @layer utilities {
-  /* The footer owns the one bottom inset. Short forms fill the page; long
-     forms grow naturally and keep the document as their scroll owner. */
+  /* Native forms keep one document scroller and one fixed action row. */
   html:has(.mobile-form-page:not([hidden])) {
     /* Let native keyboard focus/panning settle without the site's smooth
        document scrolling animating a second competing movement. */
@@ -158,6 +157,12 @@
     padding-block-end: 0;
   }
   .mobile-form-page:not([hidden]) { display: flex; flex-direction: column; }
+  .mobile-form-page[data-has-form-footer] {
+    padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2 + max(env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px)));
+  }
+  [data-overlay-keyboard] .mobile-form-page[data-has-form-footer] {
+    padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2);
+  }
   .mobile-form-page__content {
     display: flex;
     flex: 1;
@@ -187,49 +192,56 @@
     flex: 1 0 auto;
   }
   .mobile-form-page__surface .wish-editor-screen__close { display: none; }
-  .mobile-form-page__surface .wish-editor-screen__footer {
-    position: static;
-    margin: 0;
-    border-radius: 0;
-    pointer-events: auto;
-  }
   .mobile-form-page :is(.mobile-form-page__header, .mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
     background: transparent;
     border: 0;
     box-shadow: none;
   }
-  .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
-    padding-block-end: max(var(--layout-item-gap), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
-  }
   .mobile-form-page .contact-detail__edit-form { padding-block-end: 0; }
-  .mobile-form-page .contact-detail__edit-actions { position: static; }
-  [data-overlay-keyboard] .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
-    padding-block-end: var(--layout-item-gap);
+  .mobile-form-page [data-native-form-actions] {
+    position: fixed;
+    z-index: 90;
+    left: max(var(--layout-page-inset), env(safe-area-inset-left));
+    right: max(var(--layout-page-inset), env(safe-area-inset-right));
+    bottom: var(--layout-navigation-bottom);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--layout-inline-gap);
+    width: auto;
+    max-width: none;
+    height: var(--layout-control-size);
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
   }
+  .mobile-form-page__actions {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    gap: var(--layout-inline-gap);
+  }
+  .mobile-form-page [data-native-form-actions] [data-slot="button"] {
+    pointer-events: auto;
+    margin: 0;
+  }
+  .mobile-form-page__actions > [data-slot="button"] {
+    min-width: 0;
+    width: auto;
+    padding-inline: var(--layout-inline-gap);
+    white-space: nowrap;
+  }
+  .mobile-form-page__actions > [type="submit"] { flex: 1; }
+  .mobile-form-page__actions > button:not([type="submit"]) { background-color: var(--card); }
+  .mobile-form-page__back {
+    flex-shrink: 0;
+    background-color: var(--card);
+  }
+  .mobile-form-page__back:hover { background-color: var(--muted); }
   @media (max-width: 767px) {
     html:has(.mobile-form-page:not([hidden])) { scroll-padding-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2); }
     .mobile-form-page :is(input, textarea, [contenteditable="true"]) { scroll-margin-block-end: calc(var(--layout-control-size) + var(--layout-item-gap) * 2); }
-    /* Reserve only the part of the footer actually behind the fixed Back
-       control; centered, narrower form rails keep their normal inner inset. */
-    .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
-      padding-inline-start: max(var(--layout-item-gap), calc((100% - 100vw) / 2 + max(var(--layout-page-inset), env(safe-area-inset-left)) + var(--layout-control-size) + var(--layout-inline-gap)));
-    }
-    .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) > [data-slot="button"] {
-      min-height: var(--layout-control-size);
-      height: auto;
-      white-space: normal;
-    }
-    .mobile-form-page .planning-task-editor__actions {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      align-items: stretch;
-    }
-    .mobile-form-page .planning-task-editor__actions[data-task-editing] { grid-template-columns: minmax(0, 1fr) auto; }
-    .mobile-form-page .planning-task-editor__actions > [data-slot="button"] {
-      min-width: 0;
-      padding-inline: var(--layout-inline-gap);
-      white-space: nowrap;
-    }
     .app-fullscreen-dialog .wish-editor-screen__footer {
       background: transparent;
       border: 0;

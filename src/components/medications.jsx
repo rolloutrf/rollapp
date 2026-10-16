@@ -635,9 +635,9 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
             </div>
             <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
               {group && (
-                <Button className="min-h-12 px-4 text-base sm:mr-auto" variant="destructive" type="button" disabled={busy} onClick={() => setDeleteOpen(true)}>
+                <Button data-control-icon={isMobile || undefined} className="min-h-12 px-4 text-base sm:mr-auto" variant="destructive" size={isMobile ? "icon" : "default"} type="button" aria-label="Удалить группу" title="Удалить группу" disabled={busy} onClick={() => setDeleteOpen(true)}>
                   <Trash2 data-icon="inline-start" aria-hidden="true" />
-                  Удалить группу
+                  {!isMobile && "Удалить группу"}
                 </Button>
               )}
               <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>
