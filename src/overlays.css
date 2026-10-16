@@ -121,3 +121,129 @@
   }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__media { position: static; }
 }
+
+@layer utilities {
+  @media (max-width: 767px) {
+    [data-slot="drawer-popup"].app-mobile-screen[data-swipe-axis="y"] {
+      --drawer-content-height: var(--app-visual-height, 100dvh);
+      --drawer-content-max-height: var(--app-visual-height, 100dvh);
+      top: var(--app-visual-top, 0px);
+      bottom: auto;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      padding-block-start: var(--layout-safe-top);
+    }
+    .app-mobile-screen :is([data-slot="drawer-close"], .wish-editor-screen__close) {
+      top: var(--layout-screen-top);
+    }
+  }
+}
+
+@layer utilities {
+  /* The footer owns the one bottom inset. Short forms fill the page; long
+     forms grow naturally and keep the document as their scroll owner. */
+  html:has(.mobile-form-page:not([hidden])) {
+    /* Let native keyboard focus/panning settle without the site's smooth
+       document scrolling animating a second competing movement. */
+    scroll-behavior: auto;
+    scroll-padding-block: var(--layout-screen-top) var(--layout-item-gap);
+  }
+  .mobile-form-page {
+    /* Safari's keyboard shrinks VisualViewport, while 100dvh can retain the
+       layout height and stretch the form body behind the keyboard. */
+    min-height: var(--app-visual-height, 100dvh);
+    padding-block-end: 0;
+  }
+  .mobile-form-page:not([hidden]) { display: flex; flex-direction: column; }
+  .mobile-form-page__content {
+    display: flex;
+    flex: 1;
+    /* Keep legacy editor layers below the shared fixed Back control. */
+    position: relative;
+    z-index: 0;
+  }
+  .mobile-form-page__surface {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    max-width: var(--layout-panel-width, var(--layout-form-width));
+    margin-inline: auto;
+    background: var(--background);
+  }
+  .mobile-form-page__surface :is(.app-drawer-body, [data-slot="scroll-area-viewport"], .wish-editor-screen__content) {
+    overflow: visible;
+    flex: 1 0 auto;
+    height: auto;
+    max-height: none;
+  }
+  .mobile-form-page__surface :is([data-slot="scroll-area"], .wish-editor-screen--drawer, .wish-editor, form) {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    flex: 1 0 auto;
+  }
+  .mobile-form-page__surface .wish-editor-screen__close { display: none; }
+  .mobile-form-page__surface .wish-editor-screen__footer {
+    position: static;
+    margin: 0;
+    border-radius: 0;
+    pointer-events: auto;
+  }
+  .mobile-form-page :is(.mobile-form-page__header, .mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
+    padding-block-end: max(var(--layout-item-gap), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+  }
+  .mobile-form-page .contact-detail__edit-form { padding-block-end: 0; }
+  .mobile-form-page .contact-detail__edit-actions { position: static; }
+  [data-overlay-keyboard] .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
+    padding-block-end: var(--layout-item-gap);
+  }
+  @media (max-width: 767px) {
+    html:has(.mobile-form-page:not([hidden])) { scroll-padding-block-end: calc(var(--layout-navigation-control) + var(--layout-item-gap) * 2); }
+    .mobile-form-page :is(input, textarea, [contenteditable="true"]) { scroll-margin-block-end: calc(var(--layout-navigation-control) + var(--layout-item-gap) * 2); }
+    /* Reserve only the part of the footer actually behind the fixed Back
+       control; centered, narrower form rails keep their normal inner inset. */
+    .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) {
+      padding-inline-start: max(var(--layout-item-gap), calc((100% - 100vw) / 2 + max(var(--layout-page-inset), env(safe-area-inset-left)) + var(--layout-navigation-control) + var(--layout-inline-gap)));
+    }
+    .mobile-form-page :is(.mobile-form-page__footer, .wish-editor-screen__footer, .contact-detail__edit-actions) > [data-slot="button"] {
+      min-height: var(--layout-navigation-control);
+      height: auto;
+      white-space: normal;
+    }
+    .mobile-form-page .planning-task-editor__actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+    }
+    .mobile-form-page .planning-task-editor__actions[data-task-editing] { grid-template-columns: minmax(0, 1fr) auto; }
+    .mobile-form-page .planning-task-editor__actions > [data-slot="button"] {
+      min-width: 0;
+      padding-inline: var(--layout-inline-gap);
+      white-space: nowrap;
+    }
+    .app-fullscreen-dialog .wish-editor-screen__footer {
+      background: transparent;
+      border: 0;
+      padding-block-end: max(var(--layout-item-gap), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+    }
+  }
+  .mobile-form-page .mobile-form-page__header { padding-inline-end: var(--layout-page-inset); }
+}
+
+@layer utilities {
+  [data-native-form-suspended],
+  [data-slot="dialog-overlay"]:has(+ [data-native-form-suspended]) { display: none; }
+}
+
+@layer utilities {
+  [data-slot="dialog-portal"]:has([data-native-form-suspended]) { display: none; }
+}

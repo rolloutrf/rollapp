@@ -23,6 +23,7 @@ test("primary actions retain their size, order and reachable start", () => {
     ["undersized", true, /Large control/],
     ["unreachableStart", true, /unreachable start/],
     ["overlap", true, /overlapping primary/],
+    ["insetViewport", true, /stops before the viewport edge/],
   ]) {
     assert.throws(() => assertApplicationLayout({ ...clean, actionRails: [{ ...rail, [key]: value }] }), message);
   }

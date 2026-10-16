@@ -4,6 +4,7 @@ import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
+  cacheDir: "node_modules/.vite-drawer-smoke",
   server: { host: '127.0.0.1', port: 5187, strictPort: true, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
@@ -70,6 +71,10 @@ try {
       await page.waitForTimeout(600);
       await boundsVisible(popup, 0, viewport.height, `${viewport.width} ${mode} initial`);
       const initial = await popup.boundingBox();
+      if (mode === 'wish' && viewport.width < 768) {
+        assert(Math.abs(initial.height - viewport.height) < 2, `${viewport.width}: wish editor must fill the mobile viewport`);
+        assert(Math.abs(initial.y) < 2, `${viewport.width}: wish editor must start at the top`);
+      }
       if (mode === 'wish' || mode === 'fullscreen') {
         const content = await popup.locator('.wish-editor-screen__content > :first-child').boundingBox();
         assert(content.x >= initial.x + 14, `${viewport.width} ${mode}: content touches the left edge`);
@@ -149,7 +154,10 @@ try {
         await page.getByRole('textbox', {name:'Имя списка'}).waitFor({state:'hidden'});
         assert(await popup.isVisible(), 'Escape closed parent along with nested drawer');
       }
-      if (mode !== 'fullscreen' && viewport.width < 768) {
+      if (mode === 'wish' && viewport.width < 768) {
+        assert.equal(await popup.locator('[data-slot="drawer-swipe-handle"]').count(), 0, 'Mobile wish screen must not show a sheet handle');
+        await popup.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      } else if (mode !== 'fullscreen' && viewport.width < 768) {
         const handle = await popup.locator('[data-slot="drawer-swipe-handle"]').boundingBox();
         await swipe(page, {x:handle.x+handle.width/2,y:handle.y+6}, {x:handle.x+handle.width/2,y:Math.min(viewport.height-10,handle.y+initial.height*.8)});
       } else await page.keyboard.press('Escape');
@@ -161,6 +169,21 @@ try {
     if (process.env.DRAWER_REAL_FORMS === '1' && [390,320,896].includes(viewport.width)) {
       for (const [name] of drawerCases.filter(([name]) => !process.env.DRAWER_CASES || process.env.DRAWER_CASES.split(",").includes(name))) {
         await page.goto(`http://127.0.0.1:5187/__drawer-smoke?form=${name}`);
+        if (viewport.width < 768) {
+          const screen = page.locator('[data-mobile-form-page]:visible');
+          await screen.waitFor();
+          await page.waitForURL(url => url.searchParams.has('formScreen'));
+          assert.equal(await page.locator('[data-slot="drawer-popup"]').count(), 0, `${name}: mobile form must not mount a Drawer`);
+          const fields = screen.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
+          assert(await fields.count() > 0, `${name}: no editable fields`);
+          await fields.last().scrollIntoViewIfNeeded();
+          await fields.last().focus();
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name}: native form overflows`);
+          await page.goBack();
+          await screen.waitFor({state:'hidden'});
+          console.log(`PASS ${viewport.width} actual native page ${name}`);
+          continue;
+        }
         const popup = page.locator('[data-slot="drawer-popup"]');
         await popup.waitFor();
         await page.waitForTimeout(450);

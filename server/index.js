@@ -2795,6 +2795,33 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
   });
 }));
 
+app.get("/api/catalog/items/:itemId", requireAuth, asyncRoute(async (req, res) => {
+  const parsed = catalogItemIdSchema.safeParse(req.params.itemId);
+  if (!parsed.success || (!externalCatalogReference(parsed.data) && !z.uuid().safeParse(parsed.data).success)) {
+    return res.status(404).json({ error: "Позиция каталога не найдена" });
+  }
+  const resolved = await resolveCatalogActionItem(parsed.data);
+  if (!resolved) return res.status(404).json({ error: "Позиция каталога не найдена" });
+  const item = resolved.kind === "external" ? resolved.item : groupCatalogRows([resolved.item])[0];
+  const external = externalCatalogReference(item.id);
+  if (external) {
+    const brand = await query(
+      `SELECT b.external_id,b.slug,b.label,b.logo_url
+       FROM external_catalog_brands b
+       JOIN external_catalog_brand_items bi ON bi.source=b.source AND bi.brand_id=b.external_id AND bi.synced_at=b.synced_at
+       WHERE bi.source=$1 AND bi.external_id=$2 ORDER BY b.sort_order,b.slug LIMIT 1`,
+      [external.source, external.externalId],
+    );
+    if (brand.rowCount) {
+      const row = brand.rows[0];
+      item.brand = { id: row.external_id, slug: row.slug, label: row.label, logoUrl: row.logo_url };
+    }
+  }
+  const [decorated] = await decorateCatalogItems([item], req.user.id, item.space);
+  res.set("Cache-Control", "private, no-store");
+  res.json({ item: decorated });
+}));
+
 app.patch("/api/catalog/items/like", requireAuth, asyncRoute(async (req, res) => {
   const parsed = catalogLikeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Не удалось изменить лайк" });

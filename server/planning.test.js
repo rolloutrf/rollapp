@@ -85,3 +85,16 @@ test("calendar gestures snap both directions and preserve valid day boundaries",
   assert.deepEqual(calendarResize(task, 500), { durationMinutes: 15 });
   assert.deepEqual(calendarResize(task, 1500), { durationMinutes: 900 });
 });
+
+test("dated tasks without a time occupy the ordinary 24-hour timeline and can be resized", async () => {
+  const { calendarTaskSchedule, layoutCalendarEvents, calendarResize, taskTimeLabel } = await import("../shared/planning-calendar.js");
+  const original = { id: "untimed", dueOn: "2026-10-16", startTime: "", durationMinutes: 60 };
+  const timed = calendarTaskSchedule(original);
+  const [event] = layoutCalendarEvents([timed]);
+  assert.equal(event.start, 0);
+  assert.equal(event.end, 1440);
+  assert.equal(taskTimeLabel(timed), "00:00–24:00");
+  assert.deepEqual(calendarResize(timed, 120), { durationMinutes: 120 });
+  assert.equal(original.startTime, "");
+  assert.equal(original.durationMinutes, 60);
+});

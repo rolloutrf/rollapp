@@ -133,6 +133,26 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     assert.equal((await request("PATCH", `/${namedTask.id}${scoped}`, { title: "Сохранено" })).body.task.title, "Сохранено");
     assert.equal((await request("DELETE", `/${namedTask.id}${scoped}`)).status, 200);
 
+    // To Do lists use the same persisted space boundary as boards and calendars.
+    const todoResult = await request("POST", "/spaces", { kind: "todo", title: "Личный To Do-лист" });
+    assert.equal(todoResult.status, 201);
+    const todoSpace = todoResult.body.space;
+    const todoScope = `?space=${todoSpace.id}`;
+    const todoSpaces = (await request("GET", "/spaces?kind=todo")).body.spaces;
+    assert.equal(todoSpaces[0].title, "Основной To Do-лист");
+    assert(todoSpaces.some((space) => space.id === todoSpace.id && space.kind === "todo"));
+    assert(!todoSpaces.some((space) => [boardSpace.id, calendarSpace.id].includes(space.id)));
+    assert.equal((await request("GET", "/spaces?kind=todo", undefined, tokens[1])).body.spaces.length, 1);
+    const todoTaskResult = await request("POST", todoScope, { title: "Задача отдельного To Do-листа", dueOn: localDateKey(new Date()) });
+    assert.equal(todoTaskResult.status, 201);
+    const todoTask = todoTaskResult.body.task;
+    assert.equal((await request("GET", todoScope)).body.tasks[0].id, todoTask.id);
+    assert(!(await request("GET")).body.tasks.some((task) => task.id === todoTask.id));
+    assert.deepEqual((await request("GET", scoped)).body.tasks, []);
+    assert.equal((await request("GET", todoScope, undefined, tokens[1])).status, 404);
+    assert.equal((await request("PATCH", `/${todoTask.id}${todoScope}`, { completed: true })).body.task.completed, true);
+    assert.equal((await request("DELETE", `/${todoTask.id}${todoScope}`)).status, 200);
+
     if (process.env.PLANNING_RECURRENCE_UI === "1") {
       const { runRecurrenceChecks } = await import("../scripts/planning-recurrence-checks.mjs");
       await runRecurrenceChecks({ origin, token: tokens[0] });

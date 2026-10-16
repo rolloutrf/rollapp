@@ -4816,29 +4816,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   border-radius: var(--radius-pill);
 }
 
-@media (max-width: 820px) {
-  .app-layout--dark :is(
-    .page-toolbar > .horizontal-action-scroller,
-    .wishes-page__hero-actions.horizontal-action-scroller,
-    .page-actions:has(> .sphere-business-controls),
-    .identity-report-manager__actions:has(> .sphere-business-controls)
-  ) {
-    width: calc(100% + 2 * var(--layout-page-inset));
-    max-width: none;
-    margin-inline: calc(-1 * var(--layout-page-inset));
-    padding-inline: var(--layout-page-inset) 0;
-    justify-content: flex-start;
-    scroll-padding-inline: var(--layout-page-inset) 0;
-  }
-
-  .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller {
-    width: calc(100% + 2 * var(--wishes-viewport-inset));
-    margin-inline: calc(-1 * var(--wishes-viewport-inset));
-    padding-inline-start: var(--wishes-viewport-inset);
-    scroll-padding-inline-start: var(--wishes-viewport-inset);
-  }
-}
-
 @media (min-width: 821px) and (max-width: 1180px) {
   .app-layout--dark .wishes-page { --wishes-shell-inset: 30px; }
   .app-layout--dark .wishes-page__topbar { padding-right: 30px; padding-left: 30px; }
@@ -4967,7 +4944,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 
 /* Space switcher: pill-shaped select for switching spaces (Товары / Места / События / Медиа).
    The trigger sits in the center column of the wishes topbar, matching the 48px share button. */
-:is(.app-layout--dark, .global-app-chrome) .space-select {
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
   justify-self: center;
   width: auto;
   height: 48px;
@@ -4982,19 +4959,19 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   line-height: 1;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
-:is(.app-layout--dark, .global-app-chrome) .space-select:hover,
-:is(.app-layout--dark, .global-app-chrome) .space-select[data-popup-open] {
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select:hover,
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select[data-popup-open] {
   background: transparent;
 }
-:is(.app-layout--dark, .global-app-chrome) .space-select [data-slot="select-value"] {
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] {
   flex: 0 1 auto;
   gap: 8px;
 }
-:is(.app-layout--dark, .global-app-chrome) .space-select [data-slot="select-value"] svg {
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] svg {
   width: 17px;
   height: 17px;
 }
-:is(.app-layout--dark, .global-app-chrome) .space-select .space-select__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select .space-select__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .space-select__content {
   min-width: 11rem;
   padding: 8px;
@@ -5011,13 +4988,13 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   height: 16px;
 }
 @media (max-width: 640px) {
-  :is(.app-layout--dark, .global-app-chrome) .space-select {
+  :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
     height: 42px;
     padding: 0 10px 0 14px;
     gap: 7px;
     font-size: 13px;
   }
-  :is(.app-layout--dark, .global-app-chrome) .space-select [data-slot="select-value"] svg {
+  :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] svg {
     width: 15px;
     height: 15px;
   }
@@ -5048,23 +5025,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   gap: 16px;
   color: var(--foreground);
   isolation: isolate;
-  pointer-events: none;
-}
-.global-app-chrome::before {
-  width: 100vw;
-  height: var(--app-chrome-overlay-height);
-  position: fixed;
-  z-index: -1;
-  top: 0;
-  left: 0;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--background) 98%, transparent) 0%,
-    color-mix(in oklch, var(--background) 94%, transparent) 70%,
-    transparent 100%
-  );
-  backdrop-filter: blur(10px);
-  content: "";
   pointer-events: none;
 }
 .global-app-chrome > * { pointer-events: auto; }
@@ -5151,19 +5111,31 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   flex: 0 0 24px;
 }
 .sphere-switcher__icon svg { width: 24px; height: 24px; stroke-width: 1.8; }
-.planning-fab {
+.planning-fab-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--layout-inline-gap);
+  left: max(24px, env(safe-area-inset-left));
+  pointer-events: none;
   position: fixed;
   z-index: 40;
   right: max(24px, env(safe-area-inset-right));
   bottom: calc(24px + env(safe-area-inset-bottom));
-  box-shadow: 0 8px 28px rgb(0 0 0 / 28%);
 }
+.planning-fab { flex-shrink: 0; pointer-events: auto; box-shadow: 0 8px 28px rgb(0 0 0 / 28%); }
+.planning-fab-controls[data-has-back] { justify-content: space-between; }
+.planning-fab-space { flex: 1; min-width: 0; max-width: var(--layout-compact-width); pointer-events: auto; }
+.planning-fab-space .global-service-select { width: 100%; min-width: 0; max-width: 100%; }
+.planning-fab-space .space-select__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .planning-fab__panel {
   max-height: var(--available-height);
   overflow-y: auto;
 }
 @media (max-width: 560px) {
-  .planning-fab {
+  .planning-fab-controls {
+    left: max(16px, env(safe-area-inset-left));
     right: max(16px, env(safe-area-inset-right));
     bottom: calc(16px + env(safe-area-inset-bottom));
   }
