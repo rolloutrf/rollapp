@@ -90,6 +90,14 @@ Opening a wish from the private dashboard navigates to its public-profile route
 
 ## Mobile form pages
 
+About-me questions and Four Questions open their existing editors by clicking the
+question or answer through `EditableTextBlock`. There are no separate pencil
+controls or action columns. A visually hidden native button provides Enter/Space
+activation and outlines the prose block on keyboard focus; semantic headings,
+links and text selection remain available. Read-only and loading/error states
+cannot open an editor. `npm run test:text-edit` verifies these interactions on
+mobile and desktop and runs before release.
+
 All application form drawers use `form-surface.jsx`, which keeps the installed
 shadcn Drawer on desktop and uses `MobileFormPages` below 768px. Mobile forms
 have a `formScreen` URL/history entry and render into a normal document-flow
