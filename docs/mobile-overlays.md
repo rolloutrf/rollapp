@@ -97,22 +97,32 @@ page host through the shared `ScreenPortal`. No Drawer, backdrop, fixed-height
 sheet, focus trap or document scroll lock is created on mobile.
 
 The source React tree is cached, hidden and inert while a form page is active;
-its contexts and save callbacks remain intact. Native scrolling reveals fields
-and footer actions. Short forms fill the viewport; longer forms grow with the
-document. Their minimum height uses `--app-visual-height`, not `100dvh`: iOS can
-overlay the keyboard without resizing the layout viewport. This prevents the
-body from stretching an empty area between its fields and submit action. Native
-document scrolling remains the only scroll owner. Smooth document scrolling is
-disabled while a form page is active so keyboard focus and WebKit panning do
-not trigger a second animated scroll. With the keyboard open, footer padding is
-16px (the home-indicator safe area is below the keyboard). The footer owns a single
-bottom inset of 16px or the larger system safe
-area, with no additional page padding below it. Mobile form headers and action
-footers have transparent backgrounds and no separator slab; controls retain
-their own fills. A shared Back action and browser Back close the page through
-the original busy/close guard. On phones the shared Back action is fixed at the
-bottom left, with an opaque 48px surface. Form footer actions reserve the space
-beside it, wrap long labels and retain the one bottom inset. Detail pages use
+its contexts and save callbacks remain intact. Short forms fill the visible viewport;
+longer forms grow with the document. Their minimum height uses
+`--app-visual-height`, not `100dvh`, because iOS can overlay the keyboard without
+resizing the layout viewport. The document is the only scroll owner. Smooth
+scrolling is disabled while a form page is active so keyboard focus and WebKit
+panning do not trigger a competing animation.
+
+`MobileFormFooter` keeps Back, submit and optional delete in one fixed
+`ControlBar`, with 48px controls and 8px gaps. Its bottom uses
+`--layout-navigation-bottom`: visual viewport offset plus 16px or the larger
+safe area; keyboard mode omits the home-indicator inset. The row has no background
+slab, border or extra padding; individual controls are opaque. A document tail of
+one control height plus two 16px gaps and the safe area lets the final field
+scroll above it. Never position Back independently when a form footer exists.
+Forms without a footer (such as date selection) retain the shared fixed Back.
+
+Submit stays inside its original HTML form: validation, Enter submission, busy
+and close guards are preserved. A form footer registers with its page context so
+nested screens show exactly one Back, alongside their own actions. Desktop
+Drawer footers remain in their original position. At narrow widths delete may
+use an icon with its complete accessible name; the shared Back replaces Cancel.
+`npm run test:form-actions` is required before release and checks scroll positions,
+48px row alignment, hit targets, form ownership, Enter, busy Back, keyboard resize
+and viewport panning at 320–1920px, including short viewports.
+
+Detail pages use
 `ContentPageActions` to move the original controls through `ScreenPortal` into
 the same fixed row as Back: 48px Back, flexible accent action, 48px overflow,
 with 8px gaps. Catalog details without overflow use Back and the accent action.

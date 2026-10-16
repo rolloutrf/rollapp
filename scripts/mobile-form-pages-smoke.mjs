@@ -32,8 +32,8 @@ try{
         visualViewport.dispatchEvent(new Event('resize'));
       });
       await page.waitForFunction(()=>document.documentElement.hasAttribute('data-overlay-keyboard'));
-      const gap=await screen.evaluate(element=>element.querySelector('footer').getBoundingClientRect().top-element.querySelector('textarea').getBoundingClientRect().bottom);
-      assert(gap<=48,`${name}: keyboard leaves ${gap}px of empty space before submit`);
+      const footer=screen.locator('[data-native-form-actions]');
+      assert.equal((await footer.boundingBox()).y+48,455,'Entire action row must stay above keyboard');
       assert.equal(await screen.evaluate(element=>getComputedStyle(element).minHeight),'471px','Native page still uses the hidden layout viewport');
       assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).scrollBehavior),'auto','Smooth document scrolling competes with keyboard focus');
       await page.evaluate(()=>{
@@ -41,9 +41,8 @@ try{
         visualViewport.dispatchEvent(new Event('scroll'));
       });
       await page.waitForFunction(()=>getComputedStyle(document.documentElement).getPropertyValue('--app-visual-top').trim()==='80px');
-      const panGap=await screen.evaluate(element=>element.querySelector('footer').getBoundingClientRect().top-element.querySelector('textarea').getBoundingClientRect().bottom);
-      assert.equal(panGap,gap,'iOS viewport panning stretches form body');
-      const actionBottom=await screen.locator('footer button').evaluate(element=>element.getBoundingClientRect().bottom);
+      assert.equal((await footer.boundingBox()).y+48,535,'iOS viewport panning must move the complete action row');
+      const actionBottom=await screen.locator('footer button[type=submit]').evaluate(element=>element.getBoundingClientRect().bottom);
       // Narrow headings may take another line: native panning must still be
       // able to reveal the action within the layout/visual viewport difference.
       assert(actionBottom+16<=844,`Submit cannot be revealed by native viewport panning: ${actionBottom}`);
@@ -72,16 +71,18 @@ try{
       const style=getComputedStyle(element);
       const action=element.querySelector('button[type="submit"]')||element.querySelector('button');
       return {background:style.backgroundColor,border:style.borderTopWidth,
-        gap:page.getBoundingClientRect().bottom-action.getBoundingClientRect().bottom,
+        position:style.position,bottom:action.getBoundingClientRect().bottom,
         padding:parseFloat(style.paddingBottom),pageEnd:page.getBoundingClientRect().bottom+scrollY};
     });
     assert.equal(geometry.background,'rgba(0, 0, 0, 0)',`${name}: colored footer slab`);
     assert.equal(geometry.border,'0px',`${name}: footer separator`);
-    assert(Math.abs(geometry.gap-geometry.padding)<1,`${name}: stacked bottom insets ${JSON.stringify(geometry)}`);
+    assert.equal(geometry.position,'fixed',`${name}: actions must be fixed together`);
+    assert.equal(geometry.padding,0,`${name}: footer duplicates safe-area padding`);
+    assert.equal(geometry.bottom,344,`${name}: entire row uses the shared 16px bottom inset`);
     assert(geometry.pageEnd>=359,`${name}: short form does not fill viewport`);
     await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
     backBox=await back.boundingBox();
-    const actions=await footer.locator('button').all();
+    const actions=await footer.locator('button:not([aria-label="Назад"])').all();
     for(const action of actions){const box=await action.boundingBox();if(!box)continue;
       assert(box.x>=backBox.x+backBox.width+7,`${name}: footer action overlaps Back`);
       assert(box.x+box.width<=width,`${name}: footer action outside screen`);

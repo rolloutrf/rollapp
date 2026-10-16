@@ -60,6 +60,8 @@ assert.equal(packageJson.scripts["test:controls"], "node scripts/control-size-sm
 assert(packageJson.scripts["check:release"].includes("npm run test:controls"), "Every release must run the control geometry check");
 assert.equal(packageJson.scripts["test:details"], "node scripts/detail-actions-smoke.mjs", "Detail action rows must have a required browser check");
 assert(packageJson.scripts["check:release"].includes("npm run test:details"), "Every release must run detail action geometry checks");
+assert.equal(packageJson.scripts["test:form-actions"], "node scripts/form-actions-smoke.mjs", "Native forms must have a browser geometry check");
+assert(packageJson.scripts["check:release"].includes("npm run test:form-actions"), "Every release must verify Save and Back scroll together");
 const jsconfig = JSON.parse(jsconfigText);
 
 assert.equal(config.$schema, "https://ui.shadcn.com/schema.json", "components.json must use the official schema");

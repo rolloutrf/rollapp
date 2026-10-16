@@ -12,7 +12,7 @@ import {
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
 import { ContentPage, ContentPageActions } from "@/components/content-page";
-import { MobileFormPages } from "@/components/mobile-form-pages";
+import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
@@ -2426,6 +2426,7 @@ function ContactNotes({ notes }) {
 }
 
 function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
+  const isMobile = useIsMobile();
   const toast = useToast();
   const contactFieldId = useId();
   const creating = !contact?.id;
@@ -2710,10 +2711,10 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
       </Field>
       {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
-      <div className="contact-detail__edit-actions">
+      <MobileFormFooter as="div" className="contact-detail__edit-actions">
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
-        {!creating && <ShadcnButton type="button" variant="ghost" className="contact-detail__delete" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 />Удалить</ShadcnButton>}
-      </div>
+        {!creating && <ShadcnButton data-control-icon={isMobile || undefined} type="button" variant="ghost" size={isMobile ? "icon" : "default"} className="contact-detail__delete" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" />{!isMobile && "Удалить"}</ShadcnButton>}
+      </MobileFormFooter>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -6792,12 +6793,12 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             </div>
           </div>
 
-          <footer className="wish-editor-screen__footer border-t sm:flex-row">
+          <MobileFormFooter className="wish-editor-screen__footer border-t sm:flex-row">
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
             <ShadcnButton className="wish-editor__submit h-12 px-4" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
-          </footer>
+          </MobileFormFooter>
         </form>
     </>;
   const editorSurface = editing ? <FullscreenDialog

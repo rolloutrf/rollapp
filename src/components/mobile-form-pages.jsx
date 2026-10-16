@@ -4,8 +4,10 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScreenPortal } from "@/components/ui/screen-portal";
 import { ControlBar } from "@/components/control-bar";
+import { cn } from "@/lib/utils";
 
 const MobileFormsContext = createContext(null);
+const FormPageContext = createContext(null);
 const FORM_QUERY = "formScreen";
 const formToken = (search) => new URLSearchParams(search).get(FORM_QUERY);
 function withForm(location, id) {
@@ -14,12 +16,16 @@ function withForm(location, id) {
   return { pathname: location.pathname, search: search.size ? `?${search}` : "", hash: location.hash };
 }
 
-function FormPageHost({ entry, active, setTarget }) {
+function FormBack({ close }) {
+  return <Button data-control-icon type="button" variant="outline" size="icon" className="mobile-form-page__back rounded-full" aria-label="Назад" onClick={() => close.current()}><ArrowLeft aria-hidden="true" /></Button>;
+}
+
+function FormPageHost({ entry, active, hasFooter, setTarget }) {
   const ref = useCallback((node) => setTarget(entry.id, node), [entry.id, setTarget]);
-  return <main hidden={!active} className="mobile-form-page mobile-content-page rollapp-body" data-mobile-form-page={entry.id}>
-    <ControlBar as="nav" className="mobile-content-page__nav" aria-label="Навигация формы">
-      <Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Назад" onClick={() => entry.close.current()}><ArrowLeft aria-hidden="true" /></Button>
-    </ControlBar>
+  return <main hidden={!active} className="mobile-form-page mobile-content-page rollapp-body" data-mobile-form-page={entry.id} data-has-form-footer={hasFooter || undefined}>
+    {!hasFooter && <ControlBar as="nav" className="mobile-content-page__nav" aria-label="Навигация формы">
+      <FormBack close={entry.close} />
+    </ControlBar>}
     <div ref={ref} className="mobile-form-page__content" />
   </main>;
 }
@@ -36,6 +42,13 @@ export function MobileFormPages({ children }) {
   const reconcileFrame = useRef(0);
   const [entries, setEntries] = useState([]);
   const [targets, setTargets] = useState(new Map());
+  const [footers, setFooters] = useState(new Set());
+  const setFooter = useCallback((id, present) => setFooters((current) => {
+    if (current.has(id) === present) return current;
+    const next = new Set(current);
+    if (present) next.add(id); else next.delete(id);
+    return next;
+  }), []);
   const sync = useCallback(() => setEntries([...entriesRef.current.values()]), []);
   const finishClose = useCallback((activeId) => {
     for (const [id, callback] of closeCallbacks.current) {
@@ -121,11 +134,11 @@ export function MobileFormPages({ children }) {
     reconcileHistory(id);
   }, [location, navigate, reconcileHistory, finishClose]);
   useEffect(() => () => { for (const timer of timers.current.values()) clearTimeout(timer); }, []);
-  const value = useMemo(() => ({ register, unregister, targets, active: entries.length > 0 }), [register, unregister, targets, entries.length]);
+  const value = useMemo(() => ({ register, unregister, setFooter, targets, active: entries.length > 0 }), [register, unregister, setFooter, targets, entries.length]);
   const active = entries.at(-1)?.id;
   return <MobileFormsContext.Provider value={value}>
     <div data-form-page-background inert={active ? true : undefined} aria-hidden={active ? true : undefined} style={{ display: active ? "none" : "contents" }}>{children}</div>
-    {entries.map((entry) => <FormPageHost key={entry.id} entry={entry} active={entry.id === active} setTarget={setTarget} />)}
+    {entries.map((entry) => <FormPageHost key={entry.id} entry={entry} active={entry.id === active} hasFooter={footers.has(entry.id)} setTarget={setTarget} />)}
   </MobileFormsContext.Provider>;
 }
 
@@ -141,6 +154,9 @@ export function MobileFormScreen({ open = true, onOpenChange, onAfterClose, chil
   afterClose.current = onAfterClose;
   const register = pages?.register;
   const unregister = pages?.unregister;
+  const setFooter = pages?.setFooter;
+  const footerPresence = useCallback((present) => setFooter?.(id.current, present), [setFooter]);
+  const page = useMemo(() => ({ close, footerPresence }), [footerPresence]);
   useLayoutEffect(() => {
     if (!open || !register) return;
     openRef.current = true;
@@ -148,7 +164,23 @@ export function MobileFormScreen({ open = true, onOpenChange, onAfterClose, chil
     return () => { openRef.current = false; unregister(id.current); };
   }, [open, register, unregister]);
   if (!pages) throw new Error("Mobile form screens require MobileFormPages");
-  return open ? <ScreenPortal container={pages.targets.get(id.current)}>{children}</ScreenPortal> : null;
+  return open ? <ScreenPortal container={pages.targets.get(id.current)}><FormPageContext.Provider value={page}>{children}</FormPageContext.Provider></ScreenPortal> : null;
+}
+
+// Keep actions in their original form DOM. One fixed parent moves Back and
+// submit/delete together without breaking native validation or Enter submission.
+export function MobileFormFooter({ as: Component = "footer", className, children, ...props }) {
+  const page = useContext(FormPageContext);
+  useLayoutEffect(() => {
+    if (!page) return;
+    page.footerPresence(true);
+    return () => page.footerPresence(false);
+  }, [page]);
+  if (!page) return <Component className={className} {...props}>{children}</Component>;
+  return <ControlBar as={Component} {...props} className={cn("mobile-form-page__footer", className)} data-native-form-actions="">
+    <FormBack close={page.close} />
+    <div className="mobile-form-page__actions">{children}</div>
+  </ControlBar>;
 }
 
 export function useNativeFormPageActive() {
