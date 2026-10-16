@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
+import sharp from "sharp";
 
 const candidates = [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].filter(Boolean);
 let executablePath;
@@ -36,7 +37,8 @@ async function geometry(page, label) {
     const controls = [...document.querySelectorAll('[data-control-bar] :is([class~="group/button"], [data-slot="select-trigger"], [data-slot="tabs-trigger"])')]
       .filter(element => element.getBoundingClientRect().width > 0).map(element => {
         const rect = element.getBoundingClientRect();
-        return { name: element.getAttribute("aria-label") || element.textContent.trim(), height: rect.height, width: rect.width, icon: element.hasAttribute("data-control-icon"), glyphs: [...element.querySelectorAll("svg")].map(svg => { const glyph = svg.getBoundingClientRect(); return { width: glyph.width, height: glyph.height, offsetX: (glyph.left + glyph.right - rect.left - rect.right) / 2, offsetY: (glyph.top + glyph.bottom - rect.top - rect.bottom) / 2 }; }).filter(glyph => glyph.width > 0) };
+        const style = getComputedStyle(element);
+        return { name: element.getAttribute("aria-label") || element.textContent.trim(), height: rect.height, width: rect.width, fontSize: style.fontSize, lineHeight: style.lineHeight, icon: element.hasAttribute("data-control-icon"), glyphs: [...element.querySelectorAll("svg")].map(svg => { const glyph = svg.getBoundingClientRect(); return { width: glyph.width, height: glyph.height, offsetX: (glyph.left + glyph.right - rect.left - rect.right) / 2, offsetY: (glyph.top + glyph.bottom - rect.top - rect.bottom) / 2 }; }).filter(glyph => glyph.width > 0) };
       });
     return { controls, overflow: document.documentElement.scrollWidth > innerWidth + 1, tabs: [...document.querySelectorAll('[data-control-bar] [data-slot="tabs-list"]')].map(element => element.getBoundingClientRect().height) };
   });
@@ -44,6 +46,8 @@ async function geometry(page, label) {
   assert(result.controls.length >= 3, `${label}: controls were not rendered`);
   for (const control of result.controls) {
     assert(Math.abs(control.height - 48) < 0.1, `${label}: ${control.name} is ${control.height}px high; expected 48px`);
+    assert.equal(control.fontSize, "18px", `${label}: ${control.name} text must match other controls`);
+    assert.equal(control.lineHeight, "28px", `${label}: ${control.name} text leading must match other controls`);
     if (control.icon) assert(Math.abs(control.width - 48) < 0.1, `${label}: ${control.name} is not a 48px circle`);
     for (const glyph of control.glyphs) {
       assert(Math.abs(glyph.width - 20) < 0.1 && Math.abs(glyph.height - 20) < 0.1, `${label}: ${control.name} icon differs from 20px: ${JSON.stringify(glyph)}`);
@@ -52,10 +56,24 @@ async function geometry(page, label) {
   }
   assert(result.tabs.every(height => Math.abs(height - 48) < 0.1), `${label}: calendar tab rail differs from the controls`);
 }
+async function paintedHeight(button, label) {
+  const box = await button.boundingBox();
+  assert.equal(box.height, 48, `${label}: accent control box differs from 48px`);
+  const { data, info } = await sharp(await button.screenshot({ animations: "disabled" })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const x = Math.floor(info.width / 2);
+  // Dark-theme accent buttons must paint all the way to both outer edges.
+  // A transparent border with padding-box clipping gives a 48px DOM box but
+  // only a 46px visible button (138 rather than 144 physical pixels at DPR 3).
+  for (const y of [0, info.height - 1]) {
+    const offset = (y * info.width + x) * info.channels;
+    assert(data[offset] > 180 && data[offset + 1] > 180 && data[offset + 2] > 180,
+      `${label}: accent paint stops inside its ${box.height}px box at pixel row ${y}/${info.height}; transparent border shrinks the visible control`);
+  }
+}
 try {
   for (const width of (process.env.CONTROL_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 || width === 820 ? [844, 400] : [844]) {
-      const page = await browser.newPage({ viewport: { width, height } }), errors = [];
+      const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width === 390 ? 3 : 1 }), errors = [];
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
       for (const route of routes) {
@@ -64,6 +82,9 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
+        if (route.includes("tab=kanban")) await paintedHeight(page.getByRole("button", { name: "Новая задача", exact: true }), label);
+        else if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
+        if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
           window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
           const owners = [...document.querySelectorAll('.app-main,.daily-todo,.daily-todo__scroll,.planning-board,.schedule-month-panel,[data-slot="scroll-area-viewport"]')];
@@ -86,7 +107,7 @@ try {
           await back.click(); await screen.waitFor({ state: "hidden" });
           await geometry(page, `${label} returned`);
         }
-        console.log(`PASS ${label}: 48px controls, 20px icons, scrolling`);
+        console.log(`PASS ${label}: 48px controls and visible paint, 20px icons, 18/28px text, scrolling`);
       }
       assert.deepEqual(errors, []); await page.close();
     }
