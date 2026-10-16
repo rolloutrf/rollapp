@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { api } from "@/api";
 import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
-import { CareerIconAction } from "@/components/career-icon-action";
+import { EditableTextBlock } from "@/components/editable-text-block";
 import { CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -183,23 +183,18 @@ export function FourQuestions() {
         <ol className="four-questions__list m-0 list-none p-0">
           {content.questions.map((question, index) => (
             <li key={index} className="four-question p-0">
-              <article className="four-question__content" aria-labelledby={`four-question-${index + 1}`}>
+              <EditableTextBlock className="four-question__content" aria-labelledby={`four-question-${index + 1}`}
+                disabled={state.loading || Boolean(state.error)}
+                label={`Редактировать ответ на вопрос «${IDENTITY_QUESTION_TITLES[index]}»`}
+                onEdit={readOnly ? undefined : () => setEditingIndex(index)}
+              >
                 <div className="four-question__heading-row" data-typeset-group>
                   <h3 id={`four-question-${index + 1}`}>{IDENTITY_QUESTION_TITLES[index]}</h3>
-                  {!readOnly && (
-                    <CareerIconAction
-                      disabled={state.loading}
-                      label={`Редактировать ответ на вопрос «${IDENTITY_QUESTION_TITLES[index]}»`}
-                      onClick={() => setEditingIndex(index)}
-                    >
-                      <Pencil aria-hidden="true" />
-                    </CareerIconAction>
-                  )}
                 </div>
                 <div className="four-question__answer career-action-copy" data-typeset-group>
                   {question.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
                 </div>
-              </article>
+              </EditableTextBlock>
             </li>
           ))}
         </ol>

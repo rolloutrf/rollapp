@@ -9316,10 +9316,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .about-me-question {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 8px;
 }
 .life-strategy-source.about-me-question__document {
   width: 100%;

@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import aboutMeSource from "@/data/about-me.md?raw";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
-import { CareerIconAction } from "@/components/career-icon-action";
+import { EditableTextBlock } from "@/components/editable-text-block";
 import {
   CareerContentError, CareerEditAction, useCareerContent,
 } from "@/components/career-content";
@@ -179,24 +179,17 @@ export function AboutMe() {
           <MarkdownDocument source={parsed.preamble} label="О себе — введение" className="about-me-question__document career-action-copy" />
         )}
         {parsed.questions.map((entry, index) => (
-          <article className="about-me-question" key={`${index}-${entry.question}`}>
+          <EditableTextBlock className="about-me-question" key={`${index}-${entry.question}`}
+            disabled={careerContent.loading || Boolean(careerContent.error)}
+            label={`Редактировать вопрос «${entry.question}»`}
+            onEdit={readOnly ? undefined : () => setEditor({ mode: "edit", index })}
+          >
             <MarkdownDocument
               source={`### ${entry.question}\n\n${entry.description}`}
               label={entry.question}
-              className="about-me-question__document career-action-copy"
+              className="about-me-question__document"
             />
-            {!readOnly && (
-              <div className="not-typeset flex shrink-0 items-center gap-1">
-                <CareerIconAction
-                  disabled={careerContent.loading}
-                  label={`Редактировать вопрос «${entry.question}»`}
-                  onClick={() => setEditor({ mode: "edit", index })}
-                >
-                  <Pencil aria-hidden="true" />
-                </CareerIconAction>
-              </div>
-            )}
-          </article>
+          </EditableTextBlock>
         ))}
       </section>
 
