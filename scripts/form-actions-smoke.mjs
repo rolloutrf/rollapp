@@ -90,7 +90,16 @@ try {
             await save.evaluate(async button => Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => {}))));
             await geometry(page);
           }
-          if (name === "coaching-edit") {
+          if (name === "contact") {
+            await screen.getByRole("button", { name: "Добавить ссылку", exact: true }).click();
+            assert.equal(await screen.getByRole("textbox", { name: "Название ссылки 2", exact: true }).count(), 1, "Contact link did not add a field");
+            assert.equal((await geometry(page)).y, before.y, "Adding contact fields moved the action row");
+            // Base UI may retain inline overflow:scroll; only an actual overflow
+            // would create a competing vertical scroll owner on the native page.
+            const contactViewport = await screen.locator('[data-slot="scroll-area-viewport"]').evaluate(el => ({ height: el.clientHeight, content: el.scrollHeight, top: el.scrollTop }));
+            assert(contactViewport.content <= contactViewport.height + 1 && contactViewport.top === 0, "Contact retained a nested scroll owner");
+          }
+          if (["coaching-edit", "contact"].includes(name)) {
             for (const bottom of [true, false]) {
               const frames = await page.evaluate(async bottom => {
                 const samples = [], start = performance.now();
@@ -98,15 +107,20 @@ try {
                 await new Promise(resolve => {
                   const sample = () => {
                     const row = document.querySelector('[data-native-form-actions]');
-                    samples.push({ scroll: scrollY, buttons: [...row.querySelectorAll("button")].map(button => button.getBoundingClientRect().y) });
+                    samples.push({ scroll: scrollY, buttons: [...row.querySelectorAll("button")].map(button => {
+                      const box = button.getBoundingClientRect();
+                      return { x: box.x, y: box.y, height: box.height, width: box.width };
+                    }) });
                     if (performance.now() - start < 800) requestAnimationFrame(sample); else resolve();
                   };
                   requestAnimationFrame(sample);
                 });
                 return samples;
               }, bottom);
-              assert(new Set(frames.map(frame => frame.scroll)).size > 3, "Motion check did not scroll the coaching editor");
-              assert(frames.every(frame => frame.buttons.every(y => Math.abs(y - before.y) < 1)), "Back and Save separated during animated scrolling");
+              assert(new Set(frames.map(frame => frame.scroll)).size > 3, `Motion check did not scroll the ${name} editor`);
+              assert(frames.every(frame => frame.buttons.length === before.buttons.length && frame.buttons.every((box, i) =>
+                Math.abs(box.y - before.y) < 1 && box.height === 48 && Math.abs(box.x - before.buttons[i].x) < 1 && Math.abs(box.width - before.buttons[i].width) < 1
+              )), `${name}: Back, Save and Delete separated or resized during animated scrolling`);
             }
           }
           for (const ratio of [0, 0.5, 1, 0]) {

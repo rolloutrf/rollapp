@@ -9,6 +9,7 @@ import { ConferenceDrawer } from "@/components/conferences.jsx?drawer-smoke-expo
 import { CoachingSessionDrawer } from "@/components/coaching-sessions.jsx?drawer-smoke-export=CoachingSessionDrawer";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/form-surface";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import "../../src/styles.css";
 import "../../src/index.css";
@@ -25,7 +26,9 @@ function Fixture() {
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
   if (name === "wish") return <WishModal onClose={close} />;
-  if (name === "contact") return <Drawer open onOpenChange={setOpen}><DrawerContent><DrawerTitle>Контакт</DrawerTitle><ContactEditForm contact={{ id: "unsaved-contact", name: "Контакт", links: [] }} /></DrawerContent></Drawer>;
+  // Match the real contact card's legacy ScrollArea and sticky-footer styles,
+  // which must yield to the native page's single scroller and shared action row.
+  if (name === "contact") return <Drawer open onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><ScrollArea className="contact-detail__scroll"><ContactEditForm contact={{ id: "unsaved-contact", name: "Контакт", links: [{ label: "Ссылка", url: "https://example.com" }] }} /></ScrollArea></DrawerContent></Drawer>;
   if (name === "markdown") return <MarkdownEditorDrawer content="" label="Документ" open onOpenChange={setOpen} />;
   return <TaskEditor task={{ id: "unsaved-task", title: "Задача", dueOn: "2026-10-17", startTime: "09:00", durationMinutes: 60, recurrence: { frequency: "weekly", until: "2026-12-31" } }} columns={columns} onClose={close} />;
 }
