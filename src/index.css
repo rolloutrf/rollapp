@@ -285,8 +285,8 @@
    * portalled dialogs, selects, and menus.
    */
   :is([class~="group/button"], [data-slot="toggle"], [data-slot="toggle-group-item"], [data-slot="tabs-trigger"]) {
-    min-inline-size: 3rem;
-    min-block-size: 3rem;
+    min-inline-size: var(--layout-control-size);
+    min-block-size: var(--layout-control-size);
     font-size: var(--text-rollapp-body);
     line-height: var(--text-rollapp-body--line-height);
   }
@@ -312,7 +312,7 @@
     [data-slot="native-select"],
     [data-slot="select-trigger"]
   ) {
-    min-block-size: 3rem;
+    min-block-size: var(--layout-control-size);
     font-size: var(--text-rollapp-body);
     line-height: var(--text-rollapp-body--line-height);
   }
@@ -383,7 +383,7 @@
     [data-slot="select-scroll-up-button"],
     [data-slot="select-scroll-down-button"]
   ) {
-    min-block-size: 3rem;
+    min-block-size: var(--layout-control-size);
     font-size: var(--text-rollapp-body);
     line-height: var(--text-rollapp-body--line-height);
   }
@@ -467,7 +467,7 @@
   }
 
   [data-slot="field"]:has([data-slot="switch"], [data-slot="checkbox"], [data-slot="radio-group-item"]) {
-    min-block-size: 3rem;
+    min-block-size: var(--layout-control-size);
   }
 
   /* Prose checklist rows follow their label height, not Large form sizing. */
@@ -686,8 +686,8 @@
 
 @layer utilities {
   .planning-fab-controls .planning-fab-space .space-select {
-    height: var(--layout-navigation-control);
-    min-height: var(--layout-navigation-control);
+    height: var(--layout-control-size);
+    min-height: var(--layout-control-size);
   }
 
   /* Floating controls need solid individual surfaces over scrolling content. */

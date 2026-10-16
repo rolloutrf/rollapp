@@ -85,7 +85,7 @@ try{
     }
     const save=screen.getByRole('button',{name:'Сохранить',exact:true});await save.scrollIntoViewIfNeeded();
     const back=screen.getByRole('button',{name:'Назад',exact:true}),backBox=await back.boundingBox();
-    assert(backBox.y>0&&backBox.height===56,'Native Back is not visible at the bottom');
+    assert(backBox.y>0&&backBox.height===48,'Native Back is not visible at the bottom');
     await save.click();await screen.waitFor({state:'hidden'});await page.waitForURL(chosenUrl);
     const saved=JSON.parse(await page.locator('[data-saved-task]').textContent());
     assert.equal(saved.title,'Новая задача');assert.equal(saved.description,'Детали');assert.equal(saved.dueOn,chosenDate);assert.equal(saved.columnId,'todo');assert.equal(saved.completed,false);

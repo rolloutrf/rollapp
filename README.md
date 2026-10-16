@@ -83,7 +83,7 @@ npm run test:drawers
 npm run test:planning:production
 ```
 
-`check:release` runs the database-free unit suite, the shadcn/UI contract audit, and the production build. The deployment workflow uses the same command. `test:unit` discovers unit tests and rejects direct database fixtures; legacy database tests and `*.integration.test.js` stay outside this suite. The historical `npm test` and `npm run check` still include in-memory integration servers and must not be used for Rollapp development or release verification.
+`check:release` runs the database-free unit suite, the shadcn/UI contract audit, required browser geometry checks for the shared 48px controls, and the production build. The deployment workflow uses the same command. `test:unit` discovers unit tests and rejects direct database fixtures; legacy database tests and `*.integration.test.js` stay outside this suite. The historical `npm test` and `npm run check` still include in-memory integration servers and must not be used for Rollapp development or release verification.
 
 Database checks use the configured production connection explicitly. `test:planning:production` verifies task persistence, recurrence, named boards/calendars/To Do lists, and owner isolation inside transactions that roll back all fixture writes. `test:drawers` uses presentation fixtures that reject API requests and checks mobile pages, desktop drawers, keyboard fit, and scroll restoration without saving application data.
 

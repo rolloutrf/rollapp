@@ -4947,7 +4947,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
   justify-self: center;
   width: auto;
-  height: 48px;
+  height: var(--layout-control-size);
   padding: 0 14px 0 18px;
   gap: 10px;
   border: none;
@@ -4989,7 +4989,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 @media (max-width: 640px) {
   :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
-    height: 42px;
     padding: 0 10px 0 14px;
     gap: 7px;
     font-size: 13px;

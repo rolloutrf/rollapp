@@ -19,7 +19,7 @@ try{
   assert(page.url().endsWith('/item/fixture'));
   assert.equal(await page.locator('[data-slot="drawer-popup"], [role="dialog"], [aria-modal="true"]').count(),0);
   assert(await page.evaluate(()=>getComputedStyle(document.documentElement).overflow!=='hidden'));
-  if(width<768){const back=await page.getByRole('button',{name:'Назад: Каталог'}).boundingBox();assert.equal(back.height,56);assert(back.y>700,'Detail Back remains at the top');}
+  if(width<768){const back=await page.getByRole('button',{name:'Назад: Каталог'}).boundingBox();assert.equal(back.height,48);assert(back.y>700,'Detail Back remains at the top');}
   await page.evaluate(()=>scrollTo(0,1000));assert(await page.evaluate(()=>scrollY)>0);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   if(width<768){
