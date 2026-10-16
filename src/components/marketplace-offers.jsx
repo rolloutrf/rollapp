@@ -43,7 +43,7 @@ function retryAfterLabel(seconds) {
   return `${Math.max(1, seconds)} сек`;
 }
 
-export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
+export function MarketplaceOffers({ wish, owner = false, formatPrice, renderAction, compactAction = false }) {
   const savedOffers = useMemo(() => marketplaceOffersForWish(wish), [wish]);
   const [aiConfigured, setAiConfigured] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
@@ -147,6 +147,13 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
   const visibleError = errorCode === "marketplace_offers_rate_limited" && retrySeconds > 0
     ? `Для этого товара поиск запускался слишком часто. Повторить можно через ${retryAfterLabel(retrySeconds)}.`
     : error;
+  const actionLabel = loading ? (aiConfigured === false ? "Ищем в магазинах" : "Ищем") : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiConfigured === false ? (aiOffers.length ? "Обновить из магазинов" : "Найти в магазинах") : aiOffers.length ? "Обновить" : "Найти лучшие";
+  const actionText = compactAction && !loading && !retrySeconds ? (aiOffers.length ? "Обновить" : "Найти лучшие") : compactAction && loading ? "Ищем" : actionLabel;
+  const accessibleActionLabel = compactAction && aiConfigured === false && !loading && !retrySeconds ? `${actionText} предложения в магазинах` : actionLabel;
+  const refreshAction = <Button className="w-full min-w-0 flex-1" type="button" size="sm" disabled={loading || retrySeconds > 0} aria-label={accessibleActionLabel} aria-busy={loading || undefined} onClick={refresh}>
+    {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+    {actionText}
+  </Button>;
 
   return (
     <section className="mx-auto grid min-w-0 w-full max-w-(--layout-compact-width) grid-cols-1 gap-3" aria-label="Предложения">
@@ -192,12 +199,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice }) {
         ))}
       </div> : <p className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">Конкретные предложения пока не найдены.</p>}
 
-      {owner && <div className="flex">
-        <Button className="w-full" type="button" size="sm" disabled={loading || retrySeconds > 0} aria-busy={loading || undefined} onClick={refresh}>
-          {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-          {loading ? (aiConfigured === false ? "Ищем в магазинах" : "Ищем") : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiConfigured === false ? (aiOffers.length ? "Обновить из магазинов" : "Найти в магазинах") : aiOffers.length ? "Обновить" : "Найти лучшие"}
-        </Button>
-      </div>}
+      {owner && (renderAction ? renderAction(refreshAction) : <div className="flex">{refreshAction}</div>)}
 
     </section>
   );

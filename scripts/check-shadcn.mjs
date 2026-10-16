@@ -58,6 +58,8 @@ const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
 assert.equal(packageJson.scripts["test:controls"], "node scripts/control-size-smoke.mjs", "Control geometry must have a required browser check");
 assert(packageJson.scripts["check:release"].includes("npm run test:controls"), "Every release must run the control geometry check");
+assert.equal(packageJson.scripts["test:details"], "node scripts/detail-actions-smoke.mjs", "Detail action rows must have a required browser check");
+assert(packageJson.scripts["check:release"].includes("npm run test:details"), "Every release must run detail action geometry checks");
 const jsconfig = JSON.parse(jsconfigText);
 
 assert.equal(config.$schema, "https://ui.shadcn.com/schema.json", "components.json must use the official schema");
@@ -739,15 +741,15 @@ for (const component of ["Drawer", "DrawerContent", "DrawerHeader"]) {
 assert(/const Title = screen \? "h1" : DrawerTitle/.test(primaryWishDetailsDialog) && /const Description = screen \? "p" : DrawerDescription/.test(primaryWishDetailsDialog), "Wish details must use semantic page titles on mobile and Drawer semantics on desktop");
 assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
 assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
-const wishActionsTag = primaryWishDetailsDialog.match(/<div\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
+const wishActionsTag = primaryWishDetailsDialog.match(/<ContentPageActions\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
 for (const className of ["flex", "w-full", "max-w-(--layout-compact-width)", "flex-nowrap", "gap-2"]) {
   assert(wishActionsTag.includes(className), `WishDetailsModal action group is missing ${className}`);
 }
 assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с желанием"/.test(wishActionsTag), "WishDetailsModal action group must keep its accessible group name");
 assert(!/(?:border-t|bg-muted\/50|p-4|rounded-b-xl|-mx-4|-mb-4)/.test(wishActionsTag), "WishDetailsModal action group must not restore footer chrome");
 assert(
-  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf('data-slot="wish-actions"')
-    && primaryWishDetailsDialog.indexOf('data-slot="wish-actions"') < primaryWishDetailsDialog.indexOf("<Alert"),
+  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}")
+    && primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
   "WishDetailsModal actions must follow the buy action and precede the guest notice",
 );
 assert(!/<Modal\b/.test(primaryWishDetailsDialog), "WishDetailsModal must not wrap its primary detail view in the legacy Modal adapter");

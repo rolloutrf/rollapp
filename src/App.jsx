@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
-import { ContentPage } from "@/components/content-page";
+import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
 import { RollsWallet } from "@/components/rolls-wallet";
@@ -4590,6 +4590,7 @@ function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = fal
 }
 
 function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, screen = false }) {
+  const isMobile = useIsMobile();
   const Title = screen ? "h1" : DrawerTitle;
   const Description = screen ? "p" : DrawerDescription;
   const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
@@ -4598,7 +4599,7 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
   const description = String(item.description || "").trim();
   const marketplaceItem = catalogMarketplaceItem(item);
   const wishlistLabel = item.addedByMe
-    ? `Удалить «${item.title}» из вишлиста`
+    ? `Убрать «${item.title}» из вишлиста`
     : `Добавить «${item.title}» в вишлист`;
 
   return (
@@ -4644,7 +4645,7 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
             </a>
           )}
 
-          <div
+          <ContentPageActions
             data-slot="wish-actions"
             className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
@@ -4660,11 +4661,11 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
               onClick={() => onToggleWishlist(item)}
             >
               {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
-              {wishlistPending
+              {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
                 ? item.addedByMe ? "Удаляем…" : "Добавляем…"
                 : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
             </ShadcnButton>
-          </div>
+          </ContentPageActions>
         </div>
   );
 }
@@ -6254,81 +6255,30 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
   }
   const Title = screen ? "h1" : DrawerTitle;
   const Description = screen ? "p" : DrawerDescription;
-  const detailsContent = (
-          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
-          <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
-            {previewImageUrl
-              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
-              : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
-            {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
-          </Card>
-
-          <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
-            <Title className={screen ? "text-2xl font-semibold" : undefined}><span className="sr-only">Желание: </span>{wish.title}</Title>
-            {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
-            {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
-              {wish.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>}
-              {wish.eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{formatEventDate(wish.eventDate)}</span>}
-            </div>}
-            <Description className={screen ? "text-muted-foreground" : undefined}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</Description>
-          </DrawerHeader>
-
-          {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
-
-          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
-            {owner
-              ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
-                  setListsOpen(open);
-                  if (open) setMenuOpen(false);
-                }}>
-                  <DropdownMenuTrigger
-                    render={<ShadcnButton variant="outline" className="h-12 min-w-0 flex-1 justify-between" />}
-                    aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
-                  >
-                    <span className="truncate">{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    id={`wish-detail-lists-${wish.id}`}
-                    className="max-h-[calc(100dvh-12px)] max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
-                    align="start"
-                    sideOffset={4}
-                    aria-label={`Списки желания «${wish.title}»`}
-                  >
-                    {renderListPickerBody()}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              : <Badge variant="secondary" className="max-w-full truncate">{listLabel}</Badge>}
-
-          </div>
-
-          {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-(--layout-compact-width) gap-3 p-4">
-            <div className="flex flex-col gap-1">
-              <h3 className="font-semibold">Кому это ещё подарить</h3>
-              <p className="text-sm text-muted-foreground">Это желание сейчас есть у {participantCountLabel(giftSuggestion.participantCount)}.</p>
-            </div>
-            <GiftSuggestionPeople suggestion={giftSuggestion} />
-          </Card>}
-
-          {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} />}
-
-          {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
-          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
-
-          <div
+  const mobilePage = screen && isMobile;
+  const marketplacePrimary = mobilePage && owner && ["products", "food", "transport"].includes(resolvedSpace);
+  const reservationLabel = wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать";
+  const reservationText = mobilePage ? (wish.reservedByMe ? "Ваша бронь" : reservationUnavailable ? "Занято" : "Забронировать") : reservationLabel;
+  const fulfillmentLabel = wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным";
+  const fulfillmentText = mobilePage ? (wish.status === "fulfilled" ? "В активные" : "Исполнить") : fulfillmentLabel;
+  const renderActions = (primaryAction) => (
+          <ContentPageActions
             data-slot="wish-actions"
             className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
             aria-label="Действия с желанием"
           >
-            {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : <Gift />}{wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать"}</ShadcnButton>}
-            {!owner && <ShadcnButton className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
-            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant="outline" disabled={busy} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным"}</ShadcnButton>}
+            {primaryAction ?? <>
+            {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
+            {!owner && !mobilePage && <ShadcnButton data-control-icon className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
+            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={mobilePage ? "default" : "outline"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
+            </>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
               setMenuOpen(open);
               if (open) setListsOpen(false);
             }}>
               <DropdownMenuTrigger
-                render={<ShadcnButton variant="outline" size="icon" className="size-12 shrink-0" />}
+                render={<ShadcnButton data-control-icon variant="outline" size="icon" className="size-12 shrink-0" />}
                 aria-label={`Опции желания «${wish.title}»`}
                 title="Опции желания"
               ><MoreHorizontal /></DropdownMenuTrigger>
@@ -6384,7 +6334,69 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+          </ContentPageActions>
+  );
+  const detailsContent = (
+          <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
+          <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
+            {previewImageUrl
+              ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
+              : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
+            {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
+          </Card>
+
+          <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
+            <Title className={screen ? "text-2xl font-semibold" : undefined}><span className="sr-only">Желание: </span>{wish.title}</Title>
+            {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
+            {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
+              {wish.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>}
+              {wish.eventDate && <span data-slot="wish-event-date" className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" />{formatEventDate(wish.eventDate)}</span>}
+            </div>}
+            <Description className={screen ? "text-muted-foreground" : undefined}>{wish.description || "Автор пока не добавил описание — иногда желание говорит само за себя."}</Description>
+          </DrawerHeader>
+
+          {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
+
+          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
+            {owner
+              ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
+                  setListsOpen(open);
+                  if (open) setMenuOpen(false);
+                }}>
+                  <DropdownMenuTrigger
+                    render={<ShadcnButton variant="outline" className="h-12 min-w-0 flex-1 justify-between" />}
+                    aria-label={`Изменить списки желания. Сейчас: ${listTitleText}`}
+                  >
+                    <span className="truncate">{listLabel}</span>{listsOpen ? <X /> : <ChevronDown />}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    id={`wish-detail-lists-${wish.id}`}
+                    className="max-h-[calc(100dvh-12px)] max-w-(--available-width) rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12"
+                    align="start"
+                    sideOffset={4}
+                    aria-label={`Списки желания «${wish.title}»`}
+                  >
+                    {renderListPickerBody()}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              : <Badge variant="secondary" className="max-w-full truncate">{listLabel}</Badge>}
+
           </div>
+
+          {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-(--layout-compact-width) gap-3 p-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold">Кому это ещё подарить</h3>
+              <p className="text-sm text-muted-foreground">Это желание сейчас есть у {participantCountLabel(giftSuggestion.participantCount)}.</p>
+            </div>
+            <GiftSuggestionPeople suggestion={giftSuggestion} />
+          </Card>}
+
+          {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} compactAction={marketplacePrimary} renderAction={marketplacePrimary ? renderActions : undefined} />}
+
+          {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+
+          {!marketplacePrimary && renderActions()}
 
           {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
