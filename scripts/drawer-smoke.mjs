@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
+import { browserLaunchOptions } from './browser-runtime.mjs';
 import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
@@ -20,7 +21,7 @@ const server = await createServer({
   }}],
 });
 await server.listen();
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
+const browser = await chromium.launch(browserLaunchOptions());
 const errors = [];
 async function keyboard(page, height, offsetTop = 0) {
   await page.evaluate(({height, offsetTop}) => {

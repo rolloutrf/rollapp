@@ -56,6 +56,10 @@ for (const [file, classes] of [
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);
+assert.equal(packageJson.scripts.test, "npm run test:unit", "Default tests must stay database-free");
+assert.equal(packageJson.scripts.check, "npm run check:release", "Default checks must use the safe release suite");
+assert.equal(packageJson.scripts["check:comprehensive"], "node scripts/check-comprehensive.mjs", "Full application audits must retain their complete UI runner");
+assert(packageJson.devDependencies.shadcn && !packageJson.dependencies.shadcn, "The shadcn CLI belongs to development tooling, not the runtime image");
 assert.equal(packageJson.scripts["test:controls"], "node scripts/control-size-smoke.mjs", "Control geometry must have a required browser check");
 assert(packageJson.scripts["check:release"].includes("npm run test:controls"), "Every release must run the control geometry check");
 assert.equal(packageJson.scripts["test:details"], "node scripts/detail-actions-smoke.mjs", "Detail action rows must have a required browser check");

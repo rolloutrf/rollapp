@@ -31,7 +31,11 @@ async function geometry(page) {
     return { y: rect.y, bottom: rect.bottom, height: rect.height, position: getComputedStyle(el).position,
       buttons: [...el.querySelectorAll("button")].map(button => {
         const box = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
+        const paint = canvas.getContext("2d"); paint.fillStyle = style.backgroundColor; paint.fillRect(0, 0, 1, 1);
         return { name: button.ariaLabel || button.textContent.trim(), x: box.x, y: box.y, height: box.height, width: box.width,
+          opacity: Number(style.opacity), backgroundAlpha: paint.getImageData(0, 0, 1, 1).data[3],
           clipped: button.scrollWidth > button.clientWidth + 1, type: button.type,
           hasForm: !!button.form, hit: button.disabled || button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) };
       }) };
@@ -46,6 +50,8 @@ async function geometry(page) {
     assert(Math.abs(button.y - result.y) < 1, `${button.name}: different action row`);
     assert(!button.clipped, `${button.name}: clipped label`);
     assert(button.hit, `${button.name}: action is covered`);
+    assert.equal(button.opacity, 1, `${button.name}: scrolling content shows through the action`);
+    assert.equal(button.backgroundAlpha, 255, `${button.name}: action background is translucent`);
     if (button.type === "submit") assert(button.hasForm, "Native form submission lost its form owner");
   }
   assert.equal(await page.getByRole("button", { name: "Назад", exact: true }).count(), 1, "Duplicate Back outside the action row");
@@ -54,7 +60,7 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,markdown,contact,wish,medication-group,conference,coaching-edit").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,medication-group,conference,coaching-edit").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
@@ -66,6 +72,24 @@ try {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
           const before = await geometry(page);
+          if (name === "task" && width === 390 && height === 844) {
+            for (const action of await page.locator('[data-native-form-actions] button').all()) {
+              await action.hover();
+              await action.evaluate(async button => Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => {}))));
+              await geometry(page);
+            }
+          }
+          if (name === "task-new") {
+            const save = screen.getByRole("button", { name: "Сохранить", exact: true });
+            assert(await save.isDisabled(), "Empty task must not be submittable");
+            const disabledColor = await save.evaluate(button => getComputedStyle(button).backgroundColor);
+            await screen.getByRole("textbox", { name: "Название", exact: true }).fill("Несохранённая задача");
+            assert(await save.isEnabled(), "Valid title must enable Save");
+            assert.notEqual(await save.evaluate(button => getComputedStyle(button).backgroundColor), disabledColor, "Disabled state lost its color distinction");
+            await save.hover();
+            await save.evaluate(async button => Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => {}))));
+            await geometry(page);
+          }
           if (name === "coaching-edit") {
             for (const bottom of [true, false]) {
               const frames = await page.evaluate(async bottom => {

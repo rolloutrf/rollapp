@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
+import { browserLaunchOptions } from './browser-runtime.mjs';
 import { drawerCases } from './fixtures/drawer-cases.js';
 const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke',server:{host:'127.0.0.1',port:5189,strictPort:true,hmr:false,watch:null},plugins:[{
   name:'native-form-fixture',enforce:'pre',
@@ -8,7 +9,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke
   configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__drawer-smoke'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/'+(req.url.includes('flow=1')?'mobile-form-flow':'drawer-smoke')+'.jsx"></script></body></html>'));});}
 }]});
 await server.listen();
-const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.FORM_WIDTHS||'390,320,640,767,768,820,896,1024,1440,1920').split(',').map(Number)){
   const cases=drawerCases.filter(([name])=>process.env.FORM_CASES?process.env.FORM_CASES.split(',').includes(name):width<768||['planning-event','wish-list','contact','course','medication'].includes(name));
@@ -133,6 +134,28 @@ try{
  assert.deepEqual(errors,[]);
  console.log('PASS StrictMode, nested form, draft preservation, busy Back guard, one save, suspended group');
  await page.close();
+ const sourcePage=await browser.newPage({viewport:{width:390,height:844}});
+ await sourcePage.route('**/api/**',route=>route.abort());
+ sourcePage.on('pageerror',e=>errors.push(e.message));
+ await sourcePage.goto('http://127.0.0.1:5189/__drawer-smoke?flow=1&source=1');
+ const edit=sourcePage.getByRole('button',{name:'Редактировать документ',exact:true});
+ for(const back of ['page','browser']){
+  await edit.scrollIntoViewIfNeeded();
+  const sourceScroll=await sourcePage.evaluate(()=>scrollY);assert(sourceScroll>500,'Source restoration fixture did not scroll');
+  await edit.click();
+  const form=sourcePage.locator('[data-mobile-form-page]:visible');await form.waitFor();
+  await sourcePage.waitForURL(url=>url.searchParams.has('formScreen'));
+  if(back==='page')await form.getByRole('button',{name:'Назад',exact:true}).click();else await sourcePage.goBack();
+  await form.waitFor({state:'hidden'});
+  const positions=await sourcePage.evaluate(async()=>{
+    const samples=[],started=performance.now();
+    await new Promise(resolve=>{const sample=()=>{samples.push(scrollY);if(performance.now()-started<300)requestAnimationFrame(sample);else resolve();};requestAnimationFrame(sample);});
+    return samples;
+  });
+  assert(positions.length>3&&positions.slice(2).every(y=>Math.abs(y-sourceScroll)<1),`${back} Back: source restoration animates or jumps after its first two frames: ${positions.join(',')}`);
+ }
+ assert.deepEqual(errors,[]);await sourcePage.close();
+ console.log('PASS source document: page/browser Back restores scroll without later jumps');
 }catch(error){
  for(const context of browser.contexts())for(const page of context.pages()){
   console.error('FAIL STATE',await page.evaluate(()=>({url:location.href,screens:[...document.querySelectorAll('[data-mobile-form-page]')].map(node=>({id:node.dataset.mobileFormPage,hidden:node.hidden,title:node.querySelector('h1')?.textContent}))})));

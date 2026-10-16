@@ -79,11 +79,14 @@ Useful commands:
 
 ```bash
 npm run check:release
+npm run check:comprehensive
 npm run test:drawers
 npm run test:planning:production
 ```
 
-`check:release` runs the database-free unit suite, the shadcn/UI contract audit, required browser geometry checks for the shared 48px controls, and the production build. The deployment workflow uses the same command. `test:unit` discovers unit tests and rejects direct database fixtures; legacy database tests and `*.integration.test.js` stay outside this suite. The historical `npm test` and `npm run check` still include in-memory integration servers and must not be used for Rollapp development or release verification.
+`check:release` runs the database-free unit suite, shadcn/UI audit, required browser checks for controls, details, dates, form actions and text editing, then the production build. The deployment workflow uses the same command. `npm test` aliases `test:unit`; `npm run check` aliases `check:release`. Unit discovery rejects direct database fixtures and excludes integration/legacy memory tests. Do not use bare `node --test` or the mutating historical `test:visual` for ordinary verification.
+
+`check:comprehensive` also runs the complete navigation, action-rail, To Do, native-form, catalog-page and drawer matrices, then writes a JSON report with the tested SHA and workspace state. The current UI acceptance criteria, live review and deployment/recovery instructions are in [docs/verification.md](docs/verification.md).
 
 Database checks use the configured production connection explicitly. `test:planning:production` verifies task persistence, recurrence, named boards/calendars/To Do lists, and owner isolation inside transactions that roll back all fixture writes. `test:drawers` uses presentation fixtures that reject API requests and checks mobile pages, desktop drawers, keyboard fit, and scroll restoration without saving application data.
 

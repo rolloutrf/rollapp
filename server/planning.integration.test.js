@@ -22,6 +22,7 @@ test("planning persists both views and isolates owners on production PostgreSQL"
   let browser;
   try {
     await query("BEGIN");
+    await query("SET LOCAL lock_timeout='5s'");
     await query("SET LOCAL statement_timeout='10s'");
     await query("SET LOCAL idle_in_transaction_session_timeout='60s'");
     const ownerId = randomUUID();

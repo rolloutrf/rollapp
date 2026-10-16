@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { planningSchema, registerPlanningRoutes } from "./planning.js";
+import { registerPlanningRoutes } from "./planning.js";
 import { expandRecurringTasks } from "../shared/planning-recurrence.js";
 
 test("recurrence API persists in configured production PostgreSQL; every fixture rolls back", { skip: process.env.ROLLAPP_TEST_PLANNING !== "1" }, async () => {
@@ -12,7 +12,16 @@ test("recurrence API persists in configured production PostgreSQL; every fixture
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout='5s'");
-    await client.query(planningSchema);
+    await client.query("SET LOCAL statement_timeout='10s'");
+    await client.query("SET LOCAL idle_in_transaction_session_timeout='60s'");
+    // Verification must never initialize/migrate production or acquire the
+    // exclusive table locks from planningSchema's DROP/ADD CONSTRAINT.
+    const schema = await client.query(`SELECT column_name FROM information_schema.columns
+      WHERE table_schema=current_schema() AND table_name='planning_tasks'`);
+    const columns = new Set(schema.rows.map(({ column_name }) => column_name));
+    for (const column of ["recurrence", "recurrence_completed_dates", "space_id", "duration_minutes"]) {
+      assert(columns.has(column), `Configured production schema is missing planning_tasks.${column}`);
+    }
     await client.query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,'Planning test','unusable')", [userId, `${userId}@planning-test.invalid`, `planning-${userId}`]);
     const routes = new Map();
     const app = Object.fromEntries(["get", "post", "patch", "delete"].map((method) => [method, (path, ...handlers) => routes.set(`${method} ${path}`, handlers.at(-1))]));

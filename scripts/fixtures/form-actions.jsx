@@ -20,6 +20,7 @@ function Fixture() {
   if (!open) return null;
   const close = () => setOpen(false);
   const name = new URLSearchParams(location.search).get("form");
+  if (name === "task-new") return <TaskEditor task={{ title: "", dueOn: "2026-10-17" }} columns={columns} onClose={close} />;
   if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
