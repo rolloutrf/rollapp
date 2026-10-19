@@ -150,7 +150,11 @@ export function InlineBlockControls({ editor, actionsRef, onCreateBlock, childre
       const block = element.getBoundingClientRect();
       const selector = "p,h1,h2,h3,h4,h5,h6,summary,pre";
       const line = element.matches(selector) ? element : element.querySelector(selector);
-      const left = element.closest('[data-type="column"]') ? root.getBoundingClientRect().left : block.left;
+      // Hover scoring can choose either a quote or its paragraph. They share
+      // one external rail; the quote's prose inset must not move its controls.
+      // Keep the actual hovered node as the command/drag target.
+      const rail = element.closest("blockquote") || element;
+      const left = element.closest('[data-type="column"]') ? root.getBoundingClientRect().left : rail.getBoundingClientRect().left;
       if (!line) return new DOMRect(left, block.top, 0, root.closest(".inline-editor")?.querySelector(".inline-editor__drag-handle")?.getBoundingClientRect().height || block.height);
       const box = line.getBoundingClientRect(), style = getComputedStyle(line);
       const top = box.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
