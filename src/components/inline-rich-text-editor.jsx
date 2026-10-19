@@ -1,3 +1,4 @@
+import { captureInlineLinkIntent, mapInlineLinkIntent, commitInlineLink, safeInlineLink } from "@/lib/inline-link-intent";
 import { InlineImageResize } from "@/components/inline-image-resize";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
@@ -35,7 +36,7 @@ const floatingOptions = {
   shift: ({ placement }) => ({ crossAxis: true, padding: { left: 16, right: 16, top: placement.startsWith("top") ? 24 : 8, bottom: placement.startsWith("bottom") ? 24 : 8 } }),
 };
 const pickerCollision = { side: "shift", align: "shift" };
-const safeLink = value => /^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i.test(value);
+const safeLink = safeInlineLink;
 const symbolHints = { "Жирный": "**текст** или __текст__", "Курсив": "*текст* или _текст_", "Ссылка": "[текст](https://…)" };
 
 export default function InlineRichTextEditor({ value = "", onChange, onBlur, disabled = false, readOnly = false, label, className, placeholder, editorRef, contentAdapter }) {
@@ -57,6 +58,8 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   const [link, setLink] = useState("");
   const [linkError, setLinkError] = useState("");
   const linkInput = useRef(null);
+  const linkForm = useRef(null);
+  const linkIntent = useRef(null);
   const linkOpenRef = useRef(linkOpen);
   linkOpenRef.current = linkOpen;
   const showBlocks = useCallback(() => Boolean(menuRef.current), []);
@@ -70,6 +73,13 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     const current = menuRef.current;
     updateMenu(null);
     applySlashCommand(editor, current, item);
+  };
+  const openLink = current => {
+    if (current.isDestroyed || !current.isEditable || current.view.composing) return;
+    const intent = captureInlineLinkIntent(current.state);
+    if (!intent) return;
+    linkIntent.current = intent;
+    updateMenu(null); setLink(current.getAttributes("link").href || ""); setLinkError(""); setLinkOpen(true);
   };
   const instance = useRef(null);
   const blockActions = useRef(null);
@@ -141,8 +151,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
         if (view.editable && blockActions.current?.(event)) { updateMenu(null); return true; }
         if (view.editable && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
           event.preventDefault();
-          updateMenu(null);
-          setLink(editor.getAttributes("link").href || ""); setLinkError(""); setLinkOpen(true);
+          openLink(editor);
           return true;
         }
         const current = menuRef.current;
@@ -182,6 +191,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       callbacks.current.onChange?.(serializedContent(current));
     },
     onTransaction({ editor: current, transaction }) {
+      if (linkIntent.current) {
+        linkIntent.current = mapInlineLinkIntent(linkIntent.current, transaction);
+        if (!linkIntent.current) setLinkOpen(false);
+      }
       const next = nextSlashSuggestion(current.state, transaction, menuRef.current, { editable: current.isEditable, composing: current.view.composing });
       if (next !== menuRef.current) updateMenu(next);
     },
@@ -224,6 +237,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     if (!editor) return;
     editor.setEditable(editable, false);
     if (!editable) {
+      linkIntent.current = null;
       updateMenu(null); setPicker(null); setLinkOpen(false);
       if (columnResizingPluginKey.getState(editor.state)) editor.view.dispatch(editor.state.tr.setMeta(columnResizingPluginKey, { setHandle: -1 }));
     }
@@ -245,7 +259,20 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     if (!editor || !editable) return;
     editor.view.dispatch(editor.state.tr.setMeta("inlineLink", linkOpen ? "show" : "hide"));
     if (linkOpen) linkInput.current?.focus();
+    else linkIntent.current = null;
   }, [editor, editable, linkOpen]);
+  useEffect(() => {
+    if (!linkOpen) return;
+    // Closing an outside action must never steal focus or apply pending text.
+    const retire = event => {
+      if (linkForm.current?.contains(event.target)) return;
+      linkIntent.current = null; setLinkOpen(false);
+    };
+    const doc = editor.view.dom.ownerDocument;
+    doc.addEventListener("pointerdown", retire, true);
+    doc.addEventListener("focusin", retire);
+    return () => { doc.removeEventListener("pointerdown", retire, true); doc.removeEventListener("focusin", retire); };
+  }, [editor, linkOpen]);
   useEffect(() => {
     if (!editor || !editable) return;
     let frame = 0, settled = 0;
@@ -279,7 +306,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       {format("Жирный", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
       {format("Курсив", Italic, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
       <InlineStyleButtons editor={editor} desktop onColors={openColors} />
-      {format("Ссылка", Link2, () => { setLink(editor.getAttributes("link").href || ""); setLinkError(""); setLinkOpen(true); }, editor.isActive("link"))}
+      {format("Ссылка", Link2, () => openLink(editor), editor.isActive("link"))}
     </InlineBlockControls>}
     {editable && <FloatingMenu ref={slashMenu} editor={editor} appendTo={appendMenu} resizeDelay={0} pluginKey="inlineBlocks" shouldShow={showBlocks} options={floatingOptions} className="inline-editor__menu not-typeset" role="group" aria-label="Команды блока">
       <InlineBlockPicker label="Доступные команды" items={menu?.items || []} index={menu?.index || 0} onIndex={index => { if (menuRef.current) updateMenu({ ...menuRef.current, index }); }} onChoose={item => choose(editor, item)} onClose={() => { updateMenu(null); editor.commands.focus(); }} />
@@ -297,11 +324,13 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       </PopoverContent>
     </Popover>}
     {editable && <FloatingMenu editor={editor} appendTo={appendMenu} resizeDelay={0} pluginKey="inlineLink" shouldShow={showLink} options={floatingOptions} className="inline-editor__link-panel not-typeset">
-    {linkOpen && <form className="inline-editor__link" onKeyDown={event => { if (event.key === "Escape") { setLinkOpen(false); editor.commands.focus(); } }} onSubmit={event => {
+    {linkOpen && <form ref={linkForm} className="inline-editor__link" onKeyDown={event => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); setLinkOpen(false); editor.commands.focus(); } }} onSubmit={event => {
       event.preventDefault();
-      if (link && !safeLink(link)) { setLinkError("Используйте https://, mailto: или относительную ссылку."); return; }
-      const chain = editor.chain().focus().extendMarkRange("link");
-      if (link) chain.setLink({ href: link }).run(); else chain.unsetLink().run();
+      const href = link.trim();
+      if (href && !safeLink(href)) { setLinkError("Используйте https://, mailto: или относительную ссылку."); return; }
+      const intent = linkIntent.current;
+      linkIntent.current = null;
+      commitInlineLink(editor, intent, href);
       setLinkOpen(false);
     }}><Input ref={linkInput} aria-label="Адрес ссылки" value={link} placeholder="https://…" onChange={event => setLink(event.target.value)} />
       <Button type="submit">Применить</Button><Button type="button" variant="ghost" onClick={() => { setLinkOpen(false); editor.commands.focus(); }}>Отмена</Button>
