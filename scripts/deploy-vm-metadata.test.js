@@ -108,4 +108,6 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.match(workflow, /\.ok == true and \.version == \$expected/);
   assert.match(workflow, /keeping the running service available/);
   assert.doesNotMatch(workflow, /Install pinned Yandex Cloud CLI|yc compute instance (?:restart|stop|delete)|--max-time 120/);
+  assert.match(workflow, /YC_LOCKBOX_SOURCE: iam/);
+  assert.doesNotMatch(workflow, /YC_LOCKBOX_SOURCE: cli/);
 });
