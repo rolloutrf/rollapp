@@ -50,6 +50,15 @@ italic marks и Markdown. Сохраняются другие marks, точны�
 Публичный reader понимает то же оформление. `text-quote-style-checks.mjs`
 проверяет8 размеров; `--quote-styles-only` — только диагностика, не полный аудит.
 
+Canonical link storage сохраняет точные href/title/target/rel/class, включая
+пустой title и явно отсутствующие attrs. `data-inline-link="true"` отличает
+полный набор от legacy HTML с прежними schema defaults; кавычки и URL delimiters
+не проходят через неоднозначный Markdown writer. Это действует и в rich code,
+таблицах, вложенных блоках и при normalText внутри цитаты. Публичное чтение
+сохраняет оформление, но применяет собственные безопасные target/rel и не
+переносит authored class. Unit и native link/quote matrices сравнивают exact
+editor JSON после изменения URL/курсива, Undo и save/reload.
+
 Смена типа выбранной группы сохраняет индивидуальный цвет/фон каждого блока,
 включая обычный цвет, вместо применения цвета активного блока ко всему диапазону.
 Текст, заголовки, маркированные/нумерованные списки, чек-листы и цитаты проходят

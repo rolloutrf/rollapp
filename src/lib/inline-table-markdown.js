@@ -1,4 +1,5 @@
 import { Extension, decodeHtmlEntities, encodeHtmlEntities } from "@tiptap/core";
+import { inlineLinkHTMLAttributes, parseInlineLinkHTMLAttributes } from "./inline-link-attributes.js";
 import { safeInlineColor } from "./inline-text-style.js";
 import { blockColorTypes, safeBlockColor } from "./inline-block-color-values.js";
 import { appendInlineEmphasisMark } from "./inline-italic.js";
@@ -10,7 +11,7 @@ const markTags = { bold: "strong", italic: "em", underline: "u", strike: "s", co
 const tagMarks = { ...Object.fromEntries(Object.entries(markTags).map(([type, tag]) => [tag, type])), span: "inlineStyle" };
 const nodeTags = { columns: "div", column: "div", nestedBlock: "div", paragraph: "p", blockquote: "blockquote", bulletList: "ul", orderedList: "ol", listItem: "li", taskList: "ul", taskItem: "li", details: "details", detailsSummary: "summary", detailsContent: "div", typographyBlock: "p", table: "table", tableRow: "tr", tableCell: "td", tableHeader: "th", image: "img", hardBreak: "br", horizontalRule: "hr", codeBlock: "pre" };
 const voidTags = new Set(["br", "hr", "img"]);
-const allowedAttributes = new Set(["data-inline-normal", "data-column-width", "data-header-row", "data-header-column", "data-width-number", "data-height-number", "data-inline-block", "data-block-color", "data-inline-table", "colspan", "rowspan", "colwidth", "align", "start", "type", "data-type", "data-checked", "open", "data-language", "data-typography", "src", "alt", "title", "width", "height", "href", "target", "rel", "class", "data-inline-color", "data-inline-background"]);
+const allowedAttributes = new Set(["data-inline-link", "data-inline-normal", "data-column-width", "data-header-row", "data-header-column", "data-width-number", "data-height-number", "data-inline-block", "data-block-color", "data-inline-table", "colspan", "rowspan", "colwidth", "align", "start", "type", "data-type", "data-checked", "open", "data-language", "data-typography", "src", "alt", "title", "width", "height", "href", "target", "rel", "class", "data-inline-color", "data-inline-background"]);
 const attrs = values => Object.entries(values || {}).filter(([, value]) => value != null).map(([key, value]) => ` ${key}="${esc(value)}"`).join("");
 const wrap = (tag, values, content = "") => `<${tag}${attrs(values)}${voidTags.has(tag) ? "/>" : `>${content}</${tag}>`}`;
 
@@ -34,7 +35,7 @@ export function tableHTML(node) {
       const tag = markTags[mark.type], a = mark.attrs || {};
       if (!tag) throw new Error(`Неподдерживаемый стиль таблицы: ${mark.type}`);
       if (mark.type === "link" && !safeURL(a.href)) return text;
-      const attributes = mark.type === "link" ? { href: a.href, title: a.title, target: a.target, rel: a.rel, class: a.class }
+      const attributes = mark.type === "link" ? inlineLinkHTMLAttributes(a)
         : mark.type === "inlineStyle" ? { "data-inline-color": safeInlineColor(a.color), "data-inline-background": safeInlineColor(a.background) } : mark.type === "normalText" ? { "data-inline-normal": "true" } : {};
       return wrap(tag, attributes, text);
     }, node.type === "text" ? esc(node.text) : "<br/>");
@@ -97,7 +98,8 @@ function parseCanonicalHTML(source, kind) {
     if (tagMarks[tag]) {
       if (a["data-inline-normal"] != null && (tag !== "span" || a["data-inline-normal"] !== "true")) throw new Error("Invalid normal-text mark");
       const type = tag === "span" && a["data-inline-normal"] === "true" ? "normalText" : tagMarks[tag];
-      const attributes = type === "link" ? { href: a.href, title: a.title ?? null, ...Object.fromEntries(["target", "rel", "class"].filter(key => key in a).map(key => [key,a[key]])) }
+      if (a["data-inline-link"] != null && (tag !== "a" || a["data-inline-link"] !== "true")) throw new Error("Invalid canonical link marker");
+      const attributes = type === "link" ? parseInlineLinkHTMLAttributes(a)
         : type === "inlineStyle" ? { color: safeInlineColor(a["data-inline-color"]), background: safeInlineColor(a["data-inline-background"]) } : null;
       if (type === "link" && !safeURL(a.href)) return children.flatMap(child => convert(child, marks));
       return children.flatMap(child => convert(child, appendInlineEmphasisMark(marks, { type, ...(attributes ? { attrs: attributes } : {}) })));
