@@ -2,9 +2,24 @@ import assert from 'node:assert/strict';
 const source=Array.from({length:70},(_,i)=>`Paragraph ${i+1}. A long document for native cursor navigation.`).join('\n\n');
 const frames=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 async function caret(editor){return editor.evaluate(el=>{
- const s=getSelection(),r=document.createRange();r.setStart(s.focusNode,s.focusOffset);r.collapse(true);const c=r.getBoundingClientRect();
+ const s=getSelection(),r=document.createRange();r.setStart(s.focusNode,s.focusOffset);r.collapse(true);let c=r.getBoundingClientRect();
+ const rawHeight=c.height;
+ // Native Shift+Arrow may leave an element-boundary endpoint. Chromium can
+ // return an empty collapsed Range there even though its text line is visible.
+ // Measure the adjacent authored glyph independently of editor coordsAtPos;
+ // keep the native range and direction unchanged.
+ if(!c.height){
+  const node=s.focusNode,offset=s.focusOffset;
+  if(node.nodeType===Node.TEXT_NODE&&node.length){
+   const forward=offset<node.length;r.setStart(node,forward?offset:offset-1);r.setEnd(node,forward?offset+1:offset);
+   const rects=[...r.getClientRects()].filter(rect=>rect.height);c=(forward?rects[0]:rects.at(-1))||c;
+  }else if(node.nodeType===Node.ELEMENT_NODE){
+   const forward=offset<node.childNodes.length,child=node.childNodes[forward?offset:offset-1];
+   if(child){r.selectNodeContents(child);const rects=[...r.getClientRects()].filter(rect=>rect.height);c=(forward?rects[0]:rects.at(-1))||c;}
+  }
+ }
  const header=document.querySelector('.global-app-chrome')?.getBoundingClientRect(),nav=document.querySelector('.mobile-app-navigation')?.getBoundingClientRect();
- return {top:c.top,bottom:c.bottom,left:c.left,height:c.height,scrollY,head:el.editor.state.selection.head,native:el.editor.view.posAtDOM(s.focusNode,s.focusOffset),headerBottom:header?.bottom||0,navTop:nav?.top||innerHeight,heightLimit:innerHeight,active:document.activeElement?.getAttribute("aria-label"),behavior:getComputedStyle(document.documentElement).scrollBehavior};
+ return {top:c.top,bottom:c.bottom,left:c.left,height:c.height,rawHeight,endpoint:s.focusNode.nodeName,offset:s.focusOffset,scrollY,head:el.editor.state.selection.head,native:el.editor.view.posAtDOM(s.focusNode,s.focusOffset),headerBottom:header?.bottom||0,navTop:nav?.top||innerHeight,heightLimit:innerHeight,active:document.activeElement?.getAttribute("aria-label"),behavior:getComputedStyle(document.documentElement).scrollBehavior};
 });}
 export async function checkCaretScroll(browser,origin){
  for(const [width,height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[390,400],[1440,400]]){
@@ -12,6 +27,24 @@ export async function checkCaretScroll(browser,origin){
   page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   await page.goto(`${origin}/app/spheres/career?tab=about&__text_fixture=1&chrome=1&source=${encodeURIComponent(source)}`);
   const editor=page.getByRole('textbox',{name:'О себе',exact:true});await editor.locator('p').last().waitFor();await page.evaluate(()=>document.fonts.ready);
+
+  // Exercise element endpoints directly as well as platform keyboard paths.
+  // A zero DOMRect is absence of measurement, not a caret at viewport y=0.
+  for(const atEnd of [false,true]){
+   const boundary=await editor.evaluate((el,atEnd)=>{
+    el.focus();const p=el.querySelector('p'),offset=atEnd?p.childNodes.length:0;
+    getSelection().setBaseAndExtent(p,offset,p,offset);
+    const glyph=document.createRange();glyph.selectNodeContents(p);
+    const rects=[...glyph.getClientRects()].filter(rect=>rect.height),line=atEnd?rects.at(-1):rects[0];
+    return {top:line.top,bottom:line.bottom,offset};
+   },atEnd);
+   const measured=await caret(editor);
+   assert(measured.height>0,'element-boundary caret has a visible text-line measurement');
+   assert.equal(measured.top,boundary.top);assert.equal(measured.bottom,boundary.bottom);
+   assert.equal(measured.endpoint,'P');assert.equal(measured.offset,boundary.offset);
+   assert(await editor.evaluate(el=>{const s=getSelection();return s.isCollapsed&&s.focusNode===el.querySelector('p');}),'measurement preserves the native element endpoint');
+   console.log('CARET BOUNDARY',width,height,JSON.stringify(measured));
+  }
 
   const before=await editor.evaluate(el=>el.editor.getJSON());await editor.locator('p').nth(35).click();await page.keyboard.press('Home');await frames(page);
   const samples=[];let hidden=null;
@@ -28,6 +61,7 @@ export async function checkCaretScroll(browser,origin){
    await editor.locator('p').nth(35).click();await page.keyboard.press('Home');await frames(page);
    for(let step=0;step<45;step++){
     await page.keyboard.press(key);await frames(page);const c=await caret(editor);
+    assert(c.height>0,`${key} has a measurable native text line: ${JSON.stringify(c)}`);
     assert.equal(c.head,c.native,`${key} preserves native cursor`);
     assert(c.top>=c.headerBottom+8,`${key} caret top ${c.top} below chrome ${c.headerBottom}`);
     assert(c.bottom<=c.navTop-8,`${key} step ${step} caret ${JSON.stringify(c)} above navigation ${c.navTop}`);
