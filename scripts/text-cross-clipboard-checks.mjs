@@ -518,7 +518,8 @@ async function exact(page, actual, expected, label, width, reverse) {
     const stem = `/tmp/rollapp-cross-clipboard-${label}-${width}-${reverse ? 'reverse' : 'forward'}`;
     await writeFile(stem + '.json', JSON.stringify({
       actual,
-      expected
+      expected,
+      trace: await page.evaluate(() => window.crossClipboardTrace || [])
     }, null, 2));
     await page.screenshot({
       path: stem + '.png'
@@ -537,7 +538,13 @@ export async function checkCrossClipboard(browser, origin) {
           permissions: ['clipboard-read', 'clipboard-write']
         }),
         errors = [];
-      page.on('pageerror', e => errors.push(e.message));
+      const trail = page.inlineDiagnosticTrail = [];
+      const record = value => { trail.push({ time: Date.now(), ...value });if (trail.length > 60) trail.shift(); };
+      const path = url => { try { return new URL(url).pathname; } catch { return url; } };
+      page.on('pageerror', e => { errors.push(e.message);record({ kind: 'pageerror', message: e.message }); });
+      page.on('console', message => { if (['warning','error'].includes(message.type())) record({ kind: message.type(), message: message.text() }); });
+      page.on('requestfailed', request => record({ kind: 'requestfailed', path: path(request.url()), failure: request.failure() }));
+      page.on('response', response => { if (response.status() >= 400) record({ kind: 'response', path: path(response.url()), status: response.status() }); });
       await page.route('**/api/**', r => {
         errors.push('Unexpected API request');
         return r.abort();
@@ -574,6 +581,18 @@ export async function checkCrossClipboard(browser, origin) {
         exact: true
       });
       await plain.waitFor();
+      await plain.evaluate(el => {
+        const trace = window.crossClipboardTrace = [];
+        const record = (kind, extra = {}) => {
+          const selection = getSelection(), e = el.editor;
+          trace.push({ kind, time: performance.now(), active: document.activeElement?.getAttribute('role'), focused: document.activeElement === el,
+            native: selection ? { anchor: selection.anchorOffset, focus: selection.focusOffset, text: selection.toString(), inside: el.contains(selection.anchorNode) } : null,
+            model: e.state.selection.toJSON(), size: e.state.doc.content.size, tail: e.state.doc.textContent.slice(-24), ...extra });
+          if (trace.length > 80) trace.shift();
+        };
+        for (const kind of ['focusin','focusout','paste','keydown','beforeinput','input','selectionchange']) document.addEventListener(kind, event => record(kind, { key: event.key, inputType: event.inputType, data: event.data }), true);
+        el.editor.on('transaction', ({ transaction }) => record('transaction', { steps: transaction.steps.map(step => step.toJSON()), meta: Object.keys(transaction.meta), changed: transaction.docChanged }));
+      });
       await plain.click();
       const empty = await plain.evaluate(el => el.editor.getJSON());
       await page.keyboard.press('ControlOrMeta+v');

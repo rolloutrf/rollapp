@@ -593,6 +593,7 @@ try {
     console.error("ORIGINAL ERROR", error);
     const details = await page.evaluate(() => ({url:location.href,ready:document.readyState,active:document.activeElement?.outerHTML?.slice(0,250),roots:[...document.querySelectorAll('[role="textbox"], [contenteditable]')].map(el=>({role:el.getAttribute('role'),label:el.getAttribute('aria-label'),hidden:el.getAttribute('aria-hidden'),inert:el.closest('[inert]')?.tagName,editable:el.getAttribute('contenteditable'),box:el.getBoundingClientRect().toJSON()})),body:document.body.innerText.slice(0,1200)})).catch(error=>String(error));
     console.error("FAILED PAGE",JSON.stringify(details));
+    if (page.inlineDiagnosticTrail) console.error("PAGE NETWORK/CONSOLE", JSON.stringify(page.inlineDiagnosticTrail));
     await page.screenshot({ path: "/tmp/rollapp-text-edit-failure.png" });
   }
   throw error;
