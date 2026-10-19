@@ -102,6 +102,19 @@ Cmd+Shift и Alt+Shift в Chromium с fixture-only navigator.platform; это н
 
 ## Выпуск и восстановление
 
+CI обновляет только ключ `docker-compose` через
+`scripts/deploy-vm-metadata.mjs`: официальный REST Instance.Get с `view=FULL`,
+UpdateMetadata с одним `upsert`, ожидание конкретной Operation.Get и повторная
+проверка VM/точного Compose. Загрузка CLI больше не является шагом выпуска.
+Проверки VM/folder/runtime-SA, metadata IAM endpoints и отсутствия конфликтующей
+container declaration остаются обязательными. Скрипт не перезапускает VM,
+не удаляет metadata, не повторяет мутацию после сетевой ошибки и не печатает
+токен или Compose. HTTP timeout15s, общий бюджет180s, шаг CI4min.
+Флаг `--check-only` делает один проверенный read без записи. Он не доказывает
+готовность образа или deployment; обязательная проверка public health exact SHA
+остаётся следующим отдельным шагом. Unit-проверки содержатся в
+`scripts/deploy-vm-metadata.test.js` и входят в обязательный release suite.
+
 - Публиковать только проверенный commit и immutable image с его полным SHA. Не собирать релиз из dirty-workspace и не включать чужие изменения в коммит. Сохранить SHA предыдущего работающего образа для отката.
 - Один rollout за раз. CI использует `cancel-in-progress: false`; перед ручной операцией убедиться, что конкурирующий workflow завершён и его deploy-step не продолжится позже. Сбой чтения GH API не означает сбой job; повторить чтение статуса с новым запросом.
 - Скачивание YC CLI ограничено временем и повторами. Не печатать IAM/OIDC/Lockbox tokens, Compose с секретами, env контейнера или полный журнал COI. Если нужен временный Compose-backup, права 0600 и вне репозитория.
