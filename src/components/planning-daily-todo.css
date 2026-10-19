@@ -10,9 +10,8 @@
 .daily-todo__header { display: flex; flex-shrink: 0; min-width: 0; flex-direction: column; gap: var(--layout-inline-gap); }
 .daily-todo__ribbon { display: flex; min-width: 0; gap: var(--layout-item-gap); padding: var(--layout-inline-gap) var(--layout-page-inset); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent); }
 .daily-todo__ribbon::-webkit-scrollbar { display: none; }
-.daily-todo__day { position: relative; display: flex; flex: 0 0 var(--layout-control-size); width: var(--layout-control-size); flex-direction: row; gap: 2px; padding: 0; white-space: nowrap; transition-property: color, background-color, border-color, box-shadow; }
-.daily-todo__day[aria-pressed="true"] { background: var(--foreground); color: var(--background); }
-.daily-todo__day[aria-current="date"]::after { content: ""; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.daily-todo__day { position: relative; flex: 0 0 auto; border: 0; transition-property: color, background-color, border-color, box-shadow; }
+.daily-todo__day[aria-current="date"]::after { content: ""; position: absolute; inset-inline-end: 12px; bottom: 12px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .daily-todo__composer { display: flex; flex-direction: column; align-items: stretch; gap: var(--layout-inline-gap); }
 .daily-todo__composer textarea { min-width: 0; }
 .daily-todo__error { color: var(--destructive); }
