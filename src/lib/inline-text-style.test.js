@@ -179,3 +179,33 @@ test("public inline parsing never drops text that resembles a block or changes t
   const original = markdown.parse("# Заголовок\n\n- Пункт\n\n```js\nconst value = 1;\n```");
   assert.deepEqual(original.content.map(node => node.type), ["heading", "bulletList", "codeBlock"]);
 });
+
+
+test("edited links retain target, relation, class and empty titles through inline Markdown and public parsing", () => {
+  const values=[...['Simple title','A "quoted" title','Back\\slash','line\nnext',''].map(title=>({title})),{target:"_self",rel:"nofollow author",class:"author-link",title:"Keep title"},{target:"",rel:"",class:"",title:""},{target:null,rel:null,class:null,title:null},{target:"named-window",rel:"noopener noreferrer",class:"a  b",title:'A "quoted" <title> & emoji 👋'}];
+  for(const attributes of values)for(const value of ["target"," target ","**literal**","x\ny"]){
+    const link=schema.marks.link.create({href:"https://example.test/path?x=1&y=2",...attributes});
+    const doc=document(value,[link,schema.marks.bold.create()]);const stored=roundTrip(doc);assert.deepEqual(canonical(markdown.parse(stored)),doc);assert.deepEqual(semantics({content:parseInlineMarkdown(stored)}),semantics(doc));
+  }
+});
+
+test("link metadata remains exact inside nested blocks, columns and rich table cells", () => {
+  for(const attributes of [{target:"_self",rel:"author",class:"author-link",title:""},{target:null,rel:null,class:null,title:null}]){
+    const child=schema.nodes.paragraph.create(null,schema.text(" target ",[schema.marks.link.create({href:"/local",...attributes}),schema.marks.italic.create()]));
+    const wrappers=[schema.nodes.nestedBlock.create(null,[child,schema.nodes.paragraph.create(null,schema.text("Child"))]),schema.nodes.columns.create(null,[schema.nodes.column.create(null,child),schema.nodes.column.create(null,schema.nodes.paragraph.create(null,schema.text("Peer")))]),schema.nodes.table.create(null,schema.nodes.tableRow.create(null,schema.nodes.tableCell.create({colwidth:[128]},child)))];
+    for(const wrapper of wrappers){const doc=schema.nodes.doc.create(null,wrapper).toJSON(),stored=roundTrip(doc);assert.deepEqual(canonical(markdown.parse(stored)),doc);}
+  }
+});
+
+test("older canonical link HTML keeps default attributes without the new completeness marker", () => {
+  for(const source of ['<span data-inline-rich><a href="/legacy" title="Title">target</a></span>','<div data-inline-block="true"><p><a href="/legacy" title="Title">target</a></p></div>']){
+    const parsed=canonical(markdown.parse(source)),link=parsed.content[0].content[0].marks.find(mark=>mark.type==="link");assert.equal(link.attrs.target,"_blank");assert.equal(link.attrs.rel,"noopener noreferrer nofollow");assert.equal(link.attrs.class,null);assert.equal(link.attrs.title,"Title");
+  }
+});
+
+
+test("link URL delimiters and title quotes remain literal after storage", () => {
+  for(const href of ['https://example.test/a)b','https://example.test/a(b)c','/path with spaces','/a"b','/a\\b','/a<b>']){
+    const doc=document("link",[schema.marks.link.create({href,title:'A "quoted" title'})]);roundTrip(doc);
+  }
+});
