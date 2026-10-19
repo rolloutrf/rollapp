@@ -87,3 +87,33 @@ test("four question answers can be saved without sending titles", () => {
 
   assert.deepEqual(result.questions.map((question) => question.title), IDENTITY_QUESTION_TITLES);
 });
+
+test("inline answers can be cleared without replacing the other questions", () => {
+  const questions = IDENTITY_QUESTION_TITLES.map((title, index) => ({ title, paragraphs: index === 0 ? [] : ["Ответ"] }));
+  assert.deepEqual(identityFourQuestionsSchema.parse({ questions }).questions, questions);
+  assert.equal(identityFourQuestionsSchema.safeParse({ questions: questions.slice(1) }).success, false);
+});
+
+test("inline answers preserve empty paragraphs and intentional whitespace", () => {
+  const questions = IDENTITY_QUESTION_TITLES.map(title => ({ title, paragraphs: ["Текст", "", " Следующая строка "] }));
+  assert.deepEqual(identityFourQuestionsSchema.parse({ questions }).questions, questions);
+});
+
+
+test("one rich answer fragment can use the existing aggregate paragraph budget", () => {
+  const legacy = Array(30).fill("x".repeat(20_000));
+  const questions = IDENTITY_QUESTION_TITLES.map((title, index) => ({ title, paragraphs: index ? [] : legacy }));
+  assert(identityFourQuestionsSchema.safeParse({ questions }).success);
+  questions[0].paragraphs = ["x".repeat(600_000)];
+  assert(identityFourQuestionsSchema.safeParse({ questions }).success);
+  questions[0].paragraphs = ['<div data-inline-block="true"><div data-type="nestedBlock"><p>' + "A".repeat(10_000) + "</p><p>" + "B".repeat(10_000) + "</p></div></div>"];
+  assert(identityFourQuestionsSchema.safeParse({ questions }).success);
+});
+
+test("four answer limits retain the previous aggregate budget and paragraph count", () => {
+  const questions = IDENTITY_QUESTION_TITLES.map(title => ({ title, paragraphs: [] }));
+  for (const paragraphs of [["x".repeat(600_001)], ["x".repeat(300_001), "y".repeat(300_000)], Array(31).fill("")]) {
+    questions[0].paragraphs = paragraphs;
+    assert.equal(identityFourQuestionsSchema.safeParse({ questions }).success, false);
+  }
+});

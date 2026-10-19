@@ -1,0 +1,107 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Native caret visibility with real application chrome",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-caret-scroll-8dcjkrtm",
+  "baseline": {
+    "log": "/tmp/rollapp-caret-scroll-before.log",
+    "result": "reproduced",
+    "viewport": [
+      1024,
+      844
+    ],
+    "caretTop": 58.5,
+    "headerBottom": 72,
+    "settledAfterMs": 650,
+    "nativeHead": 708,
+    "editorHead": 708
+  },
+  "candidate": {
+    "status": "passed",
+    "session": 19166,
+    "log": "/tmp/rollapp-caret-scroll-clean.log",
+    "expectedRecords": 20,
+    "promoted": false,
+    "diagnostic": {
+      "status": "passed",
+      "exitCode": 0,
+      "records": 9,
+      "session": 9410,
+      "log": "/tmp/rollapp-caret-scroll-debug.log"
+    },
+    "sourceSnapshot": "/tmp/rollapp-caret-scroll-clean-sources.json",
+    "sourceCount": 610,
+    "compatibilityLogs": [
+      "/tmp/rollapp-caret-native-compat.log",
+      "/tmp/rollapp-caret-selection-compat.log"
+    ],
+    "terminal": {
+      "status": "passed",
+      "exitCode": 0,
+      "sourceCount": 610,
+      "sourceDrift": [],
+      "logs": {
+        "/tmp/rollapp-caret-scroll-clean.log": {
+          "records": 9,
+          "expected": 9
+        },
+        "/tmp/rollapp-caret-native-compat.log": {
+          "records": 2,
+          "expected": 2
+        },
+        "/tmp/rollapp-caret-selection-compat.log": {
+          "records": 9,
+          "expected": 9
+        }
+      },
+      "records": 20,
+      "promoted": false,
+      "finishedAt": "2026-10-18T17:10:44.891516+00:00",
+      "ui": "passed37/69",
+      "build": "passed"
+    }
+  },
+  "main": {
+    "frozenSourceCount": 608,
+    "comprehensiveSession": 72580,
+    "controllerCell": "2055",
+    "expectedEditorRecords": 228,
+    "sourceDrift": [],
+    "lastObservedAt": "2026-10-18T17:11:05.426326+00:00"
+  },
+  "unverified": [
+    "real iOS/Telegram keyboard and IME",
+    "complete Notion experience remains open"
+  ],
+  "productionWrites": false,
+  "productionKeepalive": "healthy PID22680; API and frontend ready",
+  "dependencyAudit": {
+    "lockfileUnchanged": true,
+    "all": "/tmp/rollapp-logical-main-audit.json",
+    "production": "/tmp/rollapp-logical-main-audit-production.json"
+  },
+  "promotedAt": "2026-10-18T17:32:53.698298+00:00",
+  "candidatePromoted": true,
+  "mainPromotionVerification": {
+    "exitCode": 0,
+    "records": 29,
+    "counts": {
+      "/tmp/rollapp-caret-main.log": 9,
+      "/tmp/rollapp-caret-main-native.log": 2,
+      "/tmp/rollapp-caret-main-selection.log": 9,
+      "/tmp/rollapp-table-duplicate-main.log": 9
+    },
+    "sourceCount": 611,
+    "sourceDrift": [],
+    "unit": {
+      "total": 660,
+      "pass": 659,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "37/69 PASS",
+    "build": "PASS",
+    "comprehensive246": "not-run"
+  }
+}

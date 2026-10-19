@@ -213,7 +213,7 @@ export function Values() {
                   <strong className="font-semibold text-foreground">{value.label}</strong>
                   {value.description && <span className="text-muted-foreground">{value.description}</span>}
                 </span>
-                {!readOnly && <Button className="shrink-0" variant="ghost" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
+                {!readOnly && <Button className="shrink-0" variant="destructive" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
                   <Trash2 aria-hidden="true" />
                 </Button>}
               </div>

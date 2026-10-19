@@ -1,3 +1,5 @@
+import { initializeRuntimeDatabase } from "./database-startup.js";
+import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import "dotenv/config";
 import compression from "compression";
@@ -50,6 +52,7 @@ import {
   isPdfBuffer, LAB_PDF_MAX_BYTES, LabPdfError, parseLabPdf,
 } from "./lab-pdf.js";
 import { generateIdentityReport, identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
+import { IDENTITY_PDF_LAYOUT_VERSION } from "./identity-report-layout.js";
 import { parsePerformanceReviewPdf } from "./performance-review-pdf.js";
 import {
   identityContentSchemas, identityFourQuestionsSchema, identitySectionSchema,
@@ -1993,14 +1996,7 @@ app.post("/api/uploads/images", requireAuth, imageUploadRateLimit, imageUploadBo
 
 app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) => {
   const imageUrl = `/api/media/${req.params.id}`;
-  const [usedByWish, usedByProfile, usedByCourse, usedByConference, usedByContact] = await Promise.all([
-    query("SELECT 1 FROM wishes WHERE user_id=$1 AND image_url=$2 LIMIT 1", [req.user.id, imageUrl]),
-    query("SELECT 1 FROM users WHERE id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
-    query("SELECT 1 FROM education_courses WHERE user_id=$1 AND logo_url=$2 LIMIT 1", [req.user.id, imageUrl]),
-    query("SELECT 1 FROM education_conferences WHERE user_id=$1 AND logo_url=$2 LIMIT 1", [req.user.id, imageUrl]),
-    query("SELECT 1 FROM contact_overrides WHERE user_id=$1 AND avatar_url=$2 LIMIT 1", [req.user.id, imageUrl]),
-  ]);
-  if (usedByWish.rowCount || usedByProfile.rowCount || usedByCourse.rowCount || usedByConference.rowCount || usedByContact.rowCount) {
+  if (await imageIsInUse(query, req.user.id, imageUrl)) {
     return res.status(409).json({ error: "Изображение уже используется" });
   }
   const deleted = await query("DELETE FROM wish_images WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
@@ -4393,6 +4389,24 @@ async function identityReportPayload(userId, section, client = null, ownerUserna
   if (state.status === "empty") return { mode: "empty", report: null, files: [], updatedAt: state.updated_at };
   const report = identityReportForDisplay(section, parseStoredJson(state.report_json));
   if (!report) throw new Error("Сохранённый отчёт повреждён");
+  const legacyDocuments = (report.documents || []).filter((document) => !document.rawLines || document.layout?.version !== IDENTITY_PDF_LAYOUT_VERSION);
+  if (legacyDocuments.length) {
+    const originals = await execute(
+      `SELECT id,filename,pdf_data,created_at FROM identity_report_uploads
+       WHERE user_id=$1 AND section=$2 AND id = ANY($3::text[])`,
+      [userId, section, legacyDocuments.map((document) => document.id)],
+    );
+    const byId = new Map(originals.rows.map((row) => [row.id, row]));
+    report.documents = await Promise.all((report.documents || []).map(async (document) => {
+      if (document.rawLines && document.layout?.version === IDENTITY_PDF_LAYOUT_VERSION) return document;
+      const original = byId.get(document.id);
+      if (!original) return document;
+      const parsed = await parseIdentityPdf(original.pdf_data, {
+        section, id: original.id, filename: original.filename, uploadedAt: original.created_at,
+      });
+      return { ...document, rawLines: parsed.rawLines, layout: parsed.layout };
+    }));
+  }
   return { mode: "generated", report, files, updatedAt: state.updated_at };
 }
 
@@ -4720,6 +4734,38 @@ app.delete("/api/identity/reports/:section", requireAuth, requirePrivateSphereOw
   });
   res.set("Cache-Control", "private, no-store");
   return res.json({ mode: "empty", report: null, files: [] });
+}));
+
+app.delete("/api/identity/reports/:section/files/:id", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = identityReportSectionSchema.safeParse(req.params.section);
+  if (!section.success || !z.string().uuid().safeParse(req.params.id).success) {
+    return res.status(404).json({ error: "PDF не найден" });
+  }
+  let missing = false;
+  await transaction(async (client) => {
+    const removed = await client.query(
+      "DELETE FROM identity_report_uploads WHERE id=$1 AND user_id=$2 AND section=$3 RETURNING id",
+      [req.params.id, req.user.id, section.data],
+    );
+    if (!removed.rowCount) { missing = true; return; }
+    const remaining = await client.query(
+      `SELECT document_json FROM identity_report_uploads
+       WHERE user_id=$1 AND section=$2 ORDER BY created_at,id`,
+      [req.user.id, section.data],
+    );
+    const documents = remaining.rows.map((row) => parseStoredJson(row.document_json)).filter(Boolean);
+    const report = documents.length ? generateIdentityReport(section.data, documents) : null;
+    await client.query(
+      `INSERT INTO identity_generated_reports (user_id,section,status,report_json,updated_at)
+       VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id,section) DO UPDATE SET
+         status=EXCLUDED.status,report_json=EXCLUDED.report_json,updated_at=CURRENT_TIMESTAMP`,
+      [req.user.id, section.data, report ? "generated" : "empty", JSON.stringify(report || {})],
+    );
+  });
+  if (missing) return res.status(404).json({ error: "PDF не найден" });
+  res.set("Cache-Control", "private, no-store");
+  return res.json(await identityReportPayload(req.user.id, section.data));
 }));
 
 app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
@@ -6374,7 +6420,8 @@ app.use((error, req, res, _next) => {
   res.status(500).json({ error: "Внутренняя ошибка. Мы уже разбираемся." });
 });
 
-await initializeDatabase();
+const databaseInitialization = await initializeRuntimeDatabase({ environment: process.env, isMemoryDatabase, transaction, migrate: initializeDatabase });
+if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema verified without migrations or data cleanup.");
 
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
 const tonPaymentPoller = startTonPaymentPolling({ query, transaction });

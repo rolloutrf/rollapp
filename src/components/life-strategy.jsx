@@ -1,4 +1,6 @@
-import { Fragment, useId } from "react";
+import { useId } from "react";
+import { InlineMarkdown } from "@/components/inline-markdown";
+import { EditableTextBlock } from "@/components/editable-text-block";
 import { Pencil } from "lucide-react";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
@@ -11,45 +13,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import lifeStrategySource from "@/data/life-strategy.md?raw";
 
-const INLINE_PATTERN = /(\*\*[^*]+\*\*|\[[^\]]*\]\((?:https?:\/\/|\/)[^)]+\)|https?:\/\/[^\s]+)/gu;
 const CHECKLIST_PATTERN = /^- \[([ xX])\](.*)$/u;
 const BULLET_PATTERN = /^- (.*)$/u;
 const AGE_HEADING_PATTERN = /^#\s+(\d+\s+y\.o\.?)\s*$/iu;
 const STRATEGY_HEADING_PATTERN = /^##\s+(Platform|Seller|Buyer)\s*$/u;
 
-function renderInline(text, keyPrefix) {
-  return text.split(INLINE_PATTERN).map((part, index) => {
-    if (!part) return null;
-    const key = `${keyPrefix}-inline-${index}`;
-    const strong = part.match(/^\*\*(.*)\*\*$/su);
-    const link = part.match(/^\[([^\]]*)\]\(((?:https?:\/\/|\/)[^)]+)\)$/u);
-
-    if (strong) {
-      return <strong key={key}>{renderInline(strong[1], `${key}-strong`)}</strong>;
-    }
-    if (link) {
-      const external = link[2].startsWith("http");
-      return (
-        <a key={key} href={link[2]} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined}>
-          {link[1]}
-        </a>
-      );
-    }
-    if (part.match(/^https?:\/\//u)) {
-      return <a key={key} href={part} target="_blank" rel="noreferrer">{part}</a>;
-    }
-    return <Fragment key={key}>{part}</Fragment>;
-  });
-}
-
-function InlineContent({ text, lineIndex }) {
-  return renderInline(text, String(lineIndex));
+function InlineContent({ text }) {
+  return <InlineMarkdown text={text} />;
 }
 
 function SourceLine({ line, index }) {
   const label = line.match(/^:::label\s+(.+)$/u);
   const statement = line.match(/^:::statement\s+(.+)$/u);
-  const heading = line.match(/^(#{1,3}) (.*)$/u);
+  const heading = line.match(/^(#{1,6}) (.*)$/u);
   const quote = line.match(/^> ?(.*)$/u);
   const image = line.match(/^!\[(.*)\]\((https?:\/\/[^)]+)\)$/u);
 
@@ -74,7 +50,7 @@ function SourceLine({ line, index }) {
 
   if (heading) {
     const level = heading[1].length;
-    const Tag = level === 1 ? "h1" : level === 2 ? "h2" : "h3";
+    const Tag = `h${level}`;
     return (
       <Tag>
         <InlineContent text={heading[2]} lineIndex={index} />
@@ -140,7 +116,16 @@ function SourceList({ items, onTaskCheckedChange, taskDisabled = false, taskRead
   );
 }
 
+function hasRichSourceBlocks(source, lines) {
+  return /^(?:[ \t]*(?:[-+*]|\d+[.)])\s+)/m.test(source) || /^!\[.*\]\(/m.test(source) || source.includes('<div data-inline-block="true">') || source.includes('<table data-inline-table="true"') || /^ {0,3}(`{3,}|~{3,})/m.test(source)
+    || lines.some((line,index) => line.text.includes("|") && /^[ \t|:]*-[ \t|:-]*$/.test(lines[index + 1]?.text || "") && lines[index + 1].text.includes("|"));
+}
+
 function renderSourceBlocks(lines, taskOptions = {}) {
+  const source = lines.map(line => line.text).join("\n");
+  if (!taskOptions.onTaskCheckedChange && hasRichSourceBlocks(source, lines)) {
+    return <EditableTextBlock value={source} readOnly label={taskOptions.label || "Текст раздела"} />;
+  }
   const blocks = [];
 
   for (let index = 0; index < lines.length;) {
@@ -311,9 +296,12 @@ export function MarkdownDocument({
     .map((text, index) => ({ index, text }))
     .filter((line) => !hideSourceLabels || !/^:::label\s+/u.test(line.text));
   const taskOptions = { onTaskCheckedChange, taskDisabled, taskReadOnly };
+  const richBlocks = hasRichSourceBlocks(source, lines);
   return (
     <article className={`life-strategy-source typeset typeset-rollapp typeset-document ${className}`.trim()} aria-label={label}>
-      {collapsibleAges
+      {richBlocks && !collapsibleAges && !collapsibleStrategies && !onTaskCheckedChange
+        ? <EditableTextBlock value={lines.map(line => line.text).join("\n")} readOnly label={label} />
+        : collapsibleAges
         ? <AgeSections lines={lines} editDisabled={ageEditDisabled} onEditAge={onEditAge} {...taskOptions} />
         : collapsibleStrategies
           ? <StrategySections lines={lines} {...taskOptions} />

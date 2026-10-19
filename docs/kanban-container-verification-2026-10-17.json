@@ -1,0 +1,258 @@
+[
+  {
+    "width": 320,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 16,
+      "toolbar": 16,
+      "overflow": false
+    },
+    "end": {
+      "left": 16,
+      "right": 304,
+      "inset": 16,
+      "scrollLeft": 0
+    }
+  },
+  {
+    "width": 320,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 16,
+      "toolbar": 16,
+      "overflow": false
+    },
+    "end": {
+      "left": 16,
+      "right": 304,
+      "inset": 16,
+      "scrollLeft": 0
+    }
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 16,
+      "toolbar": 16,
+      "overflow": false
+    },
+    "end": {
+      "left": 16,
+      "right": 374,
+      "inset": 16,
+      "scrollLeft": 0
+    }
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 16,
+      "toolbar": 16,
+      "overflow": false
+    },
+    "end": {
+      "left": 16,
+      "right": 374,
+      "inset": 16,
+      "scrollLeft": 0
+    }
+  },
+  {
+    "width": 768,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 444,
+      "right": 744,
+      "inset": 24,
+      "scrollLeft": 1692
+    }
+  },
+  {
+    "width": 768,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 444,
+      "right": 744,
+      "inset": 24,
+      "scrollLeft": 1692
+    }
+  },
+  {
+    "width": 820,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 496,
+      "right": 796,
+      "inset": 24,
+      "scrollLeft": 1640
+    }
+  },
+  {
+    "width": 820,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 496,
+      "right": 796,
+      "inset": 24,
+      "scrollLeft": 1640
+    }
+  },
+  {
+    "width": 820,
+    "height": 400,
+    "empty": false,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 496,
+      "right": 796,
+      "inset": 24,
+      "scrollLeft": 1640
+    }
+  },
+  {
+    "width": 820,
+    "height": 400,
+    "empty": true,
+    "start": {
+      "first": 24,
+      "toolbar": 24,
+      "overflow": false
+    },
+    "end": {
+      "left": 496,
+      "right": 796,
+      "inset": 24,
+      "scrollLeft": 1640
+    }
+  },
+  {
+    "width": 1024,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 40,
+      "toolbar": 40,
+      "overflow": false
+    },
+    "end": {
+      "left": 684,
+      "right": 984,
+      "inset": 40,
+      "scrollLeft": 1468
+    }
+  },
+  {
+    "width": 1024,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 40,
+      "toolbar": 40,
+      "overflow": false
+    },
+    "end": {
+      "left": 684,
+      "right": 984,
+      "inset": 40,
+      "scrollLeft": 1468
+    }
+  },
+  {
+    "width": 1440,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 80,
+      "toolbar": 80,
+      "overflow": false
+    },
+    "end": {
+      "left": 1060,
+      "right": 1360,
+      "inset": 80,
+      "scrollLeft": 1132
+    }
+  },
+  {
+    "width": 1440,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 80,
+      "toolbar": 80,
+      "overflow": false
+    },
+    "end": {
+      "left": 1060,
+      "right": 1360,
+      "inset": 80,
+      "scrollLeft": 1132
+    }
+  },
+  {
+    "width": 1920,
+    "height": 844,
+    "empty": false,
+    "start": {
+      "first": 320,
+      "toolbar": 320,
+      "overflow": false
+    },
+    "end": {
+      "left": 1300,
+      "right": 1600,
+      "inset": 320,
+      "scrollLeft": 1132
+    }
+  },
+  {
+    "width": 1920,
+    "height": 844,
+    "empty": true,
+    "start": {
+      "first": 320,
+      "toolbar": 320,
+      "overflow": false
+    },
+    "end": {
+      "left": 1300,
+      "right": 1600,
+      "inset": 320,
+      "scrollLeft": 1132
+    }
+  }
+]

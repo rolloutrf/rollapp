@@ -1,0 +1,223 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Column draft/clipboard persistence, independent paste history, canonical depth safety, native macOS page-key caret reconciliation",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-columns-persistence-fawyfd3t",
+  "sourceSnapshot": "/tmp/rollapp-columns-persistence-sources.json",
+  "sourceCount": 628,
+  "expectedEditorRecords": 285,
+  "promoted": false,
+  "previousTurnClassification": "progress: isolated source625 columns implemented and verified; audited compatibility76 passed",
+  "currentTurnClassification": "progress: verified depth/paste failures repaired; caret failure reproduced and cause isolated; combined629 verification started",
+  "depth": {
+    "baselineLog": "/tmp/rollapp-columns-depth-before.log",
+    "baselineExitCode": 1,
+    "baseline": {
+      "type": "columns",
+      "applied": true,
+      "reloadable": false,
+      "exactReload": false,
+      "writes": 2
+    },
+    "fixedLog": "/tmp/rollapp-columns-depth-fixed.log",
+    "fixedExitCode": 0,
+    "refusedWithoutWrites": [
+      "columns",
+      "table",
+      "details"
+    ],
+    "originalExactReloadPreserved": true
+  },
+  "paste": {
+    "baselineLog": "/tmp/rollapp-columns-persistence-before.log",
+    "baselineExitCode": 1,
+    "failure": "typing immediately after native rich HTML paste undid the complete paste too",
+    "fixedLog": "/tmp/rollapp-columns-persistence-fixed.log",
+    "fixedExitCode": 0,
+    "records": 3,
+    "viewports": [
+      [
+        390,
+        400
+      ],
+      [
+        1024,
+        844
+      ],
+      [
+        1440,
+        400
+      ]
+    ],
+    "includes": [
+      "failed-save owner draft survives reload",
+      "explicit retry retains exact complete columns",
+      "native full-document HTML clipboard",
+      "width ratios/marks/literal whitespace/nested task/toggle structure",
+      "independent typing and paste Undo/Redo",
+      "public reload and no API"
+    ]
+  },
+  "unit": {
+    "total": 679,
+    "pass": 678,
+    "skip": 1,
+    "fail": 0,
+    "exitCode": 0,
+    "log": "/tmp/rollapp-columns-persistence-unit.log"
+  },
+  "ui": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 71,
+    "log": "/tmp/rollapp-columns-persistence-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-columns-persistence-build.log"
+  },
+  "compatibility": {
+    "status": "passed",
+    "session": 99197,
+    "expectedRecords": 44,
+    "expectedPerFlag": {
+      "--column-persistence-only": 3,
+      "--code-paste-only": 8,
+      "--four-document-only": 8,
+      "--block-colors-only": 8,
+      "--slash-only": 8,
+      "--columns-only": 9
+    },
+    "log": "/tmp/rollapp-columns-persistence-compatibility.log",
+    "report": "/tmp/rollapp-columns-persistence-compatibility.json",
+    "port": 5296,
+    "cache": "/tmp/rollapp-columns-persistence-vite-cache",
+    "records": 44,
+    "sourceDrift": [],
+    "checks": [
+      {
+        "flag": "--column-persistence-only",
+        "exitCode": 0,
+        "records": 3,
+        "log": "/tmp/rollapp-columns-persistence-compat-column-persistence-only.log"
+      },
+      {
+        "flag": "--code-paste-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-columns-persistence-compat-code-paste-only.log"
+      },
+      {
+        "flag": "--four-document-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-columns-persistence-compat-four-document-only.log"
+      },
+      {
+        "flag": "--block-colors-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-columns-persistence-compat-block-colors-only.log"
+      },
+      {
+        "flag": "--slash-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-columns-persistence-compat-slash-only.log"
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-columns-persistence-compat-columns-only.log"
+      }
+    ],
+    "finishedAt": "2026-10-18T19:18:20.132290+00:00"
+  },
+  "main620Comprehensive": {
+    "status": "failed",
+    "exitCode": 1,
+    "editorPassRecords": 174,
+    "sourceDrift": [],
+    "log": "/tmp/rollapp-table-intent-main-comprehensive.log",
+    "failure": "native Shift+ArrowUp after Home leaves the caret below viewport; subsequent stages not run"
+  },
+  "caretResearch": {
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-caret-focus-5wf1yyqb",
+    "lightBaselineLog": "/tmp/rollapp-caret-focus-light-repeat.log",
+    "lightBaselineTrace": "/tmp/rollapp-caret-focus-trace-1440-400-1792350194969.json",
+    "lightBaseline": {
+      "top": 507.5,
+      "bottom": 530.5,
+      "height": 400,
+      "scrollY": 1281,
+      "native": 2050,
+      "model": 2050
+    },
+    "strategiesLog": "/tmp/rollapp-native-animation-strategies.log",
+    "results": [
+      {
+        "variant": "relative",
+        "checks": 2,
+        "failure": true
+      },
+      {
+        "variant": "pre-cancel",
+        "checks": 12,
+        "failure": true
+      },
+      {
+        "variant": "element-scrollTop",
+        "checks": 6,
+        "failure": true
+      },
+      {
+        "variant": "auto",
+        "checks": 16,
+        "failure": true
+      },
+      {
+        "variant": "instant-native-Home-endpoint",
+        "checks": 21,
+        "failure": false
+      }
+    ],
+    "absoluteScrollTo": "20 standard repeat cases passed, but adversarial native Home probe still failed; rejected as a sufficient fix",
+    "diagnosticServer": {
+      "pid": 56800,
+      "stopped": true,
+      "exitCode": 143,
+      "identityVerified": true,
+      "productionPidsUntouched": [
+        22680,
+        22683,
+        22713
+      ]
+    },
+    "actualFixedCaret9": {
+      "exitCode": 0,
+      "records": 9,
+      "log": "/tmp/rollapp-caret-focus-mac-fixed.log"
+    }
+  },
+  "combined629": {
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-columns-native-combined-iurxfeyn",
+    "expectedEditorRecords": 287,
+    "nativePageKeys": {
+      "status": "running",
+      "session": 65470,
+      "expectedRecords": 2,
+      "log": "/tmp/rollapp-native-page-key-combined.log"
+    }
+  },
+  "productionWrites": false,
+  "unverified": [
+    "combined629 targets/full287 comprehensive after selective promotion",
+    "actual iOS/Telegram/Windows hardware keyboard and IME",
+    "all remaining canonical-depth operations incl marks and paste",
+    "arbitrary clipboard/styles/nesting beyond the verified examples",
+    "remaining media/accordion/R6/R8/R9/R10 matrix"
+  ],
+  "createdAt": "2026-10-18T19:18:09.259872+00:00"
+}

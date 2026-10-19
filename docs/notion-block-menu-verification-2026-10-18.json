@@ -1,0 +1,152 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sources": {
+    "src/components/inline-block-controls.jsx": "cbf14390a23213091327450aae356354a744d808d2c4cb6f75f4fc88ad011869",
+    "src/components/inline-block-picker.jsx": "8056999c8c1b9b25631d035045f02a3ee70b09d86b3363cc6ec8d12540718351",
+    "src/components/inline-editor.css": "2af2b97e446c47aee66657448efc5c05aff66395d153e71bfb67f82f28542d53",
+    "src/lib/inline-slash-commands.js": "0a3186bfd5e3fa7fb023f42166602144173f7d9071804c2a2a60098d20819df0",
+    "src/lib/inline-block-types.js": "a8cb370f9d8b50f347fb6b049823872004a8e84e84615ed734b827ab402c0758",
+    "src/lib/inline-blocks.js": "7546fa97d3bca2f2ddd9bc082d8c9e5cd869d0e77868676c116338867f29831d",
+    "src/lib/inline-block-color.js": "fcdc74655728069f9af142396f126ff55c8f8e79cda9466ef9c38beb4d36bf14",
+    "src/lib/inline-block-color-values.js": "979c7004ec15511a4ec4cc5583eeff248a5017718a02cae40490cfbede8de30a",
+    "src/components/inline-rich-text-editor.jsx": "7849ca0c116ab00508ef7c5cbd53c2fd004e8712acc531c990019e5d576cd530",
+    "src/components/inline-table-actions.jsx": "cb91abec4cbe94dbff3e493165d0ddf0137564c4e2bfd41f726da9402447fa33",
+    "src/components/ui/popover.jsx": "700c1fab7576eb26a8880d6efdf06969f3a171f95ef1a5e8f4ad13cf28a7b516",
+    "src/hooks/use-visual-viewport.js": "3397b380e8a8714bc4be608f50ea0f04483977db40e524bfc7e9639640da6e9a",
+    "scripts/text-edit-smoke.mjs": "c57bf226b8e75fcfa4a371fb5e59fb0cb1308a20240a1fa46239a5317cf918bb",
+    "scripts/text-block-menu-checks.mjs": "438d37c1c17f021d7cc8888d09cd77a16f8cabf2245c4647bb4f4d349e5b3a30",
+    "scripts/fixtures/text-edit.jsx": "5c3f178777622315b734542d8492ed3cb2dd0bc60c53833c4704eab466509596",
+    "src/lib/inline-editor-extensions.js": "30f26867a22c8be091746723d3605b5a298b35ddceddd97b157bbc434d8169ad",
+    "src/lib/four-question-document.js": "603f6397c955e5a6c7a1a3e54cf5063706535229be9c79d72cbd58f9aa5d8541",
+    "src/typeset.css": "d9e18d2ac35b9819bc5e0c072623b4518c71417a8614c149a591e7af5e2a126a",
+    "src/overlays.css": "7a3d0f51684ffc86c79973714347ab2c7c7ec8d1ceef0f5729e6ba595c43e4eb",
+    "src/index.css": "936ea2d4a65caae3b0847eb5dc7d661b0b2675a6959e225ededbd64642e6fcf1",
+    "package.json": "b94ef0689b51f9881c4383731290a7fdc773bc7e776c380cfaf7e3d9a2673a03",
+    "package-lock.json": "4ba00ec4e4174ea0a572d6f94017fc4c82e288c750f3cc7a7c8bb54ebb7c7943"
+  },
+  "verifiedAt": "2026-10-18T08:34:10.739099+00:00",
+  "scope": "Search actions, types and colours through Ctrl/Cmd+/; synchronous native selection restoration and menu-only scrolling",
+  "goalStatus": "active",
+  "viewports": [
+    [
+      320,
+      844
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      390,
+      400
+    ],
+    [
+      768,
+      844
+    ],
+    [
+      820,
+      844
+    ],
+    [
+      1024,
+      844
+    ],
+    [
+      1440,
+      844
+    ],
+    [
+      1920,
+      844
+    ]
+  ],
+  "checks": [
+    {
+      "command": "npm run test:text-edit",
+      "exitCode": 0,
+      "passRecords": 99,
+      "log": "/tmp/rollapp-command-search-full-text-second-final.log"
+    },
+    {
+      "command": "npm run test:controls",
+      "exitCode": 0,
+      "passRecords": 132,
+      "log": "/tmp/rollapp-command-search-controls-frozen.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "exitCode": 0,
+      "primitives": 37,
+      "sources": 68,
+      "log": "/tmp/rollapp-command-search-ui-frozen.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "warning": "Existing chunk >500kB",
+      "log": "/tmp/rollapp-command-search-build-frozen.log"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "exitCode": 1,
+      "tests": 574,
+      "pass": 572,
+      "skip": 1,
+      "fail": 1,
+      "error": "Existing Gallup DNA labels must use shrinkable grid tracks assertion",
+      "log": "/tmp/rollapp-command-search-comprehensive-frozen.log",
+      "report": "/tmp/rollapp-command-search-comprehensive-frozen.json"
+    },
+    {
+      "command": "npm audit",
+      "exitCode": 1,
+      "highDevTooling": 7,
+      "log": "/tmp/rollapp-command-search-audit.json"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "exitCode": 0,
+      "vulnerabilities": 0,
+      "log": "/tmp/rollapp-command-search-production-audit.json"
+    },
+    {
+      "command": "npm audit fix --dry-run --ignore-scripts --json",
+      "exitCode": 1,
+      "changed": 0,
+      "highRemaining": 7,
+      "graphChanged": false,
+      "log": "/tmp/rollapp-command-search-audit-dry-run.json"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "fixedFindings": [
+    "Escape could lose the native caret before the next key",
+    "Creation handoff deep in a short-screen document could scroll the document",
+    "Option scrolling depended on the popup opening scale"
+  ],
+  "productionReview": {
+    "connection": "Configured production API; persistent service retained",
+    "writes": false,
+    "viewportWidth": 1280,
+    "actions": [
+      "Open and dismiss menu",
+      "Search heading 2 without applying",
+      "Native repeat Ctrl/Cmd+/ and Escape at last paragraph"
+    ],
+    "lastParagraphBottomBeforeAfter": 616
+  },
+  "limitations": [
+    "Overall comprehensive suite fails on existing Gallup assertion; downstream audit stages not run",
+    "Actual iOS/Telegram keyboards and real IME not tested",
+    "Remaining full Notion scope retained in docs/notion-text-experience.md"
+  ],
+  "screenshots": [
+    "/tmp/rollapp-block-menu-390-400.png",
+    "/tmp/rollapp-block-menu-1440-844.png"
+  ]
+}

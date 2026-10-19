@@ -1,0 +1,104 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "promoted to main; combined verification pending",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-block-safety-9s7h5zfi",
+  "sourceCount": 606,
+  "snapshot": "/tmp/rollapp-block-safety-sources.json",
+  "before": "/tmp/rollapp-relocation-depth-probe.json",
+  "after": "/tmp/rollapp-relocation-depth-fixed-probe.json",
+  "runtime": [
+    "src/lib/inline-block-depth.js",
+    "src/lib/inline-block-tree.js",
+    "src/lib/inline-block-move.js",
+    "src/hooks/use-inline-block-drag.js"
+  ],
+  "unit": {
+    "total": 653,
+    "pass": 652,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-block-safety-unit-final.log"
+  },
+  "browserDepth": {
+    "passRecords": 2,
+    "viewports": [
+      [
+        1024,
+        844
+      ],
+      [
+        1440,
+        400
+      ]
+    ],
+    "log": "/tmp/rollapp-relocation-depth-browser-held.log",
+    "nativePointer": true,
+    "distantTargetScroll": "Playwright scrollIntoViewIfNeeded while native drag held"
+  },
+  "otherChecks": {
+    "status": "passed",
+    "session": 72168,
+    "positiveDrag": "/tmp/rollapp-block-safety-positive-drag.log",
+    "dragGuards": "/tmp/rollapp-block-safety-drag-guards.log",
+    "nesting": "/tmp/rollapp-block-safety-nesting.log",
+    "modEnter": "/tmp/rollapp-block-safety-mod-enter.log",
+    "lastCommandExitCode": 0,
+    "passRecords": {
+      "positiveDrag": 2,
+      "dragGuards": 1,
+      "nesting": 8,
+      "modEnter": 8
+    },
+    "sourceDrift": [],
+    "finishedAt": "2026-10-18T15:49:43.016381+00:00"
+  },
+  "uiBuild": {
+    "status": "passed",
+    "session": 64562,
+    "exitCode": 0,
+    "uiLog": "/tmp/rollapp-block-safety-ui.log",
+    "buildLog": "/tmp/rollapp-block-safety-build.log",
+    "buildWarning": "existing chunk >500KB"
+  },
+  "previousFixtureAttempts": [
+    "/tmp/rollapp-relocation-depth-browser.log: mobile hover handle deliberately hidden; not a native mobile drag proof",
+    "/tmp/rollapp-relocation-depth-browser-desktop.log: dragTo across distant target produced zero native dragstart; changed harness to held native pointer with explicit scroll"
+  ],
+  "productionDataWrites": false,
+  "promoted": true,
+  "promotedAt": "2026-10-18T16:17:21.116279+00:00",
+  "mainCombinedTargets": {
+    "status": "passed",
+    "exitCode": 0,
+    "browserPassRecords": {
+      "tableHandles": 9,
+      "axisGuards": 2,
+      "currentAction": 8,
+      "relocationDepth": 2
+    },
+    "totalBrowserPassRecords": 21,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "unit": {
+      "total": 656,
+      "pass": 655,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "passed (37 primitives;69 JSX)",
+    "controls": {
+      "passRecords": 132,
+      "fontServingDenials": 0,
+      "fullWidthMatrix": true,
+      "DPR3": true
+    },
+    "logs": {
+      "tableHandles": "/tmp/rollapp-table-main-targets.log",
+      "axisGuards": "/tmp/rollapp-table-main-guards.log",
+      "currentAction": "/tmp/rollapp-current-action-main-targets.log",
+      "relocationDepth": "/tmp/rollapp-relocation-depth-main-targets.log"
+    },
+    "finishedAt": "2026-10-18T16:20:54.297082+00:00"
+  }
+}

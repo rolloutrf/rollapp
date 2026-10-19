@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "productionDataWrites": false,
+  "deployment": false,
+  "sourceSnapshot": "/tmp/rollapp-native-collapse-final-sources.json",
+  "sourceCount": 587,
+  "comprehensive": {
+    "status": "failed",
+    "session": 56434,
+    "expectedEditorPassRecords": 159,
+    "log": "/tmp/rollapp-native-collapse-comprehensive-final.log",
+    "report": "/tmp/rollapp-native-collapse-comprehensive-final.json",
+    "exitCode": 1,
+    "editorPassRecords": 159,
+    "sourceCount": 587,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T15:05:51.204664+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "passed",
+        "startedAt": "2026-10-18T14:30:37.077Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:03:50.194Z",
+        "durationMs": 1993113
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-10-18T15:03:50.196Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:04:25.198Z",
+        "durationMs": 35000
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-10-18T15:04:25.198Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:05:03.758Z",
+        "durationMs": 38559
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "failed",
+        "startedAt": "2026-10-18T15:05:03.758Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T15:05:51.063Z",
+        "durationMs": 47305
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ]
+  },
+  "scope": "Synchronous native visual caret collapse after palette keyboard focus",
+  "before": {
+    "fullAuditSession": 64616,
+    "status": "failed",
+    "editorPassRecords": 42,
+    "sourceDrift": false,
+    "reproduction": "/tmp/rollapp-text-style-focus-before.log",
+    "trace": "/tmp/rollapp-style-focus-native-before-390.json",
+    "timingSkewedProbe": "/tmp/rollapp-text-style-focus-detailed.log; passes without fix and is not considered repair"
+  },
+  "fix": "Use browser Selection.modify for plain Left/Right nonempty TextSelection, synchronize collapsed model immediately; retain native visual bidi/grapheme behaviour and guards.",
+  "checks": {
+    "unit": {
+      "total": 627,
+      "pass": 626,
+      "skip": 1,
+      "log": "/tmp/rollapp-native-collapse-unit-final.log"
+    },
+    "styles": {
+      "pass": 10,
+      "log": "/tmp/rollapp-native-collapse-styles.log"
+    },
+    "nativeReference": {
+      "pass": 2,
+      "comparisons": 32,
+      "log": "/tmp/rollapp-native-caret-reference.log"
+    }
+  },
+  "failedFixtureAudit": {
+    "session": 84157,
+    "status": "failed",
+    "cause": "CellSelection guard unit fixture used createAndFill table with empty row; replaced by explicit row/cell. Runtime guards unchanged.",
+    "snapshot": "/tmp/rollapp-native-collapse-unit-fixture-sources.json"
+  },
+  "goalStatus": "active; R1–R10 not complete",
+  "isolatedWork": {
+    "crossAnswerMoves": "5 unit tests pass; UI prototype pending; not promoted",
+    "longAnswerPacking": "2 unit scenarios and 8 browser dimensions pass; not promoted; current main rejects 33 plain blocks as >30 legacy array entries"
+  },
+  "liveCaret": {
+    "collapsed": true,
+    "visibleToolbar": false,
+    "htmlUnchanged": true,
+    "status": "saved",
+    "productionDataWrites": false
+  },
+  "newOpenFinding": {
+    "scope": "first offscreen text selection, collapse, scroll, select again",
+    "liveScroll": 432,
+    "selectionTop": 310,
+    "toolbarTop": 678,
+    "expectedToolbarTop": 246,
+    "isolatedReproductionLog": "/tmp/rollapp-first-offscreen-before.log",
+    "isolatedFixLog": "/tmp/rollapp-first-offscreen-fixed.log",
+    "fix": "CSS computed position fixed before upstream absolute initialization can affect first measurement",
+    "promoted": false
+  }
+}

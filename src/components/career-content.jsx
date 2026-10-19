@@ -5,6 +5,7 @@ import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { MarkdownDocument } from "@/components/life-strategy";
+import { InlineDocument } from "@/components/inline-document";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
@@ -17,12 +18,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import {
-  addLifeStrategyPeriod, getLifeStrategyPeriods, removeLifeStrategyPeriod, replaceLifeStrategyPeriod,
-  setLifeStrategyChecklistItem,
-} from "@/lib/life-strategy";
+
 
 export function useCareerContent(section, fallbackContent, scope = "career") {
+  const access = useSphereSharing();
   const fallbackRef = useRef(fallbackContent);
   const [requestVersion, setRequestVersion] = useState(0);
   const [state, setState] = useState({
@@ -35,6 +34,7 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
   useEffect(() => {
     let current = true;
     setState((value) => ({ ...value, error: "", loading: true }));
+    if (access.loading) return () => { current = false; };
     api.get(`/${scope}/content/${encodeURIComponent(section)}`).then((result) => {
       if (!current) return;
       setState({
@@ -47,9 +47,10 @@ export function useCareerContent(section, fallbackContent, scope = "career") {
       if (current) setState((value) => ({ ...value, error: error.message, loading: false }));
     });
     return () => { current = false; };
-  }, [requestVersion, scope, section]);
+  }, [requestVersion, scope, section, access.owner?.id, access.loading]);
 
   const save = async (content) => {
+    if (access.readOnly || access.loading || access.error) throw new Error("Этот раздел сейчас недоступен для редактирования.");
     if (state.loading || state.error) {
       throw new Error("Дождитесь загрузки сохранённого содержимого. При ошибке загрузки нажмите «Повторить».");
     }
@@ -323,131 +324,20 @@ function LifeStrategyPeriodCreator({ onOpenChange, onSave, open }) {
 
 export function EditableMarkdownDocument({
   className = "", collapsibleAges = false, collapsibleStrategies = false,
-  hideSourceLabels = false, label, scope = "career", section, showActionLabel = false, source,
+  hideSourceLabels = false, label, scope = "career", section, source,
 }) {
-  const { readOnly } = useSphereSharing();
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [periodCreatorOpen, setPeriodCreatorOpen] = useState(false);
-  const [periodEditorId, setPeriodEditorId] = useState(null);
-  const [deletingPeriod, setDeletingPeriod] = useState(false);
-  const [taskContent, setTaskContent] = useState(null);
-  const [taskSaving, setTaskSaving] = useState(false);
-  const [taskError, setTaskError] = useState("");
+  const sharing = useSphereSharing();
   const careerContent = useCareerContent(section, source, scope);
   const content = typeof careerContent.content === "string" ? careerContent.content : source;
-  const renderedContent = taskContent ?? content;
-  const periods = collapsibleAges ? getLifeStrategyPeriods(renderedContent) : [];
-  const editingPeriod = periods.find((period) => period.id === periodEditorId) || null;
-
-  useEffect(() => {
-    setTaskContent(null);
-  }, [content]);
-
-  const editPeriod = (title) => {
-    const period = periods.find((item) => item.title === title);
-    if (period) setPeriodEditorId(period.id);
-  };
-
-  const savePeriod = async (draft) => {
-    if (!editingPeriod) throw new Error("Период жизненной стратегии не найден");
-    return careerContent.save(replaceLifeStrategyPeriod(content, editingPeriod.id, draft));
-  };
-
-  const createPeriod = ({ age, content: periodContent }) => (
-    careerContent.save(addLifeStrategyPeriod(content, age, periodContent))
-  );
-
-  const removePeriod = async () => {
-    if (!editingPeriod) throw new Error("Период жизненной стратегии не найден");
-    setDeletingPeriod(true);
-    try {
-      await careerContent.save(removeLifeStrategyPeriod(content, editingPeriod.id));
-    } finally {
-      setDeletingPeriod(false);
-    }
-  };
-
-  const toggleTask = async (lineIndex, checked) => {
-    if (readOnly || taskSaving || careerContent.loading || careerContent.error) return;
-    let nextContent;
-    try {
-      nextContent = setLifeStrategyChecklistItem(renderedContent, lineIndex, checked);
-    } catch (error) {
-      setTaskError(error.message);
-      return;
-    }
-    setTaskContent(nextContent);
-    setTaskSaving(true);
-    setTaskError("");
-    try {
-      await careerContent.save(nextContent);
-    } catch (error) {
-      setTaskContent(null);
-      setTaskError(error.message);
-    } finally {
-      setTaskSaving(false);
-    }
-  };
-
-  return (
-    <div className="sphere-text-page page-stack">
-      <CareerEditAction
-        sphereId={scope}
-        icon={collapsibleAges ? Plus : undefined}
-        label={collapsibleAges ? "Добавить" : "Редактировать"}
-        loading={careerContent.loading}
-        showLabel={collapsibleAges || showActionLabel}
-        onClick={() => collapsibleAges ? setPeriodCreatorOpen(true) : setEditorOpen(true)}
-      />
-      <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
-      {taskError && (
-        <Alert className="not-typeset rollapp-body" variant="destructive">
-          <AlertTriangle aria-hidden="true" />
-          <AlertTitle>Не удалось сохранить отметку</AlertTitle>
-          <AlertDescription>{taskError}</AlertDescription>
-        </Alert>
-      )}
-      <MarkdownDocument
-        source={renderedContent}
-        label={label}
-        className={className}
-        collapsibleAges={collapsibleAges}
-        collapsibleStrategies={collapsibleStrategies}
-        ageEditDisabled={careerContent.loading || deletingPeriod || taskSaving || Boolean(careerContent.error)}
-        hideSourceLabels={hideSourceLabels}
-        onEditAge={collapsibleAges && !readOnly ? editPeriod : undefined}
-        onTaskCheckedChange={readOnly ? undefined : toggleTask}
-        taskDisabled={readOnly || careerContent.loading || Boolean(careerContent.error)}
-        taskReadOnly={taskSaving || deletingPeriod}
-      />
-      {collapsibleAges ? (
-        <LifeStrategyPeriodCreator
-          open={periodCreatorOpen}
-          onOpenChange={setPeriodCreatorOpen}
-          onSave={createPeriod}
-        />
-      ) : (
-        <MarkdownEditorDrawer
-          content={content}
-          label={label}
-          open={editorOpen}
-          onOpenChange={setEditorOpen}
-          onSave={careerContent.save}
-        />
-      )}
-      <MarkdownEditorDrawer
-        content={editingPeriod?.content || ""}
-        label={editingPeriod ? `Период ${editingPeriod.title}` : "Период жизни"}
-        open={Boolean(editingPeriod)}
-        onOpenChange={(open) => {
-          if (!open) setPeriodEditorId(null);
-        }}
-        deleteLabel="Удалить период"
-        deleteTitle={`Удалить период ${editingPeriod?.title}?`}
-        deleteDescription="Период и всё его содержимое будут удалены без возможности восстановления."
-        onDelete={readOnly ? undefined : removePeriod}
-        onSave={savePeriod}
-      />
-    </div>
-  );
+  return <div className="sphere-text-page page-stack">
+    <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
+    {careerContent.loading && <span className="not-typeset text-muted-foreground" role="status">Загружаем…</span>}
+    {!careerContent.loading && !careerContent.error && (sharing.readOnly
+      ? <MarkdownDocument source={content} label={label} className={className} collapsibleAges={collapsibleAges} collapsibleStrategies={collapsibleStrategies} hideSourceLabels={hideSourceLabels} />
+      : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`} scope={scope}
+        value={content} onSave={careerContent.save} label={label} className={className}
+        disabled={sharing.loading || Boolean(sharing.error)}
+        addBlock={collapsibleAges ? [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Новый период" }] }, { type: "paragraph" }] : undefined}
+      />)}
+  </div>;
 }

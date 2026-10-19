@@ -47,13 +47,51 @@ export function scheduleError({ dueOn, startTime, durationMinutes = 60 }) {
 }
 export function calendarTaskSchedule(task) {
   return task.dueOn && !task.startTime
-    ? { ...task, startTime: "00:00", durationMinutes: 1440 }
+    ? { ...task, startTime: "00:00", durationMinutes: 30 }
     : task;
+}
+
+// Allocate display slots per date without changing stored tasks or explicit times.
+export function calendarTaskSchedules(tasks) {
+  const occupied = new Map();
+  for (const task of tasks) {
+    const start = timeMinutes(task.startTime);
+    if (!task.dueOn || start === null) continue;
+    if (!occupied.has(task.dueOn)) occupied.set(task.dueOn, []);
+    occupied.get(task.dueOn).push([start, start + (task.durationMinutes || 60)]);
+  }
+  return tasks.map((task) => {
+    if (!task.dueOn || task.startTime) return task;
+    const intervals = occupied.get(task.dueOn) || [];
+    for (let start = 0; start <= 1410; start += 30) {
+      if (intervals.some(([from, to]) => start < to && start + 30 > from)) continue;
+      intervals.push([start, start + 30]);
+      occupied.set(task.dueOn, intervals);
+      return { ...task, startTime: minutesTime(start), durationMinutes: 30 };
+    }
+    return task;
+  });
+}
+
+// Choose the next free slot for a newly created timed task. Existing schedules
+// remain unchanged, including appointments that overlap each other.
+export function nextCalendarTaskStart(tasks, date, durationMinutes = 30) {
+  const intervals = tasks.filter((task) => task.dueOn === date).map((task) => {
+    const start = timeMinutes(task.startTime);
+    return start === null ? null : [start, start + (task.durationMinutes || 60)];
+  }).filter(Boolean);
+  for (let start = 9 * 60; start + durationMinutes <= 1440; start += 30) {
+    if (intervals.every(([from, to]) => start >= to || start + durationMinutes <= from)) return minutesTime(start);
+  }
+  for (let start = 0; start < 9 * 60 && start + durationMinutes <= 1440; start += 30) {
+    if (intervals.every(([from, to]) => start >= to || start + durationMinutes <= from)) return minutesTime(start);
+  }
+  return null;
 }
 
 export function taskTimeLabel(task) {
   const start = timeMinutes(task.startTime);
-  return start === null ? (task.dueOn ? "00:00–24:00" : "Без времени") : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
+  return start === null ? "Без времени" : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
 }
 export function sortCalendarTasks(tasks) {
   return [...tasks].sort((a, b) => (a.dueOn || "9999").localeCompare(b.dueOn || "9999")

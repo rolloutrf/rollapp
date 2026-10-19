@@ -40,15 +40,15 @@ test("plain sphere pages share one centered content rail", async () => {
     "Four-question answers must not introduce a second text measure",
   );
   assert.match(styles, /\.sphere-text-page\s*\{[^}]*padding-block:\s*0;/su, "The page shell must own the ending space without nested padding");
-  assert.match(
+  assert.doesNotMatch(
     fourQuestions,
-    /className="four-questions__list m-0 list-none p-0"/u,
-    "Four questions must reset the prose list inset",
+    /<(?:ol|li)\b/u,
+    "The unified four-question document must not add a prose list inset",
   );
   assert.match(
     fourQuestions,
-    /className="four-question p-0"/u,
-    "Four-question rows must not inherit prose list-item padding",
+    /<FourQuestionRichEditor\b/u,
+    "Four-question content must use the shared document editor",
   );
   assert.match(
     developmentPlan,

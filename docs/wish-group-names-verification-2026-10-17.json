@@ -1,0 +1,91 @@
+{
+  "status": "failed",
+  "startedAt": "2026-10-17T09:26:01.413Z",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "failed",
+      "startedAt": "2026-10-17T09:26:01.457Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-17T09:30:49.603Z",
+      "durationMs": 288145
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-10-17T09:30:49.604Z",
+  "targetedWishGroupCheck": {
+    "command": "node scripts/wish-group-names-smoke.mjs",
+    "status": "passed",
+    "scenarios": 16,
+    "widths": [
+      320,
+      390,
+      767,
+      768,
+      820,
+      1024,
+      1440,
+      1920
+    ],
+    "modes": [
+      "owner",
+      "readonly"
+    ],
+    "screenshots": "/tmp/rollapp-wish-groups-{width}-{owner|readonly}.png"
+  },
+  "limitation": "Concurrent unrelated dirty-workspace edits; check:release stopped on text-edit-smoke.mjs:77 timeout. Remaining comprehensive stages not run. Targeted Wishlist matrix passed separately.",
+  "separateBuild": {
+    "command": "npm run build",
+    "status": "passed",
+    "exitCode": 0
+  },
+  "completedReleaseSteps": [
+    "test:unit (500 passed, 1 skipped)",
+    "test:ui",
+    "test:controls",
+    "test:details",
+    "test:dates",
+    "test:form-actions"
+  ],
+  "liveUi": {
+    "origin": "http://127.0.0.1:5172",
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "productionApi": true,
+    "mutations": false,
+    "status": "passed"
+  }
+}

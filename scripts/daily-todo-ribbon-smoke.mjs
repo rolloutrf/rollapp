@@ -134,4 +134,36 @@ try{
  await page.waitForURL(url=>!url.searchParams.has('date')&&!url.searchParams.has('formScreen'));
  assert.deepEqual(errors,[]);await page.close();
  console.log('PASS today shorthand: omitted date URL preserves the selected day in a new task');
+ for(const width of [390,1440]){
+  const page=await browser.newPage({viewport:{width,height:844}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
+  await page.goto('http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17&slots');
+  await page.locator('.daily-todo__item').first().waitFor();
+  for(const [title,time] of [['Без часа A','00:00'],['Без часа B','00:30'],['Утром','09:00']]){
+   const row=page.getByRole('button',{name:`Редактировать задачу: ${title}`,exact:true});
+   assert.equal(await row.locator('.daily-todo__time').textContent(),time,`To Do time disagrees with the calendar slot for ${title}`);
+  }
+  await page.getByRole('button',{name:'Редактировать задачу: Без часа A',exact:true}).click();
+  assert.equal(JSON.parse(await page.locator('[data-edited-task]').textContent()).startTime,'','Editing persisted a display-only time');
+  const gap=await page.locator('.daily-todo__group').evaluateAll(groups=>groups[1].getBoundingClientRect().top-groups[0].getBoundingClientRect().bottom);
+  assert.equal(gap,0,'Completed tasks retain an extra group gap');
+  await page.locator('.daily-todo__task').first().hover();
+  const background=await page.locator('.daily-todo__task').first().evaluate(node=>getComputedStyle(node).backgroundColor);
+  assert(['transparent','rgba(0, 0, 0, 0)'].includes(background),`Task hover has a background: ${background}`);
+  if(width<768){
+   await page.getByRole('button',{name:'Добавить задачу',exact:true}).click();
+   const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
+   assert.equal(await screen.getByLabel('Начало').inputValue(),'12:00','New mobile task did not take the next free slot');
+   assert.equal(await screen.getByLabel('Длительность, минут').inputValue(),'30','New mobile task does not occupy one half-hour slot');
+  }else{
+   await page.getByRole('textbox',{name:'Новая задача на этот день'}).fill('Следующая');
+   await page.locator('.daily-todo__composer').evaluate(form=>form.requestSubmit());
+   const saved=JSON.parse(await page.locator('[data-saved-task]').textContent());
+   assert.equal(saved.startTime,'12:00','New desktop task did not take the next free slot');
+   assert.equal(saved.durationMinutes,30,'New desktop task does not occupy one half-hour slot');
+  }
+  assert.deepEqual(errors,[]);await page.close();
+  console.log(`PASS ${width}x844: no group gap or row hover, consecutive task slots`);
+ }
 }finally{await browser.close();await server.close();}

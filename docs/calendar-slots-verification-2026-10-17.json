@@ -1,0 +1,66 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-17T06:34:43.756Z",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:34:43.793Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:39:07.008Z",
+      "durationMs": 263214
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:39:07.009Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:39:41.254Z",
+      "durationMs": 34245
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:39:41.255Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:40:17.809Z",
+      "durationMs": 36554
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:40:17.810Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:40:38.659Z",
+      "durationMs": 20849
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:40:38.659Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:41:50.447Z",
+      "durationMs": 71787
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:41:50.447Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:42:04.597Z",
+      "durationMs": 14149
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-17T06:42:04.598Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T06:46:05.041Z",
+      "durationMs": 240443
+    }
+  ],
+  "finishedAt": "2026-10-17T06:46:05.041Z"
+}

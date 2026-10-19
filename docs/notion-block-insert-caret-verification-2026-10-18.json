@@ -1,0 +1,329 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "previousTurn": "progress: native capture promoted after63compatibility, main native2 and live no-write check",
+  "currentTurn": "progress: reproduced hidden insertion caret; isolated focus/reveal and font settlement/cancel fix; found staged slash regression before promotion",
+  "promoted": true,
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-insert-ownership-unb4lkz3",
+  "baseline": {
+    "exitCode": 1,
+    "log": "/tmp/rollapp-insert-ownership-before.log",
+    "viewport": "390x400",
+    "caretTop": 4.5,
+    "headerBottom": 56,
+    "head": 9,
+    "native": 9
+  },
+  "initialFix": {
+    "fractionalClearanceFailure": "top63.5 vs minimum64;outward scroll rounding added",
+    "cases": 2,
+    "exitCode": 0,
+    "log": "/tmp/rollapp-insert-ownership-fixed2.log"
+  },
+  "fontCounterexample": {
+    "log": "/tmp/rollapp-insert-ownership-native-trace.log",
+    "fontsInitially": "loading",
+    "initialCaretHeight": 21,
+    "finalCaretHeight": 23,
+    "finalBottom": 772.125,
+    "allowedBottom": 772,
+    "fixedTrace": "/tmp/rollapp-insert-ownership-font-fixed-trace.log",
+    "fixedBottom": 771.125,
+    "followupScroll": 1,
+    "status": "fixed in isolated633;8 real delayed-font/cancel cases passed"
+  },
+  "fixtureFindings": [
+    "initial table whitespace click did not prove table ownership;now verify actual table text and ancestor chain",
+    "font selection-cancel assertion sampled model before native click settled;now wait2frames and assert new DOM/model caret before font release",
+    "initial unit5 fixture API failures updated with fake view.focus;all683 tests now682PASS/1SKIP"
+  ],
+  "candidateSnapshot": "/tmp/rollapp-insert-ownership-final-sources.json",
+  "candidate": {
+    "unit": {
+      "total": 683,
+      "passed": 682,
+      "skipped": 1,
+      "failed": 0,
+      "log": "/tmp/rollapp-insert-ownership-final-unit.log",
+      "exitCode": 0
+    },
+    "ui": {
+      "status": "passed",
+      "primitives": 37,
+      "jsxSources": 72,
+      "log": "/tmp/rollapp-insert-ownership-final-ui.log",
+      "exitCode": 0
+    },
+    "build": {
+      "status": "passed",
+      "log": "/tmp/rollapp-insert-ownership-final-build.log",
+      "exitCode": 0
+    },
+    "newMatrix": {
+      "status": "passed",
+      "exitCode": 0,
+      "session": 99956,
+      "records": 8,
+      "viewports": [
+        "320x844",
+        "390x844",
+        "390x400",
+        "768x844",
+        "820x844",
+        "1024x844",
+        "1440x400",
+        "1920x844"
+      ],
+      "subcases": 64,
+      "fontGuardCases": 8,
+      "sourceDrift": [],
+      "log": "/tmp/rollapp-insert-ownership-final-matrix3.log"
+    },
+    "compatibility": {
+      "status": "passed",
+      "session": 64557,
+      "expectedRecords": 90,
+      "log": "/tmp/rollapp-insert-ownership-compatibility2.log",
+      "report": "/tmp/rollapp-insert-ownership-compatibility2.json",
+      "results": [
+        {
+          "flag": "--basic-blocks-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--slash-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--block-menu-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--caret-scroll-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--plain-caret-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--table-insert-caret-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--native-caret-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--styles-only",
+          "exitCode": 0,
+          "expected": 10,
+          "records": 10
+        },
+        {
+          "flag": "--four-document-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--columns-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--first-selection-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--cut-history-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        }
+      ],
+      "records": 90,
+      "sourceDrift": [],
+      "addedSources": [],
+      "sourceCount": 633,
+      "finishedAt": "2026-10-18T21:06:03.714695+00:00",
+      "exitCode": 0
+    },
+    "previousMatrix": {
+      "status": "failed",
+      "session": 97605,
+      "expectedRecords": 8,
+      "subcases": 64,
+      "fontGuardModes": [
+        "settle",
+        "wheel",
+        "selection",
+        "access"
+      ],
+      "fontGuardViewports": [
+        "390x400",
+        "1440x400"
+      ],
+      "log": "/tmp/rollapp-insert-ownership-final-matrix2.log",
+      "exitCode": 1,
+      "cause": "desktop locator matched gutter+ and menu action;scoped to actual block-action dialog"
+    },
+    "previousCompatibility": {
+      "status": "failed",
+      "exitCode": 1,
+      "records": 0,
+      "sourceDrift": [],
+      "addedSources": [],
+      "log": "/tmp/rollapp-insert-ownership-compatibility.log",
+      "report": "/tmp/rollapp-insert-ownership-compatibility.json",
+      "cause": "real scoped slash transaction view has no focus API;runtimeTypeError;requires staged no-op plus real owner focus/reveal at successful commit"
+    }
+  },
+  "mainFull": {
+    "status": "failed",
+    "session": 27645,
+    "rootPid": 99570,
+    "expectedEditorRecords": 303,
+    "snapshot": "/tmp/rollapp-native-capture-main-full-sources.json",
+    "log": "/tmp/rollapp-native-capture-main-full.log",
+    "exitCode": 1,
+    "editorPassRecords": 142,
+    "sourceCount": 632,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T20:56:23.463205+00:00",
+    "failure": "wide table edge-scroll did not reveal R0C4 with48px drop clearance;standalone main control50192 running"
+  },
+  "futureFullExpectedEditorRecords": 311,
+  "production": {
+    "devPid": 22680,
+    "status": "healthy;kept running",
+    "testDataWrites": 0,
+    "schemaMutations": 0,
+    "deploy": false
+  },
+  "unverified": [
+    "final staged slash integration and its compatibility",
+    "new candidate full matrix terminal",
+    "promotion and future main311 full audit",
+    "remaining R1-R10 requirements and hardware IME/devices"
+  ],
+  "mainWideControl": {
+    "status": "failed",
+    "session": 50192,
+    "expectedRecords": 2,
+    "log": "/tmp/rollapp-native-capture-main-wide-control.log",
+    "exitCode": 1,
+    "records": 0,
+    "cause": "same R0C4 edge-scroll wait"
+  },
+  "proposedDiff": "/tmp/rollapp-insert-ownership-proposed.diff",
+  "proposedPaths": "/tmp/rollapp-insert-ownership-proposed-paths.json",
+  "proposedFileCount": 7,
+  "combined": {
+    "status": "passed",
+    "session": 14352,
+    "expectedRecords": 63,
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh",
+    "snapshot": "/tmp/rollapp-text-authoring-combined-sources.json",
+    "log": "/tmp/rollapp-text-authoring-combined.log",
+    "report": "/tmp/rollapp-text-authoring-combined.json",
+    "proposedDiff": "/tmp/rollapp-text-authoring-combined-proposed.diff",
+    "proposedFileCount": 10,
+    "records": 63,
+    "results": [
+      {
+        "flag": "--insert-ownership-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--table-wide-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-handles-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-axis-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-chrome-only",
+        "exitCode": 0,
+        "expected": 10,
+        "records": 10
+      },
+      {
+        "flag": "--table-growth-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-growth-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-growth-contexts-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--block-menu-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      }
+    ],
+    "sourceDrift": [],
+    "addedSources": [],
+    "sourceCount": 633,
+    "finishedAt": "2026-10-18T21:15:26.918345+00:00"
+  },
+  "promotedViaCombined": "docs/notion-text-authoring-combined-verification-2026-10-19.json"
+}

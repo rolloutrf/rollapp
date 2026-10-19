@@ -1,0 +1,100 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-17T16:57:15.550Z",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed",
+      "startedAt": "2026-10-17T16:57:15.601Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:02:44.350Z",
+      "durationMs": 328748
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:02:44.350Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:03:18.822Z",
+      "durationMs": 34472
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:03:18.823Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:03:59.089Z",
+      "durationMs": 40266
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:03:59.089Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:04:21.405Z",
+      "durationMs": 22315
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:04:21.406Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:05:33.498Z",
+      "durationMs": 72092
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:05:33.498Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:05:48.130Z",
+      "durationMs": 14632
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:05:48.130Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:06:05.784Z",
+      "durationMs": 17654
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-17T17:06:05.784Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-17T17:10:07.804Z",
+      "durationMs": 242020
+    }
+  ],
+  "finishedAt": "2026-10-17T17:10:07.805Z",
+  "postComprehensiveChecks": [
+    {
+      "name": "test:text-edit",
+      "status": "passed",
+      "matrix": "320,390,768,820,1024,1440,1920 x 844; 390 x 400",
+      "log": "/tmp/rollapp-inline-text-verified.log"
+    },
+    {
+      "name": "build",
+      "status": "passed",
+      "log": "/tmp/rollapp-inline-build-verified.log"
+    },
+    {
+      "name": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "finalSourceSha256": {
+    "src/components/inline-rich-text-editor.jsx": "df921d2919e44ca2ead6d1b04b7e43271b0c23300c8750cf36591c5fbb73f481",
+    "src/components/inline-editor.css": "c4af249c6b526dd95cd9a035af373cfe49df59434626dce4510e76359496b787",
+    "src/components/inline-document.jsx": "2b90b3e5a5d96fa8e824c34550e95d240cd9352dd14679f1c0bbbd26e0021181",
+    "src/components/inline-text-field.jsx": "247827b2499bb86f3fb29ccdb1837d0b58d370d84ed884b4ba1ceb5b4bef6779",
+    "src/hooks/use-inline-autosave.js": "5131b1f07140f56751aca5c3a7dabab9c48f7768d338ecd6ee39f6821dc2727c",
+    "src/lib/inline-editor-extensions.js": "844738150bd35e23c0ce689f5c166000de0a5c7a10016df7fe3255130f0f02b3",
+    "scripts/text-edit-smoke.mjs": "b7355bc39fbea8d0b79708d7a8ed47c5af07c3e70e79348cbfd1f4158c73b1a9"
+  }
+}

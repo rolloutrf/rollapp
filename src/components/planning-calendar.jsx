@@ -1,5 +1,5 @@
 import { ControlBar } from "@/components/control-bar";
-import { calendarTaskSchedule } from "../../shared/planning-calendar.js";
+import { calendarTaskSchedules } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
@@ -54,7 +54,7 @@ function EventButton({ task, compact = false, style, onResize }) {
 function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
   return <section className="planning-agenda schedule-agenda" aria-label={`Задачи на ${label(date)}`}>
     {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3><Button variant="ghost" size="icon" aria-label={`Добавить задачу на ${label(date)}`} onClick={() => onCreate({ dueOn: date })}><Plus /></Button></header>}
-    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span><EventPreview task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span></EventPreview></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
+    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><EventPreview task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span></EventPreview><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
   </section>;
 }
 
@@ -118,6 +118,10 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   };
   const rendered = preview?.id ? tasks.map((task) => task.id === preview.id ? { ...task, durationMinutes: preview.durationMinutes } : task) : tasks;
   return <ScrollArea ref={scroll} className="schedule-timeline" aria-label="Расписание по времени">
+    {tasks.some((task) => dates.includes(task.dueOn) && !task.startTime) && <section className="flex flex-col gap-2 p-4" aria-label="Задачи без свободного получасового слота">
+      <p className="schedule-caption">Нет свободного получасового слота</p>
+      {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <EventPreview key={task.id} task={task}>{label(task.dueOn)} · {task.title}</EventPreview>)}
+    </section>}
     <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={() => { gesture.current = null; setPreview(null); }}>
       <div className="schedule-timegrid__head">
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
@@ -141,7 +145,7 @@ function allowDrop(event) {
 }
 
 export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
-  const tasks = sourceTasks.map(calendarTaskSchedule);
+  const tasks = sourceTasks;
   const [search, setSearch] = useSearchParams();
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
@@ -155,21 +159,22 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     saving.current = true; setBusy(true);
     try {
       await onSave(task.id, { startTime: task.startTime, durationMinutes: task.durationMinutes, ...patch }, { quiet: true });
-      const previous = Object.fromEntries(Object.keys(patch).map((key) => [key, task[key] ?? ""]));
+      const original = sourceTasks.find((item) => item.id === task.id) || task;
+      const previous = Object.fromEntries([...new Set(["startTime", "durationMinutes", ...Object.keys(patch)])].map((key) => [key, original[key] ?? (key === "durationMinutes" ? 60 : "")]));
       toast.success("Расписание обновлено", { action: { label: "Отменить", onClick: () => onSave(task.id, previous).catch((error) => toast.error(error.message)) } });
     } catch (error) { toast.error(error.message); }
     finally { saving.current = false; setBusy(false); }
   };
   const dropTask = (event, date, minute, preserveTime = false) => {
     event.preventDefault(); event.stopPropagation();
-    const task = tasks.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
+    const task = visible.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
     if (task && !task.recurrence && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
   };
   const dates = view === "year" ? [`${selected.slice(0, 4)}-01-01`, `${selected.slice(0, 4)}-12-31`]
     : view === "week" ? calendarWeek(selected)
     : view === "day" ? [selected]
     : calendarDays(dateFromKey(selected)).map(localDateKey);
-  const visible = sortCalendarTasks(expandRecurringTasks(tasks, dates[0], dates.at(-1)));
+  const visible = sortCalendarTasks(calendarTaskSchedules(expandRecurringTasks(tasks, dates[0], dates.at(-1))));
   const dayTasks = visible.filter((task) => task.dueOn === selected);
   const month = selected.slice(0, 7);
   const listed = visible.filter((task) => task.dueOn?.startsWith(month));
@@ -199,7 +204,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
           <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
             return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button></div>;
-          })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} />}</TabsContent>
+          })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} heading={false} />}</TabsContent>
           {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} />}</TabsContent>)}
           <TabsContent value="year" className="schedule-year-panel"><div className="schedule-year">{Array.from({ length: 12 }, (_, index) => <MiniMonth key={index} month={`${selected.slice(0, 4)}-${String(index + 1).padStart(2, "0")}-01`} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} onOpenMonth={(date) => navigate(date, "month")} />)}</div></TabsContent>
           <TabsContent value="list" className="schedule-list-panel">{listContent}</TabsContent>

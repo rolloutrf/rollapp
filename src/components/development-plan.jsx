@@ -1,10 +1,12 @@
-import { useEffect, useId, useState } from "react";
-import { AlertTriangle, Pencil, Plus, X } from "lucide-react";
+import { InlineTextField } from "@/components/inline-text-field";
+import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
+import { useEffect, useId, useMemo, useState } from "react";
+import { AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
-  CareerContentError, CareerEditAction, MarkdownEditorDrawer, useCareerContent,
+  CareerContentError, useCareerContent,
 } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -141,7 +143,7 @@ function EntryEditor({ initialValue = "", onDelete, onOpenChange, onSave, open }
   );
 }
 
-function EntryList({ disabled, items, onAdd, onEdit, readOnly, title }) {
+function EntryList({ disabled, items, onAdd, onChange, onBlur, autoFocusIndex, readOnly, title }) {
   return (
     <section className="development-plan-editor__list-section">
       <header className="development-plan-editor__list-header">
@@ -155,19 +157,9 @@ function EntryList({ disabled, items, onAdd, onEdit, readOnly, title }) {
       {items.length ? (
         <ul className="not-typeset development-plan-editor__list">
           {items.map((entry, index) => (
-            <li key={`${index}-${entry}`}>
-              <span>{entry}</span>
-              {!readOnly && (
-                <div className="not-typeset development-plan-editor__item-actions">
-                  <CareerIconAction
-                    disabled={disabled}
-                    label={`Редактировать пункт ${index + 1}`}
-                    onClick={() => onEdit(index)}
-                  >
-                    <Pencil aria-hidden="true" />
-                  </CareerIconAction>
-                </div>
-              )}
+            <li key={index}>
+              <InlineTextField singleLine autoFocus={autoFocusIndex === index} value={entry} label={`${title}: пункт ${index + 1}`} disabled={disabled || readOnly}
+                onChange={value => onChange(index, value)} onBlur={onBlur} />
             </li>
           ))}
         </ul>
@@ -179,50 +171,29 @@ function EntryList({ disabled, items, onAdd, onEdit, readOnly, title }) {
 }
 
 export function DevelopmentPlan() {
-  const { readOnly } = useSphereSharing();
-  const [editor, setEditor] = useState(null);
-  const [wholeEditorOpen, setWholeEditorOpen] = useState(false);
+  const sharing = useSphereSharing();
+  const readOnly = sharing.readOnly || sharing.loading || Boolean(sharing.error);
+  const [focusedEntry, setFocusedEntry] = useState(null);
   const [movingItem, setMovingItem] = useState("");
   const careerContent = useCareerContent("development", DEVELOPMENT_PLAN_SOURCE);
   const content = typeof careerContent.content === "string" ? careerContent.content : DEVELOPMENT_PLAN_SOURCE;
-  const plan = parseDevelopmentPlanMarkdown(content);
-  const editingEntry = editor?.entryIndex === undefined
-    ? ""
-    : plan.groups[editor.groupIndex]?.items[editor.itemIndex]?.[editor.listKey]?.[editor.entryIndex] || "";
-
-  const savePlan = (groups) => careerContent.save(serializeDevelopmentPlanMarkdown({ groups }));
-
-  const saveEntry = async (value) => {
-    if (!editor) return;
-    const groups = plan.groups.map((group, groupIndex) => groupIndex !== editor.groupIndex ? group : {
-      ...group,
-      items: group.items.map((item, itemIndex) => {
-        if (itemIndex !== editor.itemIndex) return item;
-        const entries = item[editor.listKey];
-        return {
-          ...item,
-          [editor.listKey]: editor.entryIndex === undefined
-            ? [...entries, value]
-            : entries.map((entry, entryIndex) => entryIndex === editor.entryIndex ? value : entry),
-        };
-      }),
-    });
-    await savePlan(groups);
-    toast.success(editor.entryIndex === undefined ? "Пункт добавлен" : "Пункт обновлён");
-  };
-
-  const removeEntry = async () => {
-    if (!editor || editor.entryIndex === undefined) return;
-    const groups = plan.groups.map((group, groupIndex) => groupIndex !== editor.groupIndex ? group : {
-      ...group,
-      items: group.items.map((item, itemIndex) => itemIndex !== editor.itemIndex ? item : {
-        ...item,
-        [editor.listKey]: item[editor.listKey]
-          .filter((_, entryIndex) => entryIndex !== editor.entryIndex),
-      }),
-    });
-    await savePlan(groups);
-    toast.success("Пункт удалён");
+  const unavailable = readOnly || careerContent.loading || Boolean(careerContent.error);
+  const initialPlan = useMemo(() => parseDevelopmentPlanMarkdown(content), [content]);
+  const autosave = useDocumentDraft(initialPlan, async next => {
+    if (next.groups.some(group => !group.title.trim() || group.items.some(item => !item.title.trim()))) {
+      throw new Error("Названия групп и блоков не могут быть пустыми. Черновик сохранён.");
+    }
+    await careerContent.save(serializeDevelopmentPlanMarkdown(next));
+  }, "career:development", !unavailable);
+  const plan = autosave.draft;
+  const updatePlan = (change) => autosave.change(current => {
+    const next = structuredClone(current);
+    change(next);
+    return next;
+  });
+  const savePlan = async (groups) => {
+    autosave.change({ groups });
+    if (!await autosave.flush()) throw new Error("Не удалось сохранить изменения. Черновик сохранён на странице.");
   };
 
   const moveItem = async (fromGroupIndex, itemIndex, targetGroup) => {
@@ -242,35 +213,34 @@ export function DevelopmentPlan() {
   };
 
   const listProps = (groupIndex, itemIndex, listKey) => ({
-    disabled: careerContent.loading,
+    disabled: unavailable,
     readOnly,
-    onAdd: () => setEditor({ groupIndex, itemIndex, listKey }),
-    onEdit: (entryIndex) => setEditor({ groupIndex, itemIndex, listKey, entryIndex }),
+    onBlur: autosave.flush,
+    onChange: (entryIndex, value) => updatePlan(next => { next.groups[groupIndex].items[itemIndex][listKey][entryIndex] = value; }),
+    autoFocusIndex: focusedEntry?.groupIndex === groupIndex && focusedEntry?.itemIndex === itemIndex && focusedEntry?.listKey === listKey ? focusedEntry.entryIndex : undefined,
+    onAdd: () => {
+      setFocusedEntry({ groupIndex, itemIndex, listKey, entryIndex: plan.groups[groupIndex].items[itemIndex][listKey].length });
+      updatePlan(next => { next.groups[groupIndex].items[itemIndex][listKey].push(""); });
+    },
   });
 
   return (
     <div className="sphere-text-page page-stack">
-      <CareerEditAction
-        label="Редактировать"
-        loading={careerContent.loading}
-        showLabel
-        onClick={() => setWholeEditorOpen(true)}
-      />
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
       <article className="development-plan-editor typeset-document rollapp-body" aria-label="Индивидуальный план развития">
         {plan.groups.map((group, groupIndex) => (
-          <section className="development-plan-editor__group" key={`${groupIndex}-${group.title}`}>
+          <section className="development-plan-editor__group" key={groupIndex}>
             <header className="development-plan-editor__group-header">
-              <h2>{group.title}</h2>
-              {group.intro && <p>{group.intro}</p>}
+              <h2><InlineTextField singleLine value={group.title} label="Название группы" disabled={unavailable} onBlur={autosave.flush} onChange={value => updatePlan(next => { next.groups[groupIndex].title = value; })} /></h2>
+              <p><InlineTextField value={group.intro} label="Описание группы" disabled={unavailable} onBlur={autosave.flush} onChange={value => updatePlan(next => { next.groups[groupIndex].intro = value; })} /></p>
             </header>
             <div className="development-plan-editor__cards">
               {group.items.map((item, itemIndex) => (
-                <section className="development-plan-editor__card" key={`${itemIndex}-${item.title}`}>
+                <section className="development-plan-editor__card" key={itemIndex}>
                   <header className="development-plan-editor__card-header">
                     <div className="development-plan-editor__card-title-row">
-                      <h3>{item.title}</h3>
+                      <h3><InlineTextField singleLine value={item.title} label="Название блока" disabled={unavailable} onBlur={autosave.flush} onChange={value => updatePlan(next => { next.groups[groupIndex].items[itemIndex].title = value; })} /></h3>
                       {!readOnly && (
                         <div className="development-plan-editor__category-field">
                           <Select
@@ -304,7 +274,7 @@ export function DevelopmentPlan() {
                         </div>
                       )}
                     </div>
-                    {item.summary && <p>{item.summary}</p>}
+                    <p><InlineTextField value={item.summary} label="Описание блока" disabled={unavailable} onBlur={autosave.flush} onChange={value => updatePlan(next => { next.groups[groupIndex].items[itemIndex].summary = value; })} /></p>
                   </header>
                   <EntryList
                     {...listProps(groupIndex, itemIndex, "approach")}
@@ -322,27 +292,8 @@ export function DevelopmentPlan() {
           </section>
         ))}
       </article>
+      {!unavailable && <InlineSaveStatus autosave={autosave} />}
 
-      {!readOnly && (
-        <EntryEditor
-          initialValue={editingEntry}
-          open={Boolean(editor)}
-          onOpenChange={(open) => {
-            if (!open) setEditor(null);
-          }}
-          onDelete={editor?.entryIndex === undefined ? undefined : removeEntry}
-          onSave={saveEntry}
-        />
-      )}
-      {!readOnly && (
-        <MarkdownEditorDrawer
-          content={content}
-          label="Индивидуальный план развития"
-          open={wholeEditorOpen}
-          onOpenChange={setWholeEditorOpen}
-          onSave={careerContent.save}
-        />
-      )}
     </div>
   );
 }

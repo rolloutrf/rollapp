@@ -1,6 +1,6 @@
 const GROUP_HEADING_PATTERN = /^##\s+(.+)$/u;
 const SECTION_HEADING_PATTERN = /^###\s+(.+)$/u;
-const LIST_ITEM_PATTERN = /^-\s+(.+)$/u;
+const LIST_ITEM_PATTERN = /^-\s+(.*)$/u;
 
 function cleanBlock(lines) {
   return lines.join("\n").trim();

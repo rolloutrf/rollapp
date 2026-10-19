@@ -32,3 +32,10 @@ test("development plan moves a complete item between categories", () => {
   assert.deepEqual(moved.groups[1].items[0].approach, ["Первый пункт.", "Второй пункт."]);
   assert.deepEqual(moved.groups[1].items[0].actions, ["Первое действие."]);
 });
+
+test("inline empty list blocks survive saving while a new entry is being written", () => {
+  const source = "## Группа\n\n### Блок\n\n### Подход\n\n- \n- Существующий пункт\n\n### Действия\n\n- Действие\n";
+  const plan = parseDevelopmentPlanMarkdown(source);
+  assert.deepEqual(plan.groups[0].items[0].approach, ["", "Существующий пункт"]);
+  assert.deepEqual(parseDevelopmentPlanMarkdown(serializeDevelopmentPlanMarkdown(plan)), plan);
+});

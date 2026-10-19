@@ -1,0 +1,297 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T11:52:10.848559+00:00",
+  "classification": "progress",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "main": {
+    "sourceCount": 646,
+    "defaultEditorRecords": 375,
+    "latestPromotion": "/tmp/rollapp-image-core-portal-main-promotion.json",
+    "comprehensive": {
+      "status": "running",
+      "rootPid": 14636,
+      "startedAt": "2026-10-19T11:39:33.904837+00:00",
+      "expectedEditorRecords": 375,
+      "expectedComprehensiveStages": 9,
+      "sourceCount": 646,
+      "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "dirty": true,
+      "dirtyPathCount": 357,
+      "log": "/tmp/rollapp-image-core-portal-main-full.log",
+      "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
+    },
+    "frozen": true
+  },
+  "candidate": {
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-intent-05g15b0_",
+    "sourceCount": 649,
+    "defaultEditorRecords": 383,
+    "promoted": false,
+    "unitTotal": 723,
+    "unitPass": 722,
+    "unitSkip": 1,
+    "gates": "/tmp/rollapp-link-intent-final-gates.json",
+    "snapshot": "/tmp/rollapp-link-intent-final-gates-sources.json",
+    "session": 25217,
+    "observed": {
+      "status": "running",
+      "sourceCount": 649,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-final-gates-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-final-gates-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-final-gates-build.log"
+        },
+        {
+          "name": "links",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-link-intent-final-gates-links.log"
+        }
+      ],
+      "expectedNativeRecords": 26,
+      "startedAt": "2026-10-19T11:49:41.666348+00:00",
+      "active": {
+        "name": "styles",
+        "pid": 18710,
+        "log": "/tmp/rollapp-link-intent-final-gates-styles.log"
+      }
+    },
+    "phase1Observed": {
+      "status": "passed",
+      "sourceCount": 649,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-gates-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-gates-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-link-intent-gates-build.log"
+        },
+        {
+          "name": "links",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-link-intent-gates-links.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-link-intent-gates-styles.log"
+        },
+        {
+          "name": "selection",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-link-intent-gates-selection.log"
+        }
+      ],
+      "expectedNativeRecords": 26,
+      "startedAt": "2026-10-19T11:42:51.086677+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:47:38.210210+00:00"
+    },
+    "phase1TerminalCode": 0,
+    "phase1Backup": "/tmp/rollapp-link-intent-phase1-backup/manifest.json",
+    "needsFreshGatesAfterFollowUp": true
+  },
+  "before": {
+    "probe": "/tmp/rollapp-link-intent-probe.mjs",
+    "result": {
+      "results": [
+        {
+          "name": "link-at-empty-caret",
+          "actual": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "blockColor": null
+                  }
+                }
+              ]
+            },
+            "storedMarks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.test/new",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer nofollow",
+                  "class": null,
+                  "title": null
+                }
+              }
+            ],
+            "text": "",
+            "links": 0
+          },
+          "pass": false
+        },
+        {
+          "name": "link-after-source-replacement",
+          "panelStayedOpen": true,
+          "actual": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "blockColor": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Remote replacement"
+                    }
+                  ]
+                }
+              ]
+            },
+            "storedMarks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.test/original",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer nofollow",
+                  "class": null,
+                  "title": null
+                }
+              }
+            ]
+          },
+          "pass": false
+        }
+      ],
+      "errors": []
+    },
+    "browser": "Chrome native keys, not Safari",
+    "productionAPIRequests": 0,
+    "productionWrites": 0
+  },
+  "implementation": [
+    "Capture target independently from portalled form focus. Existing link caret expands its full mark.",
+    "Map edits outside text without including boundary insertions. Source replacement, changes inside target, explicit selection and access invalidate stale action.",
+    "Insert a visible linked URL at an unlinked caret in one history event; preserve nonlink marks and avoid stored-link poison.",
+    "Existing rich link attrs and sparse block owners remain independent; protected wrappers use current transaction filters.",
+    "Commit checks source, selection, editable and composition state both before and after focus.",
+    "Portal Save regression now uses a raw external insert without artificial selection change, then applies address and asserts only original text becomes linked."
+  ],
+  "verificationNotes": {
+    "firstUnitRun": "723 total,721PASS/1FAIL/1SKIP; new external-append fixture used insertText, which explicitly moves selection at its boundary. Changed only fixture to raw transaction.insert to model an outside edit; explicit-selection cancellation remains separately asserted.",
+    "secondUnitRun": "723 total,722PASS/1SKIP/0FAIL",
+    "native8": "PASS, all eight viewports, no frames/API/errors",
+    "styles10AndSelection8": "running",
+    "mainIntegrity": "646 sources/10 extra inputs stable at 2026-10-19T11:44Z; reports excluded from runtime snapshot",
+    "phase1Native": "26/26 PASS, no drift, unit723/722PASS/1SKIP, UI37/74/buildPASS before composition/dismiss follow-up"
+  },
+  "reference": {
+    "url": "https://www.notion.com/help/keyboard-shortcuts",
+    "verified": "Official help describes Cmd/Ctrl+K with selected text.",
+    "unverified": "Exact behavior at an empty caret has not been directly compared to Notion; visible insertion is an intentional Rollapp improvement, not proof of identity."
+  },
+  "next": [
+    "Finish phase2 native26 gates with source/extra hashes; do not attribute phase1 PASS to phase2.",
+    "If phase2 passes, run the full383 editor on this exact isolated649 snapshot before promotion; preserve main646 while its comprehensive9 is running.",
+    "Review final old/new/tested hashes and six-path diff; never promote temporary realpath/fs runner adaptation or hidden fixture host.",
+    "Keep R1–R10 and exact empty-caret Notion / actual-device IME / image edge semantics open."
+  ],
+  "compositionGuardProbe": {
+    "script": "/tmp/rollapp-link-composition-probe.mjs",
+    "before": [
+      {
+        "name": "open-during-editor-composition",
+        "transport": "explicit synthetic events, not physical IME",
+        "composing": true,
+        "panelVisible": false
+      },
+      {
+        "name": "escape-during-link-input-composition",
+        "transport": "explicit synthetic composing key",
+        "panelVisible": false
+      }
+    ],
+    "interpretation": "Editor composition already suppresses opening. Composing Escape in the link input closes the form; this is an explicit synthetic guard counterexample, not actual-device IME.",
+    "followUpStaged": "/tmp/rollapp-link-ime-followup",
+    "applied": true
+  },
+  "dismissalCounterexample": {
+    "probe": "/tmp/rollapp-link-dismiss-probe.mjs",
+    "before": [
+      {
+        "name": "outside-native-click",
+        "formsVisible": 1,
+        "firstUnchanged": true,
+        "activeLabel": "Второй документ"
+      },
+      {
+        "name": "other-editor-link",
+        "formsVisible": 2
+      }
+    ],
+    "fix": "Owner form ref with outside pointer/focus retirement; never apply pending URL or restore previous editor focus.",
+    "nativeRegression": "Added both pointer/focus outside actions, unchanged two docs, destination focus and exactly one next link form to all eight viewports.",
+    "transport": "Actual Chrome click/focus/keyboard, API blocked; not physical iOS.",
+    "fixtureCleanup": {
+      "pid": 17911,
+      "session": 27362,
+      "terminalCode": 143,
+      "exactArgvVerified": true
+    }
+  },
+  "preparedReview": {
+    "sourceProposal": "/tmp/rollapp-link-intent-proposed.json",
+    "contractProposal": "/tmp/rollapp-link-intent-contracts-proposed.json",
+    "diff": "/tmp/rollapp-link-intent-proposed.diff",
+    "reviewedDiffLines": 355,
+    "sourceTestPaths": 6,
+    "newFiles": 3,
+    "contracts": 3,
+    "temporaryRunnerFsAdaptationRemoved": true,
+    "promoted": false,
+    "requiresTerminalVerification": true
+  }
+}

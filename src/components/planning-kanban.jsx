@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { MarkdownDocument } from "@/components/life-strategy";
 import { localDateKey, planningMarkdown } from "../../shared/planning.js";
 
+const previewTransform = (x, y, width) => `translate3d(${Math.max(8, Math.min(x + 16, window.innerWidth - width - 8))}px, ${Math.max(8, Math.min(y + 16, window.innerHeight - 64))}px, 0)`;
 const formatDate = (value) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${value}T12:00:00`));
 function CardTitle({ text }) {
   return text.split(/(\*\*[^*]+\*\*|`[^`]+`|~~[^~]+~~|#[\p{L}\p{N}_/-]+)/gu).map((part, index) => {
@@ -47,7 +48,7 @@ function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
     }} />
     {!compact && <Textarea aria-label="Описание карточки" placeholder="Описание · Markdown и чек-листы" rows={4} maxLength={5000} value={description} disabled={busy} onChange={(event) => setDescription(event.target.value)} />}
     {error && <p className="kanban-error" role="alert">{error}</p>}
-    <div className="flex items-center gap-2"><Button type="submit" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить"}</Button><Button variant="ghost" size="icon" type="button" disabled={busy} onClick={onCancel} aria-label="Отменить ввод"><X /></Button></div>
+    <div className="flex items-center gap-2"><Button type="submit" className="min-w-0 flex-1" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить"}</Button><Button variant="ghost" size="icon" type="button" disabled={busy} onClick={onCancel} aria-label="Отменить ввод"><X /></Button></div>
     {compact && <span className="kanban-caption">Enter — добавить · Shift+Enter — новая строка</span>}
   </form>;
 }
@@ -66,7 +67,7 @@ function ColumnComposer({ initial = "", onSave, onCancel, busy }) {
   }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) onCancel(); }}>
     <Input ref={input} aria-label="Название списка" placeholder="Название списка" value={title} maxLength={100} disabled={busy} onChange={(event) => setTitle(event.target.value)} />
     {error && <p className="kanban-error" role="alert">{error}</p>}
-    <div className="flex gap-2"><Button type="submit" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить список"}</Button><Button type="button" size="icon" variant="ghost" aria-label="Отменить список" disabled={busy} onClick={onCancel}><X /></Button></div>
+    <div className="flex gap-2"><Button type="submit" className="min-w-0 flex-1" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить список"}</Button><Button type="button" size="icon" variant="ghost" aria-label="Отменить список" disabled={busy} onClick={onCancel}><X /></Button></div>
   </form>;
 }
 
@@ -92,10 +93,17 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     observer.observe(toolbar);
     return () => observer.disconnect();
   }, []);
+  const dragSession = useRef(null);
+  const dragFrame = useRef(null);
+  const dragPreviewRef = useRef(null);
   const pointer = useRef(null);
   const pointerCleanup = useRef(null);
   const suppressClick = useRef(false);
-  useEffect(() => () => pointerCleanup.current?.(), []);
+  useEffect(() => () => {
+    pointerCleanup.current?.();
+    cancelAnimationFrame(dragFrame.current);
+    dragSession.current = null;
+  }, []);
   const run = async (operation) => {
     if (busyRef.current) throw new Error("Дождитесь сохранения предыдущего изменения");
     busyRef.current = true; setBusy(true);
@@ -115,19 +123,33 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     onTasksChange(result.tasks); onColumnsChange(result.columns); setAnnouncement("Положение карточки сохранено");
   };
   const visibleTasks = tasks.filter((task) => task.archived === archive);
-  const stopDrag = () => { setDrag(null); setDrop(null); };
+  const stopDrag = () => {
+    cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = null;
+    dragSession.current = null;
+    setDrag(null); setDrop(null);
+  };
   const targetAt = (x, y, source) => {
+    const board = boardRef.current;
     const element = document.elementFromPoint(x, y);
-    if (!element || !boardRef.current?.contains(element)) return null;
+    if (!source || !element || !board?.contains(element)) return null;
+    if (source.kind === "column") {
+      // Columns have different heights. Their horizontal insertion positions
+      // cover the whole board, including gaps, empty space and the trailing rail.
+      const lists = [...board.querySelectorAll("[data-kanban-column]")]
+        .filter((list) => list.dataset.kanbanColumn !== source.id);
+      const next = lists.find((list) => {
+        const bounds = list.getBoundingClientRect();
+        return mobile ? y < bounds.top + bounds.height / 2 : x < bounds.left + bounds.width / 2;
+      });
+      const beforeId = next?.dataset.kanbanColumn || null;
+      const index = columns.findIndex((column) => column.id === source.id);
+      if (index < 0 || beforeId === (columns[index + 1]?.id || null)) return null;
+      return { beforeId };
+    }
     const list = element.closest("[data-kanban-column]");
     if (!list) return null;
     const columnId = list.dataset.kanbanColumn;
-    if (source.kind === "column") {
-      const bounds = list.getBoundingClientRect();
-      const index = columns.findIndex((column) => column.id === columnId);
-      const after = mobile ? y > bounds.top + bounds.height / 2 : x > bounds.left + bounds.width / 2;
-      return { columnId, beforeId: after ? columns[index + 1]?.id || null : columnId };
-    }
     const card = element.closest("[data-kanban-card]");
     let beforeId = card?.dataset.kanbanCard || null;
     if (card && y > card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2) {
@@ -136,52 +158,98 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     }
     return { columnId, beforeId };
   };
+  const updateDrag = (x, y) => {
+    const session = dragSession.current;
+    if (!session) return;
+    session.point = { x, y };
+    const preview = dragPreviewRef.current;
+    if (preview) preview.style.transform = previewTransform(x, y, preview.offsetWidth);
+    session.target = targetAt(x, y, session.source);
+    setDrop((previous) => previous?.beforeId === session.target?.beforeId && previous?.columnId === session.target?.columnId ? previous : session.target);
+  };
+  const startDrag = (source, x, y) => {
+    stopDrag();
+    const session = { source, point: { x, y }, target: null };
+    dragSession.current = session;
+    const width = source.kind === "column" ? Math.min(boardRef.current.querySelector("[data-kanban-column]").offsetWidth, window.innerWidth - 16) : 0;
+    setDrag({ ...source, preview: width ? { width, x, y } : null });
+    let previousTime;
+    const frame = (time) => {
+      if (dragSession.current !== session) return;
+      const elapsed = Math.min(time - (previousTime ?? time), 32);
+      previousTime = time;
+      const board = boardRef.current;
+      const point = session.point;
+      if (board && point && board.contains(document.elementFromPoint(point.x, point.y))) {
+        const bounds = board.getBoundingClientRect();
+        const speed = (position, start, end) => position < start + 48
+          ? -Math.min(1, (start + 48 - position) / 48)
+          : position > end - 48 ? Math.min(1, (position - end + 48) / 48) : 0;
+        const left = board.scrollLeft, top = board.scrollTop;
+        // Keep scrolling even when the cursor is held still at an edge. Resolve
+        // the insertion position again after scrolling moves columns underneath.
+        if (!mobile) board.scrollLeft += speed(point.x, bounds.left, bounds.right) * elapsed * 0.9;
+        board.scrollTop += speed(point.y, bounds.top, bounds.bottom) * elapsed * 0.9;
+        if (left !== board.scrollLeft || top !== board.scrollTop) updateDrag(point.x, point.y);
+      }
+      dragFrame.current = requestAnimationFrame(frame);
+    };
+    dragFrame.current = requestAnimationFrame(frame);
+    updateDrag(x, y);
+  };
   const finishDrop = (source, target) => {
     stopDrag();
-    if (!source || !target) return;
-    if (source.kind === "column") { if (source.id !== target.beforeId) act(() => moveColumn(source.id, target.beforeId)); }
-    else if (source.id !== target.beforeId) act(() => moveTask(source.id, target.columnId, target.beforeId));
+    if (!source || !target || busyRef.current) return;
+    if (source.kind === "column") {
+      const index = columns.findIndex((column) => column.id === source.id);
+      if (index >= 0 && source.id !== target.beforeId && target.beforeId !== (columns[index + 1]?.id || null)) act(() => moveColumn(source.id, target.beforeId));
+    } else if (source.id !== target.beforeId) act(() => moveTask(source.id, target.columnId, target.beforeId));
   };
   const nativeDrag = (event, kind, id) => {
-    if (busy || archive) { event.preventDefault(); return; }
+    if (busyRef.current || archive || pointer.current) { event.preventDefault(); return; }
     event.stopPropagation();
     event.dataTransfer.setData("application/x-rollapp-kanban", JSON.stringify({ kind, id }));
     event.dataTransfer.effectAllowed = "move";
-    setDrag({ kind, id });
+    startDrag({ kind, id }, event.clientX, event.clientY);
   };
   // A dedicated handle keeps normal touch scrolling available on the rest of a card.
-  const touchDrag = (event, kind, id) => {
-    if (event.pointerType === "mouse" || busy || archive) return;
+  const pointerDrag = (event, kind, id) => {
+    if ((kind === "task" && event.pointerType === "mouse") || !event.isPrimary || event.button !== 0 || busyRef.current || archive) return;
     event.preventDefault();
+    pointerCleanup.current?.();
     const source = { kind, id };
-    const state = { id: event.pointerId, source, x: event.clientX, y: event.clientY, target: null, active: false };
+    const state = { id: event.pointerId, x: event.clientX, y: event.clientY, active: false };
     pointer.current = state;
     const capture = event.currentTarget;
     capture.setPointerCapture(event.pointerId);
     const move = (next) => {
       if (next.pointerId !== state.id) return;
       if (!state.active && Math.hypot(next.clientX - state.x, next.clientY - state.y) < 8) return;
-      state.active = true; setDrag(source); suppressClick.current = true;
-      const board = boardRef.current;
-      const bounds = board?.getBoundingClientRect();
-      if (bounds) {
-        const delta = next.clientX < bounds.left + 40 ? -24 : next.clientX > bounds.right - 40 ? 24 : 0;
-        board.scrollLeft += delta;
-        board.scrollTop += next.clientY < bounds.top + 48 ? -24 : next.clientY > bounds.bottom - 40 ? 24 : 0;
-      }
-      state.target = targetAt(next.clientX, next.clientY, source); setDrop(state.target);
+      if (!state.active) { state.active = true; startDrag(source, next.clientX, next.clientY); }
+      suppressClick.current = true;
+      updateDrag(next.clientX, next.clientY);
     };
     const clean = () => {
-      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("keydown", keydown); window.removeEventListener("blur", cancel);
       if (capture.hasPointerCapture(state.id)) capture.releasePointerCapture(state.id);
       pointer.current = null; pointerCleanup.current = null;
       setTimeout(() => { suppressClick.current = false; }, 0);
     };
-    const up = (next) => { if (next.pointerId !== state.id) return; clean(); if (state.active) finishDrop(source, state.target); };
-    const cancel = () => { clean(); stopDrag(); };
-    pointerCleanup.current?.(); pointerCleanup.current = cancel;
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", cancel);
+    const up = (next) => {
+      if (next.pointerId !== state.id) return;
+      const target = state.active ? targetAt(next.clientX, next.clientY, source) : null;
+      clean();
+      if (state.active) finishDrop(source, target);
+    };
+    const cancel = (next) => { if (next?.pointerId != null && next.pointerId !== state.id) return; clean(); stopDrag(); };
+    const keydown = (next) => { if (next.key === "Escape") cancel(); };
+    pointerCleanup.current = cancel;
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", cancel); window.addEventListener("keydown", keydown); window.addEventListener("blur", cancel);
   };
+  useEffect(() => {
+    pointerCleanup.current?.();
+    stopDrag();
+  }, [mobile, archive, columns]);
   const exportBoard = () => {
     const url = URL.createObjectURL(new Blob([planningMarkdown(columns, tasks)], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "Планирование.md"; link.click();
@@ -213,7 +281,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
       }} />}
       <div className="kanban-card__footer" data-has-date={Boolean(task.dueOn) || undefined}>
         {task.dueOn && <span className="kanban-card__date" data-overdue={!task.completed && task.dueOn < localDateKey(new Date()) || undefined}><CalendarDays className="size-4" />{formatDate(task.dueOn)}</span>}
-        {!archive && <Button variant="ghost" size="icon" className="kanban-drag-handle" aria-label={`Перетащить карточку ${task.title}`} title="Перетащите карточку или используйте её меню" disabled={busy} draggable onDragStart={(event) => nativeDrag(event, "task", task.id)} onPointerDown={(event) => touchDrag(event, "task", task.id)}><GripVertical /></Button>}
+        {!archive && <Button variant="ghost" size="icon" className="kanban-drag-handle" aria-label={`Перетащить карточку ${task.title}`} title="Перетащите карточку или используйте её меню" disabled={busy} draggable onDragStart={(event) => nativeDrag(event, "task", task.id)} onPointerDown={(event) => pointerDrag(event, "task", task.id)}><GripVertical /></Button>}
       </div>
     </article>;
   };
@@ -225,21 +293,28 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
       </div>
     </ControlBar>
     <span role="status" className="sr-only">{announcement}</span>
+    {drag?.kind === "column" && drag.preview && <div ref={dragPreviewRef} className="kanban-column-drag-preview" aria-hidden="true" style={{ width: drag.preview.width, transform: previewTransform(drag.preview.x, drag.preview.y, drag.preview.width) }}><GripVertical /><span>{columns.find((column) => column.id === drag.id)?.title}</span></div>}
     {archive ? <section className="kanban-archive" aria-label="Архив карточек">{visibleTasks.length ? visibleTasks.map(cardView) : <p className="kanban-empty">В архиве пока нет карточек</p>}</section> : <div ref={boardRef} className="planning-board" aria-label="Kanban-доска" onDragOver={(event) => {
-      if (!drag || !event.dataTransfer.types.includes("application/x-rollapp-kanban")) return;
-      event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDrop(targetAt(event.clientX, event.clientY, drag));
-      const bounds = boardRef.current.getBoundingClientRect();
-      if (event.clientX > bounds.right - 40) boardRef.current.scrollLeft += 20;
-      if (event.clientX < bounds.left + 40) boardRef.current.scrollLeft -= 20;
-      if (event.clientY > bounds.bottom - 40) boardRef.current.scrollTop += 20;
-      if (event.clientY < bounds.top + 48) boardRef.current.scrollTop -= 20;
-    }} onDrop={(event) => { event.preventDefault(); finishDrop(drag, targetAt(event.clientX, event.clientY, drag)); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDrop(null); }}>
+      if (!dragSession.current || !event.dataTransfer.types.includes("application/x-rollapp-kanban")) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = "move";
+      updateDrag(event.clientX, event.clientY);
+    }} onDrop={(event) => {
+      const source = dragSession.current?.source;
+      if (!source || !event.dataTransfer.types.includes("application/x-rollapp-kanban")) return;
+      event.preventDefault();
+      finishDrop(source, targetAt(event.clientX, event.clientY, source));
+    }} onDragLeave={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        if (dragSession.current) dragSession.current.point = null;
+        setDrop(null);
+      }
+    }}>
       {columns.map((column, columnIndex) => {
         const columnTasks = visibleTasks.filter((task) => task.columnId === column.id);
         const total = tasks.filter((task) => task.columnId === column.id && !task.archived).length;
         return <section className="planning-column" key={column.id} data-kanban-column={column.id} data-status={column.id} data-collapsed={column.collapsed || undefined} data-dragging={drag?.kind === "column" && drag.id === column.id || undefined} data-drop-column={drag?.kind === "column" && drop?.beforeId === column.id || undefined} aria-label={column.title}>
           {renaming === column.id ? <ColumnComposer initial={column.title} busy={busy} onCancel={() => setRenaming(null)} onSave={(title) => run(async () => { await patchColumn(column.id, { title }); setRenaming(null); })} /> : <header className="planning-column__header">
-            <Button variant="ghost" size="icon" className="kanban-drag-handle" aria-label={`Перетащить список ${column.title}`} disabled={busy} draggable onDragStart={(event) => nativeDrag(event, "column", column.id)} onDragEnd={stopDrag} onPointerDown={(event) => touchDrag(event, "column", column.id)}><GripVertical /></Button>
+            <Button variant="ghost" size="icon" className="kanban-drag-handle" aria-label={`Перетащить список ${column.title}`} disabled={busy} draggable={false} onPointerDown={(event) => pointerDrag(event, "column", column.id)}><GripVertical /></Button>
             <Button variant="ghost" className="planning-column__title" onClick={() => act(() => patchColumn(column.id, { collapsed: !column.collapsed }))} disabled={busy} aria-expanded={!column.collapsed}>{column.collapsed ? <ChevronRight /> : <ChevronDown />}<span>{column.title}</span>{column.complete && <Check className="size-4" />}</Button><Badge variant="secondary">{total}</Badge>
             <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon" disabled={busy} />} aria-label={`Меню списка ${column.title}`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent className="rollapp-body min-w-56" align="end">
               <DropdownMenuItem onClick={() => setRenaming(column.id)}><Pencil />Переименовать</DropdownMenuItem>
@@ -247,7 +322,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
               <DropdownMenuItem disabled={columnIndex === 0} onClick={() => act(() => moveColumn(column.id, columns[columnIndex - 1].id))}>{mobile ? <ArrowUp /> : <ArrowLeft />}{mobile ? "Сдвинуть выше" : "Сдвинуть влево"}</DropdownMenuItem>
               <DropdownMenuItem disabled={columnIndex === columns.length - 1} onClick={() => act(() => moveColumn(column.id, columns[columnIndex + 2]?.id || null))}>{mobile ? <ArrowDown /> : <ArrowRight />}{mobile ? "Сдвинуть ниже" : "Сдвинуть вправо"}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={columns.length === 1 || tasks.some((task) => task.columnId === column.id)} onClick={() => act(async () => { const result = await api.delete(`columns/${column.id}`); onColumnsChange(result.columns); })}><Trash2 />Удалить пустой список</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" className="app-destructive-menu-item" disabled={columns.length === 1 || tasks.some((task) => task.columnId === column.id)} onClick={() => act(async () => { const result = await api.delete(`columns/${column.id}`); onColumnsChange(result.columns); })}><Trash2 />Удалить пустой список</DropdownMenuItem>
             </DropdownMenuContent></DropdownMenu>
           </header>}
           {!column.collapsed && <>
@@ -259,7 +334,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
           </>}
         </section>;
       })}
-      <div className="kanban-new-column">{addingColumn ? <ColumnComposer busy={busy} onCancel={() => setAddingColumn(false)} onSave={(title) => run(async () => { const result = await api.post("columns", { title }); onColumnsChange(result.columns); setAddingColumn(false); })} /> : <Button variant="ghost" className="kanban-new-column__button" disabled={busy} onClick={() => setAddingColumn(true)}><Plus />Добавить список</Button>}</div>
+      <div className="kanban-new-column" data-drop-column-end={drag?.kind === "column" && drop && drop.beforeId === null || undefined}>{addingColumn ? <ColumnComposer busy={busy} onCancel={() => setAddingColumn(false)} onSave={(title) => run(async () => { const result = await api.post("columns", { title }); onColumnsChange(result.columns); setAddingColumn(false); })} /> : <Button variant="ghost" className="kanban-new-column__button" disabled={busy} onClick={() => setAddingColumn(true)}><Plus />Добавить список</Button>}</div>
     </div>}
   </div>;
 }

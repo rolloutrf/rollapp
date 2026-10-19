@@ -8,7 +8,8 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port: 5198, strictPort: true, hmr: false, watch: null }, plugins: [{
+let port = Number(process.env.FORM_ACTION_PORT ?? 5198);
+const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?form-actions")) return `${source}\nexport { ContactEditForm, ToastContext, WishModal };`;
@@ -23,6 +24,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-form-actions",
   }); },
 }] });
 await server.listen();
+port = server.httpServer.address().port;
 const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
 async function geometry(page) {
   const row = page.locator('[data-native-form-actions]:visible');
@@ -35,6 +37,7 @@ async function geometry(page) {
         const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
         const paint = canvas.getContext("2d"); paint.fillStyle = style.backgroundColor; paint.fillRect(0, 0, 1, 1);
         return { name: button.ariaLabel || button.textContent.trim(), x: box.x, y: box.y, height: box.height, width: box.width,
+          radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius].map(parseFloat),
           opacity: Number(style.opacity), backgroundAlpha: paint.getImageData(0, 0, 1, 1).data[3],
           clipped: button.scrollWidth > button.clientWidth + 1, type: button.type,
           hasForm: !!button.form, hit: button.disabled || button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) };
@@ -47,6 +50,7 @@ async function geometry(page) {
   assert(result.buttons.some(button => button.type === "submit"), "Submit is missing from the shared action row");
   for (const button of result.buttons) {
     assert.equal(button.height, 48, `${button.name}: control size`);
+    assert(button.radii.every(radius => radius >= button.height / 2), `${button.name}: action must have pill/circular corners`);
     assert(Math.abs(button.y - result.y) < 1, `${button.name}: different action row`);
     assert(!button.clipped, `${button.name}: clipped label`);
     assert(button.hit, `${button.name}: action is covered`);
@@ -60,14 +64,66 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,medication-group,conference,coaching-edit").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,medication-group,conference,coaching-edit,principle").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
         // Wish list metadata is a read effect: reject it without replacement.
         // Every mutation is forbidden; no accounts or database records exist here.
         await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
-        await page.goto(`http://127.0.0.1:5198/__form-actions?form=${name}`);
+        await page.goto(`http://127.0.0.1:${port}/__form-actions?form=${name}`);
+        if (name === "contact") {
+          const heading = page.locator('.contact-detail__edit-heading--editable');
+          await heading.waitFor();
+          await page.evaluate(() => document.fonts.ready);
+          const parts = await heading.locator(':scope > *').evaluateAll(elements => elements.map(el => {
+            const r = el.getBoundingClientRect(); return { left: r.left, right: r.right };
+          }));
+          assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar, name and favorite overlap");
+          assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 1);
+          assert.equal(await page.getByRole('button', { name: 'Удалить', exact: true }).count(), 0, "Ambiguous Delete action");
+          const footer = page.locator('.contact-detail__edit-actions');
+          assert.equal(await footer.locator('xpath=ancestor::*[@data-slot="scroll-area-viewport"]').count(), 0, "Contact actions scroll with the fields");
+          if (width >= 768) {
+            const viewport = page.locator('.contact-detail__scroll [data-slot="scroll-area-viewport"]');
+            const before = await footer.boundingBox();
+            const save = await footer.getByRole('button', { name: 'Сохранить', exact: true }).boundingBox();
+            const trash = await footer.getByRole('button', { name: 'Удалить контакт', exact: true }).boundingBox();
+            assert.equal(save.height, 48); assert.equal(trash.height, 48); assert.equal(trash.width, 48);
+            assert.equal(save.y, trash.y, "Desktop contact actions must share one row");
+            assert((await viewport.boundingBox()).y + (await viewport.boundingBox()).height <= before.y + 1, "Contact footer overlaps fields");
+            await viewport.evaluate(el => { el.scrollTop = el.scrollHeight; });
+            assert.equal((await footer.boundingBox()).y, before.y, "Desktop contact footer moves with scroll");
+            await viewport.evaluate(el => { el.scrollTop = 0; });
+          }
+          if ([320, 390, 768, 820, 1024, 1440, 1920].includes(width)) await page.screenshot({ path: `/tmp/rollapp-contact-layout-${width}-${height}.png` });
+        }
+        // Warning colors must survive both neutral footer surfaces and hover.
+        const deleteButtons = page.getByRole("button", { name: /^Удалить/ });
+        for (const button of await deleteButtons.all()) {
+          if (!await button.isVisible()) continue;
+          for (const hover of [false, true]) {
+            if (hover) {
+              await button.hover();
+              await button.evaluate(async el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => {}))));
+            }
+            assert(await button.evaluate(el => {
+              const probe = document.createElement("span");
+              probe.style.color = "var(--destructive)"; el.append(probe);
+              const expected = getComputedStyle(probe).color; probe.remove();
+              return getComputedStyle(el).color === expected;
+            }), `${name}: Delete lost warning color${hover ? " on hover" : ""}`);
+          }
+        }
+        if (name === "task" && [390, 1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-delete-color-${width}.png` });
+        if (name === "task") {
+          await page.getByRole("button", { name: "Удалить всю серию", exact: true }).click();
+          const confirm = page.getByRole("alertdialog").getByRole("button", { name: "Удалить", exact: true });
+          await confirm.waitFor();
+          assert(await confirm.evaluate(el => el.classList.contains("text-destructive")), "Task confirmation must use the warning variant");
+          await page.getByRole("button", { name: "Отмена", exact: true }).click();
+          await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+        }
         if (width < 768) {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
@@ -78,6 +134,18 @@ try {
               await action.evaluate(async button => Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => {}))));
               await geometry(page);
             }
+          }
+          if (name === "principle") {
+            const trash = screen.getByRole("button", { name: "Удалить принцип", exact: true });
+            const box = await trash.boundingBox();
+            assert.equal(box.width, 48, "Principle trash must be a 48px icon control");
+            assert.equal(await trash.textContent(), "", "Principle trash must be icon-only");
+            assert.equal(await trash.locator("svg").count(), 1);
+            await trash.click();
+            await page.getByRole("alertdialog").waitFor();
+            await page.getByRole("button", { name: "Отмена", exact: true }).click();
+            await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+            await geometry(page);
           }
           if (name === "task-new") {
             const save = screen.getByRole("button", { name: "Сохранить", exact: true });
@@ -141,6 +209,21 @@ try {
           assert.equal(keyboard.bottom, 304, "Keyboard/panning must keep the entire row 16px above the visual bottom");
           await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
           assert.equal((await geometry(page)).y, keyboard.y);
+          // Safari can report a changing innerHeight while the fixed
+          // containing block retains its layout height. A bottom-inset anchor
+          // then moves twice. Exercise both pan directions, including a
+          // document scroll event before VisualViewport.scroll is delivered.
+          for (const offset of [0, 80, 40, 0, 40]) {
+            await page.evaluate(offsetTop => {
+              Object.defineProperty(window, "innerHeight", { configurable: true, value: 600 });
+              Object.defineProperty(visualViewport, "offsetTop", { configurable: true, value: offsetTop });
+              window.dispatchEvent(new Event("scroll"));
+            }, offset);
+            const panned = await geometry(page);
+            assert.equal(panned.bottom, offset + 280 - 16, "Keyboard actions must follow the visual top, independent of the layout bottom");
+            assert.equal(await page.locator('[data-native-form-actions]:visible').evaluate(el => parseFloat(getComputedStyle(el).top)), offset + 280 - 16 - 48, "Keyboard row must anchor to the visual top");
+          }
+          await page.evaluate(() => { delete window.innerHeight; });
           await page.evaluate(() => { delete visualViewport.height; delete visualViewport.offsetTop; visualViewport.dispatchEvent(new Event("resize")); });
           await page.waitForFunction(() => !document.documentElement.hasAttribute("data-overlay-keyboard"));
           assert.equal((await geometry(page)).y, before.y);
@@ -150,6 +233,16 @@ try {
         } else {
           await page.locator('[data-slot="drawer-popup"]').waitFor();
           assert.equal(await page.locator('[data-native-form-actions]').count(), 0, "Desktop footer changed to native action row");
+          if (name === "principle") {
+            const trash = page.getByRole("button", { name: "Удалить принцип", exact: true });
+            const box = await trash.boundingBox();
+            const save = await page.getByRole("button", { name: "Сохранить изменения", exact: true }).boundingBox();
+            assert.equal(box.width, 48);
+            assert.equal(box.height, 48);
+            assert(Math.abs(box.y - save.y) < 1, "Desktop principle actions must share one row");
+            assert.equal(await trash.textContent(), "");
+            if (width === 1440) await page.screenshot({ path: "/tmp/rollapp-form-actions-principle-desktop.png" });
+          }
         }
         assert.deepEqual(errors, [], `${name}: browser errors`);
         console.log(`PASS ${width}×${height} ${name}: ${width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
@@ -159,7 +252,7 @@ try {
   }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", route => route.abort());
-  await page.goto("http://127.0.0.1:5198/__form-actions?flow=1");
+  await page.goto(`http://127.0.0.1:${port}/__form-actions?flow=1`);
   await page.getByRole("button", { name: "Открыть группу", exact: true }).click();
   await page.getByRole("button", { name: "Добавить запись", exact: true }).click();
   const screen = page.locator('[data-mobile-form-page]:visible');

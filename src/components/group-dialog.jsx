@@ -1,6 +1,7 @@
 import { Layers3, X } from "lucide-react";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
 import { Button } from "@/components/ui/button";
+import { ControlBar } from "@/components/control-bar";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +20,11 @@ export function GroupDialogHeader({ title, description, actions, busy = false })
         <small className="text-sm text-muted-foreground">{description}</small>
       </div>
     </div>
-    <div className="flex shrink-0 items-center gap-2 [&_[data-slot=button]]:size-12">
+    <ControlBar className="flex shrink-0 items-center gap-2">
       {actions}
-      <DialogClose render={<Button className="size-12 rounded-full" variant="ghost" size="icon" type="button" disabled={busy} />} aria-label="Закрыть группу">
+      <DialogClose render={<Button data-control-icon className="rounded-full bg-card" variant="outline" size="icon" type="button" disabled={busy} />} aria-label="Закрыть группу">
         <X aria-hidden="true" />
       </DialogClose>
-    </div>
+    </ControlBar>
   </header>;
 }

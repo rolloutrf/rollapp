@@ -1,0 +1,227 @@
+{
+  "date": "2026-10-17",
+  "recordedAt": "2026-10-17T18:57:48.477708+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "progress-verified-goal-active",
+  "goalStatus": "active",
+  "previousGoalTurn": "progress",
+  "goalAchieved": false,
+  "completionAudit": "Not achieved: missing or unverified requirements are retained in docs/notion-text-experience.md; no goal-complete/blocked status was sent.",
+  "sourceSha256": {
+    "src/lib/inline-symbol-shortcuts.js": "47678ab1987de478552b98628c6609fbf951681efa2d76cd1bd403bfc5d5bdaa",
+    "src/lib/inline-editor-extensions.js": "31ec6bc46caac3e1f2fc22248a1f1c837f179641eea0cf565a53b9fe437a5ab4",
+    "src/lib/inline-block-types.js": "9f78bb9292cbb5cd1ac9679ae34ba4822f1b4f0a6f2093c43bd6e9110d24e04c",
+    "src/lib/inline-block-nodes.js": "e557c0d549154555aef970fd14e429f04b9860f7d2fb069226a0578aac72d116",
+    "src/lib/inline-blocks.js": "c4d3aac42593ebafc8645b2a8bf7706e692112583c9934b260ea5e7c16f8a72f",
+    "src/components/inline-rich-text-editor.jsx": "0737c775abd63be9079669ba9b3b4aaa5aa8186f0d594c0f0468fc71b22491a2",
+    "src/components/inline-block-controls.jsx": "2d3e3e1831487882cfd308f8afc65204aa995afa2764dd7336fd6c4906ce1adb",
+    "src/components/inline-block-picker.jsx": "431b3c5367f9433f317aa132450a7ef5b248123e1ac2f410e61fef42baad2ef9",
+    "src/typeset.css": "cec91e705c83839c8c3b6495227967873212ecef692d6d9acc61f6ce56cac1b2",
+    "scripts/text-edit-smoke.mjs": "1be094a490bcc1d9542477b17cfae9e1024acade6f9f594b8e5e72df253618af",
+    "scripts/text-symbol-shortcuts-checks.mjs": "2793c043f6a01c374f80db3a437a2d32002f29f59db8477151ed939fe5e58fe1",
+    "scripts/text-basic-blocks-checks.mjs": "4e34ec42a322e814b429396cdbb124791423ee77780405bf96c7f9e6604dd848",
+    "scripts/text-selection-position-checks.mjs": "d470d6377c5ab3dfa0494cef8ae7e67b8b09adfa6578dfad7dd7dd1c0a5c7a0d",
+    "src/lib/inline-symbol-shortcuts.test.js": "5cbb088af2a58599ba37c2a03b503392f3223345b715837acc99b538351ef8c3",
+    "src/lib/inline-editor-extensions.test.js": "5a8d687510adb63a836a178ff1e0ea13d2cf760125f9a864dad0831041e3e94e",
+    "src/lib/inline-blocks.test.js": "74c496dea8004ce6c1bfd56105ccfc89eb74eef2ae23d52c6d1aeb8b124954c0",
+    "docs/notion-text-experience.md": "460e652a4953df2790e30cd0686cb549fb493d8177850c2c5c4544a3bb5f04ca",
+    "docs/inline-editing.md": "21a4bdfd55a6fff83a4ed4938f3b5b8ffeb96aac25382a5cabbe8f2f566e9309",
+    "docs/typography.md": "39367ffac2f6a8565d3098418e8b260c2b4b4f3df4dba0da30931e947fc0af52",
+    "docs/verification.md": "dfebb09597a728967c3543fd1ea69cb1311bd140f40e7ac0049c3813ff44ab25",
+    "AGENTS.md": "077fda05230bc3effc4dc7a90a0c0c027c893ffba10b2dd3717bd580565e42e1"
+  },
+  "changes": [
+    "Typed > creates toggle and typed double quote creates blockquote; stored/pasted Markdown quote semantics unchanged",
+    "a./i. input aliases create ordered lists; explicit alpha/Roman markers survive Markdown and render through case-sensitive data-list-marker selectors",
+    "Shared catalog adds code, divider and 3x3 table with header row",
+    "Divider owns its following editable paragraph, table immediately focuses first cell, code remains literal",
+    "Slash removal + block application are a single undo action; subsequent typing is separate",
+    "Toggle conversion keeps marked title, soft line breaks and nested list body, neighbours and ordered numbering; empty body paragraph is reused on Enter",
+    "Whole-document structural insertion resolves its final block without losing selected prose",
+    "Selection toolbar suspends while type picker, block actions or link editor is open; cancellation restores selection",
+    "Original goal requirements and remaining Notion parity gaps are recorded without narrowing the objective"
+  ],
+  "checks": [
+    {
+      "command": "TEXT_EDIT_PORT=5217 npm run test:text-edit",
+      "status": "passed",
+      "log": "/tmp/rollapp-notion-basics-final-text.log",
+      "scope": "Full final text interaction/selection/basic-block/symbol matrices",
+      "viewports": [
+        [
+          320,
+          844
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          390,
+          400
+        ],
+        [
+          768,
+          844
+        ],
+        [
+          820,
+          844
+        ],
+        [
+          1024,
+          844
+        ],
+        [
+          1440,
+          844
+        ],
+        [
+          1920,
+          844
+        ]
+      ]
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5216 npm run test:text-edit -- --basic-blocks-only",
+      "status": "passed",
+      "log": "/tmp/rollapp-notion-basic-menus.log",
+      "viewports": [
+        [
+          320,
+          844
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          390,
+          400
+        ],
+        [
+          768,
+          844
+        ],
+        [
+          820,
+          844
+        ],
+        [
+          1024,
+          844
+        ],
+        [
+          1440,
+          844
+        ],
+        [
+          1920,
+          844
+        ]
+      ],
+      "includes": "Code/divider/table, Tab, undo, saved reload; marked multiline toggle/nested toggle/whole-document table insertion at 390x400 and 1440x844"
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5214 npm run test:text-edit -- --symbols-only",
+      "status": "passed",
+      "log": "/tmp/rollapp-notion-symbols-final.log",
+      "scope": "37 typed patterns and 4 negative cases at each of 390x400/1440x400, including real marker style and actual italic face"
+    },
+    {
+      "command": "npm run test:ui",
+      "status": "passed",
+      "result": "37 UI primitives; 64 application JSX sources"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "log": "/tmp/rollapp-notion-menus-final-build.log",
+      "notes": "Existing chunk size warning"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "status": "failed",
+      "report": "/tmp/rollapp-notion-core-comprehensive.json",
+      "log": "/tmp/rollapp-notion-core-comprehensive.log",
+      "blocker": "Existing Gallup DNA labels shrinkable grid tracks assertion; full application audit not proved",
+      "unitResults": {
+        "tests": 519,
+        "passed": 517,
+        "failed": 1,
+        "skipped": 1
+      }
+    },
+    {
+      "command": "npm audit --json",
+      "status": "existing-findings",
+      "log": "/tmp/rollapp-notion-basics-audit.json",
+      "high": 7,
+      "scope": "development tooling"
+    },
+    {
+      "command": "npm audit --omit=dev --json",
+      "status": "passed",
+      "log": "/tmp/rollapp-notion-basics-audit-production.json",
+      "vulnerabilities": 0
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "fixedDuringIteration": [
+    {
+      "finding": "Toggle Backspace unwrapped and lost literal input instead of undoing the input rule",
+      "evidence": "/tmp/rollapp-notion-input-first.log",
+      "resolution": "undoInputRule has priority before ordinary details Backspace"
+    },
+    {
+      "finding": "Native divider command could type into an existing following paragraph",
+      "evidence": "/tmp/rollapp-notion-basic-first.log",
+      "resolution": "Shared schema-only node constructor and own editable paragraph after divider"
+    },
+    {
+      "finding": "Nested closeHistory split slash deletion from structural creation",
+      "evidence": "/tmp/rollapp-notion-basic-second.log",
+      "resolution": "History boundary is owned by the slash action; insertion can join that atomic action"
+    },
+    {
+      "finding": "HTML type CSS matching conflated lowercase/uppercase markers",
+      "evidence": "/tmp/rollapp-notion-symbols-complete.log",
+      "resolution": "Keep HTML type and mirror it into case-sensitive data-list-marker"
+    },
+    {
+      "finding": "Selected-all type picker was covered by the still-visible formatting toolbar",
+      "evidence": "/tmp/rollapp-notion-basic-final.log",
+      "resolution": "Suppress selection menu for secondary editors/popups and restore on cancellation"
+    }
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "database": "Configured production connection",
+    "writes": false,
+    "actions": [
+      "Opened block picker, searched code, inspected preview, cancelled",
+      "Selected the full real document, opened type picker and searched table: visible selection toolbars = 0",
+      "Escape restored full selection (>1000 characters), picker closed, save status remained saved",
+      "Collapsed selection and closed only agent-created temporary tabs"
+    ],
+    "keepalive": "PID 52615, ready and left running"
+  },
+  "externalReferences": [
+    "https://www.notion.com/help/writing-and-editing-basics",
+    "https://www.notion.com/help/keyboard-shortcuts",
+    "https://www.notion.com/help/customize-and-style-your-content"
+  ],
+  "limitations": [
+    "Full Notion parity remains open; see requirement audit R1-R10",
+    "Actual Notion choice of alphabetic/Roman marker by typing/depth still requires direct comparison",
+    "Grouped block selection/keyboard operations, richer inline formatting, slash at text end, richer table actions and cross-question editing still incomplete",
+    "Actual iOS/Telegram native keyboard not verified",
+    "Comprehensive check blocked by unrelated existing Gallup assertion",
+    "No production data mutation, deployment or commit",
+    "Unrelated concurrent workspace changes, including quote border styling, preserved"
+  ]
+}

@@ -1,0 +1,191 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "frozenAt": "2026-10-18T13:47:51.005848+00:00",
+  "sourceCount": 488,
+  "sourceSnapshot": "/tmp/rollapp-text-tree-final-sources.json",
+  "sourceDrift": [],
+  "goalStatus": "active",
+  "changes": [
+    "Menu indent/outdent with current or hovered block and exact selected group",
+    "Responsive native deep lists and full-rail task children",
+    "Public Markdown list hierarchy uses shared parser",
+    "Multi-paragraph quote selection regression fixed",
+    "Production development startup verifies existing schema in READ ONLY mode"
+  ],
+  "checks": [
+    {
+      "command": "npm run test:unit",
+      "exitCode": 0,
+      "total": 624,
+      "passed": 623,
+      "skipped": 1,
+      "log": "/tmp/rollapp-text-tree-final-unit.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-text-tree-final-ui.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-text-tree-final-build.log"
+    },
+    {
+      "command": "npm run test:text-edit -- --nesting-only",
+      "exitCode": 0,
+      "passRecords": 8,
+      "log": "/tmp/rollapp-text-tree-final-nesting.log"
+    },
+    {
+      "command": "npm run test:text-edit -- --deep-lists-only",
+      "exitCode": 0,
+      "passRecords": 8,
+      "log": "/tmp/rollapp-text-tree-final-deep.log"
+    },
+    {
+      "command": "npm run test:text-edit -- --conversion-only",
+      "status": "passed",
+      "log": "/tmp/rollapp-text-tree-final-conversion.log",
+      "exitCode": 0,
+      "passRecords": 8
+    }
+  ],
+  "previousComprehensive": {
+    "status": "failed",
+    "session": 2099,
+    "sourceCount": 485,
+    "sourceDrift": [],
+    "editorPassRecords": 99,
+    "cause": "First paragraph normalization collapsed four quote units into their outer wrapper",
+    "fixed": true,
+    "targetedRegressionBeforeFinalPromotion": {
+      "exitCode": 0,
+      "passRecords": 8,
+      "log": "/tmp/rollapp-nesting-quote-regression.log"
+    }
+  },
+  "comprehensive": {
+    "status": "failed",
+    "session": 64616,
+    "report": "/tmp/rollapp-text-tree-final-comprehensive.json",
+    "log": "/tmp/rollapp-text-tree-final-comprehensive.log",
+    "expectedEditorPassRecords": 157,
+    "controllerCell": "1737",
+    "exitCode": 1,
+    "editorPassRecords": 42,
+    "finishedAt": "2026-10-18T13:59:37.939024+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T13:48:12.011Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T13:59:37.829Z",
+        "durationMs": 685817
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ]
+  },
+  "runtime": {
+    "supervisorPid": 22680,
+    "backendPid": 22683,
+    "frontendPid": 22713,
+    "autoRecovery": true,
+    "status": "ready",
+    "connection": "configured production direct TLS",
+    "initialization": "verify",
+    "schemaAndDataMutations": false,
+    "refreshLogs": [
+      "/tmp/rollapp-text-tree-runtime-refresh.log",
+      "/tmp/rollapp-text-tree-runtime-refresh-retry.log"
+    ],
+    "refreshNote": "Initial bootout completed but ownership stop check raced the exiting PID; terminal absence and PID-file cleanup were verified before re-enabling. No PID file was removed manually.",
+    "readOnlyProductionProof": "/tmp/rollapp-nesting-existing-database-readonly.log"
+  },
+  "liveReadOnly": {
+    "ownTabsClosed": [
+      29,
+      30
+    ],
+    "textUnchanged": true,
+    "savedStatus": "Все изменения сохранены",
+    "rowsHeight": 48,
+    "nativeShortcutScrollBefore": 178,
+    "nativeShortcutScrollAfter": 178,
+    "nativeShortcutSourceTopBefore": 318,
+    "nativeShortcutSourceTopAfter": 318,
+    "toolbar": 0,
+    "menuBounds": {
+      "top": 114,
+      "bottom": 704,
+      "height": 590,
+      "viewportHeight": 720
+    },
+    "frames": [
+      "0px",
+      "0px",
+      "0px",
+      "0px",
+      "0px",
+      "none"
+    ],
+    "body": [
+      "Geist Variable",
+      "18px",
+      "28px",
+      "400"
+    ],
+    "rootOverflow": false
+  },
+  "dependencyReview": {
+    "lockGraphChanged": false,
+    "developmentHigh": 7,
+    "productionVulnerabilities": 0,
+    "audit": "/tmp/rollapp-nesting-audit.json",
+    "productionAudit": "/tmp/rollapp-nesting-production-audit.json",
+    "compatibleDryRun": "/tmp/rollapp-nesting-audit-dry-run.json",
+    "compatibleDryRunHighRemaining": 7
+  },
+  "limits": [
+    "Full new comprehensive is not yet complete",
+    "Actual iOS/Windows/IME remains unverified",
+    "Arbitrary nested clipboard/colour/boundary audit and R1-R10 requirements remain open",
+    "HTTP body limit remains 256KB; answer budget validation is 600000 characters, not a transport guarantee",
+    "Read-only startup checks auth/document columns and reserved usernames, not every application table",
+    "No production test saves, schema migration or deployment performed"
+  ],
+  "lastVerifiedAt": "2026-10-18T13:54:40.812995+00:00"
+}

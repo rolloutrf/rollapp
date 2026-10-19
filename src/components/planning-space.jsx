@@ -31,7 +31,7 @@ const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", star
 function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const id = useId();
   const mobile = useIsMobile();
-  const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", startTime: task.startTime || (task.id && task.dueOn ? "00:00" : "09:00"), durationMinutes: task.id && task.dueOn && !task.startTime ? 1440 : task.durationMinutes || 60 });
+  const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", startTime: task.unscheduled ? "" : task.startTime || (task.id && task.dueOn ? "00:00" : "09:00"), durationMinutes: task.id && task.dueOn && !task.startTime ? 1440 : task.durationMinutes || 60 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -57,7 +57,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     finally { setBusy(false); setConfirmDelete(false); }
   };
   return <>
-    <Drawer open onOpenChange={(open) => { if (!open && !busy) onClose(); }} swipeDirection={mobile ? "down" : "left"}>
+    <Drawer open onOpenChange={(open) => { if (!open && !busy) onClose(); }} swipeDirection={mobile ? "down" : "right"}>
       <DrawerContent className="rollapp-body app-drawer--form">
         <DrawerClose render={<Button variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть задачу"><X aria-hidden="true" /></DrawerClose>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={save}>
@@ -75,14 +75,14 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
             {form.dueOn && <>
                 <Field><FieldLabel htmlFor={`${id}-repeat`}>Повторение</FieldLabel><Select value={form.recurrence?.frequency || "none"} onValueChange={(frequency) => change("recurrence", frequency === "none" ? null : { frequency, until: form.recurrence?.until || "" })}><SelectTrigger id={`${id}-repeat`}><SelectValue>{RECURRENCE_OPTIONS.find(({ id }) => id === (form.recurrence?.frequency || "none"))?.label}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{RECURRENCE_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
                 {form.recurrence && <Field><FieldLabel htmlFor={`${id}-repeat-until`}>Окончание повторения</FieldLabel><PlanningDatePicker id={`${id}-repeat-until`} value={form.recurrence.until} onChange={(until) => change("recurrence", { ...form.recurrence, until })} label="Окончание повторения" clearable className="w-full">{form.recurrence.until ? undefined : "Без окончания"}</PlanningDatePicker><p className="text-muted-foreground text-xs">{form.recurrence.until ? "Включая выбранную дату. " : "Повторяется без ограничения по дате. "}{["monthly", "yearly"].includes(form.recurrence.frequency) && "Если такой даты нет в месяце, повтор пропускается."}{form.recurrence.frequency === "weekdays" && "С понедельника по пятницу."}</p></Field>}
-                  <Field><FieldLabel htmlFor={`${id}-time`}>Начало</FieldLabel><Input id={`${id}-time`} type="time" required value={form.startTime} onChange={(event) => change("startTime", event.target.value)} /></Field>
+                  <Field><FieldLabel htmlFor={`${id}-time`}>Начало</FieldLabel><Input id={`${id}-time`} type="time" required={!task.unscheduled} value={form.startTime} onChange={(event) => change("startTime", event.target.value)} /></Field>
                   <Field><FieldLabel htmlFor={`${id}-duration`}>Длительность, минут</FieldLabel><Input id={`${id}-duration`} type="number" min={15} max={1440} step={1} required value={form.durationMinutes} onChange={(event) => change("durationMinutes", event.target.value === "" ? "" : Number(event.target.value))} /></Field>
               </>}
             </FieldGroup>
           </div>
           <DrawerFooter className="planning-task-editor__actions gap-2" data-task-editing={task.id ? true : undefined}>
             <Button type="submit" disabled={busy || !form.title.trim()}>{busy && <Spinner />}Сохранить</Button>
-            {task.id && <Button type="button" variant="ghost" aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}>{mobile ? "Удалить" : task.recurrence ? "Удалить всю серию" : "Удалить задачу"}</Button>}
+            {task.id && <Button type="button" variant="destructive" aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}>{mobile ? "Удалить" : task.recurrence ? "Удалить всю серию" : "Удалить задачу"}</Button>}
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -90,7 +90,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <AlertDialogContent className="rollapp-body">
         <AlertDialogHeader><AlertDialogTitle>{task.recurrence ? "Удалить всю серию?" : "Удалить задачу?"}</AlertDialogTitle><AlertDialogDescription>«{task.title}» исчезнет из доски и календаря.{task.recurrence && " Все повторы будут удалены."}</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={remove}>Удалить</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={busy} onClick={remove}>Удалить</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   </>;
@@ -161,7 +161,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
       ) : activeTab === "calendar" ? (
         <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
-        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn) => setEditor({ ...EMPTY_TASK, dueOn, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
+        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime) => setEditor({ ...EMPTY_TASK, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
     </div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={save} onDelete={remove} />}

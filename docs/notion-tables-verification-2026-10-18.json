@@ -1,0 +1,158 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sha256": {
+    "src/lib/inline-table-markdown.js": "fde6116a8f25f3028f98ab9928ec8bae2ea47cf2784544687815116b4725d5a1",
+    "src/lib/inline-table-markdown.test.js": "cb6b62a5019e0acb7fc66af54da17dded0ee73d4de4704efc8e5ffea9642a00d",
+    "src/lib/inline-table-actions.js": "fe30668f22dca1da07cc70eb300afaa94852e7bb594791ab9cac4152cc66e901",
+    "src/lib/inline-table-actions.test.js": "713cd9b1caf7313496db297644e5e14f037b5719fd03575a37534657464a8435",
+    "src/lib/inline-editor-extensions.js": "5a5965f7d14cce42988309d9305b47957dec6b9a62de274ed4da8319378f849f",
+    "src/lib/inline-text-style.test.js": "700549128c73104ca4b9790323a75e8085140405549d434603ad34abd6807070",
+    "src/components/inline-table-actions.jsx": "8262e9f6aef85161561e4b351d27f24a1eb4c37451277a7ccffa2d5b7234c71a",
+    "src/components/inline-block-controls.jsx": "13185f65ec488b3851da3ff307b3477df462ddcb8da96d57b182ad3331cca21c",
+    "src/components/inline-rich-text-editor.jsx": "fb9cec4fe9d6f16831a55c2443d0ea1a0964c2f65033c9059c1086626a440f3d",
+    "src/components/inline-text-styles.jsx": "4e1bd5ecefacf306032be3c1934091b6e5e3dcc7bf33a4c70768b670f533b9bc",
+    "src/components/inline-editor.css": "6a6daf450cb7d9f18ffd83df9466583db82faab8db5d28ca80d40842f00060f5",
+    "src/components/life-strategy.jsx": "f2ca6518785eb22cfef50137651c0189750361cbac9b605914eb05a767f6b933",
+    "scripts/text-table-checks.mjs": "73da5e5f626f2c2e0bd5001c248d7a46a53e379ef418ff286575129059c05e24",
+    "scripts/text-edit-smoke.mjs": "bef50ba305d253439c66de086d90f0cda07532688a170584a36fbd855605d4bb",
+    "scripts/fixtures/text-edit.jsx": "0b3322da4de60dcf64a3f33330ffbef33a1f0276a141cacf4c1e3ee821d8c0a1",
+    "vite.config.js": "a86c545c94a3e4f203e1d06b2bc4b089998dbe347f7aa899f1a3657437286859",
+    "package.json": "b94ef0689b51f9881c4383731290a7fdc773bc7e776c380cfaf7e3d9a2673a03",
+    "package-lock.json": "4ba00ec4e4174ea0a572d6f94017fc4c82e288c750f3cc7a7c8bb54ebb7c7943",
+    "scripts/text-symbol-shortcuts-checks.mjs": "19e1fd0dba9399524cd19f4016f40093d47e9874a577800f3966d034b0de8988"
+  },
+  "verifiedAt": "2026-10-18T06:37:02.687849+00:00",
+  "localDate": "2026-10-18",
+  "scope": "Inline table editing, lossless table storage and public reading; active Notion goal milestone",
+  "goalComplete": false,
+  "viewports": [
+    [
+      320,
+      844
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      390,
+      400
+    ],
+    [
+      768,
+      844
+    ],
+    [
+      820,
+      844
+    ],
+    [
+      1024,
+      844
+    ],
+    [
+      1440,
+      844
+    ],
+    [
+      1920,
+      844
+    ]
+  ],
+  "checks": {
+    "tables": {
+      "status": "pass",
+      "cases": 8,
+      "log": "/tmp/rollapp-table-browser-final.log",
+      "latestSourceCoveredBy": "fullText"
+    },
+    "fullText": {
+      "status": "pass",
+      "cases": 75,
+      "exitCode": 0,
+      "log": "/tmp/rollapp-table-full-text-final.log",
+      "sourceSnapshotUnchanged": true
+    },
+    "comprehensive": {
+      "status": "failed",
+      "stage": "unit",
+      "tests": 563,
+      "pass": 561,
+      "fail": 1,
+      "skip": 1,
+      "error": "Gallup DNA labels must use shrinkable grid tracks",
+      "report": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-check-1792304615716.json",
+      "log": "/tmp/rollapp-table-comprehensive-final.log"
+    },
+    "ui": {
+      "status": "pass",
+      "primitives": 37,
+      "jsxSources": 68
+    },
+    "build": {
+      "status": "pass",
+      "warning": "chunk >500kB"
+    },
+    "npmAudit": {
+      "highDev": 7,
+      "production": 0,
+      "compatibleFixDryRun": {
+        "changed": 0,
+        "remainingHigh": 7,
+        "log": "/tmp/rollapp-table-audit-dry-run.json"
+      },
+      "incompatibleShadcnDowngradeApplied": false
+    }
+  },
+  "liveReview": {
+    "route": "/app/spheres/career?tab=about",
+    "database": "configured production",
+    "editors": 1,
+    "formattingToolbars": 0,
+    "border": "0px",
+    "outlineStyle": "none",
+    "shadow": "none",
+    "rootOverflow": false,
+    "productionWrites": false,
+    "temporaryTabClosed": true
+  },
+  "artifacts": [
+    "/tmp/rollapp-table-actions-preview-1440.png",
+    "/tmp/rollapp-table-390-844.png",
+    "/tmp/rollapp-table-1440-844.png"
+  ],
+  "unverified": [
+    "Remaining row/column hover/touch handles, reorder/duplicate and corner growth",
+    "Whole-cell backgrounds, full table clipboard and arbitrary nested interactions",
+    "Actual iOS/Telegram IME and repeated physical-device resize gestures",
+    "Rich blocks in interactive age/strategy accordions",
+    "Remaining R4–R10 matrix; full application audit stopped by existing Gallup assertion"
+  ],
+  "intermediateRuns": [
+    {
+      "command": "npm run test:text-edit",
+      "status": "failed",
+      "log": "/tmp/rollapp-table-full-text.log",
+      "passedCases": 27,
+      "failure": "Symbol input: locator click waited for stability; editor remained present and no page error was reported. Cause not established."
+    },
+    {
+      "command": "npm run test:text-edit -- --symbols-only",
+      "status": "pass",
+      "cases": 2,
+      "log": "/tmp/rollapp-table-symbols-debug.log",
+      "assertionsWeakened": false
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "status": "failed",
+      "log": "/tmp/rollapp-table-comprehensive.log",
+      "failures": [
+        "Existing Gallup CSS assertion",
+        "Unrelated renderer cleanup timing assertion after approximately 15 minutes elapsed"
+      ],
+      "retry": "Final unit run completed in 6 seconds with only the existing Gallup assertion."
+    }
+  ]
+}

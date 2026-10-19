@@ -38,7 +38,7 @@ async function geometry(page, label) {
       .filter(element => element.getBoundingClientRect().width > 0).map(element => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
-        return { name: element.getAttribute("aria-label") || element.textContent.trim(), height: rect.height, width: rect.width, fontSize: style.fontSize, lineHeight: style.lineHeight, icon: element.hasAttribute("data-control-icon"), glyphs: [...element.querySelectorAll("svg")].map(svg => { const glyph = svg.getBoundingClientRect(); return { width: glyph.width, height: glyph.height, offsetX: (glyph.left + glyph.right - rect.left - rect.right) / 2, offsetY: (glyph.top + glyph.bottom - rect.top - rect.bottom) / 2 }; }).filter(glyph => glyph.width > 0) };
+        return { name: element.getAttribute("aria-label") || element.textContent.trim(), height: rect.height, width: rect.width, fontSize: style.fontSize, lineHeight: style.lineHeight, icon: element.hasAttribute("data-control-icon"), button: element.classList.contains("group/button"), radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius].map(parseFloat), glyphs: [...element.querySelectorAll("svg")].map(svg => { const glyph = svg.getBoundingClientRect(); return { width: glyph.width, height: glyph.height, offsetX: (glyph.left + glyph.right - rect.left - rect.right) / 2, offsetY: (glyph.top + glyph.bottom - rect.top - rect.bottom) / 2 }; }).filter(glyph => glyph.width > 0) };
       });
     return { controls, overflow: document.documentElement.scrollWidth > innerWidth + 1, tabs: [...document.querySelectorAll('[data-control-bar] [data-slot="tabs-list"]')].map(element => element.getBoundingClientRect().height) };
   });
@@ -46,6 +46,7 @@ async function geometry(page, label) {
   assert(result.controls.length >= 3, `${label}: controls were not rendered`);
   for (const control of result.controls) {
     assert(Math.abs(control.height - 48) < 0.1, `${label}: ${control.name} is ${control.height}px high; expected 48px`);
+    if (control.button) assert(control.radii.every(radius => radius >= control.height / 2), `${label}: ${control.name} must have pill/circular corners`);
     assert.equal(control.fontSize, "18px", `${label}: ${control.name} text must match other controls`);
     assert.equal(control.lineHeight, "28px", `${label}: ${control.name} text leading must match other controls`);
     if (control.icon) assert(Math.abs(control.width - 48) < 0.1, `${label}: ${control.name} is not a 48px circle`);
@@ -82,6 +83,14 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
+        if (route.includes("/planning")) {
+          const selector = await page.locator(".planning-fab-space").boundingBox();
+          assert(selector, `${label}: planning selector is missing`);
+          assert(width < 768 ? selector.y > height / 2 : selector.y < 100,
+            `${label}: planning selector must be at the top on desktop and at the bottom on mobile`);
+          assert.equal(await page.locator(width < 768 ? ".planning-fab-controls .planning-fab-space" : ".global-app-chrome .planning-fab-space").count(), 1,
+            `${label}: planning selector must belong to the desktop header or mobile navigation`);
+        }
         if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
         if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
@@ -92,7 +101,7 @@ try {
         });
         if (!route.includes("view=month") && !route.includes("view=year")) assert(scrolled, `${label}: scrolling check did not move a scroll owner`);
         await geometry(page, `${label} scrolled`);
-        if (route.includes("view=day") || route.includes("/career")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : "application"}.png` });
+        if (route.includes("view=day") || route.includes("/career") || route.includes("tab=todo")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : route.includes("tab=todo") ? "todo" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
           await page.getByRole("button", { name: "Новое событие", exact: true }).click();
           const screen = page.locator("[data-mobile-form-page]:visible"); await screen.waitFor();

@@ -113,7 +113,7 @@ function EducationGroupActions({ group, lists, busy, onBeginRename, onDisband, o
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button className="pointer-events-auto relative z-20 size-9 rounded-full" variant="ghost" size="icon-lg" type="button" disabled={busy} />}
+        render={<Button data-control-icon className="pointer-events-auto relative z-20 rounded-full bg-card" variant="outline" size="icon" type="button" disabled={busy} />}
         aria-label={`Опции группы «${group.title}»`}
       >
         {busy ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}

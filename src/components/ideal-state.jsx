@@ -1,22 +1,17 @@
 import { useId, useState } from "react";
 import { X } from "lucide-react";
-import { toast } from "sonner";
-import { useCareerContent, CareerContentError, MarkdownEditorDrawer } from "@/components/career-content";
-import { MarkdownDocument } from "@/components/life-strategy";
-import { SphereBusinessControls } from "@/components/business-marketplace-page";
+import { useCareerContent, CareerContentError } from "@/components/career-content";
+import { InlineDocument } from "@/components/inline-document";
 import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import { idealStateTopics, appendIdealStateItem } from "@/lib/ideal-state";
 
 function IdealStateItemEditor({ topics, onClose, onSave }) {
   const id = useId();
@@ -54,18 +49,15 @@ function IdealStateItemEditor({ topics, onClose, onSave }) {
 }
 
 export function IdealState() {
-  const { readOnly } = useSphereSharing();
+  const sharing = useSphereSharing();
   const document = useCareerContent("ideal-state", "", "identity");
   const content = typeof document.content === "string" ? document.content : "";
-  const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const unavailable = document.loading || Boolean(document.error);
-  const add = async (item) => { await document.save(appendIdealStateItem(content, item)); toast.success("Пункт добавлен"); };
   return <div className="sphere-text-page page-stack">
-    {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center"><div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Идеальное состояние»"><PageActionButton disabled={unavailable} onClick={() => setAdding(true)}>Добавить</PageActionButton><PageActionButton variant="outline" disabled={unavailable} onClick={() => setEditing(true)}>Редактировать</PageActionButton><SphereBusinessControls sphereId="identity" /></div></header>}
     <CareerContentError error={document.error} onRetry={document.retry} />
-    {document.loading ? <div className="not-typeset flex items-center gap-2" role="status"><Spinner />Загружаем…</div> : content.trim() ? <MarkdownDocument source={content} label="Идеальное состояние" hideSourceLabels /> : !document.error && <Empty className="min-h-64 border"><EmptyHeader><EmptyTitle>Идеальное состояние</EmptyTitle><EmptyDescription>{readOnly ? "Владелец пока не добавил описание." : "Опишите жизнь, к которой стремитесь. Добавляйте пункты по темам."}</EmptyDescription></EmptyHeader></Empty>}
-    {!readOnly && adding && <IdealStateItemEditor topics={idealStateTopics(content)} onClose={() => setAdding(false)} onSave={add} />}
-    {!readOnly && <MarkdownEditorDrawer content={content} label="Идеальное состояние" open={editing} onOpenChange={setEditing} onSave={document.save} />}
+    {document.loading && <span role="status">Загружаем…</span>}
+    {!document.loading && !document.error && <InlineDocument key={`ideal-state:${sharing.owner?.id || "self"}`}
+      documentKey="identity:ideal-state" value={content} onSave={document.save} label="Идеальное состояние"
+      readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
+      placeholder="Опишите жизнь, к которой стремитесь…" addBlock={[{ type: "heading", attrs: { level: 2 } }, { type: "paragraph" }]} />}
   </div>;
 }

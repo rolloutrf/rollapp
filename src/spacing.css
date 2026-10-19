@@ -4,6 +4,7 @@
   :root {
     --layout-page-inset: 2rem;
     --layout-shell-inset: 1rem;
+    --layout-page-rail-inset: calc(max(var(--layout-shell-inset), (100vw - var(--layout-page-width)) / 2) + var(--layout-page-inset));
     --layout-inline-gap: 0.5rem;
     --layout-item-gap: 1rem;
     --layout-page-gap: 1.5rem;
@@ -54,6 +55,10 @@
     min-height: var(--layout-control-size) !important;
     max-height: var(--layout-control-size) !important;
     padding-block: 0;
+  }
+  /* Product action shape, including native Save/Back/Delete on every screen. */
+  [data-control-bar] [class~="group/button"] {
+    border-radius: calc(var(--layout-control-size) / 2) !important;
   }
   [data-control-bar] [data-control-icon] {
     width: var(--layout-control-size) !important;
@@ -171,6 +176,12 @@
     top: calc(var(--layout-chrome-top) + var(--layout-safe-top));
     max-width: var(--layout-page-width);
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
+  }
+
+  @media (min-width: 768px) {
+    .app-layout.app-layout--planning > .app-main {
+      padding-block-start: var(--app-chrome-overlay-height);
+    }
   }
 
   @media (max-width: 390px) {
@@ -489,4 +500,19 @@
     }
   }
 
+}
+
+/* Let native contenteditable caret scrolling account for application chrome.
+   Smooth page scrolling otherwise leaves the insertion point behind fixed
+   controls while a key is held. This applies only while prose owns focus. */
+html:has(:is(.inline-editor__content[contenteditable="true"], .inline-text-field[contenteditable="plaintext-only"]):focus) {
+  scroll-behavior: auto;
+}
+html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="true"], .inline-text-field[contenteditable="plaintext-only"]):focus) {
+  scroll-padding-block-start: calc(var(--layout-chrome-top) + var(--layout-safe-top) + var(--layout-control-size) + var(--layout-inline-gap));
+}
+@media (max-width: 767px) {
+  html:has(.mobile-app-navigation):has(:is(.inline-editor__content[contenteditable="true"], .inline-text-field[contenteditable="plaintext-only"]):focus) {
+    scroll-padding-block-end: calc(var(--layout-navigation-bottom) + var(--layout-control-size) + var(--layout-inline-gap));
+  }
 }

@@ -16,7 +16,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
-  for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic']){
+  for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic','nested']){
    await page.goto(`http://127.0.0.1:5190/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -28,10 +28,15 @@ try{
      overflow:document.documentElement.scrollWidth>innerWidth+1,copyLeft:document.querySelector('[data-content-copy]').getBoundingClientRect().left};
    });
    let metrics=await measure();
+   if(variant==='nested'){
+    const gap=await page.locator('[data-nested-content]').evaluate(element=>element.getBoundingClientRect().top-document.querySelector('.page-toolbar').getBoundingClientRect().bottom);
+    assert.equal(gap,24,`${width}: outer toolbar to nested content gap`);
+    if([390,1440].includes(width))await page.screenshot({path:`/tmp/rollapp-toolbar-gap-${width}.png`});
+   }
    assert(!metrics.overflow,`${width} ${variant}: page overflow`);
    assert(metrics.controls.every(c=>c.width>=48&&c.height>=48),`${width} ${variant}: small controls`);
    assert(metrics.controls.every(c=>Math.abs(c.top-metrics.controls[0].top)<1),`${width} ${variant}: wrapped controls`);
-   if(variant!=='icons'){
+   if(!['icons','nested'].includes(variant)){
     assert.equal(metrics.controls[0].paddingLeft,'24px');assert.equal(metrics.controls[0].paddingRight,'24px');
    }
    const assertCentered=(m)=>{if(m.scrollWidth<=m.clientWidth+1)assert(Math.abs((m.first+m.last)/2-(m.left+m.right)/2)<1,`${width} ${variant}: fitting action group is not centered ${JSON.stringify(m)}`);};

@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist/wght-italic.css";
 @import "./typeset.css";
 @import "./spacing.css";
 @import "./containers.css";
@@ -109,45 +110,169 @@
   padding-block-start: var(--layout-section-gap);
 }
 
-.identity-generated-documents__header {
-  display: grid;
-  max-width: var(--layout-text-width);
-  gap: 8px;
-}
-
-.identity-generated-documents__header > span,
-.identity-generated-document > header > span {
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: var(--text-xs--line-height);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .identity-generated-documents__list {
   display: grid;
   gap: var(--layout-section-gap);
 }
 
+[data-report-chart-target] {
+  scroll-margin-block-start: calc(var(--app-chrome-overlay-height) + var(--layout-page-gap));
+  outline: none;
+}
+
 .identity-generated-document {
   display: grid;
+  min-width: 0;
   gap: var(--layout-page-gap);
-  padding-block-start: var(--layout-page-gap);
-  border-block-start: 1px solid var(--border);
 }
 
-.identity-generated-document > header {
-  display: grid;
-  gap: 8px;
+.identity-pdf-content {
+  overflow-wrap: anywhere;
 }
 
-.identity-generated-document > section {
+.identity-pdf-page {
   max-width: var(--layout-text-width);
 }
 
-.hogan-report--generated .identity-generated-documents,
-.gallup-profile--generated .identity-generated-documents {
+.identity-pdf-page[data-pdf-wide] {
+  max-width: none;
+}
+
+.identity-pdf-content h5 + p {
+  margin-block-start: calc(var(--typeset-flow) * 0.4);
+}
+
+.identity-pdf-source-emphasis {
+  margin-block-start: var(--typeset-flow);
+  padding-inline-start: calc(var(--typeset-flow) * 0.75);
+  border-inline-start: 3px solid;
+}
+
+.identity-pdf-rank {
+  display: grid;
+  grid-template-columns: repeat(34, minmax(0, 1fr));
+  gap: 3px;
+  margin-block-start: var(--typeset-flow);
+}
+
+.identity-pdf-rank > span {
+  height: 16px;
+  background: var(--muted);
+}
+
+.identity-pdf-scores,
+.identity-pdf-subscale-columns {
+  margin-block-start: var(--typeset-flow);
+}
+
+.identity-pdf-scores {
+  display: grid;
+  gap: var(--layout-item-gap);
+}
+
+.identity-pdf-score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.identity-pdf-score__track {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--muted);
+}
+
+.identity-pdf-score__track > div { height: 100%; }
+
+.identity-pdf-subscale-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--layout-page-gap);
+}
+
+.identity-pdf-subscale-column,
+.identity-pdf-subscale-section {
+  min-width: 0;
+}
+
+.identity-pdf-subscale-section {
+  margin-block-start: calc(var(--typeset-flow) * 1.4);
+}
+
+.identity-pdf-subscales {
+  display: grid;
+  gap: 8px;
+  margin-block-start: calc(var(--typeset-flow) * 0.4);
+}
+
+.identity-pdf-subscale {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.identity-pdf-subscale__cells {
+  display: flex;
+  gap: 3px;
+}
+
+.identity-pdf-subscale__cells > span {
+  width: 14px;
+  height: 8px;
+  background: var(--muted);
+}
+
+.identity-pdf-scale-table > thead th {
+  white-space: normal;
+}
+
+.identity-pdf-scale-table > tbody > tr > :first-child {
+  width: 24%;
+}
+
+.identity-pdf-table-group h4 { margin-block-start: 0; }
+
+@media (max-width: 820px) {
+  .identity-pdf-subscale-columns { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .identity-pdf-scale-table { display: block; }
+  .identity-pdf-scale-table :is(thead, tbody) { display: block; }
+  .identity-pdf-scale-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .identity-pdf-scale-table tr > :is(th, td) {
+    min-width: 0;
+    width: auto;
+    padding-inline: 0;
+  }
+  .identity-pdf-scale-table > tbody > tr > :first-child { width: auto; }
+  .identity-pdf-scale-table tr > :nth-child(3) {
+    grid-column: 1 / -1;
+    border-block-start: 0;
+    padding-block-start: 0;
+  }
+  .identity-pdf-scale-table .identity-pdf-table-group { grid-template-columns: minmax(0, 1fr); }
+}
+
+.identity-pdf-lines {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.identity-pdf-lines > li {
+  padding-inline-start: 0;
+}
+
+.identity-pdf-page + .identity-pdf-page {
+  margin-block-start: calc(var(--typeset-flow) * 2);
+  padding-block-start: calc(var(--typeset-flow) * 2);
   border-block-start: 1px solid var(--border);
 }
 
@@ -314,6 +439,19 @@
     opacity: 1;
     background-color: var(--muted);
     color: var(--muted-foreground);
+  }
+
+  /* Delete actions retain their warning color above the neutral footer/icon
+     surfaces. Mix with an opaque surface so fixed actions conceal content. */
+  [data-control-bar] [class~="group/button"][class~="text-destructive"] {
+    color: var(--destructive);
+    background-color: color-mix(in oklch, var(--destructive) 15%, var(--card));
+  }
+  [data-control-bar] [class~="group/button"][class~="text-destructive"]:hover:not(:disabled) {
+    background-color: color-mix(in oklch, var(--destructive) 25%, var(--card));
+  }
+  [data-control-bar] [class~="group/button"][class~="text-destructive"]:is(:disabled, [aria-disabled="true"], [data-disabled]) {
+    background-color: color-mix(in oklch, var(--destructive) 8%, var(--muted));
   }
 
   /* Calendar cells keep the shadcn grid geometry inside the product's Large controls. */
@@ -717,6 +855,7 @@
 
   /* Floating controls need solid individual surfaces over scrolling content. */
   .global-app-chrome :is(.global-app-chrome__rolls, .global-app-chrome__share),
+  .global-app-chrome .planning-fab-space .space-select,
   .planning-fab-controls .planning-fab--back,
   .planning-fab-controls .planning-fab-space .space-select {
     background-color: var(--card);

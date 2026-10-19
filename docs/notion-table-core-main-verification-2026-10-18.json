@@ -1,0 +1,211 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sourceSnapshot": "/tmp/rollapp-table-core-main-sources.json",
+  "sourceCount": 605,
+  "promotedFiles": [
+    "src/lib/inline-current-block-action.js",
+    "src/lib/inline-current-block-action.test.js",
+    "src/lib/inline-block-selection-extension.js",
+    "src/lib/inline-block-depth.js",
+    "src/lib/inline-block-tree.js",
+    "src/lib/inline-block-move.js",
+    "src/lib/inline-block-move.test.js",
+    "src/hooks/use-inline-block-drag.js",
+    "scripts/text-mod-enter-checks.mjs",
+    "scripts/text-relocation-depth-checks.mjs",
+    "src/components/inline-rich-text-editor.jsx",
+    "src/components/inline-table-handles.jsx",
+    "src/components/inline-editor.css",
+    "src/lib/inline-table-axis.js",
+    "src/lib/inline-table-axis.test.js",
+    "src/lib/inline-table-actions.js",
+    "src/components/inline-table-actions.jsx",
+    "src/hooks/use-inline-table-axis-drag.js",
+    "scripts/text-table-handles-checks.mjs",
+    "scripts/text-edit-smoke.mjs"
+  ],
+  "baseline": {
+    "comprehensive": "/tmp/rollapp-logical-blocks-comprehensive.json",
+    "status": "passed",
+    "editorPassRecords": 195,
+    "sourceCount": 595,
+    "sourceDrift": [],
+    "stages": 9
+  },
+  "isolatedEvidence": {
+    "currentActionFullEditor": {
+      "status": "passed",
+      "passRecords": 203,
+      "sourceCount": 604,
+      "sourceDrift": []
+    },
+    "safetyTargets": {
+      "unitTotal": 653,
+      "unitPass": 652,
+      "unitSkip": 1,
+      "browserPassRecords": 21,
+      "sourceCount": 606,
+      "sourceDrift": []
+    },
+    "tableTargets": {
+      "unitTotal": 656,
+      "unitPass": 655,
+      "unitSkip": 1,
+      "browserPassRecords": 27,
+      "sourceCount": 611,
+      "sourceDrift": [],
+      "controls": {
+        "exitCode": 0,
+        "passRecords": 132,
+        "dependencyFont403": 264,
+        "scope": "geometry observations only; main rerun required"
+      }
+    }
+  },
+  "newComprehensive": {
+    "status": "superseded",
+    "command": "ROLLAPP_CHECK_OUTPUT=/tmp/rollapp-table-core-main-comprehensive.json npm run check:comprehensive",
+    "expectedEditorPassRecords": 216,
+    "log": "/tmp/rollapp-table-core-main-comprehensive.log",
+    "json": "/tmp/rollapp-table-core-main-comprehensive.json",
+    "session": 33199,
+    "controllerCell": "2022",
+    "exitCode": 143,
+    "editorPassRecords": 99,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T16:35:53.997974+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "interrupted",
+        "startedAt": "2026-10-18T16:18:20.639Z"
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0,
+    "interruption": {
+      "reason": "Superseded after a new real-application-chrome counterexample: column handle hidden below header selector and 48px controls covering cell text. Verified candidate fixes both; start a fresh combined source run.",
+      "rootPid": 83192,
+      "ownedPids": [
+        83192,
+        83266,
+        83307,
+        85529,
+        85574,
+        85575,
+        85580,
+        85581,
+        85583,
+        89625,
+        89626,
+        89627
+      ],
+      "observedCommand": "node scripts/check-comprehensive.mjs",
+      "cwd": "/Users/developer/Desktop/Git/rollout/rollapp",
+      "verifiedBeforeStopAt": "2026-10-18T16:35:23.560240+00:00",
+      "sourceCount": 605,
+      "sourceDrift": [],
+      "beforeLogs": [
+        "/tmp/rollapp-table-chrome-before.log",
+        "/tmp/rollapp-table-chrome-text-before.log"
+      ],
+      "candidatePassRecords": 22,
+      "productionDevPidsExcluded": [
+        22680,
+        22683,
+        22713
+      ],
+      "stoppedAt": "2026-10-18T16:35:53.844320+00:00",
+      "signalledPids": [
+        83192,
+        83266,
+        83307,
+        85529,
+        85574,
+        85575,
+        85580,
+        85581,
+        85583,
+        89648,
+        89649,
+        89650
+      ]
+    },
+    "fixtureCorrection": "The initial app-chrome fixture incorrectly combined app-page and sphere-text-page on one element. That text-overlap evidence was fixture-only. Correct nested composition still reproduces the header-selector occlusion on source605. The provisional x=0 gutter change was reverted; production container widths and gutter8 remain unchanged."
+  },
+  "productionDataWrites": false,
+  "goalComplete": false,
+  "remaining": [
+    "R8 horizontal autoscroll, actual header/table composition, duplicate/grow/media, arbitrary multi-row group movement",
+    "Exact nested Enter semantics",
+    "Arbitrary clipboard/style composition",
+    "Real touch/IME devices"
+  ],
+  "mainTargets": {
+    "status": "passed",
+    "exitCode": 0,
+    "browserPassRecords": {
+      "tableHandles": 9,
+      "axisGuards": 2,
+      "currentAction": 8,
+      "relocationDepth": 2
+    },
+    "totalBrowserPassRecords": 21,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "unit": {
+      "total": 656,
+      "pass": 655,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "passed (37 primitives;69 JSX)",
+    "controls": {
+      "passRecords": 132,
+      "fontServingDenials": 0,
+      "fullWidthMatrix": true,
+      "DPR3": true
+    },
+    "logs": {
+      "tableHandles": "/tmp/rollapp-table-main-targets.log",
+      "axisGuards": "/tmp/rollapp-table-main-guards.log",
+      "currentAction": "/tmp/rollapp-current-action-main-targets.log",
+      "relocationDepth": "/tmp/rollapp-relocation-depth-main-targets.log"
+    },
+    "finishedAt": "2026-10-18T16:20:54.297082+00:00"
+  }
+}

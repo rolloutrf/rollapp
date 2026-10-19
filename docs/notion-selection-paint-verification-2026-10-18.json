@@ -1,0 +1,177 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sources": {
+    "src/components/inline-editor.css": "786111dc9cb0bf1a78f8d2f2ae65cb9e2098404c7fc5f21cc8f10690bb045229",
+    "src/typeset.css": "d9e18d2ac35b9819bc5e0c072623b4518c71417a8614c149a591e7af5e2a126a",
+    "src/index.css": "936ea2d4a65caae3b0847eb5dc7d661b0b2675a6959e225ededbd64642e6fcf1",
+    "src/styles.css": "894e4c2c9853a4bc6aae9bd8c84d89f9c46d8f5001ea8df8ffd71d1b0add91eb",
+    "src/lib/inline-block-selection-extension.js": "68ea7734bb2906548b6e7368e089747a91e441cd4edc2462a6e514e9f17dba67",
+    "src/lib/inline-block-selection.js": "0db4e5762d65b093824699ac3c73062df01e67b0773fcb519fbf55c6df021be7",
+    "src/lib/inline-text-style.js": "c6b0a94b3c4bf56f98ee3f30a240355b6fef1a06faca02636c4c2322f3992272",
+    "src/lib/inline-block-color.js": "a37401a6e90b0d4c387d7a251564e7ab32c603de299bf2c9d52e9fd8d5cd362c",
+    "src/components/inline-rich-text-editor.jsx": "7849ca0c116ab00508ef7c5cbd53c2fd004e8712acc531c990019e5d576cd530",
+    "src/components/inline-block-controls.jsx": "cbf14390a23213091327450aae356354a744d808d2c4cb6f75f4fc88ad011869",
+    "src/components/inline-block-picker.jsx": "8056999c8c1b9b25631d035045f02a3ee70b09d86b3363cc6ec8d12540718351",
+    "src/lib/inline-editor-extensions.js": "30f26867a22c8be091746723d3605b5a298b35ddceddd97b157bbc434d8169ad",
+    "src/lib/four-question-document.js": "603f6397c955e5a6c7a1a3e54cf5063706535229be9c79d72cbd58f9aa5d8541",
+    "scripts/text-edit-smoke.mjs": "ac508e2a5e8064739f775f5334915709be4e2a62205e0f3931192a5346d9fbab",
+    "scripts/text-selection-paint-checks.mjs": "0c1bfd7dd93d7ecb4d3805ed6019d0a095311b051f4fc3a86b6d9cc308a20d47",
+    "scripts/fixtures/text-edit.jsx": "5c3f178777622315b734542d8492ed3cb2dd0bc60c53833c4704eab466509596",
+    "package.json": "b94ef0689b51f9881c4383731290a7fdc773bc7e776c380cfaf7e3d9a2673a03",
+    "package-lock.json": "4ba00ec4e4174ea0a572d6f94017fc4c82e288c750f3cc7a7c8bb54ebb7c7943"
+  },
+  "verifiedAt": "2026-10-18T09:55:14.660060+00:00",
+  "goalStatus": "active",
+  "scope": "Preserve authored text colours and backgrounds during block/node/cell selection; frameless translucent paint",
+  "checks": [
+    {
+      "command": "npm run test:text-edit",
+      "exitCode": 0,
+      "passRecords": 125,
+      "selectionPaintCases": 18,
+      "log": "/tmp/rollapp-selection-paint-full-text.log"
+    },
+    {
+      "command": "npm run test:text-edit -- --paint-only",
+      "exitCode": 0,
+      "passRecords": 18,
+      "log": "/tmp/rollapp-selection-paint-second.log"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "exitCode": 1,
+      "tests": 584,
+      "pass": 582,
+      "skip": 1,
+      "fail": 1,
+      "failure": "Existing Gallup DNA labels must use shrinkable grid tracks assertion",
+      "downstreamStages": "not-run",
+      "log": "/tmp/rollapp-selection-paint-comprehensive.log",
+      "report": "/tmp/rollapp-selection-paint-comprehensive.json"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "warning": "Existing chunk >500kB",
+      "log": "/tmp/rollapp-selection-paint-build.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "exitCode": 0,
+      "primitives": 37,
+      "applicationSources": 68,
+      "log": "/tmp/rollapp-selection-paint-ui.log"
+    },
+    {
+      "command": "npm audit",
+      "exitCode": 1,
+      "highDevTooling": 7,
+      "advisoriesUnchanged": true,
+      "initialAttempt": "TLS error; retried",
+      "log": "/tmp/rollapp-selection-paint-audit-retry.json"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "exitCode": 0,
+      "vulnerabilities": 0,
+      "initialAttempt": "TLS error; retried",
+      "log": "/tmp/rollapp-selection-paint-production-audit-retry.json"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --no-index --check /dev/null scripts/text-selection-paint-checks.mjs",
+      "exitCode": 1,
+      "result": "No whitespace diagnostics; exit 1 denotes new-file diff"
+    },
+    {
+      "command": "npm run dev:keepalive:status",
+      "exitCode": 0,
+      "pid": 99362,
+      "api": "ready",
+      "frontend": "ready",
+      "keptRunning": true
+    }
+  ],
+  "sourceDrift": [],
+  "matrix": {
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "viewports": [
+      [
+        320,
+        844
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        390,
+        400
+      ],
+      [
+        768,
+        844
+      ],
+      [
+        820,
+        844
+      ],
+      [
+        1024,
+        844
+      ],
+      [
+        1440,
+        844
+      ],
+      [
+        1920,
+        844
+      ]
+    ],
+    "additionalDpr3": [
+      390,
+      844
+    ],
+    "total": 18
+  },
+  "assertions": [
+    "Real glyph pixels for nine distinct inline colours, baseline >10 pixels, selected >=50% baseline with RGB distance <16",
+    "Original block/cell backgroundColor and inline highlight unchanged",
+    "Visible tint without authored background; authored blue remains visually distinct",
+    "All four borders/outline/shadow zero",
+    "Exact model JSON unchanged, zero saves and unexpected API requests"
+  ],
+  "baselineFailure": "/tmp/rollapp-selection-paint-before.log",
+  "cssomPaintDiagnostic": "/tmp/rollapp-selection-paint-diagnostic.log",
+  "screenshots": [
+    "/tmp/rollapp-selection-paint-dark-390-400.png",
+    "/tmp/rollapp-selection-paint-dark-1440-844.png",
+    "/tmp/rollapp-selection-paint-light-390-400.png",
+    "/tmp/rollapp-selection-paint-light-1440-844.png"
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "width": 1280,
+    "database": "configured production direct TLS",
+    "mode": "read-only",
+    "actions": "Escape selects and clears one block; frames/overflow computed; own tab closed",
+    "productionWrites": false
+  },
+  "limitations": [
+    "NodeSelection tested on paragraph, not replaced nodes/images",
+    "Actual iOS/Telegram/WebKit and real IME unverified",
+    "Controls smoke not rerun: geometry and navigation unchanged",
+    "Full R1-R10 goal remains incomplete; see docs/notion-text-experience.md",
+    "Comprehensive audit failed at existing Gallup assertion; downstream checks not run"
+  ],
+  "deployment": false,
+  "commitCreated": false
+}

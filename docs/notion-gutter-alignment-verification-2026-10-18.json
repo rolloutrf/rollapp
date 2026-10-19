@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "request": "vertical alignment of inline plus and grip",
+  "promoted": true,
+  "changedSources": [
+    "src/components/inline-block-controls.jsx",
+    "scripts/text-four-document-checks.mjs",
+    "scripts/text-gutter-alignment-checks.mjs",
+    "scripts/text-edit-smoke.mjs"
+  ],
+  "reviewedDiff": "/tmp/rollapp-gutter-alignment-proposed.diff",
+  "implementation": "Floating UI left placement anchored to first semantic text line; root gutter preserved for columns; media uses measured handle height;48px controls/20px glyphs unchanged",
+  "baseline": {
+    "initialFixtureFailure": "double canonical HTML wrapper omitted columns; corrected fixture source only",
+    "verifiedFailure": {
+      "exitCode": 1,
+      "log": "/tmp/rollapp-gutter-alignment-before-valid.log",
+      "width": 1024,
+      "target": "h1",
+      "controlCenter": 24,
+      "firstLineCenter": 20
+    }
+  },
+  "candidate": {
+    "exitCode": 0,
+    "records": 8,
+    "log": "/tmp/rollapp-gutter-alignment-fixed-ink.log",
+    "notes": "first nested-child probe hovered left hierarchy edge and selected parent; hover now inside text, with same alignment assertion and separate parent/child coverage"
+  },
+  "main": {
+    "status": "passed",
+    "expectedRecords": 27,
+    "session": 40259,
+    "log": "/tmp/rollapp-gutter-alignment-main.log",
+    "report": "/tmp/rollapp-gutter-alignment-main.json",
+    "confirmedAlignmentRecords": 8,
+    "records": 27,
+    "results": [
+      {
+        "flag": "--gutter-alignment-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--four-document-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--list-drag-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      }
+    ],
+    "sourceDrift": []
+  },
+  "ui": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 72,
+    "log": "/tmp/rollapp-gutter-alignment-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-gutter-alignment-build.log",
+    "warning": "existing large chunks"
+  },
+  "liveReadonly": {
+    "route": "/app/spheres/career?tab=about",
+    "viewport": [
+      1280,
+      720
+    ],
+    "firstLineCenter": 360,
+    "buttonCenters": [
+      360,
+      360
+    ],
+    "glyphCenters": [
+      360,
+      360
+    ],
+    "buttonSizes": [
+      [
+        48,
+        48
+      ],
+      [
+        48,
+        48
+      ]
+    ],
+    "textUnchanged": true,
+    "noContentEditOrSaveAction": true,
+    "ownedTab39Closed": true
+  },
+  "otherSourceDrift": [],
+  "screenshot": "/tmp/rollapp-gutter-alignment-1440-844.png",
+  "previousFull": {
+    "sourceCount": 631,
+    "expectedEditorRecords": 295,
+    "status": "cancelled",
+    "exitCode": 130,
+    "editorPassRecords": 15,
+    "controller2472": "terminal/closed",
+    "reason": "confirmed gutter defect and new user request; owned process group83144 stopped, production22680 preserved",
+    "nativeSelectionCounterexample": "still open and documented in Cut report"
+  },
+  "fullEditor": {
+    "status": "failed",
+    "expectedRecords": 303,
+    "session": 97619,
+    "sourceCount": 632,
+    "sourceSnapshot": "/tmp/rollapp-gutter-alignment-main-sources.json",
+    "log": "/tmp/rollapp-gutter-alignment-main-full.log",
+    "exitCode": 1,
+    "editorPassRecords": 57,
+    "sourceDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T20:14:04.061790+00:00"
+  },
+  "limitations": [
+    "Current goal R1–R10 not declared complete",
+    "Native selection intermittent counterexample remains open; alignment proof does not resolve it"
+  ],
+  "production": "keepalive22680 stays running, no writes/migrations/uploads/deletes/deploy"
+}

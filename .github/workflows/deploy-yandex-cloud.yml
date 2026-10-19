@@ -27,7 +27,9 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # The complete block-editor browser matrix needs more than the former
+    # 25-minute budget. Keep every release check before publishing the image.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout

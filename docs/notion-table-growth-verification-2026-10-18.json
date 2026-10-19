@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "previousGoalTurn": "progress: implemented table axis duplication;28 browser and660 unit checks; candidate saved",
+  "scope": "Table edge plus and corner resizing with persistent independent header state",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-table-growth-q3klz8tf",
+  "snapshot": "/tmp/rollapp-table-growth-sources.json",
+  "sourceCount": 616,
+  "expectedEditorRecords": 257,
+  "promoted": false,
+  "evidence": {
+    "unitTotal": 665,
+    "unitPass": 664,
+    "unitSkip": 1,
+    "unitFail": 0,
+    "growthBrowserInitialRecords": 9,
+    "growthBrowserInitialExit": 0,
+    "heldPointerGuardsRecords": 2,
+    "heldPointerGuardsExit": 0,
+    "ui": "37/70 PASS",
+    "build": "PASS"
+  },
+  "finalSequence": {
+    "status": "failed",
+    "session": 53149,
+    "expectedBrowserRecords": 36,
+    "logs": {
+      "/tmp/rollapp-table-growth-final-browser.log": 9,
+      "/tmp/rollapp-table-growth-duplicate-compat.log": 9,
+      "/tmp/rollapp-table-growth-tables-compat.log": 8,
+      "/tmp/rollapp-table-growth-chrome-compat.log": 10
+    },
+    "terminal": {
+      "status": "failed",
+      "exitCode": 1,
+      "sourceCount": 616,
+      "sourceDrift": [],
+      "counts": {
+        "/tmp/rollapp-table-growth-final-browser.log": 9,
+        "/tmp/rollapp-table-growth-duplicate-compat.log": 9,
+        "/tmp/rollapp-table-growth-tables-compat.log": 0,
+        "/tmp/rollapp-table-growth-chrome-compat.log": null
+      },
+      "promoted": false,
+      "fullEditorPending": true,
+      "finishedAt": "2026-10-18T17:41:51.762676+00:00"
+    }
+  },
+  "counterexamples": [
+    {
+      "kind": "kernel prototype",
+      "log": "/tmp/rollapp-table-growth-before.log",
+      "finding": "row-only headers became header column after 1cell shrink/regrowth",
+      "resolution": "explicit nullable headerRow/headerColumn state; strict canonical HTML; independent toggles and structural normalization"
+    },
+    {
+      "kind": "fixture",
+      "finding": "unit menu edits omitted installed tableEditing appendTransaction width repair",
+      "resolution": "unit editor applies real tableEditing append transactions; invalid grid is not accepted by runtime"
+    },
+    {
+      "kind": "prototype UI",
+      "finding": "view.posAtDOM(table,0) maps after table in renderWrapper",
+      "resolution": "resolve table through first cell as existing axis controls do"
+    },
+    {
+      "kind": "assertion timing",
+      "finding": "destructive color sampled midway through existing transition-all",
+      "resolution": "wait for existing control animations before color assertion; variant remains destructive"
+    },
+    {
+      "kind": "public reader regression",
+      "finding": "new header flags change root canonical opening tag; MarkdownDocument detected only old closing-angle prefix and rendered literal HTML",
+      "log": "/tmp/rollapp-table-growth-tables-compat.log",
+      "resolution": "reader recognizes shared canonical prefix with attributes; strict parser still validates all content; added native growth public-read checks"
+    }
+  ],
+  "unverified": [
+    "fresh combined full editor/comprehensive",
+    "real iOS/Telegram keyboard/IME",
+    "wide and nested-column growth audit",
+    "growth inside Four Questions via native controls",
+    "remaining R6/R8/R9/R10 matrix incl media and arbitrary clipboard"
+  ],
+  "productionWrites": false,
+  "createdAt": "2026-10-18T17:41:04.205660+00:00",
+  "repairSequence": {
+    "status": "targeted-passed",
+    "snapshot": "/tmp/rollapp-table-growth-public-fixed-sources.json",
+    "expectedBrowserRecords": 27,
+    "logs": {
+      "/tmp/rollapp-table-growth-public-fixed-tables.log": 8,
+      "/tmp/rollapp-table-growth-public-fixed-browser.log": 9,
+      "/tmp/rollapp-table-growth-public-fixed-chrome.log": 10
+    },
+    "session": 73547,
+    "controllerCell": "2200",
+    "terminal": {
+      "status": "targeted-passed",
+      "exitCode": 0,
+      "sourceCount": 616,
+      "sourceDrift": [],
+      "counts": {
+        "/tmp/rollapp-table-growth-public-fixed-tables.log": 8,
+        "/tmp/rollapp-table-growth-public-fixed-browser.log": 9,
+        "/tmp/rollapp-table-growth-public-fixed-chrome.log": 10
+      },
+      "promoted": false,
+      "finishedAt": "2026-10-18T17:46:25.162554+00:00"
+    }
+  },
+  "lastSourceDriftCheck": {
+    "at": "2026-10-18T17:43:54.592657+00:00",
+    "main": [],
+    "candidate": []
+  }
+}

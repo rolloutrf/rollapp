@@ -431,7 +431,7 @@ input.phone-otp__code {
 .wish-card.is-group-target .wish-card__image { outline: 3px solid var(--foreground); outline-offset: 4px; transform: scale(.97); }
 .grouping-hint { margin: -8px 0 18px; display: flex; align-items: center; gap: 8px; color: var(--app-muted); font-size: 13px; }
 .grouping-hint svg { width: 16px; height: 16px; color: #7892ff; }
-.wish-group-tile { width: 100%; height: auto !important; min-width: 0; min-height: 0; padding: 0 !important; position: relative; align-self: start; display: grid !important; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto 58px !important; gap: 0 !important; overflow: visible; border: 0; border-radius: 0; color: inherit; background: transparent; text-align: left; white-space: normal; cursor: pointer; }
+.wish-group-tile { width: 100%; height: auto !important; min-width: 0; min-height: 0; padding: 0 !important; position: relative; align-self: start; display: grid !important; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto auto !important; gap: 0 !important; overflow: visible; border: 0; border-radius: 0; color: inherit; background: transparent; text-align: left; white-space: normal; cursor: pointer; }
 .wish-group-tile:hover { color: inherit !important; background: transparent !important; }
 .wish-group-tile.is-draggable { cursor: grab; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
 .wish-group-tile.is-draggable:active { cursor: grabbing; }
@@ -445,8 +445,8 @@ input.phone-otp__code {
 .wish-group-tile__preview > span { display: grid; place-items: center; overflow: hidden; border-radius: 10px; color: var(--app-muted); background: var(--muted); }
 .wish-group-tile__preview img { width: 100%; height: 100%; object-fit: cover; }
 .wish-group-tile__preview svg { width: 24px; height: 24px; }
-.wish-group-tile__meta { width: 100%; position: static; overflow: visible; }
-.wish-group-tile__meta h3 { width: calc(100% - 46px); min-width: 0; }
+.wish-group-tile__meta { width: 100%; min-width: 0; position: static; overflow: visible; }
+.wish-group-tile__meta h3 { width: 100%; min-width: 0; }
 .wish-group-tile__title[data-slot="button"] { width: 100%; min-width: 0; height: auto !important; min-height: 0 !important; margin: 0; padding: 0 !important; justify-content: flex-start !important; overflow: hidden; border: 0; color: inherit; background: transparent !important; font: inherit !important; line-height: inherit; letter-spacing: inherit; text-align: left !important; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .wish-group-tile__title:focus-visible { border-radius: 3px; outline: 2px solid var(--ring); outline-offset: 2px; }
 .wish-group-tile__meta input { width: calc(100% - 46px); height: 32px; margin: -5px 0 6px; padding: 0 8px; order: 1; font-size: 16px; }
@@ -3576,7 +3576,6 @@ html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
   display: block;
   object-fit: contain;
 }
-.wish-editor__delete,
 .wish-editor__image-change {
   position: absolute;
   z-index: 4;
@@ -3595,8 +3594,6 @@ html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
   place-items: center;
   border-radius: 50%;
 }
-.wish-editor__delete:hover,
-.wish-editor__delete:focus-visible { background: var(--accent); }
 .wish-editor__delete svg { width: 22px; height: 22px; }
 .wish-editor__image-change {
   min-height: 40px;
@@ -7019,7 +7016,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .contact-detail__note-block a { color: color-mix(in oklch, var(--contact-accent) 60%, white); text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--contact-accent) 38%, transparent); text-underline-offset: 3px; overflow-wrap: anywhere; }
 .contact-detail__no-notes { color: var(--muted-foreground); }
-.contact-detail__edit-form { min-height: 100%; padding: var(--layout-item-gap) var(--layout-page-inset) 48px; }
+article.contact-detail__edit-form { padding: var(--layout-item-gap) var(--layout-page-inset); }
+form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.contact-detail__edit-body { display: flex; flex-direction: column; gap: var(--layout-page-gap); padding: var(--layout-item-gap) var(--layout-page-inset); }
+.contact-detail__profile { display: flex; flex-direction: column; gap: var(--layout-item-gap); }
 .contact-detail__edit-heading {
   min-height: var(--contact-detail-avatar-size);
   position: relative;
@@ -7028,57 +7028,20 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   column-gap: 24px;
 }
+.contact-detail__edit-heading--editable { grid-template-columns: var(--contact-detail-avatar-size) minmax(0, 1fr) auto; column-gap: var(--layout-inline-gap); }
 .contact-detail__edit-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.contact-detail__avatar-editor {
-  position: relative;
-  width: var(--contact-detail-avatar-size);
-  height: var(--contact-detail-avatar-size);
-  margin-bottom: 54px;
-}
-.contact-detail__avatar-button {
-  position: relative;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-}
-.contact-detail__avatar-button:disabled { cursor: wait; }
-.contact-detail__avatar-button:focus-visible { outline: 2px solid color-mix(in oklch, var(--contact-accent) 72%, white); outline-offset: 3px; }
-.contact-detail__avatar-button-icon {
-  width: 28px;
-  height: 28px;
-  position: absolute;
-  right: -1px;
-  bottom: -1px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--popover);
-  border-radius: 50%;
-  color: var(--popover);
-  background: color-mix(in oklch, var(--contact-accent) 74%, white);
-  transition: transform 160ms ease, background-color 160ms ease;
-}
-.contact-detail__avatar-button:hover .contact-detail__avatar-button-icon { transform: scale(1.08); background: color-mix(in oklch, var(--contact-accent) 62%, white); }
-.contact-detail__avatar-delete {
-  position: absolute;
-  right: auto;
-  bottom: -54px;
-  left: 0;
-  box-shadow: 0 2px 8px color-mix(in oklch, black 28%, transparent);
-}
-.contact-detail__avatar-delete:hover { background: color-mix(in oklch, var(--destructive) 10%, var(--popover)); color: var(--destructive); }
 .contact-detail__avatar-controls {
-  margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--layout-inline-gap);
 }
-.contact-detail__avatar-controls [data-slot="button"] { min-height: 48px; border-radius: 999px; }
-.contact-detail__avatar-controls svg { width: 16px; height: 16px; }
+.contact-detail__avatar-controls [data-slot="button"] { border-radius: 999px; }
+.contact-detail__avatar-controls svg { width: 20px; height: 20px; }
 .contact-detail__avatar-message {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--muted-foreground);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
   text-wrap: pretty;
 }
 .contact-detail__avatar-message.is-error { color: var(--destructive); }
@@ -7160,24 +7123,17 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .contact-detail__add-link svg { width: 16px; height: 16px; }
 .contact-detail__edit-notes { margin-top: 28px; }
 .contact-detail__edit-error { margin: 14px 0 0; color: var(--destructive); font-size: 13px; line-height: 19px; }
+.contact-detail__edit-body > :is(.contact-detail__edit-fields, .contact-detail__edit-section, .contact-detail__edit-notes, .contact-detail__edit-error) { margin: 0; }
 .contact-detail__edit-actions {
-  margin-top: 24px;
-  padding: 16px 0 2px;
-  position: sticky;
-  bottom: 0;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex: 0 0 auto;
+  align-items: center;
   gap: var(--layout-inline-gap);
-  background: linear-gradient(transparent, var(--popover) 22%);
+  padding: var(--layout-item-gap) var(--layout-page-inset);
+  background: var(--popover);
 }
-.contact-detail__edit-actions [data-slot="button"] { min-height: 44px; border-radius: 999px; padding-inline: 18px; }
-.contact-detail__edit-actions svg { width: 17px; height: 17px; }
-.contact-detail__edit-actions .contact-detail__delete {
-  width: 100%;
-  justify-content: center;
-  color: var(--destructive);
-}
+.contact-detail__edit-actions > [type="submit"] { flex: 1; min-width: 0; }
+.contact-detail__edit-actions .contact-detail__delete { color: var(--destructive); }
 .contact-detail__edit-actions .contact-detail__delete:hover { color: var(--destructive); }
 
 @media (max-width: 1080px) {
@@ -7212,10 +7168,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .contacts-pagination { gap: 8px; }
   .contacts-pagination [data-slot="button"] { padding-inline: 14px; font-size: 13px; }
   .contact-detail-drawer { --contact-detail-avatar-size: 4.25rem; --drawer-content-width: 100%; border-radius: 24px 24px 0 0; }
-  .contact-detail__edit-form { padding-bottom: 36px; }
   .contact-detail__header { padding-right: 42px; gap: 13px; }
   .contact-detail__avatar { font-size: 18px; }
-  .contact-detail__avatar-button-icon { width: 25px; height: 25px; }
   .contact-detail__header [data-slot="drawer-title"] { font-size: 22px; line-height: 26px; }
   .contact-detail__links { grid-template-columns: 1fr; }
   .contact-detail__edit-fields { grid-template-columns: 1fr; }
@@ -10252,4 +10206,70 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 
 @media (max-width: 560px) {
   .rolls-hero-icon { width: 96px; height: 96px; }
+}
+
+/* Collection items use the Wishlist image-then-information snippet rhythm. */
+.collection-snippet__open:hover,
+.collection-snippet__open:active { background: transparent !important; }
+.collection-snippet[data-slot="card"] {
+  gap: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  --card-spacing: 0px;
+  --snippet-flow: 8px;
+}
+.collection-snippet__media {
+  position: relative;
+  display: grid;
+  aspect-ratio: 236 / 286;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+}
+.collection-snippet__media .collection-snippet__badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, white 26%, transparent);
+  color: white;
+  background: color-mix(in oklch, black 70%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+.collection-snippet__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.collection-snippet__placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+.collection-snippet__placeholder svg { width: 48px; height: 48px; stroke-width: 1.5; }
+.collection-snippet > [data-slot="card-header"] { padding: 10px 2px 0; }
+.collection-snippet > [data-slot="card-content"] { padding: var(--snippet-flow) 2px 0; }
+.collection-snippet > [data-slot="card-footer"] {
+  padding: var(--snippet-flow) 2px 0;
+  border: 0;
+  background: transparent;
+}
+.collection-snippet [data-slot="card-title"] { min-width: 0; padding-right: 4px; }
+.collection-snippet [data-slot="card-action"] { pointer-events: auto; }
+.collection-snippet [data-slot="card-description"] { min-width: 0; }
+.collection-snippet [data-slot="card-content"] > p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+@media (max-width: 640px) {
+  .collection-snippet__media { border-radius: 15px; }
 }

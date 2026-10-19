@@ -1,0 +1,107 @@
+{
+  "status": "failed",
+  "startedAt": "2026-10-17T17:25:11.525Z",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "failed",
+      "startedAt": "2026-10-17T17:25:11.596Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-17T17:25:18.663Z",
+      "durationMs": 7066
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-10-17T17:25:18.664Z",
+  "scope": "Per-block rich-text drag handles, block menu and keyboard movement",
+  "targetedChecks": [
+    {
+      "name": "test:text-edit",
+      "status": "passed",
+      "matrix": "320,390,768,820,1024,1440,1920 x 844; 390 x 400",
+      "log": "/tmp/rollapp-block-text-final-pass.log"
+    },
+    {
+      "name": "test:controls",
+      "status": "passed",
+      "log": "/tmp/rollapp-block-controls.log"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "log": "/tmp/rollapp-block-rails-verified.log"
+    },
+    {
+      "name": "test:dates",
+      "status": "passed",
+      "log": "/tmp/rollapp-block-dates.log"
+    },
+    {
+      "name": "test:ui",
+      "status": "passed",
+      "log": "/tmp/rollapp-block-ui.log"
+    },
+    {
+      "name": "build",
+      "status": "passed",
+      "log": "/tmp/rollapp-block-build-final-pass.log"
+    },
+    {
+      "name": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "unitFailure": {
+    "file": "src/components/identity-reports.test.js",
+    "message": "Gallup DNA labels must use shrinkable grid tracks",
+    "tests": 510,
+    "passed": 508,
+    "failed": 1,
+    "skipped": 1,
+    "newBlockTestsPassed": 3
+  },
+  "audit": {
+    "production": 0,
+    "developmentHigh": 7
+  },
+  "sourceSha256": {
+    "src/components/inline-block-controls.jsx": "994c54577c9d19a32fbc3666eb06d7556c038faed08dd5d3b9db09661e4d4aa5",
+    "src/lib/inline-blocks.js": "6629e36c2e0f4a6d7db67095441cdac06cad84e82f986c7c14b901e0b0b76b09",
+    "src/lib/inline-blocks.test.js": "f216d2b00c172a044e8de368e6282c2ec45295bb75fde755192cfa129cd63ed6",
+    "src/components/inline-rich-text-editor.jsx": "e6d2c94790c8415495e793cc34a57de84725578f2b97f5f4992a381c4e679acf",
+    "src/components/inline-editor.css": "773c660c19054ae18ae5350f47c66d49c5450518daa644af0bc813f947efc70f",
+    "src/components/ui/popover.jsx": "e2aa192e430352f525df3f50ae194a4646d56e63f454ea9795827c7ffc918e0c",
+    "scripts/text-edit-smoke.mjs": "b45d25f9187a6ba01c45c5a93c8f924974f4e059df34933af9c9b50c9aeb8af9",
+    "scripts/fixtures/text-edit.jsx": "1368c8eeaeaad669258bfa53adb633dd1e461bd077b58494f330e40e4871b2af"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Isolated source candidate only; no production database or API",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-nesting-uf50uryu",
+  "promoted": true,
+  "unit": {
+    "total": 634,
+    "pass": 633,
+    "skip": 1,
+    "log": "/tmp/rollapp-notion-combined-prototype-unit.log"
+  },
+  "ui": {
+    "status": "passed",
+    "log": "/tmp/rollapp-notion-combined-prototype-ui.log"
+  },
+  "build": {
+    "status": "passed",
+    "log": "/tmp/rollapp-notion-combined-prototype-build.log",
+    "warning": "Existing chunk-size warning"
+  },
+  "text": {
+    "status": "passed",
+    "exitCode": 0,
+    "passRecords": 184,
+    "expected": 184,
+    "log": "/tmp/rollapp-notion-combined-prototype-text.log",
+    "finishedAt": "2026-10-18T15:11:30.009385+00:00",
+    "sourceCount": 598,
+    "sourceDrift": []
+  },
+  "features": [
+    "Direct answer blocks can move across fixed prompts; caret, marks, sparse selections and one Undo retained. Native list-item boundary crossing is still outside this candidate.",
+    "More than30 legacy Markdown storage chunks pack into one array entry without changing document semantics/API budget.",
+    "CSS establishes fixed position for inline menus before their first Floating UI measurement."
+  ],
+  "targeted": {
+    "questionMoves": {
+      "pass": 8,
+      "log": "/tmp/rollapp-question-move-prototype-browser-platform.log"
+    },
+    "packing": {
+      "pass": 8,
+      "log": "/tmp/rollapp-packing-prototype-browser.log"
+    },
+    "firstOffscreen": {
+      "pass": 9,
+      "log": "/tmp/rollapp-first-offscreen-full-fixed.log"
+    },
+    "beforeOffscreen": {
+      "status": "failed",
+      "log": "/tmp/rollapp-first-offscreen-before.log"
+    }
+  },
+  "limitations": [
+    "No claim of complete Notion experience.",
+    "No production writes, migrations, deployment or commit.",
+    "Movement of native list items across their enclosing container/answer and parent Enter semantics remain open.",
+    "True device IME/keyboards and arbitrary clipboard/media/table handle audit remain open."
+  ],
+  "promotion": {
+    "at": "2026-10-18T15:12:37.935160+00:00",
+    "files": [
+      "src/components/inline-editor.css",
+      "src/lib/four-question-document.js",
+      "src/lib/four-question-document.test.js",
+      "src/lib/inline-blocks.js",
+      "src/lib/inline-block-tree.js",
+      "src/lib/inline-block-tree-structure.js",
+      "src/lib/inline-question-block-move.js",
+      "src/lib/inline-question-block-move.test.js",
+      "scripts/fixtures/text-edit.jsx",
+      "scripts/text-long-answer-checks.mjs",
+      "scripts/text-first-selection-checks.mjs",
+      "scripts/text-question-move-checks.mjs",
+      "scripts/text-edit-smoke.mjs"
+    ],
+    "mainVerification": "pending",
+    "fixtureOnlyDifference": "temporary fs.allow removed; pure zod preoptimized to avoid cold fixture dependency reload"
+  }
+}

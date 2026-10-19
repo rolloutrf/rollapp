@@ -1,0 +1,277 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Explicit caret reveal after table growth and native Undo/Redo; preserve manual scroll intent",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-table-intent-aryd7uxz",
+  "sourceSnapshot": "/tmp/rollapp-table-intent-sources.json",
+  "sourceCount": 620,
+  "expectedEditorRecords": 270,
+  "promoted": true,
+  "baseline": [
+    {
+      "action": "column plus while first row is above screen",
+      "viewport": [
+        1024,
+        844
+      ],
+      "caretTop": 4.5,
+      "caretBottom": 27.5,
+      "headerBottom": 72,
+      "cellRight": 978.5,
+      "wrapperRight": 896,
+      "stableAfterMs": 650,
+      "log": "/tmp/rollapp-table-insert-caret-before.log",
+      "screenshot": "/tmp/rollapp-table-insert-caret-baseline-1024-844.png"
+    },
+    {
+      "action": "Undo growth restores preceding paragraph",
+      "viewport": [
+        1024,
+        844
+      ],
+      "caretTop": 31,
+      "caretBottom": 54,
+      "headerBottom": 72,
+      "stableAfterMs": 650,
+      "log": "/tmp/rollapp-table-undo-caret-before.log"
+    }
+  ],
+  "fix": "Explicit authoring intent only; reveal whole cell via its nearest scroll owners, then reconcile native caret below real app chrome. Undo/Redo key or history beforeinput uses the same guarded intent. No selectionchange/scroll observer.",
+  "focused": {
+    "status": "passed",
+    "exitCode": 0,
+    "records": 2,
+    "session": 20851,
+    "log": "/tmp/rollapp-table-insert-history-caret-fixed.log",
+    "viewports": [
+      [
+        1024,
+        844
+      ],
+      [
+        1440,
+        400
+      ]
+    ],
+    "includes": [
+      "original row offscreen",
+      "entire new cell within table scroll owner",
+      "native/model caret parity",
+      "650ms native focus reconciliation",
+      "immediate typing",
+      "exact independent Undo",
+      "Mod Shift Z and Mod Y Redo"
+    ]
+  },
+  "unit": {
+    "exitCode": 0,
+    "total": 665,
+    "pass": 664,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-table-intent-unit.log"
+  },
+  "ui": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 70
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-table-intent-build.log"
+  },
+  "compatibility": {
+    "status": "passed",
+    "session": 81883,
+    "log": "/tmp/rollapp-table-intent-compatibility.log",
+    "report": "/tmp/rollapp-table-intent-compatibility.json",
+    "port": 5293,
+    "cache": "/tmp/rollapp-table-intent-vite-cache",
+    "records": 42,
+    "sourceDrift": [],
+    "checks": [
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "passRecords": 2,
+        "log": "/tmp/rollapp-table-intent-native-caret-only.log"
+      },
+      {
+        "flag": "--first-selection-only",
+        "exitCode": 0,
+        "passRecords": 9,
+        "log": "/tmp/rollapp-table-intent-first-selection-only.log"
+      },
+      {
+        "flag": "--caret-scroll-only",
+        "exitCode": 0,
+        "passRecords": 9,
+        "log": "/tmp/rollapp-table-intent-caret-scroll-only.log"
+      },
+      {
+        "flag": "--plain-caret-only",
+        "exitCode": 0,
+        "passRecords": 9,
+        "log": "/tmp/rollapp-table-intent-plain-caret-only.log"
+      },
+      {
+        "flag": "--table-growth-only",
+        "exitCode": 0,
+        "passRecords": 9,
+        "log": "/tmp/rollapp-table-intent-table-growth-only.log"
+      },
+      {
+        "flag": "--table-growth-guards-only",
+        "exitCode": 0,
+        "passRecords": 2,
+        "log": "/tmp/rollapp-table-intent-table-growth-guards-only.log"
+      },
+      {
+        "flag": "--table-growth-contexts-only",
+        "exitCode": 0,
+        "passRecords": 2,
+        "log": "/tmp/rollapp-table-intent-table-growth-contexts-only.log"
+      }
+    ],
+    "finishedAt": "2026-10-18T18:31:32.939242+00:00"
+  },
+  "infrastructureAttempt": {
+    "session": 76119,
+    "exitCode": 1,
+    "reason": "Initial compatibility launcher used occupied main fixture port 5199; no browser records; rerun on independent port/cache. Main test not stopped."
+  },
+  "main618": {
+    "status": "failed",
+    "sourceCount": 618,
+    "expectedEditorRecords": 268,
+    "controllerCell": "2238",
+    "session": 82677,
+    "log": "/tmp/rollapp-notion-combined-main-comprehensive.log",
+    "sourceFrozen": true,
+    "exitCode": 1,
+    "editorPassRecords": 128,
+    "sourceDrift": [],
+    "failure": "dynamic import text-chrome-frame failed after isolated diagnostic initialized same node_modules/.vite-text-edit cache; temporal correlation with explicit re-optimization; no product assertion failed before module error",
+    "fullResult": "not passed; subsequent stages not-run"
+  },
+  "productionWrites": false,
+  "unverified": [
+    "Fresh comprehensive on source620 after selective promotion",
+    "actual iOS/Telegram IME and keyboard",
+    "document columns, media and remaining R6/R8/R9 matrix",
+    "menu-created row/column caret ownership"
+  ],
+  "createdAt": "2026-10-18T18:27:38.887628+00:00",
+  "promotedAt": "2026-10-18T18:32:03.529459+00:00",
+  "mainSnapshot": "/tmp/rollapp-table-intent-main-sources.json",
+  "promotion": "/tmp/rollapp-table-intent-promotion.json",
+  "mainTargeted": {
+    "status": "passed",
+    "exitCode": 0,
+    "records": 12,
+    "sourceDrift": [],
+    "log": "/tmp/rollapp-table-intent-main-targeted.log",
+    "checks": [
+      {
+        "flag": "--table-chrome-only",
+        "exitCode": 0
+      },
+      {
+        "flag": "--table-insert-caret-only",
+        "exitCode": 0
+      }
+    ]
+  },
+  "mainComprehensive": {
+    "status": "failed",
+    "sourceCount": 620,
+    "expectedEditorPassRecords": 270,
+    "snapshot": "/tmp/rollapp-table-intent-main-sources.json",
+    "log": "/tmp/rollapp-table-intent-main-comprehensive.log",
+    "report": "/tmp/rollapp-table-intent-main-comprehensive.json",
+    "port": 5199,
+    "cache": "/tmp/rollapp-table-intent-main-comprehensive-vite-cache",
+    "startedAt": "2026-10-18T18:32:37.927435+00:00",
+    "session": 93676,
+    "controllerCell": "2279",
+    "lastObservedAt": "2026-10-18T18:34:04.083406+00:00",
+    "lastObservedDrift": [],
+    "exitCode": 1,
+    "editorPassRecords": 174,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T18:56:04.292606+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T18:32:38.188Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T18:56:04.070Z",
+        "durationMs": 1405881
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0
+  },
+  "liveReadonly": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": [
+      1280,
+      720
+    ],
+    "editable": true,
+    "width": 768,
+    "borders": [
+      "0px",
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "outline": "0px",
+    "shadow": "none",
+    "font": "Geist Variable",
+    "size": "18px",
+    "lineHeight": "28px",
+    "rootOverflow": false,
+    "visibleToolbars": [],
+    "saveStatus": null,
+    "edits": 0,
+    "agentTab": 35,
+    "tabClosed": true,
+    "screenshot": "observed via CUA; no saved local screenshot artifact"
+  },
+  "goalTurnClassification": "progress: verified table-growth and Undo caret reveal; selectively promoted source620; fresh full270 running after main618 infrastructure failure"
+}

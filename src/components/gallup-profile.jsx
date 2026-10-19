@@ -5,8 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import {
-  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
-  IdentityReportStatus, useIdentityReport,
+  IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
+  IdentityReportStatus,
 } from "@/components/identity-report-manager";
 import topFivePdfUrl from "@/assets/gallup/cliftonstrengths-top-5.pdf?url";
 import fullProfilePdfUrl from "@/assets/gallup/cliftonstrengths-34.pdf?url";
@@ -43,10 +43,6 @@ const TOP_FIVE_DETAILS = {};
 const DOMAIN_ORDER = ["influencing", "strategic", "executing", "relationship"];
 
 const GALLUP_REPORTS = [];
-
-function domainStyle(domain) {
-  return { "--gallup-domain": `var(--gallup-${domain})` };
-}
 
 function strengthByRank(rank) {
   return GALLUP_STRENGTHS[rank - 1];
@@ -134,9 +130,9 @@ function TopFiveWebReport({ report }) {
           return (
             <article
               key={article.rank}
+              data-domain={strength.domain}
               id={`${report.id}-strength-${article.rank}`}
               className="gallup-report-chapter"
-              style={domainStyle(article.domain)}
             >
               <StrengthChapterHeader strength={strength} />
 
@@ -233,9 +229,9 @@ function FullProfileWebReport({ report }) {
           return (
             <article
               key={development.rank}
+              data-domain={strength.domain}
               id={`${report.id}-strength-${development.rank}`}
               className="gallup-report-chapter"
-              style={domainStyle(strength.domain)}
             >
               <StrengthChapterHeader strength={strength} />
               <p className="gallup-report-chapter__thrive">{development.thrive}</p>
@@ -322,7 +318,7 @@ function FullProfileWebReport({ report }) {
         </div>
         <div className="gallup-theme-library__grid">
           {GALLUP_STRENGTHS.map((strength) => (
-            <article key={strength.rank} style={domainStyle(strength.domain)}>
+            <article key={strength.rank} data-domain={strength.domain}>
               <div>
                 <span>{strength.rank}</span>
                 <p>{GALLUP_DOMAINS[strength.domain].label}</p>
@@ -355,11 +351,7 @@ function DefaultGallupProfile() {
           {DOMAIN_ORDER.map((domain) => {
             const topTenCount = GALLUP_STRENGTHS.filter((strength) => strength.rank <= 10 && strength.domain === domain).length;
             return (
-              <Card
-                key={domain}
-                className="border-t-2 border-t-(--gallup-domain)"
-                style={domainStyle(domain)}
-              >
+              <Card key={domain} data-domain={domain}>
                 <CardContent className="flex h-full flex-col justify-between gap-3">
                   <span className="text-xs text-muted-foreground">{GALLUP_DOMAINS[domain].label}</span>
                   <div className="flex items-baseline gap-2"><strong className="text-2xl leading-8 font-semibold tabular-nums">{topTenCount}</strong><span className="text-xs text-muted-foreground">из 10</span></div>
@@ -382,7 +374,6 @@ function DefaultGallupProfile() {
         <div className="gallup-top-five">
           <ToggleGroup
             className="gallup-top-five__list not-typeset grid w-full grid-cols-1 gap-2"
-            variant="outline"
             orientation="vertical"
             value={[String(selectedRank)]}
             onValueChange={(values) => { if (values[0]) setSelectedRank(Number(values[0])); }}
@@ -392,11 +383,11 @@ function DefaultGallupProfile() {
               return (
                 <ToggleGroupItem
                   key={strength.rank}
+                  data-domain={strength.domain}
                   value={String(strength.rank)}
                   className="identity-strength-option grid h-auto w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)] justify-start gap-3 px-3 py-3 text-left whitespace-normal"
-                  style={domainStyle(strength.domain)}
                 >
-                  <span className="text-2xl leading-8 font-semibold tabular-nums text-(--gallup-domain)">{strength.rank}</span>
+                  <span className="text-2xl leading-8 font-semibold tabular-nums text-muted-foreground">{strength.rank}</span>
                   <span className="flex min-w-0 flex-col gap-1">
                     <strong className="font-medium">{strength.translation}</strong>
                     <small className="text-xs text-muted-foreground">{GALLUP_DOMAINS[strength.domain].label}</small>
@@ -406,21 +397,23 @@ function DefaultGallupProfile() {
             })}
           </ToggleGroup>
 
-          <div className="gallup-strength-detail" style={domainStyle(selectedStrength.domain)} aria-live="polite">
-            <div className="gallup-strength-detail__heading" data-not-typeset>
-              <span className="gallup-strength-detail__rank">{selectedStrength.rank}</span>
-              <div>
-                <span className="gallup-strength-detail__domain">{selectedDomain.label}</span>
-                <h3 className="m-0 text-2xl leading-8 font-semibold">{selectedStrength.translation}</h3>
-                <p className="gallup-strength-detail__translation">Талант CliftonStrengths</p>
+          <Card className="not-typeset rollapp-body" data-domain={selectedStrength.domain} aria-live="polite">
+            <CardContent className="typeset typeset-rollapp typeset-document">
+              <div className="gallup-strength-detail__heading" data-not-typeset>
+                <span className="gallup-strength-detail__rank">{selectedStrength.rank}</span>
+                <div>
+                  <span className="gallup-strength-detail__domain">{selectedDomain.label}</span>
+                  <h3 className="m-0 text-2xl leading-8 font-semibold">{selectedStrength.translation}</h3>
+                  <p className="gallup-strength-detail__translation">Талант CliftonStrengths</p>
+                </div>
               </div>
-            </div>
-            <p className="gallup-strength-detail__summary">{selectedDetails.summary}</p>
-            <div className="gallup-strength-detail__action">
-              <span>Направить талант</span>
-              <p>{selectedDetails.action}</p>
-            </div>
-          </div>
+              <p className="gallup-strength-detail__summary text-foreground">{selectedDetails.summary}</p>
+              <div className="gallup-strength-detail__action">
+                <span>Направить талант</span>
+                <p>{selectedDetails.action}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
       <section className="identity-report-section" aria-labelledby="gallup-sequence-title">
@@ -432,36 +425,22 @@ function DefaultGallupProfile() {
           <p>Первые 10 — основная зона развития. Остальные темы помогают ориентироваться и подключаются по ситуации.</p>
         </div>
 
-        <div className="gallup-dna" role="img" aria-label="Последовательность 34 талантов, окрашенная по четырём доменам">
-          {GALLUP_STRENGTHS.map((strength) => (
-            <span
-              key={strength.rank}
-              className={strength.rank <= 10 ? "is-dominant" : undefined}
-              style={domainStyle(strength.domain)}
-              aria-hidden="true"
-            />
-          ))}
-        </div>
-        <div className="gallup-dna__labels" aria-hidden="true">
-          <span>Развивать · 1–10</span>
-          <span>Использовать по ситуации · 11–34</span>
-        </div>
 
         <ol className="gallup-sequence not-typeset" aria-label="Рейтинг всех 34 талантов">
           {GALLUP_STRENGTHS.map((strength) => (
-            <li key={strength.rank} className={strength.rank <= 10 ? "is-dominant" : undefined} style={domainStyle(strength.domain)}>
+            <li key={strength.rank} data-domain={strength.domain} className={strength.rank <= 10 ? "is-dominant" : undefined}>
               <span className="gallup-sequence__rank">{strength.rank}</span>
-              <span className="gallup-sequence__dot" aria-hidden="true" />
+
               <span className="gallup-sequence__name">{strength.translation}</span>
               <span className="gallup-sequence__translation">{GALLUP_DOMAINS[strength.domain].label}</span>
             </li>
           ))}
         </ol>
 
-        <div className="gallup-domain-legend" aria-label="Легенда доменов">
+        <div className="gallup-domain-legend" aria-label="Описание доменов">
           {DOMAIN_ORDER.map((domain) => (
-            <div key={domain} className="gallup-domain-legend__item" style={domainStyle(domain)}>
-              <span className="gallup-domain-legend__dot" aria-hidden="true" />
+            <div key={domain} data-domain={domain} className="gallup-domain-legend__item">
+
               <div>
                 <strong>{GALLUP_DOMAINS[domain].label}</strong>
                 <p>{GALLUP_DOMAINS[domain].description}</p>
@@ -533,77 +512,14 @@ function DefaultGallupProfile() {
 }
 
 function GeneratedGallupProfile({ report }) {
-  const strengths = report.strengths || [];
-  const leadingDomain = GALLUP_DOMAINS[report.leadingDomain];
-  const topStrength = strengths[0];
-  const dateLabel = report.date
-    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${report.date}T12:00:00Z`))
-    : "Дата не указана";
-
-  return (
-    <article className="gallup-profile gallup-profile--generated identity-report typeset-document" aria-labelledby="gallup-generated-title">
-      <IdentityReportOverview
-        titleId="gallup-generated-title"
-        eyebrow="CliftonStrengths"
-        title={leadingDomain ? `Ваш профиль ведёт ${leadingDomain.label}` : report.title}
-        description={leadingDomain?.description || "Ваши ведущие таланты и рекомендации по их развитию."}
-        person={report.person}
-        date={report.date}
-        dateLabel={dateLabel}
-      />
-
-      {strengths.length ? (
-        <section className="identity-report-section" aria-label="Рейтинг талантов">
-          <div className="gallup-profile__section-head">
-            <div>
-              <p className="gallup-profile__eyebrow" data-typography="label">Распознано из отчёта</p>
-              <h3>{strengths.length >= 34 ? "Все 34 таланта" : `${strengths.length} ведущих талантов`}</h3>
-            </div>
-            <p>{topStrength ? `Первый талант — ${topStrength.translation}.` : "Последовательность сформирована из PDF."}</p>
-          </div>
-          <div className="gallup-dna" role="img" aria-label="Последовательность распознанных талантов" style={{ gridTemplateColumns: `repeat(${strengths.length}, minmax(0, 1fr))` }}>
-            {strengths.map((strength) => (
-              <span
-                key={strength.rank}
-                className={strength.rank <= 10 ? "is-dominant" : undefined}
-                style={domainStyle(strength.domain)}
-                aria-hidden="true"
-              />
-            ))}
-          </div>
-          <ol className="gallup-sequence not-typeset" aria-label="Рейтинг талантов из PDF">
-            {strengths.map((strength) => (
-              <li key={strength.rank} className={strength.rank <= 10 ? "is-dominant" : undefined} style={domainStyle(strength.domain)}>
-                <span className="gallup-sequence__rank">{strength.rank}</span>
-                <span className="gallup-sequence__dot" aria-hidden="true" />
-                <span className="gallup-sequence__name">{strength.translation}</span>
-                <span className="gallup-sequence__translation">{GALLUP_DOMAINS[strength.domain]?.label || strength.name}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : (
-        <aside className="gallup-profile__note">Текст PDF распознан, но рейтинг талантов в документе не найден. Полное содержание доступно ниже.</aside>
-      )}
-
-      <IdentityGeneratedDocuments report={report} />
-    </article>
-  );
+  return <IdentityGeneratedDocuments report={report} />;
 }
 
-export function GallupProfile() {
-  const { state, setState, error, load } = useIdentityReport("gallup");
+export function GallupProfile({ reportState: { state, error, load } }) {
   if (state.mode === "loading" || state.mode === "error") {
     return <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />;
   }
-  return (
-    <div className="identity-report-workspace">
-      <IdentityReportControls section="gallup" label="Gallup" state={state} setState={setState} load={load} />
-      {state.mode === "empty"
-        ? <IdentityReportEmpty label="Gallup" />
-        : state.mode === "generated"
-          ? <GeneratedGallupProfile report={state.report} />
-          : <DefaultGallupProfile />}
-    </div>
-  );
+  return state.mode === "generated"
+    ? <GeneratedGallupProfile report={state.report} />
+    : <IdentityReportEmpty label="Gallup" />;
 }

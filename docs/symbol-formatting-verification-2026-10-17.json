@@ -1,0 +1,113 @@
+{
+  "verifiedAt": "2026-10-17T21:13:02.798174+03:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "targeted-checks-passed; comprehensive-unit-stage-failed",
+  "matrix": [
+    {
+      "width": 320,
+      "height": 844
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 390,
+      "height": 400
+    },
+    {
+      "width": 768,
+      "height": 844
+    },
+    {
+      "width": 820,
+      "height": 844
+    },
+    {
+      "width": 1024,
+      "height": 844
+    },
+    {
+      "width": 1440,
+      "height": 844
+    },
+    {
+      "width": 1920,
+      "height": 844
+    }
+  ],
+  "checks": [
+    {
+      "command": "TEXT_EDIT_PORT=5299 npm run test:text-edit",
+      "result": "passed: full editor matrix and advanced cases plus 33 typed shortcuts + 4 literal/unsafe cases at each of 390/1440×400",
+      "log": "/tmp/rollapp-symbols-complete-text.log"
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5300 npm run test:text-edit -- --symbols-only",
+      "result": "passed: targeted symbols only, including formatted autosave before Backspace/Undo",
+      "log": "/tmp/rollapp-symbols-formatted-save.log"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "result": "failed at release unit stage: 513 passed, 1 skipped, 1 unrelated failure in src/components/identity-reports.test.js, Gallup DNA labels must use shrinkable grid tracks. Later comprehensive stages not run. Shortcut/list-splitting and Markdown unit cases passed.",
+      "log": "/tmp/rollapp-symbols-comprehensive.log",
+      "json": "/tmp/rollapp-symbols-comprehensive.json"
+    },
+    {
+      "command": "npm run test:ui",
+      "result": "passed: 37 primitives / 64 application JSX sources"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed; existing chunk-size warning",
+      "log": "/tmp/rollapp-symbols-complete-build.log"
+    },
+    {
+      "command": "npm audit",
+      "result": "7 existing high vulnerabilities in development tooling; dependencies unchanged in this task",
+      "log": "/tmp/rollapp-symbols-audit.json"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "result": "0 vulnerabilities",
+      "log": "/tmp/rollapp-symbols-audit-production.json"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "npm run dev:keepalive:status",
+      "result": "ready; service PID 52615 retained, production TLS database configured"
+    }
+  ],
+  "fixedFindings": [
+    "Enabled typed Markdown links with the existing URI validation.",
+    "Added single-tilde strikethrough while retaining double-tilde Markdown.",
+    "Added uppercase checked tasks and non-breaking-space support.",
+    "Typing a task marker in an ordinary list converts only that item, preserving neighbours, nesting, marks and remaining ordered-list numbering.",
+    "Fenced code with optional language opens on Enter, is a separate Undo operation and respects IME composition.",
+    "Existing input-rule Backspace restores literal symbols; code and unmatched pairs stay literal.",
+    "Prebundled directly imported editor extensions to avoid first-load dependency reload."
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "result": "Read-only load of production-connected document: updated Bold/Italic symbol hints visible, prose border 0px / outline none / shadow none. No text typed, no data saved; temporary tab closed."
+  },
+  "limitations": [
+    "Comprehensive application checks beyond the failing Gallup unit stage remain unverified.",
+    "No native iOS/Telegram IME/keyboard verification; browser input uses Chromium on macOS.",
+    "No deployment performed."
+  ],
+  "sourceSha256": {
+    "src/lib/inline-symbol-shortcuts.js": "7efaa8fdef3bffc0c2aa74f279b616e3b3fe71c02be563a82670fff7a1fedc69",
+    "src/lib/inline-symbol-shortcuts.test.js": "c9d9eb9f8bc76bce09dc5a9c7adc347f240e18311cb2e4642f43cef23106efcd",
+    "src/lib/inline-editor-extensions.js": "4265df396758de56ed3ae98e9e3d83075a52bec238d773581f8b804a599624f1",
+    "src/components/inline-rich-text-editor.jsx": "d3f61ea84b3f10b018778ab6533bdc60a60c6421a25cc1bbddaa7b66a93c37fd",
+    "scripts/text-edit-smoke.mjs": "890dbb73f5f5693328bc361655173300f96cc0ec4da46f1cae7601287b9e57bb",
+    "scripts/text-symbol-shortcuts-checks.mjs": "3ca6ff78cebe18ba4e938c3cf703d3de2dbc3b858607ccf43b846726046f79df",
+    "vite.config.js": "a94c4ad21e7622b861bb75d77ed09f437c38e2927e575d12d5859970f62f06f1",
+    "docs/inline-editing.md": "37b3a29750add26a847679470574e7ade8015552751e558c4ab3fd54c9464f5d"
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "previousGoalTurn": "progress: main caret/duplication/anchor promotion; new growth kernel/UI and header persistence; reader regression found and repaired",
+  "scope": "Native caret visibility for structured plaintext and rich prose; grid growth in nested/wide/Four Questions contexts",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-notion-combined-ott_iddc",
+  "sourceSnapshot": "/tmp/rollapp-notion-combined-sources.json",
+  "sourceCount": 618,
+  "expectedEditorRecords": 268,
+  "promoted": true,
+  "baselinePlain": {
+    "log": "/tmp/rollapp-plain-caret-before.log",
+    "viewport": [
+      1024,
+      844
+    ],
+    "caretTop": 30,
+    "caretBottom": 53,
+    "headerBottom": 72,
+    "nativeOffset": 1867,
+    "stableAfterMs": 650,
+    "initialZeroHeightMeasurement": "fixture artifact; only positive-height native range established occlusion"
+  },
+  "plainProof": {
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-plaintext-caret-mo19is7c",
+    "exitCode": 0,
+    "records": 9,
+    "log": "/tmp/rollapp-plain-caret-fixed.log",
+    "includes": "actual blank-line caret pixels, native arrows/Shift, manual scroll, no inputs/frames/API"
+  },
+  "tableContexts": {
+    "baselineLog": "/tmp/rollapp-table-growth-contexts.log",
+    "finding": "new far column selection is offscreen when transaction scroll runs before editor focus",
+    "fixedLog": "/tmp/rollapp-table-growth-contexts-fixed.log",
+    "exitCode": 0,
+    "records": 2,
+    "includes": "native Four Questions growth, API-valid exact reload/neighbours/titles, wide horizontal owner/new-cell typing, nested peer-text guard and nearest-table menu"
+  },
+  "unit": {
+    "total": 665,
+    "pass": 664,
+    "skip": 1,
+    "fail": 0,
+    "exitCode": 0,
+    "log": "/tmp/rollapp-combined-unit.log"
+  },
+  "ui": {
+    "primitives": 37,
+    "jsx": 70,
+    "exitCode": 0,
+    "log": "/tmp/rollapp-combined-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-combined-build.log"
+  },
+  "combinedVerification": {
+    "status": "passed",
+    "session": 50601,
+    "expectedRecords": 38,
+    "logs": {
+      "/tmp/rollapp-combined-native.log": 2,
+      "/tmp/rollapp-combined-first-selection.log": 9,
+      "/tmp/rollapp-combined-caret-scroll.log": 9,
+      "/tmp/rollapp-combined-plain-caret.log": 9,
+      "/tmp/rollapp-combined-table-growth.log": 9
+    },
+    "exitCode": 0,
+    "records": 38,
+    "sourceDrift": []
+  },
+  "main611Supplemental": {
+    "status": "passed",
+    "exitCode": 0,
+    "sourceDrift": [],
+    "counts": {
+      "Hogan": 12,
+      "todo": 29,
+      "formPages": 128,
+      "catalog": 7,
+      "wishGroups": 16,
+      "drawers": 92
+    },
+    "freshComprehensivePending": true
+  },
+  "unverified": [
+    "fresh complete main268 editor/comprehensive after promotion",
+    "real iOS/Telegram keyboard/IME",
+    "document side-by-side columns and drag to create them",
+    "menu insertion focus ownership for newly created cells",
+    "remaining R6/R8/R9 incl media/arbitrary clipboard/styles/boundaries",
+    "new-column programmatic caret visibility when original header is offscreen",
+    "pending-reveal cancellation before next paint with native wheel/touch"
+  ],
+  "deviceTools": {
+    "xcode": "CommandLineTools only",
+    "playwrightWebKitInstalled": false,
+    "physicalIOSVerified": false
+  },
+  "productionWrites": false,
+  "createdAt": "2026-10-18T18:02:01.978870+00:00",
+  "promotedAt": "2026-10-18T18:07:23.372994+00:00",
+  "mainSnapshot": "/tmp/rollapp-notion-combined-main-sources.json",
+  "mainComprehensive": {
+    "status": "failed",
+    "session": 82677,
+    "sourceCount": 618,
+    "expectedEditorPassRecords": 268,
+    "snapshot": "/tmp/rollapp-notion-combined-main-sources.json",
+    "log": "/tmp/rollapp-notion-combined-main-comprehensive.log",
+    "report": "/tmp/rollapp-notion-combined-main-comprehensive.json",
+    "controllerCell": "2238",
+    "lastObservedAt": "2026-10-18T18:13:25.628882+00:00",
+    "exitCode": 1,
+    "editorPassRecords": 128,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T18:27:18.724587+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T18:07:23.551Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T18:27:16.229Z",
+        "durationMs": 1192678
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0
+  },
+  "liveReadonly": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": [
+      1280,
+      720
+    ],
+    "editable": "true",
+    "borders": [
+      "0px",
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "outline": "0px",
+    "shadow": "none",
+    "font": "Geist Variable",
+    "size": "18px",
+    "lineHeight": "28px",
+    "editorWidth": 768,
+    "rootOverflow": false,
+    "visibleToolbars": [],
+    "saveStatus": "saved",
+    "edits": 0,
+    "agentTab": 34,
+    "tabClosed": true,
+    "screenshot": "observed via CUA; no saved local screenshot artifact"
+  }
+}

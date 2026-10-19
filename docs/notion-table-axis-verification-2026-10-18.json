@@ -1,0 +1,123 @@
+{
+  "status": "promoted to main; combined verification pending",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-table-handles-wenrd56m",
+  "sourceSnapshot": "/tmp/rollapp-table-handles-sources.json",
+  "sourceCount": 611,
+  "references": [
+    "https://www.notion.com/help/guides/simple-tables-vs-databases",
+    "https://www.notion.com/help/columns-headings-and-dividers"
+  ],
+  "runtime": [
+    "src/lib/inline-table-axis.js",
+    "src/hooks/use-inline-table-axis-drag.js",
+    "src/components/inline-table-handles.jsx",
+    "src/components/inline-rich-text-editor.jsx",
+    "src/components/inline-editor.css",
+    "src/lib/inline-table-actions.js",
+    "src/components/inline-table-actions.jsx"
+  ],
+  "evidence": {
+    "unit": {
+      "total": 656,
+      "pass": 655,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-table-handles-frozen-unit.log",
+      "exitCode": 0
+    },
+    "ui": {
+      "log": "/tmp/rollapp-table-handles-frozen-ui.log",
+      "exitCode": 0
+    },
+    "build": {
+      "log": "/tmp/rollapp-table-handles-frozen-build.log",
+      "exitCode": 0,
+      "warning": "existing chunk >500KB"
+    },
+    "browser": {
+      "session": 73217,
+      "status": "passed",
+      "expectedRecords": {
+        "axis": 9,
+        "guards": 2,
+        "legacyTables": 8,
+        "basicBlocks": 8
+      },
+      "logs": [
+        "/tmp/rollapp-table-handles-frozen-matrix.log",
+        "/tmp/rollapp-table-handles-frozen-guards.log",
+        "/tmp/rollapp-table-handles-frozen-legacy.log",
+        "/tmp/rollapp-table-handles-frozen-basic.log"
+      ],
+      "passRecords": 27,
+      "sourceDrift": []
+    },
+    "controls": {
+      "status": "terminated exit0 with font403; geometry observations only",
+      "log": "/tmp/rollapp-table-handles-frozen-controls.log",
+      "fontRequestsBlocked": true,
+      "passRecords": 132,
+      "dependencyFont403": 264,
+      "exitCode": 0
+    }
+  },
+  "sourceDrift": [],
+  "publicAssets": "copied identical existing main/public assets into isolated workspace; no font additions",
+  "temporaryConfig": "text-edit fixture realpath/fs.allow needed for linked node_modules; do not promote it",
+  "counterexamples": [
+    "initial editor view unavailable during mount; bind after isInitialized and clean up via captured DOM",
+    "first control measurement reads the requested cell snapshot rather than waiting for a React state commit",
+    "axis popup close did not synchronously focus editor; native Undo could miss editor; synchronous focus restores it",
+    "general grip remained visible: computed parent visibility hidden, button visible despite matched important rule; transition-all delayed visibility. Suppression includes descendants and removes transition only while axis controls own gutter",
+    "native releasePointerCapture emits lost capture at next pointer event; fixture now delivers that pointer move before observing cleanup"
+  ],
+  "images": [
+    "/tmp/rollapp-table-axis-handles-1440-400.png",
+    "/tmp/rollapp-table-axis-menu-1440-400.png"
+  ],
+  "unverified": [
+    "horizontal autoscroll at distant columns",
+    "table handles with actual application header and device touch/IME",
+    "duplicate rows/columns, grow-grid handles and media",
+    "full combined main editor/comprehensive after promotion"
+  ],
+  "productionDataWrites": false,
+  "goalComplete": false,
+  "promoted": true,
+  "promotedAt": "2026-10-18T16:17:21.116279+00:00",
+  "mainCombinedTargets": {
+    "status": "passed",
+    "exitCode": 0,
+    "browserPassRecords": {
+      "tableHandles": 9,
+      "axisGuards": 2,
+      "currentAction": 8,
+      "relocationDepth": 2
+    },
+    "totalBrowserPassRecords": 21,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "unit": {
+      "total": 656,
+      "pass": 655,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "passed (37 primitives;69 JSX)",
+    "controls": {
+      "passRecords": 132,
+      "fontServingDenials": 0,
+      "fullWidthMatrix": true,
+      "DPR3": true
+    },
+    "logs": {
+      "tableHandles": "/tmp/rollapp-table-main-targets.log",
+      "axisGuards": "/tmp/rollapp-table-main-guards.log",
+      "currentAction": "/tmp/rollapp-current-action-main-targets.log",
+      "relocationDepth": "/tmp/rollapp-relocation-depth-main-targets.log"
+    },
+    "finishedAt": "2026-10-18T16:20:54.297082+00:00"
+  }
+}

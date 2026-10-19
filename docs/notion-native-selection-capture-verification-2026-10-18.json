@@ -1,0 +1,257 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "previousTurn": "progress: main gutter alignment;27 targeted cases and live heading check",
+  "currentTurn": "progress: native selection write trace, deterministic baseline, capture and pending-input guard",
+  "promoted": true,
+  "candidateWorkspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-selection-writes-xt02u9wf",
+  "candidateSnapshot": "/tmp/rollapp-native-capture-candidate-sources.json",
+  "proposedPaths": [
+    "src/lib/inline-native-selection.js",
+    "src/lib/inline-editor-extensions.js",
+    "src/lib/inline-native-selection.test.js",
+    "scripts/text-native-caret-checks.mjs"
+  ],
+  "baseline": {
+    "deterministicLog": "/tmp/rollapp-native-focus-range-before.log",
+    "exitCode": 1,
+    "nativeWriteTrace": "/tmp/rollapp-selection-native-writes-formal-failure.json",
+    "installedProseMirrorView": "1.42.6",
+    "cause": "recent-focus heuristic restores stale range before keydown"
+  },
+  "pendingInputRegression": {
+    "naiveCaptureHead": 7,
+    "expectedHead": 13,
+    "nativeExpectedOffset": 12,
+    "controlWithoutCapture": "passed",
+    "guardedCapture": "passed",
+    "logs": [
+      "/tmp/rollapp-native-capture-pending-caret-before.log",
+      "/tmp/rollapp-native-capture-pending-control.log",
+      "/tmp/rollapp-native-capture-pending-fixed.log"
+    ]
+  },
+  "candidate": {
+    "nativeReference": {
+      "records": 2,
+      "log": "/tmp/rollapp-native-capture-final-reference2.log",
+      "viewports": [
+        "390x400",
+        "1440x400"
+      ]
+    },
+    "stress": {
+      "exitCode": 0,
+      "records": 60,
+      "log": "/tmp/rollapp-native-capture-stress.log"
+    },
+    "unit": {
+      "total": 683,
+      "passed": 682,
+      "skipped": 1,
+      "failed": 0,
+      "log": "/tmp/rollapp-native-capture-ready-unit.log"
+    },
+    "ui": {
+      "status": "passed",
+      "primitives": 37,
+      "jsxSources": 72,
+      "log": "/tmp/rollapp-native-capture-ready-ui.log"
+    },
+    "build": {
+      "status": "passed",
+      "log": "/tmp/rollapp-native-capture-ready-build.log",
+      "warning": "existing chunks larger than500kB"
+    },
+    "compatibility": {
+      "status": "passed",
+      "session": 52872,
+      "expectedRecords": 63,
+      "log": "/tmp/rollapp-native-capture-compatibility.log",
+      "report": "/tmp/rollapp-native-capture-compatibility.json",
+      "records": 63,
+      "results": [
+        {
+          "flag": "--native-caret-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--styles-only",
+          "exitCode": 0,
+          "expected": 10,
+          "records": 10
+        },
+        {
+          "flag": "--first-selection-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--block-menu-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--four-document-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--sparse-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--tables-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        },
+        {
+          "flag": "--native-page-keys-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--cut-history-only",
+          "exitCode": 0,
+          "expected": 8,
+          "records": 8
+        }
+      ],
+      "sourceDrift": [],
+      "exitCode": 0
+    }
+  },
+  "mainFull": {
+    "status": "failed",
+    "rootPid": 99570,
+    "startedAt": "2026-10-18T20:35:39.190154+00:00",
+    "expectedEditorRecords": 303,
+    "sourceCount": 632,
+    "snapshot": "/tmp/rollapp-native-capture-main-full-sources.json",
+    "log": "/tmp/rollapp-native-capture-main-full.log",
+    "report": "/tmp/rollapp-native-capture-main-full-comprehensive.json",
+    "previousMain632Full": {
+      "status": "failed",
+      "exitCode": 1,
+      "editorRecords": 57,
+      "sourceDrift": [],
+      "addedSources": []
+    },
+    "session": 27645,
+    "currentSourceDrift": [],
+    "currentExtraInputDrift": [],
+    "exitCode": 1,
+    "editorPassRecords": 142,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T20:56:23.463205+00:00"
+  },
+  "audits": {
+    "all": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 7,
+        "critical": 0,
+        "total": 7
+      },
+      "log": "/tmp/rollapp-native-capture-audit.json"
+    },
+    "production": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "log": "/tmp/rollapp-native-capture-audit-production.json"
+    }
+  },
+  "production": {
+    "servicePid": 22680,
+    "status": "healthy;kept running",
+    "dataWrites": 0,
+    "schemaMutations": 0,
+    "deploy": false
+  },
+  "unverified": [
+    "fresh main303/editor and nine-stage comprehensive",
+    "real hardware iOS/Telegram/Windows/IME",
+    "all remaining R1-R10 requirements"
+  ],
+  "promotedAt": "2026-10-18T20:35:13.729223+00:00",
+  "reviewedDiff": "/tmp/rollapp-native-capture-reviewed.diff",
+  "backup": "/tmp/rollapp-native-capture-main-backup",
+  "promotionHashes": [
+    {
+      "path": "src/lib/inline-native-selection.js",
+      "before": "453f62f3d40161e8f64d464947672a925ba33eef44f96eec8106b78c5a30412d",
+      "candidate": "8226563262a203f4f6e97fadbb8c9a84e83b1ca8ea0c949d5ab9db0b41b392a1"
+    },
+    {
+      "path": "src/lib/inline-editor-extensions.js",
+      "before": "fc4ec76e297b7380c9b678db7c0a97963576dd974d8a9df661cb449b962849f3",
+      "candidate": "827730b00f3fe7ea495e6cd01d7ab448b25e0f8f07c794b9dbb34cafb6b84670"
+    },
+    {
+      "path": "src/lib/inline-native-selection.test.js",
+      "before": "f3ff23b484f5cdc9cf7135ab204e46fa9fbbf883b05e133a9fe42c3131e980bd",
+      "candidate": "8cee390b229df51db0f882182d31708d0329c31b2334ee27c55a44d2b34f7ad4"
+    },
+    {
+      "path": "scripts/text-native-caret-checks.mjs",
+      "before": "01848e95309706359f821c9dd94c567a01f61bd2032410efa1db4b157a6dfc03",
+      "candidate": "a598d8cc3031089d05eedca3fa4a7111044b0cd1279f8f5c67253bfb0781f59d"
+    }
+  ],
+  "mainReference": {
+    "status": "passed",
+    "session": 12627,
+    "expectedRecords": 2,
+    "log": "/tmp/rollapp-native-capture-main-reference.log",
+    "exitCode": 0,
+    "records": 2
+  },
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": "1280x720",
+    "origin": "configured production API",
+    "documentCharacters": 10554,
+    "afterReloadSameText": true,
+    "nativeShiftRightPhases": 6,
+    "selectedCharacters": 6,
+    "selectionToolbarCount": 1,
+    "afterArrowLeft": {
+      "collapsed": true,
+      "toolbarCount": 0,
+      "sameText": true
+    },
+    "focusStyle": {
+      "border": "0px",
+      "outline": "none",
+      "shadow": "none",
+      "font": "Geist Variable",
+      "size": "18px",
+      "lineHeight": "28px"
+    },
+    "ownedTab": 40,
+    "tabClosed": true,
+    "editingOrSaving": false
+  }
+}

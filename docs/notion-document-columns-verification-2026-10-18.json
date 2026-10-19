@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Document columns: side drag, shared history, mobile reading order, keyboard movement, width resizing and nested table control geometry",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-document-columns-z0apoutw",
+  "sourceSnapshot": "/tmp/rollapp-document-columns-sources.json",
+  "sourceCount": 625,
+  "expectedEditorRecords": 282,
+  "promoted": false,
+  "changes": "/tmp/rollapp-document-columns-changes.json",
+  "previousTurnClassification": "progress: source620 caret intent promoted and verified; new full270 running",
+  "currentTurnClassification": "progress: column schema/commands/drag/resize and real context proof in isolated source625",
+  "specSources": [
+    "https://www.notion.com/help/columns-headings-and-dividers",
+    "https://www.notion.com/help/notion-for-mobile"
+  ],
+  "implemented": [
+    "semantic columns/column nodes in one editor/history",
+    "strict canonical rich-block serialization, relative widths, whitespace/marks/children",
+    "slash/common picker creation and immediate typing",
+    "native side drag creates peers; last-block move out unwraps sole peer",
+    "keyboard boundary movement between columns and explicit whole-column deletion",
+    "mobile sequential reading; tablet/desktop side-by-side layout",
+    "transient pointer width preview, keyboard resize, Escape/access/source/IME cancellation",
+    "table axis controls choose real free glyph geometry; gutter controls avoid peer prose",
+    "resize guide appears at a shared edge or keyboard focus, not ordinary text hover"
+  ],
+  "proof": {
+    "initialKernelUnit": {
+      "total": 670,
+      "pass": 669,
+      "skip": 1,
+      "fail": 0,
+      "exitCode": 0,
+      "log": "/tmp/rollapp-columns-kernel-unit.log"
+    },
+    "currentUnitBeforeFinalFreeze": {
+      "total": 676,
+      "pass": 675,
+      "skip": 1,
+      "fail": 0,
+      "exitCode": 0,
+      "log": "/tmp/rollapp-document-columns-sparse-before.log"
+    },
+    "basicColumns": {
+      "exitCode": 0,
+      "records": 9,
+      "log": "/tmp/rollapp-document-columns-guide.log",
+      "includes": "320/390/390short/768/820/1024/1440/1440short/1920; exact reload/public read, shared Undo, native side drag/remove/delete, keyboard/pointer resize and width persistence"
+    },
+    "contexts": {
+      "exitCode": 0,
+      "records": 3,
+      "log": "/tmp/rollapp-document-columns-contexts-fixed.log",
+      "includes": "Four Questions API-valid exact save/reload, fixed titles/neighbours, nested table actual glyph collision bounds, access/source resize cancellation"
+    },
+    "tableControlsBaseline": {
+      "exitCode": 1,
+      "log": "/tmp/rollapp-document-columns-contexts-before.log",
+      "actualCollisions": [
+        "row handle over left peer prose",
+        "column handle over Middle edited paragraph"
+      ]
+    },
+    "visualReview": [
+      "/tmp/rollapp-document-columns-1024-844.png",
+      "/tmp/rollapp-columns-table-controls-1024-844.png"
+    ]
+  },
+  "prototypeFailures": [
+    {
+      "reason": "Temporary copy initially omitted vite.config.test.js and AGENTS.md; repaired local test inputs, no production fallback"
+    },
+    {
+      "reason": "Resize observer accessed an unmounted view during React reconnect; fixed explicit mount/unmount binding",
+      "log": "/tmp/rollapp-document-columns-resize.log"
+    },
+    {
+      "reason": "Fixture hovered the exact centre of a column row, which is an intentional resize hit target; changed hover to actual prose instead of forcing through a control",
+      "log": "/tmp/rollapp-document-columns-resize-mounted.log"
+    },
+    {
+      "reason": "Existing static typography check requires the paragraph selector intact; kept it intact and added a separate semantic column-row flow rule; no verifier assertion removed"
+    }
+  ],
+  "compatibility": {
+    "status": "passed",
+    "session": 69036,
+    "expectedRecords": 76,
+    "log": "/tmp/rollapp-document-columns-compatibility.log",
+    "report": "/tmp/rollapp-document-columns-compatibility.json",
+    "port": 5297,
+    "cache": "/tmp/rollapp-document-columns-vite-cache",
+    "controllerCell": "2337",
+    "records": 76,
+    "sourceDrift": [],
+    "fontServingDenials": 0,
+    "checks": [
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-document-columns-compat-columns-only.log"
+      },
+      {
+        "flag": "--column-contexts-only",
+        "exitCode": 0,
+        "records": 3,
+        "log": "/tmp/rollapp-document-columns-compat-column-contexts-only.log"
+      },
+      {
+        "flag": "--list-moves-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-document-columns-compat-list-moves-only.log"
+      },
+      {
+        "flag": "--list-drag-only",
+        "exitCode": 0,
+        "records": 2,
+        "log": "/tmp/rollapp-document-columns-compat-list-drag-only.log"
+      },
+      {
+        "flag": "--drag-guards-only",
+        "exitCode": 0,
+        "records": 1,
+        "log": "/tmp/rollapp-document-columns-compat-drag-guards-only.log"
+      },
+      {
+        "flag": "--question-moves-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-document-columns-compat-question-moves-only.log"
+      },
+      {
+        "flag": "--sparse-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-document-columns-compat-sparse-only.log"
+      },
+      {
+        "flag": "--boundaries-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-document-columns-compat-boundaries-only.log"
+      },
+      {
+        "flag": "--nesting-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-document-columns-compat-nesting-only.log"
+      },
+      {
+        "flag": "--table-handles-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-document-columns-compat-table-handles-only.log"
+      },
+      {
+        "flag": "--table-chrome-only",
+        "exitCode": 0,
+        "records": 10,
+        "log": "/tmp/rollapp-document-columns-compat-table-chrome-only.log"
+      },
+      {
+        "flag": "--table-growth-contexts-only",
+        "exitCode": 0,
+        "records": 2,
+        "log": "/tmp/rollapp-document-columns-compat-table-growth-contexts-only.log"
+      }
+    ],
+    "finishedAt": "2026-10-18T19:04:50.695470+00:00",
+    "countAudit": {
+      "initialControllerStatus": "failed",
+      "initialExpectedRecords": 77,
+      "correctExpectedRecords": 76,
+      "reason": "The selected drag-guards flag contains exactly one existing 1440x400 scenario, not two. Code and scenario were inspected; no test or viewport was removed. All 12 chosen flags exit0 with their exact expected counts.",
+      "expectedPerFlag": {
+        "--columns-only": 9,
+        "--column-contexts-only": 3,
+        "--list-moves-only": 8,
+        "--list-drag-only": 2,
+        "--drag-guards-only": 1,
+        "--question-moves-only": 8,
+        "--sparse-only": 8,
+        "--boundaries-only": 8,
+        "--nesting-only": 8,
+        "--table-handles-only": 9,
+        "--table-chrome-only": 10,
+        "--table-growth-contexts-only": 2
+      },
+      "auditedAt": "2026-10-18T19:07:42.339300+00:00"
+    }
+  },
+  "frozenUnit": {
+    "status": "passed",
+    "session": 57243,
+    "log": "/tmp/rollapp-document-columns-frozen-unit.log",
+    "exitCode": 0,
+    "total": 676,
+    "pass": 675,
+    "skip": 1,
+    "fail": 0
+  },
+  "frozenUIBuild": {
+    "status": "passed",
+    "session": 46451,
+    "uiLog": "/tmp/rollapp-document-columns-frozen-ui.log",
+    "buildLog": "/tmp/rollapp-document-columns-frozen-build.log",
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 71,
+    "build": "passed"
+  },
+  "main620": {
+    "status": "failed",
+    "session": 93676,
+    "controllerCell": "2279",
+    "sourceCount": 620,
+    "expectedEditorRecords": 270,
+    "log": "/tmp/rollapp-table-intent-main-comprehensive.log",
+    "sourceFrozen": true,
+    "lastObservedAt": "2026-10-18T18:57:34.093292+00:00",
+    "sourceDrift": [],
+    "editorPassRecords": 174,
+    "exitCode": 1,
+    "failure": "Shift+ArrowUp after Home scroll leaves caret below viewport on1024x844; source drift0; fresh full270 is not passed"
+  },
+  "productionWrites": false,
+  "unverified": [
+    "final77 compatibility on625 and fresh full282 editor/comprehensive",
+    "actual iOS/Telegram touch/keyboard/IME",
+    "arbitrary nested/mixed column clipboard/styles/boundaries",
+    "all resize cancellation contexts and real device VisualViewport",
+    "remaining R6/R8/R9/R10 incl media and interactive accordion",
+    "column-specific draft/retry and clipboard composition beyond canonical save/reload",
+    "reload-depth bound for repeated structural columns insertion"
+  ],
+  "createdAt": "2026-10-18T18:56:02.674078+00:00",
+  "lastSourceDrift": []
+}

@@ -1,0 +1,475 @@
+{
+  "date": "2026-10-19",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "turnClassification": "progress",
+  "promoted": true,
+  "sourceCount": 633,
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh",
+  "sourceSnapshot": "/tmp/rollapp-text-authoring-combined-sources.json",
+  "currentSourceDrift": [],
+  "parentProofs": {
+    "insertion": {
+      "newRecords": 8,
+      "subcases": 64,
+      "fontGuardCases": 8,
+      "compatibility": {
+        "status": "passed",
+        "results": [
+          {
+            "flag": "--basic-blocks-only",
+            "exitCode": 0,
+            "expected": 8,
+            "records": 8
+          },
+          {
+            "flag": "--slash-only",
+            "exitCode": 0,
+            "expected": 8,
+            "records": 8
+          },
+          {
+            "flag": "--block-menu-only",
+            "exitCode": 0,
+            "expected": 8,
+            "records": 8
+          },
+          {
+            "flag": "--caret-scroll-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--plain-caret-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--table-insert-caret-only",
+            "exitCode": 0,
+            "expected": 2,
+            "records": 2
+          },
+          {
+            "flag": "--native-caret-only",
+            "exitCode": 0,
+            "expected": 2,
+            "records": 2
+          },
+          {
+            "flag": "--styles-only",
+            "exitCode": 0,
+            "expected": 10,
+            "records": 10
+          },
+          {
+            "flag": "--four-document-only",
+            "exitCode": 0,
+            "expected": 8,
+            "records": 8
+          },
+          {
+            "flag": "--columns-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--first-selection-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--cut-history-only",
+            "exitCode": 0,
+            "expected": 8,
+            "records": 8
+          }
+        ],
+        "records": 90,
+        "expectedRecords": 90,
+        "sourceDrift": [],
+        "addedSources": [],
+        "sourceCount": 633,
+        "finishedAt": "2026-10-18T21:06:03.714695+00:00"
+      }
+    },
+    "table": {
+      "compatibility": {
+        "status": "passed",
+        "records": 34,
+        "expectedRecords": 34,
+        "results": [
+          {
+            "flag": "--table-wide-only",
+            "exitCode": 0,
+            "expected": 2,
+            "records": 2
+          },
+          {
+            "flag": "--table-handles-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--table-axis-guards-only",
+            "exitCode": 0,
+            "expected": 2,
+            "records": 2
+          },
+          {
+            "flag": "--table-chrome-only",
+            "exitCode": 0,
+            "expected": 10,
+            "records": 10
+          },
+          {
+            "flag": "--table-growth-only",
+            "exitCode": 0,
+            "expected": 9,
+            "records": 9
+          },
+          {
+            "flag": "--table-growth-guards-only",
+            "exitCode": 0,
+            "expected": 2,
+            "records": 2
+          }
+        ],
+        "sourceDrift": [],
+        "addedSources": [],
+        "sourceCount": 632
+      }
+    }
+  },
+  "combined": {
+    "status": "passed",
+    "session": 14352,
+    "expectedRecords": 63,
+    "log": "/tmp/rollapp-text-authoring-combined.log",
+    "report": "/tmp/rollapp-text-authoring-combined.json",
+    "records": 63,
+    "results": [
+      {
+        "flag": "--insert-ownership-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--table-wide-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-handles-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-axis-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-chrome-only",
+        "exitCode": 0,
+        "expected": 10,
+        "records": 10
+      },
+      {
+        "flag": "--table-growth-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-growth-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-growth-contexts-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--block-menu-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      }
+    ],
+    "sourceDrift": [],
+    "addedSources": [],
+    "sourceCount": 633,
+    "finishedAt": "2026-10-18T21:15:26.918345+00:00",
+    "exitCode": 0
+  },
+  "unit": {
+    "exitCode": 0,
+    "total": 683,
+    "passed": 682,
+    "skipped": 1,
+    "failed": 0,
+    "log": "/tmp/rollapp-text-authoring-combined-unit.log"
+  },
+  "ui": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsxSources": 72,
+    "log": "/tmp/rollapp-text-authoring-combined-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-text-authoring-combined-build.log",
+    "warning": "chunks larger than500kB"
+  },
+  "audits": {
+    "all": {
+      "log": "/tmp/rollapp-text-authoring-combined-audit.json",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 7,
+        "critical": 0,
+        "total": 7
+      }
+    },
+    "production": {
+      "log": "/tmp/rollapp-text-authoring-combined-audit-production.json",
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    }
+  },
+  "proposedDiff": "/tmp/rollapp-text-authoring-combined-proposed.diff",
+  "proposedPaths": "/tmp/rollapp-text-authoring-combined-proposed-paths.json",
+  "proposedFileCount": 10,
+  "mainAncestorFull": {
+    "status": "failed",
+    "exitCode": 1,
+    "editorPassRecords": 142,
+    "expectedEditorRecords": 303,
+    "sourceCount": 632,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T20:56:23.463205+00:00"
+  },
+  "futureMainFull": {
+    "status": "failed",
+    "rootPid": 14198,
+    "startedAt": "2026-10-18T21:16:13.072139+00:00",
+    "expectedEditorRecords": 311,
+    "expectedComprehensiveStages": 9,
+    "sourceCount": 633,
+    "log": "/tmp/rollapp-text-authoring-main-full.log",
+    "report": "/tmp/rollapp-text-authoring-main-full-comprehensive.json",
+    "snapshot": "/tmp/rollapp-text-authoring-main-full-sources.json",
+    "session": 5882,
+    "currentSourceDrift": [],
+    "currentExtraInputDrift": [],
+    "exitCode": 1,
+    "editorPassRecords": 281,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T22:00:38.060012+00:00"
+  },
+  "production": {
+    "devServicePid": 22680,
+    "status": "healthy;kept running",
+    "dataWrites": 0,
+    "schemaMutations": 0,
+    "deploy": false
+  },
+  "remaining": [
+    "combined63 terminal",
+    "promotion/main targeted/fresh311 full audit",
+    "all remaining R1-R10 requirements;real device/hardware IME"
+  ],
+  "promotedAt": "2026-10-18T21:16:12.822114+00:00",
+  "promotionHashes": [
+    {
+      "path": "src/lib/inline-blocks.js",
+      "before": "6021df536016edcfa80caa5664c96c0b036b7ed8caee37e13d131561df2c0abd",
+      "candidate": "5fda0b1fa02686de7d41ce71e3e2f445d1ad2d66e064cde99b3abf8c37b205ab",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/lib/inline-blocks.js"
+    },
+    {
+      "path": "src/hooks/use-inline-caret-visibility.js",
+      "before": "93bf655bd8db545c2068d0ffd500ae4c0676d3a015760e6992b6b04355d1955f",
+      "candidate": "b550afd65d35cb75ced8bdad9a4226d647d9866744fe87ee5e778f96c3732b32",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/hooks/use-inline-caret-visibility.js"
+    },
+    {
+      "path": "src/lib/inline-slash-commands.js",
+      "before": "2203e58c094719c3b39021a8ac3756055386a263e537adf7388fbbb24c910904",
+      "candidate": "4183312e62358693260d1903a4fbfa80ea3103fe238079e6c213750ae73f6a89",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/lib/inline-slash-commands.js"
+    },
+    {
+      "path": "src/lib/inline-blocks.test.js",
+      "before": "74c496dea8004ce6c1bfd56105ccfc89eb74eef2ae23d52c6d1aeb8b124954c0",
+      "candidate": "0244d6ff6f5dff7c074278c5ae8c52b5ab5fcaf2771fbe400d05d26713df13fd",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/lib/inline-blocks.test.js"
+    },
+    {
+      "path": "src/lib/inline-block-selection.test.js",
+      "before": "4295c7c6212e2f5c936e3b5127ae26fec6b980316bed7a7e8382955632975d7e",
+      "candidate": "4702726abcf4e39246710896da5d4107b56e442490249d9246a8832b94451097",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/lib/inline-block-selection.test.js"
+    },
+    {
+      "path": "scripts/text-insert-ownership-checks.mjs",
+      "before": null,
+      "candidate": "308522d9162e05f1ac6b17ccab8f34c028fb8a3feb31af598318307cda68a9b4",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/scripts/text-insert-ownership-checks.mjs"
+    },
+    {
+      "path": "scripts/text-edit-smoke.mjs",
+      "before": "c13396e146cef9531b1f5e7848e1347d2e01b0fa3776d70de01b427193f7b45d",
+      "candidate": "56f59276854cce30b480ae0e265aa45330ef34408e8a81951ec8ba13a4bfc79b",
+      "copySource": "/tmp/rollapp-insert-ownership-promotable-runner.mjs"
+    },
+    {
+      "path": "src/hooks/use-inline-table-axis-drag.js",
+      "before": "375fb0118ccd977ca455f1b674de652296d4ea28f933703b80eb34ecd49a4175",
+      "candidate": "5c3b2d9d8f4ff845ddcf282a26b82289b910cf5e3ec8fc8517503f0ba5d862e6",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/hooks/use-inline-table-axis-drag.js"
+    },
+    {
+      "path": "src/components/inline-table-handles.jsx",
+      "before": "ba1d8f63d75988f3083092572d5a09db8a15639299699061ee58ad5469b8cd82",
+      "candidate": "6e16e74d99bd3b856bdda7b6d6c1223c216918f7ef1711da29ed5b2c8b664d6f",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/src/components/inline-table-handles.jsx"
+    },
+    {
+      "path": "scripts/text-table-wide-checks.mjs",
+      "before": "953b9faa37983d3d7efce085fe958c73162ee01a168b2bcc894edb53e3c1fd37",
+      "candidate": "4bfbb9171688167128e1fd049e168c51762d2a8f12d3a9882e154ed19a779de7",
+      "copySource": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-text-authoring-combined-xn_59hmh/scripts/text-table-wide-checks.mjs"
+    },
+    {
+      "path": "docs/inline-editing.md",
+      "before": "d347448d25181017f2e9b5a8dde8bbd8bd640d73f4ee4184a3d71c8a21353a92",
+      "candidate": "3751ec265a59e5ec8184879797a24841834ab979ecd6bc8298e525fbbea07c12",
+      "copySource": "/tmp/rollapp-text-authoring-docs-proposed/docs/inline-editing.md"
+    },
+    {
+      "path": "docs/verification.md",
+      "before": "a1e04e0f5c42e6479845962d1625e455f76fa4241e628ec66ffd452762a1156e",
+      "candidate": "9ba79b1b14e9c0dc97db6793f1407de22d2539aed9ac67e4137897f8f536c638",
+      "copySource": "/tmp/rollapp-text-authoring-docs-proposed/docs/verification.md"
+    },
+    {
+      "path": "AGENTS.md",
+      "before": "83040e73fcac3c69ec2d6197622b4aa11f1fdab9335997b29a469a24834a65ab",
+      "candidate": "75a19fb34cb6b1178ff7128c1ba6db9767ec5ebeeabe5293c727e65c5445dec5",
+      "copySource": "/tmp/rollapp-text-authoring-docs-proposed/AGENTS.md"
+    }
+  ],
+  "backup": "/tmp/rollapp-text-authoring-main-backup",
+  "promotedSourceCount": 10,
+  "promotedContractCount": 3,
+  "mainTargeted": {
+    "status": "passed",
+    "session": 26399,
+    "expectedRecords": 14,
+    "log": "/tmp/rollapp-text-authoring-main-targeted.log",
+    "report": "/tmp/rollapp-text-authoring-main-targeted.json",
+    "records": 14,
+    "results": [
+      {
+        "flag": "--insert-ownership-only",
+        "exitCode": 0,
+        "records": 8,
+        "expected": 8
+      },
+      {
+        "flag": "--table-wide-only",
+        "exitCode": 0,
+        "records": 2,
+        "expected": 2
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "records": 2,
+        "expected": 2
+      },
+      {
+        "flag": "--table-axis-guards-only",
+        "exitCode": 0,
+        "records": 2,
+        "expected": 2
+      }
+    ],
+    "exitCode": 0
+  },
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": "1280x720",
+    "dataSource": "configured production API",
+    "textCharacters": 10554,
+    "paragraphs": 43,
+    "sameTextBeforeAfter": true,
+    "editable": true,
+    "frame": {
+      "border": "0px",
+      "outline": "none",
+      "shadow": "none"
+    },
+    "font": {
+      "family": "Geist Variable",
+      "size": "18px",
+      "lineHeight": "28px"
+    },
+    "initialToolbarCount": 0,
+    "sixShiftRight": {
+      "selectedCharacters": 6,
+      "toolbarCount": 1
+    },
+    "afterArrowLeft": {
+      "collapsed": true,
+      "toolbarCount": 0
+    },
+    "rootOverflow": false,
+    "ownedTab": 41,
+    "tabClosed": true,
+    "typingOrSaving": false
+  },
+  "finalReviewedCommit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "finalReviewedDirty": true
+}

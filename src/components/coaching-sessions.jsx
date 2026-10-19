@@ -4,6 +4,7 @@ import {
   RotateCcw, Video, X,
 } from "lucide-react";
 import { api } from "@/api";
+import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -123,7 +124,7 @@ function CoachingSessionCard({
   return (
     <div className="relative h-full min-w-0">
       <Button
-        className={`peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
         variant="ghost"
         type="button"
         data-card-drag-trigger={draggable ? "" : undefined}
@@ -146,14 +147,16 @@ function CoachingSessionCard({
       >
         <span className="sr-only">Открыть или переместить коучинг-сессию «{session.title}»</span>
       </Button>
-      <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
+      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
+        <CollectionSnippetMedia icon={Video}>
+          <Badge variant={status.variant} className="collection-snippet__badge">
+            <StatusIcon data-icon="inline-start" aria-hidden="true" />
+            {status.label}
+          </Badge>
+        </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">
             <h3 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{session.title}</h3>
-            <Badge variant={status.variant}>
-              <StatusIcon data-icon="inline-start" aria-hidden="true" />
-              {status.label}
-            </Badge>
           </CardTitle>
           {session.coach && <CardDescription className="min-w-0 truncate">{session.coach}</CardDescription>}
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
@@ -726,7 +729,7 @@ export function CoachingSessions() {
       )}
 
       {!requestState.loading && visibleSessions.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-4 sm:grid-cols-2" aria-label="Порядок и группы коучинг-сессий" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы коучинг-сессий" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <EducationItemGroupTile
               key={group.id}

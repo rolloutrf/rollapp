@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "previousGoalTurn": "progress: reproduced native header occlusion and completed clean source610 20-case caret/selection validation",
+  "scope": "Row/column duplication, preserving complete merged bands and rich content",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-table-duplicate-ojhtmj5q",
+  "snapshot": "/tmp/rollapp-table-duplicate-sources.json",
+  "sourceCount": 611,
+  "candidatePromoted": true,
+  "unit": {
+    "status": "passed",
+    "session": 7894,
+    "log": "/tmp/rollapp-table-duplicate-unit-final.log",
+    "expectedTotal": 660,
+    "expectedPass": 659,
+    "expectedSkip": 1,
+    "exitCode": 0,
+    "total": 660,
+    "pass": 659,
+    "skip": 1,
+    "fail": 0
+  },
+  "browser": {
+    "duplication": {
+      "status": "passed",
+      "session": 19748,
+      "exitCode": 0,
+      "records": 9,
+      "log": "/tmp/rollapp-table-duplicate-browser-merged.log"
+    },
+    "compatibility": {
+      "status": "passed",
+      "session": 6204,
+      "expectedRecords": 19,
+      "logs": [
+        "/tmp/rollapp-table-duplicate-axis-compat.log",
+        "/tmp/rollapp-table-duplicate-chrome-compat.log"
+      ],
+      "exitCode": 0,
+      "records": 19,
+      "counts": {
+        "/tmp/rollapp-table-duplicate-axis-compat.log": 9,
+        "/tmp/rollapp-table-duplicate-chrome-compat.log": 10
+      }
+    }
+  },
+  "ui": {
+    "status": "passed",
+    "log": "/tmp/rollapp-table-duplicate-ui.log",
+    "primitives": 37,
+    "applicationJSX": 69
+  },
+  "build": {
+    "status": "passed",
+    "exitCode": 0,
+    "log": "/tmp/rollapp-table-duplicate-build.log"
+  },
+  "main": {
+    "sourceCount": 608,
+    "comprehensiveSession": 72580,
+    "controllerCell": "2055",
+    "expectedEditorRecords": 228,
+    "runtimeFrozen": true
+  },
+  "noProductionWrites": true,
+  "open": [
+    "main promotion after current comprehensive terminal",
+    "fresh combined main regression",
+    "table grid growth and media",
+    "arbitrary nested block clipboard/styles and boundaries",
+    "real iOS/Telegram keyboard/IME"
+  ],
+  "terminal": {
+    "status": "targeted-passed",
+    "unit": {
+      "total": 660,
+      "pass": 659,
+      "skip": 1,
+      "fail": 0
+    },
+    "browserRecords": 28,
+    "sourceCount": 611,
+    "sourceDrift": [],
+    "mainSourceDrift": [],
+    "promoted": false,
+    "finishedAt": "2026-10-18T17:18:29.582454+00:00"
+  },
+  "promotedAt": "2026-10-18T17:32:53.698641+00:00",
+  "mainPromotionVerification": {
+    "exitCode": 0,
+    "records": 29,
+    "counts": {
+      "/tmp/rollapp-caret-main.log": 9,
+      "/tmp/rollapp-caret-main-native.log": 2,
+      "/tmp/rollapp-caret-main-selection.log": 9,
+      "/tmp/rollapp-table-duplicate-main.log": 9
+    },
+    "sourceCount": 611,
+    "sourceDrift": [],
+    "unit": {
+      "total": 660,
+      "pass": 659,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "37/69 PASS",
+    "build": "PASS",
+    "comprehensive246": "not-run"
+  }
+}

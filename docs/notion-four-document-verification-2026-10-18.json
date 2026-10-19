@@ -1,0 +1,159 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sha256": {
+    "src/components/four-questions.jsx": "2ea18330bf20cef2a7af670e361e9bcdb8ebe37e6d952447cb7aedbc73ccbf29",
+    "src/components/four-question-rich-editor.jsx": "59a4ba6a7d22ead105382c0ed4d92d16ce59d666ff5ca7a6b466d2b8b2b6059e",
+    "src/components/inline-rich-text-editor.jsx": "b2e50b8f1bdde3488f25a104cc055f449c1542a09ee692173f535dd9b3da3031",
+    "src/components/inline-block-controls.jsx": "0f937aa84828085e78e5de5dc860d64990cd6d30b672721780edc27feea20756",
+    "src/components/inline-editor.css": "f3775254a6c4c66f09288279405d22ef2556549c2aecaeb07958e3c4193f8aa4",
+    "src/lib/four-question-document.js": "603f6397c955e5a6c7a1a3e54cf5063706535229be9c79d72cbd58f9aa5d8541",
+    "src/lib/four-question-document.test.js": "e93ec2d2e4b981c12bf1ff0ddcaba9599f8a3a632c9f11c0f1ec7a9e5d8a13cb",
+    "src/lib/inline-editor-extensions.js": "e5c0e733cd0371f8c1fab1162dae53850b7ee7a62d95fd3a0a00ad1940876d57",
+    "src/lib/inline-block-selection.js": "0db4e5762d65b093824699ac3c73062df01e67b0773fcb519fbf55c6df021be7",
+    "src/lib/inline-block-selection-extension.js": "68ea7734bb2906548b6e7368e089747a91e441cd4edc2462a6e514e9f17dba67",
+    "scripts/text-four-document-checks.mjs": "4e1e86e7d2607eba06ffe15ab2e36ebcd3d472483a4ab5709e40278dd6d91c55",
+    "scripts/text-edit-smoke.mjs": "060ba67bc9f15dcc9fc4a11c181ab5dcaef7d3de56e518f4ae5b60f752423f61",
+    "scripts/text-selection-position-checks.mjs": "309e69231ee3df6797ba976d70f141f0a6f1e54c01d184f42551ff5e7e397264",
+    "scripts/fixtures/text-edit.jsx": "e6c3ce94fe136fc33c068dd72bf427a9d84b6f66fb24fe9d0fe728f60e3770dd",
+    "src/components/sphere-text-page.test.js": "1d4b5ce7afc8bdc18875d2499bf58ade9f437bab7a851279a024367e4155d7c0",
+    "vite.config.js": "b90f843d582f4d87d0274df583fec541186b8fc25048c5a9d6a1264e0f69eadd"
+  },
+  "verifiedAt": "2026-10-17T21:32:10.762661+00:00",
+  "localDate": "2026-10-18",
+  "scope": "One inline document for four answers; source Hogan scales recheck",
+  "goalComplete": false,
+  "viewports": [
+    [
+      320,
+      844
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      390,
+      400
+    ],
+    [
+      768,
+      844
+    ],
+    [
+      820,
+      844
+    ],
+    [
+      1024,
+      844
+    ],
+    [
+      1440,
+      844
+    ],
+    [
+      1920,
+      844
+    ]
+  ],
+  "checks": {
+    "fourDocument": {
+      "status": "pass",
+      "cases": 8,
+      "log": "/tmp/rollapp-four-document-browser.log"
+    },
+    "selection": {
+      "status": "pass",
+      "cases": 8,
+      "log": "/tmp/rollapp-four-document-selection.log"
+    },
+    "fullText": {
+      "status": "pass",
+      "exitCode": 0,
+      "passGroups": 67,
+      "completeMatrix": true,
+      "command": "TEXT_EDIT_PORT=5201 TEXT_EDIT_CACHE_DIR=node_modules/.vite-text-selection npm run test:text-edit",
+      "log": "/tmp/rollapp-four-document-full-text.log"
+    },
+    "actionRails": {
+      "status": "pass",
+      "cases": 90
+    },
+    "ui": {
+      "status": "pass",
+      "primitives": 37,
+      "sources": 67
+    },
+    "build": {
+      "status": "pass",
+      "warnings": [
+        "chunk >500kB"
+      ]
+    },
+    "comprehensive": {
+      "status": "failed",
+      "stage": "unit",
+      "tests": 555,
+      "pass": 553,
+      "fail": 1,
+      "skip": 1,
+      "error": "Gallup DNA labels must use shrinkable grid tracks",
+      "report": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-check-1792272064927.json"
+    },
+    "npmAudit": {
+      "high": 7,
+      "productionHigh": 0
+    },
+    "hoganFixture": {
+      "status": "pass",
+      "cases": 8
+    },
+    "hoganSource": {
+      "status": "pass",
+      "cases": 8,
+      "scores": 28,
+      "subscales": 125,
+      "segments": 500
+    },
+    "diffWhitespace": {
+      "status": "pass"
+    },
+    "sourceSnapshot": {
+      "status": "pass",
+      "changedDuringFinalRun": []
+    },
+    "keepalive": {
+      "status": "ready",
+      "pid": 99362,
+      "api": "ready",
+      "frontend": "ready",
+      "leftRunning": true
+    }
+  },
+  "liveReview": {
+    "database": "configured production; persistent service kept running",
+    "writes": false,
+    "fourQuestionEditors": 1,
+    "answerBodies": 4,
+    "protectedPrompts": 4,
+    "frame": {
+      "border": "0px",
+      "outline": "0px",
+      "shadow": "none"
+    },
+    "rootOverflow": false
+  },
+  "unverified": [
+    "Actual iOS/Telegram IME and keyboard",
+    "Arbitrary nested lists/tables/toggles across answer boundaries",
+    "Cross-section block groups",
+    "Remaining R4–R10 Notion matrix; full application audit blocked by existing Gallup assertion"
+  ],
+  "artifacts": [
+    "/tmp/rollapp-four-document-390-844.png",
+    "/tmp/rollapp-four-document-1440-844.png",
+    "/tmp/rollapp-hogan-source-scales-1440-844.png",
+    "/tmp/rollapp-hogan-source-subscales-1440-844.png"
+  ]
+}
