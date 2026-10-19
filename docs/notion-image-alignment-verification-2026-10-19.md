@@ -1,0 +1,11 @@
+# Выравнивание изображений: 2026-10-19
+
+Изолированный653 prototype поверх metadata650; в main/выпуск не перенесён. Добавлены left/centre/right, transient48px image control и единая Undo/serialization; текст/alt/размеры/соседи сохраняются. Полная цель Notion остаётся открытой.
+
+Unit730:729PASS/1SKIP, предварительный build PASS. Native пока не общий PASS: сохранены ошибки fixture по selection после reload, анимации и floating-point DOMRect при DPR3; проверки48px не заменяются minimum. Resize compatibility8 ещё выполняется; расширенный native revision подготовлен вне frozen653. [Точные логи и pending](notion-image-alignment-verification-2026-10-19.json).
+
+Phase3 native10 завершился terminal0: dark8+light2, включая DPR3, root/nested/columns/table/fixed questions, twins/source/selection/access, реальные app rails и эмуляцию220px/offset96. Новое состояние меню различимо; related controls gap8, кнопки48/20/radius24. Устранено подтверждённое перекрытие mobile navigation (до: popup316..384, nav336..384). Ошибка фильтра режима раскрыла лишний full-run после phase2; он остановлен143 после revision и не считается успешной общей проверкой. Unknown/multiple modes теперь отклоняются до запуска server; повтор был ровно10 и terminal0.
+
+Синхронизированы5 contracts. Frozen653/10extra full393 завершился **failed337/393** (13:50:47Z): native click «Выделить столбец» в conversion390×400 истёк по timeout. Unit730/729PASS/1SKIP, UI37/74/build PASS, source/extra/added drift0; PID31741 отсутствует. Подготовлено18source/test paths (7new) и5contracts для review; они НЕ перенесены. В proposed-копии исключены временный realpath adapter, скрытые test hosts и возвращение trailing spaces в caret fixture; frozen candidate не менялся. Успешный частичный повтор не закрывает причину общего отказа.
+
+Живая проверка собственного fixture с career chrome: 390×844/390×400/1440×844, Geist18/28, no frame/overflow, выбранное положение и popup до navigation. Снимки: `/tmp/rollapp-image-alignment-candidate-mobile.jpg`, `/tmp/rollapp-image-alignment-candidate-desktop.jpg`, `/tmp/rollapp-image-alignment-live-chrome-short.jpg`. Вкладки47/48 закрыты, viewport reset, own host stopped143; dev85976 ready. Это не production review или физическая iOS/IME.

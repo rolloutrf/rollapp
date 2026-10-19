@@ -10,7 +10,7 @@
     "service": "rollapp",
     "version": "710457583a873ce56b93d4eb26849731164f5b2d"
   },
-  "status": "pushed; first CI failed in Linux fixture before image/deployment; portability fix under native matrix validation",
+  "status": "follow-up pushed; exact-commit Linux CI queued/in progress",
   "scope": "Current main646 working editor, report charts and accumulated UI fixes with their contracts/tests; isolated link-intent649 is excluded.",
   "knownValidation": {
     "imageCoreParentFull375": "passed, older snapshot before storage/portal overlay",
@@ -90,7 +90,7 @@
       "finishedAt": "2026-10-19T11:38:55.841005+00:00"
     },
     "mainFreshComprehensive": {
-      "status": "running",
+      "status": "passed",
       "rootPid": 14636,
       "startedAt": "2026-10-19T11:39:33.904837+00:00",
       "expectedEditorRecords": 375,
@@ -101,7 +101,16 @@
       "dirtyPathCount": 357,
       "log": "/tmp/rollapp-image-core-portal-main-full.log",
       "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
-      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json",
+      "exitCode": 0,
+      "editorPassRecords": 375,
+      "comprehensiveStageCount": 9,
+      "allStagesPass": true,
+      "sourceDrift": [],
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T12:50:17.216917+00:00"
     },
     "mainSourceDrift": [],
     "mainExtraDrift": [],
@@ -123,18 +132,18 @@
     "Keep healthy previous production service and rollback image; no automatic restart.",
     "Continue link-intent649 and remaining R1–R10 after this release."
   ],
-  "updatedAt": "2026-10-19T12:22:03.848963+00:00",
-  "releaseCommit": "6fa269b4383950785b67e34fc48ec18f80a4140f",
+  "updatedAt": "2026-10-19T12:57:23.983596+00:00",
+  "releaseCommit": "fb508f2db73652ad723292e7d5a2fc417dc3cb52",
   "push": {
     "confirmed": true,
     "target": "origin/main",
-    "url": "https://github.com/rolloutrf/rollapp/commit/6fa269b4383950785b67e34fc48ec18f80a4140f"
+    "url": "https://github.com/rolloutrf/rollapp/commit/fb508f2db73652ad723292e7d5a2fc417dc3cb52",
+    "remoteHeadConfirmed": "fb508f2db73652ad723292e7d5a2fc417dc3cb52"
   },
   "workflow": {
-    "id": 39248087440,
-    "url": "https://github.com/rolloutrf/rollapp/actions/runs/39248087440",
-    "status": "completed",
-    "conclusion": "failure"
+    "id": 39251525717,
+    "url": "https://github.com/rolloutrf/rollapp/actions/runs/39251525717",
+    "status": "in_progress"
   },
   "runningSnapshotToReleaseDifferences": [
     {
@@ -180,8 +189,11 @@
     }
   },
   "localMainComprehensive": {
-    "status": {
-      "status": "running",
+    "at": "2026-10-19T12:52:02.896257+00:00",
+    "terminalControllerSession": 32893,
+    "exitCode": 0,
+    "terminal": {
+      "status": "passed",
       "rootPid": 14636,
       "startedAt": "2026-10-19T11:39:33.904837+00:00",
       "expectedEditorRecords": 375,
@@ -192,14 +204,32 @@
       "dirtyPathCount": 357,
       "log": "/tmp/rollapp-image-core-portal-main-full.log",
       "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
-      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
-    },
-    "controllerSession": 32893,
-    "sourceIntegrity": {
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json",
+      "exitCode": 0,
+      "editorPassRecords": 375,
+      "comprehensiveStageCount": 9,
+      "allStagesPass": true,
       "sourceDrift": [],
-      "extraInputDrift": []
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T12:50:17.216917+00:00"
     },
-    "releaseDifference": "Only a trailing-whitespace line normalized in the release index; working test inputs unchanged."
+    "currentHead": "fb508f2db73652ad723292e7d5a2fc417dc3cb52",
+    "normalizationAfterTerminal": [
+      {
+        "path": "scripts/text-caret-scroll-checks.mjs",
+        "frozenHash": "52b1c3c9230f223d5c3fa61427dd08b4fd1553f5404692752355e36ed8f8587b",
+        "restoredHeadHash": "25db773a7bb3c7f27f81bdc1fa77893ab4ae3c5d24baf892169bd62722976ace"
+      },
+      {
+        "path": "scripts/text-image-checks.mjs",
+        "frozenHash": "9a8e657ef3735516d7fa5018fee413a0342390c1dd20c140d1507948bdce6c9e",
+        "restoredHeadHash": "779ea50784ac090dcd3fb3ead2fb43f49c906e55175b7393009f816ec9ac40a9"
+      }
+    ],
+    "currentTrackedSourceMatchesHead": true,
+    "scope": "All9 macOS comprehensive stages passed on frozen646/10extra; release differs only in these test inputs, with portability separately native24. Exact Linux SHA release CI still pending."
   },
   "nextCandidate": {
     "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-intent-05g15b0_",
@@ -258,34 +288,32 @@
       "finishedAt": "2026-10-19T11:54:31.382610+00:00"
     },
     "full383": {
-      "status": "running",
+      "status": "passed",
       "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-intent-05g15b0_",
       "pid": 20167,
       "sourceCount": 649,
       "expectedEditorRecords": 383,
       "startedAt": "2026-10-19T11:55:58.722042+00:00",
       "log": "/tmp/rollapp-link-intent-full383.log",
-      "snapshot": "/tmp/rollapp-link-intent-full383-sources.json"
+      "snapshot": "/tmp/rollapp-link-intent-full383-sources.json",
+      "exitCode": 0,
+      "editorPassRecords": 383,
+      "sourceDrift": [],
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T12:53:00.968548+00:00"
     },
     "fullSession": 10842,
     "inThisRelease": false
   },
   "goalTurnAudit": {
-    "at": "2026-10-19T12:07:41.583225+00:00",
-    "previousTurn": "progress: release362-path commit6fa269b created and pushed; CI39248087440 started; link phase2 passed26 and frozen383 started.",
-    "currentTurn": "verified wait: fresh GitHub job status and ps confirm CI/local main14636/link20167 still running; no restart or new deployment requested.",
-    "mainSourceDrift": [],
-    "mainExtraInputDrift": [],
-    "localCases": {
-      "rollapp-image-core-portal-main-full": {
-        "count": 116,
-        "last": "PASS symbol shortcuts 390×400: 37 typed patterns, 4 literal/unsafe cases, Backspace/Undo, literal code, formatted autosave and reload"
-      },
-      "rollapp-link-intent-full383": {
-        "count": 56,
-        "last": "PASS cell clipboard 1920x844: merged rectangle, native plain-editor text/HTML parity, exact nested marks/widths, protected neighbours and independent cut/paste/typing Undo, no API"
-      }
-    },
+    "at": "2026-10-19T12:57:23.983596+00:00",
+    "previousTurn": "progress: published fb508f2 portability fix after24 native checks; exact Linux CI started, metadata650 targeted26/units passed.",
+    "currentTurn": "progress: main comprehensive9/editor375 and isolated649/editor383 authoritative terminal0; restored owned main test inputs to published HEAD after terminal. Implemented isolated image alignment653 with document storage/history, transient controls and actual chrome boundary. Found/fixed invisible selected state and mobile nav overlap; native10 terminal0, fresh730unit/UI/build passed; full393 started.",
+    "sourceState": "Main tracked src/scripts/server/shared/package/vite matches published HEAD; prototypes650/653 remain isolated and frozen.",
+    "runningSnapshotReview": "/tmp/rollapp-notion-iteration-2026-10-19-1255-state.json",
+    "deployment": "Exact Linux CI still in_progress; current production healthy7104575, no VM mutations/restart.",
     "fullObjectiveIntact": true,
     "goalComplete": false
   },
@@ -337,5 +365,165 @@
       "candidateHash": "779ea50784ac090dcd3fb3ead2fb43f49c906e55175b7393009f816ec9ac40a9"
     },
     "promotion": "index-only source staging keeps existing main646 comprehensive inputs unchanged"
+  },
+  "firstWorkflow": {
+    "id": 39248087440,
+    "url": "https://github.com/rolloutrf/rollapp/actions/runs/39248087440",
+    "status": "completed",
+    "conclusion": "failure"
+  },
+  "firstReleaseCommit": "6fa269b4383950785b67e34fc48ec18f80a4140f",
+  "followupCiObservation": {
+    "watchSession": 68149,
+    "watchLog": "/tmp/rollapp-release-followup-ci-watch.log",
+    "required": "Exact Linux check:release success followed by exact-SHA production health and affected live UI.",
+    "lastConfirmedStatus": "in_progress",
+    "activeStep": "Test and build",
+    "headSha": "fb508f2db73652ad723292e7d5a2fc417dc3cb52",
+    "watchExit": "gh watch exited1 on GitHub API EOF; fresh gh view exited0 and confirmed in_progress. This is not CI failure.",
+    "monitorSession": 87868,
+    "monitorScript": "/tmp/rollapp-release-followup-monitor.py",
+    "monitorReport": "/tmp/rollapp-release-followup-monitor.json",
+    "lastConfirmedAt": "2026-10-19T12:57:17.205256+00:00"
+  },
+  "indexOnlyPortabilityPromotion": {
+    "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-image-portability-lxkxho8y/scripts/text-image-checks.mjs",
+    "hash": "779ea50784ac090dcd3fb3ead2fb43f49c906e55175b7393009f816ec9ac40a9",
+    "blob": "a0cc9e1af89d6d21e2820e42419da39b3b0ffc4d",
+    "mainRunningSourceDrift": [],
+    "mainRunningExtraDrift": [],
+    "localGates": {
+      "status": "passed",
+      "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-image-portability-lxkxho8y",
+      "baseCommit": "6fa269b4383950785b67e34fc48ec18f80a4140f",
+      "startedAt": "2026-10-19T12:16:23.479628+00:00",
+      "results": [
+        {
+          "name": "image-layout",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-image-portability-gates-image-layout.log"
+        },
+        {
+          "name": "image-context",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-image-portability-gates-image-context.log"
+        },
+        {
+          "name": "images",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-image-portability-gates-images.log"
+        }
+      ],
+      "finishedAt": "2026-10-19T12:21:40.903906+00:00"
+    },
+    "indexOnly": true,
+    "workingTreeRestoreAfterTerminal": [
+      "scripts/text-image-checks.mjs",
+      "scripts/text-caret-scroll-checks.mjs"
+    ]
+  },
+  "localSnapshotReview": {
+    "at": "2026-10-19T12:25:04.611012+00:00",
+    "snapshots": {
+      "rollapp-image-core-portal-main-full": {
+        "sourceCount": 646,
+        "sourceDrift": [],
+        "extraInputDrift": [],
+        "passRows": 586,
+        "lastRow": "PASS caret scroll 390×844: native arrows/Shift selection stay between app controls, native cursor parity, manual scroll/blur preserved, unchanged text and no saves/API"
+      },
+      "rollapp-link-intent-full383": {
+        "sourceCount": 649,
+        "sourceDrift": [],
+        "extraInputDrift": [],
+        "passRows": 143,
+        "lastRow": "PASS inline styles 768×844: mixed selection, keyboard focus, underline/strike/code, foreground/background, palette keys, undo/redo, reset, exact styled spaces/unlink/literal delimiters/list children and owner-scoped portal Save/reload/Undo/public reading"
+      },
+      "rollapp-link-metadata-full383": {
+        "sourceCount": 650,
+        "sourceDrift": [],
+        "extraInputDrift": [],
+        "passRows": 6,
+        "lastRow": "PASS link intent 1024×844: visible caret URL, reverse native target, outside edits, stale source/target/access guards, existing rich link/unlink, one Undo/Redo/reload/public read and no frames/API"
+      }
+    }
+  },
+  "nextMetadataCandidate": {
+    "status": "running",
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-metadata-20f_vhdo",
+    "sourceCount": 650,
+    "expectedEditorRecords": 383,
+    "startedAt": "2026-10-19T12:23:24.852109+00:00",
+    "results": [
+      {
+        "name": "unit",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-unit.log"
+      },
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-build.log"
+      }
+    ],
+    "snapshot": "/tmp/rollapp-link-metadata-full383-sources.json",
+    "active": {
+      "name": "editor",
+      "pid": 25730,
+      "log": "/tmp/rollapp-link-metadata-full383-editor.log"
+    }
+  },
+  "nextAlignmentCandidate": {
+    "status": "running",
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-image-alignment-jilc9an9",
+    "sourceCount": 653,
+    "expectedEditorRecords": 393,
+    "startedAt": "2026-10-19T12:53:04.423865+00:00",
+    "results": [
+      {
+        "name": "unit",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-unit.log"
+      },
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-build.log"
+      }
+    ],
+    "snapshot": "/tmp/rollapp-image-alignment-full393-sources.json",
+    "active": {
+      "name": "editor",
+      "pid": 31741,
+      "log": "/tmp/rollapp-image-alignment-full393-editor.log"
+    }
   }
 }
