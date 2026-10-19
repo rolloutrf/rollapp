@@ -17,3 +17,9 @@ Push main запускает CI с полным `npm run check:release`. Лим�
 Постоянное production development соединение остаётся включённым.
 
 [Точный статус](notion-release-2026-10-19.json).
+
+Push подтверждён: `6fa269b4383950785b67e34fc48ec18f80a4140f` →origin/main. CI39248087440 завершился ошибкой до развёртывания; production пока ещё7104575, выпуск не объявляется завершённым. Единственная разница release646 с running snapshot — удаление пробела в `text-caret-scroll-checks.mjs` через index-only normalization; inputs локального375 не менялись. Exact clean SHA проверяет CI.
+
+Первый Linux CI остановился в image-layout768: Ctrl+Left переместил курсор по слову, `/image` оказался внутри `layout.`. Runtime правильно не открыл slash-команду. Исправляется только нативная установка курсора в трёх fixture-путях с проверкой границы и выбранной команды до Enter; все24 затронутых сценария проходят повторно. Первоначальная ошибка CI и раннее чтение model selection в новом тесте сохранены в логах. Проверки выпуска остаются полными.
+
+Portability-кандидат прошёл24/24 native cases на macOS: image-layout8, image-context8, images8. Linux-подтверждение ожидается в exact-commit CI; локальный прогон его не заменяет. В release индекс переносится только `scripts/text-image-checks.mjs`; временный Vite realpath adapter исключён. Рабочие646source/10extra оставлены byte-identical для уже запущенного comprehensive; после его окончания рабочий тестовый файл нужно привести к HEAD.

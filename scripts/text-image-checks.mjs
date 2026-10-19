@@ -6,6 +6,22 @@ import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
 export const imageFixturePNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTioAAAAASUVORK5CYII=", "base64");
 const schema = getSchema(inlineEditorExtensions()), json = node => JSON.parse(JSON.stringify(node.toJSON()));
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+// Native line-start keys differ by OS: Ctrl+Left on Linux moves by words.
+// Keep slash insertion at a real boundary without changing editor selection in JS.
+async function openNativeImageSlash(page, owner) {
+  await owner.press(process.platform === "darwin" ? "Meta+ArrowLeft" : "Home");
+  await frames(page);
+  const prefix = await owner.evaluate(el => {
+    const { $from, empty } = el.editor.state.selection;
+    return empty ? $from.parent.textBetween(0, $from.parentOffset, "\n", "\ufffc") : null;
+  });
+  assert(prefix !== null && (prefix === "" || /\s$/.test(prefix)), `Image slash must start at a word boundary: ${JSON.stringify(prefix)}`);
+  await page.keyboard.type("/image");
+  const choice = page.getByRole("group", { name: "Команды блока", exact: true }).getByRole("button", { name: "Изображение", exact: true });
+  await choice.waitFor();
+  assert.equal(await choice.getAttribute("aria-pressed"), "true", "Image is the selected slash command before native Enter");
+  await page.keyboard.press("Enter");
+}
 export async function checkImages(browser, origin, diagnostic = false) {
   const sizes = diagnostic ? [[390,400],[1440,400]] : [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,844],[1920,844]];
   for (const [width,height] of sizes) {
@@ -32,8 +48,8 @@ export async function checkImages(browser, origin, diagnostic = false) {
     const url=value=>`${origin}/__text-edit?source=${encodeURIComponent(value)}`, editor=page.getByRole("textbox",{name:"О себе",exact:true});
     const read=()=>editor.evaluate(el=>el.editor.getJSON());
     const open=async (slash=true)=>{
-      await editor.locator("p").first().click(); await editor.press("ControlOrMeta+ArrowLeft");
-      if (slash) { await page.keyboard.type("/image"); await page.keyboard.press("Enter"); }
+      await editor.locator("p").first().click();
+      if (slash) await openNativeImageSlash(page, editor);
       else { await editor.press("ControlOrMeta+/"); const menu=page.getByRole("dialog",{name:"Действия текстового блока",exact:true});await menu.getByRole("searchbox",{name:"Поиск действий блока"}).fill("image");await menu.getByRole("searchbox",{name:"Поиск действий блока"}).press("Enter"); }
       const picker=page.getByRole("dialog",{name:"Добавить изображение",exact:true});await picker.waitFor();return picker;
     };
@@ -104,7 +120,7 @@ export async function checkImageLayout(browser, origin, diagnostic = false) {
         const value=Array.from({length:20},(_,index)=>`Paragraph ${index+1} for image layout.`).join("\n\n");
         await page.goto(`${origin}/app/spheres/career?tab=about&__text_fixture=1&chrome=1&access=1&source=${encodeURIComponent(value)}`);
         const editor=page.getByRole("textbox",{name:"О себе",exact:true});await editor.locator("p").nth(19).waitFor();await page.evaluate(()=>document.fonts.ready);
-        await editor.locator("p").nth(12).click();await editor.press("ControlOrMeta+ArrowLeft");await page.keyboard.type("/image");await page.keyboard.press("Enter");
+        await editor.locator("p").nth(12).click();await openNativeImageSlash(page, editor);
         const picker=page.getByRole("dialog",{name:"Добавить изображение",exact:true});await picker.getByLabel("Адрес изображения",{exact:true}).fill(`/__late-inline-image.png?mode=${mode}`);await picker.getByRole("button",{name:"Добавить",exact:true}).click();await picker.waitFor({state:"hidden"});await frames(page);await page.waitForTimeout(80);
         assert.equal(held,1,"actual browser image response is held");assert.equal(await editor.locator("img").evaluate(el=>el.complete),false);
         const point=()=>editor.evaluate(el=>{const {view,state}=el.editor,s=getSelection(),r=view.coordsAtPos(state.selection.head),header=document.querySelector(".global-app-chrome").getBoundingClientRect(),navigation=document.querySelector(".mobile-app-navigation")?.getBoundingClientRect();return{top:r.top,bottom:r.bottom,headerBottom:header.height?header.bottom:0,limit:navigation?.height?navigation.top:innerHeight,scrollY,active:document.activeElement===el,head:state.selection.head,native:s.focusNode&&el.contains(s.focusNode)?view.posAtDOM(s.focusNode,s.focusOffset):null};});
@@ -159,7 +175,7 @@ export async function checkImageContexts(browser,origin,diagnostic=false){
   await page.route("**/api/**",route=>{errors.push("Unexpected API request");return route.abort();});
   const editor=page.getByRole("textbox",{name:"О себе",exact:true}), read=()=>editor.evaluate(el=>el.editor.getJSON());
   const goto=async doc=>{const source=manager.serialize(doc);await page.goto(`${origin}/__text-edit?access=1&source=${encodeURIComponent(source)}`);await editor.waitFor();await page.evaluate(()=>document.fonts.ready);return read();};
-  const slash=async(target,owner=editor)=>{await target.click();await owner.press("ControlOrMeta+ArrowLeft");await page.keyboard.type("/image");await page.keyboard.press("Enter");const picker=page.getByRole("dialog",{name:"Добавить изображение",exact:true});await picker.waitFor();return picker;};
+  const slash=async(target,owner=editor)=>{await target.click();await openNativeImageSlash(page, owner);const picker=page.getByRole("dialog",{name:"Добавить изображение",exact:true});await picker.waitFor();return picker;};
   const submit=async picker=>{await picker.getByLabel("Адрес изображения",{exact:true}).fill("/__inline-image.png");await picker.getByRole("button",{name:"Добавить",exact:true}).click();await picker.waitFor({state:"hidden"});await frames(page);};
   // A slash authored inside a cell must address that text block, never the
   // surrounding table. Every peer and cell attribute is checked exactly.
