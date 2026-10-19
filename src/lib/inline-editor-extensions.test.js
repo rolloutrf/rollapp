@@ -18,8 +18,11 @@ test("editor preserves existing documents through Markdown round trips", async (
   for (const file of ["about-me", "mission", "domain", "life-strategy", "theses"]) {
     const source = await readFile(new URL(`../data/${file}.md`, import.meta.url), "utf8");
     const markdown = manager();
-    const original = markdown.parse(source);
-    const result = markdown.parse(markdown.serialize(original));
+    // Compare actual editor documents: the schema supplies default mark attrs
+    // that a legacy Markdown parse can omit. Keep every explicit attribute.
+    const schema = getSchema(inlineEditorExtensions());
+    const original = schema.nodeFromJSON(markdown.parse(source)).toJSON();
+    const result = schema.nodeFromJSON(markdown.parse(markdown.serialize(original))).toJSON();
     assert.equal(textOf(result), textOf(original), `${file}: text must survive editing`);
     assert.deepEqual(semantics(result), semantics(original), `${file}: formatting must survive editing`);
   }

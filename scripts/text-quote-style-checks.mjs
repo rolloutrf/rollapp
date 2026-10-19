@@ -42,7 +42,26 @@ export async function checkQuoteStyles(browser, origin) {
     assert.equal(await publicQuote.evaluate(el => getComputedStyle(el).fontStyle), 'italic');
     assert.equal(await publicQuote.locator('[data-inline-normal="true"]').evaluate(el => getComputedStyle(el).fontStyle), 'normal');
     assert.equal(await page.locator('[contenteditable="true"]').count(), 0);
+    for (const metadata of [{ target: '_self', rel: 'author', class: 'author-link', title: 'A "quoted" title' }, { target: null, rel: null, class: null, title: '' }]) {
+      await page.goto(url('Seed'));await editor.waitFor();
+      await editor.evaluate((el, metadata) => {
+        const e = el.editor, s = e.schema, link = s.marks.link.create({ href: 'https://example.test/a)b', ...metadata });
+        e.commands.setContent(s.nodes.doc.create(null, [s.nodes.blockquote.create(null, s.nodes.paragraph.create(null, [s.text('До '), s.text('фрагмент', [link, s.marks.bold.create()]), s.text(' после')])), s.nodes.paragraph.create(null, s.text('Сосед'))]).toJSON());
+      }, metadata);
+      const originalLink = await read();
+      await editor.locator('a strong').evaluate(el => { el.closest('[role="textbox"]').focus();getSelection().setBaseAndExtent(el.firstChild,0,el.firstChild,8); });
+      await page.keyboard.press('ControlOrMeta+i');await editor.locator('[data-inline-normal="true"]').waitFor();
+      assert.equal(await editor.locator('[data-inline-normal="true"]').evaluate(el => getComputedStyle(el).fontStyle), 'normal');
+      const normalLink = await read();
+      assert.deepEqual(normalLink.content[0].content[0].content[1].marks.find(mark => mark.type === 'link').attrs, { href: 'https://example.test/a)b', ...metadata });
+      await editor.press('ControlOrMeta+z');assert.deepEqual(await read(), originalLink);await editor.press('ControlOrMeta+Shift+z');assert.deepEqual(await read(), normalLink);
+      await editor.press('ControlOrMeta+s');await page.locator('[data-save-status="saved"]').waitFor();const stored = await page.evaluate(() => window.inlineTest.saved);
+      await page.goto(url(stored));await editor.locator('[data-inline-normal="true"]').waitFor();assert.deepEqual(await read(), normalLink);
+      await page.goto(url(stored, '&public=1'));const link = page.getByRole('link', { name: 'фрагмент', exact: true });await link.waitFor();
+      assert.equal(await link.getAttribute('target'), '_blank');assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');assert.notEqual(await link.getAttribute('class'), 'author-link');
+      assert.equal(await link.locator('[data-inline-normal="true"]').evaluate(el => getComputedStyle(el).fontStyle), 'normal');
+    }
     assert.deepEqual(errors, []);assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
-    await page.close();console.log(`PASS quote italic ${width}x${height}: effective toolbar, real normal glyphs, inherited default retained, keyboard, separate typing/format Undo and exact reload/public reading`);
+    await page.close();console.log(`PASS quote italic ${width}x${height}: effective toolbar and real normal glyphs, inherited default, keyboard/Undo, rich Cyrillic link metadata with quoted/empty attrs, exact reload and safe public reading`);
   }
 }

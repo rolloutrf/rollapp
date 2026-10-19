@@ -105,3 +105,10 @@ test("nested explicit emphasis and normal exceptions resolve to the inner author
     block.check();assert.deepEqual(block.firstChild.firstChild.marks.map(m => m.type.name), [expected]);
   }
 });
+
+test("removing inherited italic keeps complete link metadata and quoted titles through storage", () => {
+  const link = schema.marks.link.create({ href: 'https://example.test/a)b', title: 'A "quoted" title', target: '_self', rel: 'author', class: 'author-link' });
+  const doc = document(quote(p(' linked ', [link, schema.marks.bold.create()]))), editor = fixture(doc, 2, 10);
+  assert(toggleEffectiveItalic(editor));const formatted = editor.state.doc;
+  const stored = manager.serialize(formatted.toJSON());assert(schema.nodeFromJSON(manager.parse(stored)).eq(formatted));
+});

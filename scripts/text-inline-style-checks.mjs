@@ -70,7 +70,20 @@ export async function checkTextInlineStyles(browser, origin) {
     };
     const applyMark = async label => {
       const owner = width >= 768 ? tools : await openTypes();
-      await owner.getByRole("button", { name: label, exact: true }).click();
+      try {
+        await owner.getByRole("button", { name: label, exact: true }).click();
+      } catch (error) {
+        await writeFile(`/tmp/rollapp-inline-style-action-${width}-${height}.json`, JSON.stringify(await page.evaluate(() => ({
+          active: document.activeElement?.outerHTML, selection: getSelection()?.toString(),
+          viewport: { width: innerWidth, height: innerHeight, top: visualViewport?.offsetTop, visualHeight: visualViewport?.height, scroll: scrollY },
+          fonts: document.fonts.status,
+          popups: [...document.querySelectorAll('[data-slot="popover-content"]')].map(el => ({ box: el.getBoundingClientRect().toJSON(), side: el.dataset.side,
+            positioner: el.parentElement?.getBoundingClientRect().toJSON(), available: getComputedStyle(el).getPropertyValue('--available-height'),
+            animations: el.getAnimations().map(a => ({ playState: a.playState, currentTime: a.currentTime })),
+            controls: [...el.querySelectorAll('button')].slice(0,5).map(button => ({ label: button.getAttribute('aria-label'), box: button.getBoundingClientRect().toJSON(), disabled: button.disabled })) }))
+        })), null, 2));
+        throw error;
+      }
       await tools.waitFor();
       assert.equal(await page.evaluate(() => getSelection()?.toString()), firstText, "Formatting must preserve native text selection");
     };
