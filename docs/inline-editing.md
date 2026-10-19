@@ -743,7 +743,34 @@ Bare Home/End на macOS сохраняют native selection и использу
 
 Native Cut отделён от ввода до и после него: граница перед непустым editable Cut и после native uiEvent=cut. Кастомный сквозной Cut четырёх ответов сохраняет своё владение диапазоном. `text-cut-history-checks.mjs` проверяет8 размеров, plain/rich column/sparse/cross-answer, exact Undo/Redo/selection/marks/widths/neighbours и save/reload без API. DOM TextSelection синхронизируется в handleDOMEvents.keydown до ProseMirror forceFlush; Shift+Arrow остаётся нативным. `text-native-caret-checks.mjs` сравнивает оба направления и collapsed endpoints для styled/RTL/bidi/graphemes с unmanaged host и650ms stability. Keyup-only и ручное extend были отклонены после counterexamples; см. датированный Cut report.
 
-## Выравнивание gutter controls
+## Вставка файлов изображений
+
+Файлы JPG/PNG/WEBP до8МБ каждый принимаются из clipboard file payload и внешнего
+file drop через существующий authenticated upload API. Полный набор файлов
+проверяется до первой загрузки; план вставки проверяет реальный диапазон и
+canonical reload depth до любых authored изменений. Пакет появляется одной
+транзакцией после успешной загрузки всех файлов; его Undo отделён от предыдущего
+и последующего набора. Богатые prefix/suffix, ячейки, list/nested/column owners,
+фиксированные вопросы и соседние ответы сохраняются. После изображений создаётся
+собственный абзац для продолжения ввода. Для drop рядом с изображением используется
+явная позиция до/после него, без замены существующего media.
+
+Временное окно загрузки не переносит фокус с native caret, не является authored
+содержимым и не сохраняет placeholder. Отмена/Escape/ошибка допускают повторную
+загрузку; смена source, диапазона, editor owner, доступа, IME и lifecycle отменяют
+право позднего commit. Только новые never-committed assets освобождаются при
+отказе; Undo уже вставленного пакета не удаляет его файлы. Ручной wheel/touch
+отменяет автоматический reveal, сохраняя саму разрешённую загрузку. Окно учитывает
+VisualViewport и настоящие header/navigation bounds, приостанавливает конкурирующие
+block/image/table/column controls и не рисует рамку вокруг прозы.
+
+`text-image-transfer-checks.mjs` включён в полный `test:text-edit` и image-only
+диагностику. File payload вводится на DOM-границе, а focus/caret/typing/Undo и
+кнопки проверяются браузером. Это не доказательство физического OS clipboard,
+внешнего файлового менеджера или реального iOS/Telegram IME. Расширенный аудит
+смешанных структур и совместный comprehensive после переноса остаются обязательны.
+
+## Геометрия gutter controls
 
 Плюс и grip выравниваются по центру первой строки текущего блока, а не верхнему
 краю48px кнопки или середине многострочного блока. Virtual anchor использует
