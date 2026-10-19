@@ -9,6 +9,7 @@ function renderNodes(nodes, prefix) {
     const content = (node.marks || []).reduceRight((value, mark) => {
       const Tag = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code" }[mark.type];
       if (Tag) return <Tag>{value}</Tag>;
+      if (mark.type === "normalText") return <span data-inline-normal="true">{value}</span>;
       if (mark.type === "inlineStyle") return <span data-inline-color={safeInlineColor(mark.attrs?.color) || undefined} data-inline-background={safeInlineColor(mark.attrs?.background) || undefined}>{value}</span>;
       if (mark.type === "link" && isSafeInlineLink(mark.attrs?.href)) {
         const external = /^https?:\/\//i.test(mark.attrs.href);
