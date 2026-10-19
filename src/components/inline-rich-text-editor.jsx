@@ -1,4 +1,5 @@
 import { captureInlineLinkIntent, mapInlineLinkIntent, commitInlineLink, safeInlineLink } from "@/lib/inline-link-intent";
+import { hasEffectiveItalic, toggleEffectiveItalic } from "@/lib/inline-italic";
 import { InlineImageResize } from "@/components/inline-image-resize";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
@@ -304,7 +305,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} actionsRef={blockActions} onCreateBlock={openPicker}>
       {format("Тип блока", Pilcrow, event => openPicker(selectedBlockPosition(editor.state.selection), null, event.currentTarget))}
       {format("Жирный", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
-      {format("Курсив", Italic, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
+      {format("Курсив", Italic, () => toggleEffectiveItalic(editor), hasEffectiveItalic(editor.state))}
       <InlineStyleButtons editor={editor} desktop onColors={openColors} />
       {format("Ссылка", Link2, () => openLink(editor), editor.isActive("link"))}
     </InlineBlockControls>}

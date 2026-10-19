@@ -22,6 +22,12 @@ body remains normal. Keep `font-synthesis: none` rather than synthesizing italic
 Block quotations retain their italic face and `1em` start padding, with no vertical
 border beside the text. This applies to reading and inline editing, including theses.
 
+The italic quotation treatment is a default, not an unchangeable text mark.
+Explicitly removing italic from selected quote text writes `normalText`, rendered
+as `span[data-inline-normal="true"]` with `font-style: normal` in the shared preset.
+The quote container, its padding, rhythm, family, weight and size stay unchanged.
+The contextual italic control reflects the effective authored/inherited style.
+
 ## Semantic exceptions
 
 Headings use the semantic scale in `src/typeset.css`. Captions and secondary microcopy use the shared `--text-xs` role. Primary controls and menu or select rows use the primary `18px/28px` text with the product Large geometry defined in `src/index.css`.
