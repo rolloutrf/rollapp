@@ -1,6 +1,7 @@
 import { InlineImageResize } from "@/components/inline-image-resize";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
+import { InlineImageTransfer } from "@/components/inline-image-transfer";
 import { InlineTableHandles } from "@/components/inline-table-handles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -46,6 +47,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   const [picker, setPicker] = useState(null);
   const [tableHandlesVisible,setTableHandlesVisible] = useState(false);
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
+  const [imageTransferVisible, setImageTransferVisible] = useState(false);
   const [imageResizing, setImageResizing] = useState(false);
   const pickerChosen = useRef(false);
   const [menu, setMenu] = useState(null);
@@ -272,7 +274,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     if (!editable || editor.isDestroyed || !editor.isInitialized || editor.view.dom.contains(event.target) || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
     event.preventDefault(); event.stopPropagation(); callbacks.current.onBlur?.();
   }}>
-    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageResizing)} actionsRef={blockActions} onCreateBlock={openPicker}>
+    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} actionsRef={blockActions} onCreateBlock={openPicker}>
       {format("Тип блока", Pilcrow, event => openPicker(selectedBlockPosition(editor.state.selection), null, event.currentTarget))}
       {format("Жирный", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
       {format("Курсив", Italic, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
@@ -307,9 +309,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     </form>}
     </FloatingMenu>}
     {editable && <InlineImagePicker editor={editor} onVisibilityChange={setImagePickerVisible} />}
-    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible)} onActiveChange={setImageResizing} />}
-    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageResizing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
-    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageResizing)} />}
+    {editable && <InlineImageTransfer editor={editor} onVisibilityChange={setImageTransferVisible} />}
+    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible)} onActiveChange={setImageResizing} />}
+    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
+    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} />}
     <EditorContent editor={editor} />
   </section>;
 }
