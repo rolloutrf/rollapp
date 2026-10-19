@@ -1,6 +1,6 @@
 {
   "date": "2026-10-19",
-  "updatedAt": "2026-10-19T11:52:10.848559+00:00",
+  "updatedAt": "2026-10-19T12:57:23.983596+00:00",
   "classification": "progress",
   "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
   "dirty": true,
@@ -36,7 +36,7 @@
     "snapshot": "/tmp/rollapp-link-intent-final-gates-sources.json",
     "session": 25217,
     "observed": {
-      "status": "running",
+      "status": "passed",
       "sourceCount": 649,
       "results": [
         {
@@ -66,15 +66,28 @@
           "passRecords": 8,
           "expectedRecords": 8,
           "log": "/tmp/rollapp-link-intent-final-gates-links.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-link-intent-final-gates-styles.log"
+        },
+        {
+          "name": "selection",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-link-intent-final-gates-selection.log"
         }
       ],
       "expectedNativeRecords": 26,
       "startedAt": "2026-10-19T11:49:41.666348+00:00",
-      "active": {
-        "name": "styles",
-        "pid": 18710,
-        "log": "/tmp/rollapp-link-intent-final-gates-styles.log"
-      }
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:54:31.382610+00:00"
     },
     "phase1Observed": {
       "status": "passed",
@@ -132,7 +145,27 @@
     },
     "phase1TerminalCode": 0,
     "phase1Backup": "/tmp/rollapp-link-intent-phase1-backup/manifest.json",
-    "needsFreshGatesAfterFollowUp": true
+    "needsFreshGatesAfterFollowUp": false,
+    "terminalCode": 0,
+    "full383": {
+      "status": "passed",
+      "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-intent-05g15b0_",
+      "pid": 20167,
+      "sourceCount": 649,
+      "expectedEditorRecords": 383,
+      "startedAt": "2026-10-19T11:55:58.722042+00:00",
+      "log": "/tmp/rollapp-link-intent-full383.log",
+      "snapshot": "/tmp/rollapp-link-intent-full383-sources.json",
+      "exitCode": 0,
+      "editorPassRecords": 383,
+      "sourceDrift": [],
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T12:53:00.968548+00:00"
+    },
+    "full383Session": 10842,
+    "full383TerminalCode": 0
   },
   "before": {
     "probe": "/tmp/rollapp-link-intent-probe.mjs",
@@ -234,10 +267,11 @@
     "unverified": "Exact behavior at an empty caret has not been directly compared to Notion; visible insertion is an intentional Rollapp improvement, not proof of identity."
   },
   "next": [
-    "Finish phase2 native26 gates with source/extra hashes; do not attribute phase1 PASS to phase2.",
-    "If phase2 passes, run the full383 editor on this exact isolated649 snapshot before promotion; preserve main646 while its comprehensive9 is running.",
-    "Review final old/new/tested hashes and six-path diff; never promote temporary realpath/fs runner adaptation or hidden fixture host.",
-    "Keep R1–R10 and exact empty-caret Notion / actual-device IME / image edge semantics open."
+    "Isolated649 full383 passed terminal0; it does not certify newer metadata650 or alignment653 source versions.",
+    "Keep metadata650 full383 and alignment653 full393 frozen until authoritative terminal results; no restart based on duration.",
+    "Review final old/new/tested hashes, normalized runner and inherited caret whitespace before any promotion; hidden fixture hosts never promote.",
+    "Main646 comprehensive9 passed and working tracked sources now match published fb508f2. Exact Linux release CI remains in progress.",
+    "Full R1–R10, actual-device IME, captions/file paste-drop and exact Notion edge semantics remain open."
   ],
   "compositionGuardProbe": {
     "script": "/tmp/rollapp-link-composition-probe.mjs",
@@ -292,6 +326,12 @@
     "contracts": 3,
     "temporaryRunnerFsAdaptationRemoved": true,
     "promoted": false,
-    "requiresTerminalVerification": true
+    "requiresTerminalVerification": false,
+    "requiresFull383": true
+  },
+  "releaseCheckpoint": {
+    "sha": "6fa269b4383950785b67e34fc48ec18f80a4140f",
+    "status": "pushed, CI in progress",
+    "linksCandidateInRelease": false
   }
 }

@@ -652,7 +652,7 @@
     color: var(--app-destructive-menu-surface-foreground);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]) {
     width: 8.125rem;
     min-width: 8.125rem;
     height: 6.25rem;
@@ -673,7 +673,7 @@
     background-image: none;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="list-tile-label"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs, [data-list-tile]) [data-slot="list-tile-label"] {
     width: 100%;
     min-width: 0;
     min-height: 0;
@@ -689,7 +689,7 @@
     -webkit-line-clamp: 2;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="list-tile-meta"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs, [data-list-tile]) [data-slot="list-tile-meta"] {
     min-width: 0;
     display: flex;
     align-items: center;
@@ -699,34 +699,37 @@
     white-space: nowrap;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="list-tile-meta"] > svg,
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="list-tile-count"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs, [data-list-tile]) [data-slot="list-tile-meta"] > svg,
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs, [data-list-tile]) [data-slot="list-tile-count"] {
     flex: 0 0 auto;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="list-tile-count"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs, [data-list-tile]) [data-slot="list-tile-count"] {
     margin-top: 0;
+    font-size: 1.5rem;
+    line-height: 1.8125rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"]:hover {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):hover {
     background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"]:active {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):active {
     transform: translateY(1px);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"] {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile])[aria-pressed="true"] {
     color: var(--primary-foreground);
     background-color: var(--primary);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"]:hover {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile])[aria-pressed="true"]:hover {
     background-color: color-mix(in oklch, var(--primary) 80%, transparent);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"][aria-pressed="true"] > :is([data-slot="list-tile-meta"], [data-slot="list-tile-count"]) {
+  :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile])[aria-pressed="true"] > :is([data-slot="list-tile-meta"], [data-slot="list-tile-count"]) {
     color: color-mix(in oklch, var(--primary-foreground) 72%, transparent);
   }
 
