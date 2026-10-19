@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sourceSnapshot": "/tmp/rollapp-anchor-main-sources.json",
+  "sourceCount": 611,
+  "expectedEditorRecords": 246,
+  "promoted": [
+    "native caret visibility",
+    "table axis duplication",
+    "stable chart anchor navigation"
+  ],
+  "coreTargeted": {
+    "exitCode": 0,
+    "records": 29,
+    "unitTotal": 660,
+    "unitPass": 659,
+    "unitSkip": 1,
+    "ui": "37/69 PASS",
+    "build": "PASS",
+    "sourceDrift": []
+  },
+  "previousComprehensive": {
+    "sourceCount": 608,
+    "status": "failed",
+    "editorPassRecords": 228,
+    "release": "passed",
+    "navigation": "passed",
+    "actionRails": "passed",
+    "failure": "Hogan navigation 1024: native focus reconciliation moved scroll from76 to64",
+    "notRun": [
+      "todo",
+      "form-pages",
+      "catalog-page",
+      "wish-groups",
+      "drawers"
+    ]
+  },
+  "anchorProof": {
+    "baseline": "/tmp/rollapp-hogan-navigation-repro.json",
+    "forcedEndScrollY": 76,
+    "nativeSettledScrollY": 64,
+    "candidateStressRecords": 20,
+    "candidateStressExit": 0,
+    "initialMainChartsRecords": 12,
+    "initialMainChartsExit": 0
+  },
+  "supplemental": {
+    "status": "supplemental-passed",
+    "session": 51283,
+    "logs": [
+      "/tmp/rollapp-hogan-anchor-main-history.log",
+      "/tmp/rollapp-anchor-main-todo.log",
+      "/tmp/rollapp-anchor-main-form-pages.log",
+      "/tmp/rollapp-anchor-main-catalog.log",
+      "/tmp/rollapp-anchor-main-wish-groups.log",
+      "/tmp/rollapp-anchor-main-drawers.log"
+    ],
+    "controllerCell": "2194",
+    "terminal": {
+      "status": "supplemental-passed",
+      "exitCode": 0,
+      "sourceCount": 611,
+      "sourceDrift": [],
+      "counts": {
+        "/tmp/rollapp-hogan-anchor-main-history.log": 12,
+        "/tmp/rollapp-anchor-main-todo.log": 29,
+        "/tmp/rollapp-anchor-main-form-pages.log": 128,
+        "/tmp/rollapp-anchor-main-catalog.log": 7,
+        "/tmp/rollapp-anchor-main-wish-groups.log": 16,
+        "/tmp/rollapp-anchor-main-drawers.log": 92
+      },
+      "needsFreshComprehensive": true,
+      "finishedAt": "2026-10-18T17:46:50.411976+00:00"
+    }
+  },
+  "needsFreshComprehensive": true,
+  "goalActive": true,
+  "productionWrites": false,
+  "createdAt": "2026-10-18T17:41:04.205660+00:00",
+  "lastSourceDriftCheck": {
+    "at": "2026-10-18T17:43:54.593462+00:00",
+    "drift": []
+  }
+}

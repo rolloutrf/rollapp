@@ -1,0 +1,154 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "productionDataWrites": false,
+  "deployment": false,
+  "sourceSnapshot": "/tmp/rollapp-native-collapse-final-sources.json",
+  "sourceCount": 587,
+  "comprehensive": {
+    "status": "failed",
+    "session": 56434,
+    "expectedEditorPassRecords": 159,
+    "log": "/tmp/rollapp-native-collapse-comprehensive-final.log",
+    "report": "/tmp/rollapp-native-collapse-comprehensive-final.json",
+    "exitCode": 1,
+    "editorPassRecords": 159,
+    "sourceCount": 587,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T15:05:51.204664+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "passed",
+        "startedAt": "2026-10-18T14:30:37.077Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:03:50.194Z",
+        "durationMs": 1993113
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-10-18T15:03:50.196Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:04:25.198Z",
+        "durationMs": 35000
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-10-18T15:04:25.198Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T15:05:03.758Z",
+        "durationMs": 38559
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "failed",
+        "startedAt": "2026-10-18T15:05:03.758Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T15:05:51.063Z",
+        "durationMs": 47305
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ]
+  },
+  "scope": "Discoverability of source Hogan scales: native in-page navigation, original PDF order retained",
+  "live": {
+    "scores": 28,
+    "subscaleRows": 125,
+    "segments": 500,
+    "desktopScales": {
+      "width": 1280,
+      "height": 720,
+      "top": 119.828125,
+      "focused": true,
+      "rootOverflow": false
+    },
+    "mobileSubscales": {
+      "width": 390,
+      "height": 844,
+      "top": 95.7734375,
+      "focused": true,
+      "rootOverflow": false,
+      "columns": 1
+    },
+    "responsiveGeometry": "8 dimensions have exact counts, no root overflow and 1/3 column threshold. Rapid live resize samples do not establish settled anchor geometry at every size."
+  },
+  "checks": [
+    {
+      "command": "npm run test:identity-reports",
+      "status": "passed",
+      "exitCode": 0,
+      "records": 24,
+      "log": "/tmp/rollapp-hogan-navigation-reports-final.log"
+    },
+    {
+      "command": "HOGAN_SCALES_REVIEW_LAYOUT=/tmp/rollapp-hogan-scales-layout.json node scripts/hogan-scales-smoke.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "records": 8,
+      "log": "/tmp/rollapp-hogan-navigation-source.log"
+    },
+    {
+      "command": "npm run test:unit",
+      "status": "passed",
+      "exitCode": 0,
+      "total": 627,
+      "pass": 626,
+      "skip": 1,
+      "log": "/tmp/rollapp-hogan-navigation-unit.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "status": "passed",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-hogan-navigation-ui-final.log"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "exitCode": 0,
+      "warning": "Existing chunk-size warning",
+      "log": "/tmp/rollapp-hogan-navigation-build.log"
+    }
+  ],
+  "audit": {
+    "production": 0,
+    "developmentHigh": 7,
+    "dependencyChanges": false,
+    "logs": [
+      "/tmp/rollapp-hogan-navigation-audit.json",
+      "/tmp/rollapp-hogan-navigation-audit-production.json"
+    ]
+  },
+  "screenshots": [
+    "/tmp/rollapp-hogan-navigation-live-scales.jpg",
+    "/tmp/rollapp-hogan-navigation-live-mobile.jpg"
+  ],
+  "limitations": [
+    "Full comprehensive pending; targeted matrices are not a complete application audit.",
+    "Rapid live viewport changes recorded intermediate smooth-scroll positions; not counted as settled anchor verification.",
+    "Real devices and upload/delete operations were not exercised."
+  ]
+}

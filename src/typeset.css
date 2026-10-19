@@ -9,7 +9,51 @@
  * - component compositions opt out with .not-typeset/data-not-typeset and
  *   use their native shadcn gap and padding contracts.
  */
+@layer base {
+  :root {
+    --typeset-ink-gray: #72716e;
+    --typeset-ink-brown: #966b4e;
+    --typeset-ink-orange: #ad5f15;
+    --typeset-ink-yellow: #8d6d00;
+    --typeset-ink-green: #387e62;
+    --typeset-ink-blue: #2d77ad;
+    --typeset-ink-purple: #8056a5;
+    --typeset-ink-pink: #ad477a;
+    --typeset-ink-red: #bf4944;
+  }
+  .dark {
+    --typeset-ink-gray: #aaa9a5;
+    --typeset-ink-brown: #c39a7b;
+    --typeset-ink-orange: #e6a061;
+    --typeset-ink-yellow: #dbc56a;
+    --typeset-ink-green: #89bc9b;
+    --typeset-ink-blue: #82b5df;
+    --typeset-ink-purple: #b499d4;
+    --typeset-ink-pink: #d28db4;
+    --typeset-ink-red: #e08b87;
+  }
+}
 @layer components {
+  [data-inline-color="gray"] { color: var(--typeset-ink-gray); }
+  [data-inline-color="brown"] { color: var(--typeset-ink-brown); }
+  [data-inline-color="orange"] { color: var(--typeset-ink-orange); }
+  [data-inline-color="yellow"] { color: var(--typeset-ink-yellow); }
+  [data-inline-color="green"] { color: var(--typeset-ink-green); }
+  [data-inline-color="blue"] { color: var(--typeset-ink-blue); }
+  [data-inline-color="purple"] { color: var(--typeset-ink-purple); }
+  [data-inline-color="pink"] { color: var(--typeset-ink-pink); }
+  [data-inline-color="red"] { color: var(--typeset-ink-red); }
+  [data-inline-background="gray"] { background-color: color-mix(in oklch, var(--typeset-ink-gray) 24%, transparent); }
+  [data-inline-background="brown"] { background-color: color-mix(in oklch, var(--typeset-ink-brown) 24%, transparent); }
+  [data-inline-background="orange"] { background-color: color-mix(in oklch, var(--typeset-ink-orange) 24%, transparent); }
+  [data-inline-background="yellow"] { background-color: color-mix(in oklch, var(--typeset-ink-yellow) 24%, transparent); }
+  [data-inline-background="green"] { background-color: color-mix(in oklch, var(--typeset-ink-green) 24%, transparent); }
+  [data-inline-background="blue"] { background-color: color-mix(in oklch, var(--typeset-ink-blue) 24%, transparent); }
+  [data-inline-background="purple"] { background-color: color-mix(in oklch, var(--typeset-ink-purple) 24%, transparent); }
+  [data-inline-background="pink"] { background-color: color-mix(in oklch, var(--typeset-ink-pink) 24%, transparent); }
+  [data-inline-background="red"] { background-color: color-mix(in oklch, var(--typeset-ink-red) 24%, transparent); }
+  .typeset [data-inline-color] :where(strong, b, a, code) { color: inherit; }
+  .typeset [data-inline-background] :where(code) { background-color: transparent; }
   .typeset {
     --typeset-font-body: inherit;
     --typeset-font-heading: var(--font-heading);
@@ -50,6 +94,12 @@
     ) {
     /* Paragraphs. */
     &:where(p) {
+      margin-block-start: var(--typeset-flow);
+      margin-block-end: 0;
+    }
+
+    /* A column row owns one prose gap; each column trims its first block. */
+    &:where([data-type="columns"]) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
     }
@@ -116,11 +166,11 @@
     }
 
     /* Headings own the tighter gap below them. */
-    &:where(h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + *) {
+    &:where(:is(h1, h2, h3, h4, h5, h6, [data-nested-leaf-heading]) + :not([data-type="nestedBlock"]), :is(h1, h2, h3, h4, h5, h6, [data-nested-leaf-heading]) + [data-type="nestedBlock"] > :nth-child(1 of :not(:where(.ProseMirror-widget)))) {
       margin-block-start: 1em;
     }
 
-    &:where([data-typography="label"] + :is(h1, h2, h3, h4, h5, h6)) {
+    &:where(:is([data-typography="label"], [data-nested-leaf-label]) + :is(h1, h2, h3, h4, h5, h6), :is([data-typography="label"], [data-nested-leaf-label]) + [data-type="nestedBlock"] > :is(h1, h2, h3, h4, h5, h6):nth-child(1 of :not(:where(.ProseMirror-widget)))) {
       margin-block-start: 0.5em;
     }
 
@@ -164,6 +214,11 @@
       list-style-type: decimal;
     }
 
+    &:where(ol[data-list-marker="a"]) { list-style-type: lower-alpha; }
+    &:where(ol[data-list-marker="A"]) { list-style-type: upper-alpha; }
+    &:where(ol[data-list-marker="i"]) { list-style-type: lower-roman; }
+    &:where(ol[data-list-marker="I"]) { list-style-type: upper-roman; }
+
     &:where(ul ul) {
       list-style-type: circle;
     }
@@ -175,15 +230,15 @@
     &:where(ul, ol) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
-      padding-inline-start: 1.5em;
+      padding-inline-start: clamp(0px, calc((100% - 8em) / 2), 1.5em);
     }
 
     &:where(li) {
       margin-block-start: 0.5em;
-      padding-inline-start: 0.4em;
+      padding-inline-start: clamp(0px, calc((100% - 8em) / 2), 0.4em);
     }
 
-    &:where(li > p, li > ul, li > ol) {
+    &:where(li > p, li > ul, li > ol, li > [data-type="nestedBlock"] > :is(p, ul, ol):nth-child(1 of :not(:where(.ProseMirror-widget)))) {
       margin-block-start: 0.5em;
     }
 
@@ -216,7 +271,7 @@
     }
 
     /* Disclosures and definition lists. */
-    &:where(details, dl) {
+    &:where(details, dl, [data-type="details"]):not(:where(h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + *)) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
     }
@@ -248,6 +303,7 @@
       padding: 0.125em 0.3em;
       font-family: var(--typeset-font-mono);
       font-size: 0.85em;
+      white-space: pre-wrap;
     }
 
     &:where(pre) {
@@ -275,7 +331,7 @@
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
       margin-inline: 0;
-      border-inline-start: 2px solid var(--typeset-rule);
+      border-inline-start: 0;
       padding-inline-start: 1em;
       font-style: italic;
     }
@@ -375,7 +431,7 @@
       vertical-align: top;
     }
 
-    &:where(th:first-child, td:first-child) {
+    &:where(th:nth-child(1 of :not(:where(.ProseMirror-widget))), td:nth-child(1 of :not(:where(.ProseMirror-widget)))) {
       padding-inline-start: 0;
     }
 
@@ -409,9 +465,11 @@
     }
   }
 
-  /* First blocks have no top gap. These selectors are append-stable. */
+  /* First authored blocks have no top gap. Ignore editor caret decorations;
+     an absolute/hidden widget is still a DOM child and must not change rhythm.
+     :where keeps the previous selector specificity. These are append-stable. */
   .typeset
-    > :where(:first-child):not(
+    > :where(:nth-child(1 of :not(:where(.ProseMirror-widget)))):not(
       :where(
         .not-typeset,
         [data-not-typeset],
@@ -420,8 +478,8 @@
       )
     ),
   .typeset
-    > :where(:first-child)
-    > :where(:first-child):not(
+    > :where(:nth-child(1 of :not(:where(.ProseMirror-widget))))
+    > :where(:nth-child(1 of :not(:where(.ProseMirror-widget)))):not(
       :where(
         .not-typeset,
         [data-not-typeset],
@@ -431,12 +489,12 @@
     ),
   .typeset
     :where(
-      li > :first-child,
-      blockquote > :first-child,
-      td > :first-child,
-      th > :first-child,
-      dd > :first-child,
-      figure > :first-child,
+      li > :nth-child(1 of :not(:where(.ProseMirror-widget))),
+      blockquote > :nth-child(1 of :not(:where(.ProseMirror-widget))),
+      td > :nth-child(1 of :not(:where(.ProseMirror-widget))),
+      th > :nth-child(1 of :not(:where(.ProseMirror-widget))),
+      dd > :nth-child(1 of :not(:where(.ProseMirror-widget))),
+      figure > :nth-child(1 of :not(:where(.ProseMirror-widget))),
       figure > picture > img
     ):not(
       :where(
@@ -452,7 +510,7 @@
   /* Semantic wrappers inside a document do not add a second top gap. */
   .typeset-document
     :where(article, section, header, [data-typeset-group])
-    > :where(:first-child):not(
+    > :where(:nth-child(1 of :not(:where(.ProseMirror-widget)))):not(
       :where(
         .not-typeset,
         [data-not-typeset],
@@ -468,7 +526,7 @@
     padding-inline-start: 0;
   }
 
-  .typeset-document .four-question:first-child {
+  .typeset-document .four-question:nth-child(1 of :not(:where(.ProseMirror-widget))) {
     margin-block-start: 0;
   }
 
@@ -478,7 +536,7 @@
     margin-block-end: 0;
   }
 
-  .typeset-document > .document-accordion:first-child {
+  .typeset-document > .document-accordion:nth-child(1 of :not(:where(.ProseMirror-widget))) {
     margin-block-start: 0;
   }
 
@@ -519,4 +577,38 @@
     line-height: var(--text-rollapp-body--line-height);
   }
 
+}
+
+@layer components {
+  .typeset [data-block-color="gray"] { --foreground: var(--typeset-ink-gray); color: var(--foreground); }
+  .typeset [data-block-color="gray_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-gray) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="brown"] { --foreground: var(--typeset-ink-brown); color: var(--foreground); }
+  .typeset [data-block-color="brown_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-brown) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="orange"] { --foreground: var(--typeset-ink-orange); color: var(--foreground); }
+  .typeset [data-block-color="orange_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-orange) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="yellow"] { --foreground: var(--typeset-ink-yellow); color: var(--foreground); }
+  .typeset [data-block-color="yellow_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-yellow) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="green"] { --foreground: var(--typeset-ink-green); color: var(--foreground); }
+  .typeset [data-block-color="green_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-green) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="blue"] { --foreground: var(--typeset-ink-blue); color: var(--foreground); }
+  .typeset [data-block-color="blue_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-blue) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="purple"] { --foreground: var(--typeset-ink-purple); color: var(--foreground); }
+  .typeset [data-block-color="purple_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-purple) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="pink"] { --foreground: var(--typeset-ink-pink); color: var(--foreground); }
+  .typeset [data-block-color="pink_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-pink) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color="red"] { --foreground: var(--typeset-ink-red); color: var(--foreground); }
+  .typeset [data-block-color="red_background"] { --inline-block-background: color-mix(in oklch, var(--typeset-ink-red) 24%, transparent); background-color: var(--inline-block-background); }
+  .typeset [data-block-color$="_background"] { border-radius: var(--radius-sm); }
+}
+
+@layer components {
+  .typeset [data-type="nestedBlock"] { display: grid; grid-template-columns: minmax(0, clamp(0px, calc((100% - 8em) / 2), 1.5em)) minmax(0, 1fr); min-width: 0; margin-block-start: 0; margin-block-end: 0; }
+  .typeset [data-type="nestedBlock"] > * { grid-column: 2; min-width: 0; }
+  .typeset [data-type="nestedBlock"] > :nth-child(1 of :not(:where(.ProseMirror-widget))) { grid-column: 1 / -1; }
+  .typeset :where(li > :is(p, [data-type="nestedBlock"]):not(:nth-child(1 of :not(:where(.ProseMirror-widget)))), li > div > :is(p, [data-type="nestedBlock"]):not(:nth-child(1 of :not(:where(.ProseMirror-widget))))):not(:where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)) { padding-inline-start: 1.5em; }
+}
+
+@layer components {
+  .typeset :where(li, blockquote, td, th, dd, figure) > :where([data-type="nestedBlock"]:nth-child(1 of :not(:where(.ProseMirror-widget)))) > :where(:nth-child(1 of :not(:where(.ProseMirror-widget)))):not(:where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)),
+  .typeset-document :where(article, section, header, [data-typeset-group]) > :where([data-type="nestedBlock"]:nth-child(1 of :not(:where(.ProseMirror-widget)))) > :where(:nth-child(1 of :not(:where(.ProseMirror-widget)))):not(:where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)) { margin-block-start: 0; }
 }

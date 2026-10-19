@@ -1,0 +1,342 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "frozenAt": "2026-10-18T13:17:28.231127+00:00",
+  "sourceCount": 485,
+  "sourceSnapshot": "/tmp/rollapp-nesting-tested-sources.json",
+  "sourceDrift": [],
+  "goalStatus": "active",
+  "productionDataWrites": false,
+  "productionService": {
+    "pid": 99362,
+    "ready": true,
+    "stopped": false
+  },
+  "checks": [
+    {
+      "command": "npm run test:unit",
+      "exitCode": 0,
+      "tests": 616,
+      "passed": 615,
+      "skipped": 1,
+      "log": "/tmp/rollapp-nesting-unit-final.log"
+    },
+    {
+      "command": "npm run test:text-edit -- --nesting-only",
+      "exitCode": 0,
+      "passRecords": 8,
+      "log": "/tmp/rollapp-nesting-browser.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-nesting-ui-final.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-nesting-build.log"
+    },
+    {
+      "command": "npm audit",
+      "exitCode": 1,
+      "highDev": 7,
+      "log": "/tmp/rollapp-nesting-audit.json"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "exitCode": 0,
+      "vulnerabilities": 0,
+      "log": "/tmp/rollapp-nesting-production-audit.json"
+    }
+  ],
+  "comprehensive": {
+    "session": 2099,
+    "status": "failed",
+    "log": "/tmp/rollapp-nesting-comprehensive.log",
+    "report": "/tmp/rollapp-nesting-comprehensive.json",
+    "editorPassRecords": 99,
+    "exitCode": 1,
+    "finishedAt": "2026-10-18T13:40:27.562966+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T13:18:04.579Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T13:40:27.458Z",
+        "durationMs": 1342878
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ]
+  },
+  "limits": [
+    "Actual iOS/Windows/IME not verified",
+    "No mobile indent/outdent action yet",
+    "Arbitrary nested clipboard/colour/boundary audit remains",
+    "HTTP body limit remains 256KB; answer limit tests cover validator only",
+    "Existing canonical HTML depth limit is 100 tags including inline marks",
+    "No deployment or production save performed"
+  ],
+  "liveReadOnly": {
+    "tabClosed": 28,
+    "textUnchanged": true,
+    "saveStatus": "Все изменения сохранены",
+    "beforeToolbar": 0,
+    "selectedBlocksAfterEscape": 1,
+    "selectedBlocksAfterPlainClick": 0,
+    "afterToolbar": 0,
+    "frames": [
+      "0px",
+      "0px",
+      "0px",
+      "0px",
+      "0px",
+      "none"
+    ],
+    "body": [
+      "Geist Variable",
+      "18px",
+      "28px",
+      "400"
+    ],
+    "rootOverflow": false,
+    "dataWrites": false
+  },
+  "remainingCounterexample": {
+    "log": "/tmp/rollapp-nesting-native-deep-before.log",
+    "scenario": "12 native list levels after save/reload",
+    "results": [
+      {
+        "width": 320,
+        "list": "bulletList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 0,
+        "descendantOverflow": true,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 320,
+        "list": "orderedList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 0,
+        "descendantOverflow": true,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 320,
+        "list": "taskList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 0,
+        "descendantOverflow": true,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 390,
+        "list": "bulletList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 0,
+        "descendantOverflow": true,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 390,
+        "list": "orderedList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 0,
+        "descendantOverflow": true,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 390,
+        "list": "taskList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 26,
+        "descendantOverflow": false,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 1440,
+        "list": "bulletList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 269.75,
+        "descendantOverflow": false,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 1440,
+        "list": "orderedList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 269.75,
+        "descendantOverflow": false,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      },
+      {
+        "width": 1440,
+        "list": "taskList",
+        "levels": 12,
+        "rootOverflow": false,
+        "lastWidth": 344,
+        "descendantOverflow": false,
+        "frames": [
+          "0px",
+          "0px",
+          "none"
+        ]
+      }
+    ],
+    "mainFixed": false
+  },
+  "excludedRuns": [
+    {
+      "session": 68866,
+      "exitCode": 130,
+      "reason": "Unneeded duplicate main nesting test started while preparing isolated menu checks; exact test PID 12198 interrupted. No source changes."
+    },
+    {
+      "session": 14593,
+      "exitCode": 130,
+      "reason": "Unneeded duplicate isolated nesting test; exact listener PID 15426 on 5210 interrupted. Production and comprehensive processes untouched."
+    }
+  ],
+  "runtimeLimit": {
+    "productionDevelopmentBackendPid": 99383,
+    "startedAt": "2026-10-17 23:19:49 Europe/Moscow",
+    "autoReload": false,
+    "newAnswerValidatorLoaded": false,
+    "requiresControlledLocalRestartBeforeFinalDelivery": true
+  },
+  "candidateNextIteration": {
+    "status": "isolated-candidate-not-promoted",
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-nesting-uf50uryu",
+    "mainComprehensiveSession": 2099,
+    "mainControllerCell": "1658",
+    "mainFrozenSources": "/tmp/rollapp-nesting-tested-sources.json",
+    "preparedAt": "2026-10-18T13:35:41.603240+00:00",
+    "files": {
+      "src/lib/inline-block-tree.js": "3757c760168b11ae884525396300cebc5b70f69e8517ac9f024e58909b1b845f",
+      "src/lib/inline-block-tree.test.js": "9cb547a30f9410bed0a67e37c3c57384df12991ed1d33f7bf816224fdbe619cc",
+      "src/components/inline-block-controls.jsx": "07417680f5d34e28fbb5c44dd679f3b28b99b0dca0ec5d2e150ca9f6331360a8",
+      "src/components/inline-block-picker.jsx": "089df0160d48bc1310f9b1f47a42a52783d0c84c8ace2e6b6a40bf7b3e81c19b",
+      "src/typeset.css": "e17f9f54a976b7807dd9aa162d4f76c63393d83d2692c52db64eb14558c5ef1f",
+      "src/components/inline-editor.css": "610834c6a1d0d9f16b71d4d2e99a0f1f299d359201b96db8890ea9f8c9f549a8",
+      "src/components/life-strategy.jsx": "67c81dc3b87886f643485740b547942322705becd6f3f19b20a7f9dbd648dd85",
+      "scripts/text-nesting-checks.mjs": "9ae48959abdd56073d87a32bda2fe33e35fd5b84941b2ee5086f493aae3c340c",
+      "scripts/text-deep-list-checks.mjs": "09094d54934fd5ba9fe1555cc8ee5d41dbf10983444e8b8507818e9482a3be21"
+    },
+    "harness": "Manually add checkTextDeepLists import, --deep-lists-only argument and conditional call. Never copy experimental realpath/fs.allow or diagnostic runner scripts.",
+    "checks": [
+      {
+        "command": "npm run test:unit",
+        "total": 617,
+        "passed": 616,
+        "skipped": 1,
+        "exitCode": 0,
+        "log": "/tmp/rollapp-nesting-menu-deep-public-unit.log"
+      },
+      {
+        "command": "npm run test:ui",
+        "exitCode": 0,
+        "log": "/tmp/rollapp-nesting-menu-deep-public-ui.log"
+      },
+      {
+        "command": "npm run test:text-edit -- --nesting-only",
+        "passRecords": 8,
+        "exitCode": 0,
+        "log": "/tmp/rollapp-nesting-mobile-menu-prototype-full.log",
+        "note": "This menu matrix preceded subsequent deep CSS/public renderer changes; rerun affected main checks after promotion."
+      },
+      {
+        "command": "npm run test:text-edit -- --deep-lists-only",
+        "passRecords": 8,
+        "exitCode": 0,
+        "log": "/tmp/rollapp-nesting-deep-list-candidate-final.log"
+      }
+    ],
+    "limits": [
+      "Not promoted into main",
+      "Full main comprehensive still running; keep all 485 code/config sources unchanged",
+      "New answer budget validator not loaded in old persistent backend 99383; controlled local refresh required before final delivery",
+      "Main goal remains active; remaining R1-R10 work persists"
+    ]
+  },
+  "compatibleDependencyReview": {
+    "command": "npm audit fix --dry-run --ignore-scripts --json",
+    "location": "Independent temporary package/lock copy; no linked node_modules",
+    "exitCode": 1,
+    "highAfterCompatibleDryRun": 7,
+    "sourceGraphChanged": false,
+    "log": "/tmp/rollapp-nesting-audit-dry-run.json"
+  }
+}

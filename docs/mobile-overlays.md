@@ -6,6 +6,14 @@ and bottom offset to the document. It handles overlay keyboards, resized layout
 viewports, browser chrome and iOS viewport panning. Pinch zoom does not resize the
 application layout.
 
+Inline document popovers use `useVisualViewportBoundary(open)` from the same
+viewport module. It subscribes only while open to the app's geometry event and
+passes a current Rect to Base UI's `collisionBoundary`. `PopoverContent` forwards
+the official `collisionBoundary` and `sticky` positioning props to its Positioner.
+Inline type/color/block menus enable sticky shifting, so panning an anchor above
+the keyboard viewport cannot limit the menu to that offscreen anchor. This is
+popup positioning; page action buttons keep their existing ControlBar geometry.
+
 - For actual modal drawers/dialogs, Base UI owns focus trapping, return focus,
   page scroll locking, touch gestures and field reveal via
   `Drawer.VirtualKeyboardProvider`. Native mobile form pages have no modal trap
@@ -37,8 +45,12 @@ application layout.
 
 ## Verification
 
-Run `npm run test:drawers`, `node --test src/hooks/use-visual-viewport.test.js`,
+Run `npm run test:drawers`, `npm test`,
 `npm run test:ui`, and `npm run build`.
+
+`npm run test:text-edit` covers inline popovers; the style matrix also simulates
+a 220px VisualViewport panned down by 96px and requires the color menu to remain
+inside it with 16px gutters. Real iOS keyboard review is still separate evidence.
 
 The drawer smoke test starts a temporary Vite server on loopback port 5187 and a
 headless Chrome process (`CHROME_PATH` can override the executable). It tests the
@@ -93,13 +105,12 @@ Opening a wish from the private dashboard navigates to its public-profile route
 
 ## Mobile form pages
 
-About-me questions and Four Questions open their existing editors by clicking the
-question or answer through `EditableTextBlock`. There are no separate pencil
-controls or action columns. A visually hidden native button provides Enter/Space
-activation and outlines the prose block on keyboard focus; semantic headings,
-links and text selection remain available. Read-only and loading/error states
-cannot open an editor. `npm run test:text-edit` verifies these interactions on
-mobile and desktop and runs before release.
+Text documents now use `InlineDocument` / `EditableTextBlock`: tapping the prose
+places a caret in the document. They do not open a drawer or native form page,
+lock scrolling, or add a fixed Save/Back row. The document remains the vertical
+scroll owner. Autosave and draft recovery follow [inline-editing.md](inline-editing.md).
+Read-only/loading/error states never enable writing. `test:text-edit` covers the
+mobile and desktop matrices, including a short viewport.
 
 All application form drawers use `form-surface.jsx`, which keeps the installed
 shadcn Drawer on desktop and uses `MobileFormPages` below 768px. Mobile forms
@@ -122,8 +133,16 @@ checks both page and browser Back from a deep source position, frame by frame.
 `MobileFormFooter` keeps Back, submit and optional delete in one fixed
 `ControlBar`, with 48px controls and 8px gaps. Its bottom uses
 `--layout-navigation-bottom`: visual viewport offset plus 16px or the larger
-safe area; keyboard mode omits the home-indicator inset. The row has no background
-slab, border or extra padding; individual controls are opaque.
+safe area; keyboard mode omits the home-indicator inset.
+
+While the keyboard is open, the fixed row instead uses a top anchor calculated
+from `--app-visual-top + --app-visual-height`, minus the gap and control height,
+with `bottom: auto`. This avoids subtracting a keyboard inset from WebKit's
+moving fixed bottom edge during document panning. Document `scroll` also updates
+the viewport metrics, since WebKit can defer `VisualViewport.scroll` until the
+gesture ends. The row retains its form owner and the document remains the only
+scroll owner.
+The row has no background slab, border or extra padding; individual controls are opaque.
 Disabled controls use the product's solid muted surface/text at full opacity;
 they must conceal scrolled fields just like enabled controls. A document tail of
 one control height plus two 16px gaps and the safe area lets the final field
@@ -135,6 +154,11 @@ and close guards are preserved. A form footer registers with its page context so
 nested screens show exactly one Back, alongside their own actions. Desktop
 Drawer footers remain in their original position. At narrow widths delete may
 use an icon with its complete accessible name; the shared Back replaces Cancel.
+Principle and thesis editors place a round 48px trash icon beside Save in the
+same footer on mobile and desktop. Mobile uses «Сохранить» with the complete
+accessible name «Сохранить изменения». The trash opens the existing confirmation
+dialog; it has no separate body row or divider. Other `EditorDeleteAction` callers
+retain their existing layout unless they opt into its `compact` composition.
 `npm run test:form-actions` is required before release and checks scroll positions,
 48px row alignment, hit targets, form ownership, Enter, busy Back, keyboard resize
 and viewport panning at 320–1920px, including short viewports.
@@ -192,3 +216,51 @@ are rejected. It is required by `check:release`.
 320/390/640/767px, key desktop breakpoints, native scrolling, viewport shrink, Back,
 nested drafts, busy guards, StrictMode and a suspended group. The fixture rejects
 all API requests. The live wish/list flow is also checked without saving data.
+
+### Contact editor
+
+`ContactEditForm` owns a flex column: one `ScrollArea` for `.contact-detail__edit-body`
+and a sibling `MobileFormFooter` composed through `ControlBar`. Desktop Save and
+icon-only Delete stay in a single 48px row outside the scroll viewport. On mobile,
+the same footer includes Back and follows the native page/VisualViewport contract;
+the document remains the only vertical scroll owner. Do not wrap the entire editor
+in another `ScrollArea` or restore a sticky footer inside its fields.
+
+The profile header places avatar, name and favorite in separate grid columns.
+Photo actions wrap in a named group below it; removal is labelled “Удалить фото”.
+The body owns section spacing with `--layout-page-gap`. The full editor fixture
+includes its actual right-hand Drawer, close toolbar and photo state.
+`test:form-actions` checks header collisions, distinct delete labels, desktop
+scroll/footer separation, and mobile scroll/keyboard action geometry.
+
+Inline prose menus establish computed fixed positioning before their first
+Floating UI measurement. The Tiptap React initial inline absolute style must not
+make a relative body add document scroll to viewport coordinates. The local
+inline-menu CSS owns this initialization; the document/body layout is unchanged.
+The first-offscreen-selection regression includes the first link panel, short
+viewports and a live read-only check with an exact 8px selection-to-toolbar gap.
+
+
+Table row/column menus share the fixed body-host/VisualViewport boundary used by
+the inline editor. On short desktop the menu has one scrolling body; text actions
+remain reachable at its tail. Hover controls use ControlBar48px/20px and disappear
+while typing; they do not reserve a permanent toolbar row. A pointer capture is
+cancelled on Escape, document/access change, blur, visibility loss or capture loss.
+Closing the axis popup synchronously focuses the editor before the next shortcut.
+The current viewport proof includes390×400 keyboard-menu interaction and1440×400
+pointer/menu interaction. Real touch/IME and the live app-header/table composition
+remain separate unverified items in the Notion matrix.
+
+
+Table-axis hover placement reserves the actual app header's bottom edge before
+choosing above-table or gutter slots. On short screens with a tall first cell,
+row and column controls use separate vertical slots. The existing8px gutter boundary remains unchanged. The fixture nests the reading
+container inside the page shell, matching the real application.
+The real-header fixture checks both control hit-testing and text Range overlap;
+a successful standalone editor layout does not prove this composition.
+
+Для focus inline prose native scroll-padding учитывает нижнюю mobile navigation и общие visual-viewport/safe-area tokens. После keyboard/input reveal читает реальные bounds и VisualViewport, не меняя document/selection/history. Pinch zoom, IME composition и read-only исключают коррекцию. Manual scrolling не запускает обратный переход к caret. Проверки браузера не заменяют real iOS/Telegram keyboard validation.
+
+Тот же native caret contract действует на plaintext InlineTextField, включая пустые строки; wheel/touch intent отменяет отложенное раскрытие. Табличные hover growth controls доступны от1024px, всегда48px/20px с общими ControlBar shapes и реальными chrome bounds. На мобильных действия остаются в существующем меню; новый постоянный toolbar или независимый vertical scroller не добавляется.
+
+Column resize separators используют отдельный body portal и видимые viewport/chrome bounds. До768px они не выводятся: колонки читаются последовательно. Preview не меняет данные; source/access/composition/pointer interruption отменяют его. Нативные клавиатуры iOS/Telegram этим desktop pointer/Chrome smoke не проверены.

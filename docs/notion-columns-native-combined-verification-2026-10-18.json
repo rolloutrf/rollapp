@@ -1,0 +1,285 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Combined columns, paste history/depth safety and native macOS page keys",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-columns-native-combined-iurxfeyn",
+  "sourceSnapshot": "/tmp/rollapp-columns-native-combined-sources.json",
+  "sourceCount": 629,
+  "expectedEditorRecords": 287,
+  "promoted": true,
+  "proposedDiff": "/tmp/rollapp-columns-native-main-proposed.diff",
+  "changedPaths": "/tmp/rollapp-columns-native-main-changes.json",
+  "previousTurnClassification": "progress: column schema/drag/resize/context proof in isolated625",
+  "currentTurnClassification": "progress: verified persistence/depth/history failures repaired, native Home animation root cause reproduced and fixed",
+  "ancestors": {
+    "columns625": {
+      "compatibilityRecords": 76,
+      "status": "passed",
+      "sourceDrift": [],
+      "report": "docs/notion-document-columns-verification-2026-10-18.json"
+    },
+    "persistence628": {
+      "compatibilityRecords": 44,
+      "status": "passed",
+      "sourceDrift": [],
+      "report": "docs/notion-column-persistence-verification-2026-10-18.json"
+    }
+  },
+  "nativePageInitial": {
+    "status": "passed",
+    "exitCode": 0,
+    "records": 2,
+    "log": "/tmp/rollapp-native-page-key-combined.log",
+    "includes": "actual unmanaged macOS rich/plain Home/End endpoints and caret, BlockSelection,42 rapid phases per viewport, no input/API/writes"
+  },
+  "unit": {
+    "exitCode": 0,
+    "total": 679,
+    "pass": 678,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-columns-native-combined-unit.log"
+  },
+  "ui": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 71,
+    "log": "/tmp/rollapp-columns-native-combined-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-columns-native-combined-build.log"
+  },
+  "compatibility": {
+    "status": "passed",
+    "session": 31232,
+    "expectedRecords": 56,
+    "expectedPerFlag": {
+      "--native-page-keys-only": 2,
+      "--caret-scroll-only": 9,
+      "--plain-caret-only": 9,
+      "--native-caret-only": 2,
+      "--first-selection-only": 9,
+      "--column-persistence-only": 3,
+      "--columns-only": 9,
+      "--column-contexts-only": 3,
+      "--four-document-only": 8,
+      "--table-insert-caret-only": 2
+    },
+    "log": "/tmp/rollapp-columns-native-combined-compatibility.log",
+    "report": "/tmp/rollapp-columns-native-combined-compatibility.json",
+    "port": 5295,
+    "cache": "/tmp/rollapp-columns-native-combined-vite-cache",
+    "records": 56,
+    "sourceDrift": [],
+    "checks": [
+      {
+        "flag": "--native-page-keys-only",
+        "exitCode": 0,
+        "records": 2,
+        "log": "/tmp/rollapp-columns-native-combined-compat-native-page-keys-only.log"
+      },
+      {
+        "flag": "--caret-scroll-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-columns-native-combined-compat-caret-scroll-only.log"
+      },
+      {
+        "flag": "--plain-caret-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-columns-native-combined-compat-plain-caret-only.log"
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "records": 2,
+        "log": "/tmp/rollapp-columns-native-combined-compat-native-caret-only.log"
+      },
+      {
+        "flag": "--first-selection-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-columns-native-combined-compat-first-selection-only.log"
+      },
+      {
+        "flag": "--column-persistence-only",
+        "exitCode": 0,
+        "records": 3,
+        "log": "/tmp/rollapp-columns-native-combined-compat-column-persistence-only.log"
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "records": 9,
+        "log": "/tmp/rollapp-columns-native-combined-compat-columns-only.log"
+      },
+      {
+        "flag": "--column-contexts-only",
+        "exitCode": 0,
+        "records": 3,
+        "log": "/tmp/rollapp-columns-native-combined-compat-column-contexts-only.log"
+      },
+      {
+        "flag": "--four-document-only",
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-columns-native-combined-compat-four-document-only.log"
+      },
+      {
+        "flag": "--table-insert-caret-only",
+        "exitCode": 0,
+        "records": 2,
+        "log": "/tmp/rollapp-columns-native-combined-compat-table-insert-caret-only.log"
+      }
+    ],
+    "finishedAt": "2026-10-18T19:26:11.156267+00:00",
+    "snapshot": "/tmp/rollapp-columns-native-combined-mac-only-sources.json"
+  },
+  "nativePagePortability": {
+    "status": "passed",
+    "exitCode": 0,
+    "records": 2,
+    "log": "/tmp/rollapp-native-page-key-portable.log",
+    "platform": "MacIntel",
+    "changedOnly": "scripts/text-native-page-key-checks.mjs",
+    "sourceSnapshot": "/tmp/rollapp-columns-native-combined-sources.json",
+    "reason": "Compare native Home/End signatures/endpoints on the actual OS; run specialized macOS block-selection checks only on Mac. No other OS hardware was claimed."
+  },
+  "main620": {
+    "status": "failed",
+    "editorPassRecords": 174,
+    "sourceDrift": [],
+    "log": "/tmp/rollapp-table-intent-main-comprehensive.log"
+  },
+  "productionWrites": false,
+  "unverified": [
+    "fresh main287 comprehensive after selective promotion",
+    "actual iOS/Telegram/Windows/Linux hardware keyboard/IME",
+    "all remaining canonical depth/clipboard/styles/nesting combinations",
+    "remaining R6/R8/R9/R10 media/accordion/menu insertion ownership",
+    "native PageUp/PageDown and other navigation beyond the verified Home/End cases"
+  ],
+  "createdAt": "2026-10-18T19:26:01.048921+00:00",
+  "promotedAt": "2026-10-18T19:29:04.680264+00:00",
+  "promotion": "/tmp/rollapp-columns-native-promotion.json",
+  "backup": "/tmp/rollapp-columns-native-main620-backup",
+  "runtimeSourcesCopied": 26,
+  "mainSnapshot": "/tmp/rollapp-columns-native-main-sources.json",
+  "mainTargeted": {
+    "status": "passed",
+    "session": 94111,
+    "expectedRecords": 5,
+    "log": "/tmp/rollapp-columns-native-main-targeted.log",
+    "report": "/tmp/rollapp-columns-native-main-targeted.json",
+    "exitCode": 0,
+    "records": 5,
+    "checks": [
+      {
+        "flag": "--native-page-keys-only",
+        "exitCode": 0
+      },
+      {
+        "flag": "--column-persistence-only",
+        "exitCode": 0
+      }
+    ],
+    "sourceDrift": []
+  },
+  "mainComprehensive": {
+    "status": "invalidated",
+    "expectedEditorPassRecords": 287,
+    "sourceCount": 629,
+    "snapshot": "/tmp/rollapp-columns-native-main-sources.json",
+    "log": "/tmp/rollapp-columns-native-main-comprehensive.log",
+    "report": "/tmp/rollapp-columns-native-main-comprehensive.json",
+    "port": 5199,
+    "cache": "/tmp/rollapp-columns-native-main-comprehensive-vite-cache",
+    "startedAt": "2026-10-18T19:31:33.044012+00:00",
+    "session": 51806,
+    "controllerCell": "2394",
+    "exitCode": 1,
+    "editorPassRecords": 77,
+    "sourceDrift": [
+      "src/components/coaching-sessions.jsx",
+      "src/components/conferences.jsx",
+      "src/components/courses.jsx",
+      "src/components/medications.jsx",
+      "src/components/workouts.jsx",
+      "src/styles.css"
+    ],
+    "addedSources": [
+      "src/components/collection-snippet-media.jsx"
+    ],
+    "finishedAt": "2026-10-18T19:46:53.321915+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T19:31:33.246Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T19:46:49.602Z",
+        "durationMs": 916356
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0
+  },
+  "liveReadonly": {
+    "verifiedAt": "2026-10-18T19:36:14.558502+00:00",
+    "route": "/app/spheres/career?tab=about",
+    "viewport": [
+      1280,
+      720
+    ],
+    "contentUnchanged": true,
+    "borders": [
+      "0px",
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "outline": "0px",
+    "shadow": "none",
+    "font": "Geist Variable",
+    "fontSize": "18px",
+    "lineHeight": "28px",
+    "rootOverflow": false,
+    "columnsMenuAvailable": true,
+    "noContentEditOrSaveAction": true,
+    "ownedTabClosed": true
+  }
+}

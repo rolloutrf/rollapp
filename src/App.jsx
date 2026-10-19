@@ -47,7 +47,7 @@ import { CvResume } from "@/components/cv-resume";
 import { FourQuestions } from "@/components/four-questions";
 import { GallupProfile } from "@/components/gallup-profile";
 import {
-  IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
+  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
   IdentityReportStatus, useIdentityReport,
 } from "@/components/identity-report-manager";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
@@ -87,7 +87,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
@@ -707,7 +707,7 @@ function PlanningFab() {
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
       {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
-      {inPlanning && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
+      {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={<ShadcnButton data-control-icon className="planning-fab rounded-full" size="icon" type="button" />}
@@ -767,7 +767,8 @@ function GlobalAppChrome() {
   const options = location.pathname.startsWith("/s/") ? [] : sharedOwner
     ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
     : serviceOptions;
-  const current = options.find((option) => option.id === requestedTab) || options[0] || null;
+  const normalizedTab = service?.id === "identity" && ["gallup", "hogan"].includes(requestedTab) ? "identity-reports" : requestedTab;
+  const current = options.find((option) => option.id === normalizedTab) || options[0] || null;
   const selectTab = (tabId) => {
     if (!tabId || tabId === current?.id) return;
     if (publicRoute) {
@@ -789,21 +790,21 @@ function GlobalAppChrome() {
       toast("Не удалось скопировать ссылку", "error");
     }
   };
-  if (location.pathname === PLANNING_SERVICE.path || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
-  const sectionSelector = brandCatalog && user ? <BrandCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
+  if ((isMobile && location.pathname === PLANNING_SERVICE.path) || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
+  const sectionSelector = location.pathname === PLANNING_SERVICE.path && user
+    ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
+    : brandCatalog && user ? <BrandCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
               const option = options.find((item) => item.id === selected) || current;
-              const Icon = option.icon || service.icon;
-              return <>{Icon && <Icon aria-hidden="true" />}<span className="space-select__label">{option.label}</span></>;
+              return <span className="space-select__label">{option.label}</span>;
             }}</SelectValue>
           </SelectTrigger>
           <SelectContent className={cn("space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)", isMobile && "app-navigation-popup")} side={isMobile ? "top" : "bottom"} align={isMobile && !user ? "end" : "center"} alignItemWithTrigger={false}>
-            {options.map((option) => {
-              const Icon = option.icon || service.icon;
-              return <SelectItem key={option.id} value={option.id}>{Icon && <Icon aria-hidden="true" />}<span>{option.label}</span></SelectItem>;
-            })}
+            {options.map((option) => (
+              <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       );
@@ -854,14 +855,9 @@ const IDENTITY_TABS = [
     description: "Черты характера, устойчивые способы реагировать и проявлять себя.",
   },
   {
-    id: "gallup",
-    label: "Gallup",
-    description: "Результаты и заметки по вашим сильным сторонам CliftonStrengths.",
-  },
-  {
-    id: "hogan",
-    label: "Hogan",
-    description: "Результаты оценки личности, возможных рисков и внутренних ценностей.",
+    id: "identity-reports",
+    label: "Gallup + Hogan",
+    description: "Сильные стороны, рабочий стиль, ценности и возможные риски в одном профиле.",
   },
   {
     id: "mission",
@@ -2253,210 +2249,57 @@ function DefaultHoganReport() {
 }
 
 function GeneratedHoganReport({ report }) {
-  const profiles = (report.profiles || []).map((profile) => {
-    const referenceProfile = HOGAN_PROFILES.find((item) => item.id === profile.id);
-    const definitions = new Map((referenceProfile?.scores || []).map(([label, , definition]) => [label.toLocaleLowerCase("ru-RU"), definition]));
-    return {
-      ...profile,
-      title: referenceProfile?.title || profile.title,
-      description: referenceProfile?.description || profile.description,
-      scores: profile.scores.map(([label, score, definition]) => [
-        label,
-        score,
-        definitions.get(label.toLocaleLowerCase("ru-RU")) || definition,
-      ]),
-    };
-  });
-  const scaleCount = profiles.reduce((count, profile) => count + profile.scores.length, 0);
-  const comparableScores = profiles.flatMap((profile) => {
-    const referenceProfile = HOGAN_PROFILES.find((item) => item.id === profile.id);
-    const referenceScores = new Map((referenceProfile?.scores || []).map(([label, score]) => [label.toLocaleLowerCase("ru-RU"), score]));
-    return profile.scores
-      .filter(([label]) => referenceScores.has(label.toLocaleLowerCase("ru-RU")))
-      .map(([label, score]) => score === referenceScores.get(label.toLocaleLowerCase("ru-RU")));
-  });
-  const usesCuratedInterpretation = comparableScores.length >= 10
-    && comparableScores.filter(Boolean).length / comparableScores.length >= 0.8;
-  const generatedInsights = profiles.map((profile, index) => {
-    const sortedScores = [...profile.scores].sort((a, b) => b[1] - a[1]);
-    const leading = sortedScores.slice(0, 2);
-    const trailing = [...sortedScores].reverse().slice(0, 2);
-    const insightIds = ["strengths", "motives", "risks"];
-    return {
-      id: insightIds[index] || "decisions",
-      eyebrow: profile.code,
-      title: leading.map(([label]) => label).join(" и "),
-      text: `Наиболее выражены ${leading.map(([label, score]) => `${label.toLocaleLowerCase("ru-RU")} (${score})`).join(" и ")}. Контраст профиля создают ${trailing.map(([label, score]) => `${label.toLocaleLowerCase("ru-RU")} (${score})`).join(" и ")}.`,
-    };
-  });
-  const generatedNarratives = profiles.map((profile, index) => {
-    const sortedScores = [...profile.scores].sort((a, b) => b[1] - a[1]);
-    const narrativeIds = ["strengths", "motives", "risks"];
-    return {
-      id: narrativeIds[index] || profile.id,
-      code: profile.code,
-      eyebrow: "Автоматическая интерпретация",
-      title: profile.title,
-      lead: profile.description,
-      themes: [
-        {
-          title: "Наиболее выражено",
-          points: sortedScores.slice(0, 3).map(([label, score, definition]) => `${label} — ${score}-й процентиль. ${definition}`),
-        },
-        {
-          title: "В нижней части профиля",
-          points: [...sortedScores].reverse().slice(0, 3).map(([label, score, definition]) => `${label} — ${score}-й процентиль. ${definition}`),
-        },
-      ],
-    };
-  });
-  const insights = usesCuratedInterpretation ? HOGAN_INSIGHTS : generatedInsights;
-  const narratives = usesCuratedInterpretation ? HOGAN_NARRATIVE_SECTIONS : generatedNarratives;
-  const dateLabel = report.date
-    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${report.date}T12:00:00Z`))
-    : "Дата не указана";
-  return (
-    <article className="hogan-report hogan-report--generated identity-report typeset-document" aria-labelledby="hogan-generated-title">
-      <IdentityReportOverview
-        titleId="hogan-generated-title"
-        eyebrow="Leadership Forecast™"
-        title={report.title}
-        description="Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS."
-        person={report.person}
-        date={report.date}
-        dateLabel={dateLabel}
-        stats={[
-          { value: profiles.length, label: "опросника", detail: profiles.map((profile) => profile.code).join(" · ") || "из PDF" },
-          { value: scaleCount, label: "шкал", detail: "в едином профиле" },
-        ]}
-      />
-
-      {insights.length ? (
-        <section className="hogan-report__summary" aria-labelledby="hogan-generated-summary-title">
-          <div className="hogan-report__section-heading" data-typeset-group>
-            <span data-typography="label">Синтез загруженных отчётов</span>
-            <h3 id="hogan-generated-summary-title">Главное в профиле</h3>
-          </div>
-          <div className="hogan-insights">
-            {insights.map((insight) => (
-              <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
-                <span data-typography="label">{insight.eyebrow}</span>
-                <h4>{insight.title}</h4>
-                <p>{insight.text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="hogan-report__methodology" aria-labelledby="hogan-generated-methodology-title">
-        <div className="hogan-report__section-heading" data-typeset-group>
-          <span data-typography="label">Как читать профиль</span>
-          <h3 id="hogan-generated-methodology-title">Три ракурса одной репутации</h3>
-          <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
-        </div>
-        <div className="hogan-methods">
-          {HOGAN_METHODS.map((method) => (
-            <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
-              <span aria-hidden="true" data-typography="label">{method.code}</span>
-              <h4>{method.title}</h4>
-              <p>{method.text}</p>
-            </article>
-          ))}
-        </div>
-        <div className="hogan-report__reading-note">
-          <div>
-            <h4>Интерпретируйте целиком</h4>
-            <p>Высокие и низкие результаты имеют и преимущества, и ограничения. Несовпадение повседневной и «тёмной» стороны закономерно: под стрессом знакомое качество может проявляться иначе.</p>
-          </div>
-          <div>
-            <h4>Для чего использовать</h4>
-            <ul>
-              {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="hogan-report__change-model" data-typeset-group>
-            <h4>Изменение начинается с трёх ответов</h4>
-            <ol data-not-typeset>
-              {HOGAN_CHANGE_STEPS.map(([label, text]) => (
-                <li key={label}><span>{label}</span><p>{text}</p></li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      {profiles.length ? (
-        <section className="hogan-report__scores" aria-labelledby="hogan-generated-scores-title">
-          <div className="hogan-report__section-heading" data-typeset-group>
-            <span data-typography="label">Процентили · 0–100</span>
-            <h3 id="hogan-generated-scores-title">Шкалы из загруженных отчётов</h3>
-            <p>Значения автоматически извлечены из PDF. Сверьте их с оригиналами, доступными выше.</p>
-          </div>
-          <div className="hogan-charts">
-            {profiles.map((profile) => <HoganScoreChart key={profile.id} profile={profile} />)}
-          </div>
-        </section>
-      ) : (
-        <p className="hogan-report__note">Текст PDF распознан, но процентили не найдены. Исходный документ доступен в блоке управления отчётом.</p>
-      )}
-
-      {narratives.length ? (
-        <section className="hogan-report__interpretation" aria-labelledby="hogan-generated-interpretation-title">
-          <div className="hogan-report__section-heading" data-typeset-group>
-            <span data-typography="label">Подробная интерпретация</span>
-            <h3 id="hogan-generated-interpretation-title">Как профиль проявляется в работе</h3>
-            <p>Содержание отчёта собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
-          </div>
-          <div className="hogan-narratives">
-            {narratives.map((section) => <HoganNarrativeSection key={section.id} section={section} />)}
-          </div>
-        </section>
-      ) : null}
-
-      {usesCuratedInterpretation ? (
-        <section className="hogan-report__development" aria-labelledby="hogan-generated-development-title">
-          <div className="hogan-report__development-copy" data-typeset-group>
-            <span data-typography="label">Фокус развития</span>
-            <h3 id="hogan-generated-development-title">Сохранить напор, добавить контакт</h3>
-            <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
-          </div>
-          <ul data-not-typeset>
-            {HOGAN_DEVELOPMENT_ACTIONS.map((action) => (
-              <li key={action}><CheckCircle2 aria-hidden="true" /><span>{action}</span></li>
-            ))}
-          </ul>
-          <section className="hogan-report__stress-check" aria-labelledby="hogan-generated-stress-check-title">
-            <span>Под нагрузкой</span>
-            <h4 id="hogan-generated-stress-check-title">Пять контрольных вопросов к поведению</h4>
-            <ol data-not-typeset>
-              {HOGAN_STRESS_CHECKLIST.map((item) => <li key={item}>{item}</li>)}
-            </ol>
-          </section>
-        </section>
-      ) : null}
-
-      <p className="hogan-report__note">Исходные PDF доступны выше. HDS описывает возможное поведение под нагрузкой, а не клиническую оценку.</p>
-
-      {profiles.length ? <HoganScaleGuide profiles={profiles} /> : null}
-    </article>
-  );
+  return <IdentityGeneratedDocuments report={report} />;
 }
 
-function HoganReport() {
-  const { state, setState, error, load } = useIdentityReport("hogan");
+function HoganReport({ reportState: { state, error, load } }) {
   if (state.mode === "loading" || state.mode === "error") {
     return <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />;
   }
-  return (
-    <div className="identity-report-workspace">
-      <IdentityReportControls section="hogan" label="Hogan" state={state} setState={setState} load={load} />
-      {state.mode === "empty"
-        ? <IdentityReportEmpty label="Hogan" />
-        : state.mode === "generated"
-          ? <GeneratedHoganReport report={state.report} />
-          : <DefaultHoganReport />}
+  return state.mode === "generated"
+    ? <GeneratedHoganReport report={state.report} />
+    : <IdentityReportEmpty label="Hogan" />;
+}
+
+function IdentityReportsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const search = new URLSearchParams(location.search);
+  const selectedReport = search.get("report") === "hogan" || search.get("tab") === "hogan" ? "hogan" : "gallup";
+  const gallup = useIdentityReport("gallup");
+  const hogan = useIdentityReport("hogan");
+  const reportState = selectedReport === "hogan" ? hogan : gallup;
+  const selectReport = (report) => {
+    const params = new URLSearchParams(location.search);
+    params.set("tab", "identity-reports");
+    params.set("report", report);
+    navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true });
+  };
+  const navigation = (
+    <div className="min-w-0 not-typeset" data-report-navigation>
+      <TabsList className="list-tabs h-auto! w-full bg-transparent p-0" data-tab-scroller aria-label="Отчёт о личности">
+        <TabsTrigger data-report-tile value="gallup">
+          <span data-slot="list-tile-label">Gallup</span>
+          <span data-slot="list-tile-meta">CliftonStrengths</span>
+        </TabsTrigger>
+        <TabsTrigger data-report-tile value="hogan">
+          <span data-slot="list-tile-label">Hogan</span>
+          <span data-slot="list-tile-meta">HPI · HDS · MVPI</span>
+        </TabsTrigger>
+      </TabsList>
     </div>
+  );
+  return (
+    <Tabs className="identity-reports-page identity-report-workspace" value={selectedReport} onValueChange={selectReport}>
+      <IdentityReportControls
+        section={selectedReport}
+        label={selectedReport === "hogan" ? "Hogan" : "Gallup"}
+        {...reportState}
+        navigation={navigation}
+      />
+      <TabsContent value="gallup" className="min-w-0"><GallupProfile reportState={gallup} /></TabsContent>
+      <TabsContent value="hogan" className="min-w-0"><HoganReport reportState={hogan} /></TabsContent>
+    </Tabs>
   );
 }
 
@@ -2469,7 +2312,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
   const globalShareRef = useGlobalShareHandler();
   if (!sphere || !tabs?.length) return <Navigate to={APP_HOME} replace />;
   const requestedTab = new URLSearchParams(location.search).get("tab");
-  const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0].id;
+  const legacyIdentityReportTab = sphereId === "identity" && ["gallup", "hogan"].includes(requestedTab);
+  const activeTab = legacyIdentityReportTab ? "identity-reports" : tabs.some((tab) => tab.id === requestedTab) ? requestedTab : tabs[0].id;
   const activeTabConfig = tabs.find((tab) => tab.id === activeTab);
   const selectTab = (tabId) => {
     const search = new URLSearchParams(location.search);
@@ -2491,7 +2335,7 @@ function TabbedSpherePage({ sphereId, tabs }) {
       <div className="sphere-page__content tabbed-sphere">
         <Tabs value={activeTab} onValueChange={selectTab} className="sphere-tabs">
           {[activeTabConfig].map((tab) => (
-            <TabsContent key={tab.id} value={tab.id} className="sphere-tabs__content">
+            <TabsContent key={tab.id} value={tab.id} className={`sphere-tabs__content${sphere.id === "identity" && ["four-questions", "values"].includes(tab.id) ? " page-stack" : ""}`}>
               {(sphere.id === "identity" && ["four-questions", "values"].includes(tab.id)) && (
                 <section className="page-toolbar w-full justify-center" aria-label="Бизнес-разделы" data-not-typeset>
                   <div className="page-actions wishes-page__hero-actions horizontal-action-scroller"><SphereBusinessControls sphereId={sphereId} /></div>
@@ -2503,10 +2347,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                   ? <Theses />
                 : sphere.id === "identity" && tab.id === "principles"
                   ? <Principles />
-                : sphere.id === "identity" && tab.id === "gallup"
-                  ? <GallupProfile />
-                  : sphere.id === "identity" && tab.id === "hogan"
-                    ? <HoganReport />
+              : sphere.id === "identity" && tab.id === "identity-reports"
+                ? <IdentityReportsPage />
                     : sphere.id === "identity" && tab.id === "values"
                       ? <Values />
                       : sphere.id === "identity" && tab.id === "character"
@@ -2664,7 +2506,6 @@ function ContactNotes({ notes }) {
 }
 
 function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteToggle, onSaved, onDeleted }) {
-  const isMobile = useIsMobile();
   const toast = useToast();
   const contactFieldId = useId();
   const creating = !contact?.id;
@@ -2842,116 +2683,104 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
 
   return (
     <form className="contact-detail__edit-form" onSubmit={save}>
-      <div className="contact-detail__edit-heading">
-        <div className="contact-detail__avatar-editor">
-          <ShadcnButton
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="contact-detail__avatar-button size-(--contact-detail-avatar-size) rounded-full border-0 p-0 hover:bg-transparent dark:hover:bg-transparent"
-            aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
-            disabled={busy}
-            onClick={() => avatarFileRef.current?.click()}
-          >
-            <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
-            <span className="contact-detail__avatar-button-icon" aria-hidden="true">
-              {imageUploading ? <Spinner className="size-3.5" /> : <Upload className="size-3.5" />}
-            </span>
-          </ShadcnButton>
-          {!creating && <ShadcnButton
-            type="button"
-            variant="outline"
-            size="icon"
-            className="contact-detail__favorite absolute -right-3 -top-3 z-10 size-12 rounded-full bg-popover dark:bg-popover"
-            data-favorite={contact.favorite ? "true" : "false"}
-            aria-pressed={Boolean(contact.favorite)}
-            aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
-            title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
-            disabled={favoriteSaving}
-            onClick={onFavoriteToggle}
-          >
-            {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
-          </ShadcnButton>}
-          {previewAvatarUrl && <ShadcnButton
-            type="button"
-            variant="outline"
-            className="contact-detail__avatar-delete min-h-12 rounded-full bg-popover px-4 dark:bg-popover"
-            disabled={busy}
-            onClick={removeAvatar}
-          >
-            Удалить
-          </ShadcnButton>}
-          <Input
-            ref={avatarFileRef}
-            className="sr-only !size-px"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            aria-label="Загрузить фото контакта"
-            onChange={(event) => uploadAvatar(event.target.files?.[0])}
-          />
-        </div>
-        <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
-      </div>
-      <div className="contact-detail__avatar-controls">
-        <ShadcnButton type="button" variant="outline" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
-          {imageUploading ? <Spinner /> : <Upload />}{previewAvatarUrl ? "Сменить фото" : "Загрузить фото"}
-        </ShadcnButton>
-        <ShadcnButton type="button" variant="outline" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
-          {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
-        </ShadcnButton>
-      </div>
-      {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
-      <div className="contact-detail__edit-fields">
-        <Field className="contact-detail__edit-field--wide">
-          <FieldLabel htmlFor={`${contactFieldId}-name`}>Имя</FieldLabel>
-          <Input id={`${contactFieldId}-name`} value={form.name} maxLength={120} required autoFocus={canAutofocusForm()} onChange={(event) => setField("name", event.target.value)} />
-        </Field>
-        <Field className="contact-detail__edit-field--wide">
-          <FieldLabel htmlFor={`${contactFieldId}-company`}>Компания</FieldLabel>
-          <Input id={`${contactFieldId}-company`} value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
-        </Field>
-        <Field className="contact-detail__edit-field--wide">
-          <FieldLabel htmlFor={`${contactFieldId}-category`}>Направление</FieldLabel>
-          <Select items={categoryItems} value={form.category} onValueChange={(value) => setField("category", value ?? "")} disabled={busy}>
-            <SelectTrigger id={`${contactFieldId}-category`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              {categoryItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field className="contact-detail__edit-field--wide">
-          <FieldLabel htmlFor={`${contactFieldId}-role`}>Должность или роль</FieldLabel>
-          <Input id={`${contactFieldId}-role`} value={form.role} maxLength={240} placeholder="Не указана" onChange={(event) => setField("role", event.target.value)} />
-        </Field>
-        <Field className="contact-detail__edit-field--wide">
-          <FieldLabel htmlFor={`${contactFieldId}-status`}>Статус</FieldLabel>
-          <Input id={`${contactFieldId}-status`} value={form.status} maxLength={80} placeholder="Например, в работе" onChange={(event) => setField("status", event.target.value)} />
-        </Field>
-      </div>
-      <section className="contact-detail__edit-section" aria-labelledby="contact-edit-links-title">
-        <h2 id="contact-edit-links-title"><Link2 aria-hidden="true" />Ссылки</h2>
-        <div className="contact-detail__edit-links">
-          {form.links.map((link, index) => (
-            <div className="contact-detail__edit-link" key={index}>
-              <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
-              <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} onBlur={() => { if (!form.avatarUrl) resolveAvatar({ automatic: true }); }} />
-              <ShadcnButton type="button" variant="ghost" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
+      <ScrollArea className="contact-detail__scroll">
+        <div className="contact-detail__edit-body">
+          <div className="contact-detail__profile">
+            <div className="contact-detail__edit-heading contact-detail__edit-heading--editable">
+              <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+              <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
+              <ControlBar>
+                {!creating && <ShadcnButton
+                  data-control-icon
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="contact-detail__favorite size-12 rounded-full"
+                  data-favorite={contact.favorite ? "true" : "false"}
+                  aria-pressed={Boolean(contact.favorite)}
+                  aria-label={contact.favorite ? `Убрать ${contact.name} из избранного` : `Добавить ${contact.name} в избранное`}
+                  title={contact.favorite ? "Убрать из избранного" : "Добавить в избранное"}
+                  disabled={favoriteSaving}
+                  onClick={onFavoriteToggle}
+                >
+                  {favoriteSaving ? <Spinner /> : <Star fill={contact.favorite ? "currentColor" : "none"} aria-hidden="true" />}
+                </ShadcnButton>}
+              </ControlBar>
             </div>
-          ))}
-          {!form.links.length && <p>Ссылок пока нет.</p>}
+            <Input
+              ref={avatarFileRef}
+              className="sr-only !size-px"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="Загрузить фото контакта"
+              onChange={(event) => uploadAvatar(event.target.files?.[0])}
+            />
+            <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
+              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
+                {imageUploading ? <Spinner /> : <Upload />}{previewAvatarUrl ? "Сменить фото" : "Загрузить фото"}
+              </ShadcnButton>
+              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
+                {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
+              </ShadcnButton>
+              {previewAvatarUrl && <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
+                <Trash2 />Удалить фото
+              </ShadcnButton>}
+            </div>
+            {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
+          </div>
+          <div className="contact-detail__edit-fields">
+            <Field className="contact-detail__edit-field--wide">
+              <FieldLabel htmlFor={`${contactFieldId}-name`}>Имя</FieldLabel>
+              <Input id={`${contactFieldId}-name`} value={form.name} maxLength={120} required autoFocus={canAutofocusForm()} onChange={(event) => setField("name", event.target.value)} />
+            </Field>
+            <Field className="contact-detail__edit-field--wide">
+              <FieldLabel htmlFor={`${contactFieldId}-company`}>Компания</FieldLabel>
+              <Input id={`${contactFieldId}-company`} value={form.company} maxLength={160} placeholder="Не указана" onChange={(event) => setField("company", event.target.value)} />
+            </Field>
+            <Field className="contact-detail__edit-field--wide">
+              <FieldLabel htmlFor={`${contactFieldId}-category`}>Направление</FieldLabel>
+              <Select items={categoryItems} value={form.category} onValueChange={(value) => setField("category", value ?? "")} disabled={busy}>
+                <SelectTrigger id={`${contactFieldId}-category`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  {categoryItems.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="contact-detail__edit-field--wide">
+              <FieldLabel htmlFor={`${contactFieldId}-role`}>Должность или роль</FieldLabel>
+              <Input id={`${contactFieldId}-role`} value={form.role} maxLength={240} placeholder="Не указана" onChange={(event) => setField("role", event.target.value)} />
+            </Field>
+            <Field className="contact-detail__edit-field--wide">
+              <FieldLabel htmlFor={`${contactFieldId}-status`}>Статус</FieldLabel>
+              <Input id={`${contactFieldId}-status`} value={form.status} maxLength={80} placeholder="Например, в работе" onChange={(event) => setField("status", event.target.value)} />
+            </Field>
+          </div>
+          <section className="contact-detail__edit-section" aria-labelledby="contact-edit-links-title">
+            <h2 id="contact-edit-links-title"><Link2 aria-hidden="true" />Ссылки</h2>
+            <div className="contact-detail__edit-links">
+              {form.links.map((link, index) => (
+                <div className="contact-detail__edit-link" key={index}>
+                  <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
+                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} onBlur={() => { if (!form.avatarUrl) resolveAvatar({ automatic: true }); }} />
+                  <ShadcnButton type="button" variant="destructive" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
+                </div>
+              ))}
+              {!form.links.length && <p>Ссылок пока нет.</p>}
+            </div>
+            {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
+          </section>
+          <Field className="contact-detail__edit-notes">
+            <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
+            <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
+          </Field>
+          {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
         </div>
-        {form.links.length < 12 && <ShadcnButton type="button" variant="ghost" className="contact-detail__add-link" onClick={() => setForm((current) => ({ ...current, links: [...current.links, { label: "", url: "" }] }))}><Plus />Добавить ссылку</ShadcnButton>}
-      </section>
-      <Field className="contact-detail__edit-notes">
-        <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
-        <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
-      </Field>
-      {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
-      <MobileFormFooter as="div" className="contact-detail__edit-actions">
+      </ScrollArea>
+      <MobileFormFooter as={ControlBar} className="contact-detail__edit-actions">
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
-        {!creating && <ShadcnButton data-control-icon={isMobile || undefined} type="button" variant="ghost" size={isMobile ? "icon" : "default"} className="contact-detail__delete" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" />{!isMobile && "Удалить"}</ShadcnButton>}
+        {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" className="contact-detail__delete" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
       </MobileFormFooter>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
@@ -3035,8 +2864,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
             <Button variant="outline" onClick={() => reload().catch(() => {})}>Попробовать снова</Button>
           </div>
         ) : contact ? (
-          <ScrollArea className="contact-detail__scroll">
-            {readOnly ? <ContactReadView contact={contact} /> : <ContactEditForm
+          readOnly ? <ScrollArea className="contact-detail__scroll"><ContactReadView contact={contact} /></ScrollArea> : <ContactEditForm
               contact={contact}
               favoriteSaving={favoriteSaving}
               onFavoriteToggle={toggleFavorite}
@@ -3045,8 +2873,7 @@ function ContactDetailDrawer({ contactId, onClose, onUpdated, onDeleted, readOnl
                 onUpdated?.(savedContact);
               }}
               onDeleted={onDeleted}
-            />}
-          </ScrollArea>
+            />
         ) : null}
       </DrawerContent>
     </Drawer>
@@ -3065,9 +2892,7 @@ function ContactCreateDrawer({ onClose, onCreated }) {
             aria-label="Закрыть добавление контакта"
           ><X /></DrawerClose>
         </div>
-        <ScrollArea className="contact-detail__scroll">
-          <ContactEditForm onSaved={onCreated} />
-        </ScrollArea>
+        <ContactEditForm onSaved={onCreated} />
       </DrawerContent>
     </Drawer>
   );
@@ -4396,7 +4221,7 @@ function WishGroupTile({
   };
   return <>
   <div data-group-id={group.id} draggable={nativeDraggable} className={`wish-group-tile ${draggable ? "is-draggable" : ""} ${isDragging ? "is-dragging" : ""} ${isDropTarget ? "is-drop-target" : ""}`} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown}>
-    <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу, ${wishes.length} ${wishCountNoun(wishes.length)}`} title={draggable ? "Нажмите, чтобы открыть. Перетащите, чтобы изменить порядок" : undefined} />
+    <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-group-tile__open" onClick={onOpen} aria-label={`Открыть группу «${group.title}», ${wishes.length} ${wishCountNoun(wishes.length)}`} title={draggable ? "Нажмите, чтобы открыть. Перетащите, чтобы изменить порядок" : undefined} />
     <span className="wish-group-tile__preview">
       {wishes.slice(0, 4).map((wish) => {
         const previewImageUrl = wishPreviewImageUrl(wish);
@@ -4405,7 +4230,7 @@ function WishGroupTile({
     </span>
     {draggable && <span className="wish-card__drag-handle wish-group-tile__drag-handle" data-wish-group-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
     <div className="wish-card__body wish-group-tile__meta">
-      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" onClick={onOpen}>{group.title}</ShadcnButton></h3>}
+      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" title={group.title} onClick={onOpen}><span className="min-w-0 flex-1 truncate">{group.title}</span></ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
         {!editing && onRename && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}

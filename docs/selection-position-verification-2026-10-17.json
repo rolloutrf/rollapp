@@ -1,0 +1,166 @@
+{
+  "date": "2026-10-17",
+  "recordedAt": "2026-10-17T18:32:17.290412+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "fixed-and-verified-with-unrelated-comprehensive-blocker",
+  "sourceSha256": {
+    "src/components/inline-block-controls.jsx": "935b2c0d2159e9985fac5a8a1c6d6a8eff0bfa1239eb528889ba0b24b02ce720",
+    "src/components/inline-rich-text-editor.jsx": "2fbad7bc9f4a4170aaa830c2b4259e115cc128c92f2f5c1d62448bbca1a7b855",
+    "src/hooks/use-inline-menu-portal.js": "2b4d66bab22292dced022442d3f2a61cc877bb7401a055f971021c863e05aed0",
+    "scripts/text-selection-position-checks.mjs": "e146ec01f949121addd045f6a843d09b321e83ab84eb635bf2dac7881292f04b",
+    "scripts/text-edit-smoke.mjs": "2dfd8da74a48ab4ccbf3868c1fdcffc334a6c6b9c6b81435a2c4672edf6dde56",
+    "scripts/fixtures/text-edit.jsx": "7c03faa99a5285e67084c3017022b58a11c30968ff8d576748c47a0024b710cb",
+    "docs/inline-editing.md": "04abeb80b611298cd3b6fe987d854734d0b9dfb801a3da092d7da177f458fbc5",
+    "docs/verification.md": "1a45a027438ee96b21acfc75ea8f1a194b74cde066bb8690cfca19b4b6b91dde",
+    "AGENTS.md": "5afe9b082a820290d791357e7cc762194b54082d5c44520c5c2c42a16e2e8662"
+  },
+  "fixedFindings": [
+    "First placement combined viewport coordinates with the positioned editor ancestor; use isolated unpositioned body hosts for BubbleMenu/FloatingMenu",
+    "Caret endpoint geometry did not represent multiline native highlighting; use the current editor native Range with contextElement",
+    "Debounced scroll updates left the toolbar behind the selection; update without debounce and listen to VisualViewport resize/scroll",
+    "Offscreen selection left a floating toolbar unrelated to visible content; hide middleware hides it until the range returns",
+    "Tiptap applies offset after flip/shift; reserve the 8px offset in collision padding to retain the final 16px viewport gutter during keyboard panning"
+  ],
+  "checks": [
+    {
+      "command": "TEXT_EDIT_PORT=5203 npm run test:text-edit -- --selection-only (before fix)",
+      "status": "expected-failure",
+      "log": "/tmp/rollapp-position-before.log",
+      "evidence": {
+        "selectionTop": 354,
+        "selectionBottom": 405,
+        "toolbarBottom": 319,
+        "gap": 35
+      }
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5206 npm run test:text-edit",
+      "status": "passed",
+      "log": "/tmp/rollapp-position-full.log",
+      "notes": "Full 8 viewport interaction matrix, advanced block/save cases, 8 viewport selection-position matrix, and both 33-pattern symbol suites. Started before final collision-padding refinement; final placement rechecked separately below."
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5210 npm run test:text-edit -- --selection-only",
+      "status": "passed",
+      "log": "/tmp/rollapp-position-complete.log",
+      "viewports": [
+        [
+          320,
+          844
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          390,
+          400
+        ],
+        [
+          768,
+          844
+        ],
+        [
+          820,
+          844
+        ],
+        [
+          1024,
+          844
+        ],
+        [
+          1440,
+          844
+        ],
+        [
+          1920,
+          844
+        ]
+      ],
+      "coverage": [
+        "4 independent long answers",
+        "forward/backward multiline native selection",
+        "first opening deep in a document",
+        "scroll in both directions",
+        "offscreen hide/return",
+        "link editor adjacent to source",
+        "large selection taller than viewport",
+        "keyboard visual viewport height 220 and offsetTop 96 on 390x400",
+        "collapsed selection hides toolbar",
+        "zero API requests/writes"
+      ]
+    },
+    {
+      "command": "npm run test:ui",
+      "status": "passed",
+      "result": "37 primitives, 64 application JSX sources"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "log": "/tmp/rollapp-position-final-build.log",
+      "notes": "Existing chunk-size warning"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "status": "failed",
+      "report": "/tmp/rollapp-position-comprehensive.json",
+      "log": "/tmp/rollapp-position-comprehensive.log",
+      "unitResults": {
+        "passed": 513,
+        "failed": 1,
+        "skipped": 1
+      },
+      "blocker": "Existing identity-reports.test.js Gallup DNA shrinkable grid tracks assertion; comprehensive checks stopped at unit stage"
+    },
+    {
+      "command": "npm audit --json",
+      "status": "existing-findings",
+      "log": "/tmp/rollapp-position-audit.json",
+      "high": 7,
+      "scope": "development tooling"
+    },
+    {
+      "command": "npm audit --omit=dev --json",
+      "status": "passed",
+      "log": "/tmp/rollapp-position-audit-production.json",
+      "vulnerabilities": 0
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "iterationNotes": [
+    "An early position test could not scroll a last answer out of view at desktop due to the document end; the fixture now scrolls to the opposite end.",
+    "Keyboard simulation exposed the final offset/collision-padding issue, which was corrected and rerun on the full selection matrix.",
+    "Tall-range coverage initially had too little fixture text on desktop; the fixture now uses 12 paragraphs per answer and verifies the selected range exceeds the viewport."
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/identity",
+    "database": "Configured production TLS connection",
+    "writes": false,
+    "selection": "Third answer, native multiline selection",
+    "beforeScroll": {
+      "scrollY": 795,
+      "selectionTop": 348,
+      "toolbarBottom": 340,
+      "gap": 8
+    },
+    "afterScroll": {
+      "scrollY": 903,
+      "selectionTop": 240,
+      "toolbarBottom": 232,
+      "gap": 8
+    },
+    "collapsed": "No visible formatting toolbar",
+    "keepalive": "ready, PID 52615, left running"
+  },
+  "limitations": [
+    "No actual iOS/Telegram native keyboard; visual viewport was simulated",
+    "Comprehensive suite blocked by the existing unrelated Gallup unit assertion",
+    "No production mutation or deployment",
+    "Unrelated workspace edits preserved"
+  ]
+}

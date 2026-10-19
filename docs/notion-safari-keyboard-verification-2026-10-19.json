@@ -1,0 +1,459 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T11:41:19.501146+00:00",
+  "classification": "progress",
+  "previousTurn": "progress: five storage fixes promoted; current main711unit/native10 passed.",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "nativeSafari": {
+    "source": "current main642/storage5 before portal Save fix",
+    "root": "/Users/mokoloskov/Desktop/Git/rollout/rollapp",
+    "transport": "cua native Safari private window, trusted OS key events; no safaridriver/remote automation setting changes",
+    "testURL": "http://127.0.0.1:5306/__text-edit",
+    "formattingState": "/tmp/rollapp-native-safari-formatting-final.json",
+    "inputState": "/tmp/rollapp-native-safari-input-final.json",
+    "hostScripts": [
+      "/tmp/rollapp-native-safari-host.mjs",
+      "/tmp/rollapp-native-safari-input-host.mjs"
+    ],
+    "proofScreenshot": "/tmp/rollapp-safari-native-selection.jpg",
+    "screenshotInspected": true,
+    "screenshotSha256": "8df9f3158f1c44e7468a02a6d7eec0481069f48eae89d38ea10dde3c326997dc",
+    "verified": [
+      "Cmd+I includes selected trailing space; captured <em>middle </em>.",
+      "Native Undo removes only italic; Redo returns byte-identical saved source.",
+      "Cmd+K link form and unlink preserve neighbouring italic; canonical URL stays unlinked on editor reopen.",
+      "Public reading has no editable field/link role for the removed URL.",
+      "Exactly one formatting toolbar visually anchored next to native selection; ordinary prose without a field frame.",
+      "Native Cyrillic input generates trusted insertText events and saves exact characters.",
+      "Emoji reached document via native clipboard; exact captured source/Undo/Redo preserve preceding Cyrillic."
+    ],
+    "limits": [
+      "Mac desktop Safari, not physical iOS/Telegram.",
+      "Option+E in current input source inserted ќ with isComposing=false; zero composition events, so no native IME claim.",
+      "cua typeText did not deliver non-BMP emoji events; native clipboard was used instead.",
+      "Clipboard operation reported interruption; fresh AX confirmed exactly intended emoji, no foreign content.",
+      "Later user-change guards interrupted focused-panel probing; no Safari native Save Page defect claimed.",
+      "Closing only the created private window was attempted; subsequent AX reads timed out, so closure unconfirmed. Safari app was not quit/restarted/killed."
+    ],
+    "cleanup": {
+      "privateWindowUUID": "EEEA1C70-3C43-43F1-B934-9B9C009722B7",
+      "windowClosureConfirmed": false,
+      "ownedFixturePids": [
+        11612,
+        12148
+      ],
+      "fixtureSessions": [
+        59932,
+        37457
+      ],
+      "fixtureTerminalCodes": [
+        143,
+        143
+      ],
+      "productionServicePid": 85976,
+      "productionServiceStopped": false,
+      "extraOwnedFixturePid": 12674,
+      "extraFixtureSession": 84053,
+      "extraTerminalCode": 143
+    },
+    "productionAPIRequests": 0,
+    "productionWrites": 0
+  },
+  "portalSave": {
+    "before": "/tmp/rollapp-portal-save-before.log",
+    "beforeResult": {
+      "prevented": false,
+      "firstSaves": [],
+      "secondSaved": null
+    },
+    "fixed": "/tmp/rollapp-portal-save-fixed.log",
+    "fixedResult": {
+      "prevented": true,
+      "firstSaves": [
+        "First document FIRST"
+      ],
+      "secondSaved": null,
+      "pendingAddress": "https://pending.test"
+    },
+    "finding": "Ctrl/Cmd+S on a portalled link input bypassed editor saving and browser default prevention. Chrome native-key probe confirms this; Safari focused-panel probe was interrupted and is not causal evidence.",
+    "fix": "React section capture handles Save only outside the ProseMirror DOM; portal React ancestry scopes callback to document owner. Native editor DOM keeps its original event/mutation handling.",
+    "backup": "/tmp/rollapp-portal-save-main-backup/manifest.json",
+    "sourcePaths": [
+      "src/components/inline-rich-text-editor.jsx",
+      "scripts/text-inline-style-checks.mjs"
+    ],
+    "contracts": [
+      "AGENTS.md",
+      "docs/inline-editing.md",
+      "docs/verification.md"
+    ],
+    "mainSourceCount": 642,
+    "mainExpectedEditorRecords": 367,
+    "mainGates": {
+      "report": "/tmp/rollapp-portal-save-main-gates.json",
+      "snapshot": "/tmp/rollapp-portal-save-main-gates-sources.json",
+      "session": 85314,
+      "expectedNativeRecords": 10,
+      "observed": {
+        "status": "passed",
+        "sourceCount": 642,
+        "results": [
+          {
+            "name": "unit",
+            "exitCode": 0,
+            "passRecords": 0,
+            "expectedRecords": null,
+            "log": "/tmp/rollapp-portal-save-main-gates-unit.log"
+          },
+          {
+            "name": "ui",
+            "exitCode": 0,
+            "passRecords": 0,
+            "expectedRecords": null,
+            "log": "/tmp/rollapp-portal-save-main-gates-ui.log"
+          },
+          {
+            "name": "build",
+            "exitCode": 0,
+            "passRecords": 0,
+            "expectedRecords": null,
+            "log": "/tmp/rollapp-portal-save-main-gates-build.log"
+          },
+          {
+            "name": "styles",
+            "exitCode": 0,
+            "passRecords": 10,
+            "expectedRecords": 10,
+            "log": "/tmp/rollapp-portal-save-main-gates-styles.log"
+          }
+        ],
+        "expectedNativeRecords": 10,
+        "startedAt": "2026-10-19T11:22:13.723375+00:00",
+        "sourceDrift": [],
+        "addedSources": [],
+        "extraInputDrift": [],
+        "finishedAt": "2026-10-19T11:25:31.831164+00:00"
+      }
+    }
+  },
+  "combinedCandidate": {
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs",
+    "report": "/tmp/rollapp-portal-save-combined.json",
+    "snapshot": "/tmp/rollapp-portal-save-combined-sources.json",
+    "session": 67214,
+    "sourceCount": 646,
+    "unitExpected": 716,
+    "nativeExpected": 53,
+    "groups": "image-resize8/surface11/styles10/selection8/gutter8/tables8",
+    "backup": "/tmp/rollapp-portal-save-combined-backup/manifest.json",
+    "imageSaveControlAdded": true,
+    "futureSourceProposal": "/tmp/rollapp-resize-focus-final-proposed.json",
+    "futureRebasedContracts": "/tmp/rollapp-inline-image-resize-contracts-proposed.json",
+    "requiresMergedVerification": false,
+    "autoPromotion": false,
+    "observed": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-build.log"
+        },
+        {
+          "name": "image-resize",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-image-resize.log"
+        },
+        {
+          "name": "surface",
+          "exitCode": 0,
+          "passRecords": 11,
+          "expectedRecords": 11,
+          "log": "/tmp/rollapp-portal-save-combined-surface.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-portal-save-combined-styles.log"
+        },
+        {
+          "name": "selection",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-selection.log"
+        },
+        {
+          "name": "gutter-alignment",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-gutter-alignment.log"
+        },
+        {
+          "name": "tables",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-tables.log"
+        }
+      ],
+      "expectedNativeRecords": 53,
+      "startedAt": "2026-10-19T11:25:41.137377+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:38:55.841005+00:00"
+    },
+    "terminalCode": 0
+  },
+  "frozenParent": {
+    "report": "/tmp/rollapp-inline-resize-focus-final375.json",
+    "snapshot": "/tmp/rollapp-inline-resize-focus-final375-sources.json",
+    "session": 44250,
+    "pid": 5645,
+    "expectedEditorRecords": 375,
+    "sourceCount": 646,
+    "unchanged": true,
+    "observed": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-build.log"
+        },
+        {
+          "name": "full-editor",
+          "exitCode": 0,
+          "passRecords": 375,
+          "expectedRecords": 375,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-full-editor.log"
+        }
+      ],
+      "expectedRecords": 375,
+      "startedAt": "2026-10-19T10:31:43.339092+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:27:28.479869+00:00"
+    },
+    "processTerminal": true,
+    "terminalCode": 0
+  },
+  "next": [
+    "Wait for fresh main646/375/nine-stage comprehensive terminal, preserve frozen sources and contracts.",
+    "New link-intent candidate is isolated only; retain before-failure evidence and verify source/selection/Undo/access/portal Save before any future promotion.",
+    "Retain open R1–R10, exact Notion link-empty semantics and actual-device IME."
+  ],
+  "newLinkCounterexamples": {
+    "probe": "/tmp/rollapp-link-intent-probe.mjs",
+    "log": "/tmp/rollapp-link-intent-before.log",
+    "result": "/tmp/rollapp-link-intent-before.json",
+    "observed": {
+      "results": [
+        {
+          "name": "link-at-empty-caret",
+          "actual": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "blockColor": null
+                  }
+                }
+              ]
+            },
+            "storedMarks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.test/new",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer nofollow",
+                  "class": null,
+                  "title": null
+                }
+              }
+            ],
+            "text": "",
+            "links": 0
+          },
+          "pass": false
+        },
+        {
+          "name": "link-after-source-replacement",
+          "panelStayedOpen": true,
+          "actual": {
+            "doc": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "blockColor": null
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Remote replacement"
+                    }
+                  ]
+                }
+              ]
+            },
+            "storedMarks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.test/original",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer nofollow",
+                  "class": null,
+                  "title": null
+                }
+              }
+            ]
+          },
+          "pass": false
+        }
+      ],
+      "errors": []
+    },
+    "status": "confirmed, not fixed; actual Chrome keys on isolated API-blocked fixture, not Safari evidence"
+  },
+  "imageCorePromotion": {
+    "manifest": "/tmp/rollapp-image-core-portal-main-promotion.json",
+    "backup": "/tmp/rollapp-image-core-portal-main-backup/manifest.json",
+    "sources": 13,
+    "newFiles": 4,
+    "contracts": 3,
+    "mainSourceCount": 646,
+    "defaultEditorRecords": 375,
+    "freshMainFull": {
+      "status": "running",
+      "rootPid": 14636,
+      "startedAt": "2026-10-19T11:39:33.904837+00:00",
+      "expectedEditorRecords": 375,
+      "expectedComprehensiveStages": 9,
+      "sourceCount": 646,
+      "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "dirty": true,
+      "dirtyPathCount": 357,
+      "log": "/tmp/rollapp-image-core-portal-main-full.log",
+      "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
+    }
+  },
+  "dependencyAudit": {
+    "all": "/tmp/rollapp-notion-audit-2026-10-19.json",
+    "production": "/tmp/rollapp-notion-audit-production-2026-10-19.json",
+    "allHigh": 7,
+    "productionVulnerabilities": 0,
+    "bracesLatest": "3.0.3, still in advisory range",
+    "forceFixUsed": false,
+    "toolingIsDevOnly": true,
+    "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "advisoryPatchedVersions": "None",
+    "registryLatestShadcn": "4.22.1",
+    "registryLatestTsMorph": "28.0.0",
+    "registryLatestCompatibleTsMorph26": "26.0.0",
+    "registryLatestCompatibleCommon027": "0.27.0"
+  },
+  "liveAfterImageCorePromotion": {
+    "origin": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "configuredProductionConnection": true,
+    "temporaryTab": "46, closed",
+    "viewportOverrideReset": true,
+    "desktop": {
+      "viewport": [
+        1440,
+        844
+      ],
+      "lineCenter": 422,
+      "controlCenters": [
+        422,
+        422
+      ],
+      "controlBoxes": [
+        48,
+        48
+      ],
+      "body": [
+        "18px",
+        "28px"
+      ],
+      "frames": [
+        "0px",
+        "0px",
+        "none"
+      ],
+      "rootOverflow": false,
+      "toolbarCountWithoutSelection": 0,
+      "saveStatus": "saved",
+      "screenshot": "/tmp/rollapp-image-core-live-desktop.jpg"
+    },
+    "mobile": {
+      "viewport": [
+        390,
+        844
+      ],
+      "body": [
+        "18px",
+        "28px"
+      ],
+      "frames": [
+        "0px",
+        "0px",
+        "none"
+      ],
+      "rootOverflow": false,
+      "toolbarCountWithoutSelection": 0,
+      "saveStatus": "saved",
+      "screenshot": "/tmp/rollapp-image-core-live-mobile.jpg"
+    },
+    "productionWrites": 0,
+    "contentChanged": false
+  }
+}

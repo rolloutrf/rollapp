@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { generateIdentityReport, identityReportForDisplay, parseIdentityPdf } from "./identity-report-pdf.js";
+import { extractPdfLines } from "./lab-pdf.js";
 
 test("generateIdentityReport merges Gallup talents by rank across documents", () => {
   const report = generateIdentityReport("gallup", [
@@ -24,7 +25,7 @@ test("generateIdentityReport merges Gallup talents by rank across documents", ()
   assert.equal(report.documents.length, 2);
 });
 
-test("generateIdentityReport combines Hogan scales without losing profiles", () => {
+test("generateIdentityReport combines Hogan scales without losing documents", () => {
   const report = generateIdentityReport("hogan", [
     {
       id: "hpi", filename: "hpi.pdf", uploadedAt: "2026-08-31T10:00:00.000Z", sections: [],
@@ -37,10 +38,10 @@ test("generateIdentityReport combines Hogan scales without losing profiles", () 
   ]);
   assert.deepEqual(report.profiles.map((profile) => profile.id), ["hpi", "hds"]);
   assert.equal(report.profiles[0].scores[0][1], 84);
-  assert.equal("sections" in report.documents[0], false);
+  assert.deepEqual(report.documents[0].sections, []);
 });
 
-test("identityReportForDisplay removes legacy raw Hogan sections without losing structured data", () => {
+test("identityReportForDisplay preserves the original Hogan document content", () => {
   const report = identityReportForDisplay("hogan", {
     section: "hogan",
     profiles: [{ id: "hpi", scores: [["Амбициозность", 84, ""]] }],
@@ -52,7 +53,7 @@ test("identityReportForDisplay removes legacy raw Hogan sections without losing 
     }],
   });
 
-  assert.equal("sections" in report.documents[0], false);
+  assert.deepEqual(report.documents[0].sections, [{ title: "Сильные стороны", paragraphs: ["Сырой текст PDF"] }]);
   assert.equal(report.documents[0].filename, "summary.pdf");
   assert.equal(report.profiles[0].scores[0][1], 84);
 });
@@ -79,4 +80,5 @@ test("parseIdentityPdf restores all 34 ranks from the bundled Gallup report", as
     "Learner", "Self-Assurance", "Achiever",
   ]);
   assert.equal(document.date, "2023-05-19");
+  assert.deepEqual(document.rawLines, (await extractPdfLines(buffer)).map((line) => String(line).trim()).filter(Boolean));
 });

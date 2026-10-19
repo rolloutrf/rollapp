@@ -1,9 +1,8 @@
-import { useEffect, useId, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
-import { api } from "@/api";
 import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
-import { EditableTextBlock } from "@/components/editable-text-block";
-import { CareerContentError } from "@/components/career-content";
+import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
+import { CareerContentError, useCareerContent } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,10 +45,7 @@ const DEFAULT_CONTENT = {
   ],
 };
 
-function validContent(content) {
-  return content?.questions?.length === IDENTITY_QUESTION_TITLES.length
-    && content.questions.every((question) => question?.paragraphs?.length);
-}
+const FourQuestionRichEditor = lazy(() => import("@/components/four-question-rich-editor"));
 
 function FourQuestionEditor({ onOpenChange, onSave, open, question, questionIndex }) {
   const isMobile = useIsMobile();
@@ -142,72 +138,25 @@ function FourQuestionEditor({ onOpenChange, onSave, open, question, questionInde
   );
 }
 
+function FourQuestionDocument({ content, onSave, readOnly }) {
+  const autosave = useDocumentDraft(content, onSave, "identity:four-questions", !readOnly);
+  return <>
+    <article className="four-questions typeset typeset-rollapp typeset-document" aria-label="Четыре вопроса">
+      <Suspense fallback={<span role="status">Загружаем текст…</span>}>
+        <FourQuestionRichEditor value={readOnly ? content : autosave.draft} readOnly={readOnly} onBlur={autosave.flush} onChange={readOnly ? undefined : autosave.change} />
+      </Suspense>
+    </article>
+    {!readOnly && <InlineSaveStatus autosave={autosave} />}
+  </>;
+}
+
 export function FourQuestions() {
-  const { readOnly } = useSphereSharing();
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [requestVersion, setRequestVersion] = useState(0);
-  const [state, setState] = useState({ content: DEFAULT_CONTENT, error: "", loading: true });
-  const content = validContent(state.content) ? state.content : DEFAULT_CONTENT;
-
-  useEffect(() => {
-    let current = true;
-    setState((value) => ({ ...value, error: "", loading: true }));
-    api.get("/identity/content/four-questions").then((result) => {
-      if (!current) return;
-      setState({
-        content: validContent(result.content) ? result.content : DEFAULT_CONTENT,
-        error: "",
-        loading: false,
-      });
-    }).catch((error) => {
-      if (current) setState((value) => ({ ...value, error: error.message, loading: false }));
-    });
-    return () => { current = false; };
-  }, [requestVersion]);
-
-  const saveQuestion = async (questionIndex, paragraphs) => {
-    const nextContent = {
-      questions: content.questions.map((question, index) => ({
-        title: IDENTITY_QUESTION_TITLES[index],
-        paragraphs: index === questionIndex ? paragraphs : question.paragraphs,
-      })),
-    };
-    const result = await api.patch("/identity/content/four-questions", { content: nextContent });
-    setState({ content: result.content, error: "", loading: false });
-  };
-
-  return (
-    <div className="sphere-text-page page-stack">
-      <CareerContentError error={state.error} onRetry={() => setRequestVersion((version) => version + 1)} />
-      <article className="four-questions typeset typeset-rollapp typeset-document" aria-label="Четыре вопроса">
-        <ol className="four-questions__list m-0 list-none p-0">
-          {content.questions.map((question, index) => (
-            <li key={index} className="four-question p-0">
-              <EditableTextBlock className="four-question__content" aria-labelledby={`four-question-${index + 1}`}
-                disabled={state.loading || Boolean(state.error)}
-                label={`Редактировать ответ на вопрос «${IDENTITY_QUESTION_TITLES[index]}»`}
-                onEdit={readOnly ? undefined : () => setEditingIndex(index)}
-              >
-                <div className="four-question__heading-row" data-typeset-group>
-                  <h3 id={`four-question-${index + 1}`}>{IDENTITY_QUESTION_TITLES[index]}</h3>
-                </div>
-                <div className="four-question__answer career-action-copy" data-typeset-group>
-                  {question.paragraphs.map((paragraph, paragraphIndex) => <p key={paragraphIndex}>{paragraph}</p>)}
-                </div>
-              </EditableTextBlock>
-            </li>
-          ))}
-        </ol>
-      </article>
-      <FourQuestionEditor
-        question={editingIndex === null ? null : content.questions[editingIndex]}
-        questionIndex={editingIndex}
-        open={editingIndex !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingIndex(null);
-        }}
-        onSave={saveQuestion}
-      />
-    </div>
-  );
+  const sharing = useSphereSharing();
+  const document = useCareerContent("four-questions", DEFAULT_CONTENT, "identity");
+  return <div className="sphere-text-page page-stack">
+    <CareerContentError error={document.error} onRetry={document.retry} />
+    {document.loading && <span role="status">Загружаем…</span>}
+    {!document.loading && !document.error && <FourQuestionDocument key={`four-questions:${sharing.owner?.id || "self"}`}
+      content={document.content} onSave={document.save} readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)} />}
+  </div>;
 }

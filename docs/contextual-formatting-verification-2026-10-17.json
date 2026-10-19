@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-17",
+  "task": "Only one contextual formatting toolbar",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "completed-with-unrelated-comprehensive-blocker",
+  "scope": [
+    "src/components/inline-rich-text-editor.jsx",
+    "src/components/inline-block-controls.jsx",
+    "src/components/inline-editor.css",
+    "scripts/text-edit-smoke.mjs",
+    "docs/inline-editing.md",
+    "docs/verification.md",
+    "AGENTS.md",
+    "src/index.css",
+    "scripts/text-symbol-shortcuts-checks.mjs",
+    "docs/typography.md"
+  ],
+  "sourceSha256": {
+    "src/components/inline-rich-text-editor.jsx": "127f12461c6edacbd9805b2dd78b987181f3c29c77531cbf21a8a440eaa131fa",
+    "src/components/inline-block-controls.jsx": "be831e9ecb6738a33a47501a8ee071945dcd7bbc7fb33bf55a589bc96e4242e3",
+    "src/components/inline-editor.css": "f179bd5964a618317138a856da06e1ffca8ed26f7125f3c9edd9061f4222023f",
+    "scripts/text-edit-smoke.mjs": "caa416d8c7196ee288a24c6ca2f9029762af8ef42a2963e611dce71f9b0ad142",
+    "docs/inline-editing.md": "c34ec75a715f223ad90d2e9aa330cdaa43700b07b8a950aca1b9bcc7c2806bdc",
+    "docs/verification.md": "fc8d7fe869c59a2e220a59e1f2b55027ac38cd158910752eb266c4ebc5c3da9e",
+    "AGENTS.md": "fbf1f5dcca028ce189ed0e4928ff4fc2e407067596fbd6529efffa11c5944bce",
+    "src/index.css": "992774b39f4484733871504e6d9f64fb63b5ceaec8310274edebb4819d9312ad",
+    "scripts/text-symbol-shortcuts-checks.mjs": "c69078f734eedd5c36132e38efacea101b99a0cab600df30d531ab6b7185c8a5",
+    "docs/typography.md": "d74eaabdea0799946abd22f0e0a203bbeb0acd36e4ff91b8b0fc560a8d333e31"
+  },
+  "changes": [
+    "Removed permanent formatting row and its reserved space",
+    "Kept one contextual toolbar on text selection, including block actions/type picker",
+    "Kept desktop gutter plus/drag handle and keyboard commands mounted independently",
+    "Added checks for no toolbar on open/caret, one on selection, hiding on collapse and no writes on selection/menu access",
+    "Loaded the real Geist variable italic face; body normal metrics and font-synthesis unchanged; added browser regression assertion"
+  ],
+  "checks": [
+    {
+      "command": "TEXT_EDIT_WIDTHS=320 npm run test:text-edit",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-first.log",
+      "limitation": "Initial partial viewport matrix; full advanced and symbol checks included"
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5201 npm run test:text-edit",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-full.log",
+      "viewports": [
+        [
+          320,
+          844
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          390,
+          400
+        ],
+        [
+          768,
+          844
+        ],
+        [
+          820,
+          844
+        ],
+        [
+          1024,
+          844
+        ],
+        [
+          1440,
+          844
+        ],
+        [
+          1920,
+          844
+        ]
+      ],
+      "notes": "Full contextual editor matrix and advanced/symbol cases passed. This process started before adding the italic font import/assertion; font changes have an additional full viewport check and a separate symbols-only run."
+    },
+    {
+      "command": "npm run test:ui",
+      "status": "passed",
+      "result": "37 UI primitives, 64 application JSX sources"
+    },
+    {
+      "command": "npm run test:controls",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-controls.log",
+      "cases": 132
+    },
+    {
+      "command": "npm run test:action-rails",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-action-rails.log",
+      "cases": 90
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-build.log",
+      "notes": "Existing chunk size warning"
+    },
+    {
+      "command": "npm test",
+      "status": "failed",
+      "log": "/tmp/rollapp-contextual-unit.log",
+      "passed": 513,
+      "failed": 1,
+      "skipped": 1,
+      "blocker": "Existing identity-reports.test.js: Gallup DNA labels must use shrinkable grid tracks"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "status": "failed",
+      "report": "/tmp/rollapp-contextual-comprehensive.json",
+      "blocker": "Stopped at the same unrelated Gallup unit assertion; not a comprehensive success"
+    },
+    {
+      "command": "npm audit --json",
+      "status": "findings",
+      "log": "/tmp/rollapp-contextual-audit.json",
+      "high": 7,
+      "notes": "Existing development tooling dependency findings; dependencies were not changed in this task"
+    },
+    {
+      "command": "npm audit --omit=dev --json",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-audit-production.json",
+      "vulnerabilities": 0
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "Additional Playwright fixture check at 320x400 and 1440x400",
+      "status": "passed",
+      "result": "Native selection survives Bold and Italic clicks; both saved; exactly one toolbar; ArrowRight hides it"
+    },
+    {
+      "command": "Additional Playwright font/contextual check after italic import",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-font-matrix.log",
+      "viewports": [
+        [
+          320,
+          844
+        ],
+        [
+          390,
+          844
+        ],
+        [
+          390,
+          400
+        ],
+        [
+          768,
+          844
+        ],
+        [
+          820,
+          844
+        ],
+        [
+          1024,
+          844
+        ],
+        [
+          1440,
+          844
+        ],
+        [
+          1920,
+          844
+        ]
+      ],
+      "result": "Real italic face loaded; native Bold/Italic preserve selection and autosave; one toolbar fits viewport and hides on collapse; paragraph remains normal 18/28; no root overflow"
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5202 npm run test:text-edit -- --symbols-only",
+      "status": "passed",
+      "log": "/tmp/rollapp-contextual-italic-symbols.log",
+      "notes": "Rechecks all typed symbols, including the new real-italic assertion, after the font change"
+    }
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "database": "Configured production TLS connection",
+    "writes": false,
+    "result": "No permanent toolbar; native text selection shows one contextual toolbar; ArrowRight clears it; editable prose border 0px, outline none, shadow none",
+    "service": "Keepalive ready, left running PID 52615"
+  },
+  "proof": "/tmp/rollapp-contextual-proof.png",
+  "limitations": [
+    "Actual iOS/Telegram native keyboard not tested",
+    "No production mutations or deployment",
+    "Comprehensive suite blocked by unrelated existing Gallup unit failure",
+    "Unrelated dirty workspace edits preserved"
+  ],
+  "recordedAt": "2026-10-17T18:21:29.268329+00:00"
+}

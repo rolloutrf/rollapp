@@ -1,0 +1,389 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T07:05:00.832171+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "turnClassification": "progress",
+  "promoted": true,
+  "sourceCount": 634,
+  "workspace": "/private/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-cross-clipboard-ylj1_h34",
+  "sourceSnapshot": "/tmp/rollapp-cross-clipboard-final3-sources.json",
+  "proposedPaths": [
+    "src/lib/four-question-document.js",
+    "src/lib/four-question-document.test.js",
+    "src/lib/inline-paste-history.js",
+    "src/lib/inline-paste-history.test.js",
+    "scripts/text-cross-clipboard-checks.mjs",
+    "scripts/text-edit-smoke.mjs"
+  ],
+  "fixedFindings": [
+    {
+      "finding": "Protected cross-answer plaintext copied from a merged table starts with six structural newline characters; within-cell and rectangular native selection also disagree with ordinary editor text",
+      "baseline": "/tmp/rollapp-cross-clipboard-partial-before.log",
+      "unitBaseline": "/tmp/rollapp-cross-clipboard-unit-before.log",
+      "unitFailingTests": 3,
+      "fix": "Use native sorted selection ranges inside one answer; respect openStart/openEnd of flattened cross-answer slice; never trim authored whitespace",
+      "initialNativeProof": "/tmp/rollapp-cross-clipboard-partial-fixed.log",
+      "initialNativeRecords": 2,
+      "initialSubcomparisons": 12
+    },
+    {
+      "finding": "Native table rectangle paste lacks uiEvent metadata; immediate typing groups with paste so first Undo empties the pasted cells",
+      "baseline": "/tmp/rollapp-cross-clipboard-cell-fixed.log",
+      "diagnostic": "/tmp/rollapp-cross-clipboard-cell3-fixed.log",
+      "fix": "Observe native paste before clipboard handlers, delimit synchronous document transactions and clear unhandled intent at microtask boundary",
+      "initialNativeProof": "/tmp/rollapp-cross-clipboard-cell4-fixed.log",
+      "initialNativeRecords": 2
+    }
+  ],
+  "discardedFixtureIssue": {
+    "log": "/tmp/rollapp-cross-clipboard-before.log",
+    "reason": "Node.toJSON null-prototype attrs vs browser plain JSON; normalized expected JSON; semantic equality retained"
+  },
+  "units": {
+    "total": 691,
+    "passed": 690,
+    "skipped": 1,
+    "failed": 0,
+    "log": "/tmp/rollapp-cross-clipboard-unit-final.log"
+  },
+  "ui": {
+    "status": "passed",
+    "primitives": 37,
+    "applicationSources": 72,
+    "log": "/tmp/rollapp-cross-clipboard-ui.log"
+  },
+  "build": {
+    "status": "passed",
+    "log": "/tmp/rollapp-cross-clipboard-build.log",
+    "warning": "Existing chunk-size warning"
+  },
+  "audit": {
+    "all": {
+      "high": 7,
+      "log": "/tmp/rollapp-cross-clipboard-audit.json"
+    },
+    "production": {
+      "total": 0,
+      "log": "/tmp/rollapp-cross-clipboard-audit-production.json"
+    },
+    "note": "Existing development tooling chain; no incompatible shadcn downgrade"
+  },
+  "nativeMatrix": {
+    "results": [
+      {
+        "name": "cross-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-cross-clipboard.log"
+      },
+      {
+        "name": "partial-cross-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-partial-cross-clipboard.log"
+      },
+      {
+        "name": "cell-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-cell-clipboard.log"
+      },
+      {
+        "name": "four-document",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-four-document.log"
+      },
+      {
+        "name": "sparse",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-sparse.log"
+      },
+      {
+        "name": "tables",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-tables.log"
+      },
+      {
+        "name": "cut-history",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-cut-history.log"
+      },
+      {
+        "name": "code-paste",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final3-code-paste.log"
+      },
+      {
+        "name": "column-persistence",
+        "exitCode": 0,
+        "passRecords": 3,
+        "log": "/tmp/rollapp-cross-clipboard-final3-column-persistence.log"
+      },
+      {
+        "name": "native-caret",
+        "exitCode": 0,
+        "passRecords": 2,
+        "log": "/tmp/rollapp-cross-clipboard-final3-native-caret.log"
+      }
+    ],
+    "passed": true,
+    "sourceCount": 634,
+    "sourceDrift": [],
+    "finishedAt": "2026-10-19T07:03:45.208433+00:00",
+    "status": "passed",
+    "expectedNewRecords": 24,
+    "expectedCompatibilityRecords": 45,
+    "records": 69,
+    "log": "/tmp/rollapp-cross-clipboard-final3-compat.log",
+    "report": "/tmp/rollapp-cross-clipboard-final3-compat.json"
+  },
+  "mainFull": {
+    "status": "failed",
+    "sourceCount": 633,
+    "expectedEditorRecords": 311,
+    "session": 5882,
+    "rootPid": 14198,
+    "log": "/tmp/rollapp-text-authoring-main-full.log",
+    "exitCode": 1,
+    "editorPassRecords": 281,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T22:00:38.060012+00:00"
+  },
+  "production": {
+    "keepalivePid": 22680,
+    "status": "healthy",
+    "testWrites": 0,
+    "ddlOrDeletes": 0
+  },
+  "remaining": [
+    "Fresh MAIN634 comprehensive335/nine-stage result is still pending; no sources/contracts may change under the job",
+    "Prior MAIN633 full281/311 nesting820 failure remains open; standalone nesting8 PASS is partial evidence, not a fixed claim",
+    "R1-R10 remaining catalog/media, arbitrary clipboard/context/style transitions and actual hardware/IME audits remain open"
+  ],
+  "previousMatrix": {
+    "results": [
+      {
+        "name": "cross-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final-cross-clipboard.log"
+      },
+      {
+        "name": "partial-cross-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final-partial-cross-clipboard.log"
+      },
+      {
+        "name": "cell-clipboard",
+        "exitCode": 1,
+        "passRecords": 0,
+        "log": "/tmp/rollapp-cross-clipboard-final-cell-clipboard.log"
+      }
+    ],
+    "passed": false,
+    "sourceCount": 634,
+    "sourceDrift": [],
+    "finishedAt": "2026-10-18T21:57:12.337270+00:00",
+    "cellFailureKind": "Verifier error: after all Undo the document equals original, so unchanged Cmd+S correctly does not call save; fixture attempted to parse undefined as saved questions. Reload now follows actual Redo of authored typing."
+  },
+  "rangeOracle": {
+    "passed": true,
+    "comparisons": 1368,
+    "textEndpoints": 45,
+    "source": "isolated634",
+    "apiRequests": 0,
+    "kind": "model range oracle, not native device coverage",
+    "log": "/tmp/rollapp-cross-clipboard-range-oracle.log"
+  },
+  "matrixAttempt2": {
+    "results": [
+      {
+        "name": "cross-clipboard",
+        "exitCode": 0,
+        "passRecords": 8,
+        "log": "/tmp/rollapp-cross-clipboard-final2-cross-clipboard.log"
+      },
+      {
+        "name": "partial-cross-clipboard",
+        "exitCode": 1,
+        "passRecords": 3,
+        "log": "/tmp/rollapp-cross-clipboard-final2-partial-cross-clipboard.log"
+      }
+    ],
+    "passed": false,
+    "sourceCount": 634,
+    "sourceDrift": [],
+    "finishedAt": "2026-10-18T22:17:32.437886+00:00",
+    "finding": "Unexpected ordinary editor role visibility timeout; screenshot shows rendered rich document. Diagnostic instrumentation added; not marked passed."
+  },
+  "newMainFinding": {
+    "log": "/tmp/rollapp-text-authoring-main-full.log",
+    "assertion": "text-nesting-checks line45 at820: content[0].content.length1 vs3 after Shift-click and keyboard block indent menu",
+    "status": "isolated reproduction pending",
+    "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-nesting-selection-4hu74w9k",
+    "session": 51777,
+    "isolatedAttempts": [
+      {
+        "kind": "full preceding context at820",
+        "status": "passed",
+        "log": "/tmp/rollapp-nesting-selection-full-before2.log",
+        "note": "Diagnostic-only viewport; does not replace full nesting matrix or resolve the prior full failure"
+      },
+      {
+        "kind": "20-attempt group/menu stress",
+        "status": "incomplete",
+        "passedAttempts": 8,
+        "log": "/tmp/rollapp-nesting-selection-stress-before.log",
+        "termination": "native locator visibility timeout at next navigation, no completed 20-attempt proof"
+      }
+    ],
+    "fullNestingMatrix": {
+      "status": "passed",
+      "log": "/tmp/rollapp-nesting-selection-full-matrix-before.log",
+      "session": 73967,
+      "runtime": "isolated clipboard fixes; no nesting fix yet",
+      "records": 8,
+      "exitCode": 0,
+      "note": "All eight native nesting viewports with original sequence and added trace passed; no nesting runtime fix was applied. Prior MAIN281 failure remains open until fresh combined comprehensive."
+    }
+  },
+  "cellFinal3": {
+    "status": "failed-diagnostic",
+    "log": "/tmp/rollapp-cross-clipboard-cell-final3.log",
+    "reason": "Diagnostic catch JSON.stringify.catch error obscured original failure; fixed, no runtime change"
+  },
+  "cellFinal4": {
+    "status": "incomplete",
+    "records": 1,
+    "log": "/tmp/rollapp-cross-clipboard-cell-final4.log",
+    "reason": "Native click CDP timeout; DOM diagnostic confirms visible active editable ordinary editor and no inert overlay"
+  },
+  "cellFinal5": {
+    "status": "passed",
+    "log": "/tmp/rollapp-cross-clipboard-cell-final5.log",
+    "command": "caffeinate -i node scripts/text-edit-smoke.mjs --cell-clipboard-only",
+    "session": 61894,
+    "records": 8,
+    "exitCode": 0
+  },
+  "verificationEnvironment": {
+    "transientKeepAwake": "caffeinate -i bound to verification process only",
+    "note": "Earlier CDP click/navigation timeouts retained as incomplete runs; neither assertions nor matrices reduced"
+  },
+  "promotedAt": "2026-10-19T07:03:46.572147+00:00",
+  "promotion": {
+    "paths": [
+      "src/lib/four-question-document.js",
+      "src/lib/four-question-document.test.js",
+      "src/lib/inline-paste-history.js",
+      "src/lib/inline-paste-history.test.js",
+      "scripts/text-cross-clipboard-checks.mjs",
+      "scripts/text-edit-smoke.mjs",
+      "AGENTS.md",
+      "docs/inline-editing.md",
+      "docs/verification.md"
+    ],
+    "backup": "/tmp/rollapp-cross-clipboard-main-backup",
+    "metadata": "/tmp/rollapp-cross-clipboard-proposed.json",
+    "contractsMetadata": "/tmp/rollapp-cross-clipboard-contracts-proposed.json"
+  },
+  "freshMainFull": {
+    "status": "passed",
+    "rootPid": 36789,
+    "startedAt": "2026-10-19T07:03:46.697306+00:00",
+    "expectedEditorRecords": 335,
+    "expectedComprehensiveStages": 9,
+    "sourceCount": 634,
+    "log": "/tmp/rollapp-cross-clipboard-main-full.log",
+    "report": "/tmp/rollapp-cross-clipboard-main-full-comprehensive.json",
+    "snapshot": "/tmp/rollapp-cross-clipboard-main-full-sources.json",
+    "exitCode": 0,
+    "editorPassRecords": 335,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-19T08:07:55.997276+00:00"
+  },
+  "liveReview": {
+    "report": "/tmp/rollapp-cross-clipboard-live-review.json",
+    "date": "2026-10-19",
+    "kind": "read-only configured-production UI",
+    "tabId": "42",
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "before": {
+      "chars": 10456,
+      "hash": 2967052693,
+      "paragraphs": 43,
+      "editable": "true",
+      "font": "Geist Variable",
+      "size": "18px",
+      "leading": "28px",
+      "border": "0px",
+      "outline": "0px",
+      "shadow": "none",
+      "overflow": false,
+      "toolbars": 0
+    },
+    "gutter": {
+      "headingTop": 344,
+      "headingHeight": 32,
+      "firstLineHeight": 32,
+      "lineCenter": 360,
+      "plus": {
+        "width": 48,
+        "height": 48,
+        "glyph": 20,
+        "center": 360,
+        "delta": 0
+      },
+      "grip": {
+        "width": 48,
+        "height": 48,
+        "glyph": 20,
+        "center": 360,
+        "delta": 0
+      }
+    },
+    "contentWrites": 0,
+    "after": {
+      "chars": 10456,
+      "hash": 2967052693,
+      "editable": "true",
+      "font": "Geist Variable",
+      "size": "18px",
+      "leading": "28px",
+      "borders": [
+        "0px",
+        "0px",
+        "0px",
+        "0px"
+      ],
+      "outline": "0px",
+      "shadow": "none",
+      "overflow": false,
+      "toolbars": 0
+    },
+    "textUnchanged": true,
+    "temporaryTabClosed": true
+  },
+  "postPromotionHashCheck": {
+    "sourceCount": 634,
+    "sourceAndContractDrift": []
+  }
+}

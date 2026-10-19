@@ -29,6 +29,7 @@ if (managedToken) {
 
 process.env.NODE_ENV ||= "development";
 process.env.DEMO_MODE = "false";
+process.env.ROLLAPP_DATABASE_INITIALIZATION = "verify";
 if (productionConnectionMode(process.env) === "tunnel") {
   const tunnel = await startTunnel();
   if (!tunnel.ready) throw new Error("Production PostgreSQL недоступен через SSH-туннель.");

@@ -1,0 +1,164 @@
+{
+  "verifiedAt": "2026-10-17T20:24:25.511533+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "Display source PDF score bars and subscale cells in Hogan; integration in a concurrently edited workspace",
+  "source": {
+    "productionFileId": "0808f4d8-e45a-45eb-85ae-8b1b5bc50cc1",
+    "database": "configured production, verified TLS",
+    "readOnlySQL": true,
+    "writes": false,
+    "mainScores": 28,
+    "subscaleRows": 125,
+    "segments": 500,
+    "allMainValuesMatchUserImage": true,
+    "allColoredSegmentsMatchExtractedSource": true
+  },
+  "viewports": [
+    [
+      320,
+      844
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      390,
+      400
+    ],
+    [
+      768,
+      844
+    ],
+    [
+      820,
+      844
+    ],
+    [
+      1024,
+      844
+    ],
+    [
+      1440,
+      844
+    ],
+    [
+      1920,
+      844
+    ]
+  ],
+  "checks": [
+    {
+      "command": "npm run test:identity-reports",
+      "status": "passed",
+      "passLines": 22,
+      "log": "/tmp/rollapp-hogan-scales-full-ui.log"
+    },
+    {
+      "command": "node scripts/hogan-scales-smoke.mjs",
+      "status": "passed",
+      "passLines": 8,
+      "log": "/tmp/rollapp-hogan-scales-boundaries-final.log",
+      "note": "Final stricter 820px column transition assertion; runtime unchanged"
+    },
+    {
+      "command": "HOGAN_SCALES_REVIEW_LAYOUT=/tmp/rollapp-hogan-scales-layout.json node scripts/hogan-scales-smoke.mjs",
+      "status": "passed",
+      "passLines": 8,
+      "log": "/tmp/rollapp-hogan-scales-source-review-final.log"
+    },
+    {
+      "command": "npm test",
+      "status": "failed",
+      "tests": 546,
+      "passed": 544,
+      "skipped": 1,
+      "failed": 1,
+      "failure": "Existing Gallup DNA labels must use shrinkable grid tracks assertion",
+      "log": "/tmp/rollapp-hogan-scales-final-unit.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "status": "passed",
+      "primitives": 37,
+      "jsxSources": 66,
+      "log": "/tmp/rollapp-hogan-scales-final-shadcn.log"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "warning": "Chunk >500kB",
+      "log": "/tmp/rollapp-hogan-scales-final-build.log"
+    },
+    {
+      "command": "npm audit --json",
+      "status": "failed",
+      "high": 7,
+      "scope": "dev tooling",
+      "log": "/tmp/rollapp-hogan-scales-audit-final.json"
+    },
+    {
+      "command": "npm audit --omit=dev --json",
+      "status": "passed",
+      "vulnerabilities": 0,
+      "log": "/tmp/rollapp-hogan-scales-production-audit-retry.json",
+      "note": "Prior attempts returned registry TLS/400 errors; final sequential retry succeeded"
+    },
+    {
+      "command": "git diff --check + new task files whitespace",
+      "status": "passed"
+    },
+    {
+      "command": "npm run dev:keepalive:status",
+      "status": "ready",
+      "pid": 99362,
+      "frontend": "ready",
+      "api": "ready",
+      "persistentServiceEnabled": true
+    }
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/identity?tab=identity-reports&report=hogan",
+    "mainRows": 28,
+    "subscaleRows": 125,
+    "segments": 500,
+    "rootOverflow": false,
+    "screenshotVisuallyInspected": true,
+    "actions": "Read-only navigation and scrolling; no save/upload/delete"
+  },
+  "fixedFindings": [
+    "Text-only generated report omitted the graphical scale display; source block rendering now available",
+    "Extended smoke covers zero/full and mixed score geometry plus 4/5-cell subscales",
+    "Report fixture Vite uses dedicated port to avoid default 5173 collisions",
+    "Shared concurrent report work preserved; duplicate chart component removed in favor of current common renderer"
+  ],
+  "sourceHashes": {
+    "src/components/identity-report-manager.jsx": "b7780e042e1f7821ebe33f00dcd4c7ec1a00d5990861ccc51d2c41c5670b10a6",
+    "src/index.css": "936ea2d4a65caae3b0847eb5dc7d661b0b2675a6959e225ededbd64642e6fcf1",
+    "server/identity-report-layout.js": "88181fb85f4f6bb5b6949e7e75bedf189629c75be16c077f2c8b429d8c8c4350",
+    "server/identity-report-source-layout.js": "fd240ce95f14341047b833c0c09ad8ba9baeb877d49d164f9545c120c87ad7a9",
+    "server/identity-report-layout.test.js": "05683324b2ddc86d26a38930ca317a62ee19bf2274afe425dbbdb0c458b93ba4",
+    "server/identity-report-pdf.js": "c25d854bca165ca4704436eaeabafff6a08150ed8834f0750af5bb0fe7193600",
+    "server/index.js": "fe1ce0d7eec48804e7942704e0841769167e08c18f58fe9e87fe2522a5deeeb8",
+    "scripts/identity-reports-smoke.mjs": "55dc831bd254d98c2681757eba6352fa2ac7e42d933ff6757da8b12b6bbd8677",
+    "scripts/fixtures/identity-reports.jsx": "a57c36b98f120660934d50c5984d4d8ca4db0f79800f23c7b97dc24a9d0db5c4",
+    "scripts/hogan-scales-smoke.mjs": "1124291c9932a553e92c1192ce4590973e4f8324c2f12f132b94247378846024",
+    "scripts/identity-report-chart-checks.mjs": "ac9a8da0b10c7897ba6e4e1fd92020c25147f4061a3b7c61f941b9badb1176f2",
+    "scripts/fixtures/hogan-scales.jsx": "0d198e9d3a272a6d15f325607a727f4d746253db78e235d411caac18c0ffe5d2",
+    "package.json": "b94ef0689b51f9881c4383731290a7fdc773bc7e776c380cfaf7e3d9a2673a03",
+    "docs/identity-report-charts.md": "0d6e0158d96dc1d95352ad4459dd4364e36a2799f85490352d671addfd4b1b12",
+    "docs/verification.md": "64ef5279211bcb6d1195a08e3d248cc0422431fbd3cbad2c03d9a7aa83724bfa"
+  },
+  "artifacts": [
+    "/tmp/rollapp-hogan-source-subscales-1440-844.png",
+    "/tmp/rollapp-hogan-source-scales-390-400.png"
+  ],
+  "unverified": [
+    "Actual iOS Safari/Telegram rendering",
+    "Other unrecognized PDF graphic formats",
+    "Full application comprehensive suite remains unconfirmed due existing Gallup unit assertion"
+  ],
+  "deployment": false,
+  "productionDataChanged": false
+}

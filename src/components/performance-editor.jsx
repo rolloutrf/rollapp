@@ -86,7 +86,7 @@ function ReviewBlocksEditor({ blocks, idPrefix, label, onChange }) {
             </Select>
             <Button
               className="size-12 shrink-0"
-              variant="ghost"
+              variant="destructive"
               size="icon"
               type="button"
               aria-label={`Удалить блок ${index + 1}`}
@@ -114,7 +114,7 @@ function ReviewerEditor({ idPrefix, interaction = false, onChange, onRemove, rev
     <div className="flex min-w-0 flex-col gap-4 rounded-xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <h4 className="m-0 text-base font-medium">{reviewer.name || "Новый отзыв"}</h4>
-        <Button variant="ghost" size="icon" type="button" aria-label="Удалить отзыв" onClick={onRemove}>
+        <Button variant="destructive" size="icon" type="button" aria-label="Удалить отзыв" onClick={onRemove}>
           <Trash2 aria-hidden="true" />
         </Button>
       </div>
@@ -201,7 +201,7 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
             onChange={(event) => onChange({ ...project, title: event.target.value })}
           />
         </Field>
-        <Button className="size-12 shrink-0" variant="ghost" size="icon" type="button" aria-label="Удалить проект" onClick={onRemove}>
+        <Button className="size-12 shrink-0" variant="destructive" size="icon" type="button" aria-label="Удалить проект" onClick={onRemove}>
           <Trash2 aria-hidden="true" />
         </Button>
       </div>
@@ -232,7 +232,7 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
               </Field>
               <Button
                 className="size-12 shrink-0"
-                variant="ghost"
+                variant="destructive"
                 size="icon"
                 type="button"
                 aria-label={`Удалить секцию «${section.label || sectionIndex + 1}»`}

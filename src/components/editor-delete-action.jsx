@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-export function EditorDeleteAction({ description, disabled, label, onBusyChange, onDelete, onDeleted, title }) {
+export function EditorDeleteAction({ compact = false, description, disabled, label, onBusyChange, onDelete, onDeleted, title }) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -36,12 +36,13 @@ export function EditorDeleteAction({ description, disabled, label, onBusyChange,
     }
   };
 
+  const Wrapper = compact ? Fragment : "div";
   return (
-    <div className="border-t pt-4">
+    <Wrapper {...(compact ? {} : { className: "border-t pt-4" })}>
       <AlertDialog open={open} onOpenChange={changeOpen}>
-        <AlertDialogTrigger render={<Button className="w-full" variant="destructive" type="button" disabled={disabled || deleting} />}>
-          <Trash2 data-icon="inline-start" aria-hidden="true" />
-          {label}
+        <AlertDialogTrigger {...(compact ? { "data-slot": "button" } : {})} render={<Button className={compact ? "shrink-0" : "w-full"} data-control-icon={compact || undefined} size={compact ? "icon" : "default"} shape={compact ? "pill" : "default"} variant="destructive" type="button" aria-label={label} title={compact ? label : undefined} disabled={disabled || deleting} />}>
+          <Trash2 data-icon={compact ? undefined : "inline-start"} aria-hidden="true" />
+          {!compact && label}
         </AlertDialogTrigger>
         <AlertDialogContent className="rollapp-body">
           <AlertDialogHeader>
@@ -62,6 +63,6 @@ export function EditorDeleteAction({ description, disabled, label, onBusyChange,
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Wrapper>
   );
 }

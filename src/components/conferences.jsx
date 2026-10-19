@@ -4,6 +4,7 @@ import {
   ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/api";
+import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,7 @@ function ConferenceCard({
   return (
     <div className="relative h-full min-w-0">
       <Button
-        className={`peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
         variant="ghost"
         type="button"
         data-card-drag-trigger={draggable ? "" : undefined}
@@ -152,16 +153,17 @@ function ConferenceCard({
       >
         <span className="sr-only">Открыть или переместить конференцию «{conference.title}»</span>
       </Button>
-      <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
+      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
+        <CollectionSnippetMedia src={conference.logoUrl} icon={TicketCheck}>
+          <Badge variant={status.variant} className="collection-snippet__badge">
+            <StatusIcon data-icon="inline-start" aria-hidden="true" />
+            {status.label}
+          </Badge>
+        </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
-            <ConferenceLogo conference={conference} />
             <div className="flex min-w-0 flex-col items-start gap-1">
               <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium">{conference.title}</h3>
-              <Badge variant={status.variant}>
-                <StatusIcon data-icon="inline-start" aria-hidden="true" />
-                {status.label}
-              </Badge>
               {conference.location && <CardDescription className="w-full truncate">{conference.location}</CardDescription>}
             </div>
           </CardTitle>
@@ -392,7 +394,7 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
                       {form.logoUrl && (
                         <Button
                           className="min-h-12 px-4 text-base"
-                          variant="ghost"
+                          variant="destructive"
                           type="button"
                           disabled={saving || logoUploading}
                           onClick={() => {
@@ -856,7 +858,7 @@ export function Conferences() {
       )}
 
       {!requestState.loading && visibleConferences.length > 0 && (
-        <ul ref={cardOrder.listRef} className="grid list-none gap-4 sm:grid-cols-2" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
+        <ul ref={cardOrder.listRef} className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4" aria-label="Порядок и группы конференций" aria-busy={cardOrder.orderBusy}>
           {visibleGroups.map((group) => (
             <EducationItemGroupTile
               key={group.id}

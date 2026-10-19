@@ -1,0 +1,145 @@
+.inline-editor { position: relative; display: flex; flex-direction: column; gap: var(--layout-page-gap); }
+.inline-editor__content { --inline-selection-tint: color-mix(in oklch, var(--typeset-ink-blue) 18%, transparent); min-height: 1lh; outline: none; overflow-wrap: anywhere; white-space: pre-wrap; }
+/* Editing never draws a field/frame, including Safari keyboard focus. */
+.inline-editor__content,
+.inline-editor__content:is(:hover, :focus, :focus-visible, :active),
+.inline-text-field,
+.inline-text-field:is(:hover, :focus, :focus-visible, :active) {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+}
+.inline-editor__content [data-placeholder]::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: var(--muted-foreground); }
+.inline-editor__content ul[data-type="taskList"] { list-style: none; padding-inline-start: 0; }
+.inline-editor__content li[data-type="taskItem"] { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 8px; row-gap: 0; align-items: start; padding-inline-start: 0; }
+.inline-editor__content li[data-type="taskItem"] > label { grid-column: 1; grid-row: 1; padding-block-start: 4px; }
+.inline-editor__content li[data-type="taskItem"] > label input { width: 20px; height: 20px; accent-color: var(--foreground); }
+.inline-editor__content li[data-type="taskItem"] > div { display: contents; }
+.inline-editor__content li[data-type="taskItem"] > div > * { grid-column: 2; min-width: 0; }
+/* Child lists share the full item rail; the marker belongs to its own text row. */
+.inline-editor__content li[data-type="taskItem"] > div > :is(ul, ol, [data-type="nestedBlock"]) { grid-column: 1 / -1; padding-inline-start: clamp(0px, calc((100% - 8em) / 2), 1.5em); }
+.inline-editor__content li[data-type="taskItem"] > div > :first-child { margin-block-start: 0; }
+.inline-editor__content .tableWrapper { max-width: 100%; overflow-x: auto; }
+.inline-editor__content table { width: 100%; max-width: none; table-layout: fixed; border-collapse: collapse; border-block-end: 0; }
+.inline-editor__content td, .inline-editor__content th { border: 1px solid var(--border); padding: 8px; }
+.inline-editor__content td, .inline-editor__content th { position: relative; vertical-align: top; }
+.inline-editor__content th { background: var(--muted); }
+.inline-editor__content th > p { font-weight: 600; }
+.inline-editor__content :is(td,th)[data-block-color$="_background"] { background-color: var(--inline-block-background); }
+.inline-editor__content .selectedCell { background-image: linear-gradient(var(--inline-selection-tint), var(--inline-selection-tint)); }
+.inline-editor__content .column-resize-handle { position: absolute; inset-block: 0; inset-inline-end: -2px; width: 4px; background: var(--muted-foreground); pointer-events: none; }
+.inline-editor__content.resize-cursor { cursor: col-resize; }
+/* Selection is a translucent layer above authored backgrounds, below text. */
+.inline-editor__content .ProseMirror-selectednode { outline: none; background-image: linear-gradient(var(--inline-selection-tint), var(--inline-selection-tint)); }
+.inline-editor__content .inline-editor__block-selected { outline: 0; box-shadow: none; background-image: linear-gradient(var(--inline-selection-tint), var(--inline-selection-tint)); }
+.inline-editor__content.ProseMirror-hideselection::selection,
+.inline-editor__content.ProseMirror-hideselection ::selection { color: currentColor; background: transparent; }
+.inline-editor__drag-preview { position: fixed; top: -10000px; pointer-events: none; }
+.inline-editor__drop-guide { position: fixed; z-index: 60; height: 2px; pointer-events: none; background: var(--typeset-ink-blue); }
+.inline-editor__content:read-write { scroll-margin-block: 96px; }
+.inline-editor__menu { z-index: 60; min-width: min(22rem, calc(100vw - 32px)); max-width: min(22rem, calc(100vw - 32px)); max-height: min(480px, calc(var(--app-visual-height, 100dvh) - 32px)); overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: var(--radius); background: var(--popover); box-shadow: 0 8px 24px #0003; }
+.inline-editor__link { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 16px; }
+.inline-editor__link input { flex: 1 1 100%; min-width: 0; border: 0; outline: none; box-shadow: none; background: transparent; }
+.inline-save-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 1rem; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.inline-text-field { display: block; min-width: 0; min-height: 1lh; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; }
+.inline-text-field[contenteditable="plaintext-only"] { cursor: text; }
+.inline-text-field[data-placeholder]::before { content: attr(data-placeholder); pointer-events: none; color: var(--muted-foreground); }
+
+/* Tiptap's React menus initialize an inline absolute position even when their
+   Floating UI strategy is fixed. Match that strategy before the first measure:
+   an absolute first measure against our relative body adds document scroll. */
+.inline-editor__selection,
+.inline-editor__menu,
+.inline-editor__link-panel { position: fixed !important; }
+.inline-editor__selection { z-index: 60; display: flex; gap: 8px; padding: 4px; border-radius: var(--radius); background: var(--popover); box-shadow: 0 8px 24px #0003; }
+.inline-editor__desktop-format { display: none; }
+.inline-editor__style-buttons { display: flex; gap: 8px; justify-content: center; }
+.inline-editor__style-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.inline-editor__create-menu > .inline-editor__picker { flex: 1; }
+.inline-editor__color-menu { width: min(22rem, calc(100vw - 32px)); max-height: min(var(--available-height, 100dvh), calc(var(--app-visual-height, 100dvh) - 32px)); overflow-y: auto; transition-property: opacity, transform; }
+.inline-editor__color-palette { display: flex; flex-direction: column; gap: 16px; }
+.inline-editor__color-section { display: flex; flex-direction: column; gap: 8px; }
+.inline-editor__colors { display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--layout-control-size), 1fr)); gap: 8px; }
+.inline-editor__color-sample { display: grid; place-content: center; width: 1.5em; height: 1.5em; border-radius: var(--radius); }
+@media (min-width: 768px) { .inline-editor__desktop-format { display: contents; } }
+
+.inline-editor__link-panel { z-index: 70; max-height: calc(var(--app-visual-height, 100dvh) - 32px); overflow-y: auto; min-width: min(28rem, calc(100vw - 32px)); max-width: min(28rem, calc(100vw - 32px)); padding: 12px; border-radius: var(--radius); background: var(--popover); box-shadow: 0 8px 24px #0003; }
+.inline-editor__link-panel .inline-editor__link { margin-block-end: 0; }
+
+/* Hover controls live in the desktop document gutter; prose keeps its rail. */
+.inline-editor__drag-handle { z-index: 40; display: flex; align-items: flex-start; gap: 0; padding-inline-end: 4px; cursor: grab; }
+.inline-editor__drag-handle[data-dragging="true"] { cursor: grabbing; }
+.inline-editor__drag-handle button { width: var(--layout-control-size); height: var(--layout-control-size); border-radius: 50%; }
+.inline-editor__drag-handle svg, .inline-editor__block-trigger svg { width: 20px; height: 20px; }
+.inline-editor__block-menu { max-height: min(var(--available-height, 100dvh), calc(var(--app-visual-height, 100dvh) - 32px)); overflow-y: auto; min-width: min(19rem, calc(100vw - 32px)); max-width: calc(100vw - 32px); transition-property: opacity, transform; }
+.inline-editor__create-menu { width: min(42rem, calc(100vw - 32px)); max-height: min(560px, var(--available-height, 100dvh), calc(var(--app-visual-height, 100dvh) - 32px)); overflow: hidden; transition-property: opacity, transform; }
+.inline-editor__picker { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; overflow: hidden; }
+.inline-editor__picker-body { display: flex; gap: 16px; min-height: 0; min-width: 0; overflow: hidden; }
+.inline-editor__block-list { position: relative; display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.inline-editor__block-option { width: 100%; flex-shrink: 0; justify-content: flex-start; text-align: start; white-space: normal; }
+.inline-editor__block-option span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.inline-editor__block-option svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.inline-editor__block-option kbd { flex-shrink: 0; color: var(--muted-foreground); font: inherit; }
+.inline-editor__block-preview { display: flex; flex: 0 0 40%; flex-direction: column; gap: 16px; min-width: 0; overflow-y: auto; padding: 16px; border-radius: var(--radius); background: var(--muted); }
+.inline-editor__block-preview > p { margin: 0; color: var(--muted-foreground); }
+.inline-editor__block-search { flex-shrink: 0; border: 0; box-shadow: none; background: transparent; }
+.inline-editor__image-menu { width: min(var(--layout-compact-width), calc(100vw - 32px)); max-height: calc(var(--app-visual-height, 100dvh) - 32px); overflow-y: auto; }
+.inline-editor__image-form { display: flex; flex-direction: column; gap: var(--layout-page-gap); min-width: 0; }
+.inline-editor__image-actions { display: flex; flex-wrap: wrap; gap: var(--layout-inline-gap); }
+.inline-editor__image-form > p { margin: 0; }
+.inline-editor__no-blocks { padding: 12px; margin: 0; color: var(--muted-foreground); }
+.inline-editor__menu .inline-editor__block-preview,
+.inline-editor__block-menu .inline-editor__block-preview { display: none; }
+.inline-editor__content [data-type="details"] { display: flex; align-items: flex-start; gap: 8px; }
+.inline-editor__content [data-type="details"] > button { display: grid; place-content: center; flex: 0 0 var(--layout-control-size); height: var(--layout-control-size); border: 0; border-radius: 50%; background: transparent; cursor: pointer; color: var(--foreground); }
+.inline-editor__content [data-type="details"] > button::before { content: ""; width: 8px; height: 8px; border-block-end: 2px solid currentColor; border-inline-end: 2px solid currentColor; transform: rotate(-45deg); }
+.inline-editor__content [data-type="details"].is-open > button::before { transform: rotate(45deg); }
+.inline-editor__content [data-type="details"] > div { flex: 1; min-width: 0; }
+.inline-editor__content summary { display: block; min-height: var(--layout-control-size); padding-block: 10px; cursor: text; }
+.inline-editor__content summary::marker { display: none; }
+.inline-editor__content [data-type="detailsContent"] > :first-child { margin-block-start: 0; }
+@media (max-width: 767px) {
+  .inline-editor__block-preview { display: none; }
+  .inline-editor__create-menu { width: min(22rem, calc(100vw - 32px)); }
+}
+@media (max-width: 1023px), (hover: none) {
+  .inline-editor__drag-handle { display: none; }
+}
+
+.inline-editor__table-axis-handle { position: fixed; z-index: 41; }
+.inline-editor__table-axis-handle button { cursor: grab; }
+.inline-editor__table-axis-handle button:active { cursor: grabbing; }
+.inline-editor__table-axis-guide { position: fixed; z-index: 45; background: var(--typeset-ink-blue); pointer-events: none; }
+
+.inline-editor[data-table-handles] .inline-editor__drag-handle,
+.inline-editor[data-table-handles] .inline-editor__drag-handle * { visibility: hidden !important; pointer-events: none !important; transition: none !important; }
+
+.inline-editor__table-growth { position: fixed; z-index: 42; }
+.inline-editor__table-growth [data-table-growth="corner"] { cursor: nwse-resize; }
+.inline-editor__table-size-caption { position: absolute; inset-block-start: calc(100% + var(--layout-inline-gap)); inset-inline-end: 0; white-space: nowrap; color: var(--muted-foreground); background: var(--card); padding: var(--layout-inline-gap); border-radius: var(--radius); }
+.inline-editor__table-size-caption[data-shrinking] { color: var(--destructive); }
+.inline-editor__table-axis-guide[data-shrinking] { background: var(--destructive); }
+
+/* Columns remain ordinary prose: one editing host, no visible container frame. */
+.inline-editor__content [data-type="columns"] { display: flex; align-items: flex-start; gap: var(--layout-page-gap); }
+.inline-editor__content [data-type="column"] { flex: 1 1 0; min-width: 0; }
+@media (max-width: 767px) {
+  .inline-editor__content [data-type="columns"] { flex-direction: column; }
+  .inline-editor__content [data-type="column"] { width: 100%; }
+}
+
+/* The narrow gutter owns its first pointer, before React renders hover state.
+   Otherwise a quick press can reach draggable prose underneath. */
+.inline-editor__column-separator { position: fixed; z-index: 35; width: 8px; cursor: col-resize; touch-action: none; opacity: 0; pointer-events: auto; }
+.inline-editor__column-separator::before { content: ""; position: absolute; inset-block: 0; left: 3px; width: 2px; background: var(--muted-foreground); }
+.inline-editor__column-separator:is([data-active], :hover, :focus-visible) { opacity: 1; }
+.inline-editor__column-separator:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* A structural caret is a cursor, not a field frame; keep it visible in both themes. */
+.inline-editor__content .ProseMirror-gapcursor::after { border-top-color: var(--foreground); }
+
+.inline-editor__image-resize { position: fixed; z-index: 36; width: 16px; cursor: ew-resize; touch-action: none; user-select: none; outline: none; }
+.inline-editor__image-resize::after { content: ""; position: absolute; inset-block: 0; left: var(--image-resize-guide-x,6px); width: 4px; pointer-events: none; max-height: 48px; margin-block: auto; border-radius: 2px; background: var(--foreground); opacity: 0.65; }
+.inline-editor__image-resize:is(:hover,:focus-visible)::after { opacity: 1; }

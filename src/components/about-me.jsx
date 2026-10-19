@@ -1,13 +1,11 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
-import { toast } from "sonner";
 import aboutMeSource from "@/data/about-me.md?raw";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
-import { EditableTextBlock } from "@/components/editable-text-block";
+import { InlineDocument } from "@/components/inline-document";
 import {
-  CareerContentError, CareerEditAction, useCareerContent,
+  CareerContentError, useCareerContent,
 } from "@/components/career-content";
-import { MarkdownDocument } from "@/components/life-strategy";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { parseAboutMeMarkdown, serializeAboutMeMarkdown } from "@/lib/about-me";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, open }) {
@@ -143,66 +140,17 @@ function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, op
 }
 
 export function AboutMe() {
-  const { readOnly } = useSphereSharing();
-  const [editor, setEditor] = useState(null);
+  const sharing = useSphereSharing();
   const careerContent = useCareerContent("about", aboutMeSource);
   const content = typeof careerContent.content === "string" ? careerContent.content : aboutMeSource;
-  const parsed = parseAboutMeMarkdown(content);
-  const editingIndex = editor?.mode === "edit" ? editor.index : null;
-
-  const saveQuestion = (entry) => {
-    const questions = editingIndex === null
-      ? [...parsed.questions, entry]
-      : parsed.questions.map((question, index) => (index === editingIndex ? entry : question));
-    return careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
-  };
-
-  const removeQuestion = async () => {
-    if (editingIndex === null) return;
-    const questions = parsed.questions.filter((_, index) => index !== editingIndex);
-    await careerContent.save(serializeAboutMeMarkdown({ ...parsed, questions }));
-    toast.success("Вопрос удалён");
-  };
-
-  return (
-    <div className="sphere-text-page page-stack">
-      <CareerEditAction
-        label="Добавить"
-        loading={careerContent.loading}
-        showLabel
-        onClick={() => setEditor({ mode: "add" })}
-      />
-      <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
-
-      <section className="about-me-questions" aria-label="Вопросы обо мне">
-        {parsed.preamble && (
-          <MarkdownDocument source={parsed.preamble} label="О себе — введение" className="about-me-question__document career-action-copy" />
-        )}
-        {parsed.questions.map((entry, index) => (
-          <EditableTextBlock className="about-me-question" key={`${index}-${entry.question}`}
-            disabled={careerContent.loading || Boolean(careerContent.error)}
-            label={`Редактировать вопрос «${entry.question}»`}
-            onEdit={readOnly ? undefined : () => setEditor({ mode: "edit", index })}
-          >
-            <MarkdownDocument
-              source={`### ${entry.question}\n\n${entry.description}`}
-              label={entry.question}
-              className="about-me-question__document"
-            />
-          </EditableTextBlock>
-        ))}
-      </section>
-
-      <AboutMeQuestionEditor
-        entry={editingIndex === null ? null : parsed.questions[editingIndex]}
-        mode={editor?.mode || "add"}
-        open={Boolean(editor)}
-        onOpenChange={(open) => {
-          if (!open) setEditor(null);
-        }}
-        onDelete={readOnly ? undefined : removeQuestion}
-        onSave={saveQuestion}
-      />
-    </div>
-  );
+  return <div className="sphere-text-page page-stack">
+    <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
+    {!careerContent.loading && !careerContent.error && <InlineDocument
+      key={`about-${sharing.owner?.id || "self"}`} documentKey="career:about" scope="career"
+      value={content} onSave={careerContent.save} label="О себе"
+      readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
+      addBlock={[{ type: "heading", attrs: { level: 3 } }, { type: "paragraph" }]}
+    />}
+    {careerContent.loading && <span className="not-typeset text-muted-foreground" role="status">Загружаем…</span>}
+  </div>;
 }

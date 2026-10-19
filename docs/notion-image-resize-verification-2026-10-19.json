@@ -1,0 +1,596 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T11:43:31.436790+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "dirtyPathCount": 347,
+  "goal": "active",
+  "previousTurnClassification": "progress",
+  "turnClassification": "progress",
+  "promoted": true,
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-image-resize-7payk07_",
+  "sourceCount": 646,
+  "sourceSnapshot": "/tmp/rollapp-inline-image-resize-compat2-sources.json",
+  "main": {
+    "sourceCount": 642,
+    "expectedEditorRecords": 367,
+    "expectedStages": 9,
+    "session": 67234,
+    "pid": 92362,
+    "confirmedLive": true,
+    "report": "/tmp/rollapp-inline-images-main-full2-comprehensive.json",
+    "log": "/tmp/rollapp-inline-images-main-full2.log",
+    "sourceFrozen": true,
+    "persistentServicePid": 85976,
+    "productionConnection": "configured direct TLS, API/frontend ready",
+    "status": "full1 failed80 stale catalogue expectation, strict surface11 fix promoted; full2 running",
+    "terminal": "/tmp/rollapp-inline-images-main-full-terminal.json"
+  },
+  "reference": {
+    "url": "https://www.notion.com/help/images-files-and-media",
+    "verified": "2026-10-19",
+    "evidence": "Official media options document two edge guides and drag-to-resize. Exact left/right alignment/minimum behavior not established by this description; retain in fidelity audit."
+  },
+  "baseline": {
+    "status": "failed",
+    "log": "/tmp/rollapp-inline-image-resize-before.log",
+    "finding": "Decoded image hover exposes zero resize guides, expected right and left."
+  },
+  "prototype": {
+    "status": "short-diagnostic-passed",
+    "log": "/tmp/rollapp-inline-image-resize-prototype1.log",
+    "records": 2,
+    "coverage": [
+      "both real edge drags",
+      "native pointer capture",
+      "proportional preview without document mutation",
+      "exact attrs/neighbours and single Undo/Redo"
+    ]
+  },
+  "units": {
+    "total": 711,
+    "pass": 710,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-inline-image-resize-unit2.log",
+    "previousHarnessFailure": "unit1 expected helper called doc.replaceWith; PM Node has no such method. Corrected independent expected JSON tree, full ownership/metadata/Undo assertions retained."
+  },
+  "guardDiagnostics": {
+    "status": "short2-passed",
+    "session": 19887,
+    "log": "/tmp/rollapp-inline-image-resize-guards2.log",
+    "historicalFirstLog": "/tmp/rollapp-inline-image-resize-guards1.log",
+    "caretBaselineCorrection": "After real Tail click model still 1, native endpoint12. Explicitly wait for model/native parity then snapshot owner; cancellation must preserve that actual caret. Original mismatch preserved; no caret assertion removed.",
+    "resultLog": "/tmp/rollapp-inline-image-resize-guards2.log"
+  },
+  "implementation": [
+    "Model ownership includes exact doc/node/selection/access/IME; final commit selects image, preserves all other attrs and closes history before/after.",
+    "Portal guides preserve existing image DOM, typography and exact layout; no NodeView wrapper/frame.",
+    "During pointer preview only temporary width/height styles change, no document dispatch. Escape, lost capture, pointercancel, source/selection/access/IME and window blur restore before committing.",
+    "Competing block/table/column controls suspend while resizing. Existing public reader and canonical width/height adapter remain.",
+    "Extreme aspect ratio outside positive integer dimension range fails closed; exact Notion minima/edge anchor semantics not yet proved."
+  ],
+  "nextRequired": [
+    "Fresh main646/375/nine-stage comprehensive is running; do not alter frozen product/test/contracts or combine historical PASS as its result.",
+    "A separate source649 link-intent candidate is in verification and not in main. Retain R1–R10 and actual-device/Notion edge fidelity unknowns."
+  ],
+  "viewportCounterexample": {
+    "before": "/tmp/rollapp-inline-image-resize-viewport-before.log",
+    "finding": "Guide y63.5 violates required clear top64 with partially occluded media.",
+    "fix": "Intersect image with shared visual viewport and fixed header/navigation before placing guides. Parent content/grid area bounds constrain width.",
+    "after": "/tmp/rollapp-inline-image-resize-viewport-fixed1.log",
+    "records": 2,
+    "coverage": [
+      "eight cancellation guards",
+      "native Chromium touch/cancel with actual pointer capture",
+      "five nested owners",
+      "protected four-question exact attrs/Undo/save/reload",
+      "failed-save draft/reload/retry",
+      "keyboard and public reader",
+      "panned keyboard220/96 and no frames"
+    ]
+  },
+  "latestChanges": "Reuse shared measureVisualViewport; avoid new renders for identical/empty guides and cancel rescheduled frames on unmount; fresh gates still required.",
+  "tinyHoverCounterexample": {
+    "before": "/tmp/rollapp-inline-image-resize-tiny-hover-before.log",
+    "finding": "Stable hover over 1px image exposes right resize hit area, intercepting real native image click. Fast click-only diagnostics had missed it.",
+    "fix": "Outward hit areas for narrow media and pointer-events:none on decorative lines preserve image target without enlarging/removing fixture.",
+    "after": "/tmp/rollapp-inline-image-resize-tiny-hover-fixed.log",
+    "diagnosticRecords": 2,
+    "existingImageContextCheckStrengthened": true
+  },
+  "firstCompatibility": {
+    "status": "failed",
+    "sourceCount": 646,
+    "results": [
+      {
+        "name": "image-resize",
+        "exitCode": 1,
+        "passRecords": 0,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-image-resize-compat-image-resize.log"
+      }
+    ],
+    "expectedRecords": 67,
+    "startedAt": "2026-10-19T09:50:54.371532+00:00",
+    "sourceDrift": [],
+    "addedSources": [],
+    "extraInputDrift": [],
+    "finishedAt": "2026-10-19T09:51:18.694811+00:00"
+  },
+  "focusOwnerCounterexample": {
+    "before": "/tmp/rollapp-inline-image-resize-compat-image-resize.log",
+    "viewport": "320x844",
+    "finding": "Both editors visible: stale first NodeSelection left four guides while second editor owned actual DOM focus. Prior short windows clipped the first image and indirectly hid this bug.",
+    "fix": "Actual DOM focus, per-editor handle focus and current hover choose the guide owner; focusin remeasures.",
+    "status": "applied only to frozen isolated candidate; full67 running"
+  },
+  "compatibility": {
+    "status": "running",
+    "report": "/tmp/rollapp-inline-image-resize-compat2.json",
+    "snapshot": "/tmp/rollapp-inline-image-resize-compat2-sources.json",
+    "expectedRecords": 67,
+    "session": 25192,
+    "activePid": null,
+    "lastObserved": {
+      "status": "failed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "image-resize",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-image-resize.log"
+        },
+        {
+          "name": "image-context",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-image-context.log"
+        },
+        {
+          "name": "images",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-images.log"
+        },
+        {
+          "name": "image-layout",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-image-layout.log"
+        },
+        {
+          "name": "image-reader",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-image-reader.log"
+        },
+        {
+          "name": "surface",
+          "exitCode": 1,
+          "passRecords": 1,
+          "expectedRecords": 11,
+          "log": "/tmp/rollapp-inline-image-resize-compat2-surface.log"
+        }
+      ],
+      "expectedRecords": 67,
+      "startedAt": "2026-10-19T09:53:43.318511+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T10:03:46.935431+00:00"
+    },
+    "at": "2026-10-19T10:05:15.898957+00:00"
+  },
+  "latestGates": {
+    "unit": {
+      "total": 711,
+      "pass": 710,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-inline-image-resize-unit-owner-final.log"
+    },
+    "ui": {
+      "result": "pass",
+      "primitives": 37,
+      "applicationJsx": 74,
+      "log": "/tmp/rollapp-inline-image-resize-ui-owner-final.log"
+    },
+    "build": {
+      "result": "pass",
+      "log": "/tmp/rollapp-inline-image-resize-build-owner-final.log"
+    }
+  },
+  "focusReturnCounterexample": {
+    "before": "/tmp/rollapp-resize-focus-return-before.log",
+    "finding": "After switching editors and returning native focus, first editor still owns image NodeSelection but has zero guides because the old other-hover flag persists.",
+    "proposed": "/tmp/rollapp-resize-focus-return-proposed.json",
+    "status": "Prior guarded controller rejected failed parent67 before mutation; reviewed two-file fix manually applied in a new isolated diagnostic iteration after terminal failure.",
+    "gateController": "/tmp/rollapp-resize-focus-return-gates.py",
+    "gateSession": 92931,
+    "gatePolicy": "Apply only after parent67 terminal PASS and exact old/extra hashes; then units/UI/build and native35; no main promotion.",
+    "guardPid": null,
+    "applied": true,
+    "backup": "/tmp/rollapp-resize-focus-return-candidate-backup/manifest.json",
+    "gateTerminalExit": 1
+  },
+  "visualReview": {
+    "log": "/tmp/rollapp-resize-visual-review.log",
+    "records": 2,
+    "viewports": [
+      "390x400",
+      "1440x400"
+    ],
+    "screenshots": [
+      "/tmp/rollapp-resize-current-preview-390-400.png",
+      "/tmp/rollapp-resize-current-preview-1440-400.png"
+    ],
+    "inspected": true,
+    "previewDocumentWrites": 0,
+    "apiWrites": 0,
+    "source": "frozen parent646 before pending native-focus-return fix",
+    "findings": "Both guides visible, displayed ratio preserved, ordinary Geist text and no prose/image field frame; screenshot is fixture, not production user data."
+  },
+  "sourceAndExtraDriftAtLastCheck": {
+    "main642": 0,
+    "candidate646": 0,
+    "extraInputs": 0
+  },
+  "gitDiffCheck": "pass",
+  "persistentService": {
+    "pid": 85976,
+    "enabled": true,
+    "apiReady": true,
+    "frontendReady": true,
+    "stopped": false,
+    "productionWritesThisTurn": 0
+  },
+  "nativeFocusCounterexample": {
+    "status": "Isolated late-priority pinned focus adapter applied; deterministic browser proof passed; broader native selection matrix currently running. Not promoted.",
+    "before": "/tmp/rollapp-delayed-selection-focus-before2.log",
+    "withoutResizeBefore": "/tmp/rollapp-delayed-selection-no-resize-before.log",
+    "fixed": "/tmp/rollapp-delayed-selection-focus-fixed.log",
+    "finding": "Simulated delayed selectionchange: upstream fresh-focus restoration erases explicit native range before event arrives, including without image resize. After adapter range41 survives at40ms; exact model range22..63 and one toolbar after event.",
+    "originalSurfaceFailure": "Parent67 failed41 at390x844 toolbar wait; no native trace captured at failure, so exact spontaneous cause remains unproven.",
+    "surfaceRepeat": "/tmp/rollapp-resize-surface-selection-diagnostic.log: 11 PASS before focus adapter, evidence of intermittent behavior only, not a fix.",
+    "currentMatrix": "/tmp/rollapp-native-focus-selection-fixed.log",
+    "expectedRecords": 8,
+    "session": 53384,
+    "cases": "8 full viewports, native forward/backward/caret event delay, public focus/blur lifecycle and existing toolbar position matrix; synthetic delay, not device proof.",
+    "currentMatrixStatus": "PASS8; forward/backward/caret/public lifecycle assertions all passed before the non-text restoration follow-up",
+    "nonTextRestorationSelection8": {
+      "log": "/tmp/rollapp-native-focus-nontext-selection.log",
+      "exitCode": 0,
+      "records": 8
+    }
+  },
+  "full375Attempt": {
+    "report": "/tmp/rollapp-inline-resize-focus-full375.json",
+    "snapshot": "/tmp/rollapp-inline-resize-focus-full375-sources.json",
+    "status": "failed",
+    "passRecords": 0,
+    "expectedRecords": 375,
+    "sourceCount": 646,
+    "drift": 0,
+    "finding": "Returning native editor focus after image NodeSelection became TextSelection when delayed normalization was removed. Added synchronous public EditorView.focus restoration for non-text model selections only; text ranges retain delayed-event preservation. Follow-up image8 running; full375 not passed.",
+    "followUpImage8": {
+      "log": "/tmp/rollapp-native-focus-image-return-fixed.log",
+      "exitCode": 0,
+      "records": 8
+    }
+  },
+  "controlOwnerCounterexample": {
+    "before": "/tmp/rollapp-resize-control-owner-before.log",
+    "finding": "Focus first portalled image separator, then hover second visible editor: four guides remain instead of two. Common portal containment is not sufficient ownership.",
+    "staged": "/tmp/rollapp-resize-control-owner-proposed.json",
+    "status": "Reviewed two-file owner-id/hover-handoff fix applied after image8 and selection8 terminal PASS; exact before/after native probe4→2 passed. Latest full375 running, not promoted.",
+    "applied": true,
+    "backup": "/tmp/rollapp-resize-control-owner-backup/manifest.json",
+    "fixed": "/tmp/rollapp-resize-control-owner-fixed.log",
+    "nativeProbeExit": 0
+  },
+  "columnFirstPointer": {
+    "before": "/tmp/rollapp-column-first-pointer-before.log",
+    "fixed": "/tmp/rollapp-column-first-pointer-fixed.log",
+    "records": 3,
+    "finding": "Inactive separator pointer-events:none lets first pointer hit underlying draggable prose before hover render. Narrow gutter now receives first pointer immediately, hover paints synchronously via CSS. Native capture and access/source cancellation assert exact JSON.",
+    "originalMainFailure": "/tmp/rollapp-inline-images-main-full2-terminal.json failed227",
+    "promoted": false
+  },
+  "liveReview": {
+    "date": "2026-10-19T10:29:40.418659+00:00",
+    "source": "main642 unchanged",
+    "browser": "temporary IAB44, closed; viewport override reset",
+    "readOnly": true,
+    "productionWrites": 0,
+    "desktop": {
+      "firstLineCenter": 360,
+      "plusCenter": 360,
+      "gripCenter": 360,
+      "controlSize": "48x48",
+      "border": "0 all sides",
+      "outline": "none",
+      "shadow": "none",
+      "overflow": false
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "body": "18px/28px",
+      "border": "0 all sides",
+      "outline": "none",
+      "shadow": "none",
+      "overflow": false
+    },
+    "actions": "Open configured-production page, click heading to expose hover controls, inspect DOM and screenshots; no text entry/commands/save."
+  },
+  "auditLatest": {
+    "all": {
+      "high": 7,
+      "log": "/tmp/rollapp-resize-focus-audit-all.json"
+    },
+    "production": {
+      "total": 0,
+      "log": "/tmp/rollapp-resize-focus-audit-prod.json"
+    },
+    "primaryAdvisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "patchedVersion": "None listed; existing shadcn4.22.0 development chain. No forced downgrade or dependency change."
+  },
+  "latestFrozenGates": {
+    "sourceCount": 646,
+    "expectedEditorRecords": 375,
+    "report": "/tmp/rollapp-inline-resize-focus-final375.json",
+    "snapshot": "/tmp/rollapp-inline-resize-focus-final375-sources.json",
+    "session": 44250,
+    "status": "running",
+    "startedAt": "2026-10-19T10:31:43.339092+00:00",
+    "observed": {
+      "status": "running",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-build.log"
+        }
+      ],
+      "expectedRecords": 375,
+      "startedAt": "2026-10-19T10:31:43.339092+00:00",
+      "active": {
+        "name": "full-editor",
+        "pid": 5645,
+        "log": "/tmp/rollapp-inline-resize-focus-final375-full-editor.log"
+      }
+    },
+    "sourceProposed": "/tmp/rollapp-resize-focus-final-proposed.json",
+    "reviewedDiff": "/tmp/rollapp-resize-focus-final-proposed.diff",
+    "changedSourcePaths": 13,
+    "contracts": "/tmp/rollapp-inline-image-resize-contracts-proposed.json",
+    "unit": {
+      "total": 711,
+      "pass": 710,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "37 primitives/74 JSX PASS",
+    "build": "PASS; existing large chunk warning",
+    "autoPromotion": false,
+    "terminalReport": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-build.log"
+        },
+        {
+          "name": "full-editor",
+          "exitCode": 0,
+          "passRecords": 375,
+          "expectedRecords": 375,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-full-editor.log"
+        }
+      ],
+      "expectedRecords": 375,
+      "startedAt": "2026-10-19T10:31:43.339092+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:27:28.479869+00:00"
+    }
+  },
+  "currentCandidateIntegrity": {
+    "sourceDrift": [],
+    "extraDrift": []
+  },
+  "dirtyPathCountAtLatestReview": 349,
+  "independentStorageMainOverlay": {
+    "at": "2026-10-19T10:59:19.379445+00:00",
+    "report": "docs/notion-inline-storage-verification-2026-10-19.json",
+    "sourceCount": 642,
+    "promotedSourcePaths": 5,
+    "overlapWithPendingImage13": false,
+    "sourceParentMutated": false,
+    "futureContractsRebased": "/tmp/rollapp-inline-image-resize-contracts-proposed.json",
+    "mainUnit": 711,
+    "mainNativeStyles": 10,
+    "fullCombinedComprehensive": "still required"
+  },
+  "latestImageCoreMainPromotion": {
+    "status": "promoted",
+    "manifest": "/tmp/rollapp-image-core-portal-main-promotion.json",
+    "backup": "/tmp/rollapp-image-core-portal-main-backup/manifest.json",
+    "sourceCount": 646,
+    "expectedEditorRecords": 375,
+    "sourceTestPaths": 13,
+    "newPaths": 4,
+    "contracts": 3,
+    "parent375": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-build.log"
+        },
+        {
+          "name": "full-editor",
+          "exitCode": 0,
+          "passRecords": 375,
+          "expectedRecords": 375,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-full-editor.log"
+        }
+      ],
+      "expectedRecords": 375,
+      "startedAt": "2026-10-19T10:31:43.339092+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:27:28.479869+00:00"
+    },
+    "merged53": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-build.log"
+        },
+        {
+          "name": "image-resize",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-image-resize.log"
+        },
+        {
+          "name": "surface",
+          "exitCode": 0,
+          "passRecords": 11,
+          "expectedRecords": 11,
+          "log": "/tmp/rollapp-portal-save-combined-surface.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-portal-save-combined-styles.log"
+        },
+        {
+          "name": "selection",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-selection.log"
+        },
+        {
+          "name": "gutter-alignment",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-gutter-alignment.log"
+        },
+        {
+          "name": "tables",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-tables.log"
+        }
+      ],
+      "expectedNativeRecords": 53,
+      "startedAt": "2026-10-19T11:25:41.137377+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:38:55.841005+00:00"
+    },
+    "freshMainFull": {
+      "status": "running",
+      "rootPid": 14636,
+      "startedAt": "2026-10-19T11:39:33.904837+00:00",
+      "expectedEditorRecords": 375,
+      "expectedComprehensiveStages": 9,
+      "sourceCount": 646,
+      "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "dirty": true,
+      "dirtyPathCount": 357,
+      "log": "/tmp/rollapp-image-core-portal-main-full.log",
+      "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
+    }
+  }
+}

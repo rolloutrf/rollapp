@@ -115,7 +115,20 @@ try {
         await save.scrollIntoViewIfNeeded(); await save.click();
         await page.waitForURL((url) => !url.searchParams.has("formScreen"));
         assert.equal(JSON.parse(await page.locator("[data-saved-task]").textContent()).dueOn, "2026-10-17");
-      } else await page.keyboard.press("Escape");
+      } else {
+        await page.keyboard.press("Escape");
+        await page.getByRole("button", { name: "Открыть задачу", exact: true }).click();
+        const drawer = page.locator('[data-slot="drawer-popup"]:visible');
+        await drawer.waitFor();
+        await page.waitForFunction(() => {
+          const popup = document.querySelector('[data-slot="drawer-popup"]');
+          return popup && Math.abs(popup.getBoundingClientRect().right - innerWidth) < 2;
+        });
+        assert.equal(await drawer.getAttribute("data-swipe-direction"), "right", "Task drawer opens from the wrong side");
+        const bounds = await drawer.boundingBox();
+        assert(bounds.x >= 0 && Math.abs(bounds.x + bounds.width - width) < 2, "Task drawer is not aligned to the right edge");
+        await page.keyboard.press("Escape");
+      }
       assert.deepEqual(errors, []);
       console.log(`PASS ${width}×${height}: ${width < 768 ? "native date page, Back, draft" : "desktop popover"}, leap day, clearing, history`);
       await page.close();

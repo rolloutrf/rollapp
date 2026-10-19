@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
+import { PageActionButton } from "@/components/page-action-button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -62,13 +63,13 @@ export function useIdentityReport(section) {
   return { state, setState, error, load };
 }
 
-export function IdentityReportControls({ section, label, state, setState, load }) {
+export function IdentityReportControls({ section, label, state, setState, load, navigation }) {
   const { readOnly } = useSphereSharing();
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const canUpload = !readOnly && state.mode === "empty";
-  const canDelete = !readOnly && (state.mode === "default" || state.mode === "generated");
+  const [deleteOpen, setDeleteOpen] = useState(null);
+  const canUpload = !readOnly && (state.files?.length || 0) < 8;
+  const canDelete = !readOnly && (state.files?.length || 0) > 0;
   const uploadDisabled = busy || !canUpload;
 
   const upload = async (event) => {
@@ -93,7 +94,7 @@ export function IdentityReportControls({ section, label, state, setState, load }
     try {
       for (const file of files) latest = await api.uploadIdentityReportPdf(section, file);
       if (latest) setState(latest);
-      toast.success(files.length === 1 ? "PDF загружен, страница пересобрана" : "PDF загружены, страница пересобрана");
+      toast.success(files.length === 1 ? "PDF загружен" : "PDF загружены");
     } catch (uploadError) {
       await load();
       toast.error(uploadError.message);
@@ -107,8 +108,22 @@ export function IdentityReportControls({ section, label, state, setState, load }
     setBusy(true);
     try {
       setState(await api.delete(`/identity/reports/${section}`));
-      setDeleteOpen(false);
+      setDeleteOpen(null);
       toast.success(`Контент ${label} и загруженные PDF удалены`);
+    } catch (deleteError) {
+      toast.error(deleteError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeFile = async (file) => {
+    if (busy || !canDelete) return;
+    setBusy(true);
+    try {
+      setState(await api.delete(`/identity/reports/${section}/files/${file.id}`));
+      setDeleteOpen(null);
+      toast.success(`PDF «${file.filename}» удалён`);
     } catch (deleteError) {
       toast.error(deleteError.message);
     } finally {
@@ -129,46 +144,51 @@ export function IdentityReportControls({ section, label, state, setState, load }
         onChange={upload}
       />}
       {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
-        {canUpload ? (
-          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
+        {canUpload && (
+          <PageActionButton type="button" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
             {busy && <Spinner data-icon="inline-start" />}
             Загрузить
-          </Button>
-        ) : (
-          <Button type="button" className="min-h-12 px-6 text-base" size="lg" shape="pill" variant="destructive" disabled={busy} onClick={() => setDeleteOpen(true)}>
+          </PageActionButton>
+        )}
+        {canDelete && (
+          <PageActionButton type="button" variant="destructive" disabled={busy} onClick={() => setDeleteOpen("all")}>
             {busy && <Spinner data-icon="inline-start" />}
-            Удалить
-          </Button>
+            Удалить все
+          </PageActionButton>
         )}
         <SphereBusinessControls sphereId="identity" />
       </div>}
+      {navigation}
       {state.files?.length ? (
-        <Card className="identity-report-files" aria-label="Исходные PDF">
-          <CardHeader><span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span></CardHeader>
-          <CardContent className="grid min-w-0 gap-2 sm:grid-cols-2">
+        <section className="identity-report-files flex min-w-0 flex-col gap-3" aria-label="Исходные PDF">
+          <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
             {state.files.map((file) => (
-              <a key={file.id} href={file.pdfUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "h-auto min-w-0 justify-start gap-3 px-3 py-3 text-left whitespace-normal wrap-anywhere")}>
-                <FileText className="size-5" aria-hidden="true" />
-                <span className="min-w-0">{file.filename}</span>
-              </a>
+              <div key={file.id} className="flex min-w-0 items-center gap-2">
+                <a href={file.pdfUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "ghost" }), "h-auto min-w-0 flex-1 justify-start gap-3 px-3 py-3 text-left whitespace-normal wrap-anywhere")}>
+                  <FileText className="size-5 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">{file.filename}</span>
+                </a>
+                {!readOnly && <Button type="button" size="icon" variant="ghost" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
+              </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       ) : null}
 
-      {!readOnly && <AlertDialog open={deleteOpen} onOpenChange={(open) => !busy && setDeleteOpen(open)}>
+      {!readOnly && <AlertDialog open={Boolean(deleteOpen)} onOpenChange={(open) => !busy && !open && setDeleteOpen(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Удалить весь контент {label}?</AlertDialogTitle>
+            <AlertDialogTitle>{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
             <AlertDialogDescription>
-              Сгенерированная страница и все загруженные PDF будут удалены. После этого раздел останется пустым до новой загрузки.
+              {deleteOpen === "all" ? "Все загруженные PDF и их содержимое будут удалены." : "Файл и извлечённое из него содержимое будут удалены из отчёта."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={removeAll}>
+            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => deleteOpen === "all" ? removeAll() : removeFile(deleteOpen)}>
               {busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-              Удалить всё
+              Удалить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -184,7 +204,7 @@ export function IdentityReportEmpty({ label }) {
       <EmptyHeader>
         <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>
-        <EmptyDescription>{readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — Rollapp извлечёт структуру отчёта и соберёт адаптивную страницу заново."}</EmptyDescription>
+        <EmptyDescription>{readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — здесь появится извлечённый из них текст."}</EmptyDescription>
       </EmptyHeader>
       {!readOnly && <EmptyContent><p>До 8 файлов, каждый не больше 12 МБ.</p></EmptyContent>}
     </Empty>
@@ -206,31 +226,149 @@ export function IdentityReportStatus({ mode, error, onRetry }) {
 }
 
 export function IdentityGeneratedDocuments({ report }) {
+  const prefix = useId();
+  const chartReveal = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(chartReveal.current), []);
+  const chartNames = { "score-chart": "Шкалы", "subscale-charts": "Субшкалы" };
+  const chartLinks = (report.documents || []).flatMap((document, documentIndex) => {
+    const seen = new Set();
+    return (document.layout?.pages || []).flatMap((page, pageIndex) => page.blocks.flatMap((block, blockIndex) => {
+      if (!chartNames[block.type] || seen.has(block.type)) return [];
+      seen.add(block.type);
+      return [{ id: `${prefix}-${documentIndex}-${pageIndex}-${blockIndex}`, label: chartNames[block.type], filename: document.filename, documentIndex }];
+    }));
+  });
   return (
-    <section className="identity-generated-documents" aria-labelledby={`${report.section}-documents-title`}>
-      <header className="identity-generated-documents__header">
-        <span>Содержание PDF</span>
-        <h3 id={`${report.section}-documents-title`}>Сгенерированный веб-документ</h3>
-        <p>Текст очищен от разрывов страниц и собран в смысловые разделы. Исходники доступны выше.</p>
-      </header>
+    <section className="identity-generated-documents identity-report" aria-label="Содержание загруженных PDF">
+      {chartLinks.length > 0 && <nav className="grid min-w-0 gap-4 not-typeset rollapp-body" aria-label="Графики отчёта">
+        {[...new Set(chartLinks.map(link => link.documentIndex))].map(documentIndex => <div key={documentIndex} className="grid min-w-0 gap-2">
+          {new Set(chartLinks.map(link => link.documentIndex)).size > 1 && <span className="text-xs text-muted-foreground wrap-anywhere">{report.documents[documentIndex].filename}</span>}
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {chartLinks.filter(link => link.documentIndex === documentIndex).map((link) => <PageActionButton key={link.id} variant="secondary" nativeButton={false} role="link" render={<a href={`#${link.id}`} />} aria-label={`${link.label} — ${link.filename}`} onClick={event => {
+              if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+              const target = event.currentTarget.ownerDocument.getElementById(link.id);
+              // Cancel an in-flight focus scroll before the native fragment
+              // navigation. The href and browser history keep their semantics.
+              target?.focus({ preventScroll: true });
+              target?.scrollIntoView({ block: "start", behavior: "instant" });
+              cancelAnimationFrame(chartReveal.current);
+              chartReveal.current = requestAnimationFrame(() => {
+                chartReveal.current = requestAnimationFrame(() => {
+                  chartReveal.current = 0;
+                  // Native focus/fragment normalization can finish after click.
+                  // Keep this correction tied to the same active destination.
+                  if (target?.isConnected && target.ownerDocument.activeElement === target && location.hash === `#${target.id}`) target.scrollIntoView({ block: "start", behavior: "instant" });
+                });
+              });
+            }}>
+              {link.label}
+            </PageActionButton>)}
+          </div>
+        </div>)}
+      </nav>}
       <div className="identity-generated-documents__list">
-        {(report.documents || []).map((document) => (
+        {(report.documents || []).map((document, documentIndex) => (
           <article key={document.id} className="identity-generated-document typeset-document">
-            <header>
-              <span>PDF · {document.filename}</span>
-              <h3>{document.title}</h3>
+            <header className="flex min-w-0 items-center gap-3 not-typeset">
+                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <h2 className="min-w-0 font-heading text-lg font-semibold wrap-anywhere">{document.filename}</h2>
             </header>
-            {(document.sections || []).map((section, sectionIndex) => (
-              <section key={`${section.title}-${sectionIndex}`}>
-                <h4>{section.title}</h4>
-                {section.paragraphs.map((paragraph, paragraphIndex) => (
-                  <p key={`${paragraph.slice(0, 60)}-${paragraphIndex}`}>{paragraph}</p>
-                ))}
-              </section>
-            ))}
+            <div className="identity-pdf-content typeset typeset-rollapp" data-typeset-group>
+                {document.layout?.pages?.length ? document.layout.pages.map((page, pageIndex) => (
+                  <section key={page.number} className="identity-pdf-page" data-pdf-page={page.number} data-pdf-wide={page.blocks.some((block) => block.type === "subscale-charts" || block.headers?.length === 3) || undefined}>
+                    <IdentityPdfBlocks blocks={page.blocks} idPrefix={`${prefix}-${documentIndex}-${pageIndex}`} />
+                  </section>
+                )) : document.rawLines?.length ? (
+                  <p className="whitespace-pre-wrap">{document.rawLines.join("\n")}</p>
+                ) : <p role="status">Текст исходного PDF недоступен.</p>}
+            </div>
           </article>
         ))}
       </div>
     </section>
   );
+}
+
+function IdentityPdfBlocks({ blocks, idPrefix }) {
+  return blocks.map((block, index) => {
+    if (block.type === "heading") {
+      const Heading = block.level === 3 ? "h3" : block.level === 5 ? "h5" : block.level === 6 ? "h6" : "h4";
+      return <Heading key={index} data-typography={block.level === 6 ? "label" : undefined}><IdentityPdfInline text={block.text} runs={block.runs} /></Heading>;
+    }
+    if (block.type === "label") return <p key={index} data-typography="label" style={{ color: block.color }}>{block.text}</p>;
+    if (block.type === "list") {
+      const List = block.ordered ? "ol" : "ul";
+      return <List key={index} className={block.plain ? "identity-pdf-lines" : undefined} start={block.ordered ? block.items[0]?.number : undefined}>
+        {block.items.map((item, itemIndex) => <li key={itemIndex} value={block.ordered ? item.number : undefined}><IdentityPdfInline text={item.text} runs={item.runs} /></li>)}
+      </List>;
+    }
+    if (block.type === "table") {
+      const descriptive = block.headers?.length === 3;
+      return <table key={index} className={cn("w-full", descriptive && "identity-pdf-scale-table")}>
+        {block.headers && <thead><tr>{block.headers.map((header, headerIndex) => <th key={headerIndex} scope="col" data-typography="label">{header}</th>)}</tr></thead>}
+        <tbody>{block.rows.map((row, rowIndex) => row.length === 1 ? <tr key={rowIndex} className="identity-pdf-table-group">
+          <th colSpan={block.headers?.length || 2}><h4>{row[0]}</h4></th>
+        </tr> : <tr key={rowIndex}>
+          <th scope="row" className={descriptive ? undefined : "font-normal"}>{row[0]}</th>
+          <td className="w-1 whitespace-nowrap text-right! tabular-nums">{row[1]}</td>
+          {row.length > 2 && <td>{row[2]}</td>}
+        </tr>)}</tbody>
+      </table>;
+    }
+    if (block.type === "score-chart") {
+      return <div key={index} id={idPrefix && `${idPrefix}-${index}`} data-report-chart-target tabIndex={-1} className="identity-pdf-scores not-typeset rollapp-body">
+        {block.rows.map((row, rowIndex) => <div key={rowIndex} className="identity-pdf-score">
+          <span>{row.label}</span>
+          <span className="identity-pdf-score__value tabular-nums">{row.value}</span>
+          <div className="identity-pdf-score__track" role="img" aria-label={`${row.label}: ${row.value}`}>
+            <div style={{ width: `${Number(row.value)}%`, backgroundColor: row.color }} />
+          </div>
+        </div>)}
+      </div>;
+    }
+    if (block.type === "rank-chart") {
+      const rank = block.cells.findIndex((color) => sourceCellColor(color)) + 1;
+      return <div key={index} className="identity-pdf-rank not-typeset" role="img" aria-label={`${rank} / ${block.cells.length}`}>
+        {block.cells.map((color, cellIndex) => <span key={cellIndex} style={sourceCellColor(color) ? { backgroundColor: color } : undefined} />)}
+      </div>;
+    }
+    if (block.type === "source-emphasis") {
+      return <div key={index} className="identity-pdf-source-emphasis" data-typeset-group style={{ borderColor: block.color }}><IdentityPdfBlocks blocks={block.blocks} /></div>;
+    }
+    if (block.type === "subscale-charts") {
+      return <div key={index} id={idPrefix && `${idPrefix}-${index}`} data-report-chart-target tabIndex={-1} className="identity-pdf-subscale-columns">
+        {block.columns.map((column) => <section key={column.code} className="identity-pdf-subscale-column">
+          <header><h4>{column.code}</h4><p data-typography="caption">{column.title}</p></header>
+          {column.sections.map((section, sectionIndex) => <section key={sectionIndex} className="identity-pdf-subscale-section">
+            {section.title && <h5>{section.title}</h5>}
+            <div className="identity-pdf-subscales not-typeset rollapp-body">
+              {section.rows.map((row, rowIndex) => {
+                const active = row.cells.filter((color) => sourceCellColor(color)).length;
+                return <div key={rowIndex} className="identity-pdf-subscale">
+                  <span>{row.label}</span>
+                  <span className="identity-pdf-subscale__cells" role="img" aria-label={`${row.label}: ${active} / ${row.cells.length}`}>
+                    {row.cells.map((color, cellIndex) => <span key={cellIndex} style={sourceCellColor(color) ? { backgroundColor: color } : undefined} />)}
+                  </span>
+                </div>;
+              })}
+            </div>
+          </section>)}
+        </section>)}
+      </div>;
+    }
+    return <p key={index} data-typography={block.type === "caption" ? "caption" : undefined}><IdentityPdfInline text={block.text} runs={block.runs} /></p>;
+  });
+}
+
+function IdentityPdfInline({ text, runs }) {
+  return runs?.length ? runs.map((run, index) => {
+    let content = run.superscript ? <sup>{run.text}</sup> : run.text;
+    content = run.italic ? <em>{content}</em> : content;
+    return run.bold ? <strong key={index}>{content}</strong> : <span key={index}>{content}</span>;
+  }) : text;
+}
+
+function sourceCellColor(color) {
+  const channels = [1, 3, 5].map((start) => parseInt(color.slice(start, start + 2), 16));
+  return Math.max(...channels) - Math.min(...channels) > 40;
 }

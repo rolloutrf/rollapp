@@ -1,0 +1,138 @@
+{
+  "verifiedAt": "2026-10-17T20:59:19.311513+03:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "targeted-checks-passed; comprehensive-blocked-by-existing-Gallup-test",
+  "matrix": [
+    {
+      "width": 320,
+      "height": 844
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 390,
+      "height": 400
+    },
+    {
+      "width": 768,
+      "height": 844
+    },
+    {
+      "width": 820,
+      "height": 844
+    },
+    {
+      "width": 1024,
+      "height": 844
+    },
+    {
+      "width": 1440,
+      "height": 844
+    },
+    {
+      "width": 1920,
+      "height": 844
+    }
+  ],
+  "checks": [
+    {
+      "command": "TEXT_EDIT_PORT=5299 npm run test:text-edit",
+      "result": "passed: full 8-viewport matrix and advanced scenarios",
+      "log": "/tmp/rollapp-create-complete-text.log"
+    },
+    {
+      "command": "TEXT_EDIT_PORT=5299 TEXT_EDIT_WIDTHS=1440 npm run test:text-edit",
+      "result": "passed: supplemental advanced cases, including shared toggle typography at 390/1440 × 400",
+      "log": "/tmp/rollapp-create-rhythm-final.log"
+    },
+    {
+      "command": "npm run test:ui",
+      "result": "passed: 37 primitives, 64 application JSX sources"
+    },
+    {
+      "command": "npm run test:controls",
+      "result": "passed: 132 cases including screenshot pixels and DPR 3",
+      "log": "/tmp/rollapp-create-complete-controls.log"
+    },
+    {
+      "command": "npm run test:dates",
+      "result": "passed: full 13-case configured matrix",
+      "log": "/tmp/rollapp-create-dates.log"
+    },
+    {
+      "command": "npm run build",
+      "result": "passed; existing chunk-size warning remains",
+      "log": "/tmp/rollapp-create-complete-build.log"
+    },
+    {
+      "command": "npm run check:comprehensive",
+      "result": "failed on release unit stage: 512 passed, 1 skipped, 1 unrelated failure in src/components/identity-reports.test.js (Gallup DNA labels must use shrinkable grid tracks). Later comprehensive stages not run. Editor unit cases all passed.",
+      "log": "/tmp/rollapp-create-complete-check.log",
+      "json": "/tmp/rollapp-create-complete-check.json"
+    },
+    {
+      "command": "npm audit",
+      "result": "7 existing high-severity development-tool dependencies; no forced incompatible downgrade",
+      "log": "/tmp/rollapp-create-audit.json"
+    },
+    {
+      "command": "npm audit --omit=dev",
+      "result": "0 vulnerabilities",
+      "log": "/tmp/rollapp-create-audit-production.json"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "npm run dev:keepalive:status",
+      "result": "ready; persistent service PID 52615, configured production TLS connection retained"
+    }
+  ],
+  "fixedFindings": [
+    "Deferred typed insertion below or Alt/Option above, without writes on open/search/cancel.",
+    "Picker closing no longer steals the newly inserted caret.",
+    "Modifier-only keydown no longer hides the gutter control before Alt-click.",
+    "Keyboard selection is not overwritten by synthetic pointer entry during scrolling.",
+    "Viewport-constrained scrolling picker and immediate keyboard-height reduction without animating max-height.",
+    "Heading 1–4, text, bullet/number/task lists, collapsible blocks and quotes share one catalogue.",
+    "List/toggle conversion to text retains content and supports Undo.",
+    "Toggle Markdown round trips retain nested structure, checked state, Rollapp directives, code fences and empty editable body.",
+    "Toggle spacing is owned by shared typeset: first-block trim and heading-owned following gap.",
+    "No inline-editable prose border, outline, ring or shadow; toolbar controls retain focus cues."
+  ],
+  "liveReview": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "result": "Production-connected document loaded; opened creation/type picker, searched heading 1, checked 36/40 preview, cancelled with caret restored. Menu 672×560 at (256,144) fits viewport; prose border 0, outline none, shadow none. No creation, conversion, deletion or test-text save performed. Temporary browser tab closed."
+  },
+  "unverified": [
+    "Full application comprehensive suite beyond its failing unit stage.",
+    "Native iOS/Telegram keyboard and touch dragging; keyboard coverage uses Chromium and simulated VisualViewport.",
+    "Concurrent editing across separate devices/tabs is not collaborative merging.",
+    "No deployment requested or performed."
+  ],
+  "sourceSha256": {
+    "src/components/inline-rich-text-editor.jsx": "9644d83ab1166e25156516be70ae3efc0a82e8d541dab75db9746b763ac6b37f",
+    "src/components/inline-block-controls.jsx": "0db228a9229f52758b9ee907aa4d4d354334d7fb42ea0fdd08a5fd9430f363ca",
+    "src/components/inline-block-picker.jsx": "45436d261590b03035a1435c517eb4ef02d4287193898fcf586b569b7b7a2d87",
+    "src/components/inline-editor.css": "3ba1c69bcdd778c141fbd1dbd27fb3fa99c186008790379814edbc5b2917b94e",
+    "src/components/ui/popover.jsx": "ce43e261ed748ee172c14495cb17c83c347ae8e322ee6f52d7f1f814624628c4",
+    "src/lib/inline-block-types.js": "4934ae16a5140c591d362412f51901265fe6087c771c5673ecb9cfc74adbfd10",
+    "src/lib/inline-blocks.js": "2f48f5a1f3c86612d49ed2c7891e7491e20e518ff5894451cb234cb7cacc317c",
+    "src/lib/inline-blocks.test.js": "14619b3e2566f515f5d79ea0512be0d48c1c9f194db405f61fbbb72c17a0921d",
+    "src/lib/inline-editor-extensions.js": "2d91d2f20993846c9de35cee581836455c73c52a7e20ba66babde891e31c6381",
+    "src/lib/inline-editor-extensions.test.js": "da65461f83fd004d57b63938ccaa844db93fce30cf5bfd7c2ec3997ef4658a12",
+    "src/typeset.css": "acf727b8b2f51568299682cc5ab78fb50e8e4308fc0e125931d01431947400ed",
+    "scripts/text-edit-smoke.mjs": "1a6f65ae5788347e06dc768f39a8a79c0032dd379bc7bef49d40ed6d12ddfb3f",
+    "scripts/fixtures/text-edit.jsx": "e53e021cdf653b649e0ab869a026caa4ace6507780ff0176ed7c606d9b21fcb0",
+    "package.json": "d0e055b0e6e2e33dccdc68d1a707f15938b1e75a8b596de5bde13473d03586e1",
+    "package-lock.json": "36162b2ce4fb439a19956fb652e27165bf5c22587ac4f1f79222b4dd45437927"
+  }
+}

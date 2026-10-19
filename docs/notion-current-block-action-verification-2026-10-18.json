@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "status": "promoted to main; combined verification pending",
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-logical-move-qrw33isc",
+  "sourceSnapshot": "/tmp/rollapp-mod-enter-candidate-sources.json",
+  "sourceCount": 604,
+  "officialReference": "https://www.notion.com/help/keyboard-shortcuts",
+  "before": "/tmp/rollapp-mod-enter-before.log",
+  "implementation": [
+    "src/lib/inline-current-block-action.js",
+    "src/lib/inline-block-selection-extension.js"
+  ],
+  "evidence": {
+    "unit": {
+      "command": "npm test",
+      "total": 651,
+      "pass": 650,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-mod-enter-unit-final.log"
+    },
+    "ui": {
+      "command": "npm run test:ui",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-mod-enter-ui.log"
+    },
+    "build": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "/tmp/rollapp-mod-enter-build.log",
+      "warning": "existing chunk >500KB"
+    },
+    "targetedBrowser": {
+      "command": "TEXT_EDIT_PORT=5599 TEXT_EDIT_CACHE_DIR=node_modules/.vite-logical-drag node scripts/text-edit-smoke.mjs --mod-enter-only",
+      "passRecords": 8,
+      "log": "/tmp/rollapp-mod-enter-matrix-fixed.log",
+      "lastDifference": "subsequent script edit adds screenshot only, covered by pending full run"
+    },
+    "fullEditor": {
+      "session": 12763,
+      "expectedPassRecords": 203,
+      "status": "passed",
+      "log": "/tmp/rollapp-mod-enter-full-editor.log",
+      "exitCode": 0,
+      "passRecords": 203,
+      "sourceCount": 604,
+      "sourceDrift": [],
+      "addedSources": [],
+      "finishedAt": "2026-10-18T16:11:27.433069+00:00"
+    }
+  },
+  "mainFrozen": {
+    "session": 24320,
+    "sources": 595,
+    "controllerCell": "1899"
+  },
+  "unverified": [
+    "Actual mobile keyboard/IME hardware",
+    "Full goal R1–R10",
+    "Main combined verification after possible promotion"
+  ],
+  "productionDataWrites": false,
+  "temporaryDifferencesFromMain": [
+    "src/index.css",
+    "src/components/identity-report-manager.jsx",
+    "src/lib/inline-current-block-action.test.js",
+    "src/lib/inline-block-selection-extension.js",
+    "src/lib/inline-current-block-action.js",
+    "scripts/hogan-scales-smoke.mjs",
+    "scripts/text-mod-enter-checks.mjs",
+    "scripts/nesting-public-depth-diagnostic.mjs",
+    "scripts/identity-report-chart-checks.mjs",
+    "scripts/text-edit-smoke.mjs",
+    "scripts/nesting-depth-diagnostic-checks.mjs",
+    "scripts/nesting-prototype-checks.mjs",
+    "scripts/nesting-public-depth-checks.mjs",
+    "scripts/nesting-depth-diagnostic.mjs",
+    "scripts/text-list-block-move-checks.mjs",
+    "scripts/fixtures/hogan-scales.jsx"
+  ],
+  "promoted": true,
+  "promotedAt": "2026-10-18T16:17:21.116279+00:00",
+  "mainCombinedTargets": {
+    "status": "passed",
+    "exitCode": 0,
+    "browserPassRecords": {
+      "tableHandles": 9,
+      "axisGuards": 2,
+      "currentAction": 8,
+      "relocationDepth": 2
+    },
+    "totalBrowserPassRecords": 21,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "unit": {
+      "total": 656,
+      "pass": 655,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "passed (37 primitives;69 JSX)",
+    "controls": {
+      "passRecords": 132,
+      "fontServingDenials": 0,
+      "fullWidthMatrix": true,
+      "DPR3": true
+    },
+    "logs": {
+      "tableHandles": "/tmp/rollapp-table-main-targets.log",
+      "axisGuards": "/tmp/rollapp-table-main-guards.log",
+      "currentAction": "/tmp/rollapp-current-action-main-targets.log",
+      "relocationDepth": "/tmp/rollapp-relocation-depth-main-targets.log"
+    },
+    "finishedAt": "2026-10-18T16:20:54.297082+00:00"
+  }
+}

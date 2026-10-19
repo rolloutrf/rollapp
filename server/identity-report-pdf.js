@@ -1,4 +1,5 @@
 import { extractPdfLines } from "./lab-pdf.js";
+import { extractIdentityPdfLayout } from "./identity-report-layout.js";
 
 const GALLUP_TALENTS = [
   ["Achiever", "Достижение", "executing"], ["Activator", "Активатор", "influencing"],
@@ -82,34 +83,6 @@ function cleanLines(lines) {
   return result.slice(0, 2_500);
 }
 
-function looksLikeHeading(line) {
-  if (line.length < 3 || line.length > 120 || /[.!?;:]$/.test(line)) return false;
-  if (/^\d{1,2}\.\s+[A-Za-zА-Яа-яЁё -]+$/.test(line)) return false;
-  const letters = [...line].filter((char) => /[A-Za-zА-Яа-яЁё]/.test(char));
-  const uppercase = letters.filter((char) => char === char.toLocaleUpperCase() && char !== char.toLocaleLowerCase());
-  return /^(?:what|why|how|apply|take action|your |about |summary|introduction|overview|interpret|профиль|итоги|как |что |почему |рекомендац|вывод)/i.test(line)
-    || (letters.length >= 4 && uppercase.length / letters.length > 0.72);
-}
-
-function sectionize(lines, fallbackTitle) {
-  const sections = [];
-  let current = { title: fallbackTitle, paragraphs: [] };
-  const push = () => {
-    if (!current.paragraphs.length) return;
-    sections.push({ title: current.title, paragraphs: current.paragraphs.slice(0, 120) });
-  };
-  for (const line of lines) {
-    if (looksLikeHeading(line)) {
-      push();
-      current = { title: line, paragraphs: [] };
-      continue;
-    }
-    current.paragraphs.push(line);
-  }
-  push();
-  return sections.slice(0, 80);
-}
-
 function findPerson(lines) {
   const gallup = lines.find((line) => /\b[A-ZА-ЯЁ][A-ZА-ЯЁ'-]+\s+[A-ZА-ЯЁ][A-ZА-ЯЁ'-]+\s*\|/.test(line));
   if (gallup) return gallup.split("|")[0].trim().split(/\s+/).map((word) => (
@@ -180,7 +153,7 @@ function parseHoganProfiles(lines) {
 export async function parseIdentityPdf(buffer, { section, id, filename, uploadedAt = new Date() }) {
   const extractedLines = await extractPdfLines(buffer);
   const lines = cleanLines(extractedLines);
-  if (lines.length < 4) throw new Error("В PDF не найдено достаточно текста для создания страницы");
+  if (!extractedLines.some((line) => String(line).trim())) throw new Error("В PDF не найден текст для отображения");
   const title = filenameTitle(filename);
   return {
     id,
@@ -189,17 +162,14 @@ export async function parseIdentityPdf(buffer, { section, id, filename, uploaded
     uploadedAt: new Date(uploadedAt).toISOString(),
     person: findPerson(extractedLines),
     date: findDate(extractedLines),
-    sections: sectionize(lines, title),
+    rawLines: extractedLines.map((line) => String(line).trim()).filter(Boolean),
+    layout: await extractIdentityPdfLayout(buffer),
     ...(section === "gallup" ? { strengths: parseGallupStrengths(lines) } : { profiles: parseHoganProfiles(lines) }),
   };
 }
 
 export function identityReportForDisplay(section, report) {
-  if (section !== "hogan" || !report) return report;
-  return {
-    ...report,
-    documents: (report.documents || []).map(({ sections: _sections, ...document }) => document),
-  };
+  return report;
 }
 
 export function generateIdentityReport(section, documents) {

@@ -1,0 +1,372 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T11:01:20.857127+00:00",
+  "classification": "progress",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "parent": "/tmp/rollapp-inline-resize-focus-final375.json",
+  "childWorkspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs",
+  "parentMutated": false,
+  "mainPromoted": true,
+  "productionWrites": 0,
+  "counterexamples": [
+    {
+      "seed": 66,
+      "finding": "Italic trailing space inside a paragraph loses italic on save/reload; prior test semantics discarded marks on whitespace and could not detect it.",
+      "before": "/tmp/rollapp-rich-roundtrip-counterexample.json",
+      "source": "*trailing* ++\\*\\*literal\\*\\*++",
+      "fix": "Canonical inline serialization for every marked edge-space run; test semantics now retains marks on all characters, including whitespace."
+    },
+    {
+      "seed": 33,
+      "finding": "Unlinked literal URL inside styled text gains link marks when GFM parses saved Markdown.",
+      "before": "/tmp/rollapp-rich-roundtrip-diverse-counterexample.json",
+      "minimal": "/tmp/rollapp-literal-link-minimal.json",
+      "fix": "Canonical inline serialization retains URLs/emails deliberately left unlinked; ordinary Markdown imports retain existing autolinking."
+    },
+    {
+      "seed": 657,
+      "finding": "Bold literal asterisks followed immediately by italic text serialize to ambiguous Markdown delimiters; reload loses bold and adds literal stars.",
+      "before": "/tmp/rollapp-rich-mark-boundary-minimal-before.json",
+      "status": "Minimal before reproduction confirms; adjacent differently marked runs now serialize canonically. Native pair formatting/Undo/save/public10 passed before plus follow-up.",
+      "originalLog": "/tmp/rollapp-rich-roundtrip-10000.log"
+    },
+    {
+      "seed": 753,
+      "finding": "Uncoloured ordered-list item paragraph followed by divider reloads as a single paragraph containing newline---.",
+      "before": "/tmp/rollapp-rich-roundtrip-boundary-followup-counterexample.json",
+      "fix": "Rich list children beyond first paragraph/nested lists serialize as explicit canonical blocks, preserving owners and sibling blocks."
+    },
+    {
+      "finding": "Literal ++ inside a bold or plain run becomes underline on reload; upstream Markdown writer does not escape custom delimiter.",
+      "beforeUnit": "/tmp/rollapp-roundtrip-all-storage-unit.log: test620",
+      "fix": "Canonical inline serialization for literal ++, with ordinary Markdown underline import retained."
+    }
+  ],
+  "evidence": {
+    "unit": {
+      "total": 713,
+      "pass": 712,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-roundtrip-spaces-links-unit.log"
+    },
+    "modelDiverse500": {
+      "status": "pass",
+      "log": "/tmp/rollapp-rich-roundtrip-diverse-after-links.log"
+    },
+    "model10000": {
+      "status": "failed-at-657",
+      "log": "/tmp/rollapp-rich-roundtrip-10000.log"
+    },
+    "nativeStyles": {
+      "status": "terminal passed10 on previous spaces/link-only version",
+      "expectedRecords": 10,
+      "session": 61842,
+      "pid": 7256,
+      "log": "/tmp/rollapp-roundtrip-spaces-links-styles.log",
+      "scope": "Eight viewports: actual Cmd+I including trailing space, exact saved JSON/public em text; remove link via link form, native Undo/Redo, exact reload/public absence of anchor. Two existing light-theme reader cases retained."
+    }
+  },
+  "next": [
+    "Finish frozen child native style10; preserve terminal result.",
+    "Then add literal-delimiter regression and repair serialization in isolated child; rerun affected model/browser checks.",
+    "Finish parent375 and review exact proposed source/contract hashes before any main promotion.",
+    "Run fresh main comprehensive after confirmed combined promotion; keep full goal and open R1–R10."
+  ],
+  "history": {
+    "initialUnit713": "/tmp/rollapp-roundtrip-spaces-links-unit.log: 713/712 PASS/1 SKIP",
+    "initialNative10": "/tmp/rollapp-roundtrip-spaces-links-styles.log:10PASS",
+    "boundaryUnit715": "/tmp/rollapp-roundtrip-all-storage-unit.log:715/713PASS/1FAIL/1SKIP (literal++)",
+    "boundaryNative10": "/tmp/rollapp-roundtrip-all-storage-styles.log:10PASS",
+    "beforeArtifactReuse": "Original 10000 probe reused its counterexample filename on next iteration; seed657 was regenerated as a smaller independent minimal before case, source/actual/expected retained in the new versioned artifact. Further counterexamples use distinct paths."
+  },
+  "finalPhase": {
+    "status": "passed29 native, source/extra/added drift0",
+    "sourceCount": 646,
+    "sourceSnapshot": "/tmp/rollapp-inline-storage-final-sources.json",
+    "externalProbeSnapshot": "/tmp/rollapp-inline-storage-external-inputs.json",
+    "report": "/tmp/rollapp-inline-storage-final.json",
+    "session": 76734,
+    "expectedNativeRecords": 29,
+    "groups": "styles10,code-paste8,four-document8,column-persistence3",
+    "unit": {
+      "total": 716,
+      "pass": 715,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-inline-storage-final-unit.log"
+    },
+    "ui": "37 primitives/74 JSX PASS",
+    "build": "PASS with existing chunk warning",
+    "model": {
+      "status": "pass",
+      "documents": 10000,
+      "log": "/tmp/rollapp-inline-storage-final-model.log",
+      "coverage": "/tmp/rollapp-rich-roundtrip-final-coverage.json",
+      "scope": "1–4 root blocks;23 node types including doc, six generated mark types (link combinations separately covered by unit cases), depths<=11,<=721 nodes; balanced colour/no-colour. Finite sample, not proof of all documents."
+    },
+    "longAnswerFollowUp": {
+      "status": "passed",
+      "expectedRecords": 8,
+      "log": "/tmp/rollapp-inline-storage-long-answers.log",
+      "reason": "Canonical storage can increase serialized size; verify protected answer packing/drafts/retry independently on unchanged frozen child.",
+      "records": 8,
+      "exitCode": 0
+    },
+    "proposed": "/tmp/rollapp-inline-storage-proposed.json",
+    "diff": "/tmp/rollapp-inline-storage-proposed.diff",
+    "sourcePaths": 5,
+    "diffLines": 192,
+    "autoPromotion": false,
+    "terminal": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-final-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-final-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-final-build.log"
+        },
+        {
+          "name": "model",
+          "exitCode": 0,
+          "passRecords": 1,
+          "expectedRecords": 1,
+          "log": "/tmp/rollapp-inline-storage-final-model.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-inline-storage-final-styles.log"
+        },
+        {
+          "name": "code-paste",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-storage-final-code-paste.log"
+        },
+        {
+          "name": "four-document",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-storage-final-four-document.log"
+        },
+        {
+          "name": "column-persistence",
+          "exitCode": 0,
+          "passRecords": 3,
+          "expectedRecords": 3,
+          "log": "/tmp/rollapp-inline-storage-final-column-persistence.log"
+        }
+      ],
+      "expectedNativeRecords": 29,
+      "startedAt": "2026-10-19T10:45:40.715083+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T10:51:33.940279+00:00"
+    }
+  },
+  "mainPromotion": {
+    "at": "2026-10-19T10:53:19.051271+00:00",
+    "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+    "dirty": true,
+    "sourceCount": 642,
+    "expectedEditorRecords": 367,
+    "paths": [
+      {
+        "path": "scripts/text-inline-style-checks.mjs",
+        "oldHash": "6f120abaa3737233402fef069c74fa6bad3fb82845e0c89f51f53be996d3803f",
+        "newHash": "b3906f2097d1ece4e3ce2130ff7ef06a7c673db042b09a889d638cd1853ff8df",
+        "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs/scripts/text-inline-style-checks.mjs"
+      },
+      {
+        "path": "src/lib/inline-block-color.js",
+        "oldHash": "503ad07dd7a957d10103f149658bf07cd4f11bf64e1b46b6dd613c961fdb122e",
+        "newHash": "87126f4a38172f5a6b6d0768bf6a1136f7ee8bbd0de2bcf5ad279332909caf46",
+        "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs/src/lib/inline-block-color.js"
+      },
+      {
+        "path": "src/lib/inline-block-color.test.js",
+        "oldHash": "e6656fcfecbff7ccd9d7ff869571c11e8d35aef9c935ef0b0792673abe1cdbaa",
+        "newHash": "9fd0808f4b02bd4905b6b28b422c27158074bb85b710b425eb46250bc7072f97",
+        "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs/src/lib/inline-block-color.test.js"
+      },
+      {
+        "path": "src/lib/inline-rich-code.js",
+        "oldHash": "e7d3c496a5e7ca2281c6eedc5a9cea611afd36d4d0c4b2119837265011f9af4f",
+        "newHash": "e35c7e3489631669190c287d742467be2d7089f949c7a0c9946b18469197af4e",
+        "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs/src/lib/inline-rich-code.js"
+      },
+      {
+        "path": "src/lib/inline-text-style.test.js",
+        "oldHash": "cb62c5faaeb43c699ce581f790c5972e8cac1f40887b621de53a83e15fc7de48",
+        "newHash": "bf4fd562f3f30292986610777c70b92560451f718a479eeb1bceefce468368d3",
+        "source": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-roundtrip-37_c2iqs/src/lib/inline-text-style.test.js"
+      },
+      {
+        "path": "AGENTS.md",
+        "oldHash": "dc1f6a57ac172d03aaa7e6d5c905f961068e87a15a0ce7422096e5bf1c17c8f9",
+        "newHash": "f7fa7515c16f99ae9bbb59a61cf82843383447e4fae8e00021d1684d33c0e9b0",
+        "source": "/tmp/rollapp-inline-storage-main-contracts/AGENTS.md"
+      },
+      {
+        "path": "docs/inline-editing.md",
+        "oldHash": "8c04e910c26e553393143b936e71aa051ea29a415b11a61f14ceab35d9fbd445",
+        "newHash": "264b0362a49b47ec5e650e82bac542b36d2a8a64dd61e41d0bf52edb717d0eb8",
+        "source": "/tmp/rollapp-inline-storage-main-contracts/docs/inline-editing.md"
+      },
+      {
+        "path": "docs/verification.md",
+        "oldHash": "7723a9200e22d1d1c03d4c0a1445f67f99cc3d8e821dc2acb55af7210ca648df",
+        "newHash": "26c54dc1a681ddef34c411a42905f6df372c0f81cdaba88ffe678c8bc3607cf6",
+        "source": "/tmp/rollapp-inline-storage-main-contracts/docs/verification.md"
+      }
+    ],
+    "parentResize375StillIsolated": true,
+    "productionWrites": 0,
+    "why": "Independent storage overlay:5 existing source/test paths + storage-only paragraphs in3 contracts. All source/extra/external inputs matched final child gates. Parent resizer/core proposal paths do not overlap these five paths. Main verification follows."
+  },
+  "mainVerification": {
+    "sourceCount": 642,
+    "expectedEditorRecords": 367,
+    "report": "/tmp/rollapp-inline-storage-main-gates.json",
+    "snapshot": "/tmp/rollapp-inline-storage-main-gates-sources.json",
+    "session": 18268,
+    "terminal": {
+      "status": "passed",
+      "sourceCount": 642,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-main-gates-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-main-gates-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-storage-main-gates-build.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-inline-storage-main-gates-styles.log"
+        }
+      ],
+      "expectedNativeRecords": 10,
+      "startedAt": "2026-10-19T10:53:55.478699+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T10:57:06.494600+00:00"
+    },
+    "unit": {
+      "total": 711,
+      "pass": 710,
+      "skip": 1,
+      "fail": 0
+    },
+    "ui": "37 primitives/73 JSX PASS",
+    "build": "PASS with existing chunk warning",
+    "nativeStyles": {
+      "records": 10,
+      "exitCode": 0
+    },
+    "coverageNote": "Current main storage5 only. Parent image/core13 +4 new source files remain isolated; no full comprehensive claim."
+  },
+  "mainLiveReadOnly": {
+    "at": "2026-10-19T10:59:19.348056+00:00",
+    "tab": "temporary IAB45;closed;viewport reset",
+    "source": "current main642/storage5",
+    "desktop": {
+      "paragraphs": 43,
+      "headings": 7,
+      "links": 29,
+      "body": "18px/28px",
+      "borders": "0 all sides",
+      "outline": "none",
+      "shadow": "none",
+      "rootOverflow": false
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "scale": 1,
+      "contenteditable": "true",
+      "body": "18px/28px",
+      "borders": "0 all sides",
+      "outline": "none",
+      "shadow": "none",
+      "rootOverflow": false
+    },
+    "screenshotsInspected": true,
+    "actualTextEntry": false,
+    "saveCommands": 0,
+    "productionWrites": 0
+  },
+  "latestReview": {
+    "paths": 5,
+    "contracts": 3,
+    "dirtyPaths": 351,
+    "gitDiffCheck": "pass",
+    "mainMatchesPromotion": true,
+    "parentIntegrity": "source646 unchanged; process5645 confirmed live; not restarted",
+    "keepalivePid": 85976,
+    "productionWrites": 0
+  },
+  "mobileEngineAvailability": {
+    "simctl": "xcrun --find simctl exited72: utility unavailable; no Simulator run claimed.",
+    "playwrightWebKit": "Configured executable webkit-2311/pw_run.sh absent; no WebKit run claimed.",
+    "deviceIME": "Still unverified; continue other goal work, not a goal blocker yet."
+  },
+  "currentMainIntegrity": {
+    "sourceDrift": [],
+    "extraDrift": []
+  },
+  "currentParentIntegrity": {
+    "sourceDrift": [],
+    "extraDrift": []
+  },
+  "parentProgressAtTurnEnd": {
+    "status": "running",
+    "session": 44250,
+    "pid": 5645,
+    "expectedRecords": 375,
+    "observedPassRecords": 150,
+    "liveProcess": "5645 29:29 node scripts/text-edit-smoke.mjs",
+    "report": "/tmp/rollapp-inline-resize-focus-final375.json"
+  }
+}

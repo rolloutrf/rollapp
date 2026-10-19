@@ -4,6 +4,7 @@ import {
   ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/api";
+import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { ListTileContent } from "@/components/education-lists";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -207,7 +208,7 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
   return (
     <div className="relative h-full min-w-0">
       <Button
-        className="peer absolute inset-0 z-10 h-full w-full cursor-pointer rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0"
+        className="collection-snippet__open peer absolute inset-0 z-10 h-full w-full cursor-pointer rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0"
         variant="ghost"
         type="button"
         aria-haspopup="dialog"
@@ -217,14 +218,16 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
       >
         <span className="sr-only">Редактировать препарат «{medication.name}»</span>
       </Button>
-      <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
+      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
+        <CollectionSnippetMedia icon={Pill}>
+          <Badge variant={status.variant} className="collection-snippet__badge">
+            <StatusIcon data-icon="inline-start" aria-hidden="true" />
+            {status.label}
+          </Badge>
+        </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">
             <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{medication.name}</h4>
-            <Badge variant={status.variant}>
-              <StatusIcon data-icon="inline-start" aria-hidden="true" />
-              {status.label}
-            </Badge>
           </CardTitle>
           <CardDescription className="min-w-0 wrap-anywhere">{medication.purpose || MEDICATION_FORMS[medication.medicationForm]}</CardDescription>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
@@ -445,7 +448,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
                         onChange={(event) => updateTime(index, event.target.value)}
                       />
                       {form.frequency === "custom" && form.scheduleTimes.length > 1 && (
-                        <Button className="size-12 shrink-0" variant="ghost" size="icon" type="button" aria-label={`Удалить время приёма ${index + 1}`} onClick={() => removeTime(index)}>
+                        <Button className="size-12 shrink-0" variant="destructive" size="icon" type="button" aria-label={`Удалить время приёма ${index + 1}`} onClick={() => removeTime(index)}>
                           <Trash2 aria-hidden="true" />
                         </Button>
                       )}
@@ -708,7 +711,7 @@ function MedicationSection({ groups, hideTitle = false, id, medications, moveSta
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
       <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
-      <ul className="grid list-none gap-4 sm:grid-cols-2">
+      <ul className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4">
         {medications.map((medication) => (
           <li className="min-w-0" key={medication.id}>
             <MedicationCard

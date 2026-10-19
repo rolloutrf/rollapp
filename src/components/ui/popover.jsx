@@ -17,6 +17,13 @@ function PopoverTrigger({
 
 function PopoverContent({
   className,
+  anchor,
+  collisionAvoidance,
+  collisionBoundary,
+  sticky,
+  collisionPadding,
+  positionMethod,
+  disableAnchorTracking,
   align = "center",
   alignOffset = 0,
   side = "bottom",
@@ -26,6 +33,13 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
+        anchor={anchor}
+        collisionAvoidance={collisionAvoidance}
+        collisionBoundary={collisionBoundary}
+        sticky={sticky}
+        collisionPadding={collisionPadding}
+        positionMethod={positionMethod}
+        disableAnchorTracking={disableAnchorTracking}
         align={align}
         alignOffset={alignOffset}
         side={side}

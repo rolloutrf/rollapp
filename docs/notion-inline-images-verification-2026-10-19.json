@@ -1,0 +1,1408 @@
+{
+  "date": "2026-10-19",
+  "updatedAt": "2026-10-19T11:43:31.436790+00:00",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "turnClassification": "progress",
+  "promoted": true,
+  "workspace": "/Users/mokoloskov/Desktop/Git/rollout/rollapp",
+  "sourceCount": 642,
+  "sourceSnapshot": "/tmp/rollapp-inline-images-main-full-sources.json",
+  "sourceDrift": [],
+  "changedPaths": [
+    {
+      "path": "scripts/check-shadcn.mjs",
+      "oldHash": "d87775e98c0cf204b751676859814776431b7ea777eb7e45a8490e4cbd6aec6b",
+      "testedCandidateHash": "b6f437ae1ba015dd22250031def7879fcbb8099d39cd526ae514d43c94fe1942",
+      "newHash": "b6f437ae1ba015dd22250031def7879fcbb8099d39cd526ae514d43c94fe1942",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/scripts/check-shadcn.mjs"
+    },
+    {
+      "path": "scripts/fixtures/text-edit.jsx",
+      "oldHash": "e261632c447115a50371162bc6f8a3dc535bc7394b7dae961c73ecb83f2d2d1c",
+      "testedCandidateHash": "e2501266c7e9cb9757708a36b2c8e69c8cd026a79675225ac65c5e2c6fb398b5",
+      "newHash": "e2501266c7e9cb9757708a36b2c8e69c8cd026a79675225ac65c5e2c6fb398b5",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/scripts/fixtures/text-edit.jsx"
+    },
+    {
+      "path": "scripts/text-edit-smoke.mjs",
+      "oldHash": "853a537143a82cc75f6005227983bd46450b5b57c36a4cd142104d4d47df02ab",
+      "testedCandidateHash": "643693fb51bd1b1803ead4eb6c19a016e1c2e6fa0f88c00c254821e87f281884",
+      "newHash": "d99d4a81660209d17bf40dc056dbb6a2e49fbce3a2190793bf906c6cb755a3dd",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/scripts/text-edit-smoke.mjs"
+    },
+    {
+      "path": "scripts/text-image-checks.mjs",
+      "oldHash": null,
+      "testedCandidateHash": "f780608c98345a2d70665d650ec328a5374ca1aee712cdb4b97dd5b190ee74aa",
+      "newHash": "f780608c98345a2d70665d650ec328a5374ca1aee712cdb4b97dd5b190ee74aa",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/scripts/text-image-checks.mjs"
+    },
+    {
+      "path": "server/image-usage.js",
+      "oldHash": null,
+      "testedCandidateHash": "679aca8ae12ca724310394936ca254db3b63929b398ea82e282ba8c428c21aa9",
+      "newHash": "679aca8ae12ca724310394936ca254db3b63929b398ea82e282ba8c428c21aa9",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/server/image-usage.js"
+    },
+    {
+      "path": "server/image-usage.test.js",
+      "oldHash": null,
+      "testedCandidateHash": "87b37270f000f2ee2de55451d3818766e01ca9c01ac772beaeea7fbc37616a53",
+      "newHash": "87b37270f000f2ee2de55451d3818766e01ca9c01ac772beaeea7fbc37616a53",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/server/image-usage.test.js"
+    },
+    {
+      "path": "server/index.js",
+      "oldHash": "360894d8150f5b74c73fe69428c21409cc865690b4e2b4b6585b9106fcc659bd",
+      "testedCandidateHash": "3b85334e85eb84d3aac595073b2ac267042fb919395821dd7d65553384500c75",
+      "newHash": "3b85334e85eb84d3aac595073b2ac267042fb919395821dd7d65553384500c75",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/server/index.js"
+    },
+    {
+      "path": "src/components/inline-block-controls.jsx",
+      "oldHash": "621355727015c0b6aa9898f18ddf02addd9e0b118323df60bb56dc4ca86a6510",
+      "testedCandidateHash": "2ff117d425a81787434bea5dec53c3bfbf9d6ee7bbc829ff70d34af4ff2d613b",
+      "newHash": "2ff117d425a81787434bea5dec53c3bfbf9d6ee7bbc829ff70d34af4ff2d613b",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/inline-block-controls.jsx"
+    },
+    {
+      "path": "src/components/inline-block-picker.jsx",
+      "oldHash": "5b1a6f6fc2c782cf36caa3ba15abd45ffc599905cd9421f6740806c83c6bf301",
+      "testedCandidateHash": "7157088b72b835ea325509697e98c1c35a8345a0f1a320014f979c85bbcfa454",
+      "newHash": "7157088b72b835ea325509697e98c1c35a8345a0f1a320014f979c85bbcfa454",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/inline-block-picker.jsx"
+    },
+    {
+      "path": "src/components/inline-editor.css",
+      "oldHash": "48448f8e6f7b4c26e0689f69c67d3d36af27b53554288caad743b95e62c74831",
+      "testedCandidateHash": "031ddf3409918677fe6f7b4ad99bec862eb23ad0849848d7fb2260aa6285efba",
+      "newHash": "031ddf3409918677fe6f7b4ad99bec862eb23ad0849848d7fb2260aa6285efba",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/inline-editor.css"
+    },
+    {
+      "path": "src/components/inline-image-picker.jsx",
+      "oldHash": null,
+      "testedCandidateHash": "59855c73d7924fd272449a37f2d7e35d6b62b9ad5b21f54b7fca8b4dc2cf41bf",
+      "newHash": "59855c73d7924fd272449a37f2d7e35d6b62b9ad5b21f54b7fca8b4dc2cf41bf",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/inline-image-picker.jsx"
+    },
+    {
+      "path": "src/components/inline-rich-text-editor.jsx",
+      "oldHash": "5aa9e5af6fdf6bc36bc2a5abc60eb9f48ca2002b612fc56c977f84af23afc97d",
+      "testedCandidateHash": "8cd35f7d6b0638eb8c009bd08f713eb293ea3469295f8fe7c8ac5d95765daa57",
+      "newHash": "8cd35f7d6b0638eb8c009bd08f713eb293ea3469295f8fe7c8ac5d95765daa57",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/inline-rich-text-editor.jsx"
+    },
+    {
+      "path": "src/components/life-strategy.jsx",
+      "oldHash": "1c6a772239badb69c759a9bfaf4c2864fb344e63db3a748227ed60f9af80130c",
+      "testedCandidateHash": "b1b7b234813ec238cc510f23ed1e383b0e60e693312e51c9f1bd86b9df6a2027",
+      "newHash": "b1b7b234813ec238cc510f23ed1e383b0e60e693312e51c9f1bd86b9df6a2027",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/life-strategy.jsx"
+    },
+    {
+      "path": "src/components/ui/popover.jsx",
+      "oldHash": "700c1fab7576eb26a8880d6efdf06969f3a171f95ef1a5e8f4ad13cf28a7b516",
+      "testedCandidateHash": "a88d26c90b4f6738f29811e64e1f0ace6e95a69c262d51d636e0a8f9a381aaf0",
+      "newHash": "a88d26c90b4f6738f29811e64e1f0ace6e95a69c262d51d636e0a8f9a381aaf0",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/components/ui/popover.jsx"
+    },
+    {
+      "path": "src/hooks/use-inline-caret-visibility.js",
+      "oldHash": "b550afd65d35cb75ced8bdad9a4226d647d9866744fe87ee5e778f96c3732b32",
+      "testedCandidateHash": "ecabf025057dc52676bd4e550a57bfb0fa9e3bd75269b680d030f0c26db981a1",
+      "newHash": "ecabf025057dc52676bd4e550a57bfb0fa9e3bd75269b680d030f0c26db981a1",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/hooks/use-inline-caret-visibility.js"
+    },
+    {
+      "path": "src/lib/inline-block-nodes.js",
+      "oldHash": "f1b1e90dcb1102193638db8da5856837935c279e40340a4143d2cd066c1d048c",
+      "testedCandidateHash": "10e5a4d572f80d37ed66f3c8e424f1b78f3e1c58d655d9b2709e1d68ed64a6a5",
+      "newHash": "10e5a4d572f80d37ed66f3c8e424f1b78f3e1c58d655d9b2709e1d68ed64a6a5",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-block-nodes.js"
+    },
+    {
+      "path": "src/lib/inline-block-types.js",
+      "oldHash": "9711d1665bafb16cdc2ccb358183f9bc9f457d7cc992352ba6449005a50c6a63",
+      "testedCandidateHash": "8ecab161cacfac1be739aa4e0f1699e0dc7015302a0aba282ef21c1b6873ef52",
+      "newHash": "8ecab161cacfac1be739aa4e0f1699e0dc7015302a0aba282ef21c1b6873ef52",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-block-types.js"
+    },
+    {
+      "path": "src/lib/inline-blocks.js",
+      "oldHash": "5fda0b1fa02686de7d41ce71e3e2f445d1ad2d66e064cde99b3abf8c37b205ab",
+      "testedCandidateHash": "b07acda628994375475bbbecef5106a19ff728c382d00458a3cac14668c569b3",
+      "newHash": "b07acda628994375475bbbecef5106a19ff728c382d00458a3cac14668c569b3",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-blocks.js"
+    },
+    {
+      "path": "src/lib/inline-editor-extensions.js",
+      "oldHash": "827730b00f3fe7ea495e6cd01d7ab448b25e0f8f07c794b9dbb34cafb6b84670",
+      "testedCandidateHash": "83c349387ead3055e156c0f89969d66e74dda9a015f420bec042ddff5e186122",
+      "newHash": "83c349387ead3055e156c0f89969d66e74dda9a015f420bec042ddff5e186122",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-editor-extensions.js"
+    },
+    {
+      "path": "src/lib/inline-image-intent.js",
+      "oldHash": null,
+      "testedCandidateHash": "fc0216a8fc071ca697cc08ad8902820710888ec42927f6af8467380266e6fa09",
+      "newHash": "fc0216a8fc071ca697cc08ad8902820710888ec42927f6af8467380266e6fa09",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-image-intent.js"
+    },
+    {
+      "path": "src/lib/inline-image-node.js",
+      "oldHash": null,
+      "testedCandidateHash": "0694017ef535bbace21b689f0954b064c1af3a3b6a61f24c2461fa710433c56d",
+      "newHash": "0694017ef535bbace21b689f0954b064c1af3a3b6a61f24c2461fa710433c56d",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-image-node.js"
+    },
+    {
+      "path": "src/lib/inline-images.js",
+      "oldHash": null,
+      "testedCandidateHash": "601d95826ad95800c5e35ac7b1dc71cf54913be556a8b20a4140083b0c912aaf",
+      "newHash": "601d95826ad95800c5e35ac7b1dc71cf54913be556a8b20a4140083b0c912aaf",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-images.js"
+    },
+    {
+      "path": "src/lib/inline-images.test.js",
+      "oldHash": null,
+      "testedCandidateHash": "591ce8023e129ef4ecaa61f091917aae6460420cb5a83ee80d4376a0217bd2bf",
+      "newHash": "591ce8023e129ef4ecaa61f091917aae6460420cb5a83ee80d4376a0217bd2bf",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-images.test.js"
+    },
+    {
+      "path": "src/lib/inline-slash-commands.js",
+      "oldHash": "4183312e62358693260d1903a4fbfa80ea3103fe238079e6c213750ae73f6a89",
+      "testedCandidateHash": "5bf808a32f9c6cd21920ca65819d682bd0c42d9dcdba34f710de5490f0a9671f",
+      "newHash": "5bf808a32f9c6cd21920ca65819d682bd0c42d9dcdba34f710de5490f0a9671f",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/lib/inline-slash-commands.js"
+    },
+    {
+      "path": "src/typeset.css",
+      "oldHash": "7c03306c636b2c7494255c41bc34dd1bebba5e48062d42253515597f11b07a5b",
+      "testedCandidateHash": "08416b995130b43705846edfc869fa5263a45da5650bc26f8402616be0e6fdb4",
+      "newHash": "08416b995130b43705846edfc869fa5263a45da5650bc26f8402616be0e6fdb4",
+      "source": "/tmp/rollapp-inline-images-gap-promotable/src/typeset.css"
+    }
+  ],
+  "main": {
+    "sourceCount": 634,
+    "sourceDrift": [],
+    "session": 61732,
+    "status": "passed-all-nine-stages",
+    "expectedEditorRecords": 335,
+    "observedEditorRecords": 335,
+    "expectedComprehensiveStages": 9,
+    "log": "/tmp/rollapp-cross-clipboard-main-full.log",
+    "report": "/tmp/rollapp-cross-clipboard-main-full-comprehensive.json",
+    "alignmentRecords": 8,
+    "freshNestingEightPassed": true,
+    "mainDrift": [],
+    "terminal": {
+      "status": "passed",
+      "exitCode": 0,
+      "editorPassRecords": 335,
+      "expectedEditorRecords": 335,
+      "sourceCount": 634,
+      "sourceDrift": [],
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T08:07:55.997276+00:00"
+    },
+    "comprehensive": {
+      "report": "/tmp/rollapp-cross-clipboard-main-full-comprehensive.json",
+      "stageNames": [
+        "check:release",
+        "test:navigation",
+        "test:action-rails",
+        "test:identity-reports",
+        "test:todo",
+        "test:form-pages",
+        "test:catalog-page",
+        "test:wish-groups",
+        "test:drawers"
+      ],
+      "passedStages": 9
+    },
+    "freshMainFull": {
+      "status": "passed",
+      "exitCode": 0,
+      "editorPassRecords": 335,
+      "expectedEditorRecords": 335,
+      "sourceCount": 634,
+      "sourceDrift": [],
+      "extraInputDrift": [],
+      "addedSources": [],
+      "fontServingDenials": 0,
+      "finishedAt": "2026-10-19T08:07:55.997276+00:00"
+    }
+  },
+  "fixedFindings": [
+    {
+      "finding": "Stock image Markdown loses width/height on reload",
+      "baseline": "/tmp/rollapp-inline-images-size-baseline.log",
+      "fix": "Canonical rich-image serialization preserves numeric or legacy string attributes; native HTML clipboard preserves number types"
+    },
+    {
+      "finding": "Picker reads editor.view before React StrictMode mount",
+      "baseline": "/tmp/rollapp-inline-images-browser-first.log",
+      "fix": "Listen for editor mount/create/unmount"
+    },
+    {
+      "finding": "FloatingUI autoUpdate reports undelivered ResizeObserver notifications when busy/error/disclosure rows resize the popup",
+      "baseline": "/tmp/rollapp-inline-images-ro-diagnostic.log",
+      "failedHypothesis": "/tmp/rollapp-inline-images-ro-fixed1.log",
+      "fix": "Optional upstream disableAnchorTracking only for image picker; local root/popup observer repositions via next RAF. Other popovers retain defaults.",
+      "diagnostic": "/tmp/rollapp-inline-images-ro-fixed2.log"
+    }
+  ],
+  "nativeMatrix": {
+    "status": "passed",
+    "exitCode": 0,
+    "records": 8,
+    "viewports": [
+      [
+        320,
+        844
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        390,
+        400
+      ],
+      [
+        768,
+        844
+      ],
+      [
+        820,
+        844
+      ],
+      [
+        1024,
+        844
+      ],
+      [
+        1440,
+        844
+      ],
+      [
+        1920,
+        844
+      ]
+    ],
+    "log": "/tmp/rollapp-inline-images-full-matrix4.log",
+    "windowErrors": 0,
+    "apiRequests": 0,
+    "scope": [
+      "slash and common action menu",
+      "cancel retains query/document",
+      "unsafe URL rejection",
+      "real file chooser using explicit fixture transport",
+      "file type validation",
+      "failed upload and retry",
+      "late upload after cancellation or source change releases only uncommitted asset",
+      "owned paragraph and immediate typing",
+      "separate insertion/typing Undo",
+      "metadata edit/move and numeric native image clipboard",
+      "dimensions and exact save/reload/public read",
+      "failed-save draft reload/retry",
+      "48px controls, Geist18/28 and no prose frames/overflow"
+    ],
+    "notClaimed": [
+      "real production upload/delete",
+      "real iOS/Telegram IME",
+      "late network image asset layout after insertion",
+      "all arbitrary nested contexts",
+      "plus/Alt-plus native image entry",
+      "pointer resize/file paste/drop/full media catalogue"
+    ]
+  },
+  "diagnosticMatrix": {
+    "records": 2,
+    "exitCode": 0,
+    "viewports": [
+      [
+        390,
+        400
+      ],
+      [
+        1440,
+        400
+      ]
+    ],
+    "log": "/tmp/rollapp-inline-images-ro-fixed2.log"
+  },
+  "units": {
+    "total": 704,
+    "passed": 703,
+    "skipped": 1,
+    "failed": 0,
+    "log": "/tmp/rollapp-inline-images-context-unit-fixed2.log"
+  },
+  "ui": {
+    "status": "passed",
+    "primitives": 37,
+    "applicationSources": 73,
+    "log": "/tmp/rollapp-inline-images-ui-context-final.log"
+  },
+  "build": {
+    "status": "passed",
+    "log": "/tmp/rollapp-inline-images-build-context-final.log",
+    "warning": "Existing >500kB chunk warning"
+  },
+  "audit": {
+    "all": {
+      "high": 7,
+      "log": "/tmp/rollapp-inline-images-audit.json"
+    },
+    "production": {
+      "total": 0,
+      "log": "/tmp/rollapp-inline-images-audit-production.json"
+    },
+    "packageChanges": false
+  },
+  "productionSql": {
+    "status": "passed",
+    "mode": "direct TLS",
+    "targetVerified": true,
+    "readOnly": true,
+    "selectStatements": 7,
+    "writes": 0,
+    "ddl": 0,
+    "rollback": true,
+    "log": "/tmp/rollapp-inline-images-production-readonly-fixed.log",
+    "note": "Concurrent client.query deprecation in probe only; app uses pool. Initial standalone probe omitted standard Lockbox bootstrap, not a production outage."
+  },
+  "historicalFailures": [
+    {
+      "log": "/tmp/rollapp-inline-images-unit-first.log",
+      "finding": "Always-rich image renderer added nullable attrs to legacy AST; conditional serialization fixed without changing legacy assertion"
+    },
+    {
+      "log": "/tmp/rollapp-inline-images-ui-first.log",
+      "finding": "Unapproved hidden file input; use sr-only and actual upload Button"
+    },
+    {
+      "log": "/tmp/rollapp-inline-images-full-matrix.log",
+      "finding": "Geometry measured during official enter scale animation; await actual animation completion, retain >=48px assertion"
+    },
+    {
+      "log": "/tmp/rollapp-inline-images-full-matrix2.log",
+      "finding": "Fixture cleared session draft during reload; clear only new navigation, retain exact draft assertion"
+    },
+    {
+      "log": "/tmp/rollapp-inline-images-full-matrix3.log",
+      "finding": "Eight PASS records accompanied by actual ResizeObserver error, rejected as clean evidence"
+    }
+  ],
+  "nextRequired": [
+    "Fresh main646/375/nine-stage comprehensive is running; do not alter frozen product/test/contracts or combine historical PASS as its result.",
+    "A separate source649 link-intent candidate is in verification and not in main. Retain R1–R10 and actual-device/Notion edge fidelity unknowns."
+  ],
+  "temporaryRunnerChangesNeverPromote": [
+    "realpathSync import",
+    "isolated Vite server.fs.allow"
+  ],
+  "finalDiffReview": {
+    "phase": "context parent before pending selection/head guards",
+    "metadata": "/tmp/rollapp-inline-images-context-proposed.json",
+    "diff": "/tmp/rollapp-inline-images-context-proposed.diff",
+    "sourceSnapshot": "/tmp/rollapp-inline-images-final-compat-sources.json",
+    "reviewedPaths": 22,
+    "sourceDrift": [],
+    "mainDrift": [],
+    "diffCheck": "passed",
+    "promoted": false,
+    "guardedCombinedDiffReviewRequired": true
+  },
+  "lateImageLayout": {
+    "status": "isolated-fixed-full-layout-and-compatibility-passed",
+    "baseline": "/tmp/rollapp-inline-images-layout-before.log",
+    "observedBefore": {
+      "viewport": [
+        390,
+        400
+      ],
+      "caretTopBefore": 261,
+      "caretTopAfter": 1752.65625,
+      "navigationTop": 336,
+      "scrollY": 588
+    },
+    "fix": "Authoring caret observer tracks actual pending images preceding its native endpoint; load/error and font completion reconcile in RAF while same native range still owns intent. Wheel/touch, new selection or access prevent stale scroll; typing creates a fresh intent. No document mutation.",
+    "initialDiagnostic": {
+      "log": "/tmp/rollapp-inline-images-layout-fixed1.log",
+      "passRecords": 2,
+      "casesPerViewport": 5,
+      "viewports": [
+        [
+          390,
+          400
+        ],
+        [
+          1440,
+          400
+        ]
+      ],
+      "errors": 0
+    },
+    "fixture": "Held actual browser image response, SVG 360x1500; URL uses png suffix but MIME is explicitly SVG. No production assets/uploads.",
+    "compatibility": "/tmp/rollapp-inline-images-layout-compat.json",
+    "snapshot": "/tmp/rollapp-inline-images-layout-compat-sources.json",
+    "session": 51173,
+    "expectedRecords": 44,
+    "expectedFutureEditorRecords": 359,
+    "compatibilityProgress": {
+      "status": "passed",
+      "sourceCount": 642,
+      "results": [
+        {
+          "name": "image-layout",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-images-layout-compat-image-layout.log"
+        },
+        {
+          "name": "images",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-images-layout-compat-images.log"
+        },
+        {
+          "name": "insert-ownership",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-inline-images-layout-compat-insert-ownership.log"
+        },
+        {
+          "name": "caret-scroll",
+          "exitCode": 0,
+          "passRecords": 9,
+          "expectedRecords": 9,
+          "log": "/tmp/rollapp-inline-images-layout-compat-caret-scroll.log"
+        },
+        {
+          "name": "plain-caret",
+          "exitCode": 0,
+          "passRecords": 9,
+          "expectedRecords": 9,
+          "log": "/tmp/rollapp-inline-images-layout-compat-plain-caret.log"
+        },
+        {
+          "name": "native-page-keys",
+          "exitCode": 0,
+          "passRecords": 2,
+          "expectedRecords": 2,
+          "log": "/tmp/rollapp-inline-images-layout-compat-native-page-keys.log"
+        }
+      ],
+      "startedAt": "2026-10-19T07:46:27.055863+00:00",
+      "sourceDrift": [],
+      "countCorrection": "caret-scroll and plain-caret each enumerate nine sizes, including both390x400 and1440x400; initial controller expected8 incorrectly. No semantic assertion changed or passing test rerun.",
+      "finishedAt": "2026-10-19T07:56:32.982216+00:00"
+    },
+    "fullNativeLayout": {
+      "status": "passed",
+      "records": 8,
+      "subcases": 40,
+      "log": "/tmp/rollapp-inline-images-layout-compat-image-layout.log",
+      "sourceSnapshot": "/tmp/rollapp-inline-images-layout-compat-sources.json"
+    },
+    "countCorrection": "Initial controller expected8 for caret/plain, but both enumerate9 sizes. Preserved original metadata failure and resumed only unrun suites. No semantic assertions changed or passing scenarios repeated."
+  },
+  "reference": {
+    "url": "https://www.notion.com/help/images-files-and-media",
+    "reviewedAt": "2026-10-19",
+    "remainingMediaAuthoring": "Notion documents +/slash, upload/URL, drag arrangement and edge resize, captions distinct from alt text, replace and original/full-screen. These remain explicit audit items; a URL form is not full media parity."
+  },
+  "publicAccordionCounterexample": {
+    "status": "fixed-isolated-native-browser-full-eight-passed",
+    "log": "/tmp/rollapp-inline-images-accordion-public-before3.log",
+    "proof": "Real MarkdownDocument markup rendered via SSR, CSS excluded, no API/DB; hasImage=false and hasLiteralCanonical=true under collapsibleAges",
+    "toolingAttemptsNotProductFailures": [
+      "/tmp/rollapp-inline-images-accordion-public-before.log",
+      "/tmp/rollapp-inline-images-accordion-public-before2.log"
+    ],
+    "proposed": "/tmp/rollapp-inline-images-reader-proposed.json",
+    "needsNativeBrowserProof": false,
+    "nativeBaseline": "/tmp/rollapp-inline-images-reader-native-before4.log",
+    "nativeBaselineObserved": {
+      "images": 0,
+      "expectedImages": 2,
+      "columns": "flattened text",
+      "viewport": [
+        390,
+        400
+      ]
+    },
+    "fix": "Shared rich source-group renderer inside AgeSections/StrategySections; interactive task callback path retained",
+    "diagnostic": {
+      "passRecords": 2,
+      "log": "/tmp/rollapp-inline-images-reader-native-fixed1.log"
+    },
+    "matrix": {
+      "passRecords": 8,
+      "exitCode": 0,
+      "log": "/tmp/rollapp-inline-images-reader-native-full2.log",
+      "snapshot": "/tmp/rollapp-inline-images-reader-final2-sources.json",
+      "actualImageDecode": true,
+      "noFrames": true,
+      "noApi": true,
+      "checks": [
+        "opened age and strategy disclosures",
+        "two canonical images, one within semantic columns",
+        "numeric dimensions and alt",
+        "text neighbours",
+        "mobile stacking/desktop columns",
+        "no editable fields/markup leak/overflow/errors"
+      ]
+    },
+    "nativeHarnessToolingFailures": [
+      "/tmp/rollapp-inline-images-reader-native-before.log",
+      "/tmp/rollapp-inline-images-reader-native-before2.log",
+      "/tmp/rollapp-inline-images-reader-native-before3.log"
+    ],
+    "integratedHarnessFirstFailure": {
+      "log": "/tmp/rollapp-inline-images-reader-native-full.log",
+      "finding": "Local frameStyles variable was named frames and shadowed async layout helper. Renamed only local assertion variable, no product/assertion changes."
+    }
+  },
+  "contextOwnershipFix": {
+    "status": "isolated-fixed-eight-context-matrix-passed-final64-running",
+    "baseline": "/tmp/rollapp-inline-images-context-before2.log",
+    "initialFixtureCorrection": "Expected alt must be empty string, matching picker; native baseline rerun before runtime fix. Original baseline log retained.",
+    "fixes": [
+      "Caret media resolves its own text block rather than the surrounding table/logical parent",
+      "Common insertion validates actual before/after/replace destination and whole Fragment; caret-scoped media preserves required list paragraph and neighbours",
+      "Explicit structural targets retain their logical range",
+      "Image menu suspends column resize controls as well as block/table chrome"
+    ],
+    "nativeDiagnosticLogs": [
+      "/tmp/rollapp-inline-images-context-fixed1.log",
+      "/tmp/rollapp-inline-images-context-fixed2.log",
+      "/tmp/rollapp-inline-images-context-final-diagnostic.log"
+    ],
+    "nativeFull": {
+      "status": "passed",
+      "records": 8,
+      "log": "/tmp/rollapp-inline-images-final-compat-image-context.log",
+      "snapshot": "/tmp/rollapp-inline-images-final-compat-sources.json",
+      "cases": [
+        "real desktop plus/Option before/after, mobile action/type menu",
+        "table cell exact scoped save/reload, new paragraph and separate typing Undo",
+        "nested child and first nested/list parent ownership",
+        "column owner/ratios/peers, competing separators hidden/restored",
+        "protected question image exact Undo/Redo/API-valid save/reload, fixed prompts/neighbours",
+        "loading/read-only no writes",
+        "late upload after access revocation releases only its unused asset",
+        "VisualViewport220/offset96 and visible caret after commit"
+      ]
+    },
+    "unit": {
+      "total": 704,
+      "passed": 703,
+      "skipped": 1,
+      "failed": 0,
+      "log": "/tmp/rollapp-inline-images-context-unit-fixed2.log"
+    },
+    "unitFixtureFailuresNotRuntime": [
+      "Null-prototype attrs in appended expected JSON were normalized before comparison",
+      "NestedBlock schema is block+, unlike required first paragraph of listItem; ordinary empty nested/cell slots may replace text, required list paragraph must remain. Assertions updated to actual schema; exact ownership checks retained."
+    ],
+    "unitBaselineLogs": [
+      "/tmp/rollapp-inline-images-context-unit-before.log",
+      "/tmp/rollapp-inline-images-context-unit-fixed.log"
+    ]
+  },
+  "final64Compatibility": {
+    "status": "passed",
+    "sourceCount": 642,
+    "results": [
+      {
+        "name": "image-context",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-image-context.log"
+      },
+      {
+        "name": "basic-blocks",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-basic-blocks.log"
+      },
+      {
+        "name": "insert-ownership",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-insert-ownership.log"
+      },
+      {
+        "name": "images",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-images.log"
+      },
+      {
+        "name": "image-layout",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-image-layout.log"
+      },
+      {
+        "name": "image-reader",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-image-reader.log"
+      },
+      {
+        "name": "four-document",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-four-document.log"
+      },
+      {
+        "name": "tables",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-final-compat-tables.log"
+      }
+    ],
+    "expectedRecords": 64,
+    "startedAt": "2026-10-19T08:12:54.644754+00:00",
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-19T08:26:32.350423+00:00"
+  },
+  "pendingOwnerGuards": {
+    "status": "applied-only-to-candidate",
+    "mainPromoted": false,
+    "report": "/tmp/rollapp-inline-images-guard-gates.json"
+  },
+  "preparedContracts": {
+    "paths": [
+      "AGENTS.md",
+      "docs/inline-editing.md",
+      "docs/verification.md"
+    ],
+    "metadata": "/tmp/rollapp-inline-images-contracts-proposed.json",
+    "applied": false,
+    "futureExpectedEditorRecords": 367
+  },
+  "dirtyPathCount": 339,
+  "ownerGuards": {
+    "status": "passed-requires-promotion-review",
+    "parent": "/tmp/rollapp-inline-images-final-compat.json",
+    "startedAt": "2026-10-19T08:21:39.734325+00:00",
+    "promotedToMain": false,
+    "appliedOnlyToCandidate": [
+      "src/lib/inline-images.js",
+      "src/components/inline-image-picker.jsx",
+      "src/lib/inline-images.test.js",
+      "scripts/text-image-checks.mjs"
+    ],
+    "candidateBackup": "/tmp/rollapp-inline-images-guard-candidate-backup",
+    "results": [
+      {
+        "name": "unit",
+        "exitCode": 0,
+        "passRecords": null,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-inline-images-guard-gates-unit.log"
+      },
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": null,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-inline-images-guard-gates-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": null,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-inline-images-guard-gates-build.log"
+      },
+      {
+        "name": "image-context",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-guard-gates-image-context.log"
+      },
+      {
+        "name": "images",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-guard-gates-images.log"
+      }
+    ],
+    "sourceDrift": [],
+    "expectedNativeRecords": 16,
+    "finishedAt": "2026-10-19T08:31:08.766684+00:00"
+  },
+  "contextHandoff": {
+    "before": "/tmp/rollapp-inline-images-handoff-strict-before.log",
+    "finding": "Six frames contained image popup and old block popup simultaneously. First fix replayed old popup after Cancel. Active-only popup and before-paint ownership fixed both short diagnostics.",
+    "diagnostic": "/tmp/rollapp-inline-images-handoff-diagnostic2.log",
+    "regression": "/tmp/rollapp-inline-images-handoff-compat.json",
+    "regressionStatus": "failed: nested head tiny-image metadata selection"
+  },
+  "gapDecorationLayout": {
+    "before": "/tmp/rollapp-inline-images-gap-layout-before.log",
+    "finding": "Absolute GapCursor widget became physical first child, moving the 1px image from (14,72) to (41,94.5) without a document change.",
+    "fix": "Shared typography first authored-child selectors exclude ProseMirror widgets without changing specificity/rhythm tokens. GapCursor marker uses foreground. Existing heading-gap contract matcher updated, assertion preserved.",
+    "after": "/tmp/rollapp-inline-images-gap-layout-fixed.log",
+    "diagnostic": "/tmp/rollapp-inline-images-gap-context-diagnostic.log",
+    "marker": "/tmp/rollapp-inline-images-gap-marker.log",
+    "unit": {
+      "total": 706,
+      "pass": 705,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-inline-images-unit-gap-final.log"
+    },
+    "ui": {
+      "primitives": 37,
+      "applicationJsx": 73,
+      "result": "pass",
+      "log": "/tmp/rollapp-inline-images-ui-gap-final.log"
+    },
+    "build": {
+      "result": "pass",
+      "log": "/tmp/rollapp-inline-images-build-gap-final.log"
+    }
+  },
+  "latestCompatibility": {
+    "status": "failed",
+    "sourceCount": 642,
+    "results": [
+      {
+        "name": "image-context",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-image-context.log"
+      },
+      {
+        "name": "gutter-alignment",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-gutter-alignment.log"
+      },
+      {
+        "name": "nesting",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-nesting.log"
+      },
+      {
+        "name": "image-reader",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-image-reader.log"
+      },
+      {
+        "name": "block-menu",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-block-menu.log"
+      },
+      {
+        "name": "selection",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-selection.log"
+      },
+      {
+        "name": "insert-ownership",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-insert-ownership.log"
+      },
+      {
+        "name": "images",
+        "exitCode": 1,
+        "passRecords": 1,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-gap-compat-images.log"
+      }
+    ],
+    "expectedRecords": 72,
+    "startedAt": "2026-10-19T08:52:28.840002+00:00",
+    "sourceDrift": [],
+    "addedSources": [],
+    "extraInputDrift": [],
+    "countCorrection": "Selection matrix defines eight viewports; initial controller incorrectly expected nine. Original report preserved; resume unrun suites only.",
+    "finishedAt": "2026-10-19T09:06:27.374968+00:00",
+    "report": "/tmp/rollapp-inline-images-gap-compat.json"
+  },
+  "focusCounterexample": {
+    "status": "fixed-in-candidate-awaiting32-native-compatibility",
+    "log": "/tmp/rollapp-inline-images-gap-compat-images.log",
+    "finding": "390x844 metadata edit changed image src to /__inline-image.pngUpdated while alt stayed Diagram. Delayed image picker autofocus reclaimed URL focus during alternate-field fill. Existing short diagnostic repeated PASS, which does not resolve this native failure.",
+    "unmodifiedShortRepeat": "/tmp/rollapp-inline-images-focus-before.log",
+    "next": "Deterministic early field focus followed by native typing; use primitive initialFocus ownership rather than unconditional RAF.",
+    "deterministicBefore": "/tmp/rollapp-inline-images-focus-deterministic-before.log",
+    "deterministicAfter": "/tmp/rollapp-inline-images-focus-deterministic-fixed.log",
+    "diagnosticRecords": 2,
+    "fix": "Remove unconditional RAF focus, use guarded primitive initialFocus that preserves a field already focused inside popup. Deterministic mutation-observer early choice then native typing retains exact src/alt/neighbours.",
+    "backup": "/tmp/rollapp-inline-images-focus-candidate-backup/manifest.json"
+  },
+  "finalReview": {
+    "status": "promoted-after-reviewed32-and-gates",
+    "paths": 25,
+    "newPaths": 8,
+    "contracts": 4,
+    "promotableManifest": "/tmp/rollapp-inline-images-gap-proposed.json",
+    "contractsManifest": "/tmp/rollapp-inline-images-contracts-proposed.json",
+    "onlyRunnerDifference": "Strip temporary realpathSync import and symlink-specific Vite server.fs.allow; no fixture assertions changed for main.",
+    "cleanup": "Removed one unreachable duplicate return false from finalFocus.",
+    "diff": "/tmp/rollapp-inline-images-final-promotion.diff",
+    "newWhitespaceFindings": []
+  },
+  "focusCompatibility": {
+    "status": "passed",
+    "sourceCount": 642,
+    "results": [
+      {
+        "name": "images",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-focus-compat-images.log"
+      },
+      {
+        "name": "image-context",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-focus-compat-image-context.log"
+      },
+      {
+        "name": "block-menu",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-focus-compat-block-menu.log"
+      },
+      {
+        "name": "tables",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-inline-images-focus-compat-tables.log"
+      }
+    ],
+    "expectedRecords": 32,
+    "startedAt": "2026-10-19T09:09:20.387662+00:00",
+    "sourceDrift": [],
+    "addedSources": [],
+    "extraInputDrift": [],
+    "finishedAt": "2026-10-19T09:17:05.773833+00:00"
+  },
+  "focusFinalGates": {
+    "exitCode": 0,
+    "unit": {
+      "total": 706,
+      "pass": 705,
+      "skip": 1,
+      "fail": 0,
+      "log": "/tmp/rollapp-inline-images-unit-focus-final.log"
+    },
+    "ui": {
+      "primitives": 37,
+      "applicationJsx": 73,
+      "result": "pass",
+      "log": "/tmp/rollapp-inline-images-ui-focus-final.log"
+    },
+    "build": {
+      "result": "pass",
+      "log": "/tmp/rollapp-inline-images-build-focus-final.log"
+    },
+    "audit": {
+      "totalHigh": 7,
+      "productionVulnerabilities": 0,
+      "logs": [
+        "/tmp/rollapp-inline-images-final-audit.json",
+        "/tmp/rollapp-inline-images-final-audit-production.json"
+      ],
+      "lockfileChanged": false,
+      "compatibleDryRun": {
+        "command": "npm audit fix --dry-run --json --ignore-scripts in isolated package/lock copy",
+        "exitCode": 1,
+        "remainingHigh": 7,
+        "sourcePackageFilesUnchanged": true,
+        "report": "/tmp/rollapp-inline-images-audit-compatible-dry-run-parsed.json",
+        "metadata": "/tmp/rollapp-inline-images-audit-compatible-dry-run-metadata.json"
+      }
+    }
+  },
+  "liveBeforePromotion": {
+    "tab": "43",
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "textLength": 10456,
+    "textHashFNV": 2967052693,
+    "paragraphs": 43,
+    "font": "Geist Variable",
+    "size": "18px",
+    "leading": "28px",
+    "border": "0px",
+    "outline": "0px",
+    "shadow": "none",
+    "writes": 0,
+    "gutter": {
+      "target": "Actual first h3; multiline headings additionally covered by eight-viewport gutter fixture",
+      "firstLineCenter": 400,
+      "plusGlyphCenter": 400,
+      "gripGlyphCenter": 400,
+      "delta": 0,
+      "buttons": [
+        48,
+        48
+      ],
+      "glyphs": [
+        20,
+        20
+      ]
+    }
+  },
+  "promotion": {
+    "status": "promoted; runner catalogue fix passed11; fresh full2 running",
+    "at": "2026-10-19T09:17:40.818970+00:00",
+    "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+    "dirty": true,
+    "sourcePaths": 25,
+    "contractPaths": 4,
+    "backup": "/tmp/rollapp-inline-images-main-backup/manifest.json",
+    "nativeGate": "/tmp/rollapp-inline-images-focus-compat.json",
+    "expectedEditorRecords": 367,
+    "expectedStages": 9,
+    "productionWrites": 0,
+    "schemaChanges": 0,
+    "deployed": false
+  },
+  "freshMainFull": {
+    "status": "failed",
+    "rootPid": 92362,
+    "startedAt": "2026-10-19T09:46:16.689667+00:00",
+    "expectedEditorRecords": 367,
+    "expectedComprehensiveStages": 9,
+    "sourceCount": 642,
+    "log": "/tmp/rollapp-inline-images-main-full2.log",
+    "report": "/tmp/rollapp-inline-images-main-full2-comprehensive.json",
+    "snapshot": "/tmp/rollapp-inline-images-main-full2-sources.json",
+    "exitCode": 1,
+    "editorPassRecords": 227,
+    "comprehensiveStageCount": 9,
+    "allStagesPass": false,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-19T10:22:44.149093+00:00"
+  },
+  "serviceReload": {
+    "firstEnableExit": 1,
+    "firstFailure": "Expected owner check raced the LaunchAgent graceful exit; PID file was preserved by the command and later removed by its owning process. No manual PID-file removal or arbitrary kill.",
+    "secondEnableExit": 0,
+    "newServicePid": 85976,
+    "health": "API ready and frontend ready, persistent LaunchAgent enabled, PID85976 left running",
+    "database": "configured production direct TLS; verify initialization only",
+    "deployed": false
+  },
+  "dirtyPathCountAfterPromotion": 347,
+  "liveAfterPromotion": {
+    "url": "http://127.0.0.1:5172/app/spheres/career?tab=about",
+    "tab": "43",
+    "textLength": 10456,
+    "textHashFNV": 2967052693,
+    "paragraphs": 43,
+    "sameBeforeAfterAndCancel": true,
+    "font": "Geist Variable",
+    "size": "18px",
+    "leading": "28px",
+    "border": "0px",
+    "outline": "0px",
+    "shadow": "none",
+    "menusAfterCancel": 0,
+    "visibleFormatToolbars": 0,
+    "rootOverflow": false,
+    "saveStatus": "saved",
+    "actualUploadOrDelete": false,
+    "typedIntoProse": false,
+    "writes": 0,
+    "paths": [
+      "keyboard block search→image→Cancel",
+      "native coordinate plus at visible screenshot(180,400)→search image→image→Cancel"
+    ],
+    "imagePopupCount": 1,
+    "openingFocus": "Upload button",
+    "warningsAndErrors": 0,
+    "locatorObservation": "Two IAB role-locator plus clicks did not retain a menu. No product cause established; inspected screenshot and normal coordinate click opened it. This difference remains recorded; it is not a reason to alter an assertion or claim a fixed cause.",
+    "temporaryTabClosed": true
+  },
+  "isolatedWorkspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-images-ow7mk11l",
+  "initialCandidateChangedPaths": [
+    {
+      "path": "scripts/fixtures/text-edit.jsx",
+      "mainHash": "e261632c447115a50371162bc6f8a3dc535bc7394b7dae961c73ecb83f2d2d1c",
+      "candidateHash": "e2501266c7e9cb9757708a36b2c8e69c8cd026a79675225ac65c5e2c6fb398b5"
+    },
+    {
+      "path": "scripts/text-edit-smoke.mjs",
+      "mainHash": "853a537143a82cc75f6005227983bd46450b5b57c36a4cd142104d4d47df02ab",
+      "candidateHash": "b02881f6f52847302714b455106b308d9a32232f32706a6ec6be908ec44a747b"
+    },
+    {
+      "path": "scripts/text-image-checks.mjs",
+      "mainHash": null,
+      "candidateHash": "37524f4d4c4a4e810d4920cc724c83ee8ff9d986f6f5cf135040273f10408302"
+    },
+    {
+      "path": "server/image-usage.js",
+      "mainHash": null,
+      "candidateHash": "679aca8ae12ca724310394936ca254db3b63929b398ea82e282ba8c428c21aa9"
+    },
+    {
+      "path": "server/image-usage.test.js",
+      "mainHash": null,
+      "candidateHash": "87b37270f000f2ee2de55451d3818766e01ca9c01ac772beaeea7fbc37616a53"
+    },
+    {
+      "path": "server/index.js",
+      "mainHash": "360894d8150f5b74c73fe69428c21409cc865690b4e2b4b6585b9106fcc659bd",
+      "candidateHash": "3b85334e85eb84d3aac595073b2ac267042fb919395821dd7d65553384500c75"
+    },
+    {
+      "path": "src/components/inline-block-picker.jsx",
+      "mainHash": "5b1a6f6fc2c782cf36caa3ba15abd45ffc599905cd9421f6740806c83c6bf301",
+      "candidateHash": "7157088b72b835ea325509697e98c1c35a8345a0f1a320014f979c85bbcfa454"
+    },
+    {
+      "path": "src/components/inline-editor.css",
+      "mainHash": "48448f8e6f7b4c26e0689f69c67d3d36af27b53554288caad743b95e62c74831",
+      "candidateHash": "2e720fa90a8dd7001127b16c43728ed41b008412fa8fd4397ce8372875a5b731"
+    },
+    {
+      "path": "src/components/inline-image-picker.jsx",
+      "mainHash": null,
+      "candidateHash": "d2f602e4595a8eeee3bd5e919f183b26dee919113396ad13425678674a0c3487"
+    },
+    {
+      "path": "src/components/inline-rich-text-editor.jsx",
+      "mainHash": "5aa9e5af6fdf6bc36bc2a5abc60eb9f48ca2002b612fc56c977f84af23afc97d",
+      "candidateHash": "ae1c17d5e43c08a0c2b50be395a91416004d9fba0f4a8621a9436c514005c080"
+    },
+    {
+      "path": "src/components/life-strategy.jsx",
+      "mainHash": "1c6a772239badb69c759a9bfaf4c2864fb344e63db3a748227ed60f9af80130c",
+      "candidateHash": "b1b7b234813ec238cc510f23ed1e383b0e60e693312e51c9f1bd86b9df6a2027"
+    },
+    {
+      "path": "src/components/ui/popover.jsx",
+      "mainHash": "700c1fab7576eb26a8880d6efdf06969f3a171f95ef1a5e8f4ad13cf28a7b516",
+      "candidateHash": "a88d26c90b4f6738f29811e64e1f0ace6e95a69c262d51d636e0a8f9a381aaf0"
+    },
+    {
+      "path": "src/hooks/use-inline-caret-visibility.js",
+      "mainHash": "b550afd65d35cb75ced8bdad9a4226d647d9866744fe87ee5e778f96c3732b32",
+      "candidateHash": "ecabf025057dc52676bd4e550a57bfb0fa9e3bd75269b680d030f0c26db981a1"
+    },
+    {
+      "path": "src/lib/inline-block-nodes.js",
+      "mainHash": "f1b1e90dcb1102193638db8da5856837935c279e40340a4143d2cd066c1d048c",
+      "candidateHash": "10e5a4d572f80d37ed66f3c8e424f1b78f3e1c58d655d9b2709e1d68ed64a6a5"
+    },
+    {
+      "path": "src/lib/inline-block-types.js",
+      "mainHash": "9711d1665bafb16cdc2ccb358183f9bc9f457d7cc992352ba6449005a50c6a63",
+      "candidateHash": "8ecab161cacfac1be739aa4e0f1699e0dc7015302a0aba282ef21c1b6873ef52"
+    },
+    {
+      "path": "src/lib/inline-blocks.js",
+      "mainHash": "5fda0b1fa02686de7d41ce71e3e2f445d1ad2d66e064cde99b3abf8c37b205ab",
+      "candidateHash": "051d5b05617dd8fb8df3648fdb87d385178f2645713dc9abd05c849baa4f1dbd"
+    },
+    {
+      "path": "src/lib/inline-editor-extensions.js",
+      "mainHash": "827730b00f3fe7ea495e6cd01d7ab448b25e0f8f07c794b9dbb34cafb6b84670",
+      "candidateHash": "83c349387ead3055e156c0f89969d66e74dda9a015f420bec042ddff5e186122"
+    },
+    {
+      "path": "src/lib/inline-image-intent.js",
+      "mainHash": null,
+      "candidateHash": "fc0216a8fc071ca697cc08ad8902820710888ec42927f6af8467380266e6fa09"
+    },
+    {
+      "path": "src/lib/inline-image-node.js",
+      "mainHash": null,
+      "candidateHash": "0694017ef535bbace21b689f0954b064c1af3a3b6a61f24c2461fa710433c56d"
+    },
+    {
+      "path": "src/lib/inline-images.js",
+      "mainHash": null,
+      "candidateHash": "5c0ef80acbbe3d569a22e2af96f38bdb2cb982ab2acdfeca2d6fbf6256773e94"
+    },
+    {
+      "path": "src/lib/inline-images.test.js",
+      "mainHash": null,
+      "candidateHash": "36ddf76cef56325bcfb5067bb2fb3c4873d457a464756925652210dbd80559cf"
+    },
+    {
+      "path": "src/lib/inline-slash-commands.js",
+      "mainHash": "4183312e62358693260d1903a4fbfa80ea3103fe238079e6c213750ae73f6a89",
+      "candidateHash": "5bf808a32f9c6cd21920ca65819d682bd0c42d9dcdba34f710de5490f0a9671f"
+    }
+  ],
+  "currentMainIntegrity": {
+    "at": "2026-10-19T09:22:28.177125+00:00",
+    "sourceCount": 642,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fullStatus": "full1 failed80; full2 running",
+    "allStagesComplete": false
+  },
+  "firstFreshMainFull": {
+    "status": "failed",
+    "rootPid": 85483,
+    "startedAt": "2026-10-19T09:17:45.971543+00:00",
+    "expectedEditorRecords": 367,
+    "expectedComprehensiveStages": 9,
+    "sourceCount": 642,
+    "log": "/tmp/rollapp-inline-images-main-full.log",
+    "report": "/tmp/rollapp-inline-images-main-full-comprehensive.json",
+    "snapshot": "/tmp/rollapp-inline-images-main-full-sources.json",
+    "exitCode": 1,
+    "editorPassRecords": 80,
+    "comprehensiveStageCount": 9,
+    "allStagesPass": false,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-19T09:37:41.299525+00:00"
+  },
+  "fullAuditFailureAnalysis": {
+    "terminal": "/tmp/rollapp-inline-images-main-full-terminal.json",
+    "editorRecordsBeforeFailure": 80,
+    "expected": 367,
+    "sourceDrift": 0,
+    "extraDrift": 0,
+    "addedSources": 0,
+    "fontDenials": 0,
+    "failure": "Surface keyboard ArrowUp-wrap assertion still names Table as last catalogue option; the newly added Image is now last. Hypothesis being verified by strict dynamic catalogue/pressed/visible assertions on eight viewports.",
+    "candidate": "/tmp/rollapp-image-catalogue-surface-proposed.json",
+    "nativeSession": 40736,
+    "nativeLog": "/tmp/rollapp-image-catalogue-surface.log",
+    "diagnosis": "Confirmed stale expected name: strict catalogue/last/pressed/visibility assertions passed all eight viewport and three shared records with no product code changes."
+  },
+  "catalogueSurfaceFix": {
+    "status": "promoted-after-strict11",
+    "proof": {
+      "status": "passed",
+      "exitCode": 0,
+      "records": 11,
+      "expectedRecords": 11,
+      "sourceCount": 642,
+      "sourceDrift": [],
+      "finishedAt": "2026-10-19T09:44:51.130099+00:00",
+      "viewportRecords": 8,
+      "sharedTailRecords": 3,
+      "countCorrection": "Surface-only runs the existing whole basic block: 8 viewport records plus deep-document geometry and two shared creation/history/save records. Initial controller incorrectly expected only the viewport count. No source/assertion change or rerun."
+    },
+    "manifest": "/tmp/rollapp-image-catalogue-overlay-proposed.json",
+    "backup": "/tmp/rollapp-image-catalogue-main-backup/manifest.json",
+    "productionCodeChanged": false,
+    "defaultEditorRecordsUnchanged": 367,
+    "countCorrection": "8viewport+3existing shared records; initial controller expected8, original mismatch retained; source/assertions unchanged when reclassified."
+  },
+  "mainFull2Terminal": {
+    "status": "failed",
+    "exitCode": 1,
+    "editorPassRecords": 227,
+    "expectedEditorRecords": 367,
+    "sourceCount": 642,
+    "comprehensiveStageCount": 9,
+    "allStagesPass": false,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-19T10:22:44.149093+00:00"
+  },
+  "mainFull2Current": "Terminal failed227/367, source/extra/added drift0; changed-source column-resize cancellation assertion failed at1440x400. Other comprehensive stages not run. No longer live.",
+  "independentStorageOverlay": {
+    "report": "docs/notion-inline-storage-verification-2026-10-19.json",
+    "currentSourceCount": 642,
+    "promotedSourcePaths": 5,
+    "defaultEditorRecords": 367,
+    "full2OldSnapshot": "failed227; historical unchanged",
+    "currentTargetedMain": "unit711/710PASS/1SKIP,UI37/73/build,native10/source-extra-added drift0",
+    "parentImageResize": "isolated646/full375 still running; future combined comprehensive required"
+  },
+  "latestImageCoreMainPromotion": {
+    "status": "promoted",
+    "manifest": "/tmp/rollapp-image-core-portal-main-promotion.json",
+    "backup": "/tmp/rollapp-image-core-portal-main-backup/manifest.json",
+    "sourceCount": 646,
+    "expectedEditorRecords": 375,
+    "sourceTestPaths": 13,
+    "newPaths": 4,
+    "contracts": 3,
+    "parent375": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-build.log"
+        },
+        {
+          "name": "full-editor",
+          "exitCode": 0,
+          "passRecords": 375,
+          "expectedRecords": 375,
+          "log": "/tmp/rollapp-inline-resize-focus-final375-full-editor.log"
+        }
+      ],
+      "expectedRecords": 375,
+      "startedAt": "2026-10-19T10:31:43.339092+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:27:28.479869+00:00"
+    },
+    "merged53": {
+      "status": "passed",
+      "sourceCount": 646,
+      "results": [
+        {
+          "name": "unit",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-unit.log"
+        },
+        {
+          "name": "ui",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-ui.log"
+        },
+        {
+          "name": "build",
+          "exitCode": 0,
+          "passRecords": 0,
+          "expectedRecords": null,
+          "log": "/tmp/rollapp-portal-save-combined-build.log"
+        },
+        {
+          "name": "image-resize",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-image-resize.log"
+        },
+        {
+          "name": "surface",
+          "exitCode": 0,
+          "passRecords": 11,
+          "expectedRecords": 11,
+          "log": "/tmp/rollapp-portal-save-combined-surface.log"
+        },
+        {
+          "name": "styles",
+          "exitCode": 0,
+          "passRecords": 10,
+          "expectedRecords": 10,
+          "log": "/tmp/rollapp-portal-save-combined-styles.log"
+        },
+        {
+          "name": "selection",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-selection.log"
+        },
+        {
+          "name": "gutter-alignment",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-gutter-alignment.log"
+        },
+        {
+          "name": "tables",
+          "exitCode": 0,
+          "passRecords": 8,
+          "expectedRecords": 8,
+          "log": "/tmp/rollapp-portal-save-combined-tables.log"
+        }
+      ],
+      "expectedNativeRecords": 53,
+      "startedAt": "2026-10-19T11:25:41.137377+00:00",
+      "sourceDrift": [],
+      "addedSources": [],
+      "extraInputDrift": [],
+      "finishedAt": "2026-10-19T11:38:55.841005+00:00"
+    },
+    "freshMainFull": {
+      "status": "running",
+      "rootPid": 14636,
+      "startedAt": "2026-10-19T11:39:33.904837+00:00",
+      "expectedEditorRecords": 375,
+      "expectedComprehensiveStages": 9,
+      "sourceCount": 646,
+      "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "dirty": true,
+      "dirtyPathCount": 357,
+      "log": "/tmp/rollapp-image-core-portal-main-full.log",
+      "report": "/tmp/rollapp-image-core-portal-main-full-comprehensive.json",
+      "snapshot": "/tmp/rollapp-image-core-portal-main-full-sources.json"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useCallback, useLayoutEffect, useSyncExternalStore } from "react";
 
 // VisualViewport uses layout-viewport coordinates. Ignore pinch zoom: zooming
 // should magnify the sheet, not make its layout chase the magnified viewport.
@@ -14,6 +14,27 @@ export function measureVisualViewport(windowObject) {
     bottomInset: Math.round(Math.max(0, layoutHeight - height - offsetTop)),
     keyboard: !zoomed && layoutHeight - height > 60,
   };
+}
+
+const viewportChange = "rollapp:visual-viewport-change";
+const emptyBoundary = { x: 0, y: 0, width: 0, height: 0 };
+let currentBoundary = emptyBoundary;
+function viewportBoundarySnapshot() {
+  if (typeof window === "undefined") return emptyBoundary;
+  const { height, offsetTop } = measureVisualViewport(window);
+  if (currentBoundary.width !== window.innerWidth || currentBoundary.y !== offsetTop || currentBoundary.height !== height) currentBoundary = { x: 0, y: offsetTop, width: window.innerWidth, height };
+  return currentBoundary;
+}
+
+// Only open anchored surfaces subscribe to the app's existing viewport source.
+// Base UI needs a new Rect value when panning, not getters in a cached Rect.
+export function useVisualViewportBoundary(enabled) {
+  const subscribe = useCallback(listener => {
+    if (!enabled) return () => {};
+    window.addEventListener(viewportChange, listener);
+    return () => window.removeEventListener(viewportChange, listener);
+  }, [enabled]);
+  return useSyncExternalStore(subscribe, viewportBoundarySnapshot, () => emptyBoundary);
 }
 
 // Recheck every overlay after viewport layout settles, including drawers:
@@ -56,6 +77,7 @@ export function useVisualViewport() {
       root.style.setProperty("--app-visual-bottom", `${metrics.bottomInset}px`);
       root.toggleAttribute("data-overlay-keyboard", metrics.keyboard);
       root.toggleAttribute("data-overlay-compact", metrics.height < 420);
+      window.dispatchEvent(new Event(viewportChange));
       cancelAnimationFrame(revealFrame);
       clearTimeout(settleTimer);
       // Native viewport resizing can reconcile scroll anchoring after resize
@@ -72,6 +94,9 @@ export function useVisualViewport() {
     // Commit geometry before Base UI's queued focus alignment reads it.
     // Deferring this until rAF can leave stale keyboard padding on the body.
     window.addEventListener("resize", update);
+    // WebKit may dispatch document scrolling before VisualViewport.scroll
+    // (or defer the latter until the touch gesture ends).
+    window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("orientationchange", update);
     viewport?.addEventListener("resize", update);
     viewport?.addEventListener("scroll", update);
@@ -81,6 +106,7 @@ export function useVisualViewport() {
       clearTimeout(settleTimer);
       document.removeEventListener("focusin", schedule);
       window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
       window.removeEventListener("orientationchange", update);
       viewport?.removeEventListener("resize", update);
       viewport?.removeEventListener("scroll", update);

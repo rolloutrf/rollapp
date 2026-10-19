@@ -1,6 +1,72 @@
 /* Gallup and Hogan share the page / section / item rhythm. Prose keeps the
    typeset contract; cards and controls keep their shadcn composition spacing. */
 @layer components {
+  /* Category colours supplement the written domain / scale names. */
+  .gallup-profile {
+    --gallup-domain: var(--muted-foreground);
+    --gallup-influencing: #ee7203;
+    --gallup-strategic: #009b67;
+    --gallup-executing: #812990;
+    --gallup-relationship: #0876c9;
+    --gallup-warning: var(--muted-foreground);
+    --gallup-warning-foreground: var(--foreground);
+    --gallup-rule: var(--border);
+  }
+
+  .hogan-report {
+    --hogan-hpi: #e4b744;
+    --hogan-mvpi: #6f9bd5;
+    --hogan-hds: #e25e72;
+    --hogan-development: var(--muted-foreground);
+    --hogan-rule: var(--border);
+  }
+
+  .hogan-report__change-model li > span { color: var(--muted-foreground); }
+
+  .hogan-method { --hogan-method-color: var(--hogan-hpi); }
+  .hogan-method--mvpi { --hogan-method-color: var(--hogan-mvpi); }
+  .hogan-method--hds { --hogan-method-color: var(--hogan-hds); }
+
+  .gallup-profile [data-domain="influencing"] { --gallup-domain: var(--gallup-influencing); }
+  .gallup-profile [data-domain="strategic"] { --gallup-domain: var(--gallup-strategic); }
+  .gallup-profile [data-domain="executing"] { --gallup-domain: var(--gallup-executing); }
+  .gallup-profile [data-domain="relationship"] { --gallup-domain: var(--gallup-relationship); }
+
+  .identity-report-domain-grid > [data-domain],
+  .gallup-profile .identity-strength-option[data-domain],
+  .gallup-profile [data-domain][aria-live],
+  .gallup-sequence > [data-domain],
+  .gallup-domain-legend__item[data-domain] {
+    border-inline-start: 4px solid var(--gallup-domain);
+  }
+
+  .gallup-domain-legend__item[data-domain] { padding-inline-start: var(--layout-item-gap); }
+
+  .gallup-profile [data-domain] .gallup-strength-detail__rank,
+  .gallup-profile [data-domain] .gallup-report-chapter__rank {
+    background: var(--gallup-domain);
+    color: white;
+  }
+
+  .gallup-report-chapter__rank,
+  .gallup-strength-detail__rank {
+    color: var(--foreground);
+    background: var(--muted);
+  }
+
+  .gallup-strength-detail__domain,
+  .gallup-strength-detail__action > span { color: var(--muted-foreground); }
+
+  .gallup-strength-detail__action { border-top-color: var(--border); }
+  .gallup-sequence li.is-dominant { background: var(--muted); box-shadow: none; }
+  .gallup-domain-legend__item { display: block; }
+
+  .identity-reports-page {
+    display: grid;
+    min-width: 0;
+    gap: var(--layout-section-gap);
+  }
+
   .identity-report,
   .identity-report-section {
     display: grid;
@@ -38,14 +104,6 @@
   .gallup-profile__section-head > p { flex: 1; margin: 0; text-align: left; }
   .gallup-top-five { gap: var(--layout-page-gap); align-items: start; }
 
-  .gallup-strength-detail {
-    min-height: 0;
-    padding: var(--layout-page-gap);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    background: var(--card);
-  }
-
   .gallup-strength-detail__heading { gap: var(--layout-item-gap); }
   .gallup-strength-detail__heading > div { min-width: 0; }
   .gallup-strength-detail__rank {
@@ -65,18 +123,11 @@
 
   .gallup-strength-detail__action > span { margin: 0; @apply text-xs font-semibold tracking-widest; }
   .gallup-strength-detail__action > p { margin-block-start: calc(var(--typeset-flow) / 2); }
-  .gallup-dna { margin: 0; height: 1.5rem; }
-  .gallup-dna__labels {
-    grid-template-columns: minmax(0, 10fr) minmax(0, 24fr);
-    margin: 0;
-    @apply text-xs;
-  }
-  .gallup-dna__labels > span { min-width: 0; }
   .gallup-sequence { margin: 0; column-gap: var(--layout-page-gap); }
   .gallup-profile--generated .gallup-sequence { grid-auto-flow: row; grid-template-rows: none; }
-  .gallup-sequence li { grid-template-columns: 1.5rem 0.5rem minmax(0, 1fr); gap: var(--layout-inline-gap); padding: var(--layout-inline-gap); }
+  .gallup-sequence li { grid-template-columns: 1.5rem minmax(0, 1fr); gap: var(--layout-inline-gap); padding: var(--layout-inline-gap); }
   .gallup-sequence__name { white-space: normal; @apply text-base leading-6; }
-  .gallup-sequence__translation { grid-column: 3; text-align: left; @apply text-xs; }
+  .gallup-sequence__translation { grid-column: 2; text-align: left; @apply text-xs; }
   .gallup-domain-legend { margin: 0; padding-block-start: var(--layout-page-gap); gap: var(--layout-page-gap); }
   .gallup-profile__note { margin: 0; }
   .gallup-report-toolbar { width: 100%; min-width: 0; flex-wrap: wrap; gap: var(--layout-item-gap); }
@@ -233,7 +284,6 @@
 
   @media (max-width: 640px) {
     .identity-report-domain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .gallup-strength-detail,
     .gallup-web-report__masthead { padding: var(--layout-item-gap); }
     .gallup-sequence { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-flow: row; }
     .gallup-domain-legend { grid-template-columns: minmax(0, 1fr); }
@@ -241,7 +291,4 @@
     .hogan-report__change-model li + li { border-left: 1px solid var(--border); }
   }
 
-  @media (max-width: 480px) {
-    .identity-report-domain-grid { grid-template-columns: minmax(0, 1fr); }
-  }
 }

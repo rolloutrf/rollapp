@@ -215,6 +215,13 @@
     padding: 0;
     pointer-events: none;
   }
+  [data-overlay-keyboard] .mobile-form-page [data-native-form-actions] {
+    /* WebKit can move the fixed bottom edge independently while panning a
+       focused document. Anchor from the visible top instead; do not subtract
+       a keyboard inset from that moving bottom edge a second time. */
+    top: calc(var(--app-visual-top, 0px) + var(--app-visual-height, 100dvh) - var(--layout-item-gap) - var(--layout-control-size));
+    bottom: auto;
+  }
   .mobile-form-page__actions {
     display: flex;
     flex: 1;

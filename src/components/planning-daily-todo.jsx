@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
-import { addCalendarDays, dateFromKey, sortCalendarTasks } from "../../shared/planning-calendar.js";
+import { addCalendarDays, calendarTaskSchedules, dateFromKey, nextCalendarTaskStart, sortCalendarTasks } from "../../shared/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { expandRecurringTasks } from "../../shared/planning-recurrence.js";
 import "./planning-daily-todo.css";
@@ -59,14 +59,14 @@ function DayRibbon({ selected, today, onChange }) {
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
     <ControlBar ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
       {dates.map((date) => <Button key={date} variant={date === selected ? "default" : "outline"} size="icon" className="daily-todo__day rounded-full" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-        <span className="daily-todo__weekday" aria-hidden="true">{weekdayLabel.format(dateFromKey(date))}</span>
-        <span className="text-rollapp-body font-semibold tabular-nums" aria-hidden="true">{dateFromKey(date).getDate()}</span>
+        <span className="text-rollapp-body font-normal" aria-hidden="true">{weekdayLabel.format(dateFromKey(date))}</span>
+        <span className="text-rollapp-body font-normal tabular-nums" aria-hidden="true">{dateFromKey(date).getDate()}</span>
       </Button>)}
     </ControlBar>
   </header>;
 }
 
-function TodoRow({ task, onSave, onEdit }) {
+function TodoRow({ task, displayTime, onSave, onEdit }) {
   const [busy, setBusy] = useState(false);
   const toggle = async (checked) => {
     if (busy) return;
@@ -79,7 +79,7 @@ function TodoRow({ task, onSave, onEdit }) {
     <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
     <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
       <span className="daily-todo__task-title">{task.title}</span>
-      {task.startTime && <span className="daily-todo__time">{task.startTime}</span>}
+      {displayTime && <span className="daily-todo__time">{displayTime}</span>}
     </Button>
   </li>;
 }
@@ -106,21 +106,25 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     if (busy || !title.trim()) return;
     setBusy(true); setError("");
     try {
-      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: "", durationMinutes: 60 }, { quiet: true });
+      const dayTasks = expandRecurringTasks(tasks, selected, selected);
+      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(dayTasks, selected) || "", durationMinutes: 30 }, { quiet: true });
       setTitle("");
     } catch (cause) { setError(cause.message || "Не удалось добавить задачу"); }
     finally { setBusy(false); }
   };
-  const dayTasks = sortCalendarTasks(expandRecurringTasks(tasks, selected, selected));
-  const active = dayTasks.filter((task) => !task.completed);
-  const done = dayTasks.filter((task) => task.completed);
+  const expanded = expandRecurringTasks(tasks, selected, selected);
+  const originalById = new Map(expanded.map((task) => [task.id, task]));
+  const dayTasks = sortCalendarTasks(calendarTaskSchedules(expanded))
+    .map((scheduled) => ({ task: originalById.get(scheduled.id), displayTime: scheduled.startTime }));
+  const active = dayTasks.filter(({ task }) => !task.completed);
+  const done = dayTasks.filter(({ task }) => task.completed);
   const controls = <footer className="daily-todo__footer">
       <div className="daily-todo__content">
         {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft aria-hidden="true" /></Button>
           <PlanningDatePicker value={selected} onChange={setDate} label="Выбрать дату" className="w-full"><span className="truncate">{compactDateLabel(selected)}</span></PlanningDatePicker>
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight aria-hidden="true" /></Button>
-          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Добавить задачу" onClick={() => onCreate(selected)}><Plus aria-hidden="true" /></Button>
+          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Добавить задачу" onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected))}><Plus aria-hidden="true" /></Button>
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
@@ -136,11 +140,11 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
       {!mobile && <DayRibbon selected={selected} today={today} onChange={setDate} />}
       {dayTasks.length > 0 && <div className="daily-todo__content">
       {active.length > 0 && <section className="daily-todo__group" aria-label="Нужно сделать">
-        <ul className="daily-todo__list">{active.map((task) => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} />)}</ul>
+        <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
       </section>}
 
       {done.length > 0 && <section className="daily-todo__group" aria-label="Выполнено">
-        <ul className="daily-todo__list">{done.map((task) => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} />)}</ul>
+        <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
       </section>}
       </div>}
     </div>

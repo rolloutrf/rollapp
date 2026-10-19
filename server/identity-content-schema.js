@@ -46,10 +46,13 @@ export const identityCharacterSchema = z.union([
   legacyIdentityCharacterSchema,
 ]);
 
+const fourQuestionAnswerLimit = 30 * 20_000;
+
 export const identityFourQuestionsSchema = z.object({
   questions: z.array(z.object({
     title: z.string().trim().max(240).optional(),
-    paragraphs: z.array(z.string().trim().min(1).max(20_000)).min(1).max(30),
+    paragraphs: z.array(z.string().max(fourQuestionAnswerLimit)).max(30)
+      .refine(paragraphs => paragraphs.reduce((total, paragraph) => total + paragraph.length, 0) <= fourQuestionAnswerLimit, "Ответ слишком длинный"),
   }).strict()).length(IDENTITY_QUESTION_TITLES.length),
 }).strict().transform(({ questions }) => ({
   questions: questions.map(({ paragraphs }, index) => ({

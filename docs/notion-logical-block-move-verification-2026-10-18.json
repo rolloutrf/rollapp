@@ -1,0 +1,231 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "createdAt": "2026-10-18T15:27:46.785279+00:00",
+  "sourceSnapshot": "/tmp/rollapp-logical-main-final-sources.json",
+  "sourceCount": 595,
+  "scope": "Unified logical text/list movement, native internal drag/drop, first menu measurement, long answer storage and deterministic chart jumps",
+  "mainUnit": {
+    "total": 644,
+    "pass": 643,
+    "skip": 1,
+    "exitCode": 0,
+    "log": "/tmp/rollapp-logical-main-unit.log"
+  },
+  "mainUi": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsx": 68,
+    "log": "/tmp/rollapp-logical-main-ui.log"
+  },
+  "mainBuild": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-logical-main-build.log",
+    "warning": "Existing chunks above500KB"
+  },
+  "targets": {
+    "mainFirstSelection": {
+      "pass": 9,
+      "log": "/tmp/rollapp-first-offscreen-main.log"
+    },
+    "mainLongAnswers": {
+      "pass": 8,
+      "log": "/tmp/rollapp-long-answer-main.log"
+    },
+    "mainDirectQuestionMoves": {
+      "pass": 8,
+      "log": "/tmp/rollapp-question-move-main.log"
+    },
+    "mainNativeDrag": {
+      "pass": 2,
+      "log": "/tmp/rollapp-logical-main-drag.log"
+    },
+    "mainDragGuards": {
+      "pass": 1,
+      "log": "/tmp/rollapp-logical-main-drag-guards.log"
+    },
+    "candidateLogicalListMoves": {
+      "pass": 8,
+      "log": "/tmp/rollapp-logical-joined-browser.log"
+    },
+    "candidateQuestionMoves": {
+      "pass": 8,
+      "log": "/tmp/rollapp-logical-question-moves-browser.log"
+    },
+    "candidateNesting": {
+      "pass": 8,
+      "log": "/tmp/rollapp-logical-nesting-browser.log"
+    },
+    "candidateSparse": {
+      "pass": 8,
+      "log": "/tmp/rollapp-logical-sparse-browser.log"
+    },
+    "chartSlowFonts": {
+      "pass": 2,
+      "log": "/tmp/rollapp-hogan-anchor-instant-slow.log"
+    },
+    "chartFull": {
+      "pass": 24,
+      "log": "/tmp/rollapp-hogan-anchor-instant-full.log"
+    }
+  },
+  "baseline": {
+    "mainComprehensive": {
+      "status": "failed",
+      "editorPassRecords": 159,
+      "sourceCount": 587,
+      "sourceDrift": [],
+      "passedStages": [
+        "check:release",
+        "test:navigation",
+        "test:action-rails"
+      ],
+      "failedStage": "test:identity-reports",
+      "log": "/tmp/rollapp-native-collapse-comprehensive-final.log"
+    },
+    "isolatedEditor": {
+      "status": "passed",
+      "passRecords": 184,
+      "sourceCount": 598,
+      "sourceDrift": [],
+      "log": "/tmp/rollapp-notion-combined-prototype-text.log"
+    }
+  },
+  "live": {
+    "width": 1280,
+    "height": 720,
+    "scrollY": 432,
+    "selectionTop": 310,
+    "toolbarTop": 246,
+    "toolbarBottom": 302,
+    "gap": 8,
+    "htmlUnchanged": true,
+    "collapsed": true,
+    "visibleToolbar": 0,
+    "status": "saved",
+    "productionDataWrites": false
+  },
+  "newComprehensive": {
+    "status": "passed",
+    "expectedEditorPassRecords": 195,
+    "log": "/tmp/rollapp-logical-blocks-comprehensive.log",
+    "report": "/tmp/rollapp-logical-blocks-comprehensive.json",
+    "session": 24320,
+    "exitCode": 0,
+    "editorPassRecords": 195,
+    "sourceCount": 595,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T16:11:17.850359+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "passed",
+        "startedAt": "2026-10-18T15:27:46.961Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:03:40.713Z",
+        "durationMs": 2153751
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:03:40.713Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:04:15.579Z",
+        "durationMs": 34866
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:04:15.579Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:04:54.524Z",
+        "durationMs": 38945
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:04:54.524Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:05:06.278Z",
+        "durationMs": 11753
+      },
+      {
+        "name": "test:todo",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:05:06.278Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:05:29.877Z",
+        "durationMs": 23599
+      },
+      {
+        "name": "test:form-pages",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:05:29.877Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:06:47.725Z",
+        "durationMs": 77847
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:06:47.726Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:07:02.281Z",
+        "durationMs": 14555
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:07:02.281Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:07:18.062Z",
+        "durationMs": 15781
+      },
+      {
+        "name": "test:drawers",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:07:18.063Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T16:11:17.700Z",
+        "durationMs": 239636
+      }
+    ]
+  },
+  "productionDataWrites": false,
+  "databaseServicePid": 22680,
+  "deployment": false,
+  "goalStatus": "active",
+  "limitations": [
+    "Exact Notion Enter semantics and arbitrary inherited/mixed clipboard/style scenarios remain under audit.",
+    "Table handles/media and real device keyboard/IME coverage remain incomplete.",
+    "Targeted and candidate results do not replace the fresh complete main audit."
+  ],
+  "audit": {
+    "vulnerabilities": {
+      "all": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 7,
+        "critical": 0,
+        "total": 7
+      },
+      "production": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    "dependencyChanges": false,
+    "compatibleReview": "Prior isolated audit-fix dry run still7high; no forced incompatible shadcn downgrade",
+    "logs": [
+      "/tmp/rollapp-logical-main-audit.json",
+      "/tmp/rollapp-logical-main-audit-production.json"
+    ]
+  }
+}

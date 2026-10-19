@@ -1,0 +1,155 @@
+{
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "sourceCount": 608,
+  "sourceSnapshot": "/tmp/rollapp-table-chrome-main-sources.json",
+  "candidateSourceCount": 611,
+  "candidateSourceSnapshot": "/tmp/rollapp-table-chrome-candidate-sources.json",
+  "status": "final corrected composition promoted; combined check running",
+  "candidateTargets": {
+    "exitCode": 0,
+    "passRecords": {
+      "chrome": 10,
+      "wide": 2,
+      "axis": 9,
+      "guards": 2
+    },
+    "total": 23
+  },
+  "candidateUnit": {
+    "total": 656,
+    "pass": 655,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-table-chrome-unit.log"
+  },
+  "candidateUIBuild": {
+    "uiLog": "/tmp/rollapp-table-chrome-ui.log",
+    "buildLog": "/tmp/rollapp-table-chrome-build.log",
+    "exitCode": 0
+  },
+  "beforeLog": "/tmp/rollapp-table-header-faithful-before.log",
+  "beforeGeometry": {
+    "handle": {
+      "left": 487.984375,
+      "top": 32,
+      "right": 535.984375,
+      "bottom": 80
+    },
+    "headerSelect": {
+      "left": 452.046875,
+      "top": 24,
+      "right": 571.953125,
+      "bottom": 72
+    },
+    "handleCentreHit": false
+  },
+  "fixtureCorrection": "Page shell and768px reading container are nested exactly as CareerContent. The old same-element shell/text composition caused false text-overlap findings; x=0 gutter proposal was reverted. Correct composition still reproduces header hit=false before the fix.",
+  "supersededRun": {
+    "log": "/tmp/rollapp-table-core-main-comprehensive.log",
+    "status": "superseded",
+    "exitCode": 143,
+    "editorPassRecords": 99,
+    "sourceCount": 605,
+    "sourceDrift": [],
+    "goalPaused": false
+  },
+  "newComprehensive": {
+    "status": "failed",
+    "expectedEditorPassRecords": 228,
+    "command": "ROLLAPP_CHECK_OUTPUT=/tmp/rollapp-table-chrome-main-comprehensive.json npm run check:comprehensive",
+    "log": "/tmp/rollapp-table-chrome-main-comprehensive.log",
+    "json": "/tmp/rollapp-table-chrome-main-comprehensive.json",
+    "session": 72580,
+    "controllerCell": "2055",
+    "exitCode": 1,
+    "editorPassRecords": 228,
+    "sourceCount": 608,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T17:31:13.067884+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "passed",
+        "startedAt": "2026-10-18T16:51:12.228Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T17:29:18.646Z",
+        "durationMs": 2286417
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-10-18T17:29:18.647Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T17:29:53.572Z",
+        "durationMs": 34925
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-10-18T17:29:53.572Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-18T17:30:33.350Z",
+        "durationMs": 39778
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "failed",
+        "startedAt": "2026-10-18T17:30:33.350Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T17:31:12.921Z",
+        "durationMs": 39571
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0
+  },
+  "productionDataWrites": false,
+  "goalComplete": false,
+  "remaining": [
+    "Audit actual app-header-aware native caret scroll in deep documents",
+    "R8 duplication/grow/media/arbitrary groups",
+    "R6 nested Enter semantics",
+    "R9 arbitrary clipboard/style composition",
+    "R10 real device keyboard/IME"
+  ],
+  "mainTargetSequence": {
+    "status": "passed",
+    "session": 22348,
+    "expectedPassRecords": 12,
+    "logs": [
+      "/tmp/rollapp-table-chrome-main-targets.log",
+      "/tmp/rollapp-table-wide-main-targets.log"
+    ],
+    "exitCode": 0,
+    "passRecords": {
+      "chrome": 10,
+      "wide": 2
+    },
+    "total": 12,
+    "sourceCount": 608,
+    "sourceDrift": [],
+    "finishedAt": "2026-10-18T16:55:06.989044+00:00"
+  },
+  "runtimeChange": "reserve actual header bottom; choose separate tall-row slots; original8px gutter retained"
+}

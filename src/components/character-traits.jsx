@@ -185,7 +185,7 @@ export function CharacterTraits() {
               <div key={trait.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(trait.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox className="mt-1 size-5" checked={selected.has(trait.id)} disabled={editingDisabled} onCheckedChange={(checked) => toggle(trait.id, checked)} aria-label={trait.label} />
                 <span className="flex min-w-0 flex-1 flex-col gap-1 break-words"><strong className="font-semibold text-foreground">{trait.label}</strong>{trait.description && <span className="text-muted-foreground">{trait.description}</span>}</span>
-                {!readOnly && <Button className="shrink-0" variant="ghost" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(trait.id)} aria-label={`Удалить черту «${trait.label}»`}><Trash2 aria-hidden="true" /></Button>}
+                {!readOnly && <Button className="shrink-0" variant="destructive" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(trait.id)} aria-label={`Удалить черту «${trait.label}»`}><Trash2 aria-hidden="true" /></Button>}
               </div>
             ))}
           </div>

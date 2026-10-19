@@ -29,6 +29,7 @@ function SpaceSwitcher({ kind, selected, onSelect }) {
 }
 
 export function PlanningSpaceMenu({ kind, selected, onSelect, spaces, setSpaces, loading, error, reload, createSpace }) {
+  const mobile = useIsMobile();
   const calendar = kind === "calendar", todo = kind === "todo";
   const Icon = calendar ? CalendarDays : todo ? ListTodo : Columns3;
   const [creating, setCreating] = useState(false);
@@ -40,7 +41,7 @@ export function PlanningSpaceMenu({ kind, selected, onSelect, spaces, setSpaces,
       <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select rounded-full" aria-label={calendar ? "Выбрать календарь" : todo ? "Выбрать To Do-лист" : "Выбрать доску задач"} />}>
         <Icon aria-hidden="true" /><span className="space-select__label">{label}</span><ChevronDown aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="rollapp-body global-service-select__content app-navigation-popup w-max min-w-(--anchor-width) max-w-(--available-width)" align="center" side="top">
+      <DropdownMenuContent className="rollapp-body global-service-select__content app-navigation-popup w-max min-w-(--anchor-width) max-w-(--available-width)" align="center" side={mobile ? "top" : "bottom"}>
         {spaces.map((space) => <DropdownMenuItem key={space.id} onClick={() => onSelect(space.id)} aria-current={selected === space.id ? "true" : undefined}>
           <Icon aria-hidden="true" /><span className="flex-1">{space.title}</span>{selected === space.id && <Check aria-hidden="true" />}
         </DropdownMenuItem>)}

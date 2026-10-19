@@ -1,24 +1,21 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
-import { toast } from "sonner";
+import { InlineDocument } from "@/components/inline-document";
+import { ControlBar } from "@/components/control-bar";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
-import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
   CareerContentError, useCareerContent,
 } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
 } from "@/components/form-surface";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import { parseThesesMarkdown, serializeThesesMarkdown } from "@/lib/theses";
 import thesesSource from "@/data/theses.md?raw";
 
 const STATEMENT_SECTIONS = {
@@ -131,7 +128,13 @@ function ThesisEditor({ initialValue = "", mode, onDelete, onOpenChange, onSave,
               />
               <FieldDescription>Переносы строк внутри {labels.itemGenitive} сохраняются.</FieldDescription>
             </Field>
-            {editing && onDelete && <EditorDeleteAction
+          </div>
+          <ControlBar as={DrawerFooter} className="flex-row items-center gap-2 border-t pt-4">
+            <Button className="min-h-12 min-w-0 flex-1 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : `Добавить ${labels.item}`} disabled={busy}>
+              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+              {saving ? "Сохраняем" : editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : `Добавить ${labels.item}`}
+            </Button>
+            {editing && onDelete && <EditorDeleteAction compact
               label={`Удалить ${labels.item}`}
               title={`Удалить этот ${labels.item}?`}
               description={labels.deletedDescription}
@@ -140,16 +143,10 @@ function ThesisEditor({ initialValue = "", mode, onDelete, onOpenChange, onSave,
               onDelete={onDelete}
               onDeleted={() => onOpenChange(false)}
             />}
-          </div>
-          <DrawerFooter className="border-t pt-4">
-            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
-              {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-              {saving ? "Сохраняем" : editing ? "Сохранить изменения" : `Добавить ${labels.item}`}
-            </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
+            {!isMobile && <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
               Отмена
-            </DrawerClose>
-          </DrawerFooter>
+            </DrawerClose>}
+          </ControlBar>
         </form>
       </DrawerContent>
     </Drawer>
@@ -166,94 +163,16 @@ export function Principles() {
 
 function IdentityStatements({ section }) {
   const labels = STATEMENT_SECTIONS[section];
-  const { readOnly } = useSphereSharing();
-  const [editor, setEditor] = useState(null);
+  const sharing = useSphereSharing();
   const careerContent = useCareerContent(section, labels.source, "identity");
   const content = typeof careerContent.content === "string" ? careerContent.content : labels.source;
-  const theses = parseThesesMarkdown(content, labels.title);
-  const editingIndex = editor?.mode === "edit" ? editor.index : null;
-
-  const saveTheses = (nextTheses) => careerContent.save(serializeThesesMarkdown(nextTheses));
-
-  const saveThesis = async (thesis) => {
-    if (editingIndex === null) {
-      await saveTheses([...theses, thesis]);
-      toast.success(labels.added);
-      return;
-    }
-    await saveTheses(theses.map((item, index) => (index === editingIndex ? thesis : item)));
-    toast.success(labels.updated);
-  };
-
-  const removeThesis = async () => {
-    if (editingIndex === null) return;
-    await saveTheses(theses.filter((_, index) => index !== editingIndex));
-    toast.success(labels.deleted);
-  };
-
-  return (
-    <div className="sphere-text-page page-stack">
-      {!readOnly && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
-        <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${labels.title}»`}>
-          <PageActionButton
-            className="bg-white text-base text-black hover:bg-white/90"
-            type="button"
-            disabled={careerContent.loading || Boolean(careerContent.error)}
-            aria-label={`Добавить ${labels.item}`}
-            onClick={() => setEditor({ mode: "add" })}
-          >
-            {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            Добавить
-          </PageActionButton>
-          <SphereBusinessControls sphereId="identity" />
-        </div>
-      </header>}
-
-      <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
-
-      {theses.length ? (
-        <article className="life-strategy-source theses-source typeset typeset-rollapp typeset-document" aria-label={labels.title}>
-          <div className="flex flex-col gap-6" data-typeset-group>
-            {theses.map((thesis, index) => (
-              <div className="relative min-h-12 min-w-0" key={`${index}-${thesis}`}>
-                <blockquote className="mt-0! min-w-0 border-0! p-0!">
-                  {thesis.split(/\n\s*\n/gu).map((paragraph, paragraphIndex) => (
-                    <p className="whitespace-pre-line" key={paragraphIndex}>{paragraph}</p>
-                  ))}
-                </blockquote>
-                {!readOnly && <Button
-                  className="not-typeset absolute inset-0 h-full w-full rounded-sm border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
-                  variant="ghost"
-                  type="button"
-                  disabled={careerContent.loading || Boolean(careerContent.error)}
-                  aria-label={`Редактировать ${labels.item} ${index + 1}`}
-                  aria-description={thesis}
-                  onClick={() => setEditor({ mode: "edit", index })}
-                />}
-              </div>
-            ))}
-          </div>
-        </article>
-      ) : (
-        <Empty className="min-h-64 border">
-          <EmptyHeader>
-            <EmptyTitle>{labels.emptyTitle}</EmptyTitle>
-            <EmptyDescription>{readOnly ? labels.emptyReadOnlyDescription : labels.emptyDescription}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-
-      {!readOnly && <ThesisEditor
-        section={section}
-        initialValue={editingIndex === null ? "" : theses[editingIndex] || ""}
-        mode={editor?.mode || "add"}
-        open={Boolean(editor)}
-        onOpenChange={(open) => {
-          if (!open) setEditor(null);
-        }}
-        onDelete={readOnly ? undefined : removeThesis}
-        onSave={saveThesis}
-      />}
-    </div>
-  );
+  return <div className="sphere-text-page page-stack">
+    <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
+    {careerContent.loading && <span role="status">Загружаем…</span>}
+    {!careerContent.loading && !careerContent.error && <InlineDocument key={`${section}:${sharing.owner?.id || "self"}`}
+      documentKey={`identity:${section}`} value={content} onSave={careerContent.save} label={labels.title}
+      readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
+      placeholder={labels.description} className="theses-source"
+      addBlock={{ type: "blockquote", content: [{ type: "paragraph" }] }} />}
+  </div>;
 }

@@ -1,0 +1,235 @@
+{
+  "date": "2026-10-19",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "goal": "active",
+  "progress": true,
+  "promoted": true,
+  "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-wide-drag-audit-1t1vawmd",
+  "mainFull": {
+    "status": "failed",
+    "exitCode": 1,
+    "editorPassRecords": 142,
+    "expectedEditorRecords": 303,
+    "sourceCount": 632,
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": [],
+    "fontServingDenials": 0,
+    "finishedAt": "2026-10-18T20:56:23.463205+00:00"
+  },
+  "mainStandalone": {
+    "session": 50192,
+    "exitCode": 1,
+    "records": 0,
+    "log": "/tmp/rollapp-native-capture-main-wide-control.log"
+  },
+  "baselineTrace": {
+    "log": "/tmp/rollapp-wide-drag-audit.log",
+    "data": "/tmp/rollapp-wide-drag-audit-1024-844.json",
+    "exitCode": 1,
+    "wrapper": {
+      "left": 172,
+      "right": 852,
+      "clientWidth": 680,
+      "scrollWidth": 1201,
+      "scrollLeftAtCaptureLoss": 216
+    },
+    "nativeEvent": "lostpointercapture",
+    "cellSelection": {
+      "anchor": 48,
+      "head": 414
+    }
+  },
+  "initialFix": {
+    "exitCode": 0,
+    "records": 2,
+    "scrollLeft": 372,
+    "exactOrder": [
+      0,
+      2,
+      3,
+      4,
+      1,
+      5
+    ],
+    "log": "/tmp/rollapp-wide-drag-fixed.log"
+  },
+  "sourceSnapshot": "/tmp/rollapp-wide-drag-final-sources.json",
+  "proposedPaths": [
+    "src/hooks/use-inline-table-axis-drag.js",
+    "src/components/inline-table-handles.jsx",
+    "scripts/text-table-wide-checks.mjs"
+  ],
+  "verification": {
+    "compatibility": {
+      "status": "passed",
+      "session": 69846,
+      "expectedRecords": 34,
+      "log": "/tmp/rollapp-wide-drag-compatibility2.log",
+      "report": "/tmp/rollapp-wide-drag-compatibility2.json",
+      "records": 34,
+      "results": [
+        {
+          "flag": "--table-wide-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--table-handles-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--table-axis-guards-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        },
+        {
+          "flag": "--table-chrome-only",
+          "exitCode": 0,
+          "expected": 10,
+          "records": 10
+        },
+        {
+          "flag": "--table-growth-only",
+          "exitCode": 0,
+          "expected": 9,
+          "records": 9
+        },
+        {
+          "flag": "--table-growth-guards-only",
+          "exitCode": 0,
+          "expected": 2,
+          "records": 2
+        }
+      ],
+      "sourceDrift": [],
+      "addedSources": [],
+      "sourceCount": 632,
+      "exitCode": 0
+    },
+    "unit": {
+      "status": "passed",
+      "session": 8640,
+      "log": "/tmp/rollapp-wide-drag-final-unit.log",
+      "exitCode": 0,
+      "total": 683,
+      "passed": 682,
+      "skipped": 1
+    },
+    "uiBuild": {
+      "status": "passed",
+      "session": 66066,
+      "uiLog": "/tmp/rollapp-wide-drag-final-ui.log",
+      "buildLog": "/tmp/rollapp-wide-drag-final-build.log",
+      "exitCode": 0,
+      "uiPrimitives": 37,
+      "uiJsxSources": 72
+    }
+  },
+  "previousVerification": {
+    "report": "/tmp/rollapp-wide-drag-compatibility.json",
+    "status": "failed",
+    "exitCode": 1,
+    "records": 0,
+    "reason": "fixture compared pressed button translateY1px against unpressed bounds;now checks actual native capture plus stable ControlBar rail"
+  },
+  "requires": [
+    "combine with insertion/font633 after compatibility90/34",
+    "combined regression and fresh311 editor/nine-stage comprehensive",
+    "remaining R1-R10 requirements/hardware IME and devices"
+  ],
+  "production": {
+    "servicePid": 22680,
+    "keptRunning": true,
+    "dataWrites": 0,
+    "schemaChanges": 0,
+    "deploy": false
+  },
+  "combined": {
+    "status": "passed",
+    "session": 14352,
+    "expectedRecords": 63,
+    "snapshot": "/tmp/rollapp-text-authoring-combined-sources.json",
+    "log": "/tmp/rollapp-text-authoring-combined.log",
+    "report": "/tmp/rollapp-text-authoring-combined.json",
+    "records": 63,
+    "results": [
+      {
+        "flag": "--insert-ownership-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--table-wide-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-handles-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-axis-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-chrome-only",
+        "exitCode": 0,
+        "expected": 10,
+        "records": 10
+      },
+      {
+        "flag": "--table-growth-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      },
+      {
+        "flag": "--table-growth-guards-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--table-growth-contexts-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      },
+      {
+        "flag": "--block-menu-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--columns-only",
+        "exitCode": 0,
+        "expected": 9,
+        "records": 9
+      }
+    ],
+    "sourceDrift": [],
+    "addedSources": [],
+    "sourceCount": 633,
+    "finishedAt": "2026-10-18T21:15:26.918345+00:00"
+  },
+  "promotedViaCombined": "docs/notion-text-authoring-combined-verification-2026-10-19.json"
+}

@@ -1,0 +1,453 @@
+{
+  "date": "2026-10-18",
+  "commit": "710457583a873ce56b93d4eb26849731164f5b2d",
+  "dirty": true,
+  "scope": "native Cut history boundaries and rapid native selection counterexample",
+  "previousGoalTurn": "verified wait: main comprehensive controller2394 was polled live; read-only live evidence added, no editor runtime change",
+  "currentGoalTurn": "progress: native Cut/typing Undo merge reproduced and fixed in isolated candidate; independent rapid extension loss reproduced and insufficient keyup alternative rejected",
+  "promoted": true,
+  "candidateWorkspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-context-history-bpzpo3ro",
+  "candidateSnapshot": "/tmp/rollapp-context-history-sources.json",
+  "candidateFiles": [
+    "src/components/inline-rich-text-editor.jsx",
+    "src/lib/inline-paste-history.js",
+    "src/lib/inline-paste-history.test.js",
+    "scripts/text-cut-history-checks.mjs",
+    "scripts/text-edit-smoke.mjs"
+  ],
+  "candidateImplementation": "close history before nonempty editable cut and after native uiEvent=cut; preserve paste rules, ordinary typing and custom protected-question cut ownership",
+  "baseline": {
+    "log": "/tmp/rollapp-cut-history-before.log",
+    "exitCode": 1,
+    "failure": "one Undo after native cut + typing restores cut text and removes new typing together"
+  },
+  "targeted": {
+    "firstTwoViewport": {
+      "exitCode": 0,
+      "records": 2,
+      "log": "/tmp/rollapp-cut-history-fixed.log"
+    },
+    "expandedFirst": {
+      "exitCode": 1,
+      "records": 5,
+      "log": "/tmp/rollapp-cut-history-matrix.log",
+      "failure": "before Cut, sixth Shift+ArrowLeft lost; independent selection issue"
+    },
+    "expandedSecond": {
+      "exitCode": 0,
+      "records": 8,
+      "log": "/tmp/rollapp-cut-history-matrix-trace.log",
+      "coverage": "prior typing / cut / new typing three independent Undo/Redo, native rich column and sparse group and cross-answer cut; exact marks/widths/neighbours/selection, save/reload; eight viewport cases, no API"
+    }
+  },
+  "unit": {
+    "exitCode": 0,
+    "total": 680,
+    "pass": 679,
+    "skip": 1,
+    "fail": 0,
+    "log": "/tmp/rollapp-cut-history-unit.log"
+  },
+  "ui": {
+    "initialExitCode": 1,
+    "initialCause": "isolated copy omitted jsconfig.json; copied same root input, no assertion/source change",
+    "finalExitCode": 0,
+    "primitives": 37,
+    "jsx": 71,
+    "log": "/tmp/rollapp-cut-history-ui.log"
+  },
+  "build": {
+    "exitCode": 0,
+    "log": "/tmp/rollapp-cut-history-build.log"
+  },
+  "compatibility": {
+    "status": "passed",
+    "session": 92100,
+    "expectedRecords": 32,
+    "flags": [
+      "--code-paste-only",
+      "--four-document-only",
+      "--sparse-only",
+      "--column-contexts-only",
+      "--column-persistence-only",
+      "--native-caret-only"
+    ],
+    "log": "/tmp/rollapp-cut-history-compatibility.log",
+    "report": "/tmp/rollapp-cut-history-compatibility.json",
+    "records": 32,
+    "results": [
+      {
+        "flag": "--code-paste-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--four-document-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--sparse-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--column-contexts-only",
+        "exitCode": 0,
+        "expected": 3,
+        "records": 3
+      },
+      {
+        "flag": "--column-persistence-only",
+        "exitCode": 0,
+        "expected": 3,
+        "records": 3
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 0,
+        "expected": 2,
+        "records": 2
+      }
+    ],
+    "sourceDrift": []
+  },
+  "rapidSelection": {
+    "status": "open: current main reference counterexample",
+    "firstProbe": {
+      "exitCode": 1,
+      "log": "/tmp/rollapp-fast-selection-probe.log",
+      "failure": "managed repeat9: native keyup had remove, later selectionchange reverted to emove; PM head lagged"
+    },
+    "repeatControl": {
+      "exitCode": 0,
+      "log": "/tmp/rollapp-selection-keyup-before.log",
+      "unmanagedPass": 30,
+      "managedPass": 30,
+      "interpretation": "intermittent issue; this passing repeat does not invalidate failure"
+    },
+    "insufficientKeyupAlternative": {
+      "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-selection-keyup-d5x2j971",
+      "exitCode": 1,
+      "log": "/tmp/rollapp-selection-keyup-fixed.log",
+      "unmanagedPass": 30,
+      "managedPassBeforeFailure": 27,
+      "failure": "managed third ArrowLeft had native selection ve at keyup, no movement survived; keyup synchronization insufficient",
+      "promotable": false,
+      "unit": {
+        "exitCode": 0,
+        "total": 682,
+        "pass": 681,
+        "skip": 1
+      },
+      "cutMatrix": {
+        "status": "passed",
+        "session": 15076,
+        "log": "/tmp/rollapp-selection-keyup-cut.log",
+        "note": "supplementary, does not prove native selection issue fixed",
+        "exitCode": 0,
+        "records": 8
+      },
+      "backupDirectory": "/tmp/rollapp-rejected-keyup-only"
+    },
+    "nativeExtensionCandidate": {
+      "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-selection-keyup-d5x2j971",
+      "implementation": "browser Selection.modify(extend,left/right,character) then synchronize same-key; modified/navigation/IME/read-only and custom selections retain ownership",
+      "stress": {
+        "exitCode": 0,
+        "unmanagedPass": 30,
+        "managedPass": 30,
+        "log": "/tmp/rollapp-native-extension-fixed.log"
+      },
+      "unit": {
+        "exitCode": 0,
+        "total": 682,
+        "pass": 681,
+        "skip": 1,
+        "log": "/tmp/rollapp-native-extension-unit.log"
+      },
+      "nativeReference": {
+        "status": "failed",
+        "session": 53018,
+        "log": "/tmp/rollapp-native-extension-reference.log",
+        "firstViewportPassed": "390x400",
+        "exitCode": 1,
+        "failure": "1440x400 RTL collapsed range: anchor changed from0 to6, expected native single-character selection; mobile reference passed"
+      },
+      "questionMoveFixture": {
+        "exitCode": 0,
+        "records": 8,
+        "log": "/tmp/rollapp-native-home-question-moves.log",
+        "change": "use actual macOS Meta+ArrowLeft for start-of-line; existing exact offset1/structure/Undo assertions retained"
+      },
+      "promoted": false,
+      "promotable": false,
+      "backupDirectory": "/tmp/rollapp-rejected-native-extension"
+    },
+    "preflushCandidate": {
+      "workspace": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-selection-keyup-d5x2j971",
+      "implementation": "synchronize native TextSelection in handleDOMEvents.keydown before ProseMirror editHandlers.keydown forceFlush; leave extension native and retain later sync for other command entry points",
+      "references": "node_modules/prosemirror-view/src/input.ts runCustomHandler preceding editHandlers.keydown forceFlush",
+      "referenceSession": 83966,
+      "referenceLog": "/tmp/rollapp-native-preflush-reference.log",
+      "stressSession": 24934,
+      "stressLog": "/tmp/rollapp-native-preflush-stress.log",
+      "status": "targeted-passed",
+      "promoted": true,
+      "referenceExitCode": 0,
+      "referenceRecords": 2,
+      "stressExitCode": 0,
+      "stressNativeRecords": 30,
+      "stressManagedRecords": 30,
+      "mainCounterexample": {
+        "status": "failed",
+        "viewport": [
+          390,
+          400
+        ],
+        "case": "formatted collapsed0 Shift+ArrowLeft",
+        "expected": {
+          "anchor": 0,
+          "focus": 0,
+          "collapsed": true,
+          "text": ""
+        },
+        "actual": {
+          "anchor": 29,
+          "focus": 0,
+          "collapsed": false,
+          "selection": "whole formatted text"
+        },
+        "log": "/tmp/rollapp-cut-preflush-main-targeted.log",
+        "sourceDrift": []
+      }
+    }
+  },
+  "inheritedColorCounterprobe": {
+    "before": "red",
+    "after": null,
+    "explicitChildBlockColor": null,
+    "classification": "expected semantic inheritance is not yet established against Notion; do not call loss of explicit style or implement speculative materialization"
+  },
+  "production": "keepalive ready22680; no content writes, schema operations, commit or deployment",
+  "remaining": [
+    "R2/R6/R9: capture native selection writes and model dispatch stacks around focus/range reset; preflush alone not proven sufficient",
+    "full main631 result pending controller2472/session14201; target8PASS then native-reference failure, question moves not reached in main targeted",
+    "current full R1–R10 still open; preserve all scope and production connection"
+  ],
+  "promotion": {
+    "at": "2026-10-18T19:55:24.745785+00:00",
+    "paths": [
+      "src/components/inline-rich-text-editor.jsx",
+      "src/lib/inline-paste-history.js",
+      "src/lib/inline-paste-history.test.js",
+      "scripts/text-cut-history-checks.mjs",
+      "scripts/text-native-caret-checks.mjs",
+      "scripts/text-question-move-checks.mjs",
+      "scripts/text-mod-enter-checks.mjs",
+      "scripts/text-nesting-checks.mjs",
+      "scripts/text-edit-smoke.mjs"
+    ],
+    "reviewedDiff": "/tmp/rollapp-native-preflush-proposed.diff",
+    "targetSourceDriftBeforeCopy": [],
+    "preservedUnrelatedChangedSources": [
+      "src/components/coaching-sessions.jsx",
+      "src/components/conferences.jsx",
+      "src/components/courses.jsx",
+      "src/components/medications.jsx",
+      "src/components/workouts.jsx",
+      "src/styles.css"
+    ],
+    "preservedNewSource": "src/components/collection-snippet-media.jsx"
+  },
+  "previousMainComprehensive": {
+    "controllerCell": "2394",
+    "session": 51806,
+    "status": "invalidated",
+    "sourceCount": 629,
+    "expectedEditorRecords": 287,
+    "sourceDrift": [
+      "src/components/coaching-sessions.jsx",
+      "src/components/conferences.jsx",
+      "src/components/courses.jsx",
+      "src/components/medications.jsx",
+      "src/components/workouts.jsx",
+      "src/styles.css"
+    ],
+    "log": "/tmp/rollapp-columns-native-main-comprehensive.log",
+    "expectedEditorPassRecords": 287,
+    "snapshot": "/tmp/rollapp-columns-native-main-sources.json",
+    "report": "/tmp/rollapp-columns-native-main-comprehensive.json",
+    "port": 5199,
+    "cache": "/tmp/rollapp-columns-native-main-comprehensive-vite-cache",
+    "startedAt": "2026-10-18T19:31:33.044012+00:00",
+    "exitCode": 1,
+    "editorPassRecords": 77,
+    "addedSources": [
+      "src/components/collection-snippet-media.jsx"
+    ],
+    "finishedAt": "2026-10-18T19:46:53.321915+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-18T19:31:33.246Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-18T19:46:49.602Z",
+        "durationMs": 916356
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0,
+    "failure": "question-move fixture expects bare Home to move caret on macOS; main drift also invalidates fixed snapshot"
+  },
+  "audits": {
+    "all": {
+      "exitCode": 1,
+      "high": 7,
+      "log": "/tmp/rollapp-cut-history-audit.json"
+    },
+    "production": {
+      "exitCode": 0,
+      "total": 0,
+      "log": "/tmp/rollapp-cut-history-audit-production.json"
+    },
+    "dependenciesChanged": false
+  },
+  "mainComprehensive": {
+    "status": "cancelled",
+    "expectedEditorRecords": 295,
+    "sourceCount": 631,
+    "sourceSnapshot": "/tmp/rollapp-cut-preflush-main-sources.json",
+    "log": "/tmp/rollapp-cut-preflush-main-comprehensive.log",
+    "report": "/tmp/rollapp-cut-preflush-main-comprehensive.json",
+    "session": 14201,
+    "controllerCell": "2472",
+    "exitCode": 130,
+    "editorPassRecords": 15,
+    "sourceDrift": [],
+    "addedSources": [],
+    "finishedAt": "2026-10-18T20:03:00.195802+00:00",
+    "stages": [
+      {
+        "name": "check:release",
+        "status": "interrupted",
+        "startedAt": "2026-10-18T19:55:50.087Z",
+        "finishedAt": "2026-10-18T20:02:59.971121+00:00"
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      }
+    ],
+    "fontServingDenials": 0
+  },
+  "mainTargeted": {
+    "status": "failed",
+    "records": 8,
+    "results": [
+      {
+        "flag": "--cut-history-only",
+        "exitCode": 0,
+        "expected": 8,
+        "records": 8
+      },
+      {
+        "flag": "--native-caret-only",
+        "exitCode": 1,
+        "expected": 2,
+        "records": 0
+      }
+    ],
+    "sourceDrift": []
+  },
+  "liveReadonly": {
+    "route": "/app/spheres/career?tab=about",
+    "viewport": [
+      1280,
+      720
+    ],
+    "selectedCharacters": 6,
+    "nativeKeyboard": "Ctrl/Cmd+End then6 Shift+ArrowLeft",
+    "selectionStable": true,
+    "textUnchanged": true,
+    "visibleFormattingToolbars": 1,
+    "selectionTop": 378.5,
+    "selectionBottom": 402,
+    "toolbarTop": 314.5,
+    "toolbarBottom": 370.5,
+    "gap": 8,
+    "borderWidths": [
+      "0px",
+      "0px",
+      "0px",
+      "0px"
+    ],
+    "outline": "0px",
+    "boxShadow": "none",
+    "noContentEditOrSaveAction": true,
+    "ownedTab38Closed": true
+  }
+}
