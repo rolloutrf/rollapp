@@ -49,3 +49,7 @@ pointer/focus без применения адреса и без возврат�
 frozen649 unit/UI/build/native26 прогон (session25217) выполняется заново;
 прошлый26 к изменённой версии не приписывается. Main646 не менялся.
 Own temporary fixture17911 остановлен после exact argv check, terminal143.
+
+Follow-up phase2 завершилась **26/26PASS**, unit723/722PASS/1SKIP, UI37/74/buildPASS, source/extra/added drift0. Exact frozen649 full383 стартовал (session10842/PID20167); нового общего результата ещё нет. Six-path355-line diff reviewed, temporary runner fs adaptation excluded from proposal. Main646 checkpoint6fa269b pushed, CI39248087440 выполняется; links649 в нём нет.
+
+Isolated649 full383 завершён PASS:383/383, exit0, source/extra/added drift0, font denials0; controller10842 terminal0 получен. В main не перенесён: поверх него найден и исправляется отдельный metadata round-trip defect;650/383 и653/393 требуют своих полных подтверждений. Main comprehensive9 уже PASS; runtime main не менялся.

@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-19",
+  "status": "isolated653 prototype; full393 terminal failed337/393; no promotion/deployment",
+  "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-image-alignment-jilc9an9",
+  "base": "metadata650 plus separately verified portable image fixture",
+  "goal": "Add Notion media left/centre/right alignment via transient image controls, preserving ordinary prose appearance and the shared document queue/history.",
+  "source": "https://www.notion.com/help/images-files-and-media",
+  "firstUnit": {
+    "log": "/tmp/rollapp-image-alignment-unit-first.log",
+    "status": "failed",
+    "signal": "SIGKILL",
+    "knownFixtureError": "doc.copy(doc.content) returns the same immutable document, so that request was not stale. Corrected to a schema-created distinct document; SIGKILL cause not independently established."
+  },
+  "currentUnit": {
+    "log": "/tmp/rollapp-image-alignment-full393-unit.log",
+    "status": "passed",
+    "total": 730,
+    "pass": 729,
+    "skip": 1
+  },
+  "build": {
+    "log": "/tmp/rollapp-image-alignment-build-first.log",
+    "status": "passed",
+    "scope": "Before no-op/test revisions; fresh build in final gates required"
+  },
+  "nativeAttempts": [
+    {
+      "log": "/tmp/rollapp-image-alignment-native-first.log",
+      "status": "failed",
+      "reason": "Test compared fresh-document selection after reload to the initial node selection instead of the current pre-action selection."
+    },
+    {
+      "log": "/tmp/rollapp-image-alignment-native-second.log",
+      "status": "failed",
+      "reason": "Control geometry sampled during opening scale animation, before settled48px."
+    },
+    {
+      "log": "/tmp/rollapp-image-alignment-native-third.log",
+      "status": "failed",
+      "passRecords": 2,
+      "reason": "DPR3 DOMRect height47.999992 vs exact48; next fixture checks exact offset dimensions plus0.01px floating-point tolerance and all24px corner radii."
+    }
+  ],
+  "phase1Snapshot": "/tmp/rollapp-image-alignment-phase1-sources.json",
+  "compatResize": {
+    "status": "passed",
+    "session": 68729,
+    "log": "/tmp/rollapp-image-alignment-resize-first.log",
+    "exitCode": 0,
+    "passRecords": 8,
+    "sourceDrift": []
+  },
+  "nextNative": "/tmp/rollapp-image-alignment-next-native.mjs, prepared outside active candidate; adds protected questions, twins and stale source/selection guards",
+  "remaining": [
+    "Terminal image resize compatibility8, apply next native revision then all8 alignment cases",
+    "Mandatory fresh unit/UI/build, media matrices and complete391 editor proof before promotion",
+    "Real iOS/physical IME and other media/caption/drop gaps remain open."
+  ],
+  "productionWrites": 0,
+  "updatedAt": "2026-10-19T12:55:21.528745+00:00",
+  "liveFinding": {
+    "screenshot": "/tmp/rollapp-image-alignment-live-desktop-before.jpg",
+    "finding": "ControlBar overrides secondary/ghost backgrounds equally; chosen centre was aria-pressed but visually identical. Row also lacked flex/gap. Switch selected to existing primary variant and explicit flex gap-2; verify real computed styles."
+  },
+  "phase2": {
+    "status": "targeted10 finished; unintended full run interrupted after source revision; not a full PASS",
+    "exitCode": 143,
+    "nativeCases": 10,
+    "log": "/tmp/rollapp-image-alignment-native-fourth.log",
+    "sourceDrift": [],
+    "snapshot": "/tmp/rollapp-image-alignment-phase2-sources.json",
+    "includes": "8 sizes plus light390x400/1440x844, DPR3, exact48/20/radii24, visible selected color, protected questions, twins and source/selection guards",
+    "stoppedPid": 29291,
+    "filterFailure": "New mode was added via an unchecked replace against an obsolete flag-list prefix. Unknown flag resolved to only=undefined, so the runner continued beyond the completed10 cases. Source revision occurred during later link cases; full evidence invalidated.",
+    "terminalSession": 73973
+  },
+  "chromeCounterexample": {
+    "log": "/tmp/rollapp-image-alignment-chrome-before.log",
+    "data": "/tmp/rollapp-image-alignment-chrome-before.json",
+    "confirmed": "Mobile390x400 popup y316..384 overlaps actual bottom navigation y336..384. Desktop comparison has no bottom navigation.",
+    "nextAction": "Apply bounded content viewport to media popup; repeat10 native cases with real chrome and emulated panned visual viewport."
+  },
+  "screenshots": {
+    "desktop": "/tmp/rollapp-image-alignment-live-desktop.jpg",
+    "mobile": "/tmp/rollapp-image-alignment-live-mobile.jpg",
+    "scope": "Phase2 visual fix, own isolated fixture, not production. Chrome-boundary fix not yet included.",
+    "phase3Mobile": "/tmp/rollapp-image-alignment-candidate-mobile.jpg",
+    "phase3Desktop": "/tmp/rollapp-image-alignment-candidate-desktop.jpg",
+    "phase3ShortChrome": "/tmp/rollapp-image-alignment-live-chrome-short.jpg",
+    "phase3Scope": "Freshly restarted own isolated fixture, actual career app chrome, body Geist18/28 no frames or overflow, menu before nav. No production writes."
+  },
+  "phase3FirstAttempt": {
+    "status": "failed before scenarios",
+    "log": "/tmp/rollapp-image-alignment-native-fifth.log",
+    "reason": "Port5320 still owned by unintended earlier run; no runtime behavior was tested."
+  },
+  "phase3": {
+    "status": "passed",
+    "nativeCases": 10,
+    "exitCode": 0,
+    "session": 97168,
+    "log": "/tmp/rollapp-image-alignment-native-sixth.log",
+    "includes": "actual chrome boundary and panned VisualViewport; root/nested/columns/table/protected questions; twins; source/selection/access; light+dark; DPR3; 48px/20px/24px corners and selected colors"
+  },
+  "modeGuard": {
+    "log": "/tmp/rollapp-image-alignment-mode-guard.log",
+    "status": "passed expected failure on unsupported mode before server start",
+    "newModeRecognized": true
+  },
+  "full393": {
+    "status": "failed",
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-image-alignment-jilc9an9",
+    "sourceCount": 653,
+    "expectedEditorRecords": 393,
+    "startedAt": "2026-10-19T12:53:04.423865+00:00",
+    "results": [
+      {
+        "name": "unit",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-unit.log"
+      },
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-image-alignment-full393-build.log"
+      }
+    ],
+    "snapshot": "/tmp/rollapp-image-alignment-full393-sources.json",
+    "active": {
+      "name": "editor",
+      "pid": 31741,
+      "log": "/tmp/rollapp-image-alignment-full393-editor.log"
+    },
+    "controllerSession": 72048,
+    "exitCode": 1,
+    "editorPassRecords": 337,
+    "finishedAt": "2026-10-19T13:50:47.346767+00:00",
+    "failure": "conversion390x400 native select-column menu click timeout; cause under investigation",
+    "processRevalidated": "PID31741 absent; controller terminal JSON confirms failure",
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": []
+  },
+  "promotionProposal": {
+    "source": "/tmp/rollapp-image-alignment-proposed.json",
+    "contracts": "/tmp/rollapp-image-alignment-contracts-proposed.json",
+    "diff": "/tmp/rollapp-image-alignment-proposed.diff",
+    "reviewDirectory": "/tmp/rollapp-image-alignment-reviewed",
+    "status": "prepared, NOT promoted; terminal full393 still required",
+    "normalization": "Temporary Vite realpath adapter removed from proposed runner; inherited trailing-space-only caret file kept at published main bytes. Running candidate remains frozen.",
+    "hiddenHelpers": "Own .image-alignment-host.mjs and .image-alignment-chrome-probe.mjs are supplemental test hosts only and must never be promoted."
+  },
+  "freshUIBuild": "passed in full393 controller before ongoing editor phase",
+  "cleanup": {
+    "iabTabs47and48": "closed",
+    "viewportOverride": "reset",
+    "ownReviewHost": "stopped, terminal143 consumed",
+    "keepalive85976": "ready, left running"
+  }
+}

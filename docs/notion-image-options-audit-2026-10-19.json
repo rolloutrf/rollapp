@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-19",
+  "status": "open gaps documented; no runtime change",
+  "source": "https://www.notion.com/help/images-files-and-media",
+  "officiallyDocumented": [
+    "Hover edge guides resize media; no minimum pixel width or exact fixed-anchor formula specified.",
+    "Alignment has left/centre/right choices, hidden when media already fills the content rail.",
+    "Caption is editable and formattable prose below media, distinct from alternative text.",
+    "Desktop file drag upload, replace and original/full-screen viewing are described."
+  ],
+  "currentRollappEvidence": {
+    "imageNode": "src/lib/inline-image-node.js",
+    "imageIntent": "src/lib/inline-images.js",
+    "picker": "src/components/inline-image-picker.jsx",
+    "resize": "src/components/inline-image-resize.jsx",
+    "available": "src/alt/title/numeric width/height; URL/file chooser upload, guarded insertion and pointer/keyboard resizing",
+    "missing": "No caption document content, no alignment attribute/control, no file paste/drop path in current integration; no full-screen media viewer."
+  },
+  "implementationConstraints": [
+    "Keep image alt text distinct from visible rich caption.",
+    "Caption must share document selection/history/save ownership; a detached field with a separate save queue would not meet the goal.",
+    "Preserve root/nested/table/columns/protected answer structure, exact save/reload/public read and no prose frames.",
+    "Minimum resize or exact edge-anchor equivalence remains unverified; do not infer from brief help text."
+  ],
+  "nextStep": "After current release and frozen link candidates, isolate the next media interaction with native counterexample and preservation tests."
+}
