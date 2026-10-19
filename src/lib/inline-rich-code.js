@@ -1,13 +1,15 @@
 import { Extension, decodeHtmlEntities, encodeHtmlEntities } from "@tiptap/core";
 import { safeInlineColor } from "./inline-text-style.js";
+import { appendInlineEmphasisMark } from "./inline-italic.js";
 
-const tags = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code", link: "a", inlineStyle: "span" };
-const markNames = Object.fromEntries(Object.entries(tags).map(([name, tag]) => [tag, name]));
+const tags = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code", link: "a", inlineStyle: "span", normalText: "span" };
+const markNames = { ...Object.fromEntries(Object.entries(tags).map(([name, tag]) => [tag, name])), span: "inlineStyle" };
 const escape = value => encodeHtmlEntities(String(value)).replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/\|/g, "&#124;").replace(/\n/g, "&#10;").replace(/\r/g, "&#13;").replace(/\t/g, "&#9;").replace(/ {2,}/g, spaces => "&#32;".repeat(spaces.length));
 const attr = (name, value) => value == null ? "" : ` ${name}="${escape(value)}"`;
 
 function needsRichInline(nodes, container) {
   if (nodes.some(node => !["text", "hardBreak"].includes(node.type) || node.marks?.some(mark => !tags[mark.type]))) return false;
+  if (nodes.some(node => node.marks?.some(mark => mark.type === "normalText"))) return true;
   // Markdown trims a block's edge spaces and normalizes literal line endings,
   // even without a code mark. Keep the characters the user actually typed.
   if (/^\s/.test(nodes[0]?.text || "") || /\s$/.test(nodes.at(-1)?.text || "") || nodes.some((node,index) => /[\r\n\t]| {2,}/.test(node.text || "") || node.type === "hardBreak" && (node.marks?.length || container !== "paragraph" || index === 0 || index === nodes.length - 1 || nodes[index + 1]?.type === "hardBreak"))) return true;
@@ -42,6 +44,7 @@ function richHTML(nodes) {
     let attrs = "";
     if (mark.type === "link") attrs = attr("href", mark.attrs.href) + attr("title", mark.attrs.title);
     if (mark.type === "inlineStyle") attrs = attr("data-inline-color", safeInlineColor(mark.attrs.color)) + attr("data-inline-background", safeInlineColor(mark.attrs.background));
+    if (mark.type === "normalText") attrs = ' data-inline-normal="true"';
     return `<${tags[mark.type]}${attrs}>${content}</${tags[mark.type]}>`;
   }, node.type === "hardBreak" ? "<br>" : escape(node.text))).join("")}</span>`;
 }
@@ -72,7 +75,7 @@ export const RichInlineMarkdown = Extension.create({
       if (!source.startsWith(opening)) return undefined;
       const stack = [{ tag: "span", mark: null }], content = [];
       let offset = opening.length;
-      const marks = () => stack.flatMap(entry => entry.mark ? [entry.mark] : []);
+      const marks = () => stack.reduce((result, entry) => entry.mark ? appendInlineEmphasisMark(result, entry.mark) : result, []);
       while (offset < source.length) {
         const rest = source.slice(offset);
         if (rest[0] !== "<") {
@@ -98,14 +101,16 @@ export const RichInlineMarkdown = Extension.create({
         const attributes = {};
         let remaining = tag[3] || "";
         for (const match of remaining.matchAll(/\s([\w-]+)="([^"<>]*)"/g)) {
-          if (!["href", "title", "data-inline-color", "data-inline-background"].includes(match[1])) return undefined;
+          if (!["href", "title", "data-inline-color", "data-inline-background", "data-inline-normal"].includes(match[1])) return undefined;
           attributes[match[1]] = decodeHtmlEntities(match[2]);
         }
         remaining = remaining.replace(/\s[\w-]+="[^"<>]*"/g, "");
         if (remaining.trim()) return undefined;
-        const attrs = tag[2] === "span" ? { color: safeInlineColor(attributes["data-inline-color"]), background: safeInlineColor(attributes["data-inline-background"]) }
+        if (attributes["data-inline-normal"] != null && (tag[2] !== "span" || attributes["data-inline-normal"] !== "true")) return undefined;
+        const type = tag[2] === "span" && attributes["data-inline-normal"] === "true" ? "normalText" : markNames[tag[2]];
+        const attrs = type === "inlineStyle" ? { color: safeInlineColor(attributes["data-inline-color"]), background: safeInlineColor(attributes["data-inline-background"]) }
           : tag[2] === "a" ? { href: attributes.href, title: attributes.title || null } : undefined;
-        stack.push({ tag: tag[2], mark: { type: markNames[tag[2]], ...(attrs ? { attrs } : {}) } });
+        stack.push({ tag: tag[2], mark: { type, ...(attrs ? { attrs } : {}) } });
       }
       return undefined;
     },

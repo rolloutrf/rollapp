@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { applyTableAction, headerEnabled } from "@/lib/inline-table-actions";
 import { InlineStyleButtons } from "@/components/inline-text-styles";
 import { coloredBlockPositions } from "@/lib/inline-block-color";
+import { hasEffectiveItalic, toggleEffectiveItalic } from "@/lib/inline-italic";
 
 const items = [
   ["selectRow", "Выделить строку", Rows3], ["selectColumn", "Выделить столбец", Columns3], ["selectTable", "Выделить все ячейки", Table2],
@@ -21,8 +22,8 @@ const items = [
 export function InlineTableActions({ editor, position, onDone, onColors, onCellColors }) {
   return <div className="flex min-w-0 flex-col gap-2" role="group" aria-label="Действия таблицы">
     {editor.state.selection instanceof CellSelection && <div className="flex flex-wrap gap-2" role="group" aria-label="Оформление ячеек">
-      {[["Жирный", "bold", "toggleBold", Bold], ["Курсив", "italic", "toggleItalic", Italic]].map(([label,mark,command,Icon]) => <Button key={mark} type="button" size="icon" variant={editor.isActive(mark) ? "secondary" : "ghost"} aria-label={label} aria-pressed={editor.isActive(mark)} onMouseDown={event => event.preventDefault()} onClick={() => {
-        editor.view.dispatch(closeHistory(editor.state.tr)); editor.chain().focus()[command]().run(); editor.view.dispatch(closeHistory(editor.state.tr)); onDone();
+      {[["Жирный", "bold", "toggleBold", Bold], ["Курсив", "italic", "toggleItalic", Italic]].map(([label,mark,command,Icon]) => <Button key={mark} type="button" size="icon" variant={(mark === "italic" ? hasEffectiveItalic(editor.state) : editor.isActive(mark)) ? "secondary" : "ghost"} aria-label={label} aria-pressed={mark === "italic" ? hasEffectiveItalic(editor.state) : editor.isActive(mark)} onMouseDown={event => event.preventDefault()} onClick={() => {
+        editor.view.dispatch(closeHistory(editor.state.tr)); if (mark === "italic") toggleEffectiveItalic(editor); else editor.chain().focus()[command]().run(); editor.view.dispatch(closeHistory(editor.state.tr)); onDone();
       }}><Icon aria-hidden="true" /></Button>)}
       <InlineStyleButtons editor={editor} onApply={onDone} onColors={onColors} />
     </div>}
