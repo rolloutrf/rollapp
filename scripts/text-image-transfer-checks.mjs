@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { imageFixturePNG } from "./text-image-checks.mjs";
+import { getSchema } from "@tiptap/core";
+import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
+import { blockHTML } from "../src/lib/inline-table-markdown.js";
+const schema = getSchema(inlineEditorExtensions());
 const bytes = Buffer.from(imageFixturePNG).toString("base64");
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
@@ -8,10 +12,12 @@ const frames = page => page.evaluate(() => new Promise(resolve => requestAnimati
 // OS clipboard/desktop file-manager or actual-device IME evidence.
 export async function checkImageTransfer(browser, origin) {
   for (const [width,height] of [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,844],[1920,844]]) {
-    const page = await browser.newPage({ viewport: { width,height } }), errors = [];
+    const page = await browser.newPage({ viewport: { width,height } }), errors = [], lifecycle = [];
+    page.on('framenavigated', frame => { if (frame === page.mainFrame()) lifecycle.push({ event: 'navigation', url: frame.url() }); });
+    page.on('console', message => { if (['error','warning'].includes(message.type())) lifecycle.push({ event: message.type(), text: message.text() }); });
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
-    await page.addInitScript(() => { window.inlineImageFixture = { uploads: [], pending: [], releases: [], slow: false, fail: false }; });
+    await page.addInitScript(() => { window.inlineImageFixture = { instance: crypto.randomUUID(), uploads: [], pending: [], releases: [], slow: false, fail: false }; });
     const editor = page.getByRole("textbox", {name:"О себе",exact:true});
     const goto = async (source, extra="") => { await page.goto(`${origin}/__text-edit?source=${encodeURIComponent(source)}${extra}`); await editor.waitFor(); await page.evaluate(() => document.fonts.ready); };
     const deliver = async (count=1, drop=false) => editor.evaluate((el,{count,drop,bytes}) => {
@@ -53,9 +59,41 @@ export async function checkImageTransfer(browser, origin) {
     }
     await goto('Keep while composing');await editor.click();const composingBefore=await editor.evaluate(el=>el.editor.getJSON());await editor.dispatchEvent('compositionstart',{data:''});await deliver();await frames(page);assert.equal(await page.evaluate(()=>window.inlineImageFixture.uploads.length),0);assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),composingBefore);await editor.dispatchEvent('compositionend',{data:''});
     await goto('Retry upload');await editor.click();await page.evaluate(()=>{window.inlineImageFixture.fail=true;});await deliver();const failed=page.getByRole('dialog',{name:'Загрузка изображений',exact:true});await failed.getByRole('alert').waitFor();await page.evaluate(()=>{window.inlineImageFixture.fail=false;});await failed.getByRole('button',{name:'Повторить',exact:true}).click();await editor.locator('img').waitFor();assert.equal(await page.evaluate(()=>window.inlineImageFixture.uploads.length),2);
-    await goto('First editor','&twins=1');const other=page.getByRole('textbox',{name:'Второй документ',exact:true});await other.waitFor();await editor.click();await page.evaluate(()=>{window.inlineImageFixture.slow=true;});await deliver();await page.waitForFunction(()=>window.inlineImageFixture.pending.length===1);const firstBefore=await editor.evaluate(el=>el.editor.getJSON());await other.click();await page.evaluate(()=>window.inlineImageFixture.pending.shift()());await page.waitForFunction(()=>window.inlineImageFixture.releases.length===1);assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),firstBefore);assert(await other.evaluate(el=>document.activeElement===el),'A cancelled upload cannot reclaim another editor');
+    await goto('First editor','&twins=1');const other=page.getByRole('textbox',{name:'Второй документ',exact:true});await other.waitFor();await editor.click();await page.evaluate(()=>{window.inlineImageFixture.slow=true;});await deliver();await page.waitForFunction(()=>window.inlineImageFixture.pending.length===1);
+    const firstBefore=await editor.evaluate(el=>el.editor.getJSON()), pendingOwner=await page.evaluate(()=>({instance:window.inlineImageFixture.instance,pending:window.inlineImageFixture.pending.length,uploads:window.inlineImageFixture.uploads.length}));
+    await other.click();
+    const afterFocus=await page.evaluate(()=>({instance:window.inlineImageFixture.instance,pending:window.inlineImageFixture.pending.length,uploads:window.inlineImageFixture.uploads.length}));
+    assert.deepEqual(afterFocus,pendingOwner,`Focus handoff replaced the pending fixture at ${width}x${height}: ${JSON.stringify(lifecycle.slice(-8))}`);
+    await page.evaluate(()=>window.inlineImageFixture.pending.shift()());await page.waitForFunction(()=>window.inlineImageFixture.releases.length===1);assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),firstBefore);assert(await other.evaluate(el=>document.activeElement===el),'A cancelled upload cannot reclaim another editor');
     await goto(Array.from({length:40},(_,n)=>`Long paragraph ${n}`).join('\n\n'),'&chrome=1');await editor.locator('p').last().click();await page.evaluate(()=>{window.inlineImageFixture.slow=true;});await deliver();await page.waitForFunction(()=>window.inlineImageFixture.pending.length===1);const pending=page.getByRole('dialog',{name:'Загрузка изображений',exact:true});await pending.waitFor();const bounds=await pending.boundingBox(),chrome=await page.evaluate(()=>({top:document.querySelector('.global-app-chrome').getBoundingClientRect().bottom,bottom:document.querySelector('.mobile-app-navigation')?.getBoundingClientRect().top||innerHeight}));assert(bounds.y>=chrome.top-1&&bounds.y+bounds.height<=chrome.bottom+1,'Upload feedback clears actual app chrome');await page.mouse.wheel(0,-180);await frames(page);const manual=await page.evaluate(()=>scrollY);await page.evaluate(()=>window.inlineImageFixture.pending.shift()());await editor.locator('img').waitFor();await page.waitForTimeout(350);assert(Math.abs(await page.evaluate(()=>scrollY)-manual)<=1,'Late upload preserves manual scroll');
+    const p = text => ({type:'paragraph',content:[{type:'text',text,marks:[{type:'bold'}]}]});
+    for (const kind of ['nestedBlock','listItem','tableCell','column','blockquote']) {
+      const owner = {type:kind,content:[p('Target after'),p('Child')]};
+      const root = kind==='listItem'?{type:'bulletList',content:[owner]}:kind==='tableCell'?{type:'table',content:[{type:'tableRow',content:[owner]}]}:kind==='column'?{type:'columns',content:[owner,{type:'column',content:[p('Peer')]}]}:owner;
+      const source = [root,p('Tail')].map(node=>blockHTML(schema.nodeFromJSON(node).toJSON())).join('\n\n');
+      await goto(source);
+      const before=await editor.evaluate(el=>el.editor.getJSON());
+      await editor.getByText('Target after',{exact:true}).evaluate(el=>{
+        const root=el.closest('[role="textbox"]'),walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),text=walker.nextNode();
+        root.focus();getSelection().setBaseAndExtent(text,2,text,4);
+      });
+      await deliver();await editor.locator('img').waitFor();
+      const actual=await editor.evaluate(el=>el.editor.getJSON());
+      const image=schema.nodes.image.create({src:'/__inline-image.png',alt:'1.png'}).toJSON();
+      const expected=structuredClone(before);
+      const replace=node=>{for(let i=0;i<(node.content||[]).length;i++){const child=node.content[i];if(child.type==='paragraph'&&child.content?.[0]?.text==='Target after'){
+        const prefix=structuredClone(child),suffix=structuredClone(child);prefix.content[0].text='Ta';suffix.content[0].text='et after';
+        node.content.splice(i,1,prefix,image,schema.nodes.paragraph.create().toJSON(),suffix);return true;
+      }if(replace(child))return true;}return false;};
+      assert(replace(expected));assert.deepEqual(actual,expected,`${kind}: native paste must preserve its exact structural owner, marks and neighbours`);
+      await page.keyboard.type('Continue');await editor.press('ControlOrMeta+z');assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),actual,`${kind}: typing is a separate Undo`);
+      await editor.press('ControlOrMeta+z');assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),before,`${kind}: one paste Undo`);
+      await editor.press('ControlOrMeta+Shift+z');assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),actual);
+      await editor.press('ControlOrMeta+s');await page.locator('[data-save-status="saved"]').waitFor();
+      const saved=await page.evaluate(()=>window.inlineTest.saved);await goto(saved);
+      assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),actual,`${kind}: canonical save/reload`);
+    }
     assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-    await page.close();console.log(`PASS image file transfer ${width}x${height}: multi-file paste and drop payloads, native caret/typing, one batch Undo, exact reload, pending owner/access/IME/cancel and cleanup, viewport and no API/errors`);
+    await page.close();console.log(`PASS image file transfer ${width}x${height}: multi-file paste/drop, five nested owners with exact marks/neighbours, native caret/typing and separate Undo, canonical reload, pending owner/access/IME/cancel and cleanup, viewport and no API/errors`);
   }
 }
