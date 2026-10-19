@@ -4,6 +4,9 @@ import { getSchema } from "@tiptap/core";
 import { inlineEditorExtensions } from "../src/lib/inline-editor-extensions.js";
 import { blockHTML } from "../src/lib/inline-table-markdown.js";
 const schema = getSchema(inlineEditorExtensions());
+// Browser transport returns JSON objects; model attrs use a null prototype.
+// Compare their complete serialized schema values, not JS realm/prototypes.
+const nodeJSON = node => JSON.parse(JSON.stringify(node.toJSON()));
 const bytes = Buffer.from(imageFixturePNG).toString("base64");
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
@@ -79,11 +82,11 @@ export async function checkImageTransfer(browser, origin) {
       });
       await deliver();await editor.locator('img').waitFor();
       const actual=await editor.evaluate(el=>el.editor.getJSON());
-      const image=schema.nodes.image.create({src:'/__inline-image.png',alt:'1.png'}).toJSON();
+      const image=nodeJSON(schema.nodes.image.create({src:'/__inline-image.png',alt:'1.png'}));
       const expected=structuredClone(before);
       const replace=node=>{for(let i=0;i<(node.content||[]).length;i++){const child=node.content[i];if(child.type==='paragraph'&&child.content?.[0]?.text==='Target after'){
         const prefix=structuredClone(child),suffix=structuredClone(child);prefix.content[0].text='Ta';suffix.content[0].text='et after';
-        node.content.splice(i,1,prefix,image,schema.nodes.paragraph.create().toJSON(),suffix);return true;
+        node.content.splice(i,1,prefix,image,nodeJSON(schema.nodes.paragraph.create()),suffix);return true;
       }if(replace(child))return true;}return false;};
       assert(replace(expected));assert.deepEqual(actual,expected,`${kind}: native paste must preserve its exact structural owner, marks and neighbours`);
       await page.keyboard.type('Continue');await editor.press('ControlOrMeta+z');assert.deepEqual(await editor.evaluate(el=>el.editor.getJSON()),actual,`${kind}: typing is a separate Undo`);
