@@ -527,8 +527,8 @@ async function exact(page, actual, expected, label, width, reverse) {
     throw error;
   }
 }
-export async function checkCrossClipboard(browser, origin) {
-  for (const [width, height] of viewports) {
+export async function checkCrossClipboard(browser, origin, diagnostic = false) {
+  for (let repetition = 0; repetition < (diagnostic ? 10 : 1); repetition++) for (const [width, height] of (diagnostic ? [[1024,844]] : viewports)) {
     for (const reverse of [false, true]) {
       const page = await browser.newPage({
           viewport: {
@@ -663,6 +663,6 @@ export async function checkCrossClipboard(browser, origin) {
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log(`PASS mixed cross-answer clipboard ${width}x${height}: native forward/reverse copy/cut/paste, merged tables/lists/closed toggles/columns/nested tasks/code/marks, fixed prompts, exact Undo and saved reload, no API/overflow`);
+    console.log(`${diagnostic ? 'DIAGNOSTIC repeat '+(repetition+1) : 'PASS'} mixed cross-answer clipboard ${width}x${height}: native forward/reverse copy/cut/paste, merged tables/lists/closed toggles/columns/nested tasks/code/marks, fixed prompts, exact Undo and saved reload, no API/overflow`);
   }
 }
