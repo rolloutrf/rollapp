@@ -35,6 +35,7 @@
 | `npm run test:navigation` | Верхняя/нижняя навигация, полноширинные меню, safe area, короткий экран и клавиатура |
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
 | `npm run test:kanban` | Перетаскивание колонок: короткие/пустые/свёрнутые списки, промежутки, начало/конец, edge-scroll, отмена и ошибка сохранения, touch и меню на телефоне; входит в `check:release` |
+| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён |
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
@@ -335,3 +336,21 @@ Native focus restoration is synchronous for model-owned image/cell/block selecti
 Inline Markdown storage preserves marks on every character, including selected edge spaces and adjacent differently styled runs. Explicitly removed links and literal ++ delimiters stay literal after reload; normal Markdown imports keep their existing syntax. Rich list-item child blocks (extra paragraphs, dividers, headings, code and media) retain their own structure through canonical HTML instead of compact continuation lines. Native style checks include actual formatting/unlink/typing, independent Undo/Redo, exact editor reload/public reading at eight viewports. Model tests compare whitespace marks rather than discarding them.
 
 Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action and flushes only the owning document queue. React capture keeps portal ownership local to each InlineRichTextEditor; key events inside the editable DOM retain ProseMirror native input/mutation handling. Saving a document does not apply or close an unconfirmed link form. The native style matrix checks two simultaneously dirty editors and pending metadata on all eight viewports.
+
+
+## Заметки встреч в контактах
+
+В общей форме задачи участники выбираются из личных контактов. `planning_tasks.contact_ids`
+хранит только идентификаторы; описание задачи остаётся единственным источником заметки
+встречи. Карточка контакта показывает актуальные описания с названием/датой в «Из встреч To Do»,
+отдельно от редактируемых личных заметок. Пустые описания пропускаются; завершённые и
+архивные встречи остаются историей, удаление встречи или участника убирает связанную запись.
+Повторяющаяся серия представлена одной заметкой. Заметки To Do доступны только самому
+владельцу, в том числе когда раздел контактов открыт другому пользователю.
+
+Для существующей установки добавление поля выполняется отдельной командой
+`node scripts/migrate-planning-contacts.mjs`: проверяется точное совпадение настроенной
+production БД и роли, выполняется только ADD COLUMN IF NOT EXISTS в короткой транзакции,
+без backfill/изменения заметок/удалений. Обычный dev startup остаётся READ ONLY/verify и
+проверяет наличие поля, не запускает эту миграцию. После изменений связи выполнять
+`test:contact-notes`, `test:planning:production` (rollback), полный comprehensive и оба audit.

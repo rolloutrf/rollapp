@@ -20,6 +20,7 @@ import { enrollWishRewards, ensureRollWallet, grantWishReward } from "./rolls.js
 import { registerRollsRoutes } from "./rolls-routes.js";
 import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
+import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
@@ -6203,6 +6204,7 @@ app.get("/api/contacts/:contactId", requireAuth, requireSphereReadAccess("career
   res.set("Cache-Control", "private, no-store");
   return res.json({ contact: {
     ...contact,
+    meetingNotes: req.sphereViewer.id === req.user.id ? await contactMeetingNotes(query, req.user.id, contact.id) : [],
     avatarSourceUrl: contact.avatarUrl || "",
     avatarUrl: withSphereOwnerQuery(contactAvatarPath(contact), req.query.owner),
   } });
@@ -6256,7 +6258,7 @@ app.patch("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, as
   );
   const contact = await contactForUser(req.user.id, source.id);
   res.set("Cache-Control", "private, no-store");
-  return res.json({ contact: { ...contact, avatarSourceUrl: contact.avatarUrl || "", avatarUrl: contactAvatarPath(contact) } });
+  return res.json({ contact: { ...contact, meetingNotes: await contactMeetingNotes(query, req.user.id, contact.id), avatarSourceUrl: contact.avatarUrl || "", avatarUrl: contactAvatarPath(contact) } });
 }));
 
 app.delete("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
