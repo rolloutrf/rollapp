@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CalendarDays, Columns3, ListTodo, X } from "lucide-react";
 import { toast } from "sonner";
+import { TaskContactPicker } from "@/components/task-contact-picker";
 import { planningApi } from "@/lib/planning-api";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,8 +28,8 @@ export const PLANNING_TABS = [
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
 ];
-const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null };
-function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
+const EMPTY_TASK = { contactIds: [], title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null };
+function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }) {
   const id = useId();
   const mobile = useIsMobile();
   const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", startTime: task.unscheduled ? "" : task.startTime || (task.id && task.dueOn ? "00:00" : "09:00"), durationMinutes: task.id && task.dueOn && !task.startTime ? 1440 : task.durationMinutes || 60 });
@@ -44,7 +45,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     setBusy(true);
     setError("");
     try {
-      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence });
+      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence, contactIds: form.contactIds });
       onClose();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
@@ -70,6 +71,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
             <FieldGroup>
               <Field><FieldLabel htmlFor={`${id}-title`}>Название</FieldLabel><Input id={`${id}-title`} required maxLength={200} placeholder="Что нужно сделать?" value={form.title} onChange={(e) => change("title", e.target.value)} /></Field>
               <Field><FieldLabel htmlFor={`${id}-description`}>Описание</FieldLabel><Textarea id={`${id}-description`} maxLength={5000} rows={4} placeholder="Детали и заметки" value={form.description} onChange={(e) => change("description", e.target.value)} /></Field>
+              <TaskContactPicker searchContacts={searchContacts} value={form.contactIds} contacts={task.contacts} onChange={(value) => change("contactIds", value)} disabled={busy} />
               <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
               <Field><FieldLabel htmlFor={`${id}-date`}>{form.recurrence ? "Начало серии" : "Дата"}</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) { change("recurrence", null); } }} label="Дата задачи" clearable className="w-full" /></Field>
             {form.dueOn && <>

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { defaultPlanningColumns, isPlanningDate, movePlanningTask, orderPlanningTasks, PLANNING_STATUSES } from "../shared/planning.js";
 import { scheduleError, timeMinutes } from "../shared/planning-calendar.js";
+import { planningContacts, withPlanningContacts } from "./planning-contacts.js";
 import { occursOn, recurrenceError } from "../shared/planning-recurrence.js";
 
 export const planningSchema = `
@@ -24,6 +25,7 @@ export const planningSchema = `
   ALTER TABLE planning_tasks ADD COLUMN IF NOT EXISTS space_id TEXT NOT NULL DEFAULT 'main';
   ALTER TABLE planning_tasks ADD COLUMN IF NOT EXISTS recurrence JSONB;
   ALTER TABLE planning_tasks ADD COLUMN IF NOT EXISTS recurrence_completed_dates JSONB NOT NULL DEFAULT '[]';
+  ALTER TABLE planning_tasks ADD COLUMN IF NOT EXISTS contact_ids JSONB NOT NULL DEFAULT '[]';
   CREATE TABLE IF NOT EXISTS planning_spaces (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -45,6 +47,7 @@ export const planningSchema = `
 `;
 const taskFields = z.object({
   title: z.string().trim().min(1).max(200),
+  contactIds: z.array(z.string().trim().min(1).max(100)).max(50).transform((ids) => [...new Set(ids)]),
   description: z.string().trim().max(5000),
   status: z.enum(PLANNING_STATUSES.map(({ id }) => id)),
   dueOn: z.string().refine((value) => value === "" || isPlanningDate(value)),
@@ -59,6 +62,7 @@ const taskFields = z.object({
   }).strict().nullable(),
 });
 export const planningTaskSchema = taskFields.omit({ archived: true }).extend({
+  contactIds: taskFields.shape.contactIds.default([]),
   description: taskFields.shape.description.default(""),
   status: taskFields.shape.status.default("todo"),
   dueOn: taskFields.shape.dueOn.default(""),
@@ -76,7 +80,7 @@ const moveSchema = z.object({ beforeId: z.string().min(1).max(100).nullable().de
 const taskColumns = `id, title, description, status, to_char(due_on, 'YYYY-MM-DD') AS "dueOn",
   COALESCE(column_id,status) AS "columnId", COALESCE(completed,status='done') AS completed, archived,
   to_char(start_time, 'HH24:MI') AS "startTime", duration_minutes AS "durationMinutes",
-  recurrence, recurrence_completed_dates AS "recurrenceCompletedDates"`;
+  recurrence, recurrence_completed_dates AS "recurrenceCompletedDates", contact_ids AS "contactIds"`;
 const fail = (status, message) => Object.assign(new Error(message), { planningStatus: status });
 export const planningSpaceSchema = z.object({ kind: z.enum(["kanban", "calendar", "todo"]), title: z.string().trim().min(1).max(100) });
 
@@ -97,7 +101,7 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     ON CONFLICT (user_id) DO UPDATE SET columns_json=EXCLUDED.columns_json,task_order=EXCLUDED.task_order,updated_at=CURRENT_TIMESTAMP`, [userId, JSON.stringify(board.columns), JSON.stringify(board.order)]);
   const readTasks = async (q, userId, board) => {
     const result = await q(`SELECT ${taskColumns} FROM planning_tasks WHERE user_id=$1 AND space_id=$2 ORDER BY created_at,id`, [userId, board.spaceId]);
-    return orderPlanningTasks(result.rows, board.order);
+    return withPlanningContacts(q, userId, orderPlanningTasks(result.rows, board.order));
   };
   const responseBoard = async (q, userId, board) => ({ columns: board.columns, tasks: await readTasks(q, userId, board) });
   const ownedColumn = (board, id) => {
@@ -144,11 +148,12 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     const task = planningTaskSchema.parse(req.body);
     const error = scheduleError(task) || recurrenceError(task);
     if (error) throw fail(400, error);
+    await planningContacts(q, req.user.id, task.contactIds, { validate: true });
     const column = ownedColumn(board, task.columnId || task.status);
-    const result = await q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING ${taskColumns}`,
-    [randomUUID(), req.user.id, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null]);
-    return { task: result.rows[0] };
+    const result = await q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence,contact_ids)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${taskColumns}`,
+    [randomUUID(), req.user.id, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null, JSON.stringify(task.contactIds)]);
+    return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
   }));
   app.patch("/api/planning/tasks/:id/move", requireAuth, mutate(async (req, q, board) => {
     const { columnId, beforeId } = moveSchema.extend({ columnId: taskFields.shape.columnId }).parse(req.body);
@@ -175,7 +180,7 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
       const result = await q(`UPDATE planning_tasks SET recurrence_completed_dates=$4,updated_at=CURRENT_TIMESTAMP
         WHERE id=$1 AND user_id=$2 AND space_id=$3 RETURNING ${taskColumns}`,
       [req.params.id, req.user.id, board.spaceId, JSON.stringify([...dates].sort())]);
-      return { task: result.rows[0] };
+      return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
     }
     if (["dueOn", "startTime", "durationMinutes", "recurrence"].some((key) => key in patch)) {
       const updated = { ...existing.rows[0], ...patch };
@@ -188,13 +193,14 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
       patch.status = columnStatus(column);
       if (patch.completed === undefined) patch.completed = column.complete;
     }
-    const fields = { title: "title", description: "description", status: "status", dueOn: "due_on", columnId: "column_id", completed: "completed", archived: "archived", startTime: "start_time", durationMinutes: "duration_minutes", recurrence: "recurrence" };
+    if (patch.contactIds) await planningContacts(q, req.user.id, patch.contactIds, { validate: true });
+    const fields = { contactIds: "contact_ids", title: "title", description: "description", status: "status", dueOn: "due_on", columnId: "column_id", completed: "completed", archived: "archived", startTime: "start_time", durationMinutes: "duration_minutes", recurrence: "recurrence" };
     const entries = Object.entries(patch);
     const result = await q(`UPDATE planning_tasks SET ${entries.map(([key], index) => `${fields[key]}=$${index + 3}`).join(",")}, updated_at=CURRENT_TIMESTAMP
       WHERE id=$1 AND user_id=$2 RETURNING ${taskColumns}`,
-    [req.params.id, req.user.id, ...entries.map(([key, value]) => key === "recurrence" ? value && JSON.stringify(value) : ["dueOn", "startTime"].includes(key) ? value || null : value)]);
+    [req.params.id, req.user.id, ...entries.map(([key, value]) => ["recurrence", "contactIds"].includes(key) ? value && JSON.stringify(value) : ["dueOn", "startTime"].includes(key) ? value || null : value)]);
     if (!result.rowCount) throw fail(404, "Задача не найдена");
-    return { task: result.rows[0] };
+    return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
   }));
   app.delete("/api/planning/tasks/:id", requireAuth, mutate(async (req, q, board) => {
     const result = await q("DELETE FROM planning_tasks WHERE id=$1 AND user_id=$2 AND space_id=$3 RETURNING id", [req.params.id, req.user.id, board.spaceId]);
