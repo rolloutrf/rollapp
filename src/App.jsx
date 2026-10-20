@@ -2521,7 +2521,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   const [saveError, setSaveError] = useState("");
   const avatarFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
-  const autoResolveKeyRef = useRef("");
   const initialAvatarSourceUrl = contact?.avatarSourceUrl || "";
   const previewAvatarUrl = form.avatarUrl || (avatarCleared ? "" : contact?.avatarUrl || "");
   const busy = saving || deleting || imageUploading || avatarResolving;
@@ -2564,7 +2563,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     }
   };
   const uploadAvatar = async (file) => {
-    if (!file || busy) return;
+    if (!file || saving || deleting || imageUploading) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setAvatarError("Подойдёт изображение JPG, PNG или WEBP.");
       return;
@@ -2586,37 +2585,46 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       if (avatarFileRef.current) avatarFileRef.current.value = "";
     }
   };
-  const normalizedSocialLinks = () => form.links
-    .map((link) => {
-      const url = link.url.trim();
-      const platform = contactSocialPlatform({ ...link, url });
-      const fallbackLabel = CONTACT_SOCIAL_PLATFORMS[platform]?.label || "Соцсеть";
-      return { label: link.label.trim() || fallbackLabel, url };
-    })
-    .filter((link) => link.url && contactSocialPlatform(link) !== "website");
-  const resolveAvatar = async ({ automatic = false } = {}) => {
-    if (busy) return;
-    const links = normalizedSocialLinks();
-    if (!links.length) {
-      if (!automatic) setAvatarError("Сначала добавьте ссылку на соцсеть.");
-      return;
-    }
-    const resolveKey = links.map((link) => link.url).join("\n");
-    if (automatic && autoResolveKeyRef.current === resolveKey) return;
-    autoResolveKeyRef.current = resolveKey;
-    setAvatarResolving(true);
-    setAvatarError("");
-    setAvatarStatus(automatic ? "Пробуем получить фото из соцсети…" : "Получаем фото из соцсетей…");
+  const socialLinksKey = JSON.stringify(form.links.flatMap((link) => {
+    const url = link.url.trim();
     try {
-      const result = await api.resolveContactAvatar(links);
-      await applyAvatarResult(result, `Фото получено из ${result.source || "соцсети"}`);
-    } catch (error) {
-      setAvatarStatus("");
-      setAvatarError(error.message || "Не удалось получить публичное фото из соцсети.");
-    } finally {
+      const parsed = new URL(url);
+      if (!["https:", "http:"].includes(parsed.protocol) || !parsed.pathname.replace(/\//gu, "")) return [];
+      const platform = contactSocialPlatform({ url });
+      return platform === "website" ? [] : [{ label: CONTACT_SOCIAL_PLATFORMS[platform].label, url }];
+    } catch { return []; }
+  }));
+  useEffect(() => {
+    // Keep existing or manually chosen photos. Only resolve complete social URLs.
+    if (form.avatarUrl || previewAvatarUrl || avatarCleared || imageUploading || saving || deleting || socialLinksKey === "[]") return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      setAvatarResolving(true);
+      setAvatarError("");
+      setAvatarStatus("Получаем фото из соцсети…");
+      try {
+        const result = await api.resolveContactAvatar(JSON.parse(socialLinksKey));
+        if (!active) {
+          if (result.id) await api.delete(`/uploads/images/${encodeURIComponent(result.id)}`).catch(() => {});
+          return;
+        }
+        await applyAvatarResult(result, `Фото получено из ${result.source || "соцсети"}`);
+      } catch (error) {
+        if (active) {
+          setAvatarStatus("");
+          setAvatarError(error.message || "Не удалось получить публичное фото из соцсети. Нажмите на фото, чтобы загрузить его вручную.");
+        }
+      } finally {
+        if (active) setAvatarResolving(false);
+      }
+    }, 650);
+    return () => {
+      active = false;
+      clearTimeout(timer);
       setAvatarResolving(false);
-    }
-  };
+      setAvatarStatus((current) => current === "Получаем фото из соцсети…" ? "" : current);
+    };
+  }, [socialLinksKey, form.avatarUrl, previewAvatarUrl, avatarCleared, imageUploading, saving, deleting]);
   const removeAvatar = async () => {
     if (busy || !previewAvatarUrl) return;
     const previousId = uploadedImageIdFromUrl(form.avatarUrl);
@@ -2687,7 +2695,18 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         <div className="contact-detail__edit-body">
           <div className="contact-detail__profile">
             <div className="contact-detail__edit-heading contact-detail__edit-heading--editable">
-              <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+              <ShadcnButton
+                type="button"
+                variant="ghost"
+                className="contact-detail__avatar-picker rounded-full p-0"
+                aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
+                title={previewAvatarUrl ? "Сменить фото" : "Добавить фото"}
+                aria-busy={imageUploading || avatarResolving || undefined}
+                disabled={saving || deleting || imageUploading}
+                onClick={() => avatarFileRef.current?.click()}
+              >
+                <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+              </ShadcnButton>
               <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
               <ControlBar>
                 {!creating && <ShadcnButton
@@ -2715,17 +2734,11 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
               aria-label="Загрузить фото контакта"
               onChange={(event) => uploadAvatar(event.target.files?.[0])}
             />
-            <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
-              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
-                {imageUploading ? <Spinner /> : <Upload />}{previewAvatarUrl ? "Сменить фото" : "Загрузить фото"}
-              </ShadcnButton>
-              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
-                {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
-              </ShadcnButton>
-              {previewAvatarUrl && <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
+            {previewAvatarUrl && <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
+              <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
                 <Trash2 />Удалить фото
-              </ShadcnButton>}
-            </div>
+              </ShadcnButton>
+            </div>}
             {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
           </div>
           <div className="contact-detail__edit-fields">
@@ -2763,7 +2776,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
               {form.links.map((link, index) => (
                 <div className="contact-detail__edit-link" key={index}>
                   <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
-                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} onBlur={() => { if (!form.avatarUrl) resolveAvatar({ automatic: true }); }} />
+                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} />
                   <ShadcnButton type="button" variant="destructive" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
                 </div>
               ))}
