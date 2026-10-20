@@ -84,6 +84,27 @@ try{
     await screen.getByRole('textbox',{name:'Название',exact:true}).fill('  Новая задача  ');
     await screen.getByRole('textbox',{name:'Описание',exact:true}).fill('Детали');
     if(width===390&&height===844&&!empty){
+     const relatedApi=route=>{const url=new URL(route.request().url()),path=url.pathname;const payload={
+      '/api/dashboard':{wishes:[{id:'wish-1',title:'Книга',description:'Роман о путешествии',price:30000,currency:'RUB',imageUrl:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="8" height="8"%3E%3Crect width="8" height="8" fill="red"/%3E%3C/svg%3E'}]},
+      '/api/health/workouts':{workouts:[{id:'workout-1',title:'Тренировка'}]},
+      '/api/health/medications':{medications:[]},
+      '/api/health/lab-results':{reports:[]},
+      '/api/education/courses':{courses:[{id:'course-1',title:'Курс'}]},
+      '/api/education/conferences':{conferences:[]},
+      '/api/education/coaching-sessions':{sessions:[]},
+      '/api/contacts':url.searchParams.get('page')==='2'?{contacts:[{id:'contact-2',name:'Мария'}],hasMore:false}:{contacts:[{id:'contact-1',name:'Анна'}],hasMore:true},
+     }[path];return payload?route.fulfill({json:payload}):route.abort();};
+     await page.route('**/api/**',relatedApi);
+     await screen.locator('button[id$="-related-toggle"]').click();
+     await screen.getByText(/30\s?000\s?₽/).waitFor();
+     assert(await screen.getByRole('button',{name:/Книга 30/}).locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'wishlist snippet image loads');
+     for(const name of [/Книга 30/,/Тренировка Здоровье · тренировки/,/Курс Образование · курсы/,/Мария Контакты/])await screen.getByRole('button',{name}).click();
+     await screen.getByRole('button',{name:'Готово · 4'}).click();
+     assert.equal(await screen.locator('.planning-related__selected .planning-related__choice').count(),4,'Selected objects are not displayed as snippet cards');
+     assert(await screen.getByRole('button',{name:'Убрать Книга'}).locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'Selected wishlist image is missing');
+     await page.unroute('**/api/**',relatedApi);
+    }
+    if(width===390&&height===844&&!empty){
      await page.evaluate(()=>{Object.defineProperty(visualViewport,'height',{configurable:true,value:460});Object.defineProperty(visualViewport,'offsetTop',{configurable:true,value:24});visualViewport.dispatchEvent(new Event('resize'));});
      await page.waitForFunction(()=>document.documentElement.hasAttribute('data-overlay-keyboard'));
     }
@@ -93,6 +114,7 @@ try{
     await save.click();await screen.waitFor({state:'hidden'});await page.waitForURL(chosenUrl);
     const saved=JSON.parse(await page.locator('[data-saved-task]').textContent());
     assert.equal(saved.title,'Новая задача');assert.equal(saved.description,'Детали');assert.equal(saved.dueOn,chosenDate);assert.equal(saved.columnId,'todo');assert.equal(saved.completed,false);
+    if(width===390&&height===844&&!empty)assert.deepEqual(saved.relatedItems.map(({kind,id})=>[kind,id]),[['wishlist','wish-1'],['workout','workout-1'],['course','course-1'],['contact','contact-2']]);
     if(width===390&&height===844&&!empty){
      await page.evaluate(()=>{delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'));});
      await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-overlay-keyboard'));

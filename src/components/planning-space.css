@@ -169,3 +169,50 @@
 }
 
 .app-layout--planning .app-page.planning-space--todo { padding-block-start: 0; }
+.planning-related { min-width: 0; }
+.planning-related__trigger { display: flex; width: 100%; min-height: 64px; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 8px 14px; background: var(--card); color: var(--foreground); text-align: left; transition: border-color .15s, background .15s; }
+.planning-related__trigger:hover, .planning-related__trigger[aria-expanded="true"] { border-color: var(--ring); background: var(--accent); }
+.planning-related__trigger:focus-visible, .planning-related__choice:focus-visible, .planning-related__kinds button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.planning-related__trigger-icon { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: var(--radius-md); background: var(--muted); color: var(--muted-foreground); }
+.planning-related__trigger-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.planning-related__trigger-text strong { font-weight: 500; }
+.planning-related__trigger-text small, .planning-related__choice-kind, .planning-related__message { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.planning-related__chevron { flex: none; color: var(--muted-foreground); transition: transform .15s; }
+.planning-related__trigger[aria-expanded="true"] .planning-related__chevron { transform: rotate(180deg); }
+.planning-related__screen { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; }
+.planning-related__screen-header { display: flex; align-items: center; gap: 12px; }
+.planning-related__back { display: grid; width: 48px; height: 48px; flex: none; place-items: center; border-radius: 50%; }
+.planning-related__back:hover { background: var(--accent); }
+.planning-related__screen-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow-y: auto; padding: 16px; }
+.planning-related__screen-footer { flex: none; }
+.planning-related__search { position: relative; display: flex; flex: none; align-items: center; }
+.planning-related__search > svg { position: absolute; left: 14px; color: var(--muted-foreground); pointer-events: none; }
+.planning-related__search input { padding-left: 42px; }
+.planning-related__kinds { display: flex; min-width: 0; flex: none; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.planning-related__kinds button { min-height: 36px; flex: none; border-radius: 999px; padding: 4px 12px; color: var(--muted-foreground); white-space: nowrap; }
+.planning-related__kinds button:hover { background: var(--accent); color: var(--foreground); }
+.planning-related__kinds button[aria-pressed="true"] { background: var(--foreground); color: var(--background); }
+.planning-related__choices, .planning-related__selected { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 24px 12px; }
+@media (min-width: 1024px) {
+  .planning-related__choices, .planning-related__selected { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.planning-related__choice { display: flex; width: 100%; min-width: 0; flex-direction: column; align-items: stretch; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--foreground); text-align: left; content-visibility: auto; contain-intrinsic-size: auto 330px; }
+.planning-related__choice-media { position: relative; display: grid; width: 100%; aspect-ratio: 236 / 286; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--card); color: var(--muted-foreground); transition: border-color .15s; }
+.planning-related__choice:hover .planning-related__choice-media { border-color: var(--foreground); }
+.planning-related__choice[aria-pressed="true"] .planning-related__choice-media { outline: 2px solid var(--foreground); outline-offset: 2px; }
+.planning-related__choice-media img { width: 100%; height: 100%; object-fit: contain; }
+.planning-related__choice-media[data-kind="wishlist"] img, .planning-related__choice-media[data-kind="contact"] img { object-fit: cover; object-position: center top; }
+.planning-related__choice-media img[hidden], .planning-related__choice-fallback[hidden] { display: none; }
+.planning-related__choice-body { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding-inline: 1px; }
+.planning-related__choice-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 500; overflow-wrap: anywhere; }
+.planning-related__choice-kind { font-weight: 600; }
+.planning-related__choice-info { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.planning-related__choice-action { position: absolute; top: 8px; right: 8px; display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: color-mix(in oklch, var(--background) 90%, transparent); color: var(--foreground); box-shadow: 0 1px 8px rgb(0 0 0 / .16); }
+.planning-related__choice[aria-pressed="true"] .planning-related__choice-action { background: var(--foreground); color: var(--background); }
+.planning-related__choice--selected .planning-related__choice-action { background: var(--foreground); color: var(--background); }
+.planning-related__message { grid-column: 1 / -1; margin: 0; padding: 10px; }
+@media (max-width: 767px) {
+  .mobile-form-page__surface .planning-related__screen { flex: 1 0 auto; }
+  .mobile-form-page__surface .planning-related__screen-body { flex: 1 0 auto; overflow: visible; }
+  .mobile-form-page .planning-related__screen-footer .mobile-form-page__actions > button { flex: 1; background-color: var(--primary); color: var(--primary-foreground); }
+}

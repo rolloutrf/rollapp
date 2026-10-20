@@ -18,8 +18,15 @@ test("planning dates validate leap days and reject normalized invalid dates", ()
 });
 
 test("task input validates titles, status, description limits and optional date", () => {
-  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "" });
+  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "", relatedItems: [] });
   for (const value of [{ title: " " }, { title: "x", status: "unknown" }, { title: "x", dueOn: "2026-02-30" }, { title: "x", description: "x".repeat(5001) }]) assert.equal(planningTaskSchema.safeParse(value).success, false);
+});
+
+test("task links accept distinct typed objects and reject duplicates", () => {
+  const relatedItems = [{ kind: "wishlist", id: "wish-1", title: "Книга" }, { kind: "contact", id: "contact-1", title: "Анна" }];
+  assert.deepEqual(planningTaskSchema.parse({ title: "План", relatedItems }).relatedItems, relatedItems);
+  assert.equal(planningPatchSchema.safeParse({ relatedItems: [relatedItems[0], relatedItems[0]] }).success, false);
+  assert.equal(planningPatchSchema.safeParse({ relatedItems: [{ kind: "unknown", id: "1", title: "Тест" }] }).success, false);
 });
 
 test("moving a task does not reset its description or date", () => {

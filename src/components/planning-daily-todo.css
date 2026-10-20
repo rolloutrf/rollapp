@@ -21,6 +21,8 @@
 .daily-todo__item { display: flex; min-width: 0; min-height: 52px; align-items: center; gap: 10px; }
 .daily-todo__item > [data-slot="checkbox"] { width: 22px; height: 22px; flex: 0 0 22px; }
 .daily-todo__task { display: flex; flex: 1; min-width: 0; min-height: 52px; height: auto; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; white-space: normal; text-align: left; }
+.daily-todo__task-content { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.daily-todo__related { min-width: 0; overflow: hidden; color: var(--muted-foreground); text-overflow: ellipsis; white-space: nowrap; }
 .daily-todo__task-title { overflow-wrap: anywhere; white-space: pre-wrap; text-wrap: pretty; }
 .daily-todo__item[data-completed] .daily-todo__task-title { color: var(--muted-foreground); text-decoration: line-through; }
 .daily-todo__time { flex-shrink: 0; color: var(--muted-foreground); }
