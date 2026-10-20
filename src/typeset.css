@@ -603,6 +603,7 @@
 
 @layer components {
   .typeset [data-type="nestedBlock"] { display: grid; grid-template-columns: minmax(0, clamp(0px, calc((100% - 8em) / 2), 1.5em)) minmax(0, 1fr); min-width: 0; margin-block-start: 0; margin-block-end: 0; }
+  .typeset :where([data-inline-normal="true"]) { font-style: normal; }
   .typeset [data-type="nestedBlock"] > * { grid-column: 2; min-width: 0; }
   .typeset [data-type="nestedBlock"] > :nth-child(1 of :not(:where(.ProseMirror-widget))) { grid-column: 1 / -1; }
   .typeset :where(li > :is(p, [data-type="nestedBlock"]):not(:nth-child(1 of :not(:where(.ProseMirror-widget)))), li > div > :is(p, [data-type="nestedBlock"]):not(:nth-child(1 of :not(:where(.ProseMirror-widget))))):not(:where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)) { padding-inline-start: 1.5em; }

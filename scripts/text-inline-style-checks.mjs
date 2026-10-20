@@ -70,7 +70,20 @@ export async function checkTextInlineStyles(browser, origin) {
     };
     const applyMark = async label => {
       const owner = width >= 768 ? tools : await openTypes();
-      await owner.getByRole("button", { name: label, exact: true }).click();
+      try {
+        await owner.getByRole("button", { name: label, exact: true }).click();
+      } catch (error) {
+        await writeFile(`/tmp/rollapp-inline-style-action-${width}-${height}.json`, JSON.stringify(await page.evaluate(() => ({
+          active: document.activeElement?.outerHTML, selection: getSelection()?.toString(),
+          viewport: { width: innerWidth, height: innerHeight, top: visualViewport?.offsetTop, visualHeight: visualViewport?.height, scroll: scrollY },
+          fonts: document.fonts.status,
+          popups: [...document.querySelectorAll('[data-slot="popover-content"]')].map(el => ({ box: el.getBoundingClientRect().toJSON(), side: el.dataset.side,
+            positioner: el.parentElement?.getBoundingClientRect().toJSON(), available: getComputedStyle(el).getPropertyValue('--available-height'),
+            animations: el.getAnimations().map(a => ({ playState: a.playState, currentTime: a.currentTime })),
+            controls: [...el.querySelectorAll('button')].slice(0,5).map(button => ({ label: button.getAttribute('aria-label'), box: button.getBoundingClientRect().toJSON(), disabled: button.disabled })) }))
+        })), null, 2));
+        throw error;
+      }
       await tools.waitFor();
       assert.equal(await page.evaluate(() => getSelection()?.toString()), firstText, "Formatting must preserve native text selection");
     };
@@ -271,9 +284,11 @@ export async function checkTextInlineStyles(browser, origin) {
     // The portal follows its React owner even when two documents are dirty.
     await page.goto(`${origin}/__text-edit?source=First%20document&twins=1`);const otherEditor=page.getByRole("textbox",{name:"Второй документ",exact:true});await otherEditor.waitFor();
     await editor.locator("p").first().evaluate(el=>{el.closest('[contenteditable]').focus();const r=document.createRange();r.selectNodeContents(el);getSelection().removeAllRanges();getSelection().addRange(r);});await tools.waitFor();await tools.getByRole("button",{name:"Ссылка",exact:true}).click();await address.focus();await address.fill("https://pending.test");
-    await page.evaluate(()=>{window.portalSaveEvents=[];window.addEventListener("keydown",event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="s")setTimeout(()=>window.portalSaveEvents.push({prevented:event.defaultPrevented,label:event.target.getAttribute("aria-label")}),0);},true);for(const label of ["О себе","Второй документ"]){const root=[...document.querySelectorAll('[role="textbox"][contenteditable]')].find(el=>el.getAttribute("aria-label")===label);root.editor.commands.insertContentAt(root.editor.state.doc.content.size-1,label==="О себе"?" FIRST":" SECOND");}});
+    await page.evaluate(()=>{window.portalSaveEvents=[];window.addEventListener("keydown",event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="s")setTimeout(()=>window.portalSaveEvents.push({prevented:event.defaultPrevented,label:event.target.getAttribute("aria-label")}),0);},true);for(const label of ["О себе","Второй документ"]){const root=[...document.querySelectorAll('[role="textbox"][contenteditable]')].find(el=>el.getAttribute("aria-label")===label);root.editor.view.dispatch(root.editor.state.tr.insert(root.editor.state.doc.content.size-1,root.editor.schema.text(label==="О себе"?" FIRST":" SECOND")));}});
     await page.keyboard.press("ControlOrMeta+s");await page.waitForFunction(()=>window.portalSaveEvents.length);const portalSaved=await page.evaluate(()=>({events:window.portalSaveEvents,first:window.inlineTest.saves,second:window.inlineTest.secondSaved??null}));
     assert.deepEqual(portalSaved.events,[{prevented:true,label:"Адрес ссылки"}],"Portalled Save must cancel the browser's Save Page command");assert.deepEqual(portalSaved.first,["First document FIRST"],"Only this editor's pending draft flushes immediately");assert.equal(portalSaved.second,null,"The other editor retains its independent pending queue");assert.equal(await address.inputValue(),"https://pending.test","Save preserves the unapplied link form and its focus");assert(await address.evaluate(el=>document.activeElement===el));
+    await address.press("Enter");await address.waitFor({state:"hidden"});
+    assert.deepEqual(await editor.locator("a").allTextContents(),["First document"],"A background append must not enlarge the captured link target");assert.equal(await editor.locator("a").getAttribute("href"),"https://pending.test");
     if(width===390&&height===400)await page.screenshot({path:"/tmp/rollapp-inline-storage-390-400.png"});
 
     assert.deepEqual(errors, []);

@@ -1,4 +1,7 @@
+import {checkLinkIntent} from "./text-link-intent-checks.mjs";
+import {checkQuoteStyles} from "./text-quote-style-checks.mjs";
 import {blockTypes} from "../src/lib/inline-block-types.js";
+import {checkImageTransfer} from "./text-image-transfer-checks.mjs";
 import {checkImageResize} from "./text-image-resize-checks.mjs";
 import {checkImages,checkImageLayout,checkImageReaders,checkImageContexts,imageFixturePNG} from "./text-image-checks.mjs";
 import {checkCrossClipboard,checkPartialCrossClipboard,checkCellClipboard} from "./text-cross-clipboard-checks.mjs";
@@ -49,8 +52,8 @@ import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = Number(process.env.TEXT_EDIT_PORT || 5199);
 const origin = `http://127.0.0.1:${port}`;
-const only = process.argv.find(argument => ["--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"].includes(argument));
-const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const only = process.argv.find(argument => ["--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"].includes(argument));
+const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", "@base-ui/react", "@base-ui/react/dialog", "@base-ui/react/menu", "@base-ui/react/radio-group", "@base-ui/react/radio", "@base-ui/react/scroll-area", "@base-ui/react/switch", "@base-ui/react/tabs", "@base-ui/react/toggle-group", "@base-ui/react/toggle", "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/api.js')) {
@@ -86,6 +89,9 @@ const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir
 await server.listen();
 const browser = await chromium.launch(browserLaunchOptions());
 try {
+  if(!only || only === "--quote-styles-only") await checkQuoteStyles(browser,origin);
+  if(!only || only === "--links-only") await checkLinkIntent(browser,origin);
+  if(!only || only === "--images-only") await checkImageTransfer(browser,origin);
   if(!only || only === "--image-resize-only" || only === "--image-resize-diagnostic") await checkImageResize(browser,origin,only === "--image-resize-diagnostic");
   if(!only || only === "--image-context-only" || only === "--image-context-diagnostic") await checkImageContexts(browser,origin,only === "--image-context-diagnostic");
   if(!only || only === "--image-reader-only" || only === "--image-reader-diagnostic") await checkImageReaders(browser,origin,only === "--image-reader-diagnostic");
@@ -589,6 +595,13 @@ try {
     console.error("ORIGINAL ERROR", error);
     const details = await page.evaluate(() => ({url:location.href,ready:document.readyState,active:document.activeElement?.outerHTML?.slice(0,250),roots:[...document.querySelectorAll('[role="textbox"], [contenteditable]')].map(el=>({role:el.getAttribute('role'),label:el.getAttribute('aria-label'),hidden:el.getAttribute('aria-hidden'),inert:el.closest('[inert]')?.tagName,editable:el.getAttribute('contenteditable'),box:el.getBoundingClientRect().toJSON()})),body:document.body.innerText.slice(0,1200)})).catch(error=>String(error));
     console.error("FAILED PAGE",JSON.stringify(details));
+    console.error("FAILED LAYOUT", JSON.stringify(await page.evaluate(() => ({ fonts: document.fonts.status,
+      nodes: [...document.querySelectorAll('hr, [data-slot="popover-content"]')].map(el => {
+        const style = getComputedStyle(el);
+        return { tag: el.tagName, box: el.getBoundingClientRect().toJSON(), display: style.display, visibility: style.visibility, opacity: style.opacity,
+          borderTop: style.borderTopWidth, transform: style.transform, animations: el.getAnimations().map(a => ({ playState: a.playState, currentTime: a.currentTime })) };
+      }) })).catch(error => String(error))));
+    if (page.inlineDiagnosticTrail) console.error("PAGE NETWORK/CONSOLE", JSON.stringify(page.inlineDiagnosticTrail));
     await page.screenshot({ path: "/tmp/rollapp-text-edit-failure.png" });
   }
   throw error;
