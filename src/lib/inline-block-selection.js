@@ -3,12 +3,13 @@ import { Selection, SelectionRange } from "@tiptap/pm/state";
 import { Fragment, Slice } from "@tiptap/pm/model";
 
 const selectionType = "rollappBlocks";
-const structuralChildren = new Set(["column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent"]);
+const structuralChildren = new Set(["imageCaption", "column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent"]);
 export const isBlockSelection = selection => selection?.toJSON?.()?.type === selectionType;
 
 export function blockUnitPosition(doc, position) {
   if (!Number.isInteger(position) || position < 0 || position >= doc.content.size) return position;
   const $pos = doc.resolve(position);
+  if ($pos.parent.type.name === "captionedImage") return blockUnitPosition(doc, $pos.before());
   // Legacy multi-paragraph quotes can contain several independently selected
   // prose blocks (including a freshly converted group). Only an explicit own
   // quote in a nested parent, or a single-paragraph quote, is one parent unit.

@@ -1,5 +1,13 @@
 # Редактирование текста в странице
 
+Разработка rich captions (ещё не integration/production): `captionedImage`
+содержит исходный leaf image и `imageCaption` с inline marks. Подпись не alt/title
+и не отдельный editor/save queue; image/caption — одна block movement unit.
+Создание проверяет актуальные doc/selection/node, доступ/IME и reload depth,
+имеет отдельный Undo от набора; reopening не меняет документ. Canonical HTML
+отклоняет orphan/invalid caption structure. UI/native/full verification остаются
+в работе: [промежуточный отчёт](notion-image-caption-verification-2026-10-20.md).
+
 Текстовые документы «О себе», «4 вопроса», «Тезисы», «Принципы», «Миссия»,
 «Домен», «Жизненная стратегия», «Идеальное состояние», «План развития» редактируются на месте.
 Для начала достаточно поставить курсор в текст; отдельного режима, drawer,

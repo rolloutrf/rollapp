@@ -10,6 +10,7 @@ import TaskList from "@tiptap/extension-task-list";
 import { convertParagraphToToggle, SymbolBlockquote, SymbolOrderedList, SymbolCodeBlock, SymbolStrike, SymbolTaskItem } from "./inline-symbol-shortcuts.js";
 import Placeholder from "@tiptap/extension-placeholder";
 import { InlineImage as Image } from "./inline-image-node.js";
+import { CaptionedImage, ImageCaption } from "./inline-image-caption.js";
 import { TableKit } from "@tiptap/extension-table";
 import { Details, DetailsSummary, DetailsContent } from "@tiptap/extension-details";
 import { InlineBlockSelection } from "./inline-block-selection-extension.js";
@@ -145,7 +146,7 @@ export function inlineEditorExtensions(placeholder = "Начните писат�
     InlineStarterKit.configure({ ...(documentExtension ? { document: false } : {}), link: { openOnClick: false, autolink: true, markdownLinks: true }, code: false, paragraph: false, heading: false, trailingNode: false, codeBlock: false, strike: false, blockquote: false, orderedList: false }),
     ...(documentExtension ? [documentExtension] : []),
     withRichCode(Paragraph), withRichCode(Heading), NestedBlock, DocumentColumns, DocumentColumn, RichInlineMarkdown, InlineHTMLBreak,
-    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText,
+    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText, CaptionedImage, ImageCaption,
     SymbolCodeBlock, SymbolStrike, SymbolBlockquote, SymbolOrderedList,
     Markdown, TaskList, SymbolTaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" }, a11y: { checkboxLabel: node => `Выполнено: ${node.textContent || "задача"}` } }),
     Placeholder.configure({ placeholder, ...(documentExtension ? { includeChildren: true } : {}) }), Image, RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),
