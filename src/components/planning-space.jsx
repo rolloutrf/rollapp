@@ -1,8 +1,10 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Columns3, ListTodo, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, Columns3, Link2, ListTodo, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { planningApi } from "@/lib/planning-api";
+import { loadRelatedContacts, loadRelatedItems, RELATED_KINDS, relatedKindLabel } from "@/lib/planning-related-items";
+import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
@@ -14,6 +16,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from "@/components/ui/spinner";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
+import { RelatedChoiceCard } from "@/components/planning-related-card";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { scheduleError } from "../../shared/planning-calendar.js";
 import { RECURRENCE_OPTIONS, recurrenceError } from "../../shared/planning-recurrence.js";
@@ -27,7 +30,7 @@ export const PLANNING_TABS = [
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
 ];
-const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null };
+const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null, relatedItems: [] };
 function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const id = useId();
   const mobile = useIsMobile();
@@ -35,7 +38,40 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [choices, setChoices] = useState([]);
+  const [choicesLoaded, setChoicesLoaded] = useState(false);
+  const [relatedOpen, setRelatedOpen] = useState(Boolean(task.openRelated));
+  const [failedKinds, setFailedKinds] = useState([]);
+  const [choicesLoading, setChoicesLoading] = useState(true);
+  const [relatedSearch, setRelatedSearch] = useState("");
+  const [relatedKind, setRelatedKind] = useState("all");
+  const [contactResults, setContactResults] = useState(null);
+  useEffect(() => {
+    if ((!relatedOpen && !(task.relatedItems || []).length) || choicesLoaded) return;
+    let live = true;
+    loadRelatedItems().then(({ items, failedKinds: failed }) => { if (live) { setChoices(items); setFailedKinds(failed); } })
+      .catch(() => { if (live) setFailedKinds(RELATED_KINDS.map(({ id }) => id)); })
+      .finally(() => { if (live) { setChoicesLoading(false); setChoicesLoaded(true); } });
+    return () => { live = false; };
+  }, [relatedOpen, choicesLoaded, task.relatedItems]);
+  useEffect(() => {
+    if (!relatedOpen || !["all", "contact"].includes(relatedKind) || !relatedSearch.trim()) { setContactResults(null); return; }
+    let live = true;
+    setContactResults(null);
+    const timer = setTimeout(() => loadRelatedContacts(relatedSearch)
+      .then((contacts) => { if (live) setContactResults(contacts); })
+      .catch(() => { if (live) setContactResults([]); }), 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [relatedOpen, relatedKind, relatedSearch]);
   const change = (key, value) => { setError(""); setForm((current) => ({ ...current, [key]: value })); };
+  const toggleRelated = (item) => setForm((current) => {
+    const selected = current.relatedItems || [];
+    const exists = selected.some(({ kind, id }) => kind === item.kind && id === item.id);
+    if (!exists && selected.length >= 30) { setError("К задаче можно прикрепить до 30 объектов."); return current; }
+    return { ...current, relatedItems: exists ? selected.filter(({ kind, id }) => kind !== item.kind || id !== item.id) : [...selected, item] };
+  });
+  const availableChoices = contactResults ? [...choices.filter((item) => item.kind !== "contact"), ...contactResults] : choices;
+  const visibleChoices = availableChoices.filter((item) => (relatedKind === "all" || item.kind === relatedKind) && `${item.title} ${item.snippet || ""}`.toLocaleLowerCase("ru").includes(relatedSearch.trim().toLocaleLowerCase("ru")));
   const save = async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -44,7 +80,8 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     setBusy(true);
     setError("");
     try {
-      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence });
+      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence, relatedItems: (form.relatedItems || []).map(({ kind, id, title }) => ({ kind, id, title })) });
+      task.onCreated?.();
       onClose();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
@@ -56,9 +93,30 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     catch (cause) { setError(cause.message); }
     finally { setBusy(false); setConfirmDelete(false); }
   };
+  const cancelRelated = () => { if (task.relatedOnly) onClose(); else setRelatedOpen(false); };
+  const finishRelated = () => {
+    if (task.relatedOnly) {
+      task.onRelatedSelected?.((form.relatedItems || []).map((item) => availableChoices.find(({ kind, id }) => kind === item.kind && id === item.id) || item));
+      onClose();
+    } else setRelatedOpen(false);
+  };
   return <>
-    <Drawer open onOpenChange={(open) => { if (!open && !busy) onClose(); }} swipeDirection={mobile ? "down" : "right"}>
+    <Drawer open onOpenChange={(open) => { if (!open && !busy) { if (relatedOpen) cancelRelated(); else onClose(); } }} swipeDirection={mobile ? "down" : "right"}>
       <DrawerContent className="rollapp-body app-drawer--form">
+        {relatedOpen ? <section className="planning-related__screen" aria-label="Выбор связанных объектов">
+          <DrawerHeader className="planning-related__screen-header flex-row! items-center! pr-16 text-left!">
+            <ControlBar><Button data-control-icon variant="ghost" type="button" className="planning-related__back" onClick={cancelRelated} aria-label="Назад к задаче"><ArrowLeft size={20} aria-hidden="true" /></Button></ControlBar>
+            <div><DrawerTitle>Связанные объекты</DrawerTitle><DrawerDescription>Выберите объекты для этой задачи</DrawerDescription></div>
+          </DrawerHeader>
+          <div id={`${id}-related-picker`} className="planning-related__screen-body">
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            <div className="planning-related__search"><Search size={18} aria-hidden="true" /><Input id={`${id}-related-search`} aria-label="Поиск по объектам" placeholder="Найти объект" value={relatedSearch} onChange={(event) => setRelatedSearch(event.target.value)} /></div>
+            <div className="planning-related__kinds" role="group" aria-label="Раздел объектов">{[{ id: "all", label: "Все" }, ...RELATED_KINDS].map(({ id: kind, label }) => <Button variant="ghost" key={kind} type="button" aria-pressed={relatedKind === kind} onClick={() => setRelatedKind(kind)}>{label}</Button>)}</div>
+            <div className="planning-related__choices" aria-label="Доступные объекты">{choicesLoading ? <p className="planning-related__message" role="status">Загружаем объекты…</p> : visibleChoices.length ? visibleChoices.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={item} selected={(form.relatedItems || []).some(({ kind, id }) => kind === item.kind && id === item.id)} onToggle={toggleRelated} />) : <p className="planning-related__message">Объекты не найдены.</p>}</div>
+            {failedKinds.length > 0 && <p role="status" className="planning-related__message">Не удалось загрузить: {failedKinds.map(relatedKindLabel).join(", ")}. Выбранные связи сохранятся.</p>}
+          </div>
+          <DrawerFooter className="planning-related__screen-footer"><Button type="button" onClick={finishRelated}>Готово{form.relatedItems?.length ? ` · ${form.relatedItems.length}` : ""}</Button></DrawerFooter>
+        </section> : <>
         <DrawerClose render={<Button variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть задачу"><X aria-hidden="true" /></DrawerClose>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={save}>
           <DrawerHeader className="pr-16 text-left!">
@@ -70,6 +128,15 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
             <FieldGroup>
               <Field><FieldLabel htmlFor={`${id}-title`}>Название</FieldLabel><Input id={`${id}-title`} required maxLength={200} placeholder="Что нужно сделать?" value={form.title} onChange={(e) => change("title", e.target.value)} /></Field>
               <Field><FieldLabel htmlFor={`${id}-description`}>Описание</FieldLabel><Textarea id={`${id}-description`} maxLength={5000} rows={4} placeholder="Детали и заметки" value={form.description} onChange={(e) => change("description", e.target.value)} /></Field>
+              <Field className="planning-related">
+                <FieldLabel>Связанные объекты</FieldLabel>
+                <Button variant="outline" id={`${id}-related-toggle`} className="planning-related__trigger" type="button" onClick={() => setRelatedOpen(true)}>
+                  <span className="planning-related__trigger-icon"><Link2 size={20} aria-hidden="true" /></span>
+                  <span className="planning-related__trigger-text"><strong>{(form.relatedItems || []).length ? `Выбрано: ${form.relatedItems.length}` : "Добавить связь"}</strong><small>Вишлист, здоровье, образование, контакты</small></span>
+                  <ChevronDown className="planning-related__chevron" size={20} aria-hidden="true" />
+                </Button>
+                {(form.relatedItems || []).length > 0 && <div className="planning-related__selected" aria-label="Выбранные объекты">{form.relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={choices.find(({ kind, id }) => kind === item.kind && id === item.id) || item} selected removable onToggle={toggleRelated} />)}</div>}
+              </Field>
               <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
               <Field><FieldLabel htmlFor={`${id}-date`}>{form.recurrence ? "Начало серии" : "Дата"}</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) { change("recurrence", null); } }} label="Дата задачи" clearable className="w-full" /></Field>
             {form.dueOn && <>
@@ -85,6 +152,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
             {task.id && <Button type="button" variant="destructive" aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}>{mobile ? "Удалить" : task.recurrence ? "Удалить всю серию" : "Удалить задачу"}</Button>}
           </DrawerFooter>
         </form>
+        </>}
       </DrawerContent>
     </Drawer>
     <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -161,7 +229,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
       ) : activeTab === "calendar" ? (
         <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
-        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime) => setEditor({ ...EMPTY_TASK, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
+        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
     </div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={save} onDelete={remove} />}

@@ -11,7 +11,23 @@
 [оформления](https://www.notion.com/help/customize-and-style-your-content).
 Полный объём возможностей ниже сохраняется между итерациями.
 
-Актуально на 2026-10-19: **main646/storage5+portal2+image/core13**. Перенесены
+Актуально на 2026-10-20: цель R1–R10 остаётся открытой. Production health
+подтвердил `d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f`; его CI прошёл Test/build,
+deploy и health, но завершился failure на сетевом соединении с Telegram API.
+Combined media/link/gutter candidate379a35b завершил comprehensive с отказом
+на external-typing-undo после77 editor PASS, source drift0; остальные8 stages
+not-run. Добавляется failure-only native/input/history диагностика, причина
+ещё не установлена. Quote inherited-italic исправление9a3ed5c и link metadata
+проверены отдельно: unit745PASS/1SKIP, quote8 и links8 PASS после сохранённого
+первого таймаута; styles compatibility дважды failed (click stability/разделитель
+после reload). В main этот storage/runtime не перенесён. Единый clean candidate
+bf6a8a1 прошёл760unit PASS/1SKIP, UI/build; новый полный399/comprehensive выполняется
+на646 замороженных inputs. Остальные media/вложенные составы,
+реальные iOS/Telegram/IME и live UI новой версии ещё не подтверждены.
+Подробности: [продолжение проверки](notion-resume-verification-2026-10-19.md)
+и [единый снимок 2026-10-20](notion-combined-verification-2026-10-20.md).
+
+Предыдущий снимок на 2026-10-19: **main646/storage5+portal2+image/core13**. Перенесены
 ручки размеров изображений, сохранение native selection при возврате фокуса и
 первый pointer capture границы столбцов; storage/portal исправления сохранены.
 Parent full375 завершился PASS до storage5/portal2. Совместная версия прошла

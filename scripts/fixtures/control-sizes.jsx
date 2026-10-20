@@ -27,6 +27,7 @@ function Fixture() {
   const tasks = search.has("empty") ? [] : Array.from({ length: 24 }, (_, index) => ({
     id: `task-${index}`, title: `Задача ${index + 1}`, description: "", columnId: "todo", status: "todo", completed: false, archived: false,
     dueOn: "2026-10-15", startTime: "09:00", durationMinutes: 60,
+    relatedItems: index === 0 ? [{ kind: "wishlist", id: "wish-1", title: "Книга" }] : [],
   }));
   const create = (value = {}) => setEditor({ title: "", dueOn: typeof value === "string" ? value : "2026-10-15", columnId: "todo" });
   // Presentation props only: the fixture never authenticates or writes records.

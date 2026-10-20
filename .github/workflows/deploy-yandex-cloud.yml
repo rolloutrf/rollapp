@@ -78,69 +78,11 @@ jobs:
           echo "::add-mask::${IAM_TOKEN}"
           echo "YC_IAM_TOKEN=${IAM_TOKEN}" >> "$GITHUB_ENV"
 
-      - name: Install pinned Yandex Cloud CLI
-        timeout-minutes: 6
-        run: |
-          sudo curl -fsSL --connect-timeout 15 --max-time 120 \
-            --retry 2 --retry-max-time 300 \
-            https://storage.yandexcloud.net/yandexcloud-yc/release/0.201.0/linux/amd64/yc \
-            -o /usr/local/bin/yc
-          sudo chmod 0755 /usr/local/bin/yc
-          yc version
-
       - name: Deploy image to production VM
+        timeout-minutes: 4
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
-        run: |
-          set -euo pipefail
-          sed -e "s|__IMAGE__|${IMAGE_SHA}|g" \
-            -e "s|__VERSION__|${GITHUB_SHA}|g" \
-            deploy/docker-compose.template.yml > deploy/docker-compose.yml
-
-          before_update="$(yc compute instance get \
-            --id "$YC_VM_ID" \
-            --full \
-            --format json)"
-          if ! jq -e \
-            --arg expected_runtime_sa "$YC_RUNTIME_SA_ID" \
-            '.status == "RUNNING"
-              and .service_account_id == $expected_runtime_sa
-              and .metadata_options.gce_http_endpoint == "ENABLED"
-              and .metadata_options.gce_http_token == "ENABLED"
-              and .metadata["docker-container-declaration"] == null' \
-            <<<"$before_update" >/dev/null; then
-            echo "Refusing to mutate an unexpected or conflicting production VM" >&2
-            exit 1
-          fi
-
-          # The production VM was recovered from a repaired COI boot disk, so
-          # it no longer has the source-image marker required by update-container.
-          # Upsert only the Compose key and preserve any other instance metadata.
-          yc compute instance add-metadata \
-            --id "$YC_VM_ID" \
-            --metadata-from-file docker-compose=deploy/docker-compose.yml \
-            --folder-id "$YC_FOLDER_ID"
-
-          instance_json="$(yc compute instance get \
-            --id "$YC_VM_ID" \
-            --full \
-            --format json)"
-          if ! jq -e \
-            --arg expected_image "$IMAGE_SHA" \
-            --arg expected_version "$GITHUB_SHA" \
-            --arg expected_runtime_sa "$YC_RUNTIME_SA_ID" \
-            '.status == "RUNNING"
-              and .service_account_id == $expected_runtime_sa
-              and .metadata_options.gce_http_endpoint == "ENABLED"
-              and .metadata_options.gce_http_token == "ENABLED"
-              and .metadata["docker-container-declaration"] == null
-              and (.metadata["docker-compose"] | type == "string")
-              and (.metadata["docker-compose"] | contains("image: \"" + $expected_image + "\""))
-              and (.metadata["docker-compose"] | contains("APP_VERSION: \"" + $expected_version + "\""))' \
-            <<<"$instance_json" >/dev/null; then
-            echo "Production VM identity or metadata does not match the expected deployment" >&2
-            exit 1
-          fi
+        run: node scripts/deploy-vm-metadata.mjs
 
       - name: Verify production health
         run: |
@@ -211,7 +153,7 @@ jobs:
 
       - name: Configure Telegram Mini App
         env:
-          YC_LOCKBOX_SOURCE: cli
+          YC_LOCKBOX_SOURCE: iam
           YC_TELEGRAM_LOCKBOX_SECRET_ID: e6qqi6inhrnvg67mkhhs
           TELEGRAM_BOT_USERNAME: rollappRFbot
           TELEGRAM_WEB_APP_URL: https://xn--80avakiab.xn--p1ai/

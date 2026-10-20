@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ArrowUp, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
+import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { RelatedChoiceCard } from "@/components/planning-related-card";
 import { addCalendarDays, calendarTaskSchedules, dateFromKey, nextCalendarTaskStart, sortCalendarTasks } from "../../shared/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { expandRecurringTasks } from "../../shared/planning-recurrence.js";
@@ -79,7 +79,7 @@ function TodoRow({ task, displayTime, onSave, onEdit }) {
   return <li className="daily-todo__item" data-completed={task.completed || undefined}>
     <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
     <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
-      <span className="daily-todo__task-title">{task.title}</span>
+      <span className="daily-todo__task-content"><span className="daily-todo__task-title">{task.title}</span>{task.relatedItems?.length > 0 && <span className="daily-todo__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
       {displayTime && <span className="daily-todo__time">{displayTime}</span>}
     </Button>
   </li>;
@@ -91,11 +91,14 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
   const [title, setTitle] = useState("");
+  const composerOwner = `${search.get("space") || "main"}:${selected}`;
+  const [relatedDraft, setRelatedDraft] = useState({ owner: composerOwner, items: [] });
+  const relatedItems = relatedDraft.owner === composerOwner ? relatedDraft.items : [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const setDate = (date) => {
     if (!isPlanningDate(date)) return;
-    if (date !== selected) { setTitle(""); setError(""); }
+    if (date !== selected) { setTitle(""); setRelatedDraft({ owner: "", items: [] }); setError(""); }
     setSearch((current) => {
       const next = new URLSearchParams(current);
       if (date === today) next.delete("date"); else next.set("date", date);
@@ -107,9 +110,9 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     if (busy || !title.trim()) return;
     setBusy(true); setError("");
     try {
-      const dayTasks = expandRecurringTasks(tasks, selected, selected);
-      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(expanded, selected) || "", durationMinutes: 30 }, { quiet: true });
+      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(expanded, selected) || "", durationMinutes: 30, relatedItems: relatedItems.map(({ kind, id, title }) => ({ kind, id, title })) }, { quiet: true });
       setTitle("");
+      setRelatedDraft({ owner: composerOwner, items: [] });
     } catch (cause) { setError(cause.message || "Не удалось добавить задачу"); }
     finally { setBusy(false); }
   };
@@ -129,8 +132,23 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
-          <Textarea className="field-sizing-fixed resize-none" rows={2} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />
-          <PageActionButton className="w-full" type="submit" aria-label="Добавить задачу" disabled={busy || !title.trim()}>Добавить</PageActionButton>
+          <InputGroup className="daily-todo__composer-input" aria-label="Новая задача">
+            <InputGroupTextarea className="field-sizing-fixed resize-none" rows={1} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                event.preventDefault();
+                event.currentTarget.form.requestSubmit();
+              }
+            }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />
+            {relatedItems.length > 0 && <div className="daily-todo__composer-related planning-related__selected" aria-label="Связанные объекты новой задачи">
+              {relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={item} selected removable preview disabled={busy} onToggle={() => setRelatedDraft({ owner: composerOwner, items: relatedItems.filter((current) => current.kind !== item.kind || current.id !== item.id) })} />)}
+            </div>}
+            <InputGroupAddon align="block-end" className="daily-todo__composer-addon">
+              <ControlBar className="daily-todo__composer-actions">
+                <Button data-control-icon variant="outline" type="button" size="icon" aria-label="Добавить связанные объекты" title="Добавить связанные объекты" disabled={busy} onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected), { title, relatedItems, openRelated: true, relatedOnly: true, onRelatedSelected: (items) => setRelatedDraft({ owner: composerOwner, items }) })}><Plus aria-hidden="true" /></Button>
+                <Button data-control-icon type="submit" size="icon" aria-label="Добавить задачу" title="Добавить задачу" disabled={busy || !title.trim()}><ArrowUp aria-hidden="true" /></Button>
+              </ControlBar>
+            </InputGroupAddon>
+          </InputGroup>
         </form>
         </>}
       </div>

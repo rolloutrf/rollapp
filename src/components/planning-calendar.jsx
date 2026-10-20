@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { relatedKindLabel } from "@/lib/planning-related-items";
 import { toast } from "sonner";
 import { MiniMonth } from "@/components/calendar-mini-month";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ function EventDetails({ task, onAction }) {
     <p className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}{task.completed ? " · Завершено" : ""}</p>
     {task.recurrence && <p className="schedule-caption">{recurrenceLabel(task.recurrence)}. Изменения применяются ко всей серии.</p>}
     {task.description && <p className="schedule-preview__description">{task.description}</p>}
+    {task.relatedItems?.length > 0 && <div className="flex flex-col gap-1" aria-label="Связанные объекты">{task.relatedItems.map((item) => <p key={`${item.kind}:${item.id}`} className="schedule-caption">{relatedKindLabel(item.kind)} · {item.title}</p>)}</div>}
     <div className="flex flex-wrap gap-2"><Button onClick={() => { onAction?.(); onEdit(task); }}><Pencil />{task.recurrence ? "Изменить серию" : "Изменить"}</Button><Button variant="outline" onClick={() => { onAction?.(); const { id, sourceId, occurrenceDate, seriesDueOn, recurrenceCompletedDates, ...copy } = task; onCreate({ ...copy, completed: false, title: `${task.title.slice(0, 190)} — копия` }); }}><Copy />Дублировать</Button></div>
   </>;
 }
@@ -45,7 +47,7 @@ function EventPreview({ task, children, className, ...props }) {
 function EventButton({ task, compact = false, style, onResize }) {
   return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id}>
     <EventPreview task={task} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
-      {compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}
+      {compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}{task.relatedItems?.length > 0 && <span className="schedule-caption schedule-event__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}
     </EventPreview>
     {onResize && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
   </div>;
@@ -54,7 +56,7 @@ function EventButton({ task, compact = false, style, onResize }) {
 function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
   return <section className="planning-agenda schedule-agenda" aria-label={`Задачи на ${label(date)}`}>
     {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3><Button variant="ghost" size="icon" aria-label={`Добавить задачу на ${label(date)}`} onClick={() => onCreate({ dueOn: date })}><Plus /></Button></header>}
-    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><EventPreview task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span></EventPreview><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
+    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><EventPreview task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</EventPreview><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
   </section>;
 }
 

@@ -46,7 +46,6 @@ for (const [file, classes] of [
   ["src/App.jsx", ["global-app-chrome", "mobile-app-navigation", "planning-fab-controls"]],
   ["src/components/planning-calendar.jsx", ["schedule-toolbar"]],
   ["src/components/planning-daily-todo.jsx", ["daily-todo__toolbar"]],
-  ["src/components/planning-kanban.jsx", ["kanban-toolbar"]],
   ["src/components/content-page.jsx", ["mobile-content-page__nav"]],
   ["src/components/mobile-form-pages.jsx", ["mobile-content-page__nav"]],
 ]) {
