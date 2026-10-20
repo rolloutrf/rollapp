@@ -356,6 +356,10 @@
       border-radius: var(--radius);
     }
 
+    &:where(img[data-image-align="left"]) { margin-inline-start: 0; margin-inline-end: auto; justify-self: start; }
+    &:where(img[data-image-align="center"]) { margin-inline: auto; justify-self: center; }
+    &:where(img[data-image-align="right"]) { margin-inline-start: auto; margin-inline-end: 0; justify-self: end; }
+
     &:where(p img) {
       margin-block-start: 0;
     }

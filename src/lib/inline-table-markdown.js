@@ -1,3 +1,4 @@
+import { safeImageAlignment } from "./inline-image-alignment.js";
 import { Extension, decodeHtmlEntities, encodeHtmlEntities } from "@tiptap/core";
 import { inlineLinkHTMLAttributes, parseInlineLinkHTMLAttributes } from "./inline-link-attributes.js";
 import { safeInlineColor } from "./inline-text-style.js";
@@ -11,7 +12,7 @@ const markTags = { bold: "strong", italic: "em", underline: "u", strike: "s", co
 const tagMarks = { ...Object.fromEntries(Object.entries(markTags).map(([type, tag]) => [tag, type])), span: "inlineStyle" };
 const nodeTags = { columns: "div", column: "div", nestedBlock: "div", paragraph: "p", blockquote: "blockquote", bulletList: "ul", orderedList: "ol", listItem: "li", taskList: "ul", taskItem: "li", details: "details", detailsSummary: "summary", detailsContent: "div", typographyBlock: "p", table: "table", tableRow: "tr", tableCell: "td", tableHeader: "th", image: "img", hardBreak: "br", horizontalRule: "hr", codeBlock: "pre" };
 const voidTags = new Set(["br", "hr", "img"]);
-const allowedAttributes = new Set(["data-inline-link", "data-inline-normal", "data-column-width", "data-header-row", "data-header-column", "data-width-number", "data-height-number", "data-inline-block", "data-block-color", "data-inline-table", "colspan", "rowspan", "colwidth", "align", "start", "type", "data-type", "data-checked", "open", "data-language", "data-typography", "src", "alt", "title", "width", "height", "href", "target", "rel", "class", "data-inline-color", "data-inline-background"]);
+const allowedAttributes = new Set(["data-image-align", "data-inline-link", "data-inline-normal", "data-column-width", "data-header-row", "data-header-column", "data-width-number", "data-height-number", "data-inline-block", "data-block-color", "data-inline-table", "colspan", "rowspan", "colwidth", "align", "start", "type", "data-type", "data-checked", "open", "data-language", "data-typography", "src", "alt", "title", "width", "height", "href", "target", "rel", "class", "data-inline-color", "data-inline-background"]);
 const attrs = values => Object.entries(values || {}).filter(([, value]) => value != null).map(([key, value]) => ` ${key}="${esc(value)}"`).join("");
 const wrap = (tag, values, content = "") => `<${tag}${attrs(values)}${voidTags.has(tag) ? "/>" : `>${content}</${tag}>`}`;
 
@@ -55,6 +56,7 @@ export function tableHTML(node) {
     if (node.type === "typographyBlock") attributes = { "data-typography": a.role };
     if (node.type === "codeBlock") attributes = { "data-language": a.language };
     if (node.type === "image") attributes = { src: safeURL(a.src) ? a.src : "", alt: a.alt, title: a.title, width: a.width, height: a.height, "data-width-number": typeof a.width === "number" ? "true" : null, "data-height-number": typeof a.height === "number" ? "true" : null };
+    if (node.type === "image" && safeImageAlignment(a.alignment)) attributes["data-image-align"] = a.alignment;
     if (safeBlockColor(a.blockColor)) attributes["data-block-color"] = a.blockColor;
     return wrap(tag, attributes, (node.content || []).map(render).join(""));
   }
@@ -135,6 +137,7 @@ function parseCanonicalHTML(source, kind) {
     if (type === "typographyBlock") attributes = { role: a["data-typography"] };
     if (type === "codeBlock") attributes = { language: a["data-language"] || null };
     if (type === "image") attributes = { src: safeURL(a.src) ? a.src : "", alt: a.alt ?? null, title: a.title ?? null, width: a.width ?? null, height: a.height ?? null };
+    if (type === "image" && a["data-image-align"] != null) { if (!safeImageAlignment(a["data-image-align"])) throw new Error("Invalid image alignment"); attributes.alignment = a["data-image-align"]; }
     if(type==="image")for(const name of ["width","height"])if(a[`data-${name}-number`]!=null){if(a[`data-${name}-number`]!=="true"||a[name]==null||!Number.isFinite(Number(a[name])))throw new Error("Invalid image size");attributes[name]=Number(a[name]);}
     if (a["data-block-color"] != null) {
       if (!blockColorTypes.includes(type) || !safeBlockColor(a["data-block-color"])) throw new Error("Invalid block color");

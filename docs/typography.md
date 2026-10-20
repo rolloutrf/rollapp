@@ -132,3 +132,5 @@ rail/margin первого nested header, trimmed first block или следу�
 Gap-caret marker использует foreground в обеих темах; это курсор, не поле или рамка.
 Проверять включение/снятие gap selection без изменения JSON, image/child rects,
 native hit target и metadata command на mobile/desktop.
+
+Изображения с `data-image-align="left|center|right"` сохраняют общий media rhythm. Меняются только inline margins и grid justify-self; legacy без атрибута остаётся прежним. Нет нового размера текста, line-height, нижних margins или spacers. Общий normalText/blockquote и остальные typography roles не меняются.
