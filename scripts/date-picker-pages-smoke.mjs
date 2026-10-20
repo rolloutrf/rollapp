@@ -2,13 +2,12 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
-const port = smokePort(5197);
 
 // Actual picker, Router and task editor; unsaved props only, all API forbidden.
 const port = smokePort(Number(process.env.DATE_PICKER_PORT || 5197));
 const server = await createServer({
   cacheDir: "node_modules/.vite-date-pages-smoke",
-  server: { host: "127.0.0.1", port: smokePort(5197), strictPort: false, hmr: false, watch: null },
+  server: { host: "127.0.0.1", port, strictPort: false, hmr: false, watch: null },
   plugins: [{ name: "date-page-fixture",
     transform(source, id) {
       if (id.includes("planning-space.jsx?drawer-smoke-export=TaskEditor")) return `${source}\nexport { TaskEditor };`;

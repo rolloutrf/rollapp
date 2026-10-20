@@ -62,7 +62,7 @@ function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
 }
 
 function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
-  const { saveSchedule, dropTask, allowDrop, busy, cancelInteractionRef } = useContext(CalendarActions);
+  const { saveSchedule, dropTask, allowDrop, busy, cancelInteractionRef, sourceTasks } = useContext(CalendarActions);
   const scroll = useRef(null);
   const gesture = useRef(null);
   const skipClick = useRef(false);
@@ -82,17 +82,20 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     cancelInteractionRef.current = cancelGesture;
     cancelGesture();
     const cancelOnEscape = (event) => { if (event.key === "Escape" && gesture.current) { event.preventDefault(); cancelGesture(); } };
+    const cancelWhenHidden = () => { if (document.hidden) cancelGesture(); };
+    document.addEventListener("visibilitychange", cancelWhenHidden);
     window.addEventListener("keydown", cancelOnEscape, true);
     window.addEventListener("blur", cancelGesture);
     window.addEventListener("popstate", cancelGesture);
     return () => {
       cancelGesture();
       if (cancelInteractionRef.current === cancelGesture) cancelInteractionRef.current = null;
+      document.removeEventListener("visibilitychange", cancelWhenHidden);
       window.removeEventListener("keydown", cancelOnEscape, true);
       window.removeEventListener("blur", cancelGesture);
       window.removeEventListener("popstate", cancelGesture);
     };
-  }, [dateSignature, scheduleSignature, busy, cancelInteractionRef]);
+  }, [dateSignature, scheduleSignature, sourceTasks, busy, cancelInteractionRef]);
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
@@ -151,7 +154,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <p className="schedule-caption">Нет свободного получасового слота</p>
       {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <EventPreview key={task.id} task={task}>{label(task.dueOn)} · {task.title}</EventPreview>)}
     </section>}
-    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture}>
+    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={(event) => { if (event.pointerId === gesture.current?.pointerId) cancelGesture(); }} onLostPointerCapture={(event) => { if (event.pointerId === gesture.current?.pointerId) cancelGesture(); }}>
       <div className="schedule-timegrid__head">
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
@@ -243,7 +246,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef, sourceTasks }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}
