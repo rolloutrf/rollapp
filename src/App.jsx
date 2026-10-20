@@ -5878,6 +5878,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
             className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
             aria-label="Действия с желанием"
+            data-desktop-square-actions
           >
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
