@@ -1,6 +1,7 @@
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from "./smoke-browser-diagnostics.mjs";
 import { checkImageAlignment } from "./text-image-alignment-checks.mjs";
+import { checkImageCaptions } from "./text-image-caption-checks.mjs";
 import { smokeMode } from "./smoke-mode.mjs";
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
@@ -56,7 +57,7 @@ import { checkTextSelectionPosition } from "./text-selection-position-checks.mjs
 import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = smokePort(process.env.TEXT_EDIT_PORT);
-const only = smokeMode(process.argv.slice(2), ["--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
+const only = smokeMode(process.argv.slice(2), ["--image-captions-only", "--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
 const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
@@ -94,6 +95,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 try {
+  if(!only || only === "--image-captions-only") await checkImageCaptions(browser,origin);
   if(!only || only === "--image-alignment-only") await checkImageAlignment(browser,origin);
   if(only === "--paste-history-diagnostic") await checkCrossClipboard(browser,origin,true);
   if(!only || only === "--quote-styles-only") await checkQuoteStyles(browser,origin);

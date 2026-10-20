@@ -25,8 +25,61 @@ depth. Создание и набор — разные Undo; reopen меняет
   creation/typing Undo/Redo, reopening и block movement/reload.
 - Логи `/tmp/rollapp-caption-phase1-{unit,ui,build}-2026-10-20.log`.
 
-UI добавления/фокуса ещё в работе. Layout/alignment/resize, native clipboard,
-draft/retry/public reader, protected questions/short viewport требуют browser
-coverage и полного text/comprehensive до integration. Enter-exit не объявляется
-точным поведением Notion. Production документы/схема/данные не менялись;
-физический iOS/Telegram/IME остаётся непроверенным.
+## Второй промежуточный этап: UI и native browser checks
+
+Проверяемая основа `b5aaa156914d71fea92ab7da641465d70608a7af`, с dirty
+UI/runtime/test/docs diff второго этапа. Это targeted-проверки рабочего дерева,
+не чистый release snapshot. Перед integration нужен frozen полный набор.
+
+Добавление/повторное открытие подписи доступно из transient image controls,
+включая full-width image. Реальный caret, inline marks и общий save queue;
+нет отдельного поля или рамки. Подпись следует ширине/выравниванию изображения;
+для tiny image минимальная читаемая ширина ограничена родителем. Изменение
+размера сохраняет подпись, capture и прежний lifecycle самого image DOM.
+
+- Последний `npm test`:803 total/802 PASS/1 SKIP/0 FAIL.
+- `npm run test:ui`:37 primitives/79 JSX PASS; `npm run build` PASS,
+  прежнее предупреждение о крупных chunks остаётся.
+- `--image-captions-only`:8 PASS на320/390/768/820/1024/1440/1920 и390×400.
+  Native focus/typing/selection/bold, creation/typing/Paste Undo boundaries,
+  whole-figure Delete/Cut/HTML paste и partial-caption plaintext clipboard,
+  save/reload/public read, draft failure/retry, full-width/tiny image,
+  nested parent/columns/table/protected four questions, resize capture/preview,
+  Enter/Backspace/Escape и malformed external HTML paste.
+- Совместимость:alignment10 PASS иresize8 PASS, завершение обоих exit0.
+  Эти targeted-запуски пересекались с caption-only guard правками: они не
+  заменяют проверку одного frozen полного snapshot.
+- Логи последнего этапа:`/tmp/rollapp-caption-stage2-{unit,ui,build,native}-2026-10-20.log`.
+  Совместимость:`/tmp/rollapp-caption-compat-{alignment,resize}-2026-10-20.log`.
+- Скриншоты визуально просмотрены:390×400 и1440×844,
+  `/tmp/rollapp-caption-{width}-{height}.png`; без рамки/переполнения.
+- `npm audit`:7 high dev-only; `npm audit --omit=dev`:0.
+  Зависимости не менялись, несовместимых downgrade/force-fix не было.
+
+### Найденные дефекты и уточнения проверок
+
+Удаление выбранного дочернего image могло синтезировать image с пустым src:
+selection теперь нормализуется в целую фигуру без authored/history writes.
+Backspace в начале подписи второго nested child мог вынести фигуру из parent:
+общий structural handler делегирует caption keymap. Malformed orphan caption
+в native HTML paste не должен запускать schema fitter с пустым image:
+DOM parsing проверяет полную пару image+caption и безопасный src.
+Tiny1px caption имел descendant overflow: исправлен локальной минимальной
+шириной и переносом. Enter создаёт собственный пустой paragraph, не дописывает
+существующий непустой соседний текст.
+
+Сохранены первоначальные неуспешные диагностические логи. Проверка identity
+после resize commit была уточнена сравнением с неизменённым legacy image:
+ProseMirror заменяет leaf DOM после commit и до captions; captured preview
+обязан сохранять DOM. Escape использует существующий BlockSelection, не
+придуманный тестом NodeSelection; resize chrome поддерживает одиночную фигуру.
+Один Enter-check отправлял клавишу body после model-only selection:
+добавлены native click и проверка фактического фокуса, не маскировка runtime.
+
+Полный editor ожидает417 PASS records (409 baseline +8 captions), затем все
+10 этапов comprehensive. Пока это pending, подписи не заявлены готовыми к
+production. Public-reader проверки подтверждают содержимое/marks/read-only,
+но не исчерпывают сложные media/column compositions и все geometry cases.
+Enter/minimum/edge semantics не объявляются точным поведением Notion.
+Viewer/другие media и физический iOS/Telegram/IME остаются в goal audit.
+Production документы/схема/данные в этом этапе не менялись.

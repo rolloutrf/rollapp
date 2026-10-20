@@ -5,8 +5,16 @@
 и не отдельный editor/save queue; image/caption — одна block movement unit.
 Создание проверяет актуальные doc/selection/node, доступ/IME и reload depth,
 имеет отдельный Undo от набора; reopening не меняет документ. Canonical HTML
-отклоняет orphan/invalid caption structure. UI/native/full verification остаются
-в работе: [промежуточный отчёт](notion-image-caption-verification-2026-10-20.md).
+отклоняет orphan/invalid caption structure. UI добавления/повторного открытия
+доступен из transient image controls, включая full-width media; подпись получает
+реальный caret без второго editor. Selection дочернего image нормализуется в
+целую фигуру без doc/history edit, чтобы Delete/Cut не создавали пустой image
+filler. Native текстовые диапазоны не нормализуются. Escape сохраняет общий
+block-selection contract, одиночная выбранная фигура сохраняет resize controls.
+Caption поддерживает inline styles, не структурное превращение в heading/list
+или slash-команды. Shift+Enter — hard break, Enter — выход в собственный пустой paragraph,
+Backspace в начале — выбор целой фигуры; это ещё не утверждение exact Notion keys.
+UI/native/full verification: [промежуточный отчёт](notion-image-caption-verification-2026-10-20.md).
 
 Текстовые документы «О себе», «4 вопроса», «Тезисы», «Принципы», «Миссия»,
 «Домен», «Жизненная стратегия», «Идеальное состояние», «План развития» редактируются на месте.

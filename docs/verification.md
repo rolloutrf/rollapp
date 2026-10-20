@@ -16,6 +16,13 @@
 
 ## Безопасная последовательность
 
+Caption candidate: `--image-captions-only` — diagnostic8 viewports, не release
+gate. Общий default `test:text-edit` включает captions перед baseline409 и
+ожидает417 PASS records; `check:comprehensive` сохраняет все10 этапов без
+фильтров. Targeted captions/alignment/resize разных dirty snapshots нельзя
+складывать в полный PASS. Подробности и непроверенные случаи:
+`docs/notion-image-caption-verification-2026-10-20.md`.
+
 1. Прочитать `AGENTS.md`, проверить `git status --short`; сохранить чужие незакоммиченные изменения. Записать SHA и наличие dirty-файлов, чтобы результат не выдавался за проверку чистого релиза.
 2. Проверить `npm run dev:keepalive:status`. На этом Mac постоянный сервис использует настроенный production PostgreSQL по TLS. При сбое восстановить соединение, не подменять БД. Ограничение sandbox на `ps`/`lsof` требует повторения с разрешениями и не означает устаревший PID. После проверки сервис оставить работающим.
 3. Запустить `npm run check:comprehensive`. Он последовательно выполняет полный безопасный набор ниже, сбрасывает фильтры частичных матриц и останавливается на первой ошибке. Путь к JSON-отчёту печатается в начале; `ROLLAPP_CHECK_OUTPUT=/absolute/path/report.json` задаёт своё имя. Отчёт содержит SHA, dirty-флаг, версии Node, коды завершения и длительность этапов; приватные данные приложения в него не попадают.

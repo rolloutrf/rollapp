@@ -1,6 +1,7 @@
 import { captureInlineLinkIntent, mapInlineLinkIntent, commitInlineLink, safeInlineLink } from "@/lib/inline-link-intent";
 import { hasEffectiveItalic, toggleEffectiveItalic } from "@/lib/inline-italic";
 import { InlineImageResize } from "@/components/inline-image-resize";
+import { selectionHasImageCaption } from "@/lib/inline-image-caption";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
 import { InlineImageTransfer } from "@/components/inline-image-transfer";
@@ -294,7 +295,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   if (!editor) return null;
   const colorPicker=["colors","blockColors","cellColors"].includes(picker?.kind);
   const colorLabel=picker?.kind==="blockColors"?"Цвет блока":picker?.kind==="cellColors"?"Цвет ячеек":"Цвет текста и фона";
-  const format = (name, Icon, run, active = false) => <Button key={name} variant={active ? "secondary" : "ghost"} size="icon" type="button" aria-label={name} title={symbolHints[name] ? `${name}: ${symbolHints[name]}` : name} aria-pressed={active}
+  const format = (name, Icon, run, active = false) => <Button key={name} variant={active ? "secondary" : "ghost"} size="icon" type="button" disabled={name === "Тип блока" && selectionHasImageCaption(editor.state)} aria-label={name} title={symbolHints[name] ? `${name}: ${symbolHints[name]}` : name} aria-pressed={active}
     onMouseDown={event => { synchronizeInlineSelection(editor.view); event.preventDefault(); }} onClick={event => { updateMenu(null); run(event); }}><Icon aria-hidden="true" /></Button>;
   return <section className={cn("inline-editor min-w-0", className)} data-editable-text={editable ? "" : undefined} data-table-handles={tableHandlesVisible ? "" : undefined} aria-label={label} onKeyDownCapture={event => {
     // Portal events retain this editor's React owner. Preserve ProseMirror's

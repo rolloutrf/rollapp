@@ -25,6 +25,7 @@ export const filterSlashCommands = query => {
 
 function rangeAt(state, from, to) {
   const selection = state.selection;
+  if (selection.$from.parent.type.name === "imageCaption") return null;
   if (!(selection instanceof TextSelection) || !selection.empty || !selection.$from.parent.isTextblock || selection.$from.parent.type.spec.code) return null;
   const start = selection.$from.start(), end = selection.$from.end();
   if (from < start || to > end || selection.from <= from || selection.from > to) return null;

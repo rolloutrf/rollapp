@@ -12,6 +12,8 @@ function caretImageRequest(request) {
 
 export function inlineImagePosition(request) {
   const selected = request.selection;
+  const explicit = request.doc?.nodeAt(request.position ?? selectedBlockPosition(selected));
+  if (!request.side && !request.suggestion && explicit?.type.name === "captionedImage" && selected instanceof NodeSelection) return (request.position ?? selectedBlockPosition(selected)) + 1;
   if (!request.side && !request.suggestion && selected instanceof NodeSelection && selected.node.type.name === "image") {
     // Generic block actions address a nested parent and its children. Media
     // metadata still belongs to its actually selected head image, not a new
