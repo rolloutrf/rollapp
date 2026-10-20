@@ -196,3 +196,11 @@ To Do-листы используют существующие простран�
 Пока `.inline-editor__content[contenteditable="true"]` или `.inline-text-field[contenteditable="plaintext-only"]` владеет focus, корневой scroller использует `scroll-behavior: auto`: native caret reveal не ждёт smooth page animation. При наличии app chrome верхний scroll-padding равен chrome-top + safe-top + control-size + inline-gap. Ниже768px при наличии mobile-app-navigation нижний padding учитывает navigation-bottom + control-size + inline-gap. После blur обычное поведение страницы восстанавливается. Это не padding документа и не дополнительный spacer; положение readable content и контролов не меняется.
 
 Document columns используют --layout-page-gap на общем flex parent: рядом от768px, последовательно ниже768px. Shrinking columns имеют min-width:0, собственный первый текстовый блок trim через data-typeset-group; общий column row владеет одним prose flow gap. Пропорции хранятся как width ratios. Semantic resize separators показывают guide у общей границы или при keyboard focus; это не навигационные кнопки. Все реальные кнопки/ControlBar сохраняют48px/20px/24px; gutter/table controls не перекрывают glyphs соседних колонок.
+
+
+События временной сетки сохраняют реальную длительность, включая 15 минут
+(24 px до 2 px промежутка). События короче часа используют компактную строку:
+начало и название в shared caption, зона изменения длительности справа.
+Длинные карточки сохраняют body-название и caption времени. Эта семантическая
+плотность содержимого не меняет 48 px навигацию. `npm run test:calendar`
+проверяет видимость текста и точную геометрию на обеих высотах 14 композиций.

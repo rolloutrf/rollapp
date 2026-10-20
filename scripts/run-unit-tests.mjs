@@ -29,7 +29,9 @@ console.log(`Release unit suite: ${selected.length} files; ${discovered.length -
 if (process.argv.includes("--list")) {
   console.log(selected.join("\n"));
 } else {
-  const child = spawn(process.execPath, ["--test", ...selected], {
+  const concurrency = process.env.ROLLAPP_TEST_CONCURRENCY;
+  if (concurrency !== undefined && !/^[1-9]\d*$/.test(concurrency)) throw new Error("ROLLAPP_TEST_CONCURRENCY must be a positive integer");
+  const child = spawn(process.execPath, ["--test", ...(concurrency ? [`--test-concurrency=${concurrency}`] : []), ...selected], {
     stdio: "inherit",
     env: { ...process.env, ROLLAPP_TEST_TON: "0" },
   });

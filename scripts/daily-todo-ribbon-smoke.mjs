@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',server:{host:'127.0.0.1',port:5191,strictPort:true,hmr:false,watch:null},plugins:[{name:'todo-ribbon-fixture',transform(source,id){if(id.includes('planning-space.jsx?drawer-smoke-export=TaskEditor'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',server:{host:'127.0.0.1',port:5191,strictPort: false,hmr:false,watch:null},plugins:[{name:'todo-ribbon-fixture',transform(source,id){if(id.includes('planning-space.jsx?drawer-smoke-export=TaskEditor'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
  if(!req.url.startsWith('/__todo-ribbon'))return next();
  res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/daily-todo-ribbon.jsx"></script></body></html>'));
 });}}]});
 await server.listen();
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of [844,400]){
@@ -16,7 +17,7 @@ try{
   await page.clock.setFixedTime(new Date('2026-10-16T12:00:00+03:00'));
   page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
   for(const empty of [false,true]){
-   await page.goto(`http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
+   await page.goto(`${fixtureOrigin}/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
@@ -133,7 +134,7 @@ try{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
  await page.clock.setFixedTime(new Date('2026-10-17T12:00:00+03:00'));
- await page.goto('http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17');
+ await page.goto(`${fixtureOrigin}/__todo-ribbon?date=2026-10-17`);
  await page.getByRole('button',{name:'Предыдущий день',exact:true}).click();
  await page.getByRole('button',{name:'Выбрать дату: 16.10.2026',exact:true}).waitFor();
  await page.getByRole('button',{name:'Следующий день',exact:true}).click();
@@ -151,7 +152,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:844}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
-  await page.goto('http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17&slots');
+  await page.goto(`${fixtureOrigin}/__todo-ribbon?date=2026-10-17&slots`);
   await page.locator('.daily-todo__item').first().waitFor();
   for(const [title,time] of [['Без часа A','12:00'],['Без часа B','12:30'],['Утром','09:00']]){
    const row=page.getByRole('button',{name:`Редактировать задачу: ${title}`,exact:true});

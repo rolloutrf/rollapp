@@ -1,3 +1,4 @@
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { createServer } from "vite";
@@ -8,7 +9,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: 5193, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: 5193, strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
   transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -18,7 +19,8 @@ const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions
   }); },
 }] });
 await server.listen();
-const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];
 async function mobileGeometry(page, count) {
   const nav = page.getByRole("navigation", { name: "Навигация страницы" });
@@ -50,7 +52,7 @@ try {
       // response/database; any mutation from this layout check is a test failure.
       await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
       for (const variant of variants) {
-        await page.goto(`http://127.0.0.1:5193/__detail-actions?${variant}`);
+        await page.goto(`${fixtureOrigin}/__detail-actions?${variant}`);
         await page.getByRole("link", { name: "Открыть карточку" }).click();
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);

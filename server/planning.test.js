@@ -144,3 +144,13 @@ test("new To Do tasks take consecutive free slots after 10:00", async () => {
   assert.equal(nextCalendarTaskStart([{ dueOn: date }, { dueOn: date }], date), "11:00", "New tasks must reserve the existing untimed display slots");
   assert.equal(nextCalendarTaskStart([], date), "10:00");
 });
+
+
+test("quarter-hour appointments retain their duration and do not create false overlaps", async () => {
+  const { layoutCalendarEvents } = await import("../shared/planning-calendar.js");
+  const result = layoutCalendarEvents([
+    { id: "first", startTime: "09:00", durationMinutes: 15 },
+    { id: "second", startTime: "09:15", durationMinutes: 15 },
+  ]);
+  assert.deepEqual(result.map(({ start, end, lanes }) => [start, end, lanes]), [[540, 555, 1], [555, 570, 1]]);
+});

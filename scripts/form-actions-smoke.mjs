@@ -1,3 +1,4 @@
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
@@ -9,7 +10,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
 let port = Number(process.env.FORM_ACTION_PORT ?? 5198);
-const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?form-actions")) return `${source}\nexport { ContactEditForm, ToastContext, WishModal };`;
@@ -25,7 +26,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-form-actions",
 }] });
 await server.listen();
 port = server.httpServer.address().port;
-const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
+const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 async function geometry(page) {
   const row = page.locator('[data-native-form-actions]:visible');
   const result = await row.evaluate(el => {
