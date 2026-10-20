@@ -35,11 +35,14 @@ focus, input, timers, retries или assertions. Делегирование, own
 Воспроизводимый тест-only startup fix отделяется от ещё не выпущенной image
 alignment функции. Полная цель Notion, actual-device IME, arbitrary clipboard
 compositions и production exact-SHA/live UI не закрываются.
+
 ## Отделение от alignment поверх текущего main
+
 Main39da4fe уже содержит эквивалентный полный inline-список Base UI из параллельной
 интеграции. Standalone ветка codex/smoke-cold-dependencies сохраняет этот список
 через общий inventory и добавляет regression guards/diagnostics, без alignment
 model/controls/CLI mode. Diff ограничен scripts и verification docs.
+
 Fresh baseline: npm test783 total/782 PASS/1SKIP/0FAIL, UI37/79 и build PASS.
 Cold --images-only на новом `.vite-cold-main-images-20261020` завершён exit0:
 16 PASS (file-transfer8 и existing images8), без late dependency-changed reload
@@ -48,6 +51,7 @@ Cold --images-only на новом `.vite-cold-main-images-20261020` завер�
 Production на последней read-only проверке healthy d116857; queued CI/new SHA
 не считается подтверждённым выпуском. Dev10724 в905f ready, API/frontend оставлены
 работать; отсутствие PID-файла в другой папке не объявлялось остановкой live service.
+
 Проверенная code version d7ca20e поверх39da4fe. Дальнейшая правка этого отчёта
 не меняет tested scripts/конфигурацию. Diff отдельной ветки содержит только
 проверки/диагностику и docs; alignment model/renderer/controls туда не включены.
