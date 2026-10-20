@@ -45,6 +45,16 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
 
 ## Verification
 
+Product `DrawerFooter` composes the installed primitive with `ControlBar` and
+`app-form-actions`. Custom contact and wish footers use the same composition
+through `MobileFormFooter` on desktop. All use 48px pill buttons, 48px circular
+icon actions, 20px glyphs, 18px/28px text and an 8px gap. The primary action
+grows first; secondary actions follow it, with wrapping when needed. Desktop
+footers use the same 16px inset, separator and popover surface, outside the body
+scroller. Disabled actions remain opaque; destructive colors survive hover and
+disabled states. Icon-only close actions also compose `ControlBar`. None of
+these rules change the upstream Drawer/Button primitives.
+
 Run `npm run test:drawers`, `npm test`,
 `npm run test:ui`, and `npm run build`.
 
@@ -60,10 +70,13 @@ unsaved component props and neither substitutes a database nor creates accounts,
 sessions or domain records. Any live API verification must use the configured
 production database.
 
-Coverage includes 320/390/414px portrait, 896px landscape and 1440px desktop;
+Coverage includes 320/390/414px portrait, 768/820px transitions, 896px landscape,
+1024/1440/1920px desktop and a 390×400 short window;
 keyboard resize and panning; first/last field focus; footer reachability; height
 restoration; touch body scrolling; swipe dismissal; nested drawer Escape; and
-release of the document scroll lock. Real form variants run at 320/390/896px.
+release of the document scroll lock. Real form variants run at every size and
+assert all four corner radii, exact control and glyph sizes, text metrics,
+opacity, background alpha, label fit and 8px action gaps.
 To isolate failures, use `DRAWER_WIDTHS`, `DRAWER_MODES`, or `DRAWER_CASES`.
 
 The keyboard geometry is simulated using VisualViewport events. This is not a
@@ -152,7 +165,7 @@ Forms without a footer (such as date selection) retain the shared fixed Back.
 Submit stays inside its original HTML form: validation, Enter submission, busy
 and close guards are preserved. A form footer registers with its page context so
 nested screens show exactly one Back, alongside their own actions. Desktop
-Drawer footers remain in their original position. At narrow widths delete may
+Drawer footers remain outside the body scroller. At narrow widths delete may
 use an icon with its complete accessible name; the shared Back replaces Cancel.
 Principle and thesis editors place a round 48px trash icon beside Save in the
 same footer on mobile and desktop. Mobile uses «Сохранить» with the complete
@@ -176,9 +189,10 @@ has no background slab, and retains opaque individual surfaces. Desktop actions
 stay in their original content position. `npm run test:details` checks these
 states at 320/390px, short viewports and desktop transition/wide breakpoints,
 including overflow focus return, scroll reachability and Back.
-The mobile task editor keeps Save and Delete in one row alongside Back. Save
-takes the remaining width; Delete uses the short visible label «Удалить» with
-the full task/series action in its accessible label and confirmation dialog.
+The task editor keeps Save and Delete in one row, alongside Back on mobile. Save
+takes the remaining width; Delete uses a circular trash icon with the full
+task/series action in its accessible label, title and confirmation dialog.
+The wish editor uses the same save-first order and circular delete action.
 Both actions remain at least 48px high, including at 320px width.
 Nested forms have their own history entries and
 return to the parent's unchanged draft. A form is marked as entered when its
@@ -273,3 +287,9 @@ a successful standalone editor layout does not prove this composition.
 Тот же native caret contract действует на plaintext InlineTextField, включая пустые строки; wheel/touch intent отменяет отложенное раскрытие. Табличные hover growth controls доступны от1024px, всегда48px/20px с общими ControlBar shapes и реальными chrome bounds. На мобильных действия остаются в существующем меню; новый постоянный toolbar или независимый vertical scroller не добавляется.
 
 Column resize separators используют отдельный body portal и видимые viewport/chrome bounds. До768px они не выводятся: колонки читаются последовательно. Preview не меняет данные; source/access/composition/pointer interruption отменяют его. Нативные клавиатуры iOS/Telegram этим desktop pointer/Chrome smoke не проверены.
+
+Desktop product drawers consistently enter from the right without an extra
+swipe-handle rail. This keeps header, fields and footer on the same 16px inset
+regardless of the caller's historical `showSwipeHandle`/direction props. The
+product wrapper owns this choice; mobile forms retain their native-page contract
+and upstream drawers keep gesture support.

@@ -382,3 +382,15 @@ checkout, не меняя общий файл через symlink. Dev API и man
 оба реальных listener и `dev:keepalive:status`, а затем содержимое раздела:
 успешный health другого процесса на общих портах не доказывает готовность этой
 checkout. Не завершать чужие сервисы ради освобождения порта.
+
+Единообразие штор проверяет `npm run test:drawers`: все реальные form cases на
+320/390/414/768/820/896/1024/1440/1920px и 390×400, общий `ControlBar`, четыре
+радиуса 24px, точные 48px/20px/18px/28px, gap 8px, непрозрачные disabled-кнопки,
+полная подпись и отсутствие горизонтального переполнения. Снимки основных форм
+сохраняются в `/tmp/rollapp-form-consistency-*.png`; они дополняют проверки
+клавиатуры/прокрутки и обязательные `test:controls`/`test:form-actions`.
+
+При параллельной проверке разных worktree можно задать отдельные fixture-порты:
+`CONTROL_SIZE_PORT`, `DETAIL_ACTION_PORT`, `DATE_PICKER_PORT`, `FORM_ACTION_PORT`,
+`TEXT_EDIT_PORT`, `KANBAN_DRAG_PORT`. Это меняет только порт локального smoke
+server; набор сценариев/ассерты и production API остаются прежними.
