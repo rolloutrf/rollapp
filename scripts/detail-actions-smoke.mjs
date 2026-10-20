@@ -1,3 +1,5 @@
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { createServer } from "vite";
@@ -8,7 +10,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: 5193, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
   transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -17,8 +19,9 @@ const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/detail-actions.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
-const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
+const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];
 async function mobileGeometry(page, count) {
   const nav = page.getByRole("navigation", { name: "Навигация страницы" });
@@ -50,11 +53,19 @@ try {
       // response/database; any mutation from this layout check is a test failure.
       await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
       for (const variant of variants) {
-        await page.goto(`http://127.0.0.1:5193/__detail-actions?${variant}`);
+        await page.goto(`${origin}/__detail-actions?${variant}`);
         await page.getByRole("link", { name: "Открыть карточку" }).click();
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);
         const catalog = variant.includes("catalog");
+        if (!catalog) {
+          const radii = await page.locator('[data-slot="wish-actions"] button[class~="group/button"]').evaluateAll(buttons => buttons.map(button => {
+            const style = getComputedStyle(button);
+            return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(parseFloat);
+          }));
+          assert(radii.length >= 2, "Wish primary and overflow actions missing");
+          assert(radii.every(corners => corners.every(radius => radius === (width >= 768 ? 0 : 24))), "Desktop wish actions must be square; mobile actions must retain pill/circle corners");
+        }
         if (width < 768) {
           const before = await mobileGeometry(page, catalog ? 2 : 3);
           await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));

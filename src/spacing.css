@@ -60,6 +60,13 @@
   [data-control-bar] [class~="group/button"] {
     border-radius: calc(var(--layout-control-size) / 2) !important;
   }
+  /* Wish detail actions are rectangular in the desktop content; the mobile
+     fixed action row retains the shared pill/circle shape. */
+  @media (min-width: 768px) {
+    [data-control-bar][data-desktop-square-actions] [class~="group/button"] {
+      border-radius: 0 !important;
+    }
+  }
   [data-control-bar] [data-control-icon] {
     width: var(--layout-control-size) !important;
     min-width: var(--layout-control-size) !important;

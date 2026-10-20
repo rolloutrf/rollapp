@@ -18,8 +18,15 @@ test("planning dates validate leap days and reject normalized invalid dates", ()
 });
 
 test("task input validates titles, status, description limits and optional date", () => {
-  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "" });
+  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "", relatedItems: [], contactIds: [] });
   for (const value of [{ title: " " }, { title: "x", status: "unknown" }, { title: "x", dueOn: "2026-02-30" }, { title: "x", description: "x".repeat(5001) }]) assert.equal(planningTaskSchema.safeParse(value).success, false);
+});
+
+test("task links accept distinct typed objects and reject duplicates", () => {
+  const relatedItems = [{ kind: "wishlist", id: "wish-1", title: "Книга" }, { kind: "contact", id: "contact-1", title: "Анна" }];
+  assert.deepEqual(planningTaskSchema.parse({ title: "План", relatedItems }).relatedItems, relatedItems);
+  assert.equal(planningPatchSchema.safeParse({ relatedItems: [relatedItems[0], relatedItems[0]] }).success, false);
+  assert.equal(planningPatchSchema.safeParse({ relatedItems: [{ kind: "unknown", id: "1", title: "Тест" }] }).success, false);
 });
 
 test("moving a task does not reset its description or date", () => {
@@ -91,10 +98,10 @@ test("dated tasks without a time use a half-hour display slot and can be resized
   const original = { id: "untimed", dueOn: "2026-10-16", startTime: "", durationMinutes: 60 };
   const timed = calendarTaskSchedule(original);
   const [event] = layoutCalendarEvents([timed]);
-  assert.equal(event.start, 0);
-  assert.equal(event.end, 30);
-  assert.equal(taskTimeLabel(timed), "00:00–00:30");
-  assert.deepEqual(calendarResize(timed, 120), { durationMinutes: 120 });
+  assert.equal(event.start, 600);
+  assert.equal(event.end, 630);
+  assert.equal(taskTimeLabel(timed), "10:00–10:30");
+  assert.deepEqual(calendarResize(timed, 720), { durationMinutes: 120 });
   assert.equal(original.startTime, "");
   assert.equal(original.durationMinutes, 60);
 });
@@ -105,13 +112,13 @@ test("untimed calendar tasks fill free half-hour slots per day without changing 
   const day = "2026-10-17";
   const original = [
     { id: "a", dueOn: day, startTime: "", durationMinutes: 60 },
-    { id: "fixed", dueOn: day, startTime: "00:15", durationMinutes: 45 },
+    { id: "fixed", dueOn: day, startTime: "10:15", durationMinutes: 45 },
     { id: "b", dueOn: day },
     { id: "other", dueOn: "2026-10-18" },
     { id: "undated" },
   ];
   const result = calendarTaskSchedules(original);
-  assert.deepEqual(result.map(t => t.startTime), ["01:00", "00:15", "01:30", "00:00", undefined]);
+  assert.deepEqual(result.map(t => t.startTime), ["11:00", "10:15", "11:30", "10:00", undefined]);
   assert.equal(result[0].durationMinutes, 30);
   assert.equal(result[2].durationMinutes, 30);
   assert.equal(result[1], original[1]);
@@ -119,12 +126,12 @@ test("untimed calendar tasks fill free half-hour slots per day without changing 
   assert.equal(original[0].durationMinutes, 60);
   const full = calendarTaskSchedules([{ id: "busy", dueOn: day, startTime: "00:00", durationMinutes: 1440 }, original[0]]);
   assert.equal(full[1], original[0]);
-  const many = calendarTaskSchedules(Array.from({ length: 49 }, (_, i) => ({ id: String(i), dueOn: day })));
-  assert.equal(many[47].startTime, "23:30");
-  assert.equal(many[48].startTime, undefined);
+  const many = calendarTaskSchedules(Array.from({ length: 29 }, (_, i) => ({ id: String(i), dueOn: day })));
+  assert.equal(many[27].startTime, "23:30");
+  assert.equal(many[28].startTime, undefined);
 });
 
-test("new To Do tasks take consecutive free slots after 09:00", async () => {
+test("new To Do tasks take consecutive free slots after 10:00", async () => {
   const { nextCalendarTaskStart } = await import("../shared/planning-calendar.js");
   const date = "2026-10-17";
   const tasks = [
@@ -137,8 +144,20 @@ test("new To Do tasks take consecutive free slots after 09:00", async () => {
   assert.equal(nextCalendarTaskStart(tasks, date), "11:30");
   tasks.push({ dueOn: date, startTime: "11:30", durationMinutes: 30 });
   assert.equal(nextCalendarTaskStart(tasks, date), "12:00");
-  assert.equal(nextCalendarTaskStart(tasks, "2026-10-18"), "09:00");
-  assert.equal(nextCalendarTaskStart([{ dueOn: date, startTime: "09:00", durationMinutes: 30 }], date), "09:30");
-  assert.equal(nextCalendarTaskStart([{ dueOn: date, startTime: "09:00", durationMinutes: 900 }], date), "00:00");
+  assert.equal(nextCalendarTaskStart(tasks, "2026-10-18"), "11:00");
+  assert.equal(nextCalendarTaskStart([{ dueOn: date, startTime: "09:00", durationMinutes: 30 }], date), "10:00");
+  assert.equal(nextCalendarTaskStart([{ dueOn: date, startTime: "09:00", durationMinutes: 900 }], date), null);
   assert.equal(nextCalendarTaskStart([{ dueOn: date, startTime: "00:00", durationMinutes: 1440 }], date), null);
+  assert.equal(nextCalendarTaskStart([{ dueOn: date }, { dueOn: date }], date), "11:00", "New tasks must reserve the existing untimed display slots");
+  assert.equal(nextCalendarTaskStart([], date), "10:00");
+});
+
+
+test("quarter-hour appointments retain their duration and do not create false overlaps", async () => {
+  const { layoutCalendarEvents } = await import("../shared/planning-calendar.js");
+  const result = layoutCalendarEvents([
+    { id: "first", startTime: "09:00", durationMinutes: 15 },
+    { id: "second", startTime: "09:15", durationMinutes: 15 },
+  ]);
+  assert.deepEqual(result.map(({ start, end, lanes }) => [start, end, lanes]), [[540, 555, 1], [555, 570, 1]]);
 });

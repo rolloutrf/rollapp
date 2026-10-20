@@ -46,7 +46,10 @@ export async function checkTextSymbolShortcuts(browser, origin) {
       }
       const formattedMarkdown = await editor.evaluate(el => el.editor.getMarkdown());
       await editor.press("ControlOrMeta+s");
-      await page.waitForFunction(expected => window.inlineTest.saved === expected, formattedMarkdown);
+      await page.waitForFunction(expected => window.inlineTest.saved === expected, formattedMarkdown).catch(async error => {
+        const diagnostic = await editor.evaluate(el => ({ doc: el.editor.getJSON(), markdown: el.editor.getMarkdown(), saved: window.inlineTest.saved ?? null, saves: window.inlineTest.saves, status: document.querySelector('[data-save-status]')?.getAttribute('data-save-status'), native: { anchor: getSelection()?.anchorOffset, focus: getSelection()?.focusOffset } }));
+        throw new Error(`${width}px shortcut ${JSON.stringify(sample.input)}, expected Markdown ${JSON.stringify(formattedMarkdown)}: ${JSON.stringify(diagnostic)}; ${error.message}`);
+      });
       if (sample.enter) {
         await editor.press("ControlOrMeta+z");
         assert.equal(await editor.locator("p").textContent(), sample.input, "Undo must restore the typed fence");

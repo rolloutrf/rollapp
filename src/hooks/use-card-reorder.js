@@ -8,6 +8,8 @@ import {
   resolveConfirmedGroupDrop,
 } from "@/lib/card-order";
 
+import { createCardDragPreview, guardDragClick } from "@/lib/card-drag-preview";
+
 const TOUCH_HOLD_DELAY_MS = 260;
 const POINTER_DRAG_THRESHOLD_PX = 9;
 
@@ -22,9 +24,12 @@ export function useCardReorder({
   onAddToGroup,
   onCreateGroup,
   disabled = false,
+  scopeKey = "",
 }) {
   const descriptionId = useId();
   const listRef = useRef(null);
+  const scopeRef = useRef(scopeKey);
+  scopeRef.current = scopeKey;
   const itemsRef = useRef(items);
   const onItemsChangeRef = useRef(onItemsChange);
   const persistOrderRef = useRef(persistOrder);
@@ -43,7 +48,9 @@ export function useCardReorder({
   const ghostSizeRef = useRef({ width: 0, height: 0 });
   const flipPositionsRef = useRef(new Map());
   const suppressClickRef = useRef(false);
+  const clickGuardCleanupRef = useRef(null);
   const [draggedId, setDraggedId] = useState("");
+  const savingRef = useRef(false);
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -85,7 +92,7 @@ export function useCardReorder({
   };
 
   const removeGhost = () => {
-    document.querySelectorAll(".education-card--drag-preview").forEach((ghost) => ghost.remove());
+    ghostRef.current?.remove();
     ghostRef.current = null;
     ghostSizeRef.current = { width: 0, height: 0 };
   };
@@ -93,23 +100,20 @@ export function useCardReorder({
   const createGhost = (source, clientX, clientY) => {
     removeGhost();
     const rect = source.getBoundingClientRect();
-    const ghost = source.cloneNode(true);
-    ghost.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-    ghost.setAttribute("aria-hidden", "true");
-    ghost.classList.add("education-card--drag-preview");
+    const ghost = createCardDragPreview(source, "education-card--drag-preview");
     ghost.style.setProperty("--drag-width", `${rect.width}px`);
-    ghost.style.setProperty("--drag-x", `${clientX - rect.width / 2}px`);
-    ghost.style.setProperty("--drag-y", `${clientY - rect.height / 2}px`);
+    ghost.style.setProperty("--drag-x", `${rect.left}px`);
+    ghost.style.setProperty("--drag-y", `${rect.top}px`);
     document.body.appendChild(ghost);
     ghostRef.current = ghost;
-    ghostSizeRef.current = { width: rect.width, height: rect.height };
+    ghostSizeRef.current = { width: rect.width, height: rect.height, offsetX: clientX - rect.left, offsetY: clientY - rect.top };
   };
 
   const moveGhost = (clientX, clientY) => {
     if (!ghostRef.current) return;
-    const { width, height } = ghostSizeRef.current;
-    ghostRef.current.style.setProperty("--drag-x", `${clientX - width / 2}px`);
-    ghostRef.current.style.setProperty("--drag-y", `${clientY - height / 2}px`);
+    const { offsetX, offsetY } = ghostSizeRef.current;
+    ghostRef.current.style.setProperty("--drag-x", `${clientX - offsetX}px`);
+    ghostRef.current.style.setProperty("--drag-y", `${clientY - offsetY}px`);
   };
 
   const stopAutoScroll = () => {
@@ -266,26 +270,31 @@ export function useCardReorder({
   };
 
   const saveOrder = async (nextItems, previousItems) => {
+    const savingScope = scopeKey;
+    savingRef.current = true;
     setOrderBusy(true);
     setOrderError("");
     try {
       await persistOrderRef.current(nextItems.map((item) => item.id));
     } catch (error) {
+      // A late failure belongs to its original list, not the newly opened one.
+      if (scopeRef.current !== savingScope) return;
       itemsRef.current = previousItems;
       capturePositions();
       onItemsChangeRef.current(previousItems);
       setOrderError(error.message);
       setAnnouncement(`Не удалось изменить порядок ${collectionLabel}. Предыдущий порядок восстановлен.`);
     } finally {
+      savingRef.current = false;
       setOrderBusy(false);
     }
   };
 
-  const finishDrag = (drag, { persist = true } = {}) => {
+  const finishDrag = (drag, { persist = true, restore = true } = {}) => {
     const nextItems = itemsRef.current;
     const shouldPersist = persist && drag.dirty;
     if (drag.source.contains(document.activeElement)) document.activeElement?.blur?.();
-    if (!persist && drag.dirty) {
+    if (!persist && restore && drag.dirty) {
       itemsRef.current = drag.initialItems;
       capturePositions();
       onItemsChangeRef.current(drag.initialItems);
@@ -303,10 +312,11 @@ export function useCardReorder({
   };
 
   const activatePointerDrag = (drag) => {
-    if (!drag || pointerDragRef.current !== drag || drag.active || orderBusy) return;
+    if (!drag || pointerDragRef.current !== drag || drag.active || savingRef.current) return;
     try { drag.captureTarget.setPointerCapture?.(drag.pointerId); } catch {}
     drag.active = true;
-    suppressClickRef.current = true;
+    clickGuardCleanupRef.current?.();
+    clickGuardCleanupRef.current = guardDragClick(suppressClickRef, drag.pointerId);
     setDraggedId(drag.cardId);
     createGhost(drag.source, drag.startX, drag.startY);
     startAutoScroll(drag);
@@ -343,6 +353,13 @@ export function useCardReorder({
     releasePointerCapture(drag);
     if (!drag.active) return;
     event.preventDefault();
+    if (drag.clientX !== event.clientX || drag.clientY !== event.clientY) updateDragPosition(drag, event.clientX, event.clientY);
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    if (!element || !listRef.current?.contains(element)) {
+      finishDrag(drag, { persist: false });
+
+      return;
+    }
     const confirmedGroupTarget = resolveConfirmedGroupDrop({
       groupingEnabled,
       armedTarget: armedGroupTargetRef.current,
@@ -353,16 +370,16 @@ export function useCardReorder({
       finishDrag(drag, { persist: false });
       if (targetType === "group") void onAddToGroupRef.current?.(drag.cardId, targetId);
       if (targetType === "card" && targetId !== drag.cardId) void onCreateGroupRef.current?.(drag.cardId, targetId);
-      window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+
       return;
     }
     const { card } = resolvePointerTarget(drag, event.clientX, event.clientY);
     const droppedInsideList = Boolean(card);
     finishDrag(drag, { persist: droppedInsideList });
-    window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+
   };
 
-  const cancelPointerDrag = (event) => {
+  const cancelPointerDrag = (event, { restore = true } = {}) => {
     const drag = pointerDragRef.current;
     if (!drag || (event?.pointerId != null && event.pointerId !== drag.pointerId)) return;
     clearTimeout(pointerTimerRef.current);
@@ -371,18 +388,20 @@ export function useCardReorder({
     releasePointerCapture(drag);
     if (drag.active) {
       event?.preventDefault?.();
-      finishDrag(drag, { persist: false });
+      finishDrag(drag, { persist: false, restore });
     }
-    window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+
   };
 
   const listenForPointerDrag = (drag) => {
     const visibility = () => { if (document.hidden) cancelPointerDrag(); };
+    const key = (event) => { if (event.key === "Escape") { event.preventDefault(); cancelPointerDrag(event); } };
     const lostCapture = (event) => { if (pointerDragRef.current === drag) cancelPointerDrag(event); };
     window.addEventListener("pointermove", movePointerDrag, { capture: true, passive: false });
     window.addEventListener("pointerup", endPointerDrag, true);
     window.addEventListener("pointercancel", cancelPointerDrag, true);
     window.addEventListener("blur", cancelPointerDrag);
+    window.addEventListener("keydown", key, true);
     document.addEventListener("visibilitychange", visibility);
     drag.captureTarget.addEventListener("lostpointercapture", lostCapture);
     pointerCleanupRef.current = () => {
@@ -390,18 +409,22 @@ export function useCardReorder({
       window.removeEventListener("pointerup", endPointerDrag, true);
       window.removeEventListener("pointercancel", cancelPointerDrag, true);
       window.removeEventListener("blur", cancelPointerDrag);
+      window.removeEventListener("keydown", key, true);
       document.removeEventListener("visibilitychange", visibility);
       drag.captureTarget.removeEventListener("lostpointercapture", lostCapture);
     };
   };
 
   const beginPointerDrag = (event, cardId) => {
-    if (disabled || orderBusy || !event.isPrimary || event.button !== 0) return;
+    if (disabled || savingRef.current || !event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.("[data-card-drag-trigger]")) return;
+    if (event.pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
+    suppressClickRef.current = false;
     const pointerType = event.pointerType || "mouse";
     const drag = {
       cardId,
+      scopeKey,
       pointerId: event.pointerId,
       pointerType,
       startX: event.clientX,
@@ -420,12 +443,13 @@ export function useCardReorder({
     clearTimeout(pointerTimerRef.current);
     clearPointerListeners();
     listenForPointerDrag(drag);
+    if (event.target.closest?.("[data-card-drag-handle]")) { event.preventDefault(); activatePointerDrag(drag); return; }
     if (pointerType === "mouse") return;
     pointerTimerRef.current = window.setTimeout(() => activatePointerDrag(drag), TOUCH_HOLD_DELAY_MS);
   };
 
   const moveByOffset = (cardId, offset) => {
-    if (disabled || orderBusy) return;
+    if (disabled || savingRef.current || pointerDragRef.current) return;
     const previousItems = itemsRef.current;
     const sourceIndex = previousItems.findIndex((item) => item.id === cardId);
     const targetIndex = sourceIndex + offset;
@@ -439,12 +463,20 @@ export function useCardReorder({
     void saveOrder(nextItems, previousItems);
   };
 
+  useLayoutEffect(() => {
+    if (pointerDragRef.current?.scopeKey !== scopeKey) cancelPointerDrag(undefined, { restore: false });
+    else if (disabled) cancelPointerDrag();
+  }, [disabled, scopeKey]);
+
   useEffect(() => {
     removeGhost();
     return () => {
       clearTimeout(pointerTimerRef.current);
       clearTimeout(groupTimerRef.current);
       clearPointerListeners();
+      clickGuardCleanupRef.current?.();
+      releasePointerCapture(pointerDragRef.current);
+      pointerDragRef.current = null;
       removeGhost();
     };
   }, []);
@@ -459,6 +491,6 @@ export function useCardReorder({
     moveByOffset,
     orderBusy,
     orderError,
-    shouldSuppressClick: () => suppressClickRef.current,
+    shouldSuppressClick: () => { const suppress = suppressClickRef.current; suppressClickRef.current = false; return suppress; },
   };
 }

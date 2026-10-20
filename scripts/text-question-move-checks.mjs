@@ -43,7 +43,18 @@ export async function checkQuestionBlockMoves(browser, origin) {
     await menu.getByRole('button',{name:'Переместить вниз',exact:true}).click();
     assert.deepEqual((await texts()).slice(0,2),[['Первый'],['Переносимый','Приёмник','Сосед']]);
     await assertStableBlockSelection(editor,'one moved block across answers');
-    await editor.press('ControlOrMeta+z'); assert.deepEqual(await json(),initial);
+    await editor.press('ControlOrMeta+z').catch(async error => {
+      const diagnostic = await page.evaluate(() => ({
+        active: document.activeElement?.outerHTML.slice(0,300),
+        roots: [...document.querySelectorAll('[role="textbox"]')].map(root => ({
+          html: root.outerHTML.slice(0,400),
+          ancestors: [...(function* () { for (let el = root; el; el = el.parentElement) yield el; })()].map(el => ({tag:el.tagName,hidden:el.hidden,inert:el.inert,ariaHidden:el.getAttribute('aria-hidden'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility})),
+          selection: root.editor?.state.selection.toJSON(),
+        })),
+        menus: [...document.querySelectorAll('[role="dialog"]')].map(el => el.outerHTML.slice(0,400)),
+      }));
+      throw new Error(`Post-menu Undo failed at ${width}x${height}: ${JSON.stringify(diagnostic)}; ${error.message}`);
+    }); assert.deepEqual(await json(),initial);
 
     for (const reverse of [false,true]) {
       await answers.nth(reverse?2:0).locator('p').last().click(); await editor.press('Escape');

@@ -1,20 +1,38 @@
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'vite';
 import {chromium} from 'playwright-core';
 import {browserLaunchOptions} from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port:5191,strictPort:true,hmr:false,watch:null},plugins:[{
+const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
  name:'navigation-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?navigation-smoke'))return source+'\nexport {GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';},
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-navigation.jsx"></script></body></html>'));});}
 }]});
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 async function settle(popup){await popup.evaluate(async element=>{await Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));});}
 try{
+ // JS navigation must follow CSS even if the browser reports a different
+ // innerWidth. Exercise the initial render and both breakpoint transitions.
+ const viewportPage=await browser.newPage({viewport:{width:393,height:844}});
+ try{
+  await viewportPage.addInitScript(()=>Object.defineProperty(window,'innerWidth',{configurable:true,get:()=>980}));
+  await viewportPage.route('**/api/**',()=>{throw new Error('Unexpected API request');});
+  await viewportPage.goto(`${origin}/app/spheres/career?tab=about`);
+  await viewportPage.locator('.mobile-app-navigation').waitFor();
+  for(const width of [393,820,390]){
+   await viewportPage.setViewportSize({width,height:844});
+   await viewportPage.waitForFunction(mobile=>Boolean(document.querySelector('.mobile-app-navigation'))===mobile,width<768);
+   assert.equal(await viewportPage.locator('.global-app-chrome .sphere-switcher__trigger').count(),width<768?0:1);
+   assert.equal(await viewportPage.locator('.global-app-chrome .global-service-select').count(),width<768?0:1);
+  }
+  console.log('PASS CSS media viewport owns initial mobile navigation and breakpoint transitions when innerWidth differs');
+ }finally{await viewportPage.close();}
  for(const width of [320,390,640,767,768,820,1024,1440,1920]){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   for(const route of ['/app/spheres/career?tab=about','/app/wishes?tab=products','/app/spheres/identity?tab=ideal-state','/app/spheres/health?tab=medications','/app/wishes?guest=1']){
-   await page.goto('http://127.0.0.1:5191'+route);
+   await page.goto(origin+route);
    const sphere=page.getByRole('button',{name:'Открыть переключатель сфер',exact:true}),select=page.locator('.global-service-select');await sphere.waitFor();
    assert.equal(await sphere.count(),1);assert.equal(await select.count(),1);
    const s=await sphere.boundingBox(),c=await select.boundingBox();
@@ -43,7 +61,7 @@ try{
      assert(p.y>=0&&p.y+p.height<=c.y+1,`${route}: planning menu clipped`);
      await page.keyboard.press('Escape');
     }
-    await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+    await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:"instant"}));
     const last=await page.locator('[data-last-action]').boundingBox();assert(last.y+last.height<=s.y,`${route}: last action hidden behind dock`);
     if(width===390&&route.includes('career'))await page.screenshot({path:'/tmp/rollapp-mobile-navigation.png'});
     if(route.includes('career')){
@@ -56,7 +74,7 @@ try{
    console.log(`PASS ${width} ${route}: ${width<768?'bottom navigation, menus, scroll tail':'desktop header'}`);
   }
   if(width<768){
-   await page.goto('http://127.0.0.1:5191/app/spheres/career?tab=about');
+   await page.goto(`${origin}/app/spheres/career?tab=about`);
    await page.locator('.mobile-app-navigation').waitFor();
    await page.evaluate(()=>document.documentElement.style.setProperty('--tg-content-safe-area-inset-bottom','34px'));
    const safe=await page.locator('.mobile-app-navigation').boundingBox();assert.equal(safe.y+safe.height,794,'Navigation ignored lower safe area');

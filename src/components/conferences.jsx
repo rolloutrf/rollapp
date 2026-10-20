@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3,
@@ -549,12 +550,12 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить конференцию"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -588,6 +589,7 @@ export function Conferences() {
     ? (openedGroup.itemIds || []).map((id) => requestState.conferences.find((conference) => conference.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleConferences,
     onItemsChange: (conferences) => setRequestState((state) => ({
@@ -885,6 +887,7 @@ export function Conferences() {
               key={conference.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, conference.id)}
             >
+              {!readOnly && <CardDragHandle title={conference.title} disabled={cardOrder.orderBusy} />}
               <ConferenceCard
                 conference={conference}
                 dragDescriptionId={cardOrder.descriptionId}

@@ -10,7 +10,6 @@ export const drawerCases = [
   ['question', 'four-questions', 'FourQuestionEditor', { questionIndex: 0 }],
   ['markdown', 'career-content', 'MarkdownEditorDrawer', {content: '', label: 'Документ'}],
   ['life-period', 'career-content', 'LifeStrategyPeriodCreator', {}],
-  ['development', 'development-plan', 'EntryEditor', {}],
   ['coaching', 'coaching-sessions', 'CoachingSessionDrawer', {}],
   ['course', 'courses', 'CourseDrawer', {}],
   ['conference', 'conferences', 'ConferenceDrawer', {}],

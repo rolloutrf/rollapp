@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
   AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin,
@@ -422,14 +423,14 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
           </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
-              Отмена
-            </DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить сессию"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
+              Отмена
+            </DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -463,6 +464,7 @@ export function CoachingSessions() {
     ? (openedGroup.itemIds || []).map((id) => requestState.sessions.find((session) => session.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleSessions,
     onItemsChange: (sessions) => setRequestState((state) => ({
@@ -753,6 +755,7 @@ export function CoachingSessions() {
               key={session.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, session.id)}
             >
+              {!readOnly && <CardDragHandle title={session.title} disabled={cardOrder.orderBusy} />}
               <CoachingSessionCard
                 session={session}
                 dragDescriptionId={cardOrder.descriptionId}

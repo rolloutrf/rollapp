@@ -110,3 +110,13 @@ export function moveDevelopmentPlanItem(plan, fromGroupIndex, itemIndex, toGroup
     }),
   };
 }
+
+// The former structured editor stored objects under the same document draft key.
+// Convert only that local draft; never rewrite saved server content on opening.
+export function migrateDevelopmentPlanDraft(storage, key) {
+  const cached = JSON.parse(storage.getItem(key) || "null");
+  if (!Array.isArray(cached?.draft?.groups)) return;
+  const draft = serializeDevelopmentPlanMarkdown(cached.draft);
+  const base = Array.isArray(cached.base?.groups) ? serializeDevelopmentPlanMarkdown(cached.base) : cached.base;
+  storage.setItem(key, JSON.stringify({ ...cached, base, draft }));
+}

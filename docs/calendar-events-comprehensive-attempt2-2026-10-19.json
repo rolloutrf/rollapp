@@ -1,0 +1,50 @@
+{
+  "status": "failed",
+  "startedAt": "2026-10-19T20:33:10.756Z",
+  "commit": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "failed",
+      "startedAt": "2026-10-19T20:33:12.740Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-19T20:36:05.825Z",
+      "durationMs": 173071
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-10-19T20:36:05.856Z"
+}

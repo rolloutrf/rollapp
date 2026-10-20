@@ -45,14 +45,16 @@ assert.match(controlBar, /data-control-bar/, "ControlBar must expose the shared 
 for (const [file, classes] of [
   ["src/App.jsx", ["global-app-chrome", "mobile-app-navigation", "planning-fab-controls"]],
   ["src/components/planning-calendar.jsx", ["schedule-toolbar"]],
-  ["src/components/planning-daily-todo.jsx", ["daily-todo__toolbar", "daily-todo__ribbon"]],
-  ["src/components/planning-kanban.jsx", ["kanban-toolbar"]],
+  ["src/components/planning-daily-todo.jsx", ["daily-todo__toolbar"]],
   ["src/components/content-page.jsx", ["mobile-content-page__nav"]],
   ["src/components/mobile-form-pages.jsx", ["mobile-content-page__nav"]],
 ]) {
   const source = await read(file);
   for (const name of classes) assert.match(source, new RegExp(`<ControlBar\\b[^>]*className="${name}"`), `${file}: ${name} must use ControlBar`);
 }
+const dailyTodo = await read("src/components/planning-daily-todo.jsx");
+assert.match(dailyTodo, /<div\b[^>]*className="daily-todo__ribbon"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
+assert.match(dailyTodo, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);

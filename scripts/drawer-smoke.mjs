@@ -1,12 +1,14 @@
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
+const port = smokePort(process.env.DRAWER_PORT);
 import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-drawer-smoke",
-  server: { host: '127.0.0.1', port: 5187, strictPort: true, open: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(process.env.DRAWER_PORT), strictPort: true, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
@@ -20,7 +22,8 @@ const server = await createServer({
     });
   }}],
 });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 const errors = [];
 async function keyboard(page, height, offsetTop = 0) {
@@ -51,8 +54,40 @@ async function boundsVisible(locator, top, bottom, label) {
 
   assert(box && box.height > 0 && box.y >= top - 2 && box.y + box.height <= bottom + 2, `${label}: ${JSON.stringify(box)} outside ${top}..${bottom}`);
 }
+async function checkFormActions(page, surface, name) {
+  const footer = surface.locator('.app-form-actions, [data-native-form-actions]').first();
+  assert.equal(await footer.count(), 1, `${name}: shared form actions missing`);
+  assert(await footer.evaluate(el => el.hasAttribute('data-control-bar')), `${name}: footer bypasses ControlBar`);
+  const buttons = await footer.locator('button').evaluateAll(elements => elements.map(el => {
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+    const paint = canvas.getContext('2d'); paint.fillStyle = s.backgroundColor; paint.fillRect(0, 0, 1, 1);
+    return { name: el.ariaLabel || el.textContent.trim(), x: r.x, right: r.right, y: r.y, height: r.height, width: r.width,
+      radii: [s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].map(parseFloat),
+      opacity: s.opacity, alpha: paint.getImageData(0,0,1,1).data[3], fontSize: s.fontSize, lineHeight: s.lineHeight,
+      clipped: el.scrollWidth > el.clientWidth + 1, icon: el.hasAttribute('data-control-icon'),
+      glyphs: [...el.querySelectorAll('svg')].map(svg => { const b = svg.getBoundingClientRect(); return [b.width,b.height]; }) };
+  }));
+  for (const button of buttons) {
+    assert.equal(button.height, 48, `${name}/${button.name}: height`);
+    assert(button.radii.every(radius => radius >= 24), `${name}/${button.name}: inconsistent corners`);
+    assert.equal(button.opacity, '1', `${name}/${button.name}: opacity`);
+    assert.equal(button.alpha, 255, `${name}/${button.name}: translucent surface`);
+    assert.equal(button.fontSize, '18px'); assert.equal(button.lineHeight, '28px');
+    assert(!button.clipped, `${name}/${button.name}: clipped text`);
+    assert(button.x >= 0 && button.right <= page.viewportSize().width, `${name}/${button.name}: horizontal overflow`);
+    if (button.icon) assert.equal(button.width, 48, `${name}/${button.name}: icon width`);
+    assert(button.glyphs.every(([w,h]) => w === 20 && h === 20), `${name}/${button.name}: glyph size`);
+  }
+  for (let i = 1; i < buttons.length; i++) {
+    if (Math.abs(buttons[i].y - buttons[i-1].y) < 1) {
+      const [left,right] = [buttons[i-1],buttons[i]].sort((a,b) => a.x-b.x);
+      assert(Math.abs(right.x-left.right-8) < 1, `${name}: action gap`);
+    }
+  }
+}
 try {
-  for (const viewport of [{width:390,height:844}, {width:320,height:568}, {width:414,height:896}, {width:896,height:414}, {width:1440,height:900}].filter(v => !process.env.DRAWER_WIDTHS || process.env.DRAWER_WIDTHS.split(',').includes(String(v.width)))) {
+  for (const viewport of [{width:390,height:844}, {width:390,height:400}, {width:320,height:568}, {width:414,height:896}, {width:768,height:900}, {width:820,height:900}, {width:896,height:414}, {width:1024,height:768}, {width:1440,height:900}, {width:1920,height:1080}].filter(v => !process.env.DRAWER_WIDTHS || process.env.DRAWER_WIDTHS.split(',').includes(String(v.width)))) {
     const context = await browser.newContext({ viewport, hasTouch: viewport.width < 1000, isMobile: viewport.width < 1000, reducedMotion: 'reduce' });
     const page = await context.newPage();
     page.setDefaultTimeout(8000);
@@ -60,7 +95,7 @@ try {
     page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
     for (const mode of (process.env.DRAWER_MODES ?? 'form,scroll-area,wish,fullscreen').split(',').filter(Boolean)) {
       console.log(`CHECK ${viewport.width} ${mode}`);
-      await page.goto('http://127.0.0.1:5187/__drawer-smoke');
+      await page.goto(`${origin}/__drawer-smoke`);
       const opener = page.getByRole('button', {name:mode,exact:true});
       await opener.waitFor();
       if (mode === 'wish') {
@@ -85,8 +120,9 @@ try {
         const action = popup.getByRole('button', {name: 'Сохранить', exact: true});
         const actionBox = await action.boundingBox();
         const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
-        assert(Math.abs(actionBox.width - (initial.width - 32)) < 3, `${viewport.width} ${mode}: action does not span the footer`);
-        assert(actionRadius < actionBox.height / 2 - 2, `${viewport.width} ${mode}: action is still pill-shaped`);
+        if (Math.abs(actionBox.width - (initial.width - 32)) >= 3) await page.screenshot({path:'/tmp/rollapp-drawer-footer-failure.png'});
+        assert(Math.abs(actionBox.width - (initial.width - 32)) < 3, `${viewport.width} ${mode}: action ${JSON.stringify(actionBox)} does not span footer of ${JSON.stringify(initial)}`);
+        assert(actionRadius >= actionBox.height / 2, `${viewport.width} ${mode}: action must be pill-shaped`);
         if (viewport.width < 768) {
           const upload = await popup.getByRole('button', {name:'Добавить изображение',exact:true}).boundingBox();
           assert(upload.height <= 160, 'Empty mobile upload crowds out the form fields');
@@ -167,13 +203,16 @@ try {
       assert.equal(await page.evaluate(() => scrollY),scrollBefore,`${mode}: page position was not restored`);
       console.log(`PASS ${viewport.width}x${viewport.height} ${mode}: focus, viewport, scroll, footer, restore, dismiss`);
     }
-    if (process.env.DRAWER_REAL_FORMS === '1' && [390,320,896].includes(viewport.width)) {
+    if (process.env.DRAWER_REAL_FORMS === '1') {
       for (const [name] of drawerCases.filter(([name]) => !process.env.DRAWER_CASES || process.env.DRAWER_CASES.split(",").includes(name))) {
-        await page.goto(`http://127.0.0.1:5187/__drawer-smoke?form=${name}`);
+        await page.goto(`${origin}/__drawer-smoke?form=${name}`);
         if (viewport.width < 768) {
           const screen = page.locator('[data-mobile-form-page]:visible');
           await screen.waitFor();
           await page.waitForURL(url => url.searchParams.has('formScreen'));
+          await page.evaluate(() => document.fonts.ready);
+          await checkFormActions(page, screen, name);
+          if (['todo-list','planning-event','planning-event-edit','thesis','medication-group'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-consistency-${name}-${viewport.width}-${viewport.height}.png`});
           assert.equal(await page.locator('[data-slot="drawer-popup"]').count(), 0, `${name}: mobile form must not mount a Drawer`);
           const fields = screen.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
           assert(await fields.count() > 0, `${name}: no editable fields`);
@@ -188,14 +227,17 @@ try {
         const popup = page.locator('[data-slot="drawer-popup"]');
         await popup.waitFor();
         await page.waitForTimeout(450);
-        assert(!await page.evaluate(() => document.activeElement?.matches('input,textarea')), `${name}: mobile form autofocus opens the keyboard`);
+        if (viewport.width < 1000) assert(!await page.evaluate(() => document.activeElement?.matches('input,textarea')), `${name}: touch form autofocus opens the keyboard`);
+        await page.evaluate(() => document.fonts.ready);
+        await checkFormActions(page, popup, name);
+        if (['todo-list','planning-event','planning-event-edit','thesis','medication-group'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-consistency-${name}-${viewport.width}-${viewport.height}.png`});
         const original = await popup.boundingBox();
         if (name === 'wish-list' && viewport.width <= 820) {
           const action = popup.locator('[data-slot="drawer-footer"] > button:only-child');
           const actionBox = await action.boundingBox();
           const actionRadius = await action.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius));
           assert(Math.abs(actionBox.width - (original.width - 32)) < 3, `${name}: single action does not span the drawer footer`);
-          assert(actionRadius < actionBox.height / 2 - 2, `${name}: single action is still pill-shaped`);
+          assert(actionRadius >= actionBox.height / 2, `${name}: single action must be pill-shaped`);
         }
         const fields = popup.locator('input:not([type="hidden"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]),textarea').filter({visible:true});
         const count = await fields.count();

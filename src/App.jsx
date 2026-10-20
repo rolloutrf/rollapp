@@ -1,3 +1,4 @@
+import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { useContactFeed } from "./hooks/use-contact-feed.js";
+import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.js";
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
@@ -2283,7 +2286,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   const [saveError, setSaveError] = useState("");
   const avatarFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
-  const autoResolveKeyRef = useRef("");
   const initialAvatarSourceUrl = contact?.avatarSourceUrl || "";
   const previewAvatarUrl = form.avatarUrl || (avatarCleared ? "" : contact?.avatarUrl || "");
   const busy = saving || deleting || imageUploading || avatarResolving;
@@ -2326,7 +2328,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     }
   };
   const uploadAvatar = async (file) => {
-    if (!file || busy) return;
+    if (!file || saving || deleting || imageUploading) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setAvatarError("Подойдёт изображение JPG, PNG или WEBP.");
       return;
@@ -2348,37 +2350,46 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       if (avatarFileRef.current) avatarFileRef.current.value = "";
     }
   };
-  const normalizedSocialLinks = () => form.links
-    .map((link) => {
-      const url = link.url.trim();
-      const platform = contactSocialPlatform({ ...link, url });
-      const fallbackLabel = CONTACT_SOCIAL_PLATFORMS[platform]?.label || "Соцсеть";
-      return { label: link.label.trim() || fallbackLabel, url };
-    })
-    .filter((link) => link.url && contactSocialPlatform(link) !== "website");
-  const resolveAvatar = async ({ automatic = false } = {}) => {
-    if (busy) return;
-    const links = normalizedSocialLinks();
-    if (!links.length) {
-      if (!automatic) setAvatarError("Сначала добавьте ссылку на соцсеть.");
-      return;
-    }
-    const resolveKey = links.map((link) => link.url).join("\n");
-    if (automatic && autoResolveKeyRef.current === resolveKey) return;
-    autoResolveKeyRef.current = resolveKey;
-    setAvatarResolving(true);
-    setAvatarError("");
-    setAvatarStatus(automatic ? "Пробуем получить фото из соцсети…" : "Получаем фото из соцсетей…");
+  const socialLinksKey = JSON.stringify(form.links.flatMap((link) => {
+    const url = link.url.trim();
     try {
-      const result = await api.resolveContactAvatar(links);
-      await applyAvatarResult(result, `Фото получено из ${result.source || "соцсети"}`);
-    } catch (error) {
-      setAvatarStatus("");
-      setAvatarError(error.message || "Не удалось получить публичное фото из соцсети.");
-    } finally {
+      const parsed = new URL(url);
+      if (!["https:", "http:"].includes(parsed.protocol) || !parsed.pathname.replace(/\//gu, "")) return [];
+      const platform = contactSocialPlatform({ url });
+      return platform === "website" ? [] : [{ label: CONTACT_SOCIAL_PLATFORMS[platform].label, url }];
+    } catch { return []; }
+  }));
+  useEffect(() => {
+    // Keep existing or manually chosen photos. Only resolve complete social URLs.
+    if (form.avatarUrl || previewAvatarUrl || avatarCleared || imageUploading || saving || deleting || socialLinksKey === "[]") return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      setAvatarResolving(true);
+      setAvatarError("");
+      setAvatarStatus("Получаем фото из соцсети…");
+      try {
+        const result = await api.resolveContactAvatar(JSON.parse(socialLinksKey));
+        if (!active) {
+          if (result.id) await api.delete(`/uploads/images/${encodeURIComponent(result.id)}`).catch(() => {});
+          return;
+        }
+        await applyAvatarResult(result, `Фото получено из ${result.source || "соцсети"}`);
+      } catch (error) {
+        if (active) {
+          setAvatarStatus("");
+          setAvatarError(error.message || "Не удалось получить публичное фото из соцсети. Нажмите на фото, чтобы загрузить его вручную.");
+        }
+      } finally {
+        if (active) setAvatarResolving(false);
+      }
+    }, 650);
+    return () => {
+      active = false;
+      clearTimeout(timer);
       setAvatarResolving(false);
-    }
-  };
+      setAvatarStatus((current) => current === "Получаем фото из соцсети…" ? "" : current);
+    };
+  }, [socialLinksKey, form.avatarUrl, previewAvatarUrl, avatarCleared, imageUploading, saving, deleting]);
   const removeAvatar = async () => {
     if (busy || !previewAvatarUrl) return;
     const previousId = uploadedImageIdFromUrl(form.avatarUrl);
@@ -2449,7 +2460,18 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
         <div className="contact-detail__edit-body">
           <div className="contact-detail__profile">
             <div className="contact-detail__edit-heading contact-detail__edit-heading--editable">
-              <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+              <ShadcnButton
+                type="button"
+                variant="ghost"
+                className="contact-detail__avatar-picker rounded-full p-0"
+                aria-label={previewAvatarUrl ? "Сменить фото контакта" : "Добавить фото контакта"}
+                title={previewAvatarUrl ? "Сменить фото" : "Добавить фото"}
+                aria-busy={imageUploading || avatarResolving || undefined}
+                disabled={saving || deleting || imageUploading}
+                onClick={() => avatarFileRef.current?.click()}
+              >
+                <Avatar user={{ name: form.name || contact?.name, avatarUrl: previewAvatarUrl }} size="xl" className="contact-detail__avatar" aria-hidden="true" />
+              </ShadcnButton>
               <div><strong>{creating ? (form.name.trim() || "Новый контакт") : contact.name}</strong></div>
               <ControlBar>
                 {!creating && <ShadcnButton
@@ -2477,17 +2499,11 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
               aria-label="Загрузить фото контакта"
               onChange={(event) => uploadAvatar(event.target.files?.[0])}
             />
-            <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
-              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy} onClick={() => avatarFileRef.current?.click()}>
-                {imageUploading ? <Spinner /> : <Upload />}{previewAvatarUrl ? "Сменить фото" : "Загрузить фото"}
-              </ShadcnButton>
-              <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={busy || !normalizedSocialLinks().length} onClick={() => resolveAvatar()}>
-                {avatarResolving ? <Spinner /> : <Sparkles />}Из соцсетей
-              </ShadcnButton>
-              {previewAvatarUrl && <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
+            {previewAvatarUrl && <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
+              <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
                 <Trash2 />Удалить фото
-              </ShadcnButton>}
-            </div>
+              </ShadcnButton>
+            </div>}
             {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
           </div>
           <div className="contact-detail__edit-fields">
@@ -2525,7 +2541,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
               {form.links.map((link, index) => (
                 <div className="contact-detail__edit-link" key={index}>
                   <Input aria-label={`Название ссылки ${index + 1}`} value={link.label} maxLength={40} required placeholder="Facebook" onChange={(event) => setLink(index, "label", event.target.value)} />
-                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} onBlur={() => { if (!form.avatarUrl) resolveAvatar({ automatic: true }); }} />
+                  <Input aria-label={`Адрес ссылки ${index + 1}`} type="url" value={link.url} maxLength={2000} required placeholder="https://…" onChange={(event) => setLink(index, "url", event.target.value)} />
                   <ShadcnButton type="button" variant="destructive" size="icon" aria-label={`Удалить ссылку ${link.label || index + 1}`} onClick={() => removeLink(index)}><Trash2 /></ShadcnButton>
                 </div>
               ))}
@@ -2537,6 +2553,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
             <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
           </Field>
+          <ContactMeetingNotes notes={contact?.meetingNotes} />
           {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
         </div>
       </ScrollArea>
@@ -2581,6 +2598,7 @@ function ContactReadView({ contact }) {
       <section className="contact-detail__edit-section typeset typeset-rollapp" aria-labelledby="contact-read-notes-title">
         <h2 id="contact-read-notes-title">Заметки</h2>
         <ContactNotes notes={contact.notes} />
+        <ContactMeetingNotes notes={contact.meetingNotes} />
       </section>
     </article>
   );
@@ -2695,30 +2713,39 @@ function ContactsSpherePage() {
   const [category, setCategory] = useState("");
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [favoriteSavingIds, setFavoriteSavingIds] = useState(() => new Set());
-  const [page, setPage] = useState(1);
+  const loadMoreRef = useRef(null);
+  const location = useLocation();
   const [selectedContactId, setSelectedContactId] = useState("");
   const [creatingContact, setCreatingContact] = useState(false);
   const [contactsVersion, setContactsVersion] = useState(0);
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
-      setPage(1);
     }, 180);
     return () => window.clearTimeout(timeout);
   }, [search]);
-  const query = new URLSearchParams({ page: String(page), pageSize: "48" });
+  const query = new URLSearchParams({ pageSize: "48", order: "source" });
+  const owner = new URLSearchParams(location.search).get("owner");
+  if (owner) query.set("owner", owner);
   if (debouncedSearch) query.set("search", debouncedSearch);
   if (company) query.set("company", company);
   if (category) query.set("category", category);
   if (favoriteOnly) query.set("favorite", "true");
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get(`/contacts?${query.toString()}`), [debouncedSearch, company, category, favoriteOnly, page, contactsVersion]);
+  const { data, loading, loadingMore, error, reload, loadMore, updateData } = useContactFeed(query.toString(), contactsVersion);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !data?.hasMore || loading || loadingMore || error || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, { rootMargin: "500px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [data, loading, loadingMore, error, loadMore]);
   const contacts = data?.contacts || [];
   const companies = data?.facets?.companies || [];
   const categories = data?.facets?.categories || [];
   const hasFilters = Boolean(search || company || category || favoriteOnly);
-  const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); setPage(1); };
-  const start = data?.total ? (data.page - 1) * data.pageSize + 1 : 0;
-  const end = data?.total ? Math.min(data.total, start + contacts.length - 1) : 0;
+  const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); };
   globalShareRef.current = async () => {
     const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "career", section: "contacts" });
     try {
@@ -2747,10 +2774,9 @@ function ContactsSpherePage() {
         };
       });
       toast(favorite ? "Контакт добавлен в избранное" : "Контакт удалён из избранного", "success");
-      await reload({ background: true });
+      if (favoriteOnly) await reload({ background: true });
     } catch (favoriteError) {
       toast(favoriteError.message, "error");
-      await reload({ background: true }).catch(() => {});
     } finally {
       setFavoriteSavingIds((current) => {
         const next = new Set(current);
@@ -2771,7 +2797,7 @@ function ContactsSpherePage() {
             {search && <InputGroupAddon align="inline-end"><InputGroupButton type="button" size="icon-sm" className="contacts-sphere__search-clear rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></InputGroupButton></InputGroupAddon>}
           </InputGroup>
           <div className="contacts-sphere__filters" aria-label="Фильтры контактов">
-            <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); setPage(1); }}>
+            <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Компания">
                 <SelectValue>{(value) => value === ALL_CONTACT_COMPANIES ? "Все компании" : value}</SelectValue>
               </SelectTrigger>
@@ -2780,7 +2806,7 @@ function ContactsSpherePage() {
                 {companies.map((item) => <SelectItem key={item.company} value={item.company}>{item.company} · {item.count}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={category || ALL_CONTACT_CATEGORIES} onValueChange={(value) => { setCategory(value === ALL_CONTACT_CATEGORIES ? "" : value); setPage(1); }}>
+            <Select value={category || ALL_CONTACT_CATEGORIES} onValueChange={(value) => { setCategory(value === ALL_CONTACT_CATEGORIES ? "" : value); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Категория">
                 <SelectValue>{(value) => value === ALL_CONTACT_CATEGORIES ? "Все направления" : (CONTACT_CATEGORY_LABELS[value] || value)}</SelectValue>
               </SelectTrigger>
@@ -2795,7 +2821,7 @@ function ContactsSpherePage() {
               className="contacts-sphere__favorite-filter h-[50px] rounded-[15px] px-4"
               data-favorite={favoriteOnly ? "true" : "false"}
               aria-pressed={favoriteOnly}
-              onClick={() => { setFavoriteOnly((value) => !value); setPage(1); }}
+              onClick={() => { setFavoriteOnly((value) => !value); }}
             >
               <Star fill={favoriteOnly ? "currentColor" : "none"} aria-hidden="true" />
               Избранные{data?.favoriteTotal ? ` · ${data.favoriteTotal}` : ""}
@@ -2806,10 +2832,10 @@ function ContactsSpherePage() {
         {!loading && !error && (
           <div className="contacts-sphere__result-meta" aria-live="polite">
             <strong>{data?.total || 0} {contactCountNoun(data?.total || 0)}</strong>
-            {data?.total > data.pageSize && <span>Показаны {start}–{end}</span>}
+            {data?.total > contacts.length && <span>Показаны {contacts.length} из {data.total}</span>}
           </div>
         )}
-        {loading ? <LoadingScreen compact /> : error ? (
+        {loading ? <LoadingScreen compact /> : error && (!data || !contacts.length) ? (
           <div className="contacts-sphere__empty" role="alert">
             <strong>Не удалось загрузить контакты</strong>
             <span>{error.message}</span>
@@ -2875,12 +2901,13 @@ function ContactsSpherePage() {
                 );
               })}
             </ul>
-            {data.total > data.pageSize && (
-              <nav className="contacts-pagination" aria-label="Страницы контактов">
-                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(1, value - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowLeft />Назад</ShadcnButton>
-                <span>{data.page} / {Math.ceil(data.total / data.pageSize)}</span>
-                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={!data.hasMore} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Дальше<ArrowRight /></ShadcnButton>
-              </nav>
+            {data.hasMore && (
+              <div ref={loadMoreRef} className="contacts-load-more" aria-live="polite" aria-busy={loadingMore}>
+                {error && <span role="alert">Не удалось загрузить ещё контакты: {error.message}</span>}
+                <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={loadingMore} onClick={() => void loadMore()}>
+                  {loadingMore ? <><Spinner />Загрузка контактов…</> : error ? "Попробовать снова" : "Загрузить ещё"}
+                </ShadcnButton>
+              </div>
             )}
           </>
         ) : (
@@ -3141,7 +3168,7 @@ function BusinessAccessPage() {
               <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
             </FieldGroup>
             </div>
-            <DrawerFooter className="border-t pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+            <DrawerFooter><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
           </form>
         </DrawerContent>
       </Drawer>
@@ -3264,7 +3291,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
             </ul>
           ) : <div className="sphere-share-picker__status"><Users /><span>Бизнес-аккаунты не найдены</span></div>}
         </div>
-        <DrawerFooter className="border-t pt-4">
+        <DrawerFooter>
           <DrawerClose render={<ShadcnButton className="min-h-12 text-base" type="button" />}>Готово</DrawerClose>
         </DrawerFooter>
       </DrawerContent>
@@ -4631,6 +4658,7 @@ function WishesPage({ onAdd, version }) {
   const pointerGhostRef = useRef(null);
   const pointerGhostSizeRef = useRef({ width: 0, height: 0 });
   const suppressOpenRef = useRef(false);
+  const clickGuardCleanupRef = useRef(null);
   const dragSessionRef = useRef(false);
   const dragSourceWishIdRef = useRef(null);
   const dragSourceGroupRef = useRef(null);
@@ -4640,6 +4668,8 @@ function WishesPage({ onAdd, version }) {
   const orderPersistingRef = useRef(false);
   const deferredAuthoritativeOrderRef = useRef(null);
   const removingGroupIdRef = useRef(null);
+  const cancelDragRef = useRef(null);
+  useLayoutEffect(() => { cancelDragRef.current?.(); }, [selectedSpace, selected, openedGroupId, user?.id]);
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get("tab");
     const nextSpace = SPACE_IDS.includes(tab) ? tab : "products";
@@ -4682,6 +4712,9 @@ function WishesPage({ onAdd, version }) {
     clearTimeout(groupTimerRef.current);
     cancelAnimationFrame(pointerAutoScrollFrameRef.current);
     pointerListenerCleanupRef.current?.();
+    clickGuardCleanupRef.current?.();
+    const drag = pointerDragRef.current; pointerDragRef.current = null;
+    if (drag?.captureTarget.hasPointerCapture?.(drag.pointerId)) drag.captureTarget.releasePointerCapture(drag.pointerId);
     pointerGhostRef.current?.remove();
   }, []);
   useLayoutEffect(() => {
@@ -4816,22 +4849,20 @@ function WishesPage({ onAdd, version }) {
   const createPointerGhost = (source, clientX, clientY) => {
     removePointerGhost();
     const rect = source.getBoundingClientRect();
-    const ghost = source.cloneNode(true);
-    ghost.removeAttribute("draggable");
-    ghost.classList.add("wish-card--drag-preview");
+    const ghost = createCardDragPreview(source, "wish-card--drag-preview");
     ghost.style.setProperty("--drag-width", `${rect.width}px`);
-    ghost.style.setProperty("--drag-x", `${clientX - rect.width / 2}px`);
-    ghost.style.setProperty("--drag-y", `${clientY - rect.height / 2}px`);
+    ghost.style.setProperty("--drag-x", `${rect.left}px`);
+    ghost.style.setProperty("--drag-y", `${rect.top}px`);
     document.body.appendChild(ghost);
     pointerGhostRef.current = ghost;
-    pointerGhostSizeRef.current = { width: rect.width, height: rect.height };
+    pointerGhostSizeRef.current = { width: rect.width, height: rect.height, offsetX: clientX - rect.left, offsetY: clientY - rect.top };
   };
   const movePointerGhost = (clientX, clientY) => {
     const ghost = pointerGhostRef.current;
     if (!ghost) return;
-    const { width, height } = pointerGhostSizeRef.current;
-    ghost.style.setProperty("--drag-x", `${clientX - width / 2}px`);
-    ghost.style.setProperty("--drag-y", `${clientY - height / 2}px`);
+    const { offsetX, offsetY } = pointerGhostSizeRef.current;
+    ghost.style.setProperty("--drag-x", `${clientX - offsetX}px`);
+    ghost.style.setProperty("--drag-y", `${clientY - offsetY}px`);
   };
   const persistOrder = (ids) => {
     pendingOrderRef.current = ids;
@@ -4944,8 +4975,7 @@ function WishesPage({ onAdd, version }) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", wishId);
     const rect = event.currentTarget.getBoundingClientRect();
-    const preview = event.currentTarget.cloneNode(true);
-    preview.classList.add("wish-card--native-preview");
+    const preview = createCardDragPreview(event.currentTarget, "wish-card--native-preview");
     preview.setAttribute("aria-hidden", "true");
     preview.style.width = `${rect.width}px`;
     document.body.appendChild(preview);
@@ -4967,8 +4997,7 @@ function WishesPage({ onAdd, version }) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", group.id);
     const rect = event.currentTarget.getBoundingClientRect();
-    const preview = event.currentTarget.cloneNode(true);
-    preview.classList.add("wish-card--native-preview", "wish-group-tile--native-preview");
+    const preview = createCardDragPreview(event.currentTarget, "wish-card--native-preview wish-group-tile--native-preview");
     preview.setAttribute("aria-hidden", "true");
     preview.style.width = `${rect.width}px`;
     document.body.appendChild(preview);
@@ -5234,16 +5263,19 @@ function WishesPage({ onAdd, version }) {
     const end = (event) => endPointerDrag(event);
     const cancel = (event) => cancelPointerDrag(event);
     const visibility = (event) => { if (document.hidden) cancelPointerDrag(event); };
+    const key = (event) => { if (event.key === "Escape") { event.preventDefault(); cancelPointerDrag(event); } };
     window.addEventListener("pointermove", move, { capture: true, passive: false });
     window.addEventListener("pointerup", end, true);
     window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", key, true);
     document.addEventListener("visibilitychange", visibility);
     pointerListenerCleanupRef.current = () => {
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", end, true);
       window.removeEventListener("pointercancel", cancel, true);
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", key, true);
       document.removeEventListener("visibilitychange", visibility);
     };
   };
@@ -5251,7 +5283,8 @@ function WishesPage({ onAdd, version }) {
     if (!drag || pointerDragRef.current !== drag || drag.active) return;
     try { drag.captureTarget.setPointerCapture?.(drag.pointerId); } catch {}
     drag.active = true;
-    suppressOpenRef.current = true;
+    clickGuardCleanupRef.current?.();
+    clickGuardCleanupRef.current = guardDragClick(suppressOpenRef, drag.pointerId);
     if (drag.kind === "group") beginGroupDragSession(drag.group);
     else beginDragSession(drag.wishId, drag.group);
     createPointerGhost(drag.source, drag.startX, drag.startY);
@@ -5262,7 +5295,9 @@ function WishesPage({ onAdd, version }) {
     const pointerType = event.pointerType || "mouse";
     if (!event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) return;
+    if (pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
+    suppressOpenRef.current = false;
     const drag = { wishId, group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
     pointerDragRef.current = drag;
     clearTimeout(pointerTimerRef.current);
@@ -5281,7 +5316,9 @@ function WishesPage({ onAdd, version }) {
     const pointerType = event.pointerType || "mouse";
     if (!event.isPrimary || event.button !== 0 || !group) return;
     if (!event.target.closest?.(".wish-group-tile__open, [data-wish-group-drag-handle]")) return;
+    if (pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
+    suppressOpenRef.current = false;
     const drag = { kind: "group", group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
     pointerDragRef.current = drag;
     clearTimeout(pointerTimerRef.current);
@@ -5459,6 +5496,7 @@ function WishesPage({ onAdd, version }) {
   const endPointerDrag = (event) => {
     const drag = pointerDragRef.current;
     if (!drag || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    if (drag.active && (drag.clientX !== event.clientX || drag.clientY !== event.clientY)) updatePointerDragPosition(drag, event.clientX, event.clientY);
     clearTimeout(pointerTimerRef.current);
     clearPointerListeners();
     pointerDragRef.current = null;
@@ -5470,31 +5508,33 @@ function WishesPage({ onAdd, version }) {
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
     const wishId = wishCard?.dataset.groupWishId;
     const targetGroupId = wishCard?.dataset.wishGroupId || null;
+    const insideGrid = element && drag.captureTarget.contains(element);
+    if (!insideGrid) { finishDrag({ persist: false, restore: true }); return; }
     if (drag.kind === "group") {
       if (groupId && groupId !== drag.group.id) reorderGroup(drag.group.id, { kind: "group", id: groupId });
       else if (wishId && !(drag.group.wishIds || []).includes(wishId) && !targetGroupId) reorderGroup(drag.group.id, { kind: "wish", id: wishId });
-      if (orderDirtyRef.current) finishDrag();
+      const validDrop = Boolean((groupId && groupsById.has(groupId)) || (wishId && !targetGroupId));
+      if (validDrop && orderDirtyRef.current) finishDrag();
       else finishDrag({ persist: false, restore: true });
-      setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
       return;
     }
     const dragGroupId = drag.group?.id || null;
-    const hoverGroupTarget = drag.hoverTarget?.startsWith("group:")
-      ? drag.hoverTarget.slice("group:".length)
-      : armedDropTargetRef.current;
+    const hoverGroupTarget = drag.hoverTarget === `group:${armedDropTargetRef.current}`
+      ? armedDropTargetRef.current : null;
     const hoveredGroupId = hoverGroupTarget?.startsWith("group:") ? hoverGroupTarget.slice("group:".length) : null;
     const hoveredWishId = hoverGroupTarget?.startsWith("wish:") ? hoverGroupTarget.slice("wish:".length) : null;
     if (dragGroupId && targetGroupId === dragGroupId && wishId && (wishId !== drag.wishId || orderDirtyRef.current)) finishDrag();
     else if (dragGroupId) finishDrag({ persist: false, restore: true });
     else if (hoveredGroupId) addToGroup(drag.wishId, hoveredGroupId);
     else if (hoveredWishId && hoveredWishId !== drag.wishId) createGroup(drag.wishId, hoveredWishId);
-    else if (wishId && wishId !== drag.wishId) {
+    else if (!groupId && !targetGroupId && dragScopeRef.current?.wishIds?.has(wishId) && wishId !== drag.wishId) {
       reorderWish(drag.wishId, wishId);
       finishDrag();
     }
     else if (wishId === drag.wishId && orderDirtyRef.current) finishDrag();
     else finishDrag({ persist: false, restore: true });
-    setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
   };
   const cancelPointerDrag = (event) => {
     const drag = pointerDragRef.current;
@@ -5506,12 +5546,16 @@ function WishesPage({ onAdd, version }) {
     if (!drag.active) return;
     event.preventDefault();
     finishDrag({ persist: false, restore: true });
-    setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
+  };
+  cancelDragRef.current = () => {
+    cancelPointerDrag({ preventDefault() {} });
+    if (dragSessionRef.current) finishDrag({ persist: false, restore: true });
   };
   const renderWish = (wish, group = null) => {
     const dragEnabled = !group || !removingGroupId;
     return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} groupOptions={group ? [] : groups} onCreateGroup={!group && groupingListId ? () => createGroup(wish.id) : undefined} onAddToGroup={!group && groupingListId ? (groupId) => addToGroup(wish.id, groupId) : undefined} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
-    if (suppressOpenRef.current) return;
+    if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
@@ -5525,7 +5569,7 @@ function WishesPage({ onAdd, version }) {
     isDragging={draggedGroupId === group.id}
     isDropTarget={dropTarget === `group:${group.id}`}
     onOpen={(event) => {
-      if (suppressOpenRef.current) return;
+      if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
       groupOpenerRef.current = event.currentTarget;
       setOpenedGroupId(group.id);
     }}
@@ -5855,6 +5899,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
             className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
             aria-label="Действия с желанием"
+            data-desktop-square-actions
           >
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
@@ -6078,7 +6123,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
             {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
           </FieldGroup>
           </div>
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
+          <DrawerFooter>
             <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
           </DrawerFooter>
         </form>
@@ -6405,10 +6450,10 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
   const editorContent = <>
-        <ShadcnButton type="button" variant="ghost" className="wish-editor-screen__close" size="icon-sm" onClick={requestClose}>
+        <ControlBar className="contents"><ShadcnButton data-control-icon type="button" variant="ghost" className="wish-editor-screen__close" size="icon" disabled={loading || deleting || imageUploading} onClick={requestClose}>
           <X />
           <span className="sr-only">Закрыть</span>
-        </ShadcnButton>
+        </ShadcnButton></ControlBar>
         <form
           className={`wish-editor mx-auto flex w-full flex-col ${editing ? "wish-editor--edit" : "wish-editor--create"}`}
           onSubmit={submit}
@@ -6619,10 +6664,10 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           </div>
 
           <MobileFormFooter className="wish-editor-screen__footer border-t sm:flex-row">
-            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
             <ShadcnButton className="wish-editor__submit h-12 px-4" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
+            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon className="wish-editor__delete static" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
           </MobileFormFooter>
         </form>
     </>;
@@ -7030,7 +7075,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </div>
         </form>
       </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full rounded-none border-0 bg-transparent px-4 sm:flex-row">
+      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
         <ShadcnButton
           type="submit"
           form="profile-editor-form"

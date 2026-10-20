@@ -1,0 +1,108 @@
+{
+  "commit": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+  "dirty": true,
+  "startedAt": "2026-10-19T22:09:06.197Z",
+  "status": "failed",
+  "reason": "Complete independent full matrices after fail-fast comprehensive timeouts; no assertions or cases skipped.",
+  "checks": [
+    {
+      "name": "test:form-actions",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:09:06.198Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:10:57.200Z"
+    },
+    {
+      "name": "test:text-edit",
+      "status": "failed",
+      "startedAt": "2026-10-19T22:10:57.200Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-19T22:26:27.354Z"
+    },
+    {
+      "name": "test:kanban",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:26:27.354Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:27:08.436Z"
+    },
+    {
+      "name": "test:drag-drop",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:27:08.436Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:28:59.834Z"
+    },
+    {
+      "name": "build",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:28:59.834Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:29:01.884Z"
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:29:01.884Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:29:44.182Z"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:29:44.182Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:30:28.550Z"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "failed",
+      "startedAt": "2026-10-19T22:30:28.551Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-19T22:40:31.763Z"
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:40:31.763Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:40:58.241Z"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:40:58.241Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:42:16.612Z"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:42:16.612Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:42:31.618Z"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:42:31.618Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T22:42:50.461Z"
+    },
+    {
+      "name": "test:drawers",
+      "status": "failed",
+      "startedAt": "2026-10-19T22:42:50.461Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-19T22:59:53.856Z"
+    },
+    {
+      "name": "test:dates",
+      "status": "passed",
+      "startedAt": "2026-10-19T22:59:53.856Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:00:24.171Z"
+    }
+  ],
+  "finishedAt": "2026-10-19T23:00:24.171Z"
+}

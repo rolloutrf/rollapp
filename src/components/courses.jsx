@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink, FolderInput, GraduationCap,
@@ -812,16 +813,16 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
             </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
+          <DrawerFooter>
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
+              {saving && <Spinner aria-hidden="true" />}
+              {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить курс"}
+            </Button>
             <DrawerClose
               render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}
             >
               Отмена
             </DrawerClose>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
-              {saving && <Spinner aria-hidden="true" />}
-              {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить курс"}
-            </Button>
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -856,6 +857,7 @@ export function Courses() {
     ? (openedGroup.courseIds || []).map((id) => requestState.courses.find((course) => course.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     items: visibleCourses,
     onItemsChange: (courses) => setRequestState((state) => ({
       ...state,
@@ -1155,6 +1157,7 @@ export function Courses() {
               key={course.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, course.id)}
             >
+              {!readOnly && <CardDragHandle title={course.title} disabled={cardOrder.orderBusy} />}
               <CourseCard
                 course={course}
                 dragDescriptionId={cardOrder.descriptionId}
