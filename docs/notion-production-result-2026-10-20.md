@@ -48,6 +48,12 @@ Main и production остаются на этом SHA. Этот post-deploy proo
   последовательно проверил public profile, Kanban и calendar на восьми размерах:
   no root overflow, short-screen scroll reachability, отмена меню и desktop
   Kanban handles48×48. Viewport reset; production reorder/save не выполнялись.
+  DnD viewports:320/390/768/820/1024/1440×844,1920×900,390×400. Mobile handles
+  намеренно hidden, меню movement доступно; calendar day11 drag sources видимы,
+  но не перемещались/resize не выполнялся. Evidence:
+  `/tmp/rollapp-production-20261020-live-drag-drop.json`,
+  `/tmp/rollapp-drag-drop-release-2026-10-20.md` и
+  `/tmp/rollapp-production-20261020-ci-final.json`.
 
 Playwright exact accessible-name lookup карточки не совпал с отображением AX;
 сама карточка присутствовала и была выбрана через свежий native AX index.
