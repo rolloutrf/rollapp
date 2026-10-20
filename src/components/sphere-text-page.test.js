@@ -26,7 +26,7 @@ test("plain sphere pages share one centered content rail", async () => {
   );
   assert.match(
     styles,
-    /\.sphere-text-page\s*>\s*:is\([^)]*\.life-strategy-source,[^)]*\.about-me-questions,[^)]*\.four-questions,[^)]*\.development-plan-editor[^)]*\)\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;/su,
+    /\.sphere-text-page\s*>\s*:is\([^)]*\.life-strategy-source,[^)]*\.about-me-questions,[^)]*\.four-questions[^)]*\)\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;/su,
     "Text-page children must fill the shared rail without their own width cap",
   );
   assert.match(
@@ -52,8 +52,8 @@ test("plain sphere pages share one centered content rail", async () => {
   );
   assert.match(
     developmentPlan,
-    /className="not-typeset development-plan-editor__list"/u,
-    "Development-plan items must start at the content edge without the prose list inset",
+    /<InlineDocument\b/u,
+    "Development plan must use the shared freeform document editor",
   );
 
   for (const [label, source] of [
