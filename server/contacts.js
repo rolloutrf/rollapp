@@ -96,6 +96,7 @@ export function listContacts({
   company = "",
   category = "",
   favoriteOnly = false,
+  order = "favorites",
   page = 1,
   pageSize = CONTACTS_PAGE_SIZE,
 } = {}, overrides = [], favoriteIds = []) {
@@ -144,7 +145,7 @@ export function listContacts({
     && (!normalizedCompany || contact.company === normalizedCompany)
     && (!normalizedCategory || contact.category === normalizedCategory)
     && (!favoriteOnly || contact.favorite)
-  )).sort((left, right) => Number(right.contact.favorite) - Number(left.contact.favorite) || left.sourceIndex - right.sourceIndex);
+  )).sort((left, right) => (order === "source" ? 0 : Number(right.contact.favorite) - Number(left.contact.favorite)) || left.sourceIndex - right.sourceIndex);
   const start = (safePage - 1) * safePageSize;
   return {
     contacts: matches.slice(start, start + safePageSize).map(({ contact }) => listContact(contact)),

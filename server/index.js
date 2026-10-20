@@ -4501,6 +4501,7 @@ app.get("/api/contacts", requireAuth, requireSphereReadAccess("career", "contact
     company: String(req.query.company || "").slice(0, 120),
     category: String(req.query.category || "").slice(0, 80),
     favoriteOnly: req.query.favorite === "true",
+    order: req.query.order === "source" ? "source" : "favorites",
     page: req.query.page,
     pageSize: req.query.pageSize,
   }, overrides, favoriteIds);

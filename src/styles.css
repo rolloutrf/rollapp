@@ -6874,14 +6874,13 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .contact-social-link--x { --contact-social-color: #8b9299; }
 .contact-social-link--vk { --contact-social-color: #2787f5; }
 .contact-social-link--website { --contact-social-color: #6f7f8f; }
-.contacts-pagination {
-  margin-top: 28px;
+.contacts-load-more {
+  margin-block-start: var(--layout-page-gap);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
+  gap: var(--layout-related-gap, 8px);
 }
-.contacts-pagination > span { min-width: 62px; color: var(--muted-foreground); font-size: 13px; text-align: center; font-variant-numeric: tabular-nums; }
 .contacts-sphere__empty {
   min-height: 280px;
   padding: 40px 20px;
@@ -7165,8 +7164,6 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
   .contact-card__footer button { font-size: 13px; }
   .contact-social-link { width: 30px; padding: 0; justify-content: center; }
   .contact-social-link__label { display: none; }
-  .contacts-pagination { gap: 8px; }
-  .contacts-pagination [data-slot="button"] { padding-inline: 14px; font-size: 13px; }
   .contact-detail-drawer { --contact-detail-avatar-size: 4.25rem; --drawer-content-width: 100%; border-radius: 24px 24px 0 0; }
   .contact-detail__header { padding-right: 42px; gap: 13px; }
   .contact-detail__avatar { font-size: 18px; }
