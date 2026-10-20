@@ -45,6 +45,17 @@
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
 
+Общие smoke entry points используют `scripts/smoke-server.mjs`: по умолчанию
+bind `127.0.0.1:0` атомарно получает свободный порт, а URL вычисляется из реального
+адреса после listen. Не искать свободный фиксированный порт с последующим
+освобождением и не останавливать чужой listener ради проверки. Явные диагностические
+`*_TEST_PORT`, `TEXT_EDIT_PORT` и `FORM_ACTION_PORT` сохраняют strictPort: ошибка
+занятого/некорректного порта остаётся видимой, без перехода на чужой сервер.
+Это изоляция портов независимых worktrees, а не разрешение параллельно использовать
+один Vite cache. Кэши разных worktrees/диагностик должны оставаться раздельными.
+Матрицы размеров, API guards, screenshot/DOM assertions и состав release/comprehensive
+не сокращаются; collision/owner guards входят в `npm test`.
+
 Не запускать общий `node --test` или исторический `npm run test:visual` в качестве обычной проверки: они включают старые сценарии с memory-серверами или сохранением данных. `npm test` и `npm run check` перенаправлены на безопасные наборы. Индивидуальные smoke-фильтры годятся для диагностики, но не заменяют полный итоговый прогон.
 
 На macOS Chrome может завершить все сценарии, но зависнуть в `browser.close()` из-за orphan crash-handler/GoogleUpdater, удерживающего stderr pipe. Общий launcher расширенных проверок использует только для принадлежащего тесту Chrome флаги `--disable-crashpad-for-testing` и `--disable-updater-scheduler` ([Chromium switches](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/common/chrome_switches.h)). При повторении проблемы `PASS` в логе ещё не означает exit 0. Сначала проверить точный тестовый Node PID, отсутствие живого headless Chrome и через `lsof -U` сопоставить его peer socket с FD 2 осиротевшего helper; сверить время запуска/PPID. Допустимо завершить только доказанно принадлежащий тесту helper, после чего дождаться кода завершения. Не использовать общий `pkill Chrome/Node` и не завершать пользовательские браузеры или постоянный dev-сервис.
