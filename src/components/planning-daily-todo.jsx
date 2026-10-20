@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowUp, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -122,6 +122,11 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     .map((scheduled) => ({ task: originalById.get(scheduled.id), displayTime: scheduled.startTime }));
   const active = dayTasks.filter(({ task }) => !task.completed);
   const done = dayTasks.filter(({ task }) => task.completed);
+  const openCalendar = () => setSearch((current) => {
+    const next = new URLSearchParams(current);
+    next.set("tab", "calendar"); next.set("spaceKind", "todo");
+    next.set("date", selected); next.set("view", "day"); return next;
+  });
   const controls = <footer className="daily-todo__footer">
       <div className="daily-todo__content">
         {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
@@ -157,6 +162,16 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     {mobile && controls}
     <div className="daily-todo__scroll">
       {!mobile && <DayRibbon selected={selected} today={today} onChange={setDate} />}
+      <div className="daily-todo__content">
+        <div className="daily-todo__overview">
+          <div className="daily-todo__overview-copy">
+            <span className="daily-todo__eyebrow">План на день</span>
+            <h2 className="daily-todo__date">{dateLabel(selected)}</h2>
+            <p className="daily-todo__progress" aria-live="polite">{dayTasks.length ? `${done.length} из ${dayTasks.length} выполнено` : "Задач пока нет"}</p>
+          </div>
+          <Button variant="outline" className="daily-todo__calendar rounded-full" onClick={openCalendar} aria-label={`Открыть ${dateLabel(selected)} в календаре`}><CalendarDays aria-hidden="true" /><span>Календарь</span></Button>
+        </div>
+      </div>
       {dayTasks.length > 0 && <div className="daily-todo__content">
       {active.length > 0 && <section className="daily-todo__group" aria-label="Нужно сделать">
         <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
@@ -166,6 +181,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
         <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
       </section>}
       </div>}
+      {!dayTasks.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
     </div>
     {!mobile && controls}
   </div>;
