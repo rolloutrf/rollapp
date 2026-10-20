@@ -1,0 +1,311 @@
+{
+  "date": "2026-10-20",
+  "testedCommit": "2a6aa7e328f4a42ed04c51381595feab9d557dc6",
+  "snapshotCount": 25,
+  "snapshots": [
+    {
+      "path": "/Users/mokoloskov/Desktop/Git/rollout/rollapp",
+      "name": "primary",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "0a7f64503330efbec5f89767ece916b5dffa09b5",
+      "branch": "codex/snapshot-20261020-primary",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/0fec/rollapp",
+      "name": "0fec",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "a675f1408e00014a7495638c17de2849b291fc43",
+      "branch": "codex/snapshot-20261020-0fec",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/13ce/rollapp",
+      "name": "13ce",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "f64630fab3cbbffb4984f38ea3a7e6383693b492",
+      "branch": "codex/snapshot-20261020-13ce",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/25fa/rollapp",
+      "name": "25fa",
+      "before": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "sha": "a9750680d136aa970f12f749e68c9737a861853a",
+      "branch": "codex/snapshot-20261020-25fa",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/580e/rollapp",
+      "name": "580e",
+      "before": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "sha": "0cdfbc65506771ccf75cb8f0dffd5614d847372f",
+      "branch": "codex/snapshot-20261020-580e",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/7587/rollapp",
+      "name": "7587",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "branch": "codex/snapshot-20261020-7587",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/8e97/rollapp",
+      "name": "8e97",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "d64e0e2a4a42afd7a2c6b4a32fda82f1bb2c2efb",
+      "branch": "codex/snapshot-20261020-8e97",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/905f/rollapp",
+      "name": "905f",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "e73e934e86adc75518ef4c8e76059f8700119782",
+      "branch": "codex/snapshot-20261020-905f",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/9702/rollapp",
+      "name": "9702",
+      "before": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "sha": "32fc536e7cad83a6f60fa165c34e9c2eff821fa8",
+      "branch": "codex/snapshot-20261020-9702",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/b2e3/rollapp",
+      "name": "b2e3",
+      "before": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "sha": "865095395ca9655c028ca692ebcf70677904bf7d",
+      "branch": "codex/snapshot-20261020-b2e3",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/b60c/rollapp",
+      "name": "b60c",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "16d47869f92eb023627e3152c156f6908db6fbaa",
+      "branch": "codex/snapshot-20261020-b60c",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/c3cc/rollapp",
+      "name": "c3cc",
+      "before": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "sha": "76a9f46d354178814f4a4b13ab3ef4b40bb57f81",
+      "branch": "codex/snapshot-20261020-c3cc",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/ccee/rollapp",
+      "name": "ccee",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "d8f67e896f1f35a59706f6fc2eda910d27731aaf",
+      "branch": "codex/snapshot-20261020-ccee",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/cd88/rollapp",
+      "name": "cd88",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "branch": "codex/snapshot-20261020-cd88",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/cfdd/rollapp",
+      "name": "cfdd",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "9ae78f69f66a02d16929808112381c8ab3f79688",
+      "branch": "codex/snapshot-20261020-cfdd",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/d0c3/rollapp",
+      "name": "d0c3",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "0a7223861a91bb6e03f2bdf84fb9c773e42f04f1",
+      "branch": "codex/snapshot-20261020-d0c3",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/d672/rollapp",
+      "name": "d672",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "5175a8710b93a37b78bd86099ee20c44c71050ff",
+      "branch": "codex/snapshot-20261020-d672",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/e571/rollapp",
+      "name": "e571",
+      "before": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "sha": "710457583a873ce56b93d4eb26849731164f5b2d",
+      "branch": "codex/snapshot-20261020-e571",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/f604/rollapp",
+      "name": "f604",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "7a8fc34a1ee9f7ccd6b78d5eba8694b520858b25",
+      "branch": "codex/snapshot-20261020-f604",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/fa9c/rollapp",
+      "name": "fa9c",
+      "before": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+      "sha": "11730ee4116e55cd8ca9e603dd46e57542b547b8",
+      "branch": "codex/snapshot-20261020-fa9c",
+      "dirty": true
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/inline-file-transfer/rollapp",
+      "name": "inline-file-transfer",
+      "before": "bf6a8a1007c34f430cd9c4a30eb7f37dee29ce85",
+      "sha": "bf6a8a1007c34f430cd9c4a30eb7f37dee29ce85",
+      "branch": "codex/snapshot-20261020-inline-file-transfer",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/stable-quote-gutter/rollapp",
+      "name": "stable-quote-gutter",
+      "before": "74ab01d4285e20be190cc6360d492706fe3ad948",
+      "sha": "74ab01d4285e20be190cc6360d492706fe3ad948",
+      "branch": "codex/snapshot-20261020-stable-quote-gutter",
+      "dirty": false
+    },
+    {
+      "path": "/Users/mokoloskov/.codex/worktrees/test-browser-lifecycle/rollapp",
+      "name": "test-browser-lifecycle",
+      "before": "76996789ddf36579a88f6964715dd880a3a91df6",
+      "sha": "76996789ddf36579a88f6964715dd880a3a91df6",
+      "branch": "codex/snapshot-20261020-test-browser-lifecycle",
+      "dirty": false
+    },
+    {
+      "name": "smoke-supplement",
+      "sha": "a6793635d75829ddaa3720653f48ad341b8ab38e",
+      "branch": "codex/snapshot-20261020-smoke-supplement",
+      "method": "alternate index; original dirty worktree retained"
+    },
+    {
+      "name": "mobile-viewport",
+      "branch": "codex/snapshot-20261020-mobile-viewport",
+      "sha": "b29d42c93b433107eb65efae42ea73e4d132f314"
+    }
+  ],
+  "unit": {
+    "tests": 778,
+    "passed": 777,
+    "skipped": 1,
+    "failed": 0
+  },
+  "ui": "passed: 37 primitives, 79 JSX sources",
+  "build": "passed",
+  "productionPlanning": {
+    "passed": 2,
+    "failed": 0,
+    "mode": "rollback-only; no schema initialization"
+  },
+  "audit": {
+    "production": 0,
+    "developmentHigh": 7
+  },
+  "conflictDecisions": [
+    "Retain later primary-checkout composer, related-card and single-field Kanban refinements over earlier overlapping implementations.",
+    "Keep slot-based untimed tasks instead of the older all-day conversion.",
+    "Retain inline development-plan document instead of resurrecting its removed item drawer.",
+    "Combine task relatedItems and contactIds in schemas, SQL, forms and integration coverage.",
+    "Combine editor file-transfer, link-intent and quote-mark fixes from duplicate cherry-pick branches.",
+    "Unify smoke-server ownership, preserve control paint assertions and reconcile calendar action labels."
+  ],
+  "verificationStatus": "777 unit pass; build, drag-drop, contact-notes, production planning passed; comprehensive editor and final navigation running at report",
+  "dragDropFinal": {
+    "passedGroups": 80,
+    "viewportCount": 8,
+    "exitCode": 0
+  },
+  "contactNotes": {
+    "viewportCases": 9,
+    "exitCode": 0
+  },
+  "integrationCommitBeforeReport": "9ce6bb626323a16180cdc2b8fbd97a8f6e17a6e5",
+  "dirtyAtReport": false,
+  "applicationSourceMatchesTestedCommit": false,
+  "comprehensiveAtPush": {
+    "status": "running",
+    "startedAt": "2026-10-20T07:00:26.905Z",
+    "commit": "2a6aa7e328f4a42ed04c51381595feab9d557dc6",
+    "dirty": false,
+    "node": "v22.22.3",
+    "checks": [
+      {
+        "name": "check:release",
+        "status": "running",
+        "startedAt": "2026-10-20T07:00:26.950Z"
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      },
+      {
+        "name": "test:contacts",
+        "status": "not-run"
+      }
+    ]
+  },
+  "initialComprehensiveFailure": "Old calendar button label; corrected in 2a6aa7e. Retried controls/details/dates/calendar/form-actions passed before editor stage.",
+  "limitations": [
+    "Full text editor/comprehensive matrix has not finished at this snapshot.",
+    "Physical mobile devices and real-device IME were not reverified.",
+    "Deployment and production SHA were not verified.",
+    "Other chats may author further changes after the saved snapshots."
+  ],
+  "liveLogs": {
+    "comprehensive-final": "/tmp/rollapp-integration-20261020/comprehensive-final.log",
+    "unit-final3": "/tmp/rollapp-integration-20261020/unit-final3.log",
+    "build-final": "/tmp/rollapp-integration-20261020/build-final.log",
+    "drag-drop-final": "/tmp/rollapp-integration-20261020/drag-drop-final.log",
+    "contact-notes": "/tmp/rollapp-integration-20261020/contact-notes.log",
+    "planning-production": "/tmp/rollapp-integration-20261020/planning-production.log"
+  },
+  "lateViewportCommit": "b541264",
+  "testedUnitCommit": "213f8b42f24f8e57a48d8193a877273a1e8fadf2",
+  "lateChanges": [
+    "useIsMobile now follows CSS matchMedia rather than innerWidth; full navigation regression running separately.",
+    "Latest smokeMode argument guard and diagnostic commit merged; unit suite rerun with 777 passed."
+  ]
+}

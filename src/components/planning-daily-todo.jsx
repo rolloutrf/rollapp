@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
+import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { RelatedChoiceCard } from "@/components/planning-related-card";
 import { addCalendarDays, calendarTaskSchedules, dateFromKey, nextCalendarTaskStart, sortCalendarTasks } from "../../shared/planning-calendar.js";
 import { isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { expandRecurringTasks } from "../../shared/planning-recurrence.js";
@@ -20,6 +20,7 @@ const dateLabel = (key) => {
 };
 
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
+const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long" });
 const compactDateLabel = (key) => {
   const date = dateFromKey(key);
   const weekday = weekdayLabel.format(date);
@@ -57,12 +58,12 @@ function DayRibbon({ selected, today, onChange }) {
 
   return <header className="daily-todo__header">
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
-    <ControlBar ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
-      {dates.map((date) => <Button key={date} variant={date === selected ? "default" : "outline"} size="icon" className="daily-todo__day rounded-full" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-        <span className="text-rollapp-body font-normal" aria-hidden="true">{weekdayLabel.format(dateFromKey(date))}</span>
-        <span className="text-rollapp-body font-normal tabular-nums" aria-hidden="true">{dateFromKey(date).getDate()}</span>
+    <div ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
+      {dates.map((date) => <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
+        <span data-slot="list-tile-label" aria-hidden="true">{weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, {monthLabel.format(dateFromKey(date))}</span>
+        <span data-slot="list-tile-meta" aria-hidden="true"><span data-slot="list-tile-count">{dateFromKey(date).getDate()}</span></span>
       </Button>)}
-    </ControlBar>
+    </div>
   </header>;
 }
 
@@ -78,7 +79,7 @@ function TodoRow({ task, displayTime, onSave, onEdit }) {
   return <li className="daily-todo__item" data-completed={task.completed || undefined}>
     <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
     <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
-      <span className="daily-todo__task-title">{task.title}</span>
+      <span className="daily-todo__task-content"><span className="daily-todo__task-title">{task.title}</span>{task.relatedItems?.length > 0 && <span className="daily-todo__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
       {displayTime && <span className="daily-todo__time">{displayTime}</span>}
     </Button>
   </li>;
@@ -90,11 +91,14 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
   const [title, setTitle] = useState("");
+  const composerOwner = `${search.get("space") || "main"}:${selected}`;
+  const [relatedDraft, setRelatedDraft] = useState({ owner: composerOwner, items: [] });
+  const relatedItems = relatedDraft.owner === composerOwner ? relatedDraft.items : [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const setDate = (date) => {
     if (!isPlanningDate(date)) return;
-    if (date !== selected) { setTitle(""); setError(""); }
+    if (date !== selected) { setTitle(""); setRelatedDraft({ owner: "", items: [] }); setError(""); }
     setSearch((current) => {
       const next = new URLSearchParams(current);
       if (date === today) next.delete("date"); else next.set("date", date);
@@ -106,9 +110,9 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     if (busy || !title.trim()) return;
     setBusy(true); setError("");
     try {
-      const dayTasks = expandRecurringTasks(tasks, selected, selected);
-      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(dayTasks, selected) || "", durationMinutes: 30 }, { quiet: true });
+      await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(expanded, selected) || "", durationMinutes: 30, relatedItems: relatedItems.map(({ kind, id, title }) => ({ kind, id, title })) }, { quiet: true });
       setTitle("");
+      setRelatedDraft({ owner: composerOwner, items: [] });
     } catch (cause) { setError(cause.message || "Не удалось добавить задачу"); }
     finally { setBusy(false); }
   };
@@ -118,6 +122,11 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     .map((scheduled) => ({ task: originalById.get(scheduled.id), displayTime: scheduled.startTime }));
   const active = dayTasks.filter(({ task }) => !task.completed);
   const done = dayTasks.filter(({ task }) => task.completed);
+  const openCalendar = () => setSearch((current) => {
+    const next = new URLSearchParams(current);
+    next.set("tab", "calendar"); next.set("spaceKind", "todo");
+    next.set("date", selected); next.set("view", "day"); return next;
+  });
   const controls = <footer className="daily-todo__footer">
       <div className="daily-todo__content">
         {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
@@ -128,8 +137,23 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
-          <Textarea className="field-sizing-fixed resize-none" rows={2} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />
-          <PageActionButton className="w-full" type="submit" aria-label="Добавить задачу" disabled={busy || !title.trim()}>Добавить</PageActionButton>
+          <InputGroup className="daily-todo__composer-input" aria-label="Новая задача">
+            <InputGroupTextarea className="field-sizing-fixed resize-none" rows={1} value={title} onChange={(event) => { setTitle(event.target.value); if (error) setError(""); }} onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                event.preventDefault();
+                event.currentTarget.form.requestSubmit();
+              }
+            }} maxLength={200} placeholder="Новая задача на этот день" aria-label="Новая задача на этот день" disabled={busy} />
+            {relatedItems.length > 0 && <div className="daily-todo__composer-related planning-related__selected" aria-label="Связанные объекты новой задачи">
+              {relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={item} selected removable preview disabled={busy} onToggle={() => setRelatedDraft({ owner: composerOwner, items: relatedItems.filter((current) => current.kind !== item.kind || current.id !== item.id) })} />)}
+            </div>}
+            <InputGroupAddon align="block-end" className="daily-todo__composer-addon">
+              <ControlBar className="daily-todo__composer-actions">
+                <Button data-control-icon variant="outline" type="button" size="icon" aria-label="Добавить связанные объекты" title="Добавить связанные объекты" disabled={busy} onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected), { title, relatedItems, openRelated: true, relatedOnly: true, onRelatedSelected: (items) => setRelatedDraft({ owner: composerOwner, items }) })}><Plus aria-hidden="true" /></Button>
+                <Button data-control-icon type="submit" size="icon" aria-label="Добавить задачу" title="Добавить задачу" disabled={busy || !title.trim()}><ArrowUp aria-hidden="true" /></Button>
+              </ControlBar>
+            </InputGroupAddon>
+          </InputGroup>
         </form>
         </>}
       </div>
@@ -138,6 +162,16 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
     {mobile && controls}
     <div className="daily-todo__scroll">
       {!mobile && <DayRibbon selected={selected} today={today} onChange={setDate} />}
+      <div className="daily-todo__content">
+        <div className="daily-todo__overview">
+          <div className="daily-todo__overview-copy">
+            <span className="daily-todo__eyebrow">План на день</span>
+            <h2 className="daily-todo__date">{dateLabel(selected)}</h2>
+            <p className="daily-todo__progress" aria-live="polite">{dayTasks.length ? `${done.length} из ${dayTasks.length} выполнено` : "Задач пока нет"}</p>
+          </div>
+          <Button variant="outline" className="daily-todo__calendar rounded-full" onClick={openCalendar} aria-label={`Открыть ${dateLabel(selected)} в календаре`}><CalendarDays aria-hidden="true" /><span>Календарь</span></Button>
+        </div>
+      </div>
       {dayTasks.length > 0 && <div className="daily-todo__content">
       {active.length > 0 && <section className="daily-todo__group" aria-label="Нужно сделать">
         <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
@@ -147,6 +181,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
         <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
       </section>}
       </div>}
+      {!dayTasks.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
     </div>
     {!mobile && controls}
   </div>;

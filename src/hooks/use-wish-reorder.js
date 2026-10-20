@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createCardDragPreview, guardDragClick } from "../lib/card-drag-preview.js";
 import { moveWishWithinSubset } from "../lib/wish-order.js";
 
 // Collection pages keep the full owner order, including wishes outside the
@@ -13,6 +14,7 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
   const savingRef = useRef(false);
   const suppressClickRef = useRef(false);
   const cleanupRef = useRef(null);
+  const clickGuardCleanupRef = useRef(null);
   const mountedRef = useRef(true);
   const wishIds = wishes.map((wish) => wish.id).join("\0");
 
@@ -21,7 +23,7 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
   }, [wishIds, saving, draggedId]);
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; cleanupRef.current?.(); };
+    return () => { mountedRef.current = false; cleanupRef.current?.(); clickGuardCleanupRef.current?.(); };
   }, []);
 
   const canDrag = enabled && !saving;
@@ -39,8 +41,9 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
     setDraggedId(null);
     setTargetId(null);
     if (!session?.active) return;
-    // The browser may dispatch a click immediately after a pointer drop.
-    setTimeout(() => { suppressClickRef.current = false; }, 0);
+    // Native HTML drags have no pointer guard; dragend has already consumed the gesture.
+    if (session.pointerId == null) setTimeout(() => { suppressClickRef.current = false; }, 0);
+
     const next = moveWishWithinSubset(order, scope, session.id, dropId);
     if (next === order) return;
     savingRef.current = true;
@@ -57,7 +60,9 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
   };
   const activate = (session) => {
     session.active = true;
-    suppressClickRef.current = true;
+    clickGuardCleanupRef.current?.();
+    if (session.pointerId != null) clickGuardCleanupRef.current = guardDragClick(suppressClickRef, session.pointerId);
+    else suppressClickRef.current = true;
     setDraggedId(session.id);
   };
   const startNative = (event, id) => {
@@ -75,6 +80,7 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
     event.dataTransfer.setDragImage(card, event.clientX - rect.left, event.clientY - rect.top);
   };
   const startPointer = (event, id) => {
+    if (!sessionRef.current) suppressClickRef.current = false;
     if (!canDrag || savingRef.current || event.pointerType === "mouse" || !event.isPrimary || event.button !== 0 || sessionRef.current) return;
     const handle = event.target.closest("[data-wish-drag-handle]");
     if (!handle && !event.target.closest(".wish-card__open")) return;
@@ -87,9 +93,10 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
     let timer = null;
     let lastTime = null;
     const rect = source.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left, offsetY = event.clientY - rect.top;
     const update = () => {
-      ghost?.style.setProperty("--drag-x", `${session.x - rect.width / 2}px`);
-      ghost?.style.setProperty("--drag-y", `${session.y - rect.height / 2}px`);
+      ghost?.style.setProperty("--drag-x", `${session.x - offsetX}px`);
+      ghost?.style.setProperty("--drag-y", `${session.y - offsetY}px`);
       setTargetId(targetAt(session.x, session.y));
     };
     const scroll = (time) => {
@@ -104,10 +111,7 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
       if (sessionRef.current !== session) return;
       activate(session);
       try { capture.setPointerCapture(session.pointerId); } catch {}
-      ghost = source.cloneNode(true);
-      ghost.setAttribute("aria-hidden", "true");
-      ghost.inert = true;
-      ghost.classList.add("wish-card--drag-preview");
+      ghost = createCardDragPreview(source, "wish-card--drag-preview");
       ghost.style.setProperty("--drag-width", `${rect.width}px`);
       document.body.appendChild(ghost);
       update();
@@ -129,7 +133,7 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
       if (session.active) nextEvent.preventDefault();
       void finish(session.active ? targetAt(nextEvent.clientX, nextEvent.clientY) : null);
     };
-    const cancel = () => { void finish(); };
+    const cancel = (event) => { if (event?.pointerId != null && event.pointerId !== session.pointerId) return; void finish(); };
     const key = (nextEvent) => { if (nextEvent.key === "Escape") cancel(); };
     const visibility = () => { if (document.hidden) cancel(); };
     window.addEventListener("pointermove", move, { capture: true, passive: false });
@@ -174,6 +178,9 @@ export function useWishReorder({ wishes, visibleWishes, enabled, onSave, onError
     onDragEnd: () => { void finish(); },
     onPointerDown: (event) => startPointer(event, id),
   });
+  const visibleIds = visibleWishes.map(wish => wish.id).join("\0");
+  useLayoutEffect(() => { void finish(); }, [enabled, visibleIds]);
+
   const positions = new Map(order.map((id, index) => [id, index]));
   return {
     gridRef,

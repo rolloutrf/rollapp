@@ -1,0 +1,155 @@
+{
+  "date": "2026-10-19",
+  "status": "isolated candidate; full383 terminal failed253/383; not promoted or released",
+  "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-metadata-20f_vhdo",
+  "sourceCount": 650,
+  "beforeEvidence": "/tmp/rollapp-link-metadata-before.json",
+  "findings": [
+    "URL edit retained metadata in model, but serialization/reload dropped target, rel and class.",
+    "Pinned Markdown writer failed to escape a quoted title; reloaded prose showed literal Markdown syntax."
+  ],
+  "changes": [
+    "Canonical link HTML records complete metadata including intentional null/empty attributes, with compatibility for unmarked older documents.",
+    "Literal title and URL delimiter fallback preserves exact authored characters.",
+    "Existing-document test compares schema-normalized editor documents without removing explicit attributes.",
+    "Native URL edit/Undo/save/reload and existing public navigation policy covered at all8sizes."
+  ],
+  "unitAttempts": [
+    {
+      "log": "/tmp/rollapp-link-metadata-unit-first.log",
+      "status": "failed",
+      "reason": "raw Markdown defaults differ from schema-normalized mark attrs"
+    },
+    {
+      "log": "/tmp/rollapp-link-metadata-unit-second.log",
+      "status": "failed",
+      "reason": "new quoted title counterexample against pinned writer"
+    },
+    {
+      "log": "/tmp/rollapp-link-metadata-unit-third.log",
+      "status": "passed",
+      "total": 727,
+      "passed": 726,
+      "skipped": 1
+    }
+  ],
+  "native": {
+    "status": "passed",
+    "session": 71534,
+    "log": "/tmp/rollapp-link-metadata-native-first.log",
+    "snapshot": "/tmp/rollapp-link-metadata-native-sources.json",
+    "exitCode": 0,
+    "passRecords": 8,
+    "sourceDrift": []
+  },
+  "publicPolicy": "Unchanged: public renderer chooses safe external target/rel and ignores imported author CSS class.",
+  "tableInsertionInvestigation": {
+    "classification": "diagnostic evidence; original failed253 remains unexplained",
+    "traceRuns": 8,
+    "traceCasesPassed": 16,
+    "traceControllerSession": 50151,
+    "traceExitCode": 0,
+    "traceLogs": "/tmp/rollapp-table-insert-trace-1.log through -8.log",
+    "settledDelayExtraMs": 1200,
+    "settledCasesPassed": 2,
+    "settledSession": 50949,
+    "settledExitCode": 0,
+    "settledLog": "/tmp/rollapp-table-insert-trace-settled.log",
+    "settledDiagnosticCheckerHash": "bef9673ba9cf0a8535d9e1dc5baf8c2f7182c55acfc43dac1e6ad88b539951bd",
+    "modelProbe": { "rows": 24, "columnsBefore": 3, "columnsAfter": 4, "columnsReloaded": 4, "exact": true },
+    "checkerRestoredHash": "6e85f4ca28c4c46ee280c48a510d0ef7863b520ccc37f9b337325e2f845a1cc4",
+    "restoredSourceCount": 650,
+    "restoredSourceDrift": [],
+    "restoredExtraInputDrift": [],
+    "promoted": false
+  },
+  "limitations": [
+    "No physical IME/device proof.",
+    "Full combined regression and promotion pending."
+  ],
+  "remainingGates": {
+    "status": "passed",
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-metadata-20f_vhdo",
+    "sourceCount": 650,
+    "results": [
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-next-gates-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-next-gates-build.log"
+      },
+      {
+        "name": "styles",
+        "exitCode": 0,
+        "passRecords": 10,
+        "expectedRecords": 10,
+        "log": "/tmp/rollapp-link-metadata-next-gates-styles.log"
+      },
+      {
+        "name": "selection",
+        "exitCode": 0,
+        "passRecords": 8,
+        "expectedRecords": 8,
+        "log": "/tmp/rollapp-link-metadata-next-gates-selection.log"
+      }
+    ],
+    "startedAt": "2026-10-19T12:18:51.305872+00:00",
+    "sourceDrift": [],
+    "finishedAt": "2026-10-19T12:22:18.059432+00:00"
+  },
+  "updatedAt": "2026-10-19T12:24:16.007983+00:00",
+  "full383": {
+    "status": "failed",
+    "root": "/var/folders/56/y9x0qcp95zs6ctldh56fs6qh0000gq/T/rollapp-inline-link-metadata-20f_vhdo",
+    "sourceCount": 650,
+    "expectedEditorRecords": 383,
+    "startedAt": "2026-10-19T12:23:24.852109+00:00",
+    "results": [
+      {
+        "name": "unit",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-unit.log"
+      },
+      {
+        "name": "ui",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-ui.log"
+      },
+      {
+        "name": "build",
+        "exitCode": 0,
+        "passRecords": 0,
+        "expectedRecords": null,
+        "log": "/tmp/rollapp-link-metadata-full383-build.log"
+      }
+    ],
+    "snapshot": "/tmp/rollapp-link-metadata-full383-sources.json",
+    "active": {
+      "name": "editor",
+      "pid": 25730,
+      "log": "/tmp/rollapp-link-metadata-full383-editor.log"
+    },
+    "controllerSession": 30182,
+    "exitCode": 1,
+    "editorPassRecords": 253,
+    "finishedAt": "2026-10-19T13:01:50.709921+00:00",
+    "failure": "checkTableInsertCaret expected4 columns after native growth click, actual3; cause under investigation",
+    "processRevalidated": "PID25730 absent; controller terminal JSON confirms failure",
+    "sourceDrift": [],
+    "extraInputDrift": [],
+    "addedSources": []
+  },
+  "candidateRevisionNote": "After terminal native8/styles10/selection8, folded separately verified portable image fixture and metadata contracts into a fresh650source/10extra snapshot. Prior targeted hashes are preserved; new full383 is separate."
+}

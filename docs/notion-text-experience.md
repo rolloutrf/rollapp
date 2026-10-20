@@ -11,7 +11,23 @@
 [оформления](https://www.notion.com/help/customize-and-style-your-content).
 Полный объём возможностей ниже сохраняется между итерациями.
 
-Актуально на 2026-10-19: **main646/storage5+portal2+image/core13**. Перенесены
+Актуально на 2026-10-20: цель R1–R10 остаётся открытой. Production health
+подтвердил `d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f`; его CI прошёл Test/build,
+deploy и health, но завершился failure на сетевом соединении с Telegram API.
+Combined media/link/gutter candidate379a35b завершил comprehensive с отказом
+на external-typing-undo после77 editor PASS, source drift0; остальные8 stages
+not-run. Добавляется failure-only native/input/history диагностика, причина
+ещё не установлена. Quote inherited-italic исправление9a3ed5c и link metadata
+проверены отдельно: unit745PASS/1SKIP, quote8 и links8 PASS после сохранённого
+первого таймаута; styles compatibility дважды failed (click stability/разделитель
+после reload). В main этот storage/runtime не перенесён. Единый clean candidate
+bf6a8a1 прошёл760unit PASS/1SKIP, UI/build; новый полный399/comprehensive выполняется
+на646 замороженных inputs. Остальные media/вложенные составы,
+реальные iOS/Telegram/IME и live UI новой версии ещё не подтверждены.
+Подробности: [продолжение проверки](notion-resume-verification-2026-10-19.md)
+и [единый снимок 2026-10-20](notion-combined-verification-2026-10-20.md).
+
+Предыдущий снимок на 2026-10-19: **main646/storage5+portal2+image/core13**. Перенесены
 ручки размеров изображений, сохранение native selection при возврате фокуса и
 первый pointer capture границы столбцов; storage/portal исправления сохранены.
 Parent full375 завершился PASS до storage5/portal2. Совместная версия прошла
@@ -433,3 +449,9 @@ arbitrary mixed contexts иactual-deviceIME остаются открытыми;
 Mobile runtime audit: `xcrun --find simctl` returned utility unavailable; configured Playwright WebKit executable absent. Actual iOS/Telegram/device IME remains unverified. Do not replace that requirement with Chrome touch or synthetic composition proof. Other goal work continues.
 
 2026-10-19: live main646 review desktop1440 gives first-line centre422 and both gutter-control centres422 (48px boxes); mobile390 has 18/28, no frame/outline/shadow/root overflow, no idle formatting toolbar. Temporary tab46 closed and viewport reset, production writes0. New links649 candidate passed native8 but styles/selection compatibility still pending; it is not in main.
+
+Выпуск-checkpoint: `6fa269b` и тестовый portability-fix `fb508f2` отправлены в main. Первый Linux CI остановился до deployment на word-navigation fixture; локальный fix прошёл все24 image cases. Повторный [CI39251525717](https://github.com/rolloutrf/rollapp/actions/runs/39251525717) ещё выполняется; production остаётся7104575 до точного health подтверждения. Runtime646 не менялся. Link intent649 и metadata650 остаются изолированными: оба targeted26 PASS, metadata unit727/726PASS/1SKIP/UI/build PASS; отдельные full383 ещё выполняются. [Текущий выпуск](notion-release-2026-10-19.md), [metadata](notion-link-metadata-verification-2026-10-19.md), [подтверждённые media-различия](notion-image-options-audit-2026-10-19.md).
+
+2026-10-19 12:50Z: fresh main646 comprehensive9 завершён PASS: editor375, source/extra/added drift0, font denials0, controller32893 terminal0. После завершения рабочие test inputs восстановлены к published HEADfb508f2; runtime не менялся. Linux release CI39251525717 ещё выполняется. Новые isolated649/650 full383 и alignment653 с расширенным native10 ещё не означают завершения R1–R10.
+
+12:56Z checkpoint: isolated link-intent649 full383 PASS/terminal0, drift0. Он ещё не перенесён: metadata650 full383 и alignment653 full393 выполняются на отдельных frozen sources/10extra. Alignment добавляет10 native cases и optional canonical attribute, shared ControlBar, различимый selected state и фактическую chrome/VisualViewport границу; отдельные native10 и730unit/729PASS/1SKIP/UI/build прошли, но full393 ещё не PASS. [Доказательства и сохранённые отказы](notion-image-alignment-verification-2026-10-19.md). Actual-device IME, captions/file paste-drop, exact edge anchors/minimum и полный R1–R10 остаются открытыми.

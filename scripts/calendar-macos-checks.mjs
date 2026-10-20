@@ -83,7 +83,7 @@ export async function checkMacCalendar({ page, width, mutation }) {
     await page.locator(".schedule-month__grid").waitFor();
     const cell = page.locator(`.schedule-month__cell[data-date="${today}"]`);
     await cell.locator('.schedule-month__indicator[data-has-events]').waitFor();
-    assert.equal(await cell.locator('.schedule-event, .schedule-more').count(), 0);
+    assert(await cell.locator('.schedule-month__event').count() > 0);
     await cell.locator('.schedule-month__date').click();
     await page.waitForURL((url) => url.searchParams.get("view") === "day" && url.searchParams.get("date") === today);
     await page.getByRole("button", { name: "Сегодня", exact: true }).click();

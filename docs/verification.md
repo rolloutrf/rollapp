@@ -30,22 +30,39 @@
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
 | `npm run test:text-edit` | Полная матрица inline-документов: ввод без рамок, selection toolbar, блоки/группы, символы, стили/цвета, save/reload, очереди/draft/retry и доступ. Включает native clipboard и буквальные Markdown/HTML/whitespace в строчном коде, отдельный Undo и сохранение соседей; единый редактор четырёх ответов со сквозными диапазонами, фиксированными вопросами и общей историей. Block-colour матрица включает slash/palette, группы/ячейки/диапазоны через ответы, пустой блок/Enter/type, exact reload/public read, HTML clipboard, draft/retry, общий browser preference и его отказ, read-only/viewport. Slash-матрица проверяет команды в существующем тексте, middle-of-line/Shift+Enter, dismissal/clipboard/history guards, атомарные duplicate/delete/type, cell/four-answer scope и panning. Табличная матрица включает команды, merge/split, native resize, spans/ширины/вложенные блоки, public read, draft/retry и отзыв доступа во время drag. Контракт: `docs/inline-editing.md` |
-| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, production build; этот же набор обязателен в CI |
+| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, production build; этот же набор обязателен в CI |
 | `npm run check:comprehensive` | Release-набор плюс все расширенные UI-проверки ниже; без запросов к API/БД |
 | `npm run test:navigation` | Верхняя/нижняя навигация, полноширинные меню, safe area, короткий экран и клавиатура |
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
+| `npm run test:drag-drop` | Wishlist, группы, коллекции, публичный список владельца и календарь: порядок/отмена/rollback, подтверждение группировки, native mouse и touch handles на 8 ширинах; входит в `check:release`. Контракт: `docs/drag-and-drop.md` |
 | `npm run test:kanban` | Перетаскивание колонок: короткие/пустые/свёрнутые списки, промежутки, начало/конец, edge-scroll, отмена и ошибка сохранения, touch и меню на телефоне; входит в `check:release` |
+| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён |
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
+| `npm run test:contacts` | Бесконечная лента реального ContactsSpherePage: добавление страниц без перемонтирования, ошибка/повтор, конец списка, кадры прокрутки при избранном, отказ сохранения, фильтры и устаревшие ответы; 320–1920px и короткий desktop. Только явный UI transport, реальные API запрещены. |
 | `npm run test:wish-groups` | Реальные карточки групп Wishlist: троеточие в длинных названиях, границы текста и счётчика, клавиатура, отмена переименования, owner/read-only на полной матрице |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
+| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
 | `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом |
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
 
+Общие smoke entry points используют `scripts/smoke-server.mjs`: по умолчанию
+bind `127.0.0.1:0` атомарно получает свободный порт, а URL вычисляется из реального
+адреса после listen. Не искать свободный фиксированный порт с последующим
+освобождением и не останавливать чужой listener ради проверки. Явные диагностические
+`*_TEST_PORT`, `TEXT_EDIT_PORT` и `FORM_ACTION_PORT` сохраняют strictPort: ошибка
+занятого/некорректного порта остаётся видимой, без перехода на чужой сервер.
+Это изоляция портов независимых worktrees, а не разрешение параллельно использовать
+один Vite cache. Кэши разных worktrees/диагностик должны оставаться раздельными.
+Матрицы размеров, API guards, screenshot/DOM assertions и состав release/comprehensive
+не сокращаются; collision/owner guards входят в `npm test`.
+
 Не запускать общий `node --test` или исторический `npm run test:visual` в качестве обычной проверки: они включают старые сценарии с memory-серверами или сохранением данных. `npm test` и `npm run check` перенаправлены на безопасные наборы. Индивидуальные smoke-фильтры годятся для диагностики, но не заменяют полный итоговый прогон.
+
+Основные browser smoke-серверы используют `scripts/smoke-server.mjs`: ОС атомарно выделяет свободный loopback-порт, а URL выводится из фактически открытого listener. Для диагностики можно явно задать поддерживаемый `*_PORT`; занятый порт должен завершиться ошибкой, без остановки чужого процесса. DnD и оставшиеся legacy runners поддерживают отдельный диапазон через `ROLLAPP_SMOKE_PORT_OFFSET`; это не меняет API/production dev-сервис и не сокращает матрицу. Проверки разных checkout не должны обращаться к fixture-серверу соседа.
 
 На macOS Chrome может завершить все сценарии, но зависнуть в `browser.close()` из-за orphan crash-handler/GoogleUpdater, удерживающего stderr pipe. Общий launcher расширенных проверок использует только для принадлежащего тесту Chrome флаги `--disable-crashpad-for-testing` и `--disable-updater-scheduler` ([Chromium switches](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/common/chrome_switches.h)). При повторении проблемы `PASS` в логе ещё не означает exit 0. Сначала проверить точный тестовый Node PID, отсутствие живого headless Chrome и через `lsof -U` сопоставить его peer socket с FD 2 осиротевшего helper; сверить время запуска/PPID. Допустимо завершить только доказанно принадлежащий тесту helper, после чего дождаться кода завершения. Не использовать общий `pkill Chrome/Node` и не завершать пользовательские браузеры или постоянный dev-сервис.
 
@@ -114,6 +131,14 @@ container declaration остаются обязательными. Скрипт 
 готовность образа или deployment; обязательная проверка public health exact SHA
 остаётся следующим отдельным шагом. Unit-проверки содержатся в
 `scripts/deploy-vm-metadata.test.js` и входят в обязательный release suite.
+
+Последующий Telegram configure читает Lockbox через `YC_LOCKBOX_SOURCE=iam`
+с тем же краткоживущим `YC_IAM_TOKEN`, без Cloud CLI или VM metadata endpoint
+на GitHub runner. Используется официальный Payload.Get, без перенаправлений,
+вывода payload/токена или повторов после сетевой ошибки. VM runtime по умолчанию
+по-прежнему получает собственный токен из metadata; CLI остаётся только явным
+локальным режимом. `server/lockbox.test.js` проверяет изоляцию источников,
+ошибки/таймауты, отсутствие утечек и неоднозначные/пустые/binary entries.
 
 - Публиковать только проверенный commit и immutable image с его полным SHA. Не собирать релиз из dirty-workspace и не включать чужие изменения в коммит. Сохранить SHA предыдущего работающего образа для отката.
 - Один rollout за раз. CI использует `cancel-in-progress: false`; перед ручной операцией убедиться, что конкурирующий workflow завершён и его deploy-step не продолжится позже. Сбой чтения GH API не означает сбой job; повторить чтение статуса с новым запросом.
@@ -350,3 +375,38 @@ Inline Markdown storage preserves marks on every character, including selected e
 Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action and flushes only the owning document queue. React capture keeps portal ownership local to each InlineRichTextEditor; key events inside the editable DOM retain ProseMirror native input/mutation handling. Saving a document does not apply or close an unconfirmed link form. The native style matrix checks two simultaneously dirty editors and pending metadata on all eight viewports.
 
 `text-image-alignment-checks.mjs` добавляет10 default cases: восемь размеров320–1920, light390×400/1440×844 и short DPR3. Native клики проверяют положения, exact JSON/selection/neighbours, Undo/Redo/save/public read, nested/columns/table/fixed questions, twins, stale source/selection/access, no-op/full-width, selected state,48/20px/radius24 и chrome/panned bounds. Изолированная quote/link/alignment версия ожидает401 records; после совмещения с file-transfer candidate399 потребуется409, не сумма targeted PASS. Неизвестные/множественные CLI modes fail до запуска fixture. Caption/viewer/прочие media и actual-device IME сохраняются в goal audit.
+
+
+## Лента контактов
+
+Контакты загружаются порциями по 48 с автоматической подгрузкой в пределах
+500px от нижнего края. Кнопка «Загрузить ещё» сохраняет ручной/клавиатурный доступ;
+ошибка следующей страницы не убирает уже загруженные карточки и требует явного
+повтора. Конец списка убирает подгрузку. Поиск/компания/направление/избранное/владелец
+начинают новую ленту; ответы предыдущей ленты не могут добавить карточки.
+
+Лента запрашивает `order=source`: избранное меняет звезду и счётчик на месте,
+без перемещения карточки, перезагрузки сетки и команды прокрутки. Старый API-порядок
+с избранным в начале сохраняется для клиентов без этого параметра. В фильтре
+избранного удаление обновляет загруженный диапазон в фоне для корректных смещений.
+`test:contacts` входит в `check:comprehensive`.
+
+При одновременной работе нескольких checkout назначать свободные собственные
+`PORT` (API) и `ROLLAPP_DEV_FRONTEND_PORT` (Vite) в игнорируемом окружении этой
+checkout, не меняя общий файл через symlink. Dev API и manifest proxy используют
+`PORT` (по умолчанию 8080); browser-facing Host сохраняется для CSRF. Проверять
+оба реальных listener и `dev:keepalive:status`, а затем содержимое раздела:
+успешный health другого процесса на общих портах не доказывает готовность этой
+checkout. Не завершать чужие сервисы ради освобождения порта.
+
+Единообразие штор проверяет `npm run test:drawers`: все реальные form cases на
+320/390/414/768/820/896/1024/1440/1920px и 390×400, общий `ControlBar`, четыре
+радиуса 24px, точные 48px/20px/18px/28px, gap 8px, непрозрачные disabled-кнопки,
+полная подпись и отсутствие горизонтального переполнения. Снимки основных форм
+сохраняются в `/tmp/rollapp-form-consistency-*.png`; они дополняют проверки
+клавиатуры/прокрутки и обязательные `test:controls`/`test:form-actions`.
+
+При параллельной проверке разных worktree можно задать отдельные fixture-порты:
+`CONTROL_SIZE_PORT`, `DETAIL_ACTION_PORT`, `DATE_PICKER_PORT`, `FORM_ACTION_PORT`,
+`TEXT_EDIT_PORT`, `KANBAN_DRAG_PORT`. Это меняет только порт локального smoke
+server; набор сценариев/ассерты и production API остаются прежними.

@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
   Activity, AlertTriangle, Bike, CalendarDays, CheckCircle2, CircleMinus, Clock3,
@@ -422,14 +423,14 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
           </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
-              Отмена
-            </DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || !form.workoutOn}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : workout ? "Сохранить изменения" : "Добавить тренировку"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
+              Отмена
+            </DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -453,6 +454,7 @@ function WorkoutSection({
             key={workout.id}
             onPointerDown={(event) => cardOrder.beginPointerDrag(event, workout.id)}
           >
+            {!readOnly && <CardDragHandle title={workout.title} disabled={cardOrder.orderBusy} />}
             <WorkoutCard
               workout={workout}
               dragDescriptionId={cardOrder.descriptionId}
@@ -487,6 +489,7 @@ export function Workouts() {
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleWorkouts = educationItemsInList(requestState.workouts, resolvedListId);
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleWorkouts,
     onItemsChange: (workouts) => setRequestState((state) => ({

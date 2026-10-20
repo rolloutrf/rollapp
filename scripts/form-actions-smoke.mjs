@@ -1,3 +1,5 @@
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
@@ -8,7 +10,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-let port = Number(process.env.FORM_ACTION_PORT ?? 5198);
+const port = smokePort(process.env.FORM_ACTION_PORT);
 const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
@@ -23,9 +25,9 @@ const server = await createServer({ cacheDir: "node_modules/.vite-form-actions",
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/${fixture}.jsx"></script></body></html>`));
   }); },
 }] });
-await server.listen();
-port = server.httpServer.address().port;
-const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
+const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 async function geometry(page) {
   const row = page.locator('[data-native-form-actions]:visible');
   const result = await row.evaluate(el => {
@@ -64,14 +66,14 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,medication-group,conference,coaching-edit,principle").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,medication-group,conference,coaching-edit,principle").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
         // Wish list metadata is a read effect: reject it without replacement.
         // Every mutation is forbidden; no accounts or database records exist here.
         await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
-        await page.goto(`http://127.0.0.1:${port}/__form-actions?form=${name}`);
+        await page.goto(`${origin}/__form-actions?form=${name}`);
         if (name === "contact") {
           const heading = page.locator('.contact-detail__edit-heading--editable');
           await heading.waitFor();
@@ -124,7 +126,7 @@ try {
           await page.getByRole("button", { name: "Отмена", exact: true }).click();
           await page.getByRole("alertdialog").waitFor({ state: "hidden" });
         }
-        if (width < 768) {
+        if (width < 768 && name !== "wish-edit") {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
           const before = await geometry(page);
@@ -231,8 +233,28 @@ try {
           if (width === 390 && height === 844) await page.screenshot({ path: `/tmp/rollapp-form-actions-${name}.png` });
           await screen.getByRole("button", { name: "Назад", exact: true }).click(); await screen.waitFor({ state: "hidden" });
         } else {
-          await page.locator('[data-slot="drawer-popup"]').waitFor();
+          await page.locator(name === "wish-edit" ? '.app-fullscreen-dialog' : '[data-slot="drawer-popup"]').waitFor();
           assert.equal(await page.locator('[data-native-form-actions]').count(), 0, "Desktop footer changed to native action row");
+          const footer = page.locator('.app-form-actions');
+          await footer.waitFor();
+          await page.evaluate(() => document.fonts.ready);
+          const buttons = await footer.locator('button').evaluateAll(elements => elements.map(el => {
+            const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+            const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+            const paint = canvas.getContext('2d'); paint.fillStyle = s.backgroundColor; paint.fillRect(0,0,1,1);
+            return { x:r.x, right:r.right, y:r.y, height:r.height, width:r.width,
+              radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].map(parseFloat),
+              opacity:s.opacity, alpha:paint.getImageData(0,0,1,1).data[3], icon:el.hasAttribute('data-control-icon'),
+              clipped:el.scrollWidth > el.clientWidth + 1 };
+          }));
+          for (const button of buttons) {
+            assert.equal(button.height,48,`${name}: footer height`);
+            assert(button.radii.every(radius => radius >= 24),`${name}: footer corners`);
+            assert.equal(button.opacity,'1'); assert.equal(button.alpha,255);
+            assert(!button.clipped && button.x >= 0 && button.right <= width,`${name}: footer label/overflow`);
+            if (button.icon) assert.equal(button.width,48);
+          }
+          if (['wish','wish-edit','task-new'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-actions-${name}-${width}-${height}.png`});
           if (name === "principle") {
             const trash = page.getByRole("button", { name: "Удалить принцип", exact: true });
             const box = await trash.boundingBox();
@@ -245,14 +267,14 @@ try {
           }
         }
         assert.deepEqual(errors, [], `${name}: browser errors`);
-        console.log(`PASS ${width}×${height} ${name}: ${width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
+        console.log(`PASS ${width}×${height} ${name}: ${name === "wish-edit" ? "fullscreen footer" : width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
         await page.close();
       }
     }
   }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", route => route.abort());
-  await page.goto(`http://127.0.0.1:${port}/__form-actions?flow=1`);
+  await page.goto(`${origin}/__form-actions?flow=1`);
   await page.getByRole("button", { name: "Открыть группу", exact: true }).click();
   await page.getByRole("button", { name: "Добавить запись", exact: true }).click();
   const screen = page.locator('[data-mobile-form-page]:visible');

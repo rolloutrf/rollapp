@@ -124,7 +124,7 @@ function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, op
               onDeleted={() => onOpenChange(false)}
             />}
           </div>
-          <DrawerFooter className="border-t pt-4">
+          <DrawerFooter>
             <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить вопрос"}

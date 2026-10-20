@@ -1,8 +1,10 @@
 import { checkImageAlignment } from "./text-image-alignment-checks.mjs";
 import { smokeMode } from "./smoke-mode.mjs";
-import {checkQuoteStyles} from "./text-quote-style-checks.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
+import {checkQuoteStyles} from "./text-quote-style-checks.mjs";
 import {blockTypes} from "../src/lib/inline-block-types.js";
+import {checkImageTransfer} from "./text-image-transfer-checks.mjs";
 import {checkImageResize} from "./text-image-resize-checks.mjs";
 import {checkImages,checkImageLayout,checkImageReaders,checkImageContexts,imageFixturePNG} from "./text-image-checks.mjs";
 import {checkCrossClipboard,checkPartialCrossClipboard,checkCellClipboard} from "./text-cross-clipboard-checks.mjs";
@@ -51,10 +53,9 @@ import { checkTextBlockMenu } from "./text-block-menu-checks.mjs";
 import { checkTextSelectionPosition } from "./text-selection-position-checks.mjs";
 import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
-const port = Number(process.env.TEXT_EDIT_PORT || 5199);
-const origin = `http://127.0.0.1:${port}`;
-const only = smokeMode(process.argv.slice(2), ["--image-alignment-only", "--paste-history-diagnostic", "--links-only", "--quote-styles-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
-const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const port = smokePort(process.env.TEXT_EDIT_PORT);
+const only = smokeMode(process.argv.slice(2), ["--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
+const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", "@base-ui/react", "@base-ui/react/dialog", "@base-ui/react/menu", "@base-ui/react/radio-group", "@base-ui/react/radio", "@base-ui/react/scroll-area", "@base-ui/react/switch", "@base-ui/react/tabs", "@base-ui/react/toggle-group", "@base-ui/react/toggle", "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/api.js')) {
@@ -87,13 +88,15 @@ const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="${theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/text-edit.jsx"></script></body></html>`));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   if(!only || only === "--image-alignment-only") await checkImageAlignment(browser,origin);
   if(only === "--paste-history-diagnostic") await checkCrossClipboard(browser,origin,true);
   if(!only || only === "--quote-styles-only") await checkQuoteStyles(browser,origin);
   if(!only || only === "--links-only") await checkLinkIntent(browser,origin);
+  if(!only || only === "--images-only") await checkImageTransfer(browser,origin);
   if(!only || only === "--image-resize-only" || only === "--image-resize-diagnostic") await checkImageResize(browser,origin,only === "--image-resize-diagnostic");
   if(!only || only === "--image-context-only" || only === "--image-context-diagnostic") await checkImageContexts(browser,origin,only === "--image-context-diagnostic");
   if(!only || only === "--image-reader-only" || only === "--image-reader-diagnostic") await checkImageReaders(browser,origin,only === "--image-reader-diagnostic");
@@ -394,22 +397,28 @@ try {
   await textbox.locator("pre code").filter({ hasText: "/команда" }).waitFor();
   assert.equal(await page.getByRole("group", { name: "Команды блока", exact: true }).count(), 0, "Slash in code must remain literal");
   await page.goto(`${origin}/__text-edit?development=1`);
-  const title = page.getByRole("textbox", { name: "Название блока", exact: true }).first();
-  await title.fill("Новое название блока");
-  assert(await title.evaluate(el => {
+  const planEditor = page.getByRole("textbox", { name: "Индивидуальный план развития", exact: true });
+  await planEditor.waitFor();
+  assert.equal(await page.getByRole("combobox").count(), 0, "Freeform plan has no category controls");
+  assert.equal(await page.getByRole("button", { name: /Добавить пункт/ }).count(), 0);
+  assert.equal(await page.locator('[contenteditable="plaintext-only"]').count(), 0);
+  assert(await planEditor.evaluate(el => {
     const style = getComputedStyle(el);
     return style.outlineStyle === "none" && style.boxShadow === "none" && parseFloat(style.borderTopWidth) === 0;
-  }), "Structured inline text must also remain frameless");
+  }), "Plan document must remain frameless");
+  await planEditor.locator("h3").first().click();
+  await page.keyboard.press("Home");
+  await page.keyboard.insertText("Новое название блока ");
   await page.waitForFunction(() => window.inlineTest.saved?.includes("Новое название блока"));
-  assert.equal(await title.textContent(), "Новое название блока");
-  const firstEntry = page.getByRole("textbox", { name: "Как использовать: пункт 1", exact: true }).first();
-  await firstEntry.fill("Исправленный пункт");
-  await page.waitForFunction(() => window.inlineTest.saved?.includes("Исправленный пункт"));
-  await page.getByRole("button", { name: 'Добавить пункт в раздел «Как использовать»', exact: true }).first().click();
-  assert.equal(await page.locator('[data-mobile-form-page], [data-slot="drawer-popup"]').count(), 0);
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("contenteditable")), "plaintext-only");
+  await planEditor.locator("li p").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.insertText(" Исправленный пункт");
+  await page.keyboard.press("Enter");
   await page.keyboard.insertText("Новый пункт без формы");
   await page.waitForFunction(() => window.inlineTest.saved?.includes("Новый пункт без формы"));
+  assert.equal(await page.locator('[data-mobile-form-page], [data-slot="drawer-popup"]').count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("contenteditable")), "true");
+  assert((await planEditor.textContent()).includes("Исправленный пункт"));
   await page.goto(`${origin}/__text-edit?add=1`);
   await textbox.waitFor();
   await page.getByRole("button", { name: "Добавить", exact: true }).click();
@@ -597,6 +606,12 @@ try {
     console.error("ORIGINAL ERROR", error);
     const details = await page.evaluate(() => ({url:location.href,ready:document.readyState,active:document.activeElement?.outerHTML?.slice(0,250),roots:[...document.querySelectorAll('[role="textbox"], [contenteditable]')].map(el=>({role:el.getAttribute('role'),label:el.getAttribute('aria-label'),hidden:el.getAttribute('aria-hidden'),inert:el.closest('[inert]')?.tagName,editable:el.getAttribute('contenteditable'),box:el.getBoundingClientRect().toJSON()})),body:document.body.innerText.slice(0,1200)})).catch(error=>String(error));
     console.error("FAILED PAGE",JSON.stringify(details));
+    console.error("FAILED LAYOUT", JSON.stringify(await page.evaluate(() => ({ fonts: document.fonts.status,
+      nodes: [...document.querySelectorAll('hr, [data-slot="popover-content"]')].map(el => {
+        const style = getComputedStyle(el);
+        return { tag: el.tagName, box: el.getBoundingClientRect().toJSON(), display: style.display, visibility: style.visibility, opacity: style.opacity,
+          borderTop: style.borderTopWidth, transform: style.transform, animations: el.getAnimations().map(a => ({ playState: a.playState, currentTime: a.currentTime })) };
+      }) })).catch(error => String(error))));
     if (page.inlineDiagnosticTrail) console.error("PAGE NETWORK/CONSOLE", JSON.stringify(page.inlineDiagnosticTrail));
     await page.screenshot({ path: "/tmp/rollapp-text-edit-failure.png" });
   }

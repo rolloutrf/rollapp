@@ -398,14 +398,14 @@ export function EducationListDrawer({
                 </div>
               )}
             </div>
-            <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || deleting} />}>
-                Отмена
-              </DrawerClose>
+            <DrawerFooter>
               <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || deleting}>
                 {saving && <Spinner aria-hidden="true" />}
                 {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Создать список"}
               </Button>
+              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || deleting} />}>
+                Отмена
+              </DrawerClose>
             </DrawerFooter>
           </form>
         </DrawerContent>
