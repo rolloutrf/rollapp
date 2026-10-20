@@ -139,14 +139,8 @@ export async function runPlanningVisualChecks({ origin, token }) {
       const reloadedColumn = page.locator(`[data-kanban-column="${columnId}"]`);
       await reloadedColumn.getByRole("checkbox", { name: `Выполнено: Обсудить план ${width}`, exact: true }).waitFor();
       assert.equal(await reloadedColumn.getByRole("checkbox", { name: `Выполнено: Обсудить план ${width}`, exact: true }).isChecked(), true);
-      await mutation(() => menu(`Обсудить план ${width}`, "В архив"));
-      await page.getByRole("button", { name: /^Архив/ }).click();
-      await page.locator(".kanban-archive .kanban-card").filter({ hasText: `Обсудить план ${width}` }).waitFor();
-      await mutation(() => menu(`Обсудить план ${width}`, "Вернуть на доску"));
-      await page.getByRole("button", { name: /^Архив/ }).click();
-      const downloadEvent = page.waitForEvent("download");
-      await page.getByRole("button", { name: "Скачать Markdown", exact: true }).click();
-      assert.equal((await downloadEvent).suggestedFilename(), "Планирование.md");
+      assert.equal(await page.getByRole("button", { name: "Архив", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Скачать Markdown", exact: true }).count(), 0);
       await page.getByRole("button", { name: "Новая задача", exact: true }).click();
       await page.getByLabel("Название", { exact: true }).fill(`Встреча ${width}`);
       await page.getByLabel("Дата", { exact: true }).fill(localDateKey(new Date()));
