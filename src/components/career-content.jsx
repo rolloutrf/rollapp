@@ -205,7 +205,7 @@ export function MarkdownEditorDrawer({
               onDeleted={() => onOpenChange(false)}
             />}
           </div>
-          <DrawerFooter className="border-t pt-4">
+          <DrawerFooter>
             <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить изменения"}
@@ -307,7 +307,7 @@ function LifeStrategyPeriodCreator({ onOpenChange, onSave, open }) {
               </FieldDescription>
             </Field>
           </div>
-          <DrawerFooter className="border-t pt-4">
+          <DrawerFooter>
             <Button className="min-h-12 text-base" type="submit" disabled={saving}>
               {saving ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Plus data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Создаём" : "Создать период"}

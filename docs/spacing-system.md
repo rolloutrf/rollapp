@@ -196,3 +196,17 @@ To Do-листы используют существующие простран�
 Пока `.inline-editor__content[contenteditable="true"]` или `.inline-text-field[contenteditable="plaintext-only"]` владеет focus, корневой scroller использует `scroll-behavior: auto`: native caret reveal не ждёт smooth page animation. При наличии app chrome верхний scroll-padding равен chrome-top + safe-top + control-size + inline-gap. Ниже768px при наличии mobile-app-navigation нижний padding учитывает navigation-bottom + control-size + inline-gap. После blur обычное поведение страницы восстанавливается. Это не padding документа и не дополнительный spacer; положение readable content и контролов не меняется.
 
 Document columns используют --layout-page-gap на общем flex parent: рядом от768px, последовательно ниже768px. Shrinking columns имеют min-width:0, собственный первый текстовый блок trim через data-typeset-group; общий column row владеет одним prose flow gap. Пропорции хранятся как width ratios. Semantic resize separators показывают guide у общей границы или при keyboard focus; это не навигационные кнопки. Все реальные кнопки/ControlBar сохраняют48px/20px/24px; gutter/table controls не перекрывают glyphs соседних колонок.
+
+Футеры всех продуктовых штор форм также используют `ControlBar`: общий
+`DrawerFooter` и настольная ветка `MobileFormFooter` добавляют `app-form-actions`.
+Геометрия кнопок остаётся в `src/spacing.css`, раскладка футера — в
+`src/overlays.css`: один ряд с gap 8px, primary первым и на оставшуюся ширину,
+secondary следом, перенос при нехватке места. Отступы футера — 16px, снизу с
+safe area; разделитель и поверхность едины. Нативная мобильная строка сохраняет
+собственный контракт без подложки и отступов. Удаление задачи и желания — круглая
+корзина с полным доступным именем; закрытие шторы — круг 48px через `ControlBar`.
+`test:drawers` проверяет реальные формы на всей матрице 320–1920px, включая
+переходы 768/820px и высоту 400px.
+Настольная продуктовая штора открывается справа без дополнительной полосы
+swipe-handle: шапка, поля и футер используют одинаковый внутренний отступ 16px.
+Это решение принадлежит `form-surface`, а не upstream Drawer.

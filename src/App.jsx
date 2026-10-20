@@ -3141,7 +3141,7 @@ function BusinessAccessPage() {
               <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
             </FieldGroup>
             </div>
-            <DrawerFooter className="border-t pt-4"><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+            <DrawerFooter><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
           </form>
         </DrawerContent>
       </Drawer>
@@ -3264,7 +3264,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
             </ul>
           ) : <div className="sphere-share-picker__status"><Users /><span>Бизнес-аккаунты не найдены</span></div>}
         </div>
-        <DrawerFooter className="border-t pt-4">
+        <DrawerFooter>
           <DrawerClose render={<ShadcnButton className="min-h-12 text-base" type="button" />}>Готово</DrawerClose>
         </DrawerFooter>
       </DrawerContent>
@@ -6078,7 +6078,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
             {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
           </FieldGroup>
           </div>
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
+          <DrawerFooter>
             <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
           </DrawerFooter>
         </form>
@@ -6405,10 +6405,10 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
   const fieldId = (name) => `wish-editor-${name}-${wish?.id || "new"}`;
   const editorContent = <>
-        <ShadcnButton type="button" variant="ghost" className="wish-editor-screen__close" size="icon-sm" onClick={requestClose}>
+        <ControlBar className="contents"><ShadcnButton data-control-icon type="button" variant="ghost" className="wish-editor-screen__close" size="icon" disabled={loading || deleting || imageUploading} onClick={requestClose}>
           <X />
           <span className="sr-only">Закрыть</span>
-        </ShadcnButton>
+        </ShadcnButton></ControlBar>
         <form
           className={`wish-editor mx-auto flex w-full flex-col ${editing ? "wish-editor--edit" : "wish-editor--create"}`}
           onSubmit={submit}
@@ -6619,10 +6619,10 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           </div>
 
           <MobileFormFooter className="wish-editor-screen__footer border-t sm:flex-row">
-            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" className="wish-editor__delete static mr-auto h-12 w-auto px-4" aria-label="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 /> Удалить</ShadcnButton>}
             <ShadcnButton className="wish-editor__submit h-12 px-4" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
+            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon className="wish-editor__delete static" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
           </MobileFormFooter>
         </form>
     </>;
@@ -7030,7 +7030,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           </div>
         </form>
       </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full rounded-none border-0 bg-transparent px-4 sm:flex-row">
+      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
         <ShadcnButton
           type="submit"
           form="profile-editor-form"

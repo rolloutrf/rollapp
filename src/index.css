@@ -385,11 +385,7 @@
 
   .app-fullscreen-dialog .wish-editor-screen__footer {
     position: static;
-    flex-direction: row;
-    justify-content: space-between;
     pointer-events: auto;
-    border-color: var(--border);
-    background: var(--background);
   }
 
   .app-fullscreen-dialog .wish-editor-screen__footer .wish-editor__submit { box-shadow: none; }

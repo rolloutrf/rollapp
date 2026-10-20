@@ -422,14 +422,14 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
           </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
-              Отмена
-            </DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить сессию"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>
+              Отмена
+            </DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>

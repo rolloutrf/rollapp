@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Columns3, ListTodo, X } from "lucide-react";
+import { CalendarDays, Columns3, ListTodo, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { planningApi } from "@/lib/planning-api";
 import { Button } from "@/components/ui/button";
@@ -82,7 +82,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
           </div>
           <DrawerFooter className="planning-task-editor__actions gap-2" data-task-editing={task.id ? true : undefined}>
             <Button type="submit" disabled={busy || !form.title.trim()}>{busy && <Spinner />}Сохранить</Button>
-            {task.id && <Button type="button" variant="destructive" aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}>{mobile ? "Удалить" : task.recurrence ? "Удалить всю серию" : "Удалить задачу"}</Button>}
+            {task.id && <Button type="button" variant="destructive" size="icon" data-control-icon aria-label={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} title={task.recurrence ? "Удалить всю серию" : "Удалить задачу"} disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>}
           </DrawerFooter>
         </form>
       </DrawerContent>

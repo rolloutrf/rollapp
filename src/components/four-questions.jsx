@@ -94,7 +94,7 @@ function FourQuestionEditor({ onOpenChange, onSave, open, question, questionInde
               </Field>
             </FieldGroup>
           </div>
-          <DrawerFooter className="border-t pt-4">
+          <DrawerFooter>
             <Button className="min-h-12 text-base" type="submit" disabled={saving}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить изменения"}

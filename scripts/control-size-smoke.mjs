@@ -9,7 +9,8 @@ let executablePath;
 for (const candidate of candidates) { try { await access(candidate); executablePath = candidate; break; } catch {} }
 assert(executablePath, "Install Chrome or set CHROME_PATH to run the required control geometry checks");
 await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
-const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false, watch: null }, plugins: [{
+const port = Number(process.env.CONTROL_SIZE_PORT || 5192);
+const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -78,7 +79,7 @@ try {
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
       for (const route of routes) {
-        await page.goto(`http://127.0.0.1:5192${route}`);
+        await page.goto(`http://127.0.0.1:${port}${route}`);
         await page.locator("[data-control-bar]").first().waitFor();
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
