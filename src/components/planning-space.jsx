@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, ChevronDown, Columns3, Link2, ListTodo, Search, X } from "lucide-react";
 import { toast } from "sonner";
+import { TaskContactPicker } from "@/components/task-contact-picker";
 import { planningApi } from "@/lib/planning-api";
 import { loadRelatedContacts, loadRelatedItems, RELATED_KINDS, relatedKindLabel } from "@/lib/planning-related-items";
 import { ControlBar } from "@/components/control-bar";
@@ -30,8 +31,8 @@ export const PLANNING_TABS = [
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
 ];
-const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null, relatedItems: [] };
-function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
+const EMPTY_TASK = { contactIds: [], title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null, relatedItems: [] };
+function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }) {
   const id = useId();
   const mobile = useIsMobile();
   const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", startTime: task.unscheduled ? "" : task.startTime || (task.id ? "" : "09:00"), durationMinutes: task.durationMinutes || 60 });
@@ -80,7 +81,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
     setBusy(true);
     setError("");
     try {
-      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence, relatedItems: (form.relatedItems || []).map(({ kind, id, title }) => ({ kind, id, title })) });
+      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence, contactIds: form.contactIds, relatedItems: (form.relatedItems || []).map(({ kind, id, title }) => ({ kind, id, title })) });
       task.onCreated?.();
       onClose();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
@@ -137,6 +138,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
                 </Button>
                 {(form.relatedItems || []).length > 0 && <div className="planning-related__selected" aria-label="Выбранные объекты">{form.relatedItems.map((item) => <RelatedChoiceCard key={`${item.kind}:${item.id}`} item={choices.find(({ kind, id }) => kind === item.kind && id === item.id) || item} selected removable onToggle={toggleRelated} />)}</div>}
               </Field>
+              <TaskContactPicker searchContacts={searchContacts} value={form.contactIds} contacts={task.contacts} onChange={(value) => change("contactIds", value)} disabled={busy} />
               <Field><FieldLabel htmlFor={`${id}-status`}>Список</FieldLabel><Select value={form.columnId || columns[0]?.id} onValueChange={(value) => { change("columnId", value); change("completed", columns.find((column) => column.id === value)?.complete || false); }}><SelectTrigger id={`${id}-status`}><SelectValue>{columns.find((column) => column.id === (form.columnId || columns[0]?.id))?.title}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{columns.map((column) => <SelectItem key={column.id} value={column.id}>{column.title}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
               <Field><FieldLabel htmlFor={`${id}-date`}>{form.recurrence ? "Начало серии" : "Дата"}</FieldLabel><PlanningDatePicker id={`${id}-date`} value={form.dueOn} onChange={(date) => { change("dueOn", date); if (!date) { change("recurrence", null); } }} label="Дата задачи" clearable className="w-full" /></Field>
             {form.dueOn && <>

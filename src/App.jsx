@@ -1,3 +1,4 @@
+import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -2551,6 +2552,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
             <FieldLabel htmlFor={`${contactFieldId}-notes`}>Заметки</FieldLabel>
             <Textarea id={`${contactFieldId}-notes`} value={form.notes} maxLength={50000} rows={8} placeholder="Добавьте контекст, договорённости или историю общения" onChange={(event) => setField("notes", event.target.value)} />
           </Field>
+          <ContactMeetingNotes notes={contact?.meetingNotes} />
           {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
         </div>
       </ScrollArea>
@@ -2595,6 +2597,7 @@ function ContactReadView({ contact }) {
       <section className="contact-detail__edit-section typeset typeset-rollapp" aria-labelledby="contact-read-notes-title">
         <h2 id="contact-read-notes-title">Заметки</h2>
         <ContactNotes notes={contact.notes} />
+        <ContactMeetingNotes notes={contact.meetingNotes} />
       </section>
     </article>
   );

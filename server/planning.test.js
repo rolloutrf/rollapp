@@ -18,7 +18,7 @@ test("planning dates validate leap days and reject normalized invalid dates", ()
 });
 
 test("task input validates titles, status, description limits and optional date", () => {
-  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "", relatedItems: [] });
+  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "", relatedItems: [], contactIds: [] });
   for (const value of [{ title: " " }, { title: "x", status: "unknown" }, { title: "x", dueOn: "2026-02-30" }, { title: "x", description: "x".repeat(5001) }]) assert.equal(planningTaskSchema.safeParse(value).success, false);
 });
 
