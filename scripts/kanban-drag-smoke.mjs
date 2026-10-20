@@ -1,10 +1,11 @@
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 
-const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: 5194, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: smokePort(process.env.KANBAN_TEST_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'kanban-drag-fixture',
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/kanban-drag')) return next();
@@ -12,13 +13,14 @@ const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', 
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/kanban-drag.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 await mkdir('/tmp/rollapp-kanban-drag', { recursive: true });
 const order = page => page.locator('[data-kanban-column]').evaluateAll(elements => elements.map(element => element.dataset.kanbanColumn));
 const calls = async page => JSON.parse(await page.locator('[data-drag-calls]').textContent());
 async function ready(page, query = '') {
-  await page.goto(`http://127.0.0.1:5194/kanban-drag${query}`);
+  await page.goto(`${origin}/kanban-drag${query}`);
   await page.locator('[data-kanban-column]').first().waitFor();
   await page.evaluate(() => document.fonts.ready);
 }
