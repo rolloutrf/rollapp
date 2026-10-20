@@ -11,7 +11,24 @@
 [оформления](https://www.notion.com/help/customize-and-style-your-content).
 Полный объём возможностей ниже сохраняется между итерациями.
 
-Актуально на 2026-10-20: цель R1–R10 остаётся открытой. Production health
+Текущий выпуск 2026-10-20: совмещены inline styles/quote/link metadata,
+native clipboard/history/focus, file paste/drop и image alignment с tiny-media
+hit-area исправлением. Clean `449abb5` прошёл полный `check:release`, включая
+409 native editor cases; расширенный десятистадийный comprehensive завершён
+PASS/exit0 на том же frozen снимке,984 inputs drift0 и clean на выходе.
+Кандидат `508d3e4` дополнительно включает production startup `verify` и две
+правки ожидания готовности UI-тестов из `819f5cb`; клиентские/API исходники и
+production build идентичны проверяемому `449abb5`. Fresh locked install:
+790 unit total / 789 PASS / 1 SKIP, UI37/79 и build PASS. Два обновлённых
+harnesses отдельно прошли полные styles10 и four-document8, terminal exit0.
+Связанные объекты To Do проверены в полной53-case матрице: «Готово» переносит
+выбранные карточки/миниатюры в черновик задачи; сохранение остаётся явным.
+Production rollout и live UI новой версии пока не подтверждены. R1–R10 остаются
+открытыми: rich captions/viewer/прочие media, произвольные сложные составы и
+реальные iOS/Telegram/IME нельзя объявлять проверенными по fixture-тестам.
+Результаты выпуска: [единая проверка](notion-production-release-2026-10-20.md).
+
+Исторический снимок до этого объединения (не текущее состояние): Production health
 подтвердил `d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f`; его CI прошёл Test/build,
 deploy и health, но завершился failure на сетевом соединении с Telegram API.
 Combined media/link/gutter candidate379a35b завершил comprehensive с отказом
@@ -56,6 +73,14 @@ prodwrites0. Подробности — resize/Safari verification reports за2
 | R8. Таблицы и прочие блоки документа | Таблицы и document columns реализованы; цель частично выполнена | Табличные оси/drag/merge/split/resize/duplication/growth сохраняют spans, widths и rich children; native caret и public reader проверены целевыми матрицами. Main629 добавляет semantic columns, side drag, widths, mobile flow, exact draft/native clipboard и shared Undo. Исправлены реальные glyph collisions вложенных table controls. MAIN633 включает native focus/caret ownership создания и8viewport/64insertion+8font guards, а также сохранение pointer capture широких table-axis drag. Full311 failed281; единый успешный аудит требуется. Image upload/URL/metadata, owned insertion и public age/strategy readers внесены в main642 после native32/unit/UI/build; main646 теперь содержит pointer/keyboard resize с exact history/draft/access/source guards; parent375 и merged53 PASS, fresh main375/comprehensive9 выполняется. Placeholders/cancel, caption/align/file paste-drop, точные Notion edge anchors/minimum rules, прочие media, интерактивный accordion и произвольные вложенные/смешанные структуры остаются открытыми |
 | R9. Clipboard, selection и Undo на любом составе текста | Частично проверено | Markdown/HTML paste, ссылки, copy/cut групп с marks, Undo группы и вложенных пунктов. Буквальная вставка в inline code сохраняет Markdown/HTML-текст, whitespace, marks назначения, соседей и отдельный Undo; добавлен native clipboard smoke. Четыре ответа объединены: нативное сквозное выделение, копирование/вырезание/вставка, замена, Enter и Undo сохраняют фиксированные вопросы. Таблица внутри ответа поддерживает обычные команды с сохранением фиксированных вопросов и остальных ответов. HTML clipboard цветных блоков сохраняет literal whitespace и marks. Column full-document native HTML clipboard и отдельная история paste/последующей печати проверены. Изолированный634 проверяет mixed8, partial8 с48native reference comparisons и cell8; подтверждённые leading LF/CellSelection paste-history исправления перенесены вmain634 после69compatibility PASS; свежий полный335 audit требуется. Полного аудита всех составов и внешних приложений ещё нет |
 | R10. Надёжные записи и мобильный ввод | Базовая защита проверена | Serial save queue, drafts/retry, IME, owners/access. Длинные ответы свыше30 Markdown chunks пакуются в прежнюю API shape без потери блоков;8 viewport cases проверили native Enter/save/reload/drafts. Actual iOS/Telegram keyboard и весь набор новых взаимодействий на реальном устройстве не проверены |
+
+Уточнение R8 для текущего кандидата: left/center/right image alignment и native
+file paste/drop уже реализованы и прошли полный409 editor. Tiny image action
+не перекрывает изображение и первую pointer-цель resize; alignment10/resize8
+дополнительно PASS. Открыты именно rich caption/viewer/прочие media и полное
+соответствие Notion, а не уже реализованные align/file transfer. Исторические
+счётчики/отказы в таблице выше сохраняют происхождение прежних доказательств;
+текущий объединённый результат указан в начале страницы и отчёте выпуска.
 
 Префиксы `a.`/`i.` уже создают ordered list; текущий renderer сохраняет
 буквенный/римский тип. Точное соответствие того, как Notion выбирает вид маркера
