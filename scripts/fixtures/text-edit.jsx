@@ -1,3 +1,6 @@
+// Load the editor module before fixture navigation completes. The app keeps
+// its lazy boundary; browser interaction tests must not race Vite module fetches.
+import "../../src/components/inline-rich-text-editor.jsx";
 import { identityFourQuestionsSchema } from "../../server/identity-content-schema.js";
 import { InlineTextField } from "@/components/inline-text-field";
 import React, { lazy, Suspense, useState } from "react";

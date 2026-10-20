@@ -32,12 +32,13 @@ function EventDetails({ task, onAction }) {
   </>;
 }
 function EventPreview({ task, children, className, ...props }) {
-  const { onEdit, busy } = useContext(CalendarActions);
+  const { onEdit, busy, startDrag, endDrag } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
   const interaction = {
     draggable: !busy && !task.recurrence,
     onDoubleClick: () => { setOpen(false); onEdit(task); },
-    onDragStart: (event) => { if (task.recurrence) { event.preventDefault(); return; } setOpen(false); event.dataTransfer.setData("application/x-rollapp-calendar", task.id); event.dataTransfer.effectAllowed = "move"; },
+    onDragStart: (event) => { if (!startDrag(event, task)) return; setOpen(false); },
+    onDragEnd: endDrag,
   };
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={<Button variant="ghost" className={className} {...props} />} {...interaction}>{children}</PopoverTrigger>
@@ -61,7 +62,7 @@ function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
 }
 
 function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
-  const { saveSchedule, dropTask, busy, cancelInteractionRef } = useContext(CalendarActions);
+  const { saveSchedule, dropTask, allowDrop, busy, cancelInteractionRef } = useContext(CalendarActions);
   const scroll = useRef(null);
   const gesture = useRef(null);
   const skipClick = useRef(false);
@@ -119,7 +120,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const beginResize = (event, task, delta) => {
-    if (busy || (!delta && event.button !== 0)) return;
+    if (busy || (!delta && (event.button !== 0 || event.isPrimary === false))) return;
     if (delta) { saveSchedule(task, calendarResize(task, timeMinutes(task.startTime) + task.durationMinutes + delta)); return; }
     event.preventDefault(); event.stopPropagation();
     gesture.current = { kind: "resize", owner: event.currentTarget, pointerId: event.pointerId, task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
@@ -168,10 +169,6 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     </div><ScrollBar orientation="horizontal" />
   </ScrollArea>;
 }
-function allowDrop(event) {
-  if (event.dataTransfer.types.includes("application/x-rollapp-calendar")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
-}
-
 export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
   const tasks = sourceTasks;
   // Display slots are projections. Editing must always start from stored data.
@@ -183,6 +180,28 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const mobile = useIsMobile();
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
+  const dragOwner = useRef(null);
+  const endDrag = () => { dragOwner.current = null; };
+  const startDrag = (event, task) => {
+    const source = sourceTasks.find(item => item.id === task.id);
+    if (saving.current || task.recurrence || !source) { event.preventDefault(); return false; }
+    dragOwner.current = source;
+    event.dataTransfer.setData("application/x-rollapp-calendar", task.id);
+    event.dataTransfer.effectAllowed = "move";
+    return true;
+  };
+  const allowDrop = event => {
+    if (!saving.current && dragOwner.current && sourceTasks.includes(dragOwner.current) && event.dataTransfer.types.includes("application/x-rollapp-calendar")) {
+      event.preventDefault(); event.dataTransfer.dropEffect = "move";
+    }
+  };
+  useEffect(() => {
+    endDrag();
+    const visibility = () => { if (document.hidden) endDrag(); };
+    const key = event => { if (event.key === "Escape") endDrag(); };
+    window.addEventListener("blur", endDrag); document.addEventListener("visibilitychange", visibility); document.addEventListener("keydown", key, true);
+    return () => { endDrag(); window.removeEventListener("blur", endDrag); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("keydown", key, true); };
+  }, [selected, view, sourceTasks]);
   const cancelInteractionRef = useRef(null);
   const navigate = (date, mode = view) => { cancelInteractionRef.current?.(); setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; }); };
   const openTodo = (date = selected) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("tab", "todo"); next.delete("space"); next.delete("view"); return next; });
@@ -199,8 +218,9 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   };
   const dropTask = (event, date, minute, preserveTime = false) => {
     event.preventDefault(); event.stopPropagation();
-    const task = visible.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
-    if (task && !task.recurrence && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
+    const owner = dragOwner.current; endDrag();
+    const task = owner && sourceTasks.includes(owner) && visible.find((item) => item.id === owner.id && item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
+    if (task && !task.recurrence && !saving.current) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
   };
   const dates = view === "year" ? [`${selected.slice(0, 4)}-01-01`, `${selected.slice(0, 4)}-12-31`]
     : view === "week" ? calendarWeek(selected)
@@ -223,7 +243,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, cancelInteractionRef }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}

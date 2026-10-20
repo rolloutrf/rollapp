@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
   Activity, AlertTriangle, Bike, CalendarDays, CheckCircle2, CircleMinus, Clock3,
@@ -453,6 +454,7 @@ function WorkoutSection({
             key={workout.id}
             onPointerDown={(event) => cardOrder.beginPointerDrag(event, workout.id)}
           >
+            {!readOnly && <CardDragHandle title={workout.title} disabled={cardOrder.orderBusy} />}
             <WorkoutCard
               workout={workout}
               dragDescriptionId={cardOrder.descriptionId}
@@ -487,6 +489,7 @@ export function Workouts() {
   const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleWorkouts = educationItemsInList(requestState.workouts, resolvedListId);
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleWorkouts,
     onItemsChange: (workouts) => setRequestState((state) => ({

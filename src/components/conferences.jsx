@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3,
@@ -588,6 +589,7 @@ export function Conferences() {
     ? (openedGroup.itemIds || []).map((id) => requestState.conferences.find((conference) => conference.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleConferences,
     onItemsChange: (conferences) => setRequestState((state) => ({
@@ -885,6 +887,7 @@ export function Conferences() {
               key={conference.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, conference.id)}
             >
+              {!readOnly && <CardDragHandle title={conference.title} disabled={cardOrder.orderBusy} />}
               <ConferenceCard
                 conference={conference}
                 dragDescriptionId={cardOrder.descriptionId}
