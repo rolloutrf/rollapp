@@ -8,6 +8,8 @@ services:
     environment:
       NODE_ENV: production
       DEMO_MODE: "false"
+      # Ordinary releases only verify the existing schema; migrations are explicit.
+      ROLLAPP_DATABASE_INITIALIZATION: "verify"
       PORT: "8080"
       COOKIE_SECURE: "true"
       APP_VERSION: "__VERSION__"
