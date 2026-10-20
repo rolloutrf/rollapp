@@ -1,3 +1,4 @@
+import { InlineItalic, InlineNormalText } from "./inline-italic.js";
 import { InlineNativeFocus, InlineNativeSelection } from "./inline-native-selection.js";
 import { InlinePasteHistory } from "./inline-paste-history.js";
 import { DocumentColumns, DocumentColumn } from "./inline-columns.js";
@@ -134,13 +135,17 @@ const EditableDetailsContent = DetailsContent.extend({
   },
 });
 
+const InlineStarterKit = StarterKit.extend({
+  addExtensions() { return this.parent().map(extension => extension.name === "italic" ? InlineItalic : extension); },
+});
+
 export function inlineEditorExtensions(placeholder = "Начните писать или введите / для выбора блока…", documentExtension) {
   return [
     InlineBlockSelection, InlinePasteHistory, InlineNativeSelection, InlineNativeFocus,
-    StarterKit.configure({ ...(documentExtension ? { document: false } : {}), link: { openOnClick: false, autolink: true, markdownLinks: true }, code: false, paragraph: false, heading: false, trailingNode: false, codeBlock: false, strike: false, blockquote: false, orderedList: false }),
+    InlineStarterKit.configure({ ...(documentExtension ? { document: false } : {}), link: { openOnClick: false, autolink: true, markdownLinks: true }, code: false, paragraph: false, heading: false, trailingNode: false, codeBlock: false, strike: false, blockquote: false, orderedList: false }),
     ...(documentExtension ? [documentExtension] : []),
     withRichCode(Paragraph), withRichCode(Heading), NestedBlock, DocumentColumns, DocumentColumn, RichInlineMarkdown, InlineHTMLBreak,
-    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle,
+    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText,
     SymbolCodeBlock, SymbolStrike, SymbolBlockquote, SymbolOrderedList,
     Markdown, TaskList, SymbolTaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" }, a11y: { checkboxLabel: node => `Выполнено: ${node.textContent || "задача"}` } }),
     Placeholder.configure({ placeholder, ...(documentExtension ? { includeChildren: true } : {}) }), Image, RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),

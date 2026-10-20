@@ -6,7 +6,7 @@ import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
 import HardBreak from "@tiptap/extension-hard-break";
 import Bold from "@tiptap/extension-bold";
-import Italic from "@tiptap/extension-italic";
+import { InlineItalic, InlineNormalText } from "./inline-italic.js";
 import Strike from "@tiptap/extension-strike";
 import Underline from "@tiptap/extension-underline";
 import Code from "@tiptap/extension-code";
@@ -27,7 +27,7 @@ const InlineParagraph = Paragraph.extend({
 });
 // Its block lexer only supplies the existing paragraph's inline content. Keep
 // that tokenizer on an isolated Marked instance so it cannot affect editors.
-const extensions = [Document, InlineParagraph, Text, HardBreak, Bold, Italic, Strike, Underline, Code.extend({ excludes: "", priority: 50 }), Link, Image.configure({ inline: true }), InlineTextStyle, RichInlineMarkdown, InlineHTMLBreak];
+const extensions = [Document, InlineParagraph, Text, HardBreak, Bold, InlineItalic, Strike, Underline, Code.extend({ excludes: "", priority: 50 }), Link, Image.configure({ inline: true }), InlineTextStyle, InlineNormalText, RichInlineMarkdown, InlineHTMLBreak];
 const manager = new MarkdownManager({ marked: new Marked(), extensions });
 const schema = getSchema(extensions);
 // Match the editor's mark ordering, including color outside bold/code so its
