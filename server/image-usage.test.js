@@ -4,11 +4,11 @@ import { imageIsInUse } from "./image-usage.js";
 
 const userId="owner",imageUrl="/api/media/11111111-1111-4111-8111-111111111111";
 test("a media reference in a career or identity document prevents deleting its asset",async()=>{
-  for(const table of ["career_content","identity_content"]){
+  for(const table of ["career_content","identity_content","planning_notes"]){
     const calls=[];
     const used=await imageIsInUse(async(sql,params)=>{calls.push({sql,params});return{rowCount:sql.includes(`FROM ${table} `)?1:0};},userId,imageUrl);
     assert(used);const documentQuery=calls.find(call=>call.sql.includes(`FROM ${table} `));
-    assert(documentQuery.sql.includes("POSITION($2 IN content_json)>0"));assert(documentQuery.sql.includes("user_id=$1"));assert.deepEqual(documentQuery.params,[userId,imageUrl]);
+    assert(documentQuery.sql.includes(`POSITION($2 IN ${table === "planning_notes" ? "content" : "content_json"})>0`));assert(documentQuery.sql.includes("user_id=$1"));assert.deepEqual(documentQuery.params,[userId,imageUrl]);
     assert(calls.every(call=>call.sql.startsWith("SELECT ")));
   }
 });
