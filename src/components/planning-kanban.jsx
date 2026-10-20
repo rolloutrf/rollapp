@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarDays, Check, ChevronDown, ChevronRight, Download, GripVertical, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -25,7 +25,6 @@ function CardTitle({ text }) {
 
 function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
   const [title, setTitle] = useState(initial?.title || "");
-  const [description, setDescription] = useState(initial?.description || "");
   const [error, setError] = useState("");
   const input = useRef(null);
   const submitting = useRef(false);
@@ -35,7 +34,7 @@ function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
     if (!title.trim() || busy || submitting.current) return;
     submitting.current = true;
     setError("");
-    try { await onSave({ title: title.trim(), description }); setTitle(""); input.current?.focus({ preventScroll: true }); }
+    try { await onSave({ title: title.trim() }); setTitle(""); input.current?.focus({ preventScroll: true }); }
     catch (cause) { setError(cause.message); }
     finally { submitting.current = false; }
   };
@@ -45,7 +44,6 @@ function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
     <Textarea ref={input} aria-label={initial ? "Текст карточки" : "Новая карточка"} placeholder="Текст карточки…" rows={2} maxLength={200} value={title} disabled={busy} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submit(); }
     }} />
-    {!compact && <Textarea aria-label="Описание карточки" placeholder="Описание · Markdown и чек-листы" rows={4} maxLength={5000} value={description} disabled={busy} onChange={(event) => setDescription(event.target.value)} />}
     {error && <p className="kanban-error" role="alert">{error}</p>}
     <div className="flex items-center gap-2"><Button type="submit" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить"}</Button><Button variant="ghost" size="icon" type="button" disabled={busy} onClick={onCancel} aria-label="Отменить ввод"><X /></Button></div>
     {compact && <span className="kanban-caption">Enter — добавить · Shift+Enter — новая строка</span>}
@@ -83,15 +81,6 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
   const [drop, setDrop] = useState(null);
   const [announcement, setAnnouncement] = useState("");
   const boardRef = useRef(null);
-  const toolbarRef = useRef(null);
-  useLayoutEffect(() => {
-    const toolbar = toolbarRef.current;
-    const measure = () => toolbar.parentElement.style.setProperty("--kanban-toolbar-height", `${toolbar.offsetHeight}px`);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(toolbar);
-    return () => observer.disconnect();
-  }, []);
   const pointer = useRef(null);
   const pointerCleanup = useRef(null);
   const suppressClick = useRef(false);
@@ -218,7 +207,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     </article>;
   };
   return <div className="kanban-workspace" aria-busy={busy}>
-    <ControlBar ref={toolbarRef} className="kanban-toolbar">
+    <ControlBar className="kanban-toolbar">
       <div className="flex items-center gap-2">
         <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted aria-pressed:!bg-accent" aria-label="Архив" title="Архив" aria-pressed={archive} onClick={() => { setArchive(!archive); setEditingCard(null); }}><Archive aria-hidden="true" /></Button>
       <Button data-control-icon variant="outline" size="icon" className="rounded-full !bg-card hover:!bg-muted" aria-label="Скачать Markdown" title="Скачать Markdown" onClick={exportBoard}><Download /></Button>
