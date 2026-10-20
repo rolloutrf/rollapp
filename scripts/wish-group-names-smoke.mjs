@@ -1,12 +1,14 @@
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
-const port = smokePort(5193);
+import { browserLaunchOptions } from './browser-runtime.mjs';
+const port = smokePort();
 
 const server = await createServer({
   cacheDir: 'node_modules/.vite-wish-group-smoke',
-  server: { host: '127.0.0.1', port: smokePort(5193), strictPort: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(), strictPort: false, hmr: false, watch: null },
   plugins: [{
     name: 'wish-group-fixture', enforce: 'pre',
     transform(source, id) {
@@ -22,7 +24,7 @@ const server = await createServer({
   }],
 });
 await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const width of [320, 390, 767, 768, 820, 1024, 1440, 1920]) {

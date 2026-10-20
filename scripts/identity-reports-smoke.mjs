@@ -1,19 +1,21 @@
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+import { browserLaunchOptions } from './browser-runtime.mjs';
 
 const review = process.env.IDENTITY_REPORT_REVIEW_LAYOUT ? JSON.parse(await readFile(process.env.IDENTITY_REPORT_REVIEW_LAYOUT, 'utf8')) : null;
-const server = await createServer({ define: { __IDENTITY_REPORT_REVIEW__: JSON.stringify(review) }, cacheDir: 'node_modules/.vite-identity-reports-smoke', server: { host: '127.0.0.1', port: smokePort(Number(process.env.IDENTITY_REPORT_TEST_PORT || 5297)), hmr: false, watch: null }, plugins: [{
+const server = await createServer({ define: { __IDENTITY_REPORT_REVIEW__: JSON.stringify(review) }, cacheDir: 'node_modules/.vite-identity-reports-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.IDENTITY_REPORT_TEST_PORT), hmr: false, watch: null }, plugins: [{
   name: 'identity-report-fixture', configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__identity-reports')) return next();
     res.setHeader('Content-Type', 'text/html');
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/identity-reports.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
-const port = server.httpServer.address().port;
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const width of [320, 390, 768, 820, 1024, 1440, 1920]) {
@@ -22,7 +24,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', route => { errors.push('Unexpected API request'); return route.abort(); });
-    await page.goto(`http://127.0.0.1:${port}/__identity-reports?section=${section}`);
+    await page.goto(`${origin}/__identity-reports?section=${section}`);
     await page.locator('.identity-pdf-content h3').first().waitFor();
     await page.evaluate(() => document.fonts.ready);
     if (!review) {
