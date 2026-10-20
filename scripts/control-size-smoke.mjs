@@ -1,3 +1,4 @@
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
 import { createServer } from "vite";
@@ -9,7 +10,7 @@ let executablePath;
 for (const candidate of candidates) { try { await access(candidate); executablePath = candidate; break; } catch {} }
 assert(executablePath, "Install Chrome or set CHROME_PATH to run the required control geometry checks");
 await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
-const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: smokePort(process.env.CONTROL_TEST_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -24,7 +25,8 @@ const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes"
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/control-sizes.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
 const routes = [
   "/app/wishes?tab=products", "/app/spheres/career?tab=about", "/app/spheres/identity?tab=principles",
@@ -78,7 +80,7 @@ try {
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
       for (const route of routes) {
-        await page.goto(`http://127.0.0.1:5192${route}`);
+        await page.goto(`${origin}${route}`);
         await page.locator("[data-control-bar]").first().waitFor();
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
