@@ -137,35 +137,42 @@
   .kanban-archive { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Float the controls over the board without a reserved opaque header strip. */
-.kanban-workspace { position: relative; }
+/* The toolbar stays in the layout; only the board owns scrolling. */
 .kanban-workspace > .kanban-toolbar {
-  position: absolute;
-  z-index: 5;
-  inset-block-start: 0;
-  inset-inline: 0;
-  background: transparent;
-  pointer-events: none;
-}
-.kanban-toolbar > * { pointer-events: auto; }
-.kanban-workspace > .planning-board,
-.kanban-workspace > .kanban-archive {
-  padding-block-start: calc(var(--kanban-toolbar-height, 48px) + var(--layout-inline-gap));
-}
-
-/* Safe-area space belongs inside the scroller, not above its clipping edge. */
-.app-layout--planning .app-page.planning-space--kanban {
-  padding-block-start: 0;
-}
-.kanban-workspace {
-  --kanban-top-inset: var(--layout-screen-top);
-}
-.kanban-workspace > .kanban-toolbar {
-  inset-block-start: var(--kanban-top-inset);
+  flex: 0 0 auto;
+  min-height: var(--layout-control-size);
 }
 .kanban-workspace > .planning-board,
 .kanban-workspace > .kanban-archive {
-  padding-block-start: calc(var(--kanban-top-inset) + var(--kanban-toolbar-height, 48px) + var(--layout-inline-gap));
+  padding-block-start: 4px;
+}
+@media (min-width: 768px) {
+  .kanban-workspace .planning-column {
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .kanban-workspace .planning-column__header { background: var(--card); }
+  .kanban-new-column { border: 1px dashed var(--border); background: transparent; }
+}
+@media (max-width: 767px) {
+  .kanban-workspace .planning-column { gap: 8px; }
+  .kanban-workspace .planning-column__header { min-height: var(--layout-control-size); }
+  .kanban-workspace .planning-column__title {
+    font-size: var(--text-rollapp-body);
+    line-height: var(--text-rollapp-body--line-height);
+  }
+  .kanban-workspace .kanban-card {
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+  }
+  .kanban-card__title { padding-inline: 4px; }
+  .kanban-card__footer { padding-inline-start: 32px; }
+  .kanban-workspace .planning-column__add,
+  .kanban-new-column__button { min-height: var(--layout-control-size); padding-inline: 12px; }
+  .kanban-new-column { border: 1px dashed var(--border); border-radius: var(--radius-lg); }
 }
 
 .app-layout--planning .app-page.planning-space--todo { padding-block-start: 0; }
