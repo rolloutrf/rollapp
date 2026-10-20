@@ -1,3 +1,4 @@
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
@@ -8,7 +9,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-let port = Number(process.env.FORM_ACTION_PORT ?? 5198);
+const port = smokePort(process.env.FORM_ACTION_PORT);
 const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
@@ -23,8 +24,8 @@ const server = await createServer({ cacheDir: "node_modules/.vite-form-actions",
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/${fixture}.jsx"></script></body></html>`));
   }); },
 }] });
-await server.listen();
-port = server.httpServer.address().port;
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
 async function geometry(page) {
   const row = page.locator('[data-native-form-actions]:visible');
@@ -71,7 +72,7 @@ try {
         // Wish list metadata is a read effect: reject it without replacement.
         // Every mutation is forbidden; no accounts or database records exist here.
         await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
-        await page.goto(`http://127.0.0.1:${port}/__form-actions?form=${name}`);
+        await page.goto(`${origin}/__form-actions?form=${name}`);
         if (name === "contact") {
           const heading = page.locator('.contact-detail__edit-heading--editable');
           await heading.waitFor();
@@ -252,7 +253,7 @@ try {
   }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", route => route.abort());
-  await page.goto(`http://127.0.0.1:${port}/__form-actions?flow=1`);
+  await page.goto(`${origin}/__form-actions?flow=1`);
   await page.getByRole("button", { name: "Открыть группу", exact: true }).click();
   await page.getByRole("button", { name: "Добавить запись", exact: true }).click();
   const screen = page.locator('[data-mobile-form-page]:visible');
