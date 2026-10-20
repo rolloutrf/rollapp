@@ -74,3 +74,13 @@ Remote main и codex/smoke-cold-dependencies подтверждены e579dca. �
 проверке production healthy d116857, новый CI e579dca pending; running старый
 0a7f645 ещё на Test and build. Ручной rollout/restart не выполнялся. Managed dev
 10724 в905f ready и оставлен работать. Изменений schema/data/real uploads нет.
+
+## Итог объединённой проверки
+
+Frozen clean449abb5 прошёл полный409 editor и все десять этапов comprehensive,
+terminal exit0;984 исходных inputs drift0 и clean после завершения. Финальный
+кандидат508d3e4 сохраняет идентичные application sources и58 build files при
+fresh locked install, дополнительно содержит startup verify guard и два
+harness readiness waits. Отдельные styles10/four-document8 также PASS/exit0.
+Подробности и ограничения — [единый отчёт](notion-production-release-2026-10-20.md).
+Это ещё не свидетельство exact-SHA production deployment или actual-device IME.
