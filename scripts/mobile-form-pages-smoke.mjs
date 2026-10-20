@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5189);
 import { drawerCases } from './fixtures/drawer-cases.js';
 const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke',server:{host:'127.0.0.1',port:5189,strictPort: false,hmr:false,watch:null},plugins:[{
   name:'native-form-fixture',enforce:'pre',

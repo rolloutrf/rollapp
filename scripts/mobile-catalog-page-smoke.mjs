@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:"node_modules/.vite-mobile-page-smoke",server:{host:'127.0.0.1',port:5188,strictPort: false,hmr:false,watch:null},plugins:[{
   name:'mobile-page-fixture',enforce:'pre',
   transform(source,id){if(id.includes('/src/App.jsx?mobile-page-test-export'))return `${source}\nexport { CatalogWishDetailsContent };`;},

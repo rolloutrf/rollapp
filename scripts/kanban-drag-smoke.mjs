@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5194);
 
-const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: 5194, strictPort: false, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: smokePort(5194), strictPort: false, hmr: false, watch: null }, plugins: [{
   name: 'kanban-drag-fixture',
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/kanban-drag')) return next();

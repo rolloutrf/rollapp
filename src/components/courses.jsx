@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink, FolderInput, GraduationCap,
@@ -856,6 +857,7 @@ export function Courses() {
     ? (openedGroup.courseIds || []).map((id) => requestState.courses.find((course) => course.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     items: visibleCourses,
     onItemsChange: (courses) => setRequestState((state) => ({
       ...state,
@@ -1155,6 +1157,7 @@ export function Courses() {
               key={course.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, course.id)}
             >
+              {!readOnly && <CardDragHandle title={course.title} disabled={cardOrder.orderBusy} />}
               <CourseCard
                 course={course}
                 dragDescriptionId={cardOrder.descriptionId}

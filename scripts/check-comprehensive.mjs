@@ -12,7 +12,7 @@ if (process.argv.includes("--list")) {
   const output = path.resolve(process.env.ROLLAPP_CHECK_OUTPUT || path.join(os.tmpdir(), `rollapp-check-${Date.now()}.json`));
   const env = { ...process.env };
   // A comprehensive result must never silently inherit a partial smoke matrix.
-  for (const key of ["CALENDAR_WIDTHS", "CONTROL_WIDTHS", "DETAIL_WIDTHS", "DATE_WIDTHS", "FORM_ACTION_WIDTHS", "FORM_ACTION_CASES", "TEXT_EDIT_WIDTHS", "ACTION_WIDTHS", "TODO_WIDTHS", "FORM_WIDTHS", "FORM_CASES", "DRAWER_WIDTHS", "DRAWER_MODES", "DRAWER_CASES"]) delete env[key];
+  for (const key of ["DRAG_WIDTHS", "CALENDAR_WIDTHS", "CONTROL_WIDTHS", "DETAIL_WIDTHS", "DATE_WIDTHS", "FORM_ACTION_WIDTHS", "FORM_ACTION_CASES", "TEXT_EDIT_WIDTHS", "ACTION_WIDTHS", "TODO_WIDTHS", "FORM_WIDTHS", "FORM_CASES", "DRAWER_WIDTHS", "DRAWER_MODES", "DRAWER_CASES"]) delete env[key];
   const report = {
     status: "running",
     startedAt,

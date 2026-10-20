@@ -1,4 +1,4 @@
-import { browserLaunchOptions } from "./browser-runtime.mjs";
+import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";

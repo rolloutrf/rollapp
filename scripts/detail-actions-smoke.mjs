@@ -1,4 +1,4 @@
-import { browserLaunchOptions } from "./browser-runtime.mjs";
+import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { createServer } from "vite";
@@ -9,7 +9,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: 5193, strictPort: false, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(5193), strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
   transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {

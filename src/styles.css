@@ -365,7 +365,7 @@ input.phone-otp__code {
 .wish-card--native-preview,
 .wish-card--drag-preview { overflow: visible !important; border-radius: 20px; opacity: .96; background: var(--background); box-shadow: 0 26px 64px #0009; transform: scale(1.035) rotate(.7deg); }
 .wish-card--native-preview { position: fixed; z-index: -1; left: -10000px; top: -10000px; pointer-events: none; }
-.wish-card--drag-preview { width: var(--drag-width) !important; margin: 0 !important; position: fixed !important; z-index: 120; left: 0; top: 0; opacity: .94 !important; transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.035) rotate(.7deg) !important; transition: none !important; pointer-events: none; will-change: transform; }
+.wish-card--drag-preview { width: var(--drag-width) !important; margin: 0 !important; position: fixed !important; z-index: 120; left: 0; top: 0; opacity: .94 !important; transform: translate3d(var(--drag-x), var(--drag-y), 0) !important; transition: none !important; pointer-events: none; will-change: transform; }
 .wish-card--native-preview .wish-card__open,
 .wish-card--native-preview .wish-card__menu-trigger,
 .wish-card--native-preview .wish-card__drag-handle,
@@ -378,6 +378,13 @@ input.phone-otp__code {
 .wish-card--drag-preview .wish-group-tile__menu { display: none !important; }
 
 /* Education cards share the Wishlist pointer/long-press sorting language. */
+.education-card { position: relative; }
+.education-card__drag-handle { display: none; position: absolute; z-index: 20; top: 4px; left: 4px; width: var(--layout-control-size); height: var(--layout-control-size); border-radius: 50%; touch-action: none; -webkit-touch-callout: none; }
+.education-card__drag-handle svg { width: 20px; height: 20px; pointer-events: none; }
+@media (hover: none), (any-pointer: coarse) {
+  .education-card__drag-handle { display: inline-flex; }
+}
+.education-card--drag-preview .education-card__drag-handle { display: none !important; }
 .education-card.is-draggable {
   cursor: grab;
   touch-action: pan-y;
@@ -402,7 +409,7 @@ input.phone-otp__code {
   left: 0;
   top: 0;
   opacity: .94 !important;
-  transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.035) rotate(.7deg) !important;
+  transform: translate3d(var(--drag-x), var(--drag-y), 0) !important;
   transition: none !important;
   pointer-events: none;
   filter: none !important;

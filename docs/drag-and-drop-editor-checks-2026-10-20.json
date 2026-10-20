@@ -1,0 +1,62 @@
+{
+  "status": "failed",
+  "reason": "Full editor retry failed; verify all native drag matrices independently without width filters, not a replacement claim for the full editor suite.",
+  "checks": [
+    {
+      "flag": "--list-drag-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:20:08.964Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:20:15.933Z"
+    },
+    {
+      "flag": "--drag-guards-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:20:15.933Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:20:21.517Z"
+    },
+    {
+      "flag": "--table-handles-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:20:21.517Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:20:44.853Z"
+    },
+    {
+      "flag": "--table-axis-guards-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:20:44.853Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:20:56.384Z"
+    },
+    {
+      "flag": "--table-wide-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:20:56.384Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:21:03.872Z"
+    },
+    {
+      "flag": "--column-contexts-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:21:03.872Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:21:13.883Z"
+    },
+    {
+      "flag": "--relocation-depth-only",
+      "status": "passed",
+      "startedAt": "2026-10-19T23:21:13.883Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-19T23:21:17.412Z"
+    },
+    {
+      "flag": "--image-resize-only",
+      "status": "failed",
+      "startedAt": "2026-10-19T23:21:17.412Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-19T23:39:35.843Z"
+    }
+  ]
+}

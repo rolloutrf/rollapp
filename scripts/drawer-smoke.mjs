@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5187);
 import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-drawer-smoke",
-  server: { host: '127.0.0.1', port: 5187, strictPort: false, open: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(5187), strictPort: false, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');

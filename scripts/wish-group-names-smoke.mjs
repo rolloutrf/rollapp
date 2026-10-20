@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5193);
 
 const server = await createServer({
   cacheDir: 'node_modules/.vite-wish-group-smoke',
-  server: { host: '127.0.0.1', port: 5193, strictPort: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(5193), strictPort: false, hmr: false, watch: null },
   plugins: [{
     name: 'wish-group-fixture', enforce: 'pre',
     transform(source, id) {

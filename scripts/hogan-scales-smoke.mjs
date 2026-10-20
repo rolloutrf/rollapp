@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5298);
 import { checkIdentityChartStability, checkIdentityReportCharts, checkIdentityChartNavigation } from './identity-report-chart-checks.mjs';
 
 const review = process.env.HOGAN_SCALES_REVIEW_LAYOUT ? JSON.parse(await readFile(process.env.HOGAN_SCALES_REVIEW_LAYOUT, 'utf8')) : null;
