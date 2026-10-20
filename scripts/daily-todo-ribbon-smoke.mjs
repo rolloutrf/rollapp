@@ -258,6 +258,23 @@ try{
     }
 
    }
+   const overview=page.locator('.daily-todo__overview');
+   assert(await overview.isVisible(),'Day overview is missing');
+   assert.equal(await page.locator('.daily-todo__empty').count(),empty?1:0,'Empty day state is incorrect');
+   const beforeCalendar=new URL(page.url());
+   await page.getByRole('button',{name:/^Открыть .* в календаре$/}).click();
+   await page.waitForURL(url=>url.searchParams.get('tab')==='calendar'&&url.searchParams.get('view')==='day');
+   const calendarUrl=new URL(page.url());
+   assert.equal(calendarUrl.searchParams.get('date'),beforeCalendar.searchParams.get('date')||'2026-10-16','Calendar lost the selected date');
+   assert.equal(calendarUrl.searchParams.get('space'),beforeCalendar.searchParams.get('space'),'Calendar lost the selected list');
+   assert.equal(calendarUrl.searchParams.get('spaceKind'),'todo','Calendar no longer identifies the To Do list');
+   await page.locator('.schedule[data-view="day"]').waitFor();
+   if(!empty){
+    const event=page.locator('.schedule-event').first();
+    await event.waitFor();
+    const visible=await event.evaluate(el=>{const e=el.getBoundingClientRect(),v=el.closest('[data-slot="scroll-area-viewport"]').getBoundingClientRect();return e.bottom>v.top&&e.top<v.bottom});
+    assert(visible,'All-day To Do task is hidden in the calendar day view');
+   }
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Root horizontal overflow');
    console.log(`PASS ${width}x${height} ${empty?'empty':'tasks'}: dates, scroll, composer`);
   }
