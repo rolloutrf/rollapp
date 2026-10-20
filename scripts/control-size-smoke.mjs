@@ -29,7 +29,7 @@ const browser = await chromium.launch({ executablePath, headless: true, args: pr
 const routes = [
   "/app/wishes?tab=products", "/app/spheres/career?tab=about", "/app/spheres/identity?tab=principles",
   "/app/spheres/education?tab=courses", "/app/spheres/health?tab=medications", "/app/wishes?guest=1",
-  ...["day", "week", "month", "year"].map(view => `/app/planning?tab=calendar&view=${view}&date=2026-10-15`),
+  ...["day", "week", "month", "year"].map(view => `/app/planning?tab=calendar&view=${view}&date=2026-10-15${view === "month" ? "&space=calendar-one" : ""}`),
   "/app/planning?tab=todo&date=2026-10-15", "/app/planning?tab=kanban&space=work",
 ];
 async function geometry(page, label) {
@@ -82,6 +82,27 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
+        if (route.includes("view=day") || route.includes("view=week")) {
+          assert.equal(await page.locator('.schedule-all-day__event').count(), 1, `${label}: all-day task missing from its own row`);
+          assert.equal(await page.locator('.schedule-time-column [data-calendar-event="task-0"]').count(), 0, `${label}: all-day task covers the timed grid`);
+        }
+        if (route.includes("view=month")) {
+          const day = page.locator('.schedule-month__cell[data-date="2026-10-15"]');
+          assert.equal(await day.locator(".schedule-month__event").count(), 2, `${label}: month does not summarize scheduled tasks`);
+          assert.equal(await day.locator(".schedule-month__event").first().locator(".schedule-month__event-time").count(), 0, `${label}: all-day task shows a clock time`);
+          assert.equal(await day.locator(".schedule-more").textContent(), "Ещё 22");
+          assert.equal(await day.locator(".schedule-month__event").first().isVisible(), width >= 768);
+          if (width >= 768) {
+            const more = await day.locator(".schedule-more").boundingBox();
+            const cell = await day.boundingBox();
+            assert(more.y + more.height <= cell.y + cell.height, `${label}: remaining tasks are clipped`);
+          }
+          if ([320, 390, 1024, 1440, 1920].includes(width) && height === 844) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}-month.png` });
+          await page.getByRole("button", { name: /Открыть To Do на/ }).click();
+          await page.waitForURL(url => url.searchParams.get("tab") === "todo" && url.searchParams.get("date") === "2026-10-15" && !url.searchParams.has("space"));
+          await page.goBack();
+          await day.waitFor();
+        }
         if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
         if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
@@ -94,7 +115,7 @@ try {
         await geometry(page, `${label} scrolled`);
         if (route.includes("view=day") || route.includes("/career")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
-          await page.getByRole("button", { name: "Новое событие", exact: true }).click();
+          await page.getByRole("button", { name: "Новая задача в календаре", exact: true }).click();
           const screen = page.locator("[data-mobile-form-page]:visible"); await screen.waitFor();
           const back = screen.getByRole("button", { name: "Назад", exact: true });
           assert.equal((await back.boundingBox()).height, 48, "Native form Back differs from navigation");
