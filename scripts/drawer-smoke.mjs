@@ -8,7 +8,7 @@ import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-drawer-smoke",
-  server: { host: '127.0.0.1', port: smokePort(process.env.DRAWER_PORT), strictPort: false, open: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(process.env.DRAWER_PORT), strictPort: true, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
@@ -23,7 +23,7 @@ const server = await createServer({
   }}],
 });
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 const errors = [];
 async function keyboard(page, height, offsetTop = 0) {
@@ -95,7 +95,7 @@ try {
     page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
     for (const mode of (process.env.DRAWER_MODES ?? 'form,scroll-area,wish,fullscreen').split(',').filter(Boolean)) {
       console.log(`CHECK ${viewport.width} ${mode}`);
-      await page.goto(`${fixtureOrigin}/__drawer-smoke`);
+      await page.goto(`${origin}/__drawer-smoke`);
       const opener = page.getByRole('button', {name:mode,exact:true});
       await opener.waitFor();
       if (mode === 'wish') {
@@ -205,7 +205,7 @@ try {
     }
     if (process.env.DRAWER_REAL_FORMS === '1') {
       for (const [name] of drawerCases.filter(([name]) => !process.env.DRAWER_CASES || process.env.DRAWER_CASES.split(",").includes(name))) {
-        await page.goto(`${fixtureOrigin}/__drawer-smoke?form=${name}`);
+        await page.goto(`${origin}/__drawer-smoke?form=${name}`);
         if (viewport.width < 768) {
           const screen = page.locator('[data-mobile-form-page]:visible');
           await screen.waitFor();

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port:5190,strictPort: false,hmr:false,watch:null},plugins:[{
+const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
   name:'action-rails-fixture',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
@@ -11,7 +11,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke
   });}
 }]});
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
@@ -19,7 +19,7 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic','nested']){
-   await page.goto(`${fixtureOrigin}/__action-rails?variant=${variant}`);
+   await page.goto(`${origin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
    const measure=()=>rail.evaluate(element=>{

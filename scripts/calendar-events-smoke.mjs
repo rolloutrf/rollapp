@@ -44,7 +44,7 @@ try{
   await page.getByRole('button',{name:'Сохранить',exact:true}).click();
   await page.getByText('Задача должна заканчиваться в пределах выбранного дня',{exact:true}).waitFor();
   assert.equal((await state()).writes.length,1,'Invalid midnight schedule saved');await close();
-  await page.getByRole('button',{name:'Новое событие',exact:true}).click();
+  await page.getByRole('button',{name:'Новая задача в календаре',exact:true}).click();
   await page.getByLabel('Название',{exact:true}).fill('Новое событие');
   await page.getByLabel('Начало',{exact:true}).fill('16:00');
   await page.getByLabel('Длительность, минут',{exact:true}).fill('45');
