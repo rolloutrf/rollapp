@@ -76,10 +76,8 @@ export async function runPlanningResponsiveChecks({ origin, token }) {
           await page.locator('.planning-board').evaluate(el => { el.scrollTop = el.scrollHeight; el.scrollLeft = el.scrollWidth; });
           await page.getByRole('button', { name: 'Добавить список', exact: true }).scrollIntoViewIfNeeded();
           await page.locator('.planning-board').evaluate(el => { el.scrollTop = 0; el.scrollLeft = 0; });
-          await page.getByRole('button', { name: /^Архив/ }).click();
-          const archive = await page.locator('.kanban-archive').evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
-          assert(archive.bottom <= height + 1 && archive.clientHeight > 0, `${label}: archive exceeds viewport`);
-          await page.getByRole('button', { name: /^Архив/ }).click();
+          assert.equal(await page.getByRole('button', { name: 'Архив', exact: true }).count(), 0);
+          assert.equal(await page.getByRole('button', { name: 'Скачать Markdown', exact: true }).count(), 0);
         }
         if ([390,768,1440,844].includes(width)) await page.screenshot({ path: `/tmp/rollapp-responsive-${view}-${width}.png`, animations: 'disabled' });
       }

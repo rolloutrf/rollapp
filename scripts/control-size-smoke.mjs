@@ -29,7 +29,7 @@ const browser = await chromium.launch({ executablePath, headless: true, args: pr
 const routes = [
   "/app/wishes?tab=products", "/app/spheres/career?tab=about", "/app/spheres/identity?tab=principles",
   "/app/spheres/education?tab=courses", "/app/spheres/health?tab=medications", "/app/wishes?guest=1",
-  ...["day", "week", "month", "year"].map(view => `/app/planning?tab=calendar&view=${view}&date=2026-10-15`),
+  ...["day", "week", "month", "year", "list"].map(view => `/app/planning?tab=calendar&view=${view}&date=2026-10-15`),
   "/app/planning?tab=todo&date=2026-10-15", "/app/planning?tab=kanban&space=work",
 ];
 async function geometry(page, label) {
@@ -91,6 +91,13 @@ try {
           assert.equal(await page.locator(width < 768 ? ".planning-fab-controls .planning-fab-space" : ".global-app-chrome .planning-fab-space").count(), 1,
             `${label}: planning selector must belong to the desktop header or mobile navigation`);
         }
+        if (route.includes("view=list")) {
+          const event = page.locator('.schedule-agenda__task').first();
+          assert((await event.innerText()).includes('Книга'), `${label}: calendar agenda hides the related item`);
+          await event.click();
+          await page.getByText('Вишлист · Книга', { exact: true }).waitFor();
+          await page.keyboard.press('Escape');
+        }
         if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
         if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
@@ -99,7 +106,7 @@ try {
           for (const element of owners) element.scrollTo({ top: element.scrollHeight, behavior: "instant" });
           return window.scrollY > 0 || owners.some(element => element.scrollTop > 0);
         });
-        if (!route.includes("view=month") && !route.includes("view=year")) assert(scrolled, `${label}: scrolling check did not move a scroll owner`);
+        if (!["view=month", "view=year", "view=list"].some((view) => route.includes(view))) assert(scrolled, `${label}: scrolling check did not move a scroll owner`);
         await geometry(page, `${label} scrolled`);
         if (route.includes("view=day") || route.includes("/career") || route.includes("tab=todo")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : route.includes("tab=todo") ? "todo" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
