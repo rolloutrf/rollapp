@@ -30,12 +30,13 @@ function EventDetails({ task, onAction }) {
   </>;
 }
 function EventPreview({ task, children, className, ...props }) {
-  const { onEdit, busy } = useContext(CalendarActions);
+  const { onEdit, busy, startDrag, endDrag } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
   const interaction = {
     draggable: !busy && !task.recurrence,
     onDoubleClick: () => { setOpen(false); onEdit(task); },
-    onDragStart: (event) => { if (task.recurrence) { event.preventDefault(); return; } setOpen(false); event.dataTransfer.setData("application/x-rollapp-calendar", task.id); event.dataTransfer.effectAllowed = "move"; },
+    onDragStart: (event) => { if (!startDrag(event, task)) return; setOpen(false); },
+    onDragEnd: endDrag,
   };
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={<Button variant="ghost" className={className} {...props} />} {...interaction}>{children}</PopoverTrigger>
@@ -59,7 +60,7 @@ function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
 }
 
 function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
-  const { saveSchedule, dropTask, busy } = useContext(CalendarActions);
+  const { saveSchedule, dropTask, allowDrop, busy } = useContext(CalendarActions);
   const scroll = useRef(null);
   const gesture = useRef(null);
   const skipClick = useRef(0);
@@ -88,19 +89,19 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   const beginRange = (event, date) => {
     if (event.pointerType !== "mouse" || event.button !== 0 || busy) return;
     const column = event.currentTarget.closest(".schedule-time-column");
-    gesture.current = { kind: "range", date, column, first: minuteAt(event, column), y: event.clientY, moved: false };
+    gesture.current = { pointerId: event.pointerId, capture: event.currentTarget, kind: "range", date, column, first: minuteAt(event, column), y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const beginResize = (event, task, delta) => {
-    if (busy) return;
+    if (busy || (!delta && (event.button !== 0 || event.isPrimary === false))) return;
     if (delta) { saveSchedule(task, calendarResize(task, timeMinutes(task.startTime) + task.durationMinutes + delta)); return; }
     event.preventDefault(); event.stopPropagation();
-    gesture.current = { kind: "resize", task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
+    gesture.current = { pointerId: event.pointerId, capture: event.currentTarget, kind: "resize", task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveGesture = (event) => {
     const active = gesture.current;
-    if (!active) return;
+    if (!active || event.pointerId !== active.pointerId) return;
     active.moved ||= Math.abs(event.clientY - active.y) > 4;
     if (!active.moved) return;
     const minute = minuteAt(event, active.column);
@@ -108,9 +109,23 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     active.patch = patch;
     setPreview({ ...patch, date: active.date || active.task.dueOn, id: active.task?.id });
   };
-  const endGesture = () => {
-    const active = gesture.current;
-    gesture.current = null; setPreview(null);
+  const cancelGesture = () => {
+    const active = gesture.current; gesture.current = null; setPreview(null);
+    if (active?.capture.hasPointerCapture(active.pointerId)) active.capture.releasePointerCapture(active.pointerId);
+    return active;
+  };
+  useEffect(() => {
+    const cancel = () => cancelGesture();
+    const key = event => { if (event.key === "Escape" && gesture.current) { event.preventDefault(); cancel(); } };
+    const lost = event => { if (event.pointerId === gesture.current?.pointerId) cancel(); };
+    const visibility = () => { if (document.hidden) cancel(); };
+    window.addEventListener("blur", cancel); document.addEventListener("keydown", key, true);
+    document.addEventListener("lostpointercapture", lost); document.addEventListener("visibilitychange", visibility);
+    return () => { cancel(); window.removeEventListener("blur", cancel); document.removeEventListener("keydown", key, true); document.removeEventListener("lostpointercapture", lost); document.removeEventListener("visibilitychange", visibility); };
+  }, [dateSignature, tasks, busy]);
+  const endGesture = (event) => {
+    if (event.pointerId !== gesture.current?.pointerId) return;
+    const active = cancelGesture();
     if (!active?.moved || !active.patch) return;
     skipClick.current = Date.now() + 150;
     if (active.kind === "range") onCreate({ dueOn: active.date, ...active.patch });
@@ -122,7 +137,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <p className="schedule-caption">Нет свободного получасового слота</p>
       {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <EventPreview key={task.id} task={task}>{label(task.dueOn)} · {task.title}</EventPreview>)}
     </section>}
-    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={() => { gesture.current = null; setPreview(null); }}>
+    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={(event) => { if (event.pointerId === gesture.current?.pointerId) cancelGesture(); }}>
       <div className="schedule-timegrid__head">
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
@@ -140,10 +155,6 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     </div><ScrollBar orientation="horizontal" />
   </ScrollArea>;
 }
-function allowDrop(event) {
-  if (event.dataTransfer.types.includes("application/x-rollapp-calendar")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
-}
-
 export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
   const tasks = sourceTasks;
   const [search, setSearch] = useSearchParams();
@@ -153,6 +164,28 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const mobile = useIsMobile();
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
+  const dragOwner = useRef(null);
+  const endDrag = () => { dragOwner.current = null; };
+  const startDrag = (event, task) => {
+    const source = sourceTasks.find(item => item.id === task.id);
+    if (saving.current || task.recurrence || !source) { event.preventDefault(); return false; }
+    dragOwner.current = source;
+    event.dataTransfer.setData("application/x-rollapp-calendar", task.id);
+    event.dataTransfer.effectAllowed = "move";
+    return true;
+  };
+  const allowDrop = event => {
+    if (!saving.current && dragOwner.current && sourceTasks.includes(dragOwner.current) && event.dataTransfer.types.includes("application/x-rollapp-calendar")) {
+      event.preventDefault(); event.dataTransfer.dropEffect = "move";
+    }
+  };
+  useEffect(() => {
+    endDrag();
+    const visibility = () => { if (document.hidden) endDrag(); };
+    const key = event => { if (event.key === "Escape") endDrag(); };
+    window.addEventListener("blur", endDrag); document.addEventListener("visibilitychange", visibility); document.addEventListener("keydown", key, true);
+    return () => { endDrag(); window.removeEventListener("blur", endDrag); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("keydown", key, true); };
+  }, [selected, view, sourceTasks]);
   const navigate = (date, mode = view) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; });
   const saveSchedule = async (task, patch) => {
     if (saving.current) return;
@@ -167,8 +200,9 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   };
   const dropTask = (event, date, minute, preserveTime = false) => {
     event.preventDefault(); event.stopPropagation();
-    const task = visible.find((item) => item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
-    if (task && !task.recurrence && !busy) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
+    const owner = dragOwner.current; endDrag();
+    const task = owner && sourceTasks.includes(owner) && visible.find((item) => item.id === owner.id && item.id === event.dataTransfer.getData("application/x-rollapp-calendar"));
+    if (task && !task.recurrence && !saving.current) saveSchedule(task, preserveTime ? { dueOn: date } : calendarMove(task, date, minute));
   };
   const dates = view === "year" ? [`${selected.slice(0, 4)}-01-01`, `${selected.slice(0, 4)}-12-31`]
     : view === "week" ? calendarWeek(selected)
@@ -191,7 +225,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}

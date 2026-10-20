@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5298);
 import { checkIdentityChartStability, checkIdentityReportCharts, checkIdentityChartNavigation } from './identity-report-chart-checks.mjs';
 
 const review = process.env.HOGAN_SCALES_REVIEW_LAYOUT ? JSON.parse(await readFile(process.env.HOGAN_SCALES_REVIEW_LAYOUT, 'utf8')) : null;
 const server = await createServer({
   define: { __HOGAN_SCALES_REVIEW__: JSON.stringify(review) },
   cacheDir: 'node_modules/.vite-hogan-scales',
-  server: { host: '127.0.0.1', port: 5298, strictPort: true, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: 'hogan-scales-fixture', configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith('/__hogan-scales')) return next();
@@ -19,7 +20,7 @@ const server = await createServer({
   } }],
 });
 await server.listen();
-const origin = 'http://127.0.0.1:5298';
+const origin = `http://127.0.0.1:${port}`;
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   if (!review) await checkIdentityReportCharts(browser, origin, {navigationOnly:process.argv.includes('--navigation-only'),slowFonts:process.argv.includes('--slow-fonts')});

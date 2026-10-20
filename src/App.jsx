@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.js";
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
@@ -4631,6 +4632,7 @@ function WishesPage({ onAdd, version }) {
   const pointerGhostRef = useRef(null);
   const pointerGhostSizeRef = useRef({ width: 0, height: 0 });
   const suppressOpenRef = useRef(false);
+  const clickGuardCleanupRef = useRef(null);
   const dragSessionRef = useRef(false);
   const dragSourceWishIdRef = useRef(null);
   const dragSourceGroupRef = useRef(null);
@@ -4640,6 +4642,8 @@ function WishesPage({ onAdd, version }) {
   const orderPersistingRef = useRef(false);
   const deferredAuthoritativeOrderRef = useRef(null);
   const removingGroupIdRef = useRef(null);
+  const cancelDragRef = useRef(null);
+  useLayoutEffect(() => { cancelDragRef.current?.(); }, [selectedSpace, selected, openedGroupId, user?.id]);
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get("tab");
     const nextSpace = SPACE_IDS.includes(tab) ? tab : "products";
@@ -4682,6 +4686,9 @@ function WishesPage({ onAdd, version }) {
     clearTimeout(groupTimerRef.current);
     cancelAnimationFrame(pointerAutoScrollFrameRef.current);
     pointerListenerCleanupRef.current?.();
+    clickGuardCleanupRef.current?.();
+    const drag = pointerDragRef.current; pointerDragRef.current = null;
+    if (drag?.captureTarget.hasPointerCapture?.(drag.pointerId)) drag.captureTarget.releasePointerCapture(drag.pointerId);
     pointerGhostRef.current?.remove();
   }, []);
   useLayoutEffect(() => {
@@ -4816,22 +4823,20 @@ function WishesPage({ onAdd, version }) {
   const createPointerGhost = (source, clientX, clientY) => {
     removePointerGhost();
     const rect = source.getBoundingClientRect();
-    const ghost = source.cloneNode(true);
-    ghost.removeAttribute("draggable");
-    ghost.classList.add("wish-card--drag-preview");
+    const ghost = createCardDragPreview(source, "wish-card--drag-preview");
     ghost.style.setProperty("--drag-width", `${rect.width}px`);
-    ghost.style.setProperty("--drag-x", `${clientX - rect.width / 2}px`);
-    ghost.style.setProperty("--drag-y", `${clientY - rect.height / 2}px`);
+    ghost.style.setProperty("--drag-x", `${rect.left}px`);
+    ghost.style.setProperty("--drag-y", `${rect.top}px`);
     document.body.appendChild(ghost);
     pointerGhostRef.current = ghost;
-    pointerGhostSizeRef.current = { width: rect.width, height: rect.height };
+    pointerGhostSizeRef.current = { width: rect.width, height: rect.height, offsetX: clientX - rect.left, offsetY: clientY - rect.top };
   };
   const movePointerGhost = (clientX, clientY) => {
     const ghost = pointerGhostRef.current;
     if (!ghost) return;
-    const { width, height } = pointerGhostSizeRef.current;
-    ghost.style.setProperty("--drag-x", `${clientX - width / 2}px`);
-    ghost.style.setProperty("--drag-y", `${clientY - height / 2}px`);
+    const { offsetX, offsetY } = pointerGhostSizeRef.current;
+    ghost.style.setProperty("--drag-x", `${clientX - offsetX}px`);
+    ghost.style.setProperty("--drag-y", `${clientY - offsetY}px`);
   };
   const persistOrder = (ids) => {
     pendingOrderRef.current = ids;
@@ -4944,8 +4949,7 @@ function WishesPage({ onAdd, version }) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", wishId);
     const rect = event.currentTarget.getBoundingClientRect();
-    const preview = event.currentTarget.cloneNode(true);
-    preview.classList.add("wish-card--native-preview");
+    const preview = createCardDragPreview(event.currentTarget, "wish-card--native-preview");
     preview.setAttribute("aria-hidden", "true");
     preview.style.width = `${rect.width}px`;
     document.body.appendChild(preview);
@@ -4967,8 +4971,7 @@ function WishesPage({ onAdd, version }) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", group.id);
     const rect = event.currentTarget.getBoundingClientRect();
-    const preview = event.currentTarget.cloneNode(true);
-    preview.classList.add("wish-card--native-preview", "wish-group-tile--native-preview");
+    const preview = createCardDragPreview(event.currentTarget, "wish-card--native-preview wish-group-tile--native-preview");
     preview.setAttribute("aria-hidden", "true");
     preview.style.width = `${rect.width}px`;
     document.body.appendChild(preview);
@@ -5234,16 +5237,19 @@ function WishesPage({ onAdd, version }) {
     const end = (event) => endPointerDrag(event);
     const cancel = (event) => cancelPointerDrag(event);
     const visibility = (event) => { if (document.hidden) cancelPointerDrag(event); };
+    const key = (event) => { if (event.key === "Escape") { event.preventDefault(); cancelPointerDrag(event); } };
     window.addEventListener("pointermove", move, { capture: true, passive: false });
     window.addEventListener("pointerup", end, true);
     window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", key, true);
     document.addEventListener("visibilitychange", visibility);
     pointerListenerCleanupRef.current = () => {
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", end, true);
       window.removeEventListener("pointercancel", cancel, true);
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", key, true);
       document.removeEventListener("visibilitychange", visibility);
     };
   };
@@ -5251,7 +5257,8 @@ function WishesPage({ onAdd, version }) {
     if (!drag || pointerDragRef.current !== drag || drag.active) return;
     try { drag.captureTarget.setPointerCapture?.(drag.pointerId); } catch {}
     drag.active = true;
-    suppressOpenRef.current = true;
+    clickGuardCleanupRef.current?.();
+    clickGuardCleanupRef.current = guardDragClick(suppressOpenRef, drag.pointerId);
     if (drag.kind === "group") beginGroupDragSession(drag.group);
     else beginDragSession(drag.wishId, drag.group);
     createPointerGhost(drag.source, drag.startX, drag.startY);
@@ -5262,7 +5269,9 @@ function WishesPage({ onAdd, version }) {
     const pointerType = event.pointerType || "mouse";
     if (!event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.(".wish-card__open, [data-wish-drag-handle]")) return;
+    if (pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
+    suppressOpenRef.current = false;
     const drag = { wishId, group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
     pointerDragRef.current = drag;
     clearTimeout(pointerTimerRef.current);
@@ -5281,7 +5290,9 @@ function WishesPage({ onAdd, version }) {
     const pointerType = event.pointerType || "mouse";
     if (!event.isPrimary || event.button !== 0 || !group) return;
     if (!event.target.closest?.(".wish-group-tile__open, [data-wish-group-drag-handle]")) return;
+    if (pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
+    suppressOpenRef.current = false;
     const drag = { kind: "group", group, pointerId: event.pointerId, pointerType, startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY, active: false, source: event.currentTarget, captureTarget: event.currentTarget.closest(".wish-grid") || event.currentTarget };
     pointerDragRef.current = drag;
     clearTimeout(pointerTimerRef.current);
@@ -5459,6 +5470,7 @@ function WishesPage({ onAdd, version }) {
   const endPointerDrag = (event) => {
     const drag = pointerDragRef.current;
     if (!drag || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    if (drag.active && (drag.clientX !== event.clientX || drag.clientY !== event.clientY)) updatePointerDragPosition(drag, event.clientX, event.clientY);
     clearTimeout(pointerTimerRef.current);
     clearPointerListeners();
     pointerDragRef.current = null;
@@ -5470,31 +5482,33 @@ function WishesPage({ onAdd, version }) {
     const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
     const wishId = wishCard?.dataset.groupWishId;
     const targetGroupId = wishCard?.dataset.wishGroupId || null;
+    const insideGrid = element && drag.captureTarget.contains(element);
+    if (!insideGrid) { finishDrag({ persist: false, restore: true }); return; }
     if (drag.kind === "group") {
       if (groupId && groupId !== drag.group.id) reorderGroup(drag.group.id, { kind: "group", id: groupId });
       else if (wishId && !(drag.group.wishIds || []).includes(wishId) && !targetGroupId) reorderGroup(drag.group.id, { kind: "wish", id: wishId });
-      if (orderDirtyRef.current) finishDrag();
+      const validDrop = Boolean((groupId && groupsById.has(groupId)) || (wishId && !targetGroupId));
+      if (validDrop && orderDirtyRef.current) finishDrag();
       else finishDrag({ persist: false, restore: true });
-      setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
       return;
     }
     const dragGroupId = drag.group?.id || null;
-    const hoverGroupTarget = drag.hoverTarget?.startsWith("group:")
-      ? drag.hoverTarget.slice("group:".length)
-      : armedDropTargetRef.current;
+    const hoverGroupTarget = drag.hoverTarget === `group:${armedDropTargetRef.current}`
+      ? armedDropTargetRef.current : null;
     const hoveredGroupId = hoverGroupTarget?.startsWith("group:") ? hoverGroupTarget.slice("group:".length) : null;
     const hoveredWishId = hoverGroupTarget?.startsWith("wish:") ? hoverGroupTarget.slice("wish:".length) : null;
     if (dragGroupId && targetGroupId === dragGroupId && wishId && (wishId !== drag.wishId || orderDirtyRef.current)) finishDrag();
     else if (dragGroupId) finishDrag({ persist: false, restore: true });
     else if (hoveredGroupId) addToGroup(drag.wishId, hoveredGroupId);
     else if (hoveredWishId && hoveredWishId !== drag.wishId) createGroup(drag.wishId, hoveredWishId);
-    else if (wishId && wishId !== drag.wishId) {
+    else if (!groupId && !targetGroupId && dragScopeRef.current?.wishIds?.has(wishId) && wishId !== drag.wishId) {
       reorderWish(drag.wishId, wishId);
       finishDrag();
     }
     else if (wishId === drag.wishId && orderDirtyRef.current) finishDrag();
     else finishDrag({ persist: false, restore: true });
-    setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
   };
   const cancelPointerDrag = (event) => {
     const drag = pointerDragRef.current;
@@ -5506,12 +5520,16 @@ function WishesPage({ onAdd, version }) {
     if (!drag.active) return;
     event.preventDefault();
     finishDrag({ persist: false, restore: true });
-    setTimeout(() => { suppressOpenRef.current = false; }, 0);
+
+  };
+  cancelDragRef.current = () => {
+    cancelPointerDrag({ preventDefault() {} });
+    if (dragSessionRef.current) finishDrag({ persist: false, restore: true });
   };
   const renderWish = (wish, group = null) => {
     const dragEnabled = !group || !removingGroupId;
     return <WishCard key={wish.id} wish={wish} owner profile={user} lists={data.lists} draggable={dragEnabled} nativeDraggable={dragEnabled} dragGroupId={group?.id} groupBusy={Boolean(group && removingGroupId)} groupOptions={group ? [] : groups} onCreateGroup={!group && groupingListId ? () => createGroup(wish.id) : undefined} onAddToGroup={!group && groupingListId ? (groupId) => addToGroup(wish.id, groupId) : undefined} isDragging={draggedWishId === wish.id} isDropTarget={!group && dropTarget === `wish:${wish.id}`} onDragStart={(event) => startNativeDrag(event, wish.id, group)} onDragEnd={() => finishDrag({ persist: false, restore: true })} onDragOver={(event) => allowNativeWishDrop(event, wish.id, group?.id || null)} onDragLeave={leaveNativeDropTarget} onDrop={(event) => dropNativeOnWish(event, wish.id, group?.id || null)} onPointerDown={(event) => { if (!group || !removingGroupId) beginPointerDrag(event, wish.id, group); }} onRemoveFromGroup={group ? () => removeWishFromGroup(wish.id, group) : undefined} onChanged={refreshWishes} onOpen={() => {
-    if (suppressOpenRef.current) return;
+    if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
     setSelectedWishId(wish.id);
   }} onEdit={() => editWish(wish.id)} onCreateList={() => setListModal({ attachWishId: wish.id })} />;
   };
@@ -5525,7 +5543,7 @@ function WishesPage({ onAdd, version }) {
     isDragging={draggedGroupId === group.id}
     isDropTarget={dropTarget === `group:${group.id}`}
     onOpen={(event) => {
-      if (suppressOpenRef.current) return;
+      if (suppressOpenRef.current) { suppressOpenRef.current = false; return; }
       groupOpenerRef.current = event.currentTarget;
       setOpenedGroupId(group.id);
     }}

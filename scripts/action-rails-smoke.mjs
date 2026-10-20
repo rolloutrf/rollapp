@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port:5190,strictPort:true,hmr:false,watch:null},plugins:[{
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5190);
+const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port,strictPort:true,hmr:false,watch:null},plugins:[{
   name:'action-rails-fixture',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
@@ -17,7 +18,7 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic','nested']){
-   await page.goto(`http://127.0.0.1:5190/__action-rails?variant=${variant}`);
+   await page.goto(`http://127.0.0.1:${port}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
    const measure=()=>rail.evaluate(element=>{

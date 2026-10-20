@@ -1,0 +1,262 @@
+{
+  "commit": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+  "dirty": true,
+  "initialDirty": false,
+  "status": "drag-scenarios-passed; comprehensive-incomplete",
+  "sourceSHA256": {
+    "package.json": "85f629a479a55df3fbe732799ec0b629461634a2bc38fedbbaed19c3a2c72008",
+    "scripts/action-rails-smoke.mjs": "d866686b15ed705d0c82d9c34e6e3f534674cd44a6581f16f334f213bba59a23",
+    "scripts/browser-runtime.mjs": "692c7a775428a5a773b9f48615cc7bad4416df19ca08e1ab89db17943791098c",
+    "scripts/check-comprehensive.mjs": "947a9c7bd9eea281e9c5533f91f3580e7c869bf2b9a5d2bd05bad4d9558aae47",
+    "scripts/control-size-smoke.mjs": "fbe047b4f69c064f555d28f07fb0e4a7567b9ff3c1ec4903065c9f4f390d5b42",
+    "scripts/daily-todo-ribbon-smoke.mjs": "31274734f2949ab25baf314c7c0f403ee2f62747c7900522d05dff4be6f4e874",
+    "scripts/date-picker-pages-smoke.mjs": "c74119c1212fe923eb912c8523a1e9a3fac765d233ee25bf744297473b62bcde",
+    "scripts/detail-actions-smoke.mjs": "9823abaadf5a8e33c3a66dfa3e69ab49df22e391391dc230eca56b00d0802d63",
+    "scripts/drag-drop-smoke.mjs": "797aa18d2db93bc5d080589ac617b72240a1d9c8a0971d7ad27d9c790017a617",
+    "scripts/drawer-smoke.mjs": "aa134ae43f9094bad32d20b0a28462b35d1825a4078e8863ea97aebf6b232272",
+    "scripts/fixtures/drag-drop.jsx": "48f1819c94d83ac0999266e18ba48235b486522efccc3927cd299ab0c0d380d3",
+    "scripts/fixtures/text-edit.jsx": "d3f6d89c93f2bbedec22ed31f2037db3dd17c22466060ce9c49808e1bfcef601",
+    "scripts/form-actions-smoke.mjs": "621dfcaad31af5a9a74776e6ee31f28c8a1ed2f780834d1c3fff4d9764cbe4d8",
+    "scripts/hogan-scales-smoke.mjs": "19a0712c636eb9c80e9e7df754f651facb3a0a69fe834ee3a412ef1d838b9e17",
+    "scripts/identity-reports-smoke.mjs": "113e77a5c8e543176fd6838a20e3b67da96cc49255f4d5be2a19d492cb79fddc",
+    "scripts/kanban-drag-smoke.mjs": "f36fe60b2d63e9a38f37d296303b4af54c9e3408eed93679c1751e5fb11d4093",
+    "scripts/mobile-catalog-page-smoke.mjs": "e72132f29e854c66574d4b7c4ecbd88ed6783113cd21c96612dbce2991e66eae",
+    "scripts/mobile-form-pages-smoke.mjs": "26c58cfaf1fc3f44bbeb42866544d6f6a4f249a0580b123d5b2f5852352f2e18",
+    "scripts/mobile-navigation-smoke.mjs": "68cbff514dfd24fdd39cbd03260a918dca7d104d4510ed28caba5740524b6793",
+    "scripts/text-edit-smoke.mjs": "98bbb63138750a5e6eab48d59b706708bda94c556ceac870017bb83981c795cd",
+    "scripts/wish-group-names-smoke.mjs": "e16eacc79be658d75b6bfce7a0418b9a3dec49c9e6f59da26d0793e0329eb14b",
+    "src/App.jsx": "a1fd75bc545d52daaf29bf750aac69ac49a61e21219db50aed4955aa9132e528",
+    "src/components/card-drag-handle.jsx": "4687dd2d088970f3b9cc6e522f259176018e69d63ecdc0c625afd49753e290e4",
+    "src/components/coaching-sessions.jsx": "f926f0ec56b1c1d27f7e6346caa23009df667baa81ff739da541860d5b1d7341",
+    "src/components/conferences.jsx": "cfd1bb9ba64191df505a03aa5a82fcc8ba51bde3a569fcb12fd6101a8f541e65",
+    "src/components/courses.jsx": "d4fafa4953cfee777c9bf87219aa97bbda1b56385ebbe572d9853cac32e0d038",
+    "src/components/planning-calendar.jsx": "d3d503c946b0e585034d7d991d16dc35c0bdf30d3119b249c0b235b8f408f006",
+    "src/components/planning-kanban.jsx": "4ca7e1b2e83617a3ccedfd539bcbde019d10a3ed3154a5bf9032414181682372",
+    "src/components/workouts.jsx": "5b8bf179c87202e3581ba5790e2420555054f397d4c9ccb2e330aa10348504b8",
+    "src/hooks/use-card-reorder.js": "ac5c4bb7d6fc6ef1fbf3737452098a6237d452b065c1390e4265c1bee6c4f590",
+    "src/hooks/use-wish-reorder.js": "f3edbd4c8b8cc5a2d7520a6619011fdb0937b5fe0172be277d8bc597a93f28e7",
+    "src/lib/card-drag-preview.js": "10c0376122557563248e6ff684d68bbbf2e55b7840c2495be94bd278ee7f6dd2",
+    "src/styles.css": "5f3b4d0de18a772f0462d4ab323dde2620546ba8f52ad39504bded0427692bb1"
+  },
+  "unit": {
+    "exitCode": 0,
+    "passed": 715,
+    "skipped": 1,
+    "failed": 0
+  },
+  "shadcn": {
+    "exitCode": 0,
+    "primitives": 37,
+    "jsxSources": 75
+  },
+  "applicationMatrices": {
+    "commit": "d116857ce0aadfeb4e1258fdb1a3ae2abf5e958f",
+    "dirty": true,
+    "startedAt": "2026-10-19T22:09:06.197Z",
+    "status": "failed",
+    "reason": "Complete independent full matrices after fail-fast comprehensive timeouts; no assertions or cases skipped.",
+    "checks": [
+      {
+        "name": "test:form-actions",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:09:06.198Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:10:57.200Z"
+      },
+      {
+        "name": "test:text-edit",
+        "status": "failed",
+        "startedAt": "2026-10-19T22:10:57.200Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-19T22:26:27.354Z"
+      },
+      {
+        "name": "test:kanban",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:26:27.354Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:27:08.436Z"
+      },
+      {
+        "name": "test:drag-drop",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:27:08.436Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:28:59.834Z"
+      },
+      {
+        "name": "build",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:28:59.834Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:29:01.884Z"
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:29:01.884Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:29:44.182Z"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:29:44.182Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:30:28.550Z"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "failed",
+        "startedAt": "2026-10-19T22:30:28.551Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-19T22:40:31.763Z"
+      },
+      {
+        "name": "test:todo",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:40:31.763Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:40:58.241Z"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:40:58.241Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:42:16.612Z"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:42:16.612Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:42:31.618Z"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:42:31.618Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T22:42:50.461Z"
+      },
+      {
+        "name": "test:drawers",
+        "status": "failed",
+        "startedAt": "2026-10-19T22:42:50.461Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-19T22:59:53.856Z"
+      },
+      {
+        "name": "test:dates",
+        "status": "passed",
+        "startedAt": "2026-10-19T22:59:53.856Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:00:24.171Z"
+      }
+    ],
+    "finishedAt": "2026-10-19T23:00:24.171Z"
+  },
+  "identityRetry": {
+    "command": "npm run test:identity-reports",
+    "filter": null,
+    "startedAt": "2026-10-19T23:39:36.190Z",
+    "finishedAt": "2026-10-19T23:40:34.076Z",
+    "exitCode": 0
+  },
+  "fullEditorRetry": {
+    "command": "npm run test:text-edit",
+    "filter": null,
+    "startedAt": "2026-10-19T23:00:24.315Z",
+    "finishedAt": "2026-10-19T23:20:08.282Z",
+    "exitCode": 1
+  },
+  "nativeEditorMatrices": {
+    "status": "failed",
+    "reason": "Full editor retry failed; verify all native drag matrices independently without width filters, not a replacement claim for the full editor suite.",
+    "checks": [
+      {
+        "flag": "--list-drag-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:20:08.964Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:20:15.933Z"
+      },
+      {
+        "flag": "--drag-guards-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:20:15.933Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:20:21.517Z"
+      },
+      {
+        "flag": "--table-handles-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:20:21.517Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:20:44.853Z"
+      },
+      {
+        "flag": "--table-axis-guards-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:20:44.853Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:20:56.384Z"
+      },
+      {
+        "flag": "--table-wide-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:20:56.384Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:21:03.872Z"
+      },
+      {
+        "flag": "--column-contexts-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:21:03.872Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:21:13.883Z"
+      },
+      {
+        "flag": "--relocation-depth-only",
+        "status": "passed",
+        "startedAt": "2026-10-19T23:21:13.883Z",
+        "exitCode": 0,
+        "finishedAt": "2026-10-19T23:21:17.412Z"
+      },
+      {
+        "flag": "--image-resize-only",
+        "status": "failed",
+        "startedAt": "2026-10-19T23:21:17.412Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-19T23:39:35.843Z"
+      }
+    ]
+  },
+  "imageResizeFullRunPassedCases": [
+    "PASS image resize 320x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 390x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 390x400: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 768x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 820x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 1024x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 1440x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors",
+    "PASS image resize 1920x844: native edge/touch capture, proportional preview, eight cancel guards, keyboard/parent/chrome/panned viewport bounds, five nested owners, protected questions/draft/retry/public read, exact Undo/Redo and no frames/API/errors"
+  ],
+  "productionPlanning": {
+    "passed": 2,
+    "failed": 0,
+    "rollbackOnly": true
+  },
+  "audit": {
+    "developmentHigh": 7,
+    "productionVulnerabilities": 0
+  },
+  "limits": [
+    "Full text-edit and fail-fast comprehensive did not exit successfully: fixture module/navigation timeouts.",
+    "The individual image-resize repeat timed out on fixture navigation before 1920; the earlier full run passed all eight image resize cases on the same application code.",
+    "Physical iOS/Android touch and real-device IME were not verified.",
+    "Complex editor clipboard/reader compositions outside the completed drag matrices remain unverified.",
+    "No deployment or persistent production reordering was performed."
+  ]
+}
