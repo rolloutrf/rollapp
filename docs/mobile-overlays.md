@@ -227,7 +227,16 @@ the document remains the only vertical scroll owner. Do not wrap the entire edit
 in another `ScrollArea` or restore a sticky footer inside its fields.
 
 The profile header places avatar, name and favorite in separate grid columns.
-Photo actions wrap in a named group below it; removal is labelled “Удалить фото”.
+The avatar (including its empty placeholder) is a keyboard-accessible button that
+opens the existing authenticated file upload. Separate upload/social-import buttons
+are not rendered. Complete supported social URLs trigger a debounced photo lookup
+without requiring blur when no photo is present; existing/manually selected photos
+are preserved. Changed links, manual uploads and unmount invalidate pending results;
+unused assets from late results are released. Public-photo failures remain visible.
+Removal is labelled “Удалить фото” in the named photo group below the header.
+`node scripts/contact-photo-smoke.mjs` checks automatic lookup, stale responses,
+manual replacement and native mouse/keyboard file selection at eight viewports,
+using explicit fixture transport and rejecting unrelated API requests.
 The body owns section spacing with `--layout-page-gap`. The full editor fixture
 includes its actual right-hand Drawer, close toolbar and photo state.
 `test:form-actions` checks header collisions, distinct delete labels, desktop
