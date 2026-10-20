@@ -38,6 +38,7 @@
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
+| `npm run test:contacts` | Бесконечная лента реального ContactsSpherePage: добавление страниц без перемонтирования, ошибка/повтор, конец списка, кадры прокрутки при избранном, отказ сохранения, фильтры и устаревшие ответы; 320–1920px и короткий desktop. Только явный UI transport, реальные API запрещены. |
 | `npm run test:wish-groups` | Реальные карточки групп Wishlist: троеточие в длинных названиях, границы текста и счётчика, клавиатура, отмена переименования, owner/read-only на полной матрице |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
@@ -356,3 +357,26 @@ Native focus restoration is synchronous for model-owned image/cell/block selecti
 Inline Markdown storage preserves marks on every character, including selected edge spaces and adjacent differently styled runs. Explicitly removed links and literal ++ delimiters stay literal after reload; normal Markdown imports keep their existing syntax. Rich list-item child blocks (extra paragraphs, dividers, headings, code and media) retain their own structure through canonical HTML instead of compact continuation lines. Native style checks include actual formatting/unlink/typing, independent Undo/Redo, exact editor reload/public reading at eight viewports. Model tests compare whitespace marks rather than discarding them.
 
 Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action and flushes only the owning document queue. React capture keeps portal ownership local to each InlineRichTextEditor; key events inside the editable DOM retain ProseMirror native input/mutation handling. Saving a document does not apply or close an unconfirmed link form. The native style matrix checks two simultaneously dirty editors and pending metadata on all eight viewports.
+
+
+## Лента контактов
+
+Контакты загружаются порциями по 48 с автоматической подгрузкой в пределах
+500px от нижнего края. Кнопка «Загрузить ещё» сохраняет ручной/клавиатурный доступ;
+ошибка следующей страницы не убирает уже загруженные карточки и требует явного
+повтора. Конец списка убирает подгрузку. Поиск/компания/направление/избранное/владелец
+начинают новую ленту; ответы предыдущей ленты не могут добавить карточки.
+
+Лента запрашивает `order=source`: избранное меняет звезду и счётчик на месте,
+без перемещения карточки, перезагрузки сетки и команды прокрутки. Старый API-порядок
+с избранным в начале сохраняется для клиентов без этого параметра. В фильтре
+избранного удаление обновляет загруженный диапазон в фоне для корректных смещений.
+`test:contacts` входит в `check:comprehensive`.
+
+При одновременной работе нескольких checkout назначать свободные собственные
+`PORT` (API) и `ROLLAPP_DEV_FRONTEND_PORT` (Vite) в игнорируемом окружении этой
+checkout, не меняя общий файл через symlink. Dev API и manifest proxy используют
+`PORT` (по умолчанию 8080); browser-facing Host сохраняется для CSRF. Проверять
+оба реальных listener и `dev:keepalive:status`, а затем содержимое раздела:
+успешный health другого процесса на общих портах не доказывает готовность этой
+checkout. Не завершать чужие сервисы ради освобождения порта.

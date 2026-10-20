@@ -166,3 +166,14 @@ test("deleted contact overrides hide imported and user-created contacts", () => 
   assert.equal(result.contacts.some((contact) => contact.id === customId), false);
   assert.equal(result.facets.companies.reduce((sum, item) => sum + item.count, 0), 1658);
 });
+
+test("source-ordered contact pages stay stable when favorites change", () => {
+  const before = [1, 2, 3].map((page) => listContacts({ page, order: "source" }));
+  const favorites = [before[1].contacts[12].id, before[2].contacts[5].id];
+  const after = [1, 2, 3].map((page) => listContacts({ page, order: "source" }, [], favorites));
+  assert.deepEqual(after.flatMap((page) => page.contacts.map(({ id }) => id)), before.flatMap((page) => page.contacts.map(({ id }) => id)));
+  assert.equal(after[1].contacts[12].favorite, true);
+  assert.equal(after[2].contacts[5].favorite, true);
+  assert.equal(after[0].favoriteTotal, 2);
+  assert.deepEqual(listContacts({ favoriteOnly: true, order: "source" }, [], favorites).contacts.map(({ id }) => id), favorites);
+});

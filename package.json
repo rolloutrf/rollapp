@@ -42,6 +42,7 @@
     "test:kanban": "node scripts/kanban-drag-smoke.mjs",
     "test:todo": "node scripts/daily-todo-ribbon-smoke.mjs",
     "test:form-pages": "node scripts/mobile-form-pages-smoke.mjs",
+    "test:contacts": "node scripts/contacts-feed-smoke.mjs",
     "test:catalog-page": "node scripts/mobile-catalog-page-smoke.mjs",
     "test:wish-groups": "node scripts/wish-group-names-smoke.mjs",
     "check": "npm run check:release",
