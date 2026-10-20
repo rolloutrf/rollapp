@@ -47,7 +47,7 @@
 .schedule-event { display: flex; width: 100%; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; overflow: hidden; white-space: normal; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-foreground); cursor: grab; }
 .schedule-event:active { cursor: grabbing; }
 .schedule-event-wrap[style] > .schedule-event { height: 100%; padding-block-end: 20px; }
-.schedule-event__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.schedule-event__title { flex-shrink: 0; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 /* Dense calendar summaries use the shared caption role, with compact targets in date grids. */
 .schedule-event--compact { flex-direction: row; align-items: center; gap: 6px; min-block-size: 32px; min-inline-size: 0; padding: 4px 6px; }
 .schedule-event--compact .schedule-event__title { -webkit-line-clamp: 1; font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
@@ -153,3 +153,9 @@
 }
 
 .schedule-toolbar { padding-block-start: var(--layout-screen-top); }
+
+/* Short appointments retain their actual duration and a readable title. */
+.schedule-event-wrap[data-compact] > .schedule-event { height: 100%; min-block-size: 0; padding: 2px 28px 2px 6px; }
+.schedule-event--compact .schedule-event__title { min-width: 0; flex-shrink: 1; }
+.schedule-event-wrap[data-compact] > .schedule-resize { left: auto; right: 0; width: 24px; }
+.schedule-event-wrap[data-compact] > .schedule-resize > span { width: 12px; }

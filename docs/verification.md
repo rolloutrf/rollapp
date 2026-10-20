@@ -30,7 +30,7 @@
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
 | `npm run test:text-edit` | Полная матрица inline-документов: ввод без рамок, selection toolbar, блоки/группы, символы, стили/цвета, save/reload, очереди/draft/retry и доступ. Включает native clipboard и буквальные Markdown/HTML/whitespace в строчном коде, отдельный Undo и сохранение соседей; единый редактор четырёх ответов со сквозными диапазонами, фиксированными вопросами и общей историей. Block-colour матрица включает slash/palette, группы/ячейки/диапазоны через ответы, пустой блок/Enter/type, exact reload/public read, HTML clipboard, draft/retry, общий browser preference и его отказ, read-only/viewport. Slash-матрица проверяет команды в существующем тексте, middle-of-line/Shift+Enter, dismissal/clipboard/history guards, атомарные duplicate/delete/type, cell/four-answer scope и panning. Табличная матрица включает команды, merge/split, native resize, spans/ширины/вложенные блоки, public read, draft/retry и отзыв доступа во время drag. Контракт: `docs/inline-editing.md` |
-| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, production build; этот же набор обязателен в CI |
+| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, production build; этот же набор обязателен в CI |
 | `npm run check:comprehensive` | Release-набор плюс все расширенные UI-проверки ниже; без запросов к API/БД |
 | `npm run test:navigation` | Верхняя/нижняя навигация, полноширинные меню, safe area, короткий экран и клавиатура |
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
@@ -41,6 +41,7 @@
 | `npm run test:wish-groups` | Реальные карточки групп Wishlist: троеточие в длинных названиях, границы текста и счётчика, клавиатура, отмена переименования, owner/read-only на полной матрице |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
+| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
 | `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом |
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
@@ -335,3 +336,28 @@ Native focus restoration is synchronous for model-owned image/cell/block selecti
 Inline Markdown storage preserves marks on every character, including selected edge spaces and adjacent differently styled runs. Explicitly removed links and literal ++ delimiters stay literal after reload; normal Markdown imports keep their existing syntax. Rich list-item child blocks (extra paragraphs, dividers, headings, code and media) retain their own structure through canonical HTML instead of compact continuation lines. Native style checks include actual formatting/unlink/typing, independent Undo/Redo, exact editor reload/public reading at eight viewports. Model tests compare whitespace marks rather than discarding them.
 
 Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action and flushes only the owning document queue. React capture keeps portal ownership local to each InlineRichTextEditor; key events inside the editable DOM retain ProseMirror native input/mutation handling. Saving a document does not apply or close an unconfirmed link form. The native style matrix checks two simultaneously dirty editors and pending metadata on all eight viewports.
+
+
+Календарные события: расчётные получасовые слоты существуют только в представлении.
+Открытие редактора берёт исходную запись (для повтора — исходную серию), сохраняет
+пустое время и исходную длительность. Явные события от 15 минут имеют точную высоту
+и границы пересечения; короткие карточки показывают название и начало в одной
+строке с общей caption-типографикой. Отмена resize/range через Escape, потерю
+pointer capture/фокуса, смену периода или расписания не сохраняет изменения и
+не открывает форму через последующий click. `test:calendar` дополняет rollback-only
+API-проверку, не заменяет её и не подменяет production базу.
+
+
+Loopback-серверы browser smoke используют предпочтительный порт и при его
+занятости выбирают следующий свободный через Vite. URL строится только из
+фактического `server.httpServer.address().port` после `listen()`: проверка не
+должна случайно читать fixture другой рабочей копии или останавливать её процесс.
+Это не меняет production API или матрицы. Изолированные копии с общим
+`node_modules` по-прежнему требуют отдельного Vite cacheDir. Тайм-аут холодной
+навигации control/calendar smoke — 90 секунд; геометрия и пиксельные проверки
+не ослабляются.
+
+Для перегруженного хоста `ROLLAPP_TEST_CONCURRENCY=1 npm run check:comprehensive`
+снижает параллелизм unit runner, сохраняя полный список тестов и все browser
+матрицы. По умолчанию используется штатный параллелизм Node. Новый `test:calendar`
+проверяет touch resize через Chromium CDP; это не проверка реального телефона.
