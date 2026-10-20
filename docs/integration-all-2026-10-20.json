@@ -1,7 +1,7 @@
 {
   "date": "2026-10-20",
   "testedCommit": "2a6aa7e328f4a42ed04c51381595feab9d557dc6",
-  "snapshotCount": 25,
+  "snapshotCount": 26,
   "snapshots": [
     {
       "path": "/Users/mokoloskov/Desktop/Git/rollout/rollapp",
@@ -197,6 +197,11 @@
       "name": "mobile-viewport",
       "branch": "codex/snapshot-20261020-mobile-viewport",
       "sha": "b29d42c93b433107eb65efae42ea73e4d132f314"
+    },
+    {
+      "name": "viewport-contract",
+      "branch": "codex/snapshot-20261020-viewport-contract",
+      "sha": "f461c5f1773dafcf4ce2ac2aa2398d8dbd2ad3e5"
     }
   ],
   "unit": {
@@ -224,7 +229,7 @@
     "Combine editor file-transfer, link-intent and quote-mark fixes from duplicate cherry-pick branches.",
     "Unify smoke-server ownership, preserve control paint assertions and reconcile calendar action labels."
   ],
-  "verificationStatus": "777 unit pass; build, drag-drop, contact-notes, production planning passed; comprehensive editor and final navigation running at report",
+  "verificationStatus": "unit/build/navigation/drag-drop/contact-notes/production-planning passed; comprehensive failed in editor fixture, corrected preoptimization and full images-only retry passed; full comprehensive not repeated after fixture fix",
   "dragDropFinal": {
     "passedGroups": 80,
     "viewportCount": 8,
@@ -289,7 +294,7 @@
   },
   "initialComprehensiveFailure": "Old calendar button label; corrected in 2a6aa7e. Retried controls/details/dates/calendar/form-actions passed before editor stage.",
   "limitations": [
-    "Full text editor/comprehensive matrix has not finished at this snapshot.",
+    "Full text editor/comprehensive matrix not green; last attempt failed before the fixture preoptimization fix, only full images-only retried afterward.",
     "Physical mobile devices and real-device IME were not reverified.",
     "Deployment and production SHA were not verified.",
     "Other chats may author further changes after the saved snapshots."
@@ -305,7 +310,79 @@
   "lateViewportCommit": "b541264",
   "testedUnitCommit": "213f8b42f24f8e57a48d8193a877273a1e8fadf2",
   "lateChanges": [
-    "useIsMobile now follows CSS matchMedia rather than innerWidth; full navigation regression running separately.",
+    "useIsMobile follows CSS matchMedia; complete navigation matrix and forced innerWidth regression passed.",
     "Latest smokeMode argument guard and diagnostic commit merged; unit suite rerun with 777 passed."
-  ]
+  ],
+  "integrationCommitBeforeFinalReport": "662c5a086fc3b77a556fb06d2db0a1535b436085",
+  "comprehensiveFinalAttempt": {
+    "status": "failed",
+    "startedAt": "2026-10-20T07:00:26.905Z",
+    "commit": "2a6aa7e328f4a42ed04c51381595feab9d557dc6",
+    "dirty": false,
+    "node": "v22.22.3",
+    "checks": [
+      {
+        "name": "check:release",
+        "status": "failed",
+        "startedAt": "2026-10-20T07:00:26.950Z",
+        "exitCode": 1,
+        "finishedAt": "2026-10-20T07:10:44.346Z",
+        "durationMs": 617395
+      },
+      {
+        "name": "test:navigation",
+        "status": "not-run"
+      },
+      {
+        "name": "test:action-rails",
+        "status": "not-run"
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "not-run"
+      },
+      {
+        "name": "test:todo",
+        "status": "not-run"
+      },
+      {
+        "name": "test:form-pages",
+        "status": "not-run"
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "not-run"
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "not-run"
+      },
+      {
+        "name": "test:drawers",
+        "status": "not-run"
+      },
+      {
+        "name": "test:contacts",
+        "status": "not-run"
+      }
+    ],
+    "finishedAt": "2026-10-20T07:10:44.349Z"
+  },
+  "navigationFinal": {
+    "exitCode": 0,
+    "viewportWidths": 9,
+    "mismatchedInnerWidthRegression": "393 -> 820 -> 390; passed"
+  },
+  "editorImagesAfterFixtureFix": {
+    "exitCode": 0,
+    "fileTransferViewportCases": 8,
+    "inlineImageViewportCases": 8,
+    "passGroups": 16
+  },
+  "comprehensiveFailure": {
+    "stage": "test:text-edit image transfer fixture initialization",
+    "symptom": "Vite optimized Select mid-run, then React invalid hook call and textbox initialization timeout",
+    "fixtureFix": "Preoptimize all 22 actual Base UI subpaths before navigation",
+    "followup": "images-only passed all 16 viewport groups; not a full editor/comprehensive pass"
+  }
 }
