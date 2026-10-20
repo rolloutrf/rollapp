@@ -1,3 +1,5 @@
+import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
+import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from "./smoke-browser-diagnostics.mjs";
 import { smokeMode } from "./smoke-mode.mjs";
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
@@ -54,7 +56,7 @@ import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = smokePort(process.env.TEXT_EDIT_PORT);
 const only = smokeMode(process.argv.slice(2), ["--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
-const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", "@base-ui/react/accordion", "@base-ui/react/alert-dialog", "@base-ui/react/avatar", "@base-ui/react/button", "@base-ui/react/checkbox", "@base-ui/react/dialog", "@base-ui/react/drawer", "@base-ui/react/input", "@base-ui/react/menu", "@base-ui/react/merge-props", "@base-ui/react/popover", "@base-ui/react/radio", "@base-ui/react/radio-group", "@base-ui/react/scroll-area", "@base-ui/react/select", "@base-ui/react/separator", "@base-ui/react/switch", "@base-ui/react/tabs", "@base-ui/react/toggle", "@base-ui/react/toggle-group", "@base-ui/react/tooltip", "@base-ui/react/use-render", "@base-ui/react", "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/api.js')) {
@@ -89,7 +91,7 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
 }] });
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
-const browser = await chromium.launch(browserLaunchOptions());
+const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 try {
   if(only === "--paste-history-diagnostic") await checkCrossClipboard(browser,origin,true);
   if(!only || only === "--quote-styles-only") await checkQuoteStyles(browser,origin);
@@ -604,6 +606,7 @@ try {
     console.error("ORIGINAL ERROR", error);
     const details = await page.evaluate(() => ({url:location.href,ready:document.readyState,active:document.activeElement?.outerHTML?.slice(0,250),roots:[...document.querySelectorAll('[role="textbox"], [contenteditable]')].map(el=>({role:el.getAttribute('role'),label:el.getAttribute('aria-label'),hidden:el.getAttribute('aria-hidden'),inert:el.closest('[inert]')?.tagName,editable:el.getAttribute('contenteditable'),box:el.getBoundingClientRect().toJSON()})),body:document.body.innerText.slice(0,1200)})).catch(error=>String(error));
     console.error("FAILED PAGE",JSON.stringify(details));
+    console.error("BROWSER NETWORK/CONSOLE", JSON.stringify(smokeBrowserDiagnostics(page)));
     console.error("FAILED LAYOUT", JSON.stringify(await page.evaluate(() => ({ fonts: document.fonts.status,
       nodes: [...document.querySelectorAll('hr, [data-slot="popover-content"]')].map(el => {
         const style = getComputedStyle(el);
