@@ -1,10 +1,12 @@
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
-import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 
 // Actual picker, Router and task editor; unsaved props only, all API forbidden.
-const port = smokePort(Number(process.env.DATE_PICKER_PORT || 5197));
+const port = smokePort(process.env.DATE_PICKER_PORT);
 const server = await createServer({
   cacheDir: "node_modules/.vite-date-pages-smoke",
   server: { host: "127.0.0.1", port, strictPort: false, hmr: false, watch: null },
@@ -22,7 +24,7 @@ const server = await createServer({
   }],
 });
 await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const width of (process.env.DATE_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {

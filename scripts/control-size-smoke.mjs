@@ -1,4 +1,5 @@
-import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
 import { createServer } from "vite";
@@ -10,7 +11,7 @@ let executablePath;
 for (const candidate of candidates) { try { await access(candidate); executablePath = candidate; break; } catch {} }
 assert(executablePath, "Install Chrome or set CHROME_PATH to run the required control geometry checks");
 await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
-const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: smokePort(5192), strictPort: false, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: smokePort(process.env.CONTROL_SIZE_PORT), strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -26,7 +27,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes"
   }); },
 }] });
 await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const routes = [
   "/app/wishes?tab=products", "/app/spheres/career?tab=about", "/app/spheres/identity?tab=principles",

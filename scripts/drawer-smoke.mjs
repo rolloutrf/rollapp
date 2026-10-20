@@ -1,13 +1,15 @@
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
-const port = smokePort(5187);
+import { browserLaunchOptions } from './browser-runtime.mjs';
+const port = smokePort(process.env.DRAWER_PORT);
 import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-drawer-smoke",
-  server: { host: '127.0.0.1', port: smokePort(5187), strictPort: false, open: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(process.env.DRAWER_PORT), strictPort: false, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
@@ -22,7 +24,7 @@ const server = await createServer({
   }}],
 });
 await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 const errors = [];
 async function keyboard(page, height, offsetTop = 0) {

@@ -1,4 +1,5 @@
-import { browserLaunchOptions, smokePort } from "./browser-runtime.mjs";
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
@@ -72,7 +73,7 @@ try {
         // Wish list metadata is a read effect: reject it without replacement.
         // Every mutation is forbidden; no accounts or database records exist here.
         await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
-        await page.goto(`http://127.0.0.1:${port}/__form-actions?form=${name}`);
+        await page.goto(`${origin}/__form-actions?form=${name}`);
         if (name === "contact") {
           const heading = page.locator('.contact-detail__edit-heading--editable');
           await heading.waitFor();
@@ -273,7 +274,7 @@ try {
   }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", route => route.abort());
-  await page.goto(`http://127.0.0.1:${port}/__form-actions?flow=1`);
+  await page.goto(`${origin}/__form-actions?flow=1`);
   await page.getByRole("button", { name: "Открыть группу", exact: true }).click();
   await page.getByRole("button", { name: "Добавить запись", exact: true }).click();
   const screen = page.locator('[data-mobile-form-page]:visible');

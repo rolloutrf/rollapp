@@ -1,8 +1,10 @@
+import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
-const port = smokePort(5189);
+import { browserLaunchOptions } from './browser-runtime.mjs';
+const port = smokePort();
 import { drawerCases } from './fixtures/drawer-cases.js';
 const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke',server:{host:'127.0.0.1',port:5189,strictPort: false,hmr:false,watch:null},plugins:[{
   name:'native-form-fixture',enforce:'pre',
@@ -10,7 +12,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke
   configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__drawer-smoke'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/'+(req.url.includes('flow=1')?'mobile-form-flow':'drawer-smoke')+'.jsx"></script></body></html>'));});}
 }]});
 await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const fixtureOrigin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.FORM_WIDTHS||'390,320,640,767,768,820,896,1024,1440,1920').split(',').map(Number)){
