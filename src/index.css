@@ -421,6 +421,9 @@
 
   /* Product navigation outlines must not inherit Base Nova's translucent
      dark input surface. Keep the original primitives unchanged. */
+  [data-control-bar] [class~="group/button"][data-control-icon]:not([class~="bg-primary"], [class~="text-destructive"]) {
+    border: 1px solid var(--input);
+  }
   [data-control-bar] :is([class~="group/button"][class~="bg-background"], [data-slot="select-trigger"], [data-control-icon]:not([class~="bg-primary"])),
   [data-native-form-actions] [class~="group/button"]:not([type="submit"]) {
     background-color: var(--card);
