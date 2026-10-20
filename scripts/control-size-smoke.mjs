@@ -1,3 +1,5 @@
+import { smokePort } from "./browser-runtime.mjs";
+const port = smokePort(5192);
 import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
 import { createServer } from "vite";
@@ -9,7 +11,7 @@ let executablePath;
 for (const candidate of candidates) { try { await access(candidate); executablePath = candidate; break; } catch {} }
 assert(executablePath, "Install Chrome or set CHROME_PATH to run the required control geometry checks");
 await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
-const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -60,7 +62,16 @@ async function geometry(page, label) {
 async function paintedHeight(button, label) {
   const box = await button.boundingBox();
   assert.equal(box.height, 48, `${label}: accent control box differs from 48px`);
-  const { data, info } = await sharp(await button.screenshot({ animations: "disabled" })).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  // Fixed navigation is already visible. Locator screenshots scroll it first,
+  // which can fight a nested calendar scroller or smooth document scrolling.
+  // Capture the visible box directly and still prove both stable DOM bounds
+  // and painted outer pixels (including the DPR 3 mobile matrix).
+  const viewport = button.page().viewportSize();
+  assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 0.1 && box.y + box.height <= viewport.height + 0.1, `${label}: accent control leaves the viewport`);
+  const pixels = await button.page().screenshot({ clip: box, animations: "disabled" });
+  const after = await button.boundingBox();
+  for (const key of ["x", "y", "width", "height"]) assert(Math.abs(after[key] - box[key]) < 0.1, `${label}: control moved during pixel capture`);
+  const { data, info } = await sharp(pixels).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const x = Math.floor(info.width / 2);
   // Dark-theme accent buttons must paint all the way to both outer edges.
   // A transparent border with padding-box clipping gives a 48px DOM box but
@@ -78,7 +89,7 @@ try {
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
       for (const route of routes) {
-        await page.goto(`http://127.0.0.1:5192${route}`);
+        await page.goto(`http://127.0.0.1:${port}${route}`);
         await page.locator("[data-control-bar]").first().waitFor();
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;

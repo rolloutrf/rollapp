@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5193);
 
 const server = await createServer({
   cacheDir: 'node_modules/.vite-wish-group-smoke',
-  server: { host: '127.0.0.1', port: 5193, strictPort: true, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null },
   plugins: [{
     name: 'wish-group-fixture', enforce: 'pre',
     transform(source, id) {
@@ -29,7 +30,7 @@ try {
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
-      await page.goto(`http://127.0.0.1:5193/__wish-group-smoke${readonly ? '?readonly' : ''}`);
+      await page.goto(`http://127.0.0.1:${port}/__wish-group-smoke${readonly ? '?readonly' : ''}`);
       await page.locator('.wish-group-tile__title').first().waitFor();
       await page.evaluate(() => document.fonts.ready);
       const geometry = await page.locator('.wish-group-tile').evaluateAll((tiles) => tiles.map((tile) => {

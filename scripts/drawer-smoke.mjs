@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { browserLaunchOptions } from './browser-runtime.mjs';
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5187);
 import { createServer } from 'vite';
 import { drawerCases } from './fixtures/drawer-cases.js';
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-drawer-smoke",
-  server: { host: '127.0.0.1', port: 5187, strictPort: true, open: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port, strictPort: true, open: false, hmr: false, watch: null },
   plugins: [{name: 'drawer-smoke-fixture', enforce: 'pre',
     transform(code, id) {
       const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
@@ -60,7 +61,7 @@ try {
     page.on('pageerror', e => { errors.push(e.message); console.error(e.message); });
     for (const mode of (process.env.DRAWER_MODES ?? 'form,scroll-area,wish,fullscreen').split(',').filter(Boolean)) {
       console.log(`CHECK ${viewport.width} ${mode}`);
-      await page.goto('http://127.0.0.1:5187/__drawer-smoke');
+      await page.goto(`http://127.0.0.1:${port}/__drawer-smoke`);
       const opener = page.getByRole('button', {name:mode,exact:true});
       await opener.waitFor();
       if (mode === 'wish') {
@@ -169,7 +170,7 @@ try {
     }
     if (process.env.DRAWER_REAL_FORMS === '1' && [390,320,896].includes(viewport.width)) {
       for (const [name] of drawerCases.filter(([name]) => !process.env.DRAWER_CASES || process.env.DRAWER_CASES.split(",").includes(name))) {
-        await page.goto(`http://127.0.0.1:5187/__drawer-smoke?form=${name}`);
+        await page.goto(`http://127.0.0.1:${port}/__drawer-smoke?form=${name}`);
         if (viewport.width < 768) {
           const screen = page.locator('[data-mobile-form-page]:visible');
           await screen.waitFor();

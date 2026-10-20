@@ -16,3 +16,13 @@ export function browserLaunchOptions() {
     ...(process.env.CI ? ["--no-sandbox"] : []),
   ] };
 }
+
+// Keep each worktree's browser fixtures on its own loopback port range.
+export function smokePort(base, env = process.env) {
+  const offset = Number(env.ROLLAPP_SMOKE_PORT_OFFSET || 0);
+  const port = base + offset;
+  if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    throw new Error('ROLLAPP_SMOKE_PORT_OFFSET must produce a valid TCP port (1–65535).');
+  }
+  return port;
+}

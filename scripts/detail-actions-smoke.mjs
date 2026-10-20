@@ -1,3 +1,5 @@
+import { smokePort } from "./browser-runtime.mjs";
+const port = smokePort(5193);
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { createServer } from "vite";
@@ -8,7 +10,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: 5193, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
   transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -50,7 +52,7 @@ try {
       // response/database; any mutation from this layout check is a test failure.
       await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
       for (const variant of variants) {
-        await page.goto(`http://127.0.0.1:5193/__detail-actions?${variant}`);
+        await page.goto(`http://127.0.0.1:${port}/__detail-actions?${variant}`);
         await page.getByRole("link", { name: "Открыть карточку" }).click();
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);

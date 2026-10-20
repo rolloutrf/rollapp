@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import {createServer} from 'vite';
 import {chromium} from 'playwright-core';
-import {browserLaunchOptions} from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port:5191,strictPort:true,hmr:false,watch:null},plugins:[{
+import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+const port = smokePort(5191);
+const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port,strictPort:true,hmr:false,watch:null},plugins:[{
  name:'navigation-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?navigation-smoke'))return source+'\nexport {GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';},
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-navigation.jsx"></script></body></html>'));});}
 }]});
@@ -14,7 +15,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   for(const route of ['/app/spheres/career?tab=about','/app/wishes?tab=products','/app/spheres/identity?tab=ideal-state','/app/spheres/health?tab=medications','/app/wishes?guest=1']){
-   await page.goto('http://127.0.0.1:5191'+route);
+   await page.goto(`http://127.0.0.1:${port}`+route);
    const sphere=page.getByRole('button',{name:'Открыть переключатель сфер',exact:true}),select=page.locator('.global-service-select');await sphere.waitFor();
    assert.equal(await sphere.count(),1);assert.equal(await select.count(),1);
    const s=await sphere.boundingBox(),c=await select.boundingBox();
@@ -56,7 +57,7 @@ try{
    console.log(`PASS ${width} ${route}: ${width<768?'bottom navigation, menus, scroll tail':'desktop header'}`);
   }
   if(width<768){
-   await page.goto('http://127.0.0.1:5191/app/spheres/career?tab=about');
+   await page.goto(`http://127.0.0.1:${port}/app/spheres/career?tab=about`);
    await page.locator('.mobile-app-navigation').waitFor();
    await page.evaluate(()=>document.documentElement.style.setProperty('--tg-content-safe-area-inset-bottom','34px'));
    const safe=await page.locator('.mobile-app-navigation').boundingBox();assert.equal(safe.y+safe.height,794,'Navigation ignored lower safe area');

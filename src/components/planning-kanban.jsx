@@ -231,6 +231,7 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     };
     const clean = () => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", cancel); window.removeEventListener("keydown", keydown); window.removeEventListener("blur", cancel);
+      capture.removeEventListener("lostpointercapture", cancel); document.removeEventListener("visibilitychange", visibility);
       if (capture.hasPointerCapture(state.id)) capture.releasePointerCapture(state.id);
       pointer.current = null; pointerCleanup.current = null;
       setTimeout(() => { suppressClick.current = false; }, 0);
@@ -243,13 +244,15 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     };
     const cancel = (next) => { if (next?.pointerId != null && next.pointerId !== state.id) return; clean(); stopDrag(); };
     const keydown = (next) => { if (next.key === "Escape") cancel(); };
+    const visibility = () => { if (document.hidden) cancel(); };
     pointerCleanup.current = cancel;
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", cancel); window.addEventListener("keydown", keydown); window.addEventListener("blur", cancel);
+    capture.addEventListener("lostpointercapture", cancel); document.addEventListener("visibilitychange", visibility);
   };
   useEffect(() => {
     pointerCleanup.current?.();
     stopDrag();
-  }, [mobile, archive, columns]);
+  }, [mobile, archive, columns, tasks]);
   const exportBoard = () => {
     const url = URL.createObjectURL(new Blob([planningMarkdown(columns, tasks)], { type: "text/markdown;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "Планирование.md"; link.click();

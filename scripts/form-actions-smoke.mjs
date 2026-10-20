@@ -1,3 +1,4 @@
+import { smokePort } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
@@ -8,7 +9,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-let port = Number(process.env.FORM_ACTION_PORT ?? 5198);
+let port = smokePort(Number(process.env.FORM_ACTION_PORT ?? 5198));
 const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {

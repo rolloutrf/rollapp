@@ -1,3 +1,4 @@
+import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
   AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin,
@@ -463,6 +464,7 @@ export function CoachingSessions() {
     ? (openedGroup.itemIds || []).map((id) => requestState.sessions.find((session) => session.id === id)).filter(Boolean)
     : [];
   const cardOrder = useCardReorder({
+    scopeKey: resolvedListId,
     disabled: readOnly,
     items: visibleSessions,
     onItemsChange: (sessions) => setRequestState((state) => ({
@@ -753,6 +755,7 @@ export function CoachingSessions() {
               key={session.id}
               onPointerDown={(event) => cardOrder.beginPointerDrag(event, session.id)}
             >
+              {!readOnly && <CardDragHandle title={session.title} disabled={cardOrder.orderBusy} />}
               <CoachingSessionCard
                 session={session}
                 dragDescriptionId={cardOrder.descriptionId}
