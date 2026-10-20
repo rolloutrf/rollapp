@@ -66,11 +66,12 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   const [preview, setPreview] = useState(null);
   const [now, setNow] = useState(() => new Date());
   const dateSignature = dates.join();
+  const hasAllDayTasks = tasks.some((task) => dates.includes(task.dueOn) && task.startTime === "00:00" && task.durationMinutes === 1440);
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
-    if (viewport) viewport.scrollTop = 8 * 96;
-  }, [dateSignature]);
+    if (viewport) viewport.scrollTop = hasAllDayTasks ? 0 : 8 * 96;
+  }, [dateSignature, hasAllDayTasks]);
   useEffect(() => {
     const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
     if (!viewport || dates.length < 2) return;
