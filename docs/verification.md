@@ -16,7 +16,7 @@
 
 ## Безопасная последовательность
 
-Caption candidate: `--image-captions-only` — diagnostic8 viewports, не release
+Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
 gate. Общий default `test:text-edit` включает captions перед baseline409 и
 ожидает417 PASS records; `check:comprehensive` сохраняет все10 этапов без
 фильтров. Targeted captions/alignment/resize разных dirty snapshots нельзя

@@ -83,3 +83,34 @@ production. Public-reader проверки подтверждают содерж
 Enter/minimum/edge semantics не объявляются точным поведением Notion.
 Viewer/другие media и физический iOS/Telegram/IME остаются в goal audit.
 Production документы/схема/данные в этом этапе не менялись.
+
+## Полный frozen прогон перед выпуском
+
+`08e878a6ef4ae355a143bc7efc6ca7bcb6a23172`, clean start/end,
+990 tracked inputs, SHA256 drift0. Команда:
+`TEXT_EDIT_CACHE_DIR=node_modules/.vite-captions-full-20261020 ROLLAPP_CHECK_OUTPUT=/tmp/rollapp-caption-comprehensive-08e878a-2026-10-20.json npm run check:comprehensive`.
+Начало18:06:41Z, завершение19:39:59Z2026-10-20, terminal exit0.
+
+- Все417 editor PASS records на одном frozen source, без partial modes/filters.
+- Все10 этапов PASS/exit0: release, navigation, action rails, identity reports,
+  To Do, form pages, catalog page, Wishlist groups, drawers, contacts.
+- `npm test`:803 total/802PASS/1SKIP/0FAIL, UI37/79 и build PASS.
+- Fresh audit после сохранённого TLS-отказа и read-only повтора: production0,
+  dev7 high. Это прежняя цепочка shadcn/registry/ts-morph/fast-glob/braces.
+  Для shadcn4.22.1 предлагается несовместимый downgrade1.0.0; в допустимых
+  диапазонах ts-morph26 и common~0.27 доступны только уже установленные26.0.0
+  и0.27.0. Lockfile не менялся, force/понижение major не применялись.
+
+После frozen проверки в release-кандидат добавляется только документация;
+runtime, tests, package/lock и deployment configuration остаются как в08e878a.
+Production перед публикацией healthy на95223417bdd06683875ef7cf273ecab599270779.
+Предыдущий выпуск подтверждён CI39402041896 и exact public health. Новый release
+нужно отдельно подтвердить terminal CI, exact SHA health и live UI; этот
+локальный PASS сам по себе не является свидетельством deployment.
+
+Сырой отчёт/лог:`/tmp/rollapp-caption-comprehensive-08e878a-2026-10-20.{json,log}`;
+hash snapshot:`/tmp/rollapp-caption-frozen-08e878a-2026-10-20.json`;
+актуальный audit:`/tmp/rollapp-caption-release-audit-{all,production}-retry-2026-10-20.json`.
+Исходные отказы и targeted проверки выше сохранены как история, а не заменены
+последним успешным результатом. Arbitrary complex compositions, viewer/other
+media, exact Notion edge/minimum/key parity и actual-device IME остаются открытыми.

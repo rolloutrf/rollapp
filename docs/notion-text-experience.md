@@ -11,7 +11,19 @@
 [оформления](https://www.notion.com/help/customize-and-style-your-content).
 Полный объём возможностей ниже сохраняется между итерациями.
 
-Текущий выпуск 2026-10-20: совмещены inline styles/quote/link metadata,
+Release checkpoint 2026-10-20: production9522341 подтверждён успешным
+CI39402041896 и exact public health/live UI. Следующий caption-кандидат
+`08e878a6ef4ae355a143bc7efc6ca7bcb6a23172` прошёл полный frozen comprehensive:
+417 editor PASS, все10 этапов exit0,990 tracked inputs drift0 и clean start/end.
+Подписи — rich inline content в общей истории/очереди документа; проверены
+native clipboard, resize, nested/column/table/fixed-question contexts и draft/retry.
+Перед публикацией добавлена только документация, без runtime/package/lock правок.
+Новый rollout требует отдельного exact SHA health и live UI; локальный PASS
+не заменяет production proof. [Caption report](notion-image-caption-verification-2026-10-20.md).
+R1–R10 остаются открытыми: viewer/прочие media, полный аудит произвольных составов,
+точные Notion edge/minimum/key semantics и реальные iOS/Telegram/IME.
+
+История предыдущего объединения 2026-10-20: совмещены inline styles/quote/link metadata,
 native clipboard/history/focus, file paste/drop и image alignment с tiny-media
 hit-area исправлением. Clean `449abb5` прошёл полный `check:release`, включая
 409 native editor cases; расширенный десятистадийный comprehensive завершён
@@ -23,8 +35,8 @@ production build идентичны проверяемому `449abb5`. Fresh lo
 harnesses отдельно прошли полные styles10 и four-document8, terminal exit0.
 Связанные объекты To Do проверены в полной53-case матрице: «Готово» переносит
 выбранные карточки/миниатюры в черновик задачи; сохранение остаётся явным.
-Production rollout и live UI новой версии пока не подтверждены. R1–R10 остаются
-открытыми: rich captions/viewer/прочие media, произвольные сложные составы и
+Rollout этой базы завершён на9522341; прежние результаты ниже сохраняют
+происхождение доказательств. R1–R10 остаются открытыми: viewer/прочие media, произвольные сложные составы и
 реальные iOS/Telegram/IME нельзя объявлять проверенными по fixture-тестам.
 Результаты выпуска: [единая проверка](notion-production-release-2026-10-20.md).
 
@@ -77,8 +89,8 @@ prodwrites0. Подробности — resize/Safari verification reports за2
 Уточнение R8 для текущего кандидата: left/center/right image alignment и native
 file paste/drop уже реализованы и прошли полный409 editor. Tiny image action
 не перекрывает изображение и первую pointer-цель resize; alignment10/resize8
-дополнительно PASS. Открыты именно rich caption/viewer/прочие media и полное
-соответствие Notion, а не уже реализованные align/file transfer. Исторические
+дополнительно PASS. Rich captions добавлены в417-case frozen кандидате выше;
+открыты viewer/прочие media и полный аудит Notion, а не align/file transfer. Исторические
 счётчики/отказы в таблице выше сохраняют происхождение прежних доказательств;
 текущий объединённый результат указан в начале страницы и отчёте выпуска.
 
