@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 export function PlanningSpaceSwitcher() {
   const [search, setSearch] = useSearchParams();
   const tab = search.get("tab");
-  const kind = tab === "todo" ? "todo" : tab === "calendar" ? "calendar" : "kanban";
+  const kind = tab === "todo" || (tab === "calendar" && search.get("spaceKind") === "todo") ? "todo" : tab === "calendar" ? "calendar" : "kanban";
   // A tool change also resets any pending fetch or creation form.
   return <SpaceSwitcher key={kind} kind={kind} selected={search.get("space") || "main"} onSelect={(id, options) => {
     setSearch((current) => { const next = new URLSearchParams(current); if (id === "main") next.delete("space"); else next.set("space", id); if (options?.replace) next.delete("formScreen"); return next; }, options);
