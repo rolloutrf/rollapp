@@ -78,7 +78,7 @@ function TodoRow({ task, onSave, onEdit }) {
   return <li className="daily-todo__item" data-completed={task.completed || undefined}>
     <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
     <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
-      <span className="daily-todo__task-title">{task.title}</span>
+      <span className="daily-todo__task-content"><span className="daily-todo__task-title">{task.title}</span>{task.relatedItems?.length > 0 && <span className="daily-todo__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
       {task.startTime && <span className="daily-todo__time">{task.startTime}</span>}
     </Button>
   </li>;
