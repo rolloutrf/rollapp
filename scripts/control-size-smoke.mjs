@@ -83,6 +83,18 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
+        if (!route.includes("/planning")) {
+          const pair = page.locator('[aria-label="Единый стиль кнопок"] button');
+          const styles = await pair.evaluateAll(buttons => buttons.map(button => {
+            const style = getComputedStyle(button);
+            return { background: style.backgroundColor, border: style.borderTopColor, width: style.borderTopWidth, line: style.borderTopStyle };
+          }));
+          assert.equal(styles.length, 2, `${label}: menu/close pair missing`);
+          assert.deepEqual(styles[0], styles[1], `${label}: menu and close must share filled outlined surfaces`);
+          assert.equal(styles[0].width, "1px");
+          assert.equal(styles[0].line, "solid");
+          assert(![styles[0].border, styles[0].background].includes("rgba(0, 0, 0, 0)"), `${label}: neutral controls must have visible fill and border`);
+        }
         if (route.includes("/planning")) {
           const selector = await page.locator(".planning-fab-space").boundingBox();
           assert(selector, `${label}: planning selector is missing`);
