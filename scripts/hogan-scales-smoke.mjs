@@ -9,7 +9,7 @@ const review = process.env.HOGAN_SCALES_REVIEW_LAYOUT ? JSON.parse(await readFil
 const server = await createServer({
   define: { __HOGAN_SCALES_REVIEW__: JSON.stringify(review) },
   cacheDir: 'node_modules/.vite-hogan-scales',
-  server: { host: '127.0.0.1', port: 5298, strictPort: true, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: 5298, strictPort: false, hmr: false, watch: null },
   plugins: [{ name: 'hogan-scales-fixture', configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith('/__hogan-scales')) return next();
@@ -19,7 +19,8 @@ const server = await createServer({
   } }],
 });
 await server.listen();
-const origin = 'http://127.0.0.1:5298';
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const origin = fixtureOrigin;
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   if (!review) await checkIdentityReportCharts(browser, origin, {navigationOnly:process.argv.includes('--navigation-only'),slowFonts:process.argv.includes('--slow-fonts')});

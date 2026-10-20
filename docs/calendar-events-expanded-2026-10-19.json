@@ -1,0 +1,53 @@
+{
+  "kind": "individual-full-matrices-not-a-comprehensive-pass",
+  "checks": [
+    {
+      "name": "test:navigation",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 3011
+    },
+    {
+      "name": "test:action-rails",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 1822
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 56441
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 28663
+    },
+    {
+      "name": "test:form-pages",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 977568
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 3273
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "failed",
+      "exitCode": 1,
+      "durationMs": 4907
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "exitCode": 0,
+      "durationMs": 1161314
+    }
+  ]
+}
