@@ -64,7 +64,7 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,medication-group,conference,coaching-edit,principle").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,medication-group,conference,coaching-edit,principle").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
@@ -124,7 +124,7 @@ try {
           await page.getByRole("button", { name: "Отмена", exact: true }).click();
           await page.getByRole("alertdialog").waitFor({ state: "hidden" });
         }
-        if (width < 768) {
+        if (width < 768 && name !== "wish-edit") {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
           const before = await geometry(page);
@@ -231,8 +231,28 @@ try {
           if (width === 390 && height === 844) await page.screenshot({ path: `/tmp/rollapp-form-actions-${name}.png` });
           await screen.getByRole("button", { name: "Назад", exact: true }).click(); await screen.waitFor({ state: "hidden" });
         } else {
-          await page.locator('[data-slot="drawer-popup"]').waitFor();
+          await page.locator(name === "wish-edit" ? '.app-fullscreen-dialog' : '[data-slot="drawer-popup"]').waitFor();
           assert.equal(await page.locator('[data-native-form-actions]').count(), 0, "Desktop footer changed to native action row");
+          const footer = page.locator('.app-form-actions');
+          await footer.waitFor();
+          await page.evaluate(() => document.fonts.ready);
+          const buttons = await footer.locator('button').evaluateAll(elements => elements.map(el => {
+            const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+            const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+            const paint = canvas.getContext('2d'); paint.fillStyle = s.backgroundColor; paint.fillRect(0,0,1,1);
+            return { x:r.x, right:r.right, y:r.y, height:r.height, width:r.width,
+              radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].map(parseFloat),
+              opacity:s.opacity, alpha:paint.getImageData(0,0,1,1).data[3], icon:el.hasAttribute('data-control-icon'),
+              clipped:el.scrollWidth > el.clientWidth + 1 };
+          }));
+          for (const button of buttons) {
+            assert.equal(button.height,48,`${name}: footer height`);
+            assert(button.radii.every(radius => radius >= 24),`${name}: footer corners`);
+            assert.equal(button.opacity,'1'); assert.equal(button.alpha,255);
+            assert(!button.clipped && button.x >= 0 && button.right <= width,`${name}: footer label/overflow`);
+            if (button.icon) assert.equal(button.width,48);
+          }
+          if (['wish','wish-edit','task-new'].includes(name)) await page.screenshot({path:`/tmp/rollapp-form-actions-${name}-${width}-${height}.png`});
           if (name === "principle") {
             const trash = page.getByRole("button", { name: "Удалить принцип", exact: true });
             const box = await trash.boundingBox();
@@ -245,7 +265,7 @@ try {
           }
         }
         assert.deepEqual(errors, [], `${name}: browser errors`);
-        console.log(`PASS ${width}×${height} ${name}: ${width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
+        console.log(`PASS ${width}×${height} ${name}: ${name === "wish-edit" ? "fullscreen footer" : width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
         await page.close();
       }
     }

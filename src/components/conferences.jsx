@@ -549,12 +549,12 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || logoUploading || datesInvalid}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить конференцию"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || logoUploading} />}>Отмена</DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>

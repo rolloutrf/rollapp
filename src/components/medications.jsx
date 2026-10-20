@@ -525,12 +525,12 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
           </FieldGroup>
           </div>
 
-          <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>Отмена</DrawerClose>
+          <DrawerFooter>
             <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || invalidDates || !form.name.trim()}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : medication ? "Сохранить изменения" : "Добавить препарат"}
             </Button>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>Отмена</DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -636,18 +636,13 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
                 />
               </Field>
             </div>
-            <DrawerFooter className="border-t bg-popover pt-4 sm:flex-row sm:justify-end">
-              {group && (
-                <Button data-control-icon={isMobile || undefined} className="min-h-12 px-4 text-base sm:mr-auto" variant="destructive" size={isMobile ? "icon" : "default"} type="button" aria-label="Удалить группу" title="Удалить группу" disabled={busy} onClick={() => setDeleteOpen(true)}>
-                  <Trash2 data-icon="inline-start" aria-hidden="true" />
-                  {!isMobile && "Удалить группу"}
-                </Button>
-              )}
-              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>
+            <DrawerFooter>
               <Button className="min-h-12 px-4 text-base" type="submit" disabled={busy || !title.trim()}>
                 {saving && <Spinner aria-hidden="true" />}
                 {saving ? "Сохраняем" : group ? "Сохранить" : "Создать группу"}
               </Button>
+              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>
+              {group && <Button data-control-icon variant="destructive" size="icon" type="button" aria-label="Удалить группу" title="Удалить группу" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></Button>}
             </DrawerFooter>
           </form>
         </DrawerContent>
