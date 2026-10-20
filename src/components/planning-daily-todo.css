@@ -7,12 +7,13 @@
 .planning-fab-controls[data-daily-todo] { bottom: calc(var(--app-visual-bottom, 0px) + 24px + env(safe-area-inset-bottom)); }
 .daily-todo__content { display: flex; flex-shrink: 0; width: min(100%, calc(var(--layout-form-width) + 2 * var(--layout-page-inset))); margin-inline: auto; padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right)); flex-direction: column; gap: var(--layout-page-gap); }
 .daily-todo__header { display: flex; flex-shrink: 0; min-width: 0; flex-direction: column; gap: var(--layout-inline-gap); }
-.daily-todo__ribbon { display: flex; min-width: 0; gap: var(--layout-item-gap); padding: var(--layout-inline-gap) var(--layout-page-inset); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent); }
+.daily-todo__ribbon { display: flex; min-width: 0; gap: var(--layout-inline-gap); padding: var(--layout-inline-gap) var(--layout-page-inset); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent); }
 .daily-todo__ribbon::-webkit-scrollbar { display: none; }
-.daily-todo__day { position: relative; display: flex; flex: 0 0 var(--layout-control-size); width: var(--layout-control-size); flex-direction: column; gap: 0; padding: 0; transition-property: color, background-color, border-color, box-shadow; }
-.daily-todo__day[aria-pressed="true"] { background: var(--foreground); color: var(--background); }
-.daily-todo__day[aria-current="date"]::after { content: ""; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
-.daily-todo__weekday { font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.daily-todo__ribbon .daily-todo__day { position: relative; display: grid; flex: 0 0 calc(var(--layout-control-size) + var(--layout-item-gap)); width: calc(var(--layout-control-size) + var(--layout-item-gap)); grid-template-rows: var(--text-xs--line-height) var(--text-rollapp-body--line-height); place-items: center; gap: 0; padding: 1px 0; border: 0; border-radius: var(--radius-lg); background: transparent; color: var(--muted-foreground); transition-property: color, background-color, box-shadow; }
+.daily-todo__ribbon .daily-todo__day:hover { background: var(--muted); color: var(--foreground); }
+.daily-todo__ribbon .daily-todo__day[aria-pressed="true"] { background: var(--accent); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--border); }
+.daily-todo__day[aria-current="date"]::after { content: ""; position: absolute; bottom: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.daily-todo__weekday { font-size: var(--text-xs); line-height: var(--text-xs--line-height); font-weight: 500; }
 .daily-todo__composer { display: flex; flex-direction: column; align-items: stretch; gap: var(--layout-inline-gap); }
 .daily-todo__composer textarea { min-width: 0; }
 .daily-todo__error { color: var(--destructive); }

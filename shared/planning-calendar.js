@@ -46,14 +46,13 @@ export function scheduleError({ dueOn, startTime, durationMinutes = 60 }) {
   return "";
 }
 export function calendarTaskSchedule(task) {
-  return task.dueOn && !task.startTime
-    ? { ...task, startTime: "00:00", durationMinutes: 1440 }
-    : task;
+  return { ...task, allDay: Boolean(task.dueOn && (!task.startTime || (task.startTime === "00:00" && task.durationMinutes === 1440))) };
 }
 
 export function taskTimeLabel(task) {
+  if (task.allDay) return "Весь день";
   const start = timeMinutes(task.startTime);
-  return start === null ? (task.dueOn ? "00:00–24:00" : "Без времени") : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
+  return start === null ? (task.dueOn ? "Весь день" : "Без времени") : `${task.startTime}–${minutesTime(start + (task.durationMinutes || 60))}`;
 }
 export function sortCalendarTasks(tasks) {
   return [...tasks].sort((a, b) => (a.dueOn || "9999").localeCompare(b.dueOn || "9999")

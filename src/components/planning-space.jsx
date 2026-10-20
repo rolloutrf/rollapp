@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
@@ -31,7 +32,7 @@ const EMPTY_TASK = { title: "", description: "", status: "todo", dueOn: "", star
 function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const id = useId();
   const mobile = useIsMobile();
-  const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", startTime: task.startTime || (task.id && task.dueOn ? "00:00" : "09:00"), durationMinutes: task.id && task.dueOn && !task.startTime ? 1440 : task.durationMinutes || 60 });
+  const [form, setForm] = useState({ ...EMPTY_TASK, ...task, dueOn: task.dueOn || "", allDay: Boolean(task.dueOn && (!task.startTime || (task.startTime === "00:00" && task.durationMinutes === 1440))), startTime: task.startTime || "09:00", durationMinutes: task.durationMinutes || 60 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -39,12 +40,12 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
   const save = async (event) => {
     event.preventDefault();
     if (busy) return;
-    const invalid = scheduleError({ ...form, startTime: form.dueOn ? form.startTime : "" }) || recurrenceError(form);
+    const invalid = scheduleError({ ...form, startTime: form.dueOn && !form.allDay ? form.startTime : "" }) || recurrenceError(form);
     if (invalid) { setError(invalid); return; }
     setBusy(true);
     setError("");
     try {
-      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn ? form.startTime : "", durationMinutes: form.durationMinutes || 60, recurrence: form.recurrence });
+      await onSave(task.id, { title: form.title.trim(), description: form.description.trim(), columnId: form.columnId || columns[0]?.id, completed: form.completed ?? false, dueOn: form.dueOn, startTime: form.dueOn && !form.allDay ? form.startTime : "", durationMinutes: form.allDay ? 60 : form.durationMinutes || 60, recurrence: form.recurrence });
       onClose();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
@@ -75,8 +76,9 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete }) {
             {form.dueOn && <>
                 <Field><FieldLabel htmlFor={`${id}-repeat`}>Повторение</FieldLabel><Select value={form.recurrence?.frequency || "none"} onValueChange={(frequency) => change("recurrence", frequency === "none" ? null : { frequency, until: form.recurrence?.until || "" })}><SelectTrigger id={`${id}-repeat`}><SelectValue>{RECURRENCE_OPTIONS.find(({ id }) => id === (form.recurrence?.frequency || "none"))?.label}</SelectValue></SelectTrigger><SelectContent><SelectGroup>{RECURRENCE_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
                 {form.recurrence && <Field><FieldLabel htmlFor={`${id}-repeat-until`}>Окончание повторения</FieldLabel><PlanningDatePicker id={`${id}-repeat-until`} value={form.recurrence.until} onChange={(until) => change("recurrence", { ...form.recurrence, until })} label="Окончание повторения" clearable className="w-full">{form.recurrence.until ? undefined : "Без окончания"}</PlanningDatePicker><p className="text-muted-foreground text-xs">{form.recurrence.until ? "Включая выбранную дату. " : "Повторяется без ограничения по дате. "}{["monthly", "yearly"].includes(form.recurrence.frequency) && "Если такой даты нет в месяце, повтор пропускается."}{form.recurrence.frequency === "weekdays" && "С понедельника по пятницу."}</p></Field>}
-                  <Field><FieldLabel htmlFor={`${id}-time`}>Начало</FieldLabel><Input id={`${id}-time`} type="time" required value={form.startTime} onChange={(event) => change("startTime", event.target.value)} /></Field>
-                  <Field><FieldLabel htmlFor={`${id}-duration`}>Длительность, минут</FieldLabel><Input id={`${id}-duration`} type="number" min={15} max={1440} step={1} required value={form.durationMinutes} onChange={(event) => change("durationMinutes", event.target.value === "" ? "" : Number(event.target.value))} /></Field>
+                  <Field className="flex min-h-12 flex-row items-center justify-between gap-4"><FieldLabel htmlFor={`${id}-all-day`}>Весь день</FieldLabel><Switch id={`${id}-all-day`} checked={form.allDay} onCheckedChange={(checked) => setForm((current) => ({ ...current, allDay: checked, startTime: !checked && current.startTime === "00:00" ? "09:00" : current.startTime, durationMinutes: !checked && current.durationMinutes === 1440 ? 60 : current.durationMinutes }))} /></Field>
+                  {!form.allDay && <><Field><FieldLabel htmlFor={`${id}-time`}>Начало</FieldLabel><Input id={`${id}-time`} type="time" required value={form.startTime} onChange={(event) => change("startTime", event.target.value)} /></Field>
+                  <Field><FieldLabel htmlFor={`${id}-duration`}>Длительность, минут</FieldLabel><Input id={`${id}-duration`} type="number" min={15} max={1440} step={1} required value={form.durationMinutes} onChange={(event) => change("durationMinutes", event.target.value === "" ? "" : Number(event.target.value))} /></Field></>}
               </>}
             </FieldGroup>
           </div>

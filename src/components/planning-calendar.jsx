@@ -2,7 +2,7 @@ import { ControlBar } from "@/components/control-bar";
 import { calendarTaskSchedule } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays, ListTodo } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { MiniMonth } from "@/components/calendar-mini-month";
@@ -117,6 +117,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     else saveSchedule(active.task, active.patch);
   };
   const rendered = preview?.id ? tasks.map((task) => task.id === preview.id ? { ...task, durationMinutes: preview.durationMinutes } : task) : tasks;
+  const allDayTasks = rendered.filter((task) => task.allDay && dates.includes(task.dueOn));
   return <ScrollArea ref={scroll} className="schedule-timeline" aria-label="Расписание по времени">
     <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={() => { gesture.current = null; setPreview(null); }}>
       <div className="schedule-timegrid__head">
@@ -124,11 +125,12 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
 
       </div>
+      {allDayTasks.length > 0 && <div className="schedule-all-day" role="group" aria-label="Задачи на весь день"><span className="schedule-all-day__label schedule-caption">Весь день</span>{dates.map((date) => <div className="schedule-all-day__column" key={date} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, null)}>{allDayTasks.filter((task) => task.dueOn === date).map((task) => <EventPreview key={task.id} task={task} className="schedule-all-day__event" data-completed={task.completed || undefined} aria-label={`${task.title}, весь день`}>{task.title}</EventPreview>)}</div>)}</div>}
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
         {dates.map((date) => <div className="schedule-time-column" key={date} aria-label={label(date)} data-weekend={[0, 6].includes(dateFromKey(date).getDay()) || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, minuteAt(event, event.currentTarget))}>
           {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`Добавить задачу ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={() => { if (Date.now() < skipClick.current) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
-          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} onResize={beginResize} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
+          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date && !task.allDay)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} onResize={beginResize} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
           {preview && !preview.id && preview.date === date && <div className="schedule-range" style={{ top: timeMinutes(preview.startTime) * 1.6, height: preview.durationMinutes * 1.6 }}>{taskTimeLabel(preview)}</div>}
           {date === today && <div className="schedule-now" style={{ top: (now.getHours() * 60 + now.getMinutes()) * 1.6 }} aria-label={`Сейчас ${minutesTime(now.getHours() * 60 + now.getMinutes())}`} />}
         </div>)}
@@ -150,6 +152,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const navigate = (date, mode = view) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; });
+  const openTodo = (date = selected) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("tab", "todo"); next.delete("space"); next.delete("view"); return next; });
   const saveSchedule = async (task, patch) => {
     if (saving.current) return;
     saving.current = true; setBusy(true);
@@ -191,14 +194,14 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
       <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новое событие" onClick={() => onCreate({ dueOn: selected })}><Plus /></Button></div>
+        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label={`Открыть To Do на ${label(selected)}`} title="Открыть To Do" onClick={() => openTodo()}><ListTodo aria-hidden="true" /></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button></div>
       </ControlBar>
       <div className="schedule-layout">
         <div className="schedule-main">
           <h2 className="sr-only" aria-live="polite">{title}{view === "day" && `, ${label(selected, { weekday: "long" })}`}</h2>
           <TabsContent value="month" className="schedule-month-panel"><div className="schedule-month" aria-label="Дни месяца"><div className="schedule-weekdays">{weekdays.map((day) => <span className="schedule-caption" key={day}>{day}</span>)}</div><div className="schedule-month__grid">{calendarDays(dateFromKey(selected)).map((date) => {
             const key = localDateKey(date); const events = visible.filter((task) => task.dueOn === key);
-            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button></div>;
+            return <div className="schedule-month__cell" key={key} data-date={key} data-weekend={[0, 6].includes(date.getDay()) || undefined} data-outside={!key.startsWith(month) || undefined} data-selected={selected === key || undefined} onClick={(event) => { if (!event.target.closest("button, a, [role='button']")) navigate(key, "day"); }} onDragOver={allowDrop} onDrop={(event) => dropTask(event, key, null, true)}><Button variant="ghost" className="schedule-month__date" aria-pressed={selected === key} aria-current={key === today ? "date" : undefined} aria-label={`${label(key, { day: "numeric", month: "long", year: "numeric" })}, задач: ${events.length}`} onClick={() => navigate(key, "day")}><span className="schedule-month__number" data-today={key === today || undefined}>{date.getDate() === 1 ? label(key, { day: "numeric", month: "short" }) : date.getDate()}<span className="schedule-month__indicator" aria-hidden="true" data-has-events={events.length > 0 || undefined} /></span></Button><div className="schedule-month__events">{events.slice(0, 2).map((task) => <EventPreview key={task.id} task={task} className="schedule-month__event" data-completed={task.completed || undefined}>{!task.allDay && <span className="schedule-month__event-time">{task.startTime}</span>}<span className="schedule-month__event-title">{task.title}</span></EventPreview>)}{events.length > 2 && <Button variant="ghost" className="schedule-more" onClick={() => navigate(key, "day")}>Ещё {events.length - 2}</Button>}</div></div>;
           })}</div></div>{mobile && <Agenda date={selected} tasks={dayTasks} {...agendaProps} />}</TabsContent>
           {['day', 'week'].map((mode) => <TabsContent key={mode} value={mode} className="schedule-timeline-panel">{view === mode && <Timeline dates={mode === 'week' ? calendarWeek(selected) : [selected]} selected={selected} today={today} tasks={visible} onSelect={navigate} onCreate={onCreate} />}</TabsContent>)}
           <TabsContent value="year" className="schedule-year-panel"><div className="schedule-year">{Array.from({ length: 12 }, (_, index) => <MiniMonth key={index} month={`${selected.slice(0, 4)}-${String(index + 1).padStart(2, "0")}-01`} selected={selected} today={today} tasks={visible} onSelect={(date) => navigate(date, "day")} onOpenMonth={(date) => navigate(date, "month")} />)}</div></TabsContent>

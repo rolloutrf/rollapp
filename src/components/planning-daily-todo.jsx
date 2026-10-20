@@ -58,7 +58,7 @@ function DayRibbon({ selected, today, onChange }) {
   return <header className="daily-todo__header">
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
     <ControlBar ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
-      {dates.map((date) => <Button key={date} variant={date === selected ? "default" : "outline"} size="icon" className="daily-todo__day rounded-full" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
+      {dates.map((date) => <Button key={date} variant="ghost" size="icon" className="daily-todo__day" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
         <span className="daily-todo__weekday" aria-hidden="true">{weekdayLabel.format(dateFromKey(date))}</span>
         <span className="text-rollapp-body font-semibold tabular-nums" aria-hidden="true">{dateFromKey(date).getDate()}</span>
       </Button>)}
@@ -79,7 +79,7 @@ function TodoRow({ task, onSave, onEdit }) {
     <Checkbox aria-label={`Выполнено: ${task.title}`} checked={task.completed} disabled={busy} onCheckedChange={toggle} />
     <Button variant="ghost" className="daily-todo__task font-normal" aria-label={`Редактировать задачу: ${task.title}`} onClick={() => onEdit(task)} disabled={busy}>
       <span className="daily-todo__task-title">{task.title}</span>
-      {task.startTime && <span className="daily-todo__time">{task.startTime}</span>}
+      {task.startTime && !(task.startTime === "00:00" && task.durationMinutes === 1440) && <span className="daily-todo__time">{task.startTime}</span>}
     </Button>
   </li>;
 }

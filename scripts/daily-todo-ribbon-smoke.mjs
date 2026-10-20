@@ -19,6 +19,10 @@ try{
    await page.goto(`http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+   if(!empty){
+    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 1'}).locator('.daily-todo__time').count(),0,'All-day legacy task shows 00:00 in To Do');
+    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 2'}).locator('.daily-todo__time').textContent(),'09:00','Timed task lost its time in To Do');
+   }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');
@@ -109,6 +113,11 @@ try{
 
    }else{
     await selected.waitFor();const m=await measure();assert(Math.abs(m.center-width/2)<1,'Desktop selected date lost its center');assert.notEqual(m.position,'fixed','Desktop ribbon became fixed');
+    const dateLayout=await selected.evaluate(button=>{const weekday=button.querySelector('.daily-todo__weekday').getBoundingClientRect(),number=button.querySelector('.text-rollapp-body').getBoundingClientRect(),box=button.getBoundingClientRect();return {width:box.width,height:box.height,weekdayBottom:weekday.bottom,numberTop:number.top,radius:parseFloat(getComputedStyle(button).borderTopLeftRadius)};});
+    assert(dateLayout.width===64&&dateLayout.height===48,'Desktop date tile has the wrong size');
+    assert(dateLayout.weekdayBottom<=dateLayout.numberTop,'Weekday and day number overlap');
+    assert(dateLayout.radius<dateLayout.height/2,'Desktop date tile is still circular');
+    if(width===820&&!empty)await page.locator('.daily-todo__header').screenshot({path:'/tmp/rollapp-todo-date-ribbon-820.png',animations:'disabled'});
     await selected.press('ArrowRight');await page.waitForURL(url=>url.searchParams.get('date')==='2026-10-18');
    }
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Root horizontal overflow');
