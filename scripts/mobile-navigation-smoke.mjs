@@ -12,6 +12,22 @@ const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 async function settle(popup){await popup.evaluate(async element=>{await Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));});}
 try{
+ // JS navigation must follow CSS even if the browser reports a different
+ // innerWidth. Exercise the initial render and both breakpoint transitions.
+ const viewportPage=await browser.newPage({viewport:{width:393,height:844}});
+ try{
+  await viewportPage.addInitScript(()=>Object.defineProperty(window,'innerWidth',{configurable:true,get:()=>980}));
+  await viewportPage.route('**/api/**',()=>{throw new Error('Unexpected API request');});
+  await viewportPage.goto('http://127.0.0.1:5191/app/spheres/career?tab=about');
+  await viewportPage.locator('.mobile-app-navigation').waitFor();
+  for(const width of [393,820,390]){
+   await viewportPage.setViewportSize({width,height:844});
+   await viewportPage.waitForFunction(mobile=>Boolean(document.querySelector('.mobile-app-navigation'))===mobile,width<768);
+   assert.equal(await viewportPage.locator('.global-app-chrome .sphere-switcher__trigger').count(),width<768?0:1);
+   assert.equal(await viewportPage.locator('.global-app-chrome .global-service-select').count(),width<768?0:1);
+  }
+  console.log('PASS CSS media viewport owns initial mobile navigation and breakpoint transitions when innerWidth differs');
+ }finally{await viewportPage.close();}
  for(const width of [320,390,640,767,768,820,1024,1440,1920]){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
