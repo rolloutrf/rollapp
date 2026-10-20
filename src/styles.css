@@ -7030,6 +7030,19 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
 }
 .contact-detail__edit-heading--editable { grid-template-columns: var(--contact-detail-avatar-size) minmax(0, 1fr) auto; column-gap: var(--layout-inline-gap); }
 .contact-detail__edit-heading > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.contact-detail__avatar-picker {
+  display: grid;
+  place-items: center;
+  width: var(--contact-detail-avatar-size);
+  height: var(--contact-detail-avatar-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.contact-detail__avatar-picker:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+.contact-detail__avatar-picker:disabled { cursor: wait; }
 .contact-detail__avatar-controls {
   display: flex;
   flex-wrap: wrap;
