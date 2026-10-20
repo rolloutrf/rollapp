@@ -37,3 +37,16 @@ listen. Явный диагностический порт проходит пр
 Это изоляция портов независимых worktrees, не разрешение делить один Vite cache.
 Нет production API/DB запросов, migrations, user data writes, остановки чужих
 процессов. Причины прежнего clipboard Undo и style failures остаются открытыми.
+
+## Отдельная готовая ветка для push
+
+Дельта отделена от кандидата редактора поверх clean main d116857 в ветке
+`codex/smoke-port-isolation`, source commit5fc303d. В runner сохранены именно
+исходные375 cases и optimizer этой базы: новые quote/link/media checker imports
+из combined ветки не переносились. Runtime редактора не изменён.
+
+На этой точной базе повторно прошли npm test722 total/721 PASS/1SKIP/0FAIL,
+UI37/74, build и полный test:details72, terminal0.
+Логи `/tmp/rollapp-notion-port-baseline-{unit,ui,build,details}-2026-10-20.log`.
+Расширенный combined399/nine-stage audit выполняется отдельно на cleanbc7fb04,
+648 input hashes; здесь он не объявляется прошедшим.
