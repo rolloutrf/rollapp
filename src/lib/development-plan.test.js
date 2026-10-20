@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  moveDevelopmentPlanItem, parseDevelopmentPlanMarkdown, serializeDevelopmentPlanMarkdown,
+  migrateDevelopmentPlanDraft, moveDevelopmentPlanItem, parseDevelopmentPlanMarkdown, serializeDevelopmentPlanMarkdown,
 } from "./development-plan.js";
 
 const SOURCE = `## Сильные стороны\n\nВводный текст.\n\n### Управление\n\nОписание.\n\n### Как использовать\n\n- Первый пункт.\n- Второй пункт.\n\n### Что делать\n\n- Первое действие.\n\n### Аналитика\n\nДругое описание.\n\n### Как использовать\n\n- Третий пункт.\n\n### Что делать\n\n- Второе действие.\n`;
@@ -38,4 +38,20 @@ test("inline empty list blocks survive saving while a new entry is being written
   const plan = parseDevelopmentPlanMarkdown(source);
   assert.deepEqual(plan.groups[0].items[0].approach, ["", "Существующий пункт"]);
   assert.deepEqual(parseDevelopmentPlanMarkdown(serializeDevelopmentPlanMarkdown(plan)), plan);
+});
+
+test("freeform development plan recovers the previous structured local draft without losing changes", () => {
+  const base = parseDevelopmentPlanMarkdown(SOURCE);
+  const draft = structuredClone(base);
+  draft.groups[0].items[0].title = "Несохранённое название";
+  let stored = JSON.stringify({ base, draft });
+  const storage = { getItem: () => stored, setItem: (_key, value) => { stored = value; } };
+  migrateDevelopmentPlanDraft(storage, "owner:career:development");
+  const result = JSON.parse(stored);
+  assert.equal(result.base, serializeDevelopmentPlanMarkdown(base));
+  assert.equal(result.draft, serializeDevelopmentPlanMarkdown(draft));
+  assert.match(result.draft, /Несохранённое название/);
+  const migrated = stored;
+  migrateDevelopmentPlanDraft(storage, "owner:career:development");
+  assert.equal(stored, migrated, "Reopening must leave the Markdown draft unchanged");
 });
