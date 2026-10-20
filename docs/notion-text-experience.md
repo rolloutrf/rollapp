@@ -23,7 +23,11 @@ production build идентичны проверяемому `449abb5`. Fresh lo
 harnesses отдельно прошли полные styles10 и four-document8, terminal exit0.
 Связанные объекты To Do проверены в полной53-case матрице: «Готово» переносит
 выбранные карточки/миниатюры в черновик задачи; сохранение остаётся явным.
-Production rollout и live UI новой версии пока не подтверждены. R1–R10 остаются
+Production9522341 теперь подтверждён exact health и terminal CI success всех
+шагов; реальный editor8/toolbar/ToDo Done-thumbnail также PASS без сохранения
+тестовых данных. [Post-deploy proof](notion-production-result-2026-10-20.md)
+сохранён отдельно от runtime952, чтобы не перезапускать релиз ради отчёта.
+R1–R10 остаются
 открытыми: rich captions/viewer/прочие media, произвольные сложные составы и
 реальные iOS/Telegram/IME нельзя объявлять проверенными по fixture-тестам.
 Результаты выпуска: [единая проверка](notion-production-release-2026-10-20.md).
