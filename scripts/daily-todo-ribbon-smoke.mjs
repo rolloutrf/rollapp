@@ -53,8 +53,13 @@ try{
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
    if(!empty){
-    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 1'}).locator('.daily-todo__time').count(),0,'All-day legacy task shows 00:00 in To Do');
-    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 2'}).locator('.daily-todo__time').textContent(),'09:00','Timed task lost its time in To Do');
+    for(const [number,time] of [[1,'10:00'],[2,'10:30']]){
+     const row=page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true});
+     assert.equal(await row.locator('.daily-todo__time').textContent(),time,'Date-only tasks must receive consecutive display slots from 10:00');
+    }
+    assert.equal(await page.locator('.daily-todo__item').count(),30,'A full day must not hide overflow tasks');
+    for(const number of [29,30])assert.equal(await page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
+    assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width<768){
