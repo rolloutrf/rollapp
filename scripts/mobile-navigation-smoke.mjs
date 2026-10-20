@@ -18,7 +18,7 @@ try{
  try{
   await viewportPage.addInitScript(()=>Object.defineProperty(window,'innerWidth',{configurable:true,get:()=>980}));
   await viewportPage.route('**/api/**',()=>{throw new Error('Unexpected API request');});
-  await viewportPage.goto('http://127.0.0.1:5191/app/spheres/career?tab=about');
+  await viewportPage.goto(`${origin}/app/spheres/career?tab=about`);
   await viewportPage.locator('.mobile-app-navigation').waitFor();
   for(const width of [393,820,390]){
    await viewportPage.setViewportSize({width,height:844});
