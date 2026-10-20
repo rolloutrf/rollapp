@@ -410,3 +410,18 @@ checkout. Не завершать чужие сервисы ради освоб�
 `CONTROL_SIZE_PORT`, `DETAIL_ACTION_PORT`, `DATE_PICKER_PORT`, `FORM_ACTION_PORT`,
 `TEXT_EDIT_PORT`, `KANBAN_DRAG_PORT`. Это меняет только порт локального smoke
 server; набор сценариев/ассерты и production API остаются прежними.
+
+## Холодный запуск редакторного fixture
+
+Lazy/transformed app chrome требует предварительной оптимизации всех фактически
+импортируемых Base UI subpaths, а не только корневого пакета. Shared inventory
+`scripts/smoke-dependencies.mjs` проверяется по исходным imports в `src`; новый
+UI import без prebundle делает unit красным. Это предотвращает позднее обновление
+графа зависимостей/перезагрузку в середине authoring scenario. Discovery остаётся
+включённым, root/error/geometry/history assertions и прежние timeout не меняются.
+
+`smoke-browser-diagnostics.mjs` только наблюдает события публичных browser/page
+API. На отказе сохраняются bounded pageerror/console/HTTP/pending module requests
+с удалёнными URL query strings. Он не фокусирует DOM, не ждёт/retry и не подавляет
+ошибки. Холодную проверку выполнять в новом отдельном cache directory; успешный
+повтор на старом кэше не подтверждает исправление startup.
