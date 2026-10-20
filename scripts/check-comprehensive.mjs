@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 
 const root = path.resolve(import.meta.dirname, "..");
-const checks = ["check:release", "test:navigation", "test:action-rails", "test:identity-reports", "test:todo", "test:form-pages", "test:catalog-page", "test:wish-groups", "test:drawers"];
+const checks = ["check:release", "test:navigation", "test:action-rails", "test:identity-reports", "test:todo", "test:form-pages", "test:catalog-page", "test:wish-groups", "test:drawers", "test:contacts"];
 if (process.argv.includes("--list")) {
   console.log(checks.join("\n"));
 } else {

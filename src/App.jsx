@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { useContactFeed } from "./hooks/use-contact-feed.js";
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
@@ -2708,30 +2709,39 @@ function ContactsSpherePage() {
   const [category, setCategory] = useState("");
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [favoriteSavingIds, setFavoriteSavingIds] = useState(() => new Set());
-  const [page, setPage] = useState(1);
+  const loadMoreRef = useRef(null);
+  const location = useLocation();
   const [selectedContactId, setSelectedContactId] = useState("");
   const [creatingContact, setCreatingContact] = useState(false);
   const [contactsVersion, setContactsVersion] = useState(0);
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
-      setPage(1);
     }, 180);
     return () => window.clearTimeout(timeout);
   }, [search]);
-  const query = new URLSearchParams({ page: String(page), pageSize: "48" });
+  const query = new URLSearchParams({ pageSize: "48", order: "source" });
+  const owner = new URLSearchParams(location.search).get("owner");
+  if (owner) query.set("owner", owner);
   if (debouncedSearch) query.set("search", debouncedSearch);
   if (company) query.set("company", company);
   if (category) query.set("category", category);
   if (favoriteOnly) query.set("favorite", "true");
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get(`/contacts?${query.toString()}`), [debouncedSearch, company, category, favoriteOnly, page, contactsVersion]);
+  const { data, loading, loadingMore, error, reload, loadMore, updateData } = useContactFeed(query.toString(), contactsVersion);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !data?.hasMore || loading || loadingMore || error || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, { rootMargin: "500px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [data, loading, loadingMore, error, loadMore]);
   const contacts = data?.contacts || [];
   const companies = data?.facets?.companies || [];
   const categories = data?.facets?.categories || [];
   const hasFilters = Boolean(search || company || category || favoriteOnly);
-  const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); setPage(1); };
-  const start = data?.total ? (data.page - 1) * data.pageSize + 1 : 0;
-  const end = data?.total ? Math.min(data.total, start + contacts.length - 1) : 0;
+  const clearFilters = () => { setSearch(""); setDebouncedSearch(""); setCompany(""); setCategory(""); setFavoriteOnly(false); };
   globalShareRef.current = async () => {
     const path = sphereSectionPath({ ownerUsername: access.owner?.username, sphere: "career", section: "contacts" });
     try {
@@ -2760,10 +2770,9 @@ function ContactsSpherePage() {
         };
       });
       toast(favorite ? "Контакт добавлен в избранное" : "Контакт удалён из избранного", "success");
-      await reload({ background: true });
+      if (favoriteOnly) await reload({ background: true });
     } catch (favoriteError) {
       toast(favoriteError.message, "error");
-      await reload({ background: true }).catch(() => {});
     } finally {
       setFavoriteSavingIds((current) => {
         const next = new Set(current);
@@ -2784,7 +2793,7 @@ function ContactsSpherePage() {
             {search && <InputGroupAddon align="inline-end"><InputGroupButton type="button" size="icon-sm" className="contacts-sphere__search-clear rounded-full" aria-label="Очистить поиск" onClick={() => setSearch("")}><X /></InputGroupButton></InputGroupAddon>}
           </InputGroup>
           <div className="contacts-sphere__filters" aria-label="Фильтры контактов">
-            <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); setPage(1); }}>
+            <Select value={company || ALL_CONTACT_COMPANIES} onValueChange={(value) => { setCompany(value === ALL_CONTACT_COMPANIES ? "" : value); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Компания">
                 <SelectValue>{(value) => value === ALL_CONTACT_COMPANIES ? "Все компании" : value}</SelectValue>
               </SelectTrigger>
@@ -2793,7 +2802,7 @@ function ContactsSpherePage() {
                 {companies.map((item) => <SelectItem key={item.company} value={item.company}>{item.company} · {item.count}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={category || ALL_CONTACT_CATEGORIES} onValueChange={(value) => { setCategory(value === ALL_CONTACT_CATEGORIES ? "" : value); setPage(1); }}>
+            <Select value={category || ALL_CONTACT_CATEGORIES} onValueChange={(value) => { setCategory(value === ALL_CONTACT_CATEGORIES ? "" : value); }}>
               <SelectTrigger className="contacts-sphere__select" aria-label="Категория">
                 <SelectValue>{(value) => value === ALL_CONTACT_CATEGORIES ? "Все направления" : (CONTACT_CATEGORY_LABELS[value] || value)}</SelectValue>
               </SelectTrigger>
@@ -2808,7 +2817,7 @@ function ContactsSpherePage() {
               className="contacts-sphere__favorite-filter h-[50px] rounded-[15px] px-4"
               data-favorite={favoriteOnly ? "true" : "false"}
               aria-pressed={favoriteOnly}
-              onClick={() => { setFavoriteOnly((value) => !value); setPage(1); }}
+              onClick={() => { setFavoriteOnly((value) => !value); }}
             >
               <Star fill={favoriteOnly ? "currentColor" : "none"} aria-hidden="true" />
               Избранные{data?.favoriteTotal ? ` · ${data.favoriteTotal}` : ""}
@@ -2819,10 +2828,10 @@ function ContactsSpherePage() {
         {!loading && !error && (
           <div className="contacts-sphere__result-meta" aria-live="polite">
             <strong>{data?.total || 0} {contactCountNoun(data?.total || 0)}</strong>
-            {data?.total > data.pageSize && <span>Показаны {start}–{end}</span>}
+            {data?.total > contacts.length && <span>Показаны {contacts.length} из {data.total}</span>}
           </div>
         )}
-        {loading ? <LoadingScreen compact /> : error ? (
+        {loading ? <LoadingScreen compact /> : error && (!data || !contacts.length) ? (
           <div className="contacts-sphere__empty" role="alert">
             <strong>Не удалось загрузить контакты</strong>
             <span>{error.message}</span>
@@ -2888,12 +2897,13 @@ function ContactsSpherePage() {
                 );
               })}
             </ul>
-            {data.total > data.pageSize && (
-              <nav className="contacts-pagination" aria-label="Страницы контактов">
-                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={page <= 1} onClick={() => { setPage((value) => Math.max(1, value - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}><ArrowLeft />Назад</ShadcnButton>
-                <span>{data.page} / {Math.ceil(data.total / data.pageSize)}</span>
-                <ShadcnButton type="button" variant="outline" className="h-12 rounded-full px-5" disabled={!data.hasMore} onClick={() => { setPage((value) => value + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Дальше<ArrowRight /></ShadcnButton>
-              </nav>
+            {data.hasMore && (
+              <div ref={loadMoreRef} className="contacts-load-more" aria-live="polite" aria-busy={loadingMore}>
+                {error && <span role="alert">Не удалось загрузить ещё контакты: {error.message}</span>}
+                <ShadcnButton type="button" variant="outline" className="rounded-full" disabled={loadingMore} onClick={() => void loadMore()}>
+                  {loadingMore ? <><Spinner />Загрузка контактов…</> : error ? "Попробовать снова" : "Загрузить ещё"}
+                </ShadcnButton>
+              </div>
             )}
           </>
         ) : (
