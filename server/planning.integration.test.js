@@ -54,6 +54,10 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     const result = await request("POST", "", { title: "Проверить планирование", description: "Проверить оба представления", dueOn: localDateKey(new Date()) });
     assert.equal(result.status, 201);
     const id = result.body.task.id;
+    const relatedItems = [{ kind: "wishlist", id: "wish-1", title: "Книга" }, { kind: "contact", id: "contact-1", title: "Анна" }];
+    assert.deepEqual((await request("PATCH", `/${id}`, { relatedItems })).body.task.relatedItems, relatedItems);
+    assert.deepEqual((await request("GET")).body.tasks[0].relatedItems, relatedItems);
+    assert.equal((await request("PATCH", `/${id}`, { relatedItems: [relatedItems[0], relatedItems[0]] })).status, 400);
     assert.equal((await request("PATCH", `/${id}`, { status: "doing" })).body.task.title, "Проверить планирование");
     assert.equal((await request("GET")).body.tasks[0].status, "doing");
     assert.equal((await request("GET")).body.tasks[0].description, "Проверить оба представления");

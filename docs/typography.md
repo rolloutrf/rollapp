@@ -26,6 +26,8 @@ border beside the text. This applies to reading and inline editing, including th
 
 Headings use the semantic scale in `src/typeset.css`. Captions and secondary microcopy use the shared `--text-xs` role. Primary controls and menu or select rows use the primary `18px/28px` text with the product Large geometry defined in `src/index.css`.
 
+Standard content tiles use the shared `list-tile-label` and `list-tile-count` roles in `src/index.css`: a 16px/19px label and a 24px/29px semibold numeric value. Desktop daily To Do dates reuse these roles, with the weekday above the date number; they are separate from the 18px/28px navigation control role.
+
 The document renderer preserves ordered-list HTML `type` and mirrors it in
 `data-list-marker` (`a`, `A`, `i`, `I`), which the typography preset styles in
 reading and editing. The data attribute avoids case-insensitive HTML `type`
