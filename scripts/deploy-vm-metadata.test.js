@@ -86,6 +86,14 @@ test("real deployment template renders exact SHA without changing other content"
   assert.throws(() => renderDeploymentCompose("no placeholders", config));
 });
 
+test("ordinary production releases verify the existing schema instead of migrating or cleaning reservations", async () => {
+  const template = await readFile(new URL("../deploy/docker-compose.template.yml", import.meta.url), "utf8");
+  const rendered = renderDeploymentCompose(template, config);
+  assert.match(rendered, /^      ROLLAPP_DATABASE_INITIALIZATION: "verify"$/m);
+  assert.match(rendered, /^      DEMO_MODE: "false"$/m);
+  assert.doesNotMatch(rendered, /^      (?:ROLLAPP_DATABASE_INITIALIZATION: "migrate"|SEED_DEMO: "true")$/m);
+});
+
 test("protobuf-JSON omitted false defaults are polled, never treated as success", async () => {
   const f = fixture([instance(), { id: "op1" }, { id: "op1", done: true, response: {} }, instance({ "docker-compose": compose })]);
   await deployVmMetadata(config, compose, f.options);
