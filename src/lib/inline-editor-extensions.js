@@ -149,7 +149,7 @@ export function inlineEditorExtensions(placeholder = "Начните писат�
     Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText, CaptionedImage, ImageCaption,
     SymbolCodeBlock, SymbolStrike, SymbolBlockquote, SymbolOrderedList,
     Markdown, TaskList, SymbolTaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" }, a11y: { checkboxLabel: node => `Выполнено: ${node.textContent || "задача"}` } }),
-    Placeholder.configure({ placeholder, ...(documentExtension ? { includeChildren: true } : {}) }), Image, RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),
+    Placeholder.configure({ placeholder: ({ node }) => node.type.name === "imageCaption" ? "Добавьте подпись…" : placeholder, includeChildren: true }), Image, RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),
     EditableDetails.configure({ persist: true, renderToggleButton: ({ element, isOpen }) => {
       element.setAttribute("aria-label", isOpen ? "Свернуть блок" : "Раскрыть блок");
       element.setAttribute("aria-expanded", String(isOpen));

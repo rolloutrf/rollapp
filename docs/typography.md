@@ -32,6 +32,14 @@ The contextual italic control reflects the effective authored/inherited style.
 
 Headings use the semantic scale in `src/typeset.css`. Captions and secondary microcopy use the shared `--text-xs` role. Primary controls and menu or select rows use the primary `18px/28px` text with the product Large geometry defined in `src/index.css`.
 
+Rich image captions use semantic `figcaption` and the shared13px/16px caption
+role in reading/editing, without a field frame or separate editor. The figure
+measures actual image width for the caption; this transient layout is not saved
+as authored metadata. Extremely narrow media retain a readable caption minimum
+of3em, bounded by the container and aligned to the same edge/centre, with anywhere
+wrapping. This is a verified local1px-media exception, not a new font/control
+size or a claim about Notion's exact minimum. Shared figure/caption flow remains.
+
 Standard content tiles use the shared `list-tile-label` and `list-tile-count` roles in `src/index.css`: a 16px/19px label and a 24px/29px semibold numeric value. Desktop daily To Do dates reuse these roles, with the weekday above the date number; they are separate from the 18px/28px navigation control role.
 
 The document renderer preserves ordered-list HTML `type` and mirrors it in

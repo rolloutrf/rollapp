@@ -1,5 +1,15 @@
 # Rollapp workspace instructions
 
+- Rich image captions are real inline content in the shared document/history/save
+  queue, separate from alt/title. Preserve the original image attrs inside one
+  figure/caption movement unit; normalize only explicit child image NodeSelection
+  to that figure, never native text ranges. Cut/Delete must not leave an empty-src
+  required image filler. Keep read-only/IME/source guards, canonical reload,
+  selected spaces/marks, separate creation/typing/paste Undo and shared caption
+  typography. Tiny media retain readable captions without descendant clipping.
+  Verify native clipboard, protected questions, draft/retry, resize capture and
+  full editor/comprehensive before integration; branch-only targets are not release.
+
 ## Database
 
 - Always use the repository's configured production database for Rollapp development, previews, diagnostics, and verification.

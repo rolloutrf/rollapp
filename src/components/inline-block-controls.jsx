@@ -41,7 +41,7 @@ const selectionOptions = {
 const dragPosition = { placement: "left", strategy: "absolute" };
 const blockMenuCollision = { side: "shift", align: "shift" };
 const nestedBlocks = {
-  rules: [{ id: "structuralChildren", evaluate: ({ node }) => ["column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent", "questionSection"].includes(node.type.name) ? 1000 : 0 }],
+  rules: [{ id: "structuralChildren", evaluate: ({ node }) => ["imageCaption", "column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent", "questionSection"].includes(node.type.name) ? 1000 : 0 }],
 };
 const menuActions = [
   { id: "indent", kind: "action", label: "Вложить блок", description: "Сделать дочерним блоком предыдущего пункта.", aliases: "indent вложение отступ вправо", shortcut: "Tab" },
