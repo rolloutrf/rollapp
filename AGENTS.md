@@ -8,6 +8,7 @@
 - If sandbox restrictions prevent network or process checks, repeat the check with the required permissions. An unavailable process inspection is not proof that a PID is stale; never remove a live service's PID file on that basis.
 - Connecting to the production database does not by itself authorize destructive schema changes, bulk data mutations, or data deletion. Require an explicit user request for those operations and verify the exact target first.
 - Production development startup uses `ROLLAPP_DATABASE_INITIALIZATION=verify`: check the existing auth/document schema in a READ ONLY transaction, retain the reserved-username guard, and never run migrations, data backfill, or reservation cleanup just to reload application code. Keep missing-schema/connection errors visible without a demo fallback.
+- Ordinary production releases also set `ROLLAPP_DATABASE_INITIALIZATION=verify` in the deployment template. Preserve its unit guard and run the real existing-schema read-only check before rollout. Schema migrations, backfills and reservation cleanup require a separate explicitly authorized operation, not an ordinary UI deployment.
 
 ## Typography
 
