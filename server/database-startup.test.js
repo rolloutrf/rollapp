@@ -20,7 +20,7 @@ test("existing production startup verifies document/auth columns in a read-only 
   const {calls,options}=fixture();assert.equal(await initializeRuntimeDatabase(options),"verify");
   assert.equal(calls[0],"SET TRANSACTION READ ONLY");
   assert(calls.slice(1).every(sql=>sql.startsWith("SELECT ")));
-  for(const table of ["sessions","identity_content","career_content"])assert(calls.some(sql=>sql.includes(`FROM ${table} LIMIT 0`)));
+  for(const table of ["sessions","identity_content","career_content","planning_tasks"])assert(calls.some(sql=>sql.includes(`FROM ${table} LIMIT 0`)));
   assert(!calls.includes("MIGRATE"));
 });
 test("a missing production document table is an error and cannot fall back to migration or demo data",async()=>{

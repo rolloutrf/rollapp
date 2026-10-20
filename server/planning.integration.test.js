@@ -4,6 +4,8 @@ import { test } from "node:test";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { z } from "zod";
+import { CONTACTS } from "./contacts-data.js";
+import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { hashToken } from "./security.js";
 import { localDateKey } from "../shared/planning.js";
@@ -30,6 +32,7 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     const tokens = [randomUUID(), randomUUID()];
     for (const [index, id] of [ownerId, otherId].entries()) {
       await query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,$4,$5)", [id, `${id}@planning-test.invalid`, `planning-${id}`, "Planning test", "unusable"]);
+      await query("INSERT INTO default_follow_targets (user_id) VALUES ($1)", [id]);
       await query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)", [hashToken(tokens[index]), id, new Date(Date.now() + 600_000)]);
     }
     const app = express();
@@ -58,6 +61,39 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     assert.deepEqual((await request("PATCH", `/${id}`, { relatedItems })).body.task.relatedItems, relatedItems);
     assert.deepEqual((await request("GET")).body.tasks[0].relatedItems, relatedItems);
     assert.equal((await request("PATCH", `/${id}`, { relatedItems: [relatedItems[0], relatedItems[0]] })).status, 400);
+    const contactId = CONTACTS[0].id;
+    const linked = await request("PATCH", `/${id}`, { contactIds: [contactId, contactId] });
+    assert.equal(linked.status, 200);
+    assert.deepEqual(linked.body.task.contactIds, [contactId]);
+    assert.equal(linked.body.task.contacts[0].name, CONTACTS[0].name);
+    await query("DELETE FROM default_follow_targets WHERE user_id=$1", [ownerId]);
+    assert.deepEqual((await request("GET")).body.tasks[0].contacts, []);
+    assert.equal((await request("PATCH", `/${id}`, { contactIds: [contactId] })).status, 403);
+    await query("INSERT INTO default_follow_targets (user_id) VALUES ($1)", [ownerId]);
+    assert.equal((await contactMeetingNotes(query, ownerId, contactId))[0].description, "Проверить оба представления");
+    assert.deepEqual(await contactMeetingNotes(query, otherId, contactId), []);
+    await request("PATCH", `/${id}`, { description: "Обновлённые договорённости" });
+    assert.equal((await contactMeetingNotes(query, ownerId, contactId))[0].description, "Обновлённые договорённости");
+    assert.equal((await request("PATCH", `/${id}`, { contactIds: ["nonexistent-contact"] })).status, 400);
+    assert.deepEqual((await request("GET")).body.tasks[0].contactIds, [contactId]);
+    await request("PATCH", `/${id}`, { contactIds: [] });
+    assert.deepEqual(await contactMeetingNotes(query, ownerId, contactId), []);
+    await request("PATCH", `/${id}`, { description: "Проверить оба представления" });
+    const customContactId = randomUUID();
+    await query("INSERT INTO contact_overrides (user_id,contact_id,name,notes) VALUES ($1,$2,$3,$4)", [ownerId, customContactId, "Свой контакт", "Личная заметка"]);
+    const contactTask = await request("POST", "", { title: "Встреча с контактом", description: "Итоги встречи", contactIds: [customContactId] });
+    assert.equal(contactTask.status, 201);
+    assert.equal(contactTask.body.task.contacts[0].name, "Свой контакт");
+    assert.equal((await request("POST", "", { title: "Чужой контакт", contactIds: [customContactId] }, tokens[1])).status, 400);
+    await request("PATCH", `/${contactTask.body.task.id}`, { archived: true });
+    assert.equal((await contactMeetingNotes(query, ownerId, customContactId))[0].description, "Итоги встречи");
+    await request("DELETE", `/${contactTask.body.task.id}`);
+    assert.deepEqual(await contactMeetingNotes(query, ownerId, customContactId), []);
+    assert.equal((await query("SELECT notes FROM contact_overrides WHERE user_id=$1 AND contact_id=$2", [ownerId, customContactId])).rows[0].notes, "Личная заметка");
+    await query("UPDATE contact_overrides SET deleted_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND contact_id=$2", [ownerId, customContactId]);
+    assert.equal((await request("PATCH", `/${id}`, { contactIds: [customContactId] })).status, 400);
+
+
     assert.equal((await request("PATCH", `/${id}`, { status: "doing" })).body.task.title, "Проверить планирование");
     assert.equal((await request("GET")).body.tasks[0].status, "doing");
     assert.equal((await request("GET")).body.tasks[0].description, "Проверить оба представления");

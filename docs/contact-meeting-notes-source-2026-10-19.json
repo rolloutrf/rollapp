@@ -1,0 +1,46 @@
+{
+  "original": "/Users/mokoloskov/.codex/worktrees/ccee/rollapp",
+  "copy": "/tmp/rollapp-ccee-qa",
+  "fixturePortOffset": 10000,
+  "changedHarnessFiles": [
+    "scripts/mobile-form-pages-smoke.mjs",
+    "scripts/hogan-scales-smoke.mjs",
+    "scripts/kanban-drag-smoke.mjs",
+    "scripts/action-rails-smoke.mjs",
+    "scripts/date-picker-pages-smoke.mjs",
+    "scripts/mobile-navigation-smoke.mjs",
+    "scripts/wish-group-names-smoke.mjs",
+    "scripts/text-edit-smoke.mjs",
+    "scripts/mobile-catalog-page-smoke.mjs",
+    "scripts/identity-reports-smoke.mjs",
+    "scripts/daily-todo-ribbon-smoke.mjs",
+    "scripts/detail-actions-smoke.mjs",
+    "scripts/planning-contact-notes-smoke.mjs",
+    "scripts/drawer-smoke.mjs",
+    "scripts/control-size-smoke.mjs",
+    "scripts/form-actions-smoke.mjs"
+  ],
+  "additionalHarnessChanges": [
+    "vite.config.js: allow copied project and shared node_modules fonts",
+    "package.json: explicit isolated TEXT_EDIT_PORT and absolute TEXT_EDIT_CACHE_DIR"
+  ],
+  "applicationSourceFileCount": 534,
+  "applicationSourceDigestAlgorithm": "SHA256 of sorted path:sha256(file) lines joined with newline",
+  "applicationSourceDigest": "fe348b0fae6c7233a2175cd45f132a8e42348e3fc0e796b7ce2f0bba1afcc4c6",
+  "applicationSourceDrift": [],
+  "changedApplicationHashes": {
+    "server/database-startup.js": "686c2d390766ace0792086131618b97a2f62d2c3a0e74820a5014ebf954e4742",
+    "server/database-startup.test.js": "d60f93739ddc4c9e4a2d4a4be42cbb5496e898bdfb2e33bd92f8934067dc6766",
+    "server/index.js": "56516c0ff57f8d00713b37475c72ffbfb48f40e19765a810bf0dc67a1db7e185",
+    "server/planning-contacts.js": "3897c00e34d867fa51d31e6dd70e4938c062578f3646c53e0adac2562b92e100",
+    "server/planning-contacts.test.js": "bc24cabc0f7dbdab01553c07055695a0f851022bb336711e5c560512749978fd",
+    "server/planning.integration.test.js": "9e1d19da9aff0469aa84326871fe0be5fe5d77d17bf88d52324d6cfb7f0c9dd8",
+    "server/planning.js": "a10f7b19b7c6bdc6a9610bd3569b2a7640dccb24674202a7304a13f75d59d42f",
+    "server/planning.test.js": "fe11a09144d2ff764082aa8a41cb7cbbb3fe70b3ff290d82b606d954080af7c2",
+    "src/App.jsx": "1fee0cfd0b6a187a308db29bd97a093aa302a90606088e16080be0c8dfb24507",
+    "src/components/contact-meeting-notes.jsx": "2b309e7be8a85eb4b879a47631574ee0b1abb34e614abaa7ca5cae60ed65505d",
+    "src/components/planning-space.jsx": "ad3a96fc6af1fd2921fc7d0a3c05bc3d98cc1a44d2e92786e810db843817407a",
+    "src/components/task-contact-picker.jsx": "c03fe1167856cb8bc8d158c1fa1e22468dc9528703499738eaf213e913723f46"
+  },
+  "packageLockHash": "3706b7b98ef4cf77d8776de8e0e1566ffec12e4043419b9ab24f70c150236dac"
+}
