@@ -39,13 +39,38 @@
   [data-slot="drawer-footer"] {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
-  :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button {
-    min-height: 3rem;
+  /* All product form footers share ControlBar geometry, including custom
+     contact/wish compositions. The primitive remains at its upstream defaults. */
+  .app-form-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--layout-inline-gap);
+    padding: var(--layout-item-gap);
+    padding-bottom: max(var(--layout-item-gap), env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--popover);
   }
-  :is(.app-drawer--form, .app-drawer--compact) [data-slot="drawer-footer"] > button:only-child {
-    width: 100%;
-    align-self: stretch;
-    padding-inline: 1rem;
+  .app-form-actions > [class~="group/button"] {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    padding-inline: var(--layout-item-gap);
+  }
+  .app-form-actions > [type="submit"] {
+    flex: 1 1 auto;
+  }
+  .app-form-actions > [class~="group/button"]:only-child { flex-grow: 1; }
+  .app-form-actions > [data-control-icon] {
+    flex: 0 0 var(--layout-control-size);
+  }
+  /* A drawer uses the panel inset, independent of the page behind it. Native
+     contact pages retain their responsive page inset outside this selector. */
+  [data-slot="drawer-popup"].contact-detail-drawer .contact-detail__edit-body {
+    padding-inline: var(--layout-item-gap);
   }
   [data-overlay-keyboard] [data-slot="drawer-footer"] { padding-bottom: 1rem; }
   /* At short keyboard/landscape heights, reserve room for the active field.
@@ -57,7 +82,7 @@
     flex-direction: row;
     align-items: stretch;
   }
-  [data-overlay-compact] [data-slot="drawer-footer"] > * {
+  [data-overlay-compact] [data-slot="drawer-footer"]:not([data-control-bar]) > * {
     flex: 1 1 0;
     min-width: 0;
     height: auto;
@@ -117,7 +142,6 @@
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
     width: 100%;
     min-width: 0;
-    border-radius: var(--radius);
   }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__media { position: static; }
 }

@@ -178,7 +178,7 @@ export function MobileFormFooter({ as: Component = "footer", className, children
     page.footerPresence(true);
     return () => page.footerPresence(false);
   }, [page]);
-  if (!page) return <Component className={className} {...props}>{children}</Component>;
+  if (!page) return <ControlBar as={Component} className={cn("app-form-actions", className)} {...props}>{children}</ControlBar>;
   return <ControlBar as={Component} {...props} className={cn("mobile-form-page__footer", className)} data-native-form-actions="">
     <FormBack close={page.close} />
     <div className="mobile-form-page__actions">{children}</div>

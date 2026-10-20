@@ -2,7 +2,9 @@ import { BrowserRouter } from 'react-router-dom';
 import { MobileFormPages } from '@/components/mobile-form-pages';
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Drawer, DrawerContent, DrawerClose, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerClose, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { DrawerFooter } from '@/components/form-surface';
+import { MobileFormFooter } from '@/components/mobile-form-pages';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,12 +52,12 @@ function Fixture() {
     {mode === 'fullscreen' ? <FullscreenDialog onClose={() => setMode(null)} className="wish-editor-screen">
       <Button className="wish-editor-screen__close" aria-label="Закрыть редактор" onClick={() => setMode(null)}>×</Button>
       <DialogTitle className="sr-only">Полный экран</DialogTitle><DialogDescription className="sr-only">Проверка клавиатуры</DialogDescription>
-      <form className="wish-editor flex flex-col"><div className="wish-editor-screen__content"><Fields /></div><footer className="wish-editor-screen__footer"><Button type="button" onClick={() => setMode(null)}>Закрыть</Button></footer></form>
-    </FullscreenDialog> : <Drawer open={!!mode} showSwipeHandle={mode !== 'wish' || !mobile} swipeDirection={mobile ? 'down' : 'right'} onOpenChange={open => !open && setMode(null)}>
+      <form className="wish-editor flex flex-col"><div className="wish-editor-screen__content"><Fields /></div><MobileFormFooter className="wish-editor-screen__footer"><Button type="button" onClick={() => setMode(null)}>Закрыть</Button></MobileFormFooter></form>
+    </FullscreenDialog> : <Drawer open={!!mode} showSwipeHandle={mobile && mode !== 'wish'} swipeDirection={mobile ? 'down' : 'right'} onOpenChange={open => !open && setMode(null)}>
       <DrawerContent className={`rollapp-body app-drawer--form ${mode === 'wish' ? 'wish-editor-drawer app-mobile-screen' : ''}`}>
         <DrawerClose render={<Button className="absolute right-2 top-2 z-10" variant="ghost" />} aria-label="Закрыть">×</DrawerClose>
         {mode === 'wish' ? <><DrawerHeader className="pr-16"><DrawerTitle>Добавить желание</DrawerTitle><DrawerDescription>Добавьте изображение и заполните основную информацию.</DrawerDescription></DrawerHeader>
-          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4"><WishFields>{body}</WishFields></div><footer className="wish-editor-screen__footer"><Button className="wish-editor__submit h-12 px-4" type="button">Сохранить</Button></footer></form></section></>
+          <section className="wish-editor-screen wish-editor-screen--drawer"><form className="wish-editor wish-editor--create flex flex-col"><div className="wish-editor-screen__content px-4"><WishFields>{body}</WishFields></div><MobileFormFooter className="wish-editor-screen__footer"><Button className="wish-editor__submit h-12 px-4" type="button">Сохранить</Button></MobileFormFooter></form></section></>
         : <form className="flex min-h-0 flex-1 flex-col"><DrawerHeader className="pr-16"><DrawerTitle>Форма</DrawerTitle><DrawerDescription>Проверка полей, прокрутки и действий.</DrawerDescription></DrawerHeader>
           {mode === 'scroll-area' ? <ScrollArea className="min-h-0 flex-1"><div className="p-4">{body}</div></ScrollArea> : <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">{body}</div>}
           <DrawerFooter className="border-t pt-4"><Button type="button">Сохранить</Button><DrawerClose render={<Button type="button" variant="outline" />}>Отмена</DrawerClose></DrawerFooter></form>}
