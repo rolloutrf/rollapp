@@ -10253,3 +10253,69 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 @media (max-width: 560px) {
   .rolls-hero-icon { width: 96px; height: 96px; }
 }
+
+/* Collection items use the Wishlist image-then-information snippet rhythm. */
+.collection-snippet__open:hover,
+.collection-snippet__open:active { background: transparent !important; }
+.collection-snippet[data-slot="card"] {
+  gap: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  --card-spacing: 0px;
+  --snippet-flow: 8px;
+}
+.collection-snippet__media {
+  position: relative;
+  display: grid;
+  aspect-ratio: 236 / 286;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+}
+.collection-snippet__media .collection-snippet__badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, white 26%, transparent);
+  color: white;
+  background: color-mix(in oklch, black 70%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+.collection-snippet__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.collection-snippet__placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+.collection-snippet__placeholder svg { width: 48px; height: 48px; stroke-width: 1.5; }
+.collection-snippet > [data-slot="card-header"] { padding: 10px 2px 0; }
+.collection-snippet > [data-slot="card-content"] { padding: var(--snippet-flow) 2px 0; }
+.collection-snippet > [data-slot="card-footer"] {
+  padding: var(--snippet-flow) 2px 0;
+  border: 0;
+  background: transparent;
+}
+.collection-snippet [data-slot="card-title"] { min-width: 0; padding-right: 4px; }
+.collection-snippet [data-slot="card-action"] { pointer-events: auto; }
+.collection-snippet [data-slot="card-description"] { min-width: 0; }
+.collection-snippet [data-slot="card-content"] > p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+@media (max-width: 640px) {
+  .collection-snippet__media { border-radius: 15px; }
+}

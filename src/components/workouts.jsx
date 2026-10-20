@@ -4,6 +4,7 @@ import {
   Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
 } from "lucide-react";
 import { api } from "@/api";
+import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -109,7 +110,7 @@ function WorkoutCard({
   return (
     <div className="relative h-full min-w-0">
       <Button
-        className={`peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
+        className={`collection-snippet__open peer absolute inset-0 z-10 h-full w-full touch-pan-y rounded-xl bg-transparent p-0 hover:bg-transparent active:translate-y-0 ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
         variant="ghost"
         type="button"
         data-card-drag-trigger={draggable ? "" : undefined}
@@ -132,14 +133,16 @@ function WorkoutCard({
       >
         <span className="sr-only">Открыть или переместить тренировку «{workout.title}»</span>
       </Button>
-      <Card className="pointer-events-none h-full min-w-0 transition-colors peer-hover:bg-muted/40">
+      <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
+        <CollectionSnippetMedia icon={TypeIcon}>
+          <Badge variant={status.variant} className="collection-snippet__badge">
+            <StatusIcon data-icon="inline-start" aria-hidden="true" />
+            {status.label}
+          </Badge>
+        </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">
             <h4 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{workout.title}</h4>
-            <Badge variant={status.variant}>
-              <StatusIcon data-icon="inline-start" aria-hidden="true" />
-              {status.label}
-            </Badge>
           </CardTitle>
           <CardDescription className="flex items-center gap-2">
             <TypeIcon className="size-4" aria-hidden="true" />
@@ -442,7 +445,7 @@ function WorkoutSection({
   return (
     <section className="flex min-w-0 flex-col gap-4" aria-labelledby={id}>
       <h3 className={hideTitle ? "sr-only" : "m-0 font-heading text-lg leading-7 font-semibold"} id={id}>{title}</h3>
-      <ul className="grid list-none gap-4 sm:grid-cols-2">
+      <ul className="grid list-none gap-x-3 gap-y-7 grid-cols-2 lg:grid-cols-4">
         {workouts.map((workout) => (
           <li
             className={`education-card is-draggable min-w-0 rounded-xl ${cardOrder.draggedId === workout.id ? "is-dragging" : ""}`}
