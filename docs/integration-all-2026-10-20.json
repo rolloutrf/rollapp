@@ -1,7 +1,7 @@
 {
   "date": "2026-10-20",
   "testedCommit": "2a6aa7e328f4a42ed04c51381595feab9d557dc6",
-  "snapshotCount": 24,
+  "snapshotCount": 25,
   "snapshots": [
     {
       "path": "/Users/developer/Desktop/Git/rollout/rollapp",
@@ -192,11 +192,16 @@
       "sha": "a6793635d75829ddaa3720653f48ad341b8ab38e",
       "branch": "codex/snapshot-20261020-smoke-supplement",
       "method": "alternate index; original dirty worktree retained"
+    },
+    {
+      "name": "mobile-viewport",
+      "branch": "codex/snapshot-20261020-mobile-viewport",
+      "sha": "b29d42c93b433107eb65efae42ea73e4d132f314"
     }
   ],
   "unit": {
-    "tests": 776,
-    "passed": 775,
+    "tests": 778,
+    "passed": 777,
     "skipped": 1,
     "failed": 0
   },
@@ -219,7 +224,7 @@
     "Combine editor file-transfer, link-intent and quote-mark fixes from duplicate cherry-pick branches.",
     "Unify smoke-server ownership, preserve control paint assertions and reconcile calendar action labels."
   ],
-  "verificationStatus": "unit/build/drag-drop/contact-notes/production-planning passed; full comprehensive still running at push",
+  "verificationStatus": "777 unit pass; build, drag-drop, contact-notes, production planning passed; comprehensive editor and final navigation running at report",
   "dragDropFinal": {
     "passedGroups": 80,
     "viewportCount": 8,
@@ -231,7 +236,7 @@
   },
   "integrationCommitBeforeReport": "9ce6bb626323a16180cdc2b8fbd97a8f6e17a6e5",
   "dirtyAtReport": false,
-  "applicationSourceMatchesTestedCommit": true,
+  "applicationSourceMatchesTestedCommit": false,
   "comprehensiveAtPush": {
     "status": "running",
     "startedAt": "2026-10-20T07:00:26.905Z",
@@ -296,5 +301,11 @@
     "drag-drop-final": "/tmp/rollapp-integration-20261020/drag-drop-final.log",
     "contact-notes": "/tmp/rollapp-integration-20261020/contact-notes.log",
     "planning-production": "/tmp/rollapp-integration-20261020/planning-production.log"
-  }
+  },
+  "lateViewportCommit": "b541264",
+  "testedUnitCommit": "213f8b42f24f8e57a48d8193a877273a1e8fadf2",
+  "lateChanges": [
+    "useIsMobile now follows CSS matchMedia rather than innerWidth; full navigation regression running separately.",
+    "Latest smokeMode argument guard and diagnostic commit merged; unit suite rerun with 777 passed."
+  ]
 }
