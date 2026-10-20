@@ -4,6 +4,18 @@
 
 ## Источники UI-контрактов
 
+Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
+новую поверхность на восьми размерах и входит в `check:release`. До первого
+запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
+проверка — `node scripts/migrate-planning-notes.mjs`, применение после разрешения —
+та же команда с `--apply`. Обычный verify startup таблицу не создаёт.
+После миграции выполнить `npm run test:notes:production`: HTTP CRUD, owner isolation,
+Unicode payload и media guards на production PostgreSQL с обязательным ROLLBACK,
+без DDL и инициализации схемы.
+`npm run test:notes:production:ui` дополнительно открывает настоящий dev frontend
+на всех восьми размерах; session/notes API идут в ту же production rollback-only
+транзакцию. Нужен готовый keepalive; адрес можно задать `NOTES_TEST_BASE_URL`.
+
 | Область | Реализация | Документация |
 | --- | --- | --- |
 | Текст и семантические роли | `src/typeset.css`, токены `src/index.css` | `docs/typography.md` |
