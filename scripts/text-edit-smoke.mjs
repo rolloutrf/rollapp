@@ -1,5 +1,4 @@
-import { smokePort, smokeOrigin } from "./smoke-server.mjs";
-import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
 import {checkQuoteStyles} from "./text-quote-style-checks.mjs";
 import {blockTypes} from "../src/lib/inline-block-types.js";
@@ -87,7 +86,7 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="${theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/text-edit.jsx"></script></body></html>`));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {

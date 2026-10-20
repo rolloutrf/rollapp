@@ -1,5 +1,4 @@
-import { smokePort, smokeOrigin } from "./smoke-server.mjs";
-import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import assert from 'node:assert/strict';
 import {createServer} from 'vite';
 import {chromium} from 'playwright-core';
@@ -8,7 +7,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',
  name:'navigation-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?navigation-smoke'))return source+'\nexport {GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';},
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-navigation.jsx"></script></body></html>'));});}
 }]});
-await server.listen();
+await listenSmokeServer(server);
 const fixtureOrigin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 async function settle(popup){await popup.evaluate(async element=>{await Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));});}
