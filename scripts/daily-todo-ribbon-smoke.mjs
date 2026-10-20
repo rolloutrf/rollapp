@@ -9,7 +9,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',serve
 await server.listen();
 const browser=await chromium.launch(browserLaunchOptions());
 try{
- for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of width<768?[844,400]:[844]){
+ for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of [844,400]){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
   // Date-only scenarios must survive midnight and not depend on the day the
   // audit runs. Keep timers/animations moving while fixing Date's wall clock.
@@ -84,6 +84,27 @@ try{
     await screen.getByRole('textbox',{name:'Название',exact:true}).fill('  Новая задача  ');
     await screen.getByRole('textbox',{name:'Описание',exact:true}).fill('Детали');
     if(width===390&&height===844&&!empty){
+     const relatedApi=route=>{const url=new URL(route.request().url()),path=url.pathname;const payload={
+      '/api/dashboard':{wishes:[{id:'wish-1',title:'Книга',description:'Роман о путешествии',price:30000,currency:'RUB',imageUrl:'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="8" height="8"%3E%3Crect width="8" height="8" fill="red"/%3E%3C/svg%3E'}]},
+      '/api/health/workouts':{workouts:[{id:'workout-1',title:'Тренировка'}]},
+      '/api/health/medications':{medications:[]},
+      '/api/health/lab-results':{reports:[]},
+      '/api/education/courses':{courses:[{id:'course-1',title:'Курс'}]},
+      '/api/education/conferences':{conferences:[]},
+      '/api/education/coaching-sessions':{sessions:[]},
+      '/api/contacts':url.searchParams.get('page')==='2'?{contacts:[{id:'contact-2',name:'Мария'}],hasMore:false}:{contacts:[{id:'contact-1',name:'Анна'}],hasMore:true},
+     }[path];return payload?route.fulfill({json:payload}):route.abort();};
+     await page.route('**/api/**',relatedApi);
+     await screen.locator('button[id$="-related-toggle"]').click();
+     await screen.getByText(/30\s?000\s?₽/).waitFor();
+     assert(await screen.getByRole('button',{name:/Книга 30/}).locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'wishlist snippet image loads');
+     for(const name of [/Книга 30/,/Тренировка Здоровье · тренировки/,/Курс Образование · курсы/,/Мария Контакты/])await screen.getByRole('button',{name}).click();
+     await screen.getByRole('button',{name:'Готово · 4'}).click();
+     assert.equal(await screen.locator('.planning-related__selected .planning-related__choice').count(),4,'Selected objects are not displayed as snippet cards');
+     assert(await screen.getByRole('button',{name:'Убрать Книга'}).locator('img').evaluate(image=>image.complete&&image.naturalWidth>0),'Selected wishlist image is missing');
+     await page.unroute('**/api/**',relatedApi);
+    }
+    if(width===390&&height===844&&!empty){
      await page.evaluate(()=>{Object.defineProperty(visualViewport,'height',{configurable:true,value:460});Object.defineProperty(visualViewport,'offsetTop',{configurable:true,value:24});visualViewport.dispatchEvent(new Event('resize'));});
      await page.waitForFunction(()=>document.documentElement.hasAttribute('data-overlay-keyboard'));
     }
@@ -93,6 +114,7 @@ try{
     await save.click();await screen.waitFor({state:'hidden'});await page.waitForURL(chosenUrl);
     const saved=JSON.parse(await page.locator('[data-saved-task]').textContent());
     assert.equal(saved.title,'Новая задача');assert.equal(saved.description,'Детали');assert.equal(saved.dueOn,chosenDate);assert.equal(saved.columnId,'todo');assert.equal(saved.completed,false);
+    if(width===390&&height===844&&!empty)assert.deepEqual(saved.relatedItems.map(({kind,id})=>[kind,id]),[['wishlist','wish-1'],['workout','workout-1'],['course','course-1'],['contact','contact-2']]);
     if(width===390&&height===844&&!empty){
      await page.evaluate(()=>{delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'));});
      await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-overlay-keyboard'));
@@ -108,7 +130,20 @@ try{
     assert.equal(await field.count(),0,'Inline field returned after closing page');
 
    }else{
-    await selected.waitFor();const m=await measure();assert(Math.abs(m.center-width/2)<1,'Desktop selected date lost its center');assert.notEqual(m.position,'fixed','Desktop ribbon became fixed');
+    await selected.waitFor();
+    const tiles=await page.locator('.daily-todo__day').evaluateAll(nodes=>nodes.map(node=>{
+     const style=getComputedStyle(node),box=node.getBoundingClientRect(),label=node.querySelector('[data-slot="list-tile-label"]'),count=node.querySelector('[data-slot="list-tile-count"]'),l=label.getBoundingClientRect(),c=count.getBoundingClientRect();
+     return {width:box.width,height:box.height,radius:style.borderRadius,padding:style.padding,border:style.borderTopWidth,labelTop:l.top-box.top,countTop:c.top-box.top,labelLeft:l.left-box.left,countLeft:c.left-box.left,font:getComputedStyle(count).fontSize,weight:getComputedStyle(count).fontWeight,inControlBar:!!node.closest('[data-control-bar]')};
+    }));
+    for(const tile of tiles){
+     assert.equal(tile.width,130);assert.equal(tile.height,100);assert.equal(tile.radius,'18px');assert.equal(tile.padding,'12px');assert.equal(tile.border,'0px');
+     assert.equal(tile.labelLeft,12);assert.equal(tile.countLeft,12);assert(tile.countTop>tile.labelTop+19,'Date number is not below weekday');
+     assert.equal(tile.font,'24px');assert.equal(tile.weight,'600');assert.equal(tile.inControlBar,false,'Content tiles override navigation geometry');
+    }
+    assert.equal(await selected.locator('[data-slot="list-tile-label"]').textContent(),'Сб, октябрь');
+    assert.equal(await selected.locator('[data-slot="list-tile-count"]').textContent(),'17');
+    if(!empty&&[768,820,1024,1440,1920].includes(width)&&height===844)await page.screenshot({path:`/tmp/rollapp-date-tiles-${width}.png`});
+    const m=await measure();assert(Math.abs(m.center-width/2)<1,'Desktop selected date lost its center');assert.notEqual(m.position,'fixed','Desktop ribbon became fixed');
     await selected.press('ArrowRight');await page.waitForURL(url=>url.searchParams.get('date')==='2026-10-18');
    }
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Root horizontal overflow');
@@ -140,7 +175,7 @@ try{
   await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort()});
   await page.goto('http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17&slots');
   await page.locator('.daily-todo__item').first().waitFor();
-  for(const [title,time] of [['Без часа A','00:00'],['Без часа B','00:30'],['Утром','09:00']]){
+  for(const [title,time] of [['Без часа A','12:00'],['Без часа B','12:30'],['Утром','09:00']]){
    const row=page.getByRole('button',{name:`Редактировать задачу: ${title}`,exact:true});
    assert.equal(await row.locator('.daily-todo__time').textContent(),time,`To Do time disagrees with the calendar slot for ${title}`);
   }
@@ -154,13 +189,13 @@ try{
   if(width<768){
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).click();
    const screen=page.locator('[data-mobile-form-page]:not([hidden])');await screen.waitFor();
-   assert.equal(await screen.getByLabel('Начало').inputValue(),'12:00','New mobile task did not take the next free slot');
+   assert.equal(await screen.getByLabel('Начало').inputValue(),'13:00','New mobile task did not take the next free slot');
    assert.equal(await screen.getByLabel('Длительность, минут').inputValue(),'30','New mobile task does not occupy one half-hour slot');
   }else{
    await page.getByRole('textbox',{name:'Новая задача на этот день'}).fill('Следующая');
    await page.locator('.daily-todo__composer').evaluate(form=>form.requestSubmit());
    const saved=JSON.parse(await page.locator('[data-saved-task]').textContent());
-   assert.equal(saved.startTime,'12:00','New desktop task did not take the next free slot');
+   assert.equal(saved.startTime,'13:00','New desktop task did not take the next free slot');
    assert.equal(saved.durationMinutes,30,'New desktop task does not occupy one half-hour slot');
   }
   assert.deepEqual(errors,[]);await page.close();

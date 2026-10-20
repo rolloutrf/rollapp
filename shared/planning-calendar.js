@@ -7,6 +7,8 @@ export const CALENDAR_VIEWS = [
   { id: "year", label: "Год" },
   { id: "list", label: "Список" },
 ];
+const DEFAULT_TASK_START_MINUTES = 10 * 60;
+
 export const dateFromKey = (key) => new Date(`${key}T12:00:00`);
 export function addCalendarDays(key, amount) {
   const date = dateFromKey(key);
@@ -47,7 +49,7 @@ export function scheduleError({ dueOn, startTime, durationMinutes = 60 }) {
 }
 export function calendarTaskSchedule(task) {
   return task.dueOn && !task.startTime
-    ? { ...task, startTime: "00:00", durationMinutes: 30 }
+    ? { ...task, startTime: minutesTime(DEFAULT_TASK_START_MINUTES), durationMinutes: 30 }
     : task;
 }
 
@@ -63,7 +65,7 @@ export function calendarTaskSchedules(tasks) {
   return tasks.map((task) => {
     if (!task.dueOn || task.startTime) return task;
     const intervals = occupied.get(task.dueOn) || [];
-    for (let start = 0; start <= 1410; start += 30) {
+    for (let start = DEFAULT_TASK_START_MINUTES; start <= 1410; start += 30) {
       if (intervals.some(([from, to]) => start < to && start + 30 > from)) continue;
       intervals.push([start, start + 30]);
       occupied.set(task.dueOn, intervals);
@@ -76,14 +78,11 @@ export function calendarTaskSchedules(tasks) {
 // Choose the next free slot for a newly created timed task. Existing schedules
 // remain unchanged, including appointments that overlap each other.
 export function nextCalendarTaskStart(tasks, date, durationMinutes = 30) {
-  const intervals = tasks.filter((task) => task.dueOn === date).map((task) => {
+  const intervals = calendarTaskSchedules(tasks).filter((task) => task.dueOn === date).map((task) => {
     const start = timeMinutes(task.startTime);
     return start === null ? null : [start, start + (task.durationMinutes || 60)];
   }).filter(Boolean);
-  for (let start = 9 * 60; start + durationMinutes <= 1440; start += 30) {
-    if (intervals.every(([from, to]) => start >= to || start + durationMinutes <= from)) return minutesTime(start);
-  }
-  for (let start = 0; start < 9 * 60 && start + durationMinutes <= 1440; start += 30) {
+  for (let start = DEFAULT_TASK_START_MINUTES; start + durationMinutes <= 1440; start += 30) {
     if (intervals.every(([from, to]) => start >= to || start + durationMinutes <= from)) return minutesTime(start);
   }
   return null;
