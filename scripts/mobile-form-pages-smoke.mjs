@@ -5,13 +5,13 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const port = smokePort();
 import { drawerCases } from './fixtures/drawer-cases.js';
-const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke',server:{host:'127.0.0.1',port:5189,strictPort: false,hmr:false,watch:null},plugins:[{
+const server=await createServer({cacheDir:'node_modules/.vite-native-forms-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
   name:'native-form-fixture',enforce:'pre',
   transform(source,id){const name=new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');if(name&&/^[A-Z][A-Za-z]+$/.test(name)&&id.includes('/src/')&&!source.includes(`export function ${name}`))return `${source}\nexport { ${name} };`;},
   configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__drawer-smoke'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/'+(req.url.includes('flow=1')?'mobile-form-flow':'drawer-smoke')+'.jsx"></script></body></html>'));});}
 }]});
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.FORM_WIDTHS||'390,320,640,767,768,820,896,1024,1440,1920').split(',').map(Number)){
@@ -19,7 +19,7 @@ try{
   for(const [name] of cases){
    const page=await browser.newPage({viewport:{width,height:width===896?414:844}});const errors=[];
    page.on('pageerror',e=>errors.push(e.message));await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
-   await page.goto(`${fixtureOrigin}/__drawer-smoke?form=${name}`);
+   await page.goto(`${origin}/__drawer-smoke?form=${name}`);
    if(width<768){
     const screen=page.locator('[data-mobile-form-page]:visible');await screen.waitFor();
     await page.waitForURL(url=>url.searchParams.has('formScreen'));
@@ -112,7 +112,7 @@ try{
  }
  const page=await browser.newPage({viewport:{width:390,height:844}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(`${fixtureOrigin}/__drawer-smoke?flow=1`);
+ await page.goto(`${origin}/__drawer-smoke?flow=1`);
  await page.getByRole('button',{name:'Открыть группу'}).click();
  await page.getByRole('button',{name:'Добавить запись'}).click();
  let screen=page.locator('[data-mobile-form-page]:visible');await screen.waitFor();
@@ -140,7 +140,7 @@ try{
  const sourcePage=await browser.newPage({viewport:{width:390,height:844}});
  await sourcePage.route('**/api/**',route=>route.abort());
  sourcePage.on('pageerror',e=>errors.push(e.message));
- await sourcePage.goto(`${fixtureOrigin}/__drawer-smoke?flow=1&source=1`);
+ await sourcePage.goto(`${origin}/__drawer-smoke?flow=1&source=1`);
  const edit=sourcePage.getByRole('button',{name:'Редактировать документ',exact:true});
  for(const back of ['page','browser']){
   await edit.scrollIntoViewIfNeeded();

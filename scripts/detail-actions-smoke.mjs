@@ -10,7 +10,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
-const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: false, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
   transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -20,7 +20,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions
   }); },
 }] });
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];
 async function mobileGeometry(page, count) {
@@ -53,7 +53,7 @@ try {
       // response/database; any mutation from this layout check is a test failure.
       await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
       for (const variant of variants) {
-        await page.goto(`${fixtureOrigin}/__detail-actions?${variant}`);
+        await page.goto(`${origin}/__detail-actions?${variant}`);
         await page.getByRole("link", { name: "Открыть карточку" }).click();
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);

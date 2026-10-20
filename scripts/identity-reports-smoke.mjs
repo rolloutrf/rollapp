@@ -6,7 +6,7 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 
 const review = process.env.IDENTITY_REPORT_REVIEW_LAYOUT ? JSON.parse(await readFile(process.env.IDENTITY_REPORT_REVIEW_LAYOUT, 'utf8')) : null;
-const server = await createServer({ define: { __IDENTITY_REPORT_REVIEW__: JSON.stringify(review) }, cacheDir: 'node_modules/.vite-identity-reports-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.IDENTITY_REPORT_TEST_PORT), hmr: false, watch: null }, plugins: [{
+const server = await createServer({ define: { __IDENTITY_REPORT_REVIEW__: JSON.stringify(review) }, cacheDir: 'node_modules/.vite-identity-reports-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.IDENTITY_REPORT_TEST_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'identity-report-fixture', configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__identity-reports')) return next();
     res.setHeader('Content-Type', 'text/html');

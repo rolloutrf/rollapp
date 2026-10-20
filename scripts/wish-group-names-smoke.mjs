@@ -7,7 +7,7 @@ const port = smokePort();
 
 const server = await createServer({
   cacheDir: 'node_modules/.vite-wish-group-smoke',
-  server: { host: '127.0.0.1', port: smokePort(), strictPort: false, hmr: false, watch: null },
+  server: { host: '127.0.0.1', port: smokePort(), strictPort: true, hmr: false, watch: null },
   plugins: [{
     name: 'wish-group-fixture', enforce: 'pre',
     transform(source, id) {
@@ -23,7 +23,7 @@ const server = await createServer({
   }],
 });
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const width of [320, 390, 767, 768, 820, 1024, 1440, 1920]) {
@@ -32,7 +32,7 @@ try {
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
-      await page.goto(`${fixtureOrigin}/__wish-group-smoke${readonly ? '?readonly' : ''}`);
+      await page.goto(`${origin}/__wish-group-smoke${readonly ? '?readonly' : ''}`);
       await page.locator('.wish-group-tile__title').first().waitFor();
       await page.evaluate(() => document.fonts.ready);
       const geometry = await page.locator('.wish-group-tile').evaluateAll((tiles) => tiles.map((tile) => {

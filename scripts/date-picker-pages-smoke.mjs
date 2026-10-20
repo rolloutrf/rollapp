@@ -8,7 +8,7 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = smokePort(process.env.DATE_PICKER_PORT);
 const server = await createServer({
   cacheDir: "node_modules/.vite-date-pages-smoke",
-  server: { host: "127.0.0.1", port, strictPort: false, hmr: false, watch: null },
+  server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: "date-page-fixture",
     transform(source, id) {
       if (id.includes("planning-space.jsx?drawer-smoke-export=TaskEditor")) return `${source}\nexport { TaskEditor };`;
@@ -23,7 +23,7 @@ const server = await createServer({
   }],
 });
 await listenSmokeServer(server);
-const fixtureOrigin = smokeOrigin(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const width of (process.env.DATE_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
@@ -33,7 +33,7 @@ try {
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.route("**/api/**", (route) => { errors.push("Unexpected API request"); return route.abort(); });
-      const base = `${fixtureOrigin}/__date-page?date=2026-10-16&space=work`;
+      const base = `${origin}/__date-page?date=2026-10-16&space=work`;
       const screen = page.locator("[data-mobile-form-page]:visible");
       const open = () => page.getByRole("button", { name: "Выбрать дату: 16.10.2026", exact: true }).click();
       await page.goto(base);
