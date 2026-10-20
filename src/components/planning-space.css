@@ -65,7 +65,6 @@
 .kanban-empty { padding: 12px 4px; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
 .kanban-new-column { flex: 0 0 300px; border-radius: var(--radius-lg); background: color-mix(in oklch, var(--muted) 35%, transparent); }
 .kanban-new-column__button { width: 100%; justify-content: flex-start; padding: 12px; color: var(--muted-foreground); }
-.kanban-archive { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; align-items: start; }
 .kanban-card[data-dragging], .planning-column[data-dragging] { opacity: .4; }
 .kanban-card[data-drop-before]::before { content: ""; position: absolute; top: -6px; inset-inline: 0; height: 3px; border-radius: 3px; background: var(--ring); }
 .planning-column, .kanban-new-column { position: relative; }
@@ -97,8 +96,6 @@
 .app-layout--planning .app-page.planning-space--calendar { padding: 0; }
 .planning-space .planning-tools { display: flex; flex: 1; min-height: 0; min-width: 0; flex-direction: column; }
 .planning-space .kanban-workspace { flex: 1; min-height: 0; }
-.kanban-toolbar, .kanban-workspace > .kanban-caption { flex-shrink: 0; }
-.kanban-archive { min-height: 0; overflow: auto; overscroll-behavior: contain; padding-block-end: max(88px, env(safe-area-inset-bottom)); }
 .kanban-workspace .planning-column__header {
   flex-shrink: 0;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
@@ -129,9 +126,6 @@
     overflow-x: hidden;
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
   }
-  .kanban-workspace .kanban-archive {
-    padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
-  }
   .kanban-workspace .planning-column { flex: 0 0 auto; width: 100%; gap: 12px; border: 0; border-radius: 0; background: transparent; }
   .kanban-workspace .planning-column__header { position: static; gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; }
   .kanban-workspace .planning-column__title { font-size: var(--text-2xl); line-height: var(--text-2xl--line-height); }
@@ -146,38 +140,10 @@
   .kanban-card__footer { padding-inline-start: 32px; }
   .kanban-new-column { flex: 0 0 auto; width: 100%; background: transparent; }
   .kanban-new-column__button { padding-inline: 0; }
-  .kanban-archive { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Float the controls over the board without a reserved opaque header strip. */
-.kanban-workspace { position: relative; }
-.kanban-workspace > .kanban-toolbar {
-  position: absolute;
-  z-index: 5;
-  inset-block-start: 0;
-  inset-inline: 0;
-  background: transparent;
-  pointer-events: none;
-}
-.kanban-toolbar > * { pointer-events: auto; }
-.kanban-workspace > .planning-board,
-.kanban-workspace > .kanban-archive {
-  padding-block-start: calc(var(--kanban-toolbar-height, 48px) + var(--layout-inline-gap));
-}
-
-/* Safe-area space belongs inside the scroller, not above its clipping edge. */
-.app-layout--planning .app-page.planning-space--kanban {
-  padding-block-start: 0;
-}
-.kanban-workspace {
-  --kanban-top-inset: var(--layout-screen-top);
-}
-.kanban-workspace > .kanban-toolbar {
-  inset-block-start: var(--kanban-top-inset);
-}
-.kanban-workspace > .planning-board,
-.kanban-workspace > .kanban-archive {
-  padding-block-start: calc(var(--kanban-top-inset) + var(--kanban-toolbar-height, 48px) + var(--layout-inline-gap));
-}
+/* Keep safe-area space inside the board scroller without an empty toolbar row. */
+.app-layout--planning .app-page.planning-space--kanban { padding-block-start: 0; }
+.kanban-workspace > .planning-board { padding-block-start: var(--layout-screen-top); }
 
 .app-layout--planning .app-page.planning-space--todo { padding-block-start: 0; }
