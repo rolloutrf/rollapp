@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port:5190,strictPort:true,hmr:false,watch:null},plugins:[{
+const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port:5190,strictPort: false,hmr:false,watch:null},plugins:[{
   name:'action-rails-fixture',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
@@ -10,6 +10,7 @@ const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke
   });}
 }]});
 await server.listen();
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
@@ -17,7 +18,7 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
   for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic','nested']){
-   await page.goto(`http://127.0.0.1:5190/__action-rails?variant=${variant}`);
+   await page.goto(`${fixtureOrigin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
    const measure=()=>rail.evaluate(element=>{
@@ -64,7 +65,7 @@ try{
     metrics=await measure();assertCentered(metrics);
    }
    metrics=await measure();
-   await page.evaluate(()=>scrollTo(0,180));
+   await page.evaluate(()=>scrollTo({top:180,behavior:"instant"}));
    const afterScroll=await measure(),scrollY=await page.evaluate(()=>window.scrollY);
    assert(scrollY>0,'Fixture did not scroll vertically');
    assert(Math.abs(afterScroll.top-(metrics.top-scrollY))<1,`${width} ${variant}: actions are fixed or sticky`);

@@ -1,3 +1,4 @@
+import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
 import { createServer } from "vite";
@@ -9,7 +10,7 @@ let executablePath;
 for (const candidate of candidates) { try { await access(candidate); executablePath = candidate; break; } catch {} }
 assert(executablePath, "Install Chrome or set CHROME_PATH to run the required control geometry checks");
 await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
-const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: 5192, strictPort: false, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -25,7 +26,8 @@ const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes"
   }); },
 }] });
 await server.listen();
-const browser = await chromium.launch({ executablePath, headless: true, args: process.env.CI ? ["--no-sandbox"] : [] });
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const routes = [
   "/app/wishes?tab=products", "/app/spheres/career?tab=about", "/app/spheres/identity?tab=principles",
   "/app/spheres/education?tab=courses", "/app/spheres/health?tab=medications", "/app/wishes?guest=1",
@@ -75,10 +77,13 @@ try {
   for (const width of (process.env.CONTROL_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 || width === 820 ? [844, 400] : [844]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width === 390 ? 3 : 1 }), errors = [];
+      // Cold Vite compilation may exceed 30s while other full matrices run.
+      page.setDefaultNavigationTimeout(90_000);
+      page.setDefaultTimeout(90_000);
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
       for (const route of routes) {
-        await page.goto(`http://127.0.0.1:5192${route}`);
+        await page.goto(`${fixtureOrigin}${route}`, { waitUntil: "domcontentloaded" });
         await page.locator("[data-control-bar]").first().waitFor();
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;

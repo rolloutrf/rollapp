@@ -45,7 +45,7 @@ function EventPreview({ task, children, className, ...props }) {
   </Popover>;
 }
 function EventButton({ task, compact = false, style, onResize }) {
-  return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id}>
+  return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}>
     <EventPreview task={task} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
       {compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}{task.relatedItems?.length > 0 && <span className="schedule-caption schedule-event__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}
     </EventPreview>
@@ -61,14 +61,37 @@ function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
 }
 
 function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
-  const { saveSchedule, dropTask, busy } = useContext(CalendarActions);
+  const { saveSchedule, dropTask, busy, cancelInteractionRef } = useContext(CalendarActions);
   const scroll = useRef(null);
   const gesture = useRef(null);
-  const skipClick = useRef(0);
+  const skipClick = useRef(false);
   const [preview, setPreview] = useState(null);
   const [now, setNow] = useState(() => new Date());
   const dateSignature = dates.join();
   const hasAllDayTasks = tasks.some((task) => dates.includes(task.dueOn) && task.startTime === "00:00" && task.durationMinutes === 1440);
+  const scheduleSignature = tasks.map((task) => `${task.id}:${task.dueOn}:${task.startTime}:${task.durationMinutes}`).join();
+  const cancelGesture = () => {
+    const active = gesture.current;
+    gesture.current = null;
+    if (active?.moved) skipClick.current = true;
+    setPreview(null);
+    if (active?.owner.isConnected && active.owner.hasPointerCapture(active.pointerId)) active.owner.releasePointerCapture(active.pointerId);
+  };
+  useEffect(() => {
+    cancelInteractionRef.current = cancelGesture;
+    cancelGesture();
+    const cancelOnEscape = (event) => { if (event.key === "Escape" && gesture.current) { event.preventDefault(); cancelGesture(); } };
+    window.addEventListener("keydown", cancelOnEscape, true);
+    window.addEventListener("blur", cancelGesture);
+    window.addEventListener("popstate", cancelGesture);
+    return () => {
+      cancelGesture();
+      if (cancelInteractionRef.current === cancelGesture) cancelInteractionRef.current = null;
+      window.removeEventListener("keydown", cancelOnEscape, true);
+      window.removeEventListener("blur", cancelGesture);
+      window.removeEventListener("popstate", cancelGesture);
+    };
+  }, [dateSignature, scheduleSignature, busy, cancelInteractionRef]);
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
@@ -90,20 +113,21 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   const minuteAt = (event, column) => Math.max(0, Math.min(1440, (event.clientY - column.getBoundingClientRect().top) / 1.6));
   const beginRange = (event, date) => {
     if (event.pointerType !== "mouse" || event.button !== 0 || busy) return;
+    skipClick.current = false;
     const column = event.currentTarget.closest(".schedule-time-column");
-    gesture.current = { kind: "range", date, column, first: minuteAt(event, column), y: event.clientY, moved: false };
+    gesture.current = { kind: "range", owner: event.currentTarget, pointerId: event.pointerId, date, column, first: minuteAt(event, column), y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const beginResize = (event, task, delta) => {
-    if (busy) return;
+    if (busy || (!delta && event.button !== 0)) return;
     if (delta) { saveSchedule(task, calendarResize(task, timeMinutes(task.startTime) + task.durationMinutes + delta)); return; }
     event.preventDefault(); event.stopPropagation();
-    gesture.current = { kind: "resize", task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
+    gesture.current = { kind: "resize", owner: event.currentTarget, pointerId: event.pointerId, task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveGesture = (event) => {
     const active = gesture.current;
-    if (!active) return;
+    if (!active || event.pointerId !== active.pointerId) return;
     active.moved ||= Math.abs(event.clientY - active.y) > 4;
     if (!active.moved) return;
     const minute = minuteAt(event, active.column);
@@ -111,11 +135,12 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     active.patch = patch;
     setPreview({ ...patch, date: active.date || active.task.dueOn, id: active.task?.id });
   };
-  const endGesture = () => {
+  const endGesture = (event) => {
     const active = gesture.current;
-    gesture.current = null; setPreview(null);
+    if (!active || event.pointerId !== active.pointerId) return;
+    cancelGesture();
     if (!active?.moved || !active.patch) return;
-    skipClick.current = Date.now() + 150;
+    skipClick.current = true;
     if (active.kind === "range") onCreate({ dueOn: active.date, ...active.patch });
     else saveSchedule(active.task, active.patch);
   };
@@ -125,7 +150,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <p className="schedule-caption">Нет свободного получасового слота</p>
       {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <EventPreview key={task.id} task={task}>{label(task.dueOn)} · {task.title}</EventPreview>)}
     </section>}
-    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={() => { gesture.current = null; setPreview(null); }}>
+    <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onPointerMove={moveGesture} onPointerUp={endGesture} onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture}>
       <div className="schedule-timegrid__head">
         {dates.length > 1 && <><span className="schedule-timezone" aria-hidden="true" />
         {dates.map((date) => <Button variant="ghost" key={date} className="schedule-day-heading" aria-pressed={selected === date} onClick={() => onSelect(date, "day")}><span data-today={date === today || undefined}>{label(date, { weekday: "short" })}, {dateFromKey(date).getDate()}</span></Button>)}</>}
@@ -134,8 +159,8 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
         {dates.map((date) => <div className="schedule-time-column" key={date} aria-label={label(date)} data-weekend={[0, 6].includes(dateFromKey(date).getDay()) || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, minuteAt(event, event.currentTarget))}>
-          {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`Добавить задачу ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={() => { if (Date.now() < skipClick.current) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
-          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} onResize={beginResize} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
+          {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`Добавить задачу ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={(event) => { const skip = skipClick.current && event.detail !== 0; skipClick.current = false; if (skip || busy) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
+          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} compact={end - start < 60} onResize={beginResize} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
           {preview && !preview.id && preview.date === date && <div className="schedule-range" style={{ top: timeMinutes(preview.startTime) * 1.6, height: preview.durationMinutes * 1.6 }}>{taskTimeLabel(preview)}</div>}
           {date === today && <div className="schedule-now" style={{ top: (now.getHours() * 60 + now.getMinutes()) * 1.6 }} aria-label={`Сейчас ${minutesTime(now.getHours() * 60 + now.getMinutes())}`} />}
         </div>)}
@@ -149,6 +174,8 @@ function allowDrop(event) {
 
 export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
   const tasks = sourceTasks;
+  // Display slots are projections. Editing must always start from stored data.
+  const editTask = (task) => onEdit(sourceTasks.find((item) => item.id === (task.sourceId || task.id)) || task);
   const [search, setSearch] = useSearchParams();
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
@@ -156,7 +183,8 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const mobile = useIsMobile();
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
-  const navigate = (date, mode = view) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; });
+  const cancelInteractionRef = useRef(null);
+  const navigate = (date, mode = view) => { cancelInteractionRef.current?.(); setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; }); };
   const openTodo = (date = selected) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("tab", "todo"); next.delete("space"); next.delete("view"); return next; });
   const saveSchedule = async (task, patch) => {
     if (saving.current) return;
@@ -185,7 +213,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const groupedDates = [...new Set(listed.map((task) => task.dueOn))];
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
-  const agendaProps = { columns, onEdit, onCreate };
+  const agendaProps = { columns, onEdit: editTask, onCreate };
   const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>В этом месяце планов нет.</p><Button variant="outline" onClick={() => onCreate({ dueOn: selected })}><Plus />Добавить задачу</Button></div>}</div>;
   const keyboard = (event) => {
     if (event.target.closest('input, textarea, [contenteditable="true"], [data-slot="popover-content"]') || !(event.metaKey || event.ctrlKey)) return;
@@ -195,7 +223,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (mode) { event.preventDefault(); navigate(selected, mode.id); }
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}, {label(selected, { weekday: "short" })}</span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
-  return <CalendarActions.Provider value={{ onEdit, onCreate, columns, busy, saveSchedule, dropTask }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+  return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, cancelInteractionRef }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}

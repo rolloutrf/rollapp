@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 
-const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: 5194, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', server: { host: '127.0.0.1', port: 5194, strictPort: false, hmr: false, watch: null }, plugins: [{
   name: 'kanban-drag-fixture',
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/kanban-drag')) return next();
@@ -13,12 +13,13 @@ const server = await createServer({ cacheDir: 'node_modules/.vite-kanban-drag', 
   }); },
 }] });
 await server.listen();
+const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await chromium.launch(browserLaunchOptions());
 await mkdir('/tmp/rollapp-kanban-drag', { recursive: true });
 const order = page => page.locator('[data-kanban-column]').evaluateAll(elements => elements.map(element => element.dataset.kanbanColumn));
 const calls = async page => JSON.parse(await page.locator('[data-drag-calls]').textContent());
 async function ready(page, query = '') {
-  await page.goto(`http://127.0.0.1:5194/kanban-drag${query}`);
+  await page.goto(`${fixtureOrigin}/kanban-drag${query}`);
   await page.locator('[data-kanban-column]').first().waitFor();
   await page.evaluate(() => document.fonts.ready);
 }

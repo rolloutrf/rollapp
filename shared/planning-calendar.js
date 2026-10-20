@@ -101,7 +101,7 @@ export function sortCalendarTasks(tasks) {
 // Partition overlapping appointments into lanes, with a shared width per overlap group.
 export function layoutCalendarEvents(tasks) {
   const sorted = tasks.filter((task) => timeMinutes(task.startTime) !== null)
-    .map((task) => ({ task, start: timeMinutes(task.startTime), end: timeMinutes(task.startTime) + Math.max(30, task.durationMinutes || 60) }))
+    .map((task) => ({ task, start: timeMinutes(task.startTime), end: timeMinutes(task.startTime) + Math.max(15, task.durationMinutes || 60) }))
     .sort((a, b) => a.start - b.start || b.end - a.end || a.task.id.localeCompare(b.task.id));
   const result = [];
   let group = [];
