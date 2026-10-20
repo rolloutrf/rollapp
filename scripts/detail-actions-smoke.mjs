@@ -1,4 +1,4 @@
-import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
@@ -19,7 +19,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/detail-actions.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
 const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];

@@ -1,4 +1,4 @@
-import { smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import assert from "node:assert/strict";
 import { access, mkdir } from "node:fs/promises";
@@ -26,7 +26,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes"
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/control-sizes.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
 const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
 const routes = [

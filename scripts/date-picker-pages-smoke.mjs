@@ -1,5 +1,4 @@
-import { smokePort, smokeOrigin } from "./smoke-server.mjs";
-import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
+import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
@@ -23,7 +22,7 @@ const server = await createServer({
     },
   }],
 });
-await server.listen();
+await listenSmokeServer(server);
 const fixtureOrigin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
