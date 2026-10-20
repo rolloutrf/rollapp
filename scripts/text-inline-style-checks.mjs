@@ -93,6 +93,12 @@ export async function checkTextInlineStyles(browser, origin) {
       const menu = page.getByRole("dialog", { name: "Цвет текста и фона", exact: true });
       await menu.waitFor();
       await tools.waitFor({ state: "hidden" });
+      // Measure and click the completed popup, not its 95% entry transform.
+      // This also keeps Playwright's reveal scroll from racing its positioner.
+      await menu.evaluate(async element => {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {})));
+      });
       const box = await menu.boundingBox();
       assert(box.x >= 15 && box.y >= 15 && box.x + box.width <= width - 15 && box.y + box.height <= height - 15, "Color palette must fit the visible viewport");
       if (width === 390 && height === 400 && !keyboardChecked) {
