@@ -37,3 +37,40 @@ Alt/title сохраняются как metadata, это НЕ реализаци
 старый permissive parser; только собственный проверенный PID69720 остановлен
 TERM/exit143, не засчитан. smokeMode теперь rejects unknown/multiple flags до
 server/browser startup;2 новых unit и реальные CLI rejection cases подтверждены.
+
+## Tiny media после интеграции main
+
+Снимок ea455b5/dirty: совмещён main e579dca, включая готовую отдельно отправленную
+cold smoke diagnostics ветку. Feature alignment в main пока не переносилась.
+Native расширение обнаружило два конкретных дефекта прежнего placement:
+left1×30 при320px — пересечение кнопки и right rail270px²;
+right1×30 при768px — elementFromPoint в центре изображения попадал в кнопку.
+Оба прогона завершились exit1, логи
+`/tmp/rollapp-notion-tiny-alignment-{before,hitareas-before}-2026-10-20.log`.
+
+Исправление выбирает свободную внешнюю сторону за resize hit area с gap8,
+сохраняет общий48px control и не меняет prose/image DOM, typography или z-index.
+При отсутствии места с обеих сторон action скрыт. Два pure unit проверяют
+1/16/31/32/79/80/120px при семи ширинах и трёх положениях, включая no-room guard.
+Native alignment матрица дополнена tiny left/center/right, точными DOM hit areas,
+первым pointer capture обеих ручек, preview без записи и exact размером/Undo.
+
+- npm test:789 total/788 PASS/1SKIP/0FAIL, terminal0.
+- npm run test:ui:37 primitives/79 JSX PASS; npm run build PASS, terminal0.
+  Обычное предупреждение bundle size сохраняется; не объявляется исправленным.
+- Native --image-alignment-only:10/10 PASS и --image-resize-only:8/8 PASS,
+  оба terminal exit0, раздельные cache directories. Tiny regression проходит
+  также768px, где до исправления native image target был перекрыт; screenshots
+  dark768×844 и DPR3 dark390×400 просмотрены.
+- Просмотрен DPR3 screenshot tiny right390×400: кнопка снаружи, glyph и круг
+  остаются общими, native image/rails не прикрыты. Применён frontend-design с
+  сохранением существующей минимальной Rollapp композиции/Geist, без редизайна.
+- Логи `/tmp/rollapp-notion-tiny-alignment-{unit,ui,build,after,resize-compat}-2026-10-20.log`.
+- Основные старые full399/baseline375 ещё выполняются,648/637 inputs drift0;
+  не являются проверкой нового integrated alignment. Нужен frozen full409 и
+  десять стадий нынешнего comprehensive, затем exact-SHA/live UI и real-device IME.
+
+Remote main и codex/smoke-cold-dependencies подтверждены e579dca. На read-only
+проверке production healthy d116857, новый CI e579dca pending; running старый
+0a7f645 ещё на Test and build. Ручной rollout/restart не выполнялся. Managed dev
+10724 в905f ready и оставлен работать. Изменений schema/data/real uploads нет.

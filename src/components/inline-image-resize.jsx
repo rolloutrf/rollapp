@@ -4,6 +4,7 @@ import { ControlBar } from "@/components/control-bar";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { useVisualViewportBoundary } from "@/hooks/use-visual-viewport";
 import { commitInlineImageAlignment } from "@/lib/inline-image-alignment";
+import { imageAlignmentActionLeft } from "@/lib/inline-image-controls";
 import { useEffect, useId, useRef, useState } from "react";
 import { NodeSelection } from "@tiptap/pm/state";
 import { ScreenPortal } from "@/components/ui/screen-portal";
@@ -33,7 +34,8 @@ const availableWidth = image => {
 function imageActionRect(image) {
   const rect=image.getBoundingClientRect(),viewport=measureVisualViewport(window),header=document.querySelector('.global-app-chrome')?.getBoundingClientRect(),navigation=document.querySelector('.mobile-app-navigation')?.getBoundingClientRect();
   const top=Math.max(viewport.offsetTop,header?.height?header.bottom:0)+8,bottom=Math.min(viewport.offsetTop+viewport.height,navigation?.height?navigation.top:Infinity)-8;
-  const x=Math.max(16,Math.min(innerWidth-64,rect.width>=80?rect.right-56:rect.right+8));
+  const x=imageAlignmentActionLeft(rect,innerWidth);
+  if(x===null)return null;
   const y=Math.max(top,Math.min(bottom-48,rect.top+(rect.height>=64?8:rect.height/2-24)));
   return new DOMRect(x,y,48,48);
 }
@@ -169,9 +171,9 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
   };
   const target=!drag.current&&handles[0],action=target&&target.width<target.maxWidth-1?imageActionRect(target.image):null;
   const openAlignment=()=>{
-    if(!target || !valid(target))return;
+    if(!target || !action || !valid(target))return;
     focused.current=target.image;
-    const request={...target,anchor:{contextElement:target.image,getBoundingClientRect:()=>imageActionRect(target.image)}};
+    const request={...target,anchor:{contextElement:target.image,getBoundingClientRect:()=>imageActionRect(target.image)||target.image.getBoundingClientRect()}};
     alignmentRef.current=request;setAlignment(request);notifyActivity();measureRef.current();
   };
   const applyAlignment=value=>{
