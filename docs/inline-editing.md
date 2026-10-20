@@ -1,6 +1,6 @@
 # Редактирование текста в странице
 
-Разработка rich captions (ещё не integration/production): `captionedImage`
+Rich captions: `captionedImage`
 содержит исходный leaf image и `imageCaption` с inline marks. Подпись не alt/title
 и не отдельный editor/save queue; image/caption — одна block movement unit.
 Создание проверяет актуальные doc/selection/node, доступ/IME и reload depth,
