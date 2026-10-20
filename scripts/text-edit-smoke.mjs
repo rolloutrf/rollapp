@@ -1,3 +1,4 @@
+import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 import {blockTypes} from "../src/lib/inline-block-types.js";
 import {checkImageResize} from "./text-image-resize-checks.mjs";
 import {checkImages,checkImageLayout,checkImageReaders,checkImageContexts,imageFixturePNG} from "./text-image-checks.mjs";
@@ -47,8 +48,7 @@ import { checkTextBlockMenu } from "./text-block-menu-checks.mjs";
 import { checkTextSelectionPosition } from "./text-selection-position-checks.mjs";
 import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
-const port = Number(process.env.TEXT_EDIT_PORT || 5199);
-const origin = `http://127.0.0.1:${port}`;
+const port = smokePort(process.env.TEXT_EDIT_PORT);
 const only = process.argv.find(argument => ["--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"].includes(argument));
 const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
@@ -83,7 +83,8 @@ const server = await createServer({ optimizeDeps: { include: ["zod"] }, cacheDir
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="${theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/text-edit.jsx"></script></body></html>`));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   if(!only || only === "--image-resize-only" || only === "--image-resize-diagnostic") await checkImageResize(browser,origin,only === "--image-resize-diagnostic");
