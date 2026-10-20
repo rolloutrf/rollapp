@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { MoreHorizontal, Plus, X } from "lucide-react";
 import { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext } from "@/App.jsx?controls-smoke";
 import { ControlBar } from "@/components/control-bar";
 import { PlanningCalendar } from "@/components/planning-calendar";
@@ -43,6 +43,10 @@ function Fixture() {
         </div> : <>
           <h1>Контролы приложения</h1>
           <div className="page-toolbar"><PageActionButton onClick={create}>Добавить</PageActionButton><PageActionButton variant="outline">Редактировать</PageActionButton></div>
+          <ControlBar className="flex gap-2" aria-label="Единый стиль кнопок">
+            <Button data-control-icon variant="secondary" size="icon" aria-label="Единый стиль: меню"><MoreHorizontal /></Button>
+            <Button data-control-icon variant="outline" size="icon" aria-label="Единый стиль: закрыть"><X /></Button>
+          </ControlBar>
           <ControlBar className="flex gap-2" aria-label="Защита от локального размера">
             <Button data-control-icon className="!size-20 rounded-full" aria-label="Локальный большой размер"><Plus className="size-8" /></Button>
             <Button className="!h-16" disabled>Недоступное действие</Button>

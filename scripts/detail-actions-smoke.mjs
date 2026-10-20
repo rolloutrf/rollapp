@@ -55,6 +55,14 @@ try {
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);
         const catalog = variant.includes("catalog");
+        if (!catalog) {
+          const radii = await page.locator('[data-slot="wish-actions"] button[class~="group/button"]').evaluateAll(buttons => buttons.map(button => {
+            const style = getComputedStyle(button);
+            return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(parseFloat);
+          }));
+          assert(radii.length >= 2, "Wish primary and overflow actions missing");
+          assert(radii.every(corners => corners.every(radius => radius === (width >= 768 ? 0 : 24))), "Desktop wish actions must be square; mobile actions must retain pill/circle corners");
+        }
         if (width < 768) {
           const before = await mobileGeometry(page, catalog ? 2 : 3);
           await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
