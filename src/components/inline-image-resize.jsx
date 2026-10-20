@@ -1,3 +1,9 @@
+import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ControlBar } from "@/components/control-bar";
+import { Popover, PopoverContent } from "@/components/ui/popover";
+import { useVisualViewportBoundary } from "@/hooks/use-visual-viewport";
+import { commitInlineImageAlignment } from "@/lib/inline-image-alignment";
 import { useEffect, useId, useRef, useState } from "react";
 import { NodeSelection } from "@tiptap/pm/state";
 import { ScreenPortal } from "@/components/ui/screen-portal";
@@ -24,18 +30,35 @@ const availableWidth = image => {
   return tracks.slice(start-1,stop).reduce((sum,value)=>sum+value,0)+(parseFloat(style.columnGap)||0)*Math.max(0,stop-start);
 };
 
+function imageActionRect(image) {
+  const rect=image.getBoundingClientRect(),viewport=measureVisualViewport(window),header=document.querySelector('.global-app-chrome')?.getBoundingClientRect(),navigation=document.querySelector('.mobile-app-navigation')?.getBoundingClientRect();
+  const top=Math.max(viewport.offsetTop,header?.height?header.bottom:0)+8,bottom=Math.min(viewport.offsetTop+viewport.height,navigation?.height?navigation.top:Infinity)-8;
+  const x=Math.max(16,Math.min(innerWidth-64,rect.width>=80?rect.right-56:rect.right+8));
+  const y=Math.max(top,Math.min(bottom-48,rect.top+(rect.height>=64?8:rect.height/2-24)));
+  return new DOMRect(x,y,48,48);
+}
+
 export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
   const [handles,setHandles]=useState([]), hovered=useRef(null), focused=useRef(null), otherHover=useRef(false), drag=useRef(null), callbacks=useRef(null), measureRef=useRef(()=>{});
   callbacks.current={suspended,onActiveChange};
+  const [alignment,setAlignment]=useState(null),alignmentRef=useRef(null);
+  const viewportBoundary=useVisualViewportBoundary(Boolean(alignment));
+  const header=alignment&&document.querySelector('.global-app-chrome')?.getBoundingClientRect(),navigation=alignment&&document.querySelector('.mobile-app-navigation')?.getBoundingClientRect();
+  const contentTop=Math.max(viewportBoundary.y,header?.height?header.bottom:0),contentBottom=Math.min(viewportBoundary.y+viewportBoundary.height,navigation?.height?navigation.top:Infinity);
+  const boundary=alignment?{...viewportBoundary,y:contentTop,height:Math.max(0,contentBottom-contentTop)}:viewportBoundary;
+  const notifyActivity=()=>callbacks.current.onActiveChange?.(Boolean(drag.current || alignmentRef.current));
+  const closeAlignment=()=>{alignmentRef.current=null;setAlignment(null);notifyActivity();measureRef.current();};
+
   const append=useInlineMenuPortal(), owner=useId();
   const ownsControl = active => active?.getAttribute?.("data-image-resize-owner") === owner;
-  const valid = value => !editor.isDestroyed && editor.isInitialized && editor.isEditable && !editor.view.composing && !callbacks.current.suspended && value.image.isConnected && editor.view.dom.contains(value.image) && editor.state.doc===value.doc && editor.state.selection.eq(value.selection) && editor.state.doc.nodeAt(value.position)===value.node;
+  const owned = value => !editor.isDestroyed && editor.isInitialized && editor.isEditable && !editor.view.composing && !callbacks.current.suspended && value.image.isConnected && editor.view.dom.contains(value.image) && editor.state.doc===value.doc && editor.state.selection.eq(value.selection) && editor.state.doc.nodeAt(value.position)===value.node;
+  const valid = value => !alignmentRef.current && owned(value);
   const restore = value => { if(value.image.isConnected){value.image.style.width=value.style.width;value.image.style.height=value.style.height;} };
   const cancel = (focus=false) => {
     const value=drag.current;if(!value)return;
     drag.current=null;restore(value);
     if(value.control.hasPointerCapture(value.id))value.control.releasePointerCapture(value.id);
-    callbacks.current.onActiveChange?.(false);
+    notifyActivity();
     if(focus && value.previousFocus?.isConnected)value.previousFocus.focus({preventScroll:true});
   };
   const preview = (value, delta) => {
@@ -61,6 +84,7 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     const measure=()=>{
       cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{
         if(drag.current && !valid(drag.current))cancel();
+        if(alignmentRef.current){if(!owned(alignmentRef.current))closeAlignment();else{publish([]);return;}}
         if(editor.isDestroyed || !editor.isInitialized || !root?.isConnected || !editor.isEditable || editor.view.composing || callbacks.current.suspended){cancel();publish([]);return;}
         const active=root.ownerDocument.activeElement,controlFocused=ownsControl(active);
         const selected=active===root && !otherHover.current && editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name==="image" ? editor.view.nodeDOM(editor.state.selection.from) : null;
@@ -90,7 +114,7 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
         if(!valid(value)){cancel();measure();return;}
         preview(value,event.clientX-value.startX);measure();return;
       }
-      if(event.target.closest?.('[data-image-resize]'))return;
+      if(ownsControl(event.target.closest?.('[data-image-resize-owner]')))return;
       const image=event.target.closest?.("img");otherHover.current=Boolean(image&&!root?.contains(image));hovered.current=root?.contains(image)?image:null;if(otherHover.current)focused.current=null;measure();
     };
     const up=event=>{
@@ -111,14 +135,14 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     const key=event=>{if(event.key==="Escape" && drag.current){event.preventDefault();event.stopPropagation();cancel(true);measure();}};
     const selection=()=>{if(drag.current && !sameEndpoint(root.ownerDocument,drag.current.native)){cancel();measure();}};
     const observer=new ResizeObserver(measure);
-    const unbind=()=>{cancel();if(root){observer.unobserve(root);root.removeEventListener("compositionstart",stop);root.removeEventListener("compositionend",measure);root=null;}};
+    const unbind=()=>{cancel();if(alignmentRef.current)closeAlignment();if(root){observer.unobserve(root);root.removeEventListener("compositionstart",stop);root.removeEventListener("compositionend",measure);root=null;}};
     const bind=()=>{unbind();if(editor.isDestroyed)return;root=editor.view.dom;observer.observe(root);root.addEventListener("compositionstart",stop);root.addEventListener("compositionend",measure);measure();};
     editor.on("mount",bind);editor.on("create",bind);editor.on("unmount",unbind);editor.on("transaction",measure);if(editor.isInitialized)bind();
     document.addEventListener("pointermove",pointer);document.addEventListener("pointerup",up);document.addEventListener("pointercancel",stop);document.addEventListener("keydown",key,true);document.addEventListener("selectionchange",selection);document.addEventListener("focusin",focus);document.addEventListener("wheel",stop,{passive:true});
     window.addEventListener("scroll",measure,true);window.addEventListener("resize",stop);window.addEventListener("blur",stop);window.visualViewport?.addEventListener("resize",stop);window.visualViewport?.addEventListener("scroll",measure);
     return()=>{measureRef.current=()=>{};unbind();observer.disconnect();editor.off("mount",bind);editor.off("create",bind);editor.off("unmount",unbind);editor.off("transaction",measure);document.removeEventListener("pointermove",pointer);document.removeEventListener("pointerup",up);document.removeEventListener("pointercancel",stop);document.removeEventListener("keydown",key,true);document.removeEventListener("selectionchange",selection);document.removeEventListener("focusin",focus);document.removeEventListener("wheel",stop);window.removeEventListener("scroll",measure,true);window.removeEventListener("resize",stop);window.removeEventListener("blur",stop);window.visualViewport?.removeEventListener("resize",stop);window.visualViewport?.removeEventListener("scroll",measure);cancelAnimationFrame(frame);};
   },[editor,owner]);
-  useEffect(()=>{if(suspended){cancel();setHandles([]);}else measureRef.current();},[suspended]);
+  useEffect(()=>{if(suspended){cancel();if(alignmentRef.current)closeAlignment();setHandles([]);}else measureRef.current();},[suspended]);
   const begin=(event,value)=>{
     if(event.button!==0 || drag.current || !valid(value))return;
     event.preventDefault();
@@ -126,7 +150,7 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     event.currentTarget.focus({preventScroll:true});
     if(!valid(value))return;
     drag.current={...value,id:event.pointerId,control:event.currentTarget,startX:event.clientX,box:value.image.getBoundingClientRect(),style:{width:value.image.style.width,height:value.image.style.height},previousFocus,native:endpoint(value.image.ownerDocument),moved:false,dimensions:null};
-    event.currentTarget.setPointerCapture(event.pointerId);callbacks.current.onActiveChange?.(true);
+    event.currentTarget.setPointerCapture(event.pointerId);notifyActivity();
   };
   const key=(event,value)=>{
     if(event.isComposing || !valid(value))return;
@@ -143,5 +167,26 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     if(operation.moved)commitInlineImageResize(editor,value,operation.dimensions);
     measureRef.current();
   };
-  return <ScreenPortal container={append()}>{handles.map(value=><div key={`${value.position}:${value.side}`} role="separator" aria-orientation="vertical" aria-label={`Изменить ширину изображения ${value.side==="left"?"слева":"справа"}`} aria-valuemin={1} aria-valuemax={value.maxWidth} aria-valuenow={Math.round(value.width)} tabIndex={0} data-image-resize-owner={owner} data-image-resize={value.side} className="inline-editor__image-resize not-typeset" style={{left:value.x,top:value.y,height:value.height,width:value.hitWidth,"--image-resize-guide-x":`${value.guideX}px`}} onFocus={()=>{focused.current=value.image;measureRef.current();}} onPointerDown={event=>begin(event,value)} onLostPointerCapture={()=>{cancel();measureRef.current();}} onKeyDown={event=>key(event,value)}/>)}</ScreenPortal>;
+  const target=!drag.current&&handles[0],action=target&&target.width<target.maxWidth-1?imageActionRect(target.image):null;
+  const openAlignment=()=>{
+    if(!target || !valid(target))return;
+    focused.current=target.image;
+    const request={...target,anchor:{contextElement:target.image,getBoundingClientRect:()=>imageActionRect(target.image)}};
+    alignmentRef.current=request;setAlignment(request);notifyActivity();measureRef.current();
+  };
+  const applyAlignment=value=>{
+    const request=alignmentRef.current;
+    if(!request || !owned(request))return;
+    commitInlineImageAlignment(editor,request,value);
+    closeAlignment();
+    if(!editor.isDestroyed&&editor.isEditable)editor.view.focus();
+  };
+  return <ScreenPortal container={append()}>
+    {action&&<ControlBar className="inline-editor__image-alignment-control not-typeset" style={{left:action.x,top:action.y}}><Button type="button" variant="secondary" size="icon" data-control-icon data-image-resize-owner={owner} aria-label="Выравнивание изображения" aria-expanded={Boolean(alignment)} onFocus={()=>{focused.current=target.image;measureRef.current();}} onClick={openAlignment}><AlignCenter aria-hidden="true" /></Button></ControlBar>}
+    <Popover open={Boolean(alignment)} onOpenChange={open=>{if(!open)closeAlignment();}}>
+      {alignment&&<PopoverContent anchor={alignment.anchor} collisionBoundary={boundary} collisionPadding={16} collisionAvoidance={{side:"shift",align:"shift"}} positionMethod="fixed" className="inline-editor__image-alignment-menu not-typeset" aria-label="Выравнивание изображения" finalFocus={()=>false} onKeyDown={event=>{if(event.key==="Escape"&&!event.nativeEvent.isComposing){event.preventDefault();closeAlignment();editor.view.focus();}}}>
+        <ControlBar className="flex gap-2" aria-label="Положение изображения">{[["left","По левому краю",AlignLeft],["center","По центру",AlignCenter],["right","По правому краю",AlignRight]].map(([value,label,Icon])=><Button key={value} type="button" variant={(alignment.node.attrs.alignment||"left")===value?"default":"ghost"} size="icon" data-control-icon data-image-resize-owner={owner} aria-label={label} aria-pressed={(alignment.node.attrs.alignment||"left")===value} onClick={()=>applyAlignment(value)}><Icon aria-hidden="true" /></Button>)}</ControlBar>
+      </PopoverContent>}
+    </Popover>
+    {handles.map(value=><div key={`${value.position}:${value.side}`} role="separator" aria-orientation="vertical" aria-label={`Изменить ширину изображения ${value.side==="left"?"слева":"справа"}`} aria-valuemin={1} aria-valuemax={value.maxWidth} aria-valuenow={Math.round(value.width)} tabIndex={0} data-image-resize-owner={owner} data-image-resize={value.side} className="inline-editor__image-resize not-typeset" style={{left:value.x,top:value.y,height:value.height,width:value.hitWidth,"--image-resize-guide-x":`${value.guideX}px`}} onFocus={()=>{focused.current=value.image;measureRef.current();}} onPointerDown={event=>begin(event,value)} onLostPointerCapture={()=>{cancel();measureRef.current();}} onKeyDown={event=>key(event,value)}/>)}</ScreenPortal>;
 }

@@ -1,3 +1,4 @@
+import { safeImageAlignment } from "./inline-image-alignment.js";
 import Image from "@tiptap/extension-image";
 import { blockHTML } from "./inline-table-markdown.js";
 
@@ -6,7 +7,7 @@ import { blockHTML } from "./inline-table-markdown.js";
 export const InlineImage = Image.extend({
   addAttributes() {
     const attributes = this.parent();
-    return { ...attributes, ...Object.fromEntries(["width", "height"].map(name => [name, {
+    return { ...attributes, alignment: { default: null, parseHTML: element => safeImageAlignment(element.getAttribute("data-image-align")), renderHTML: attrs => ({ "data-image-align": safeImageAlignment(attrs.alignment) }) }, ...Object.fromEntries(["width", "height"].map(name => [name, {
       ...attributes[name],
       parseHTML: element => {
         const value = element.getAttribute(name);
@@ -16,8 +17,8 @@ export const InlineImage = Image.extend({
     }])) };
   },
   renderMarkdown(node, helpers) {
-    const { src = "", alt = "", title, width, height } = node.attrs || {};
-    return width != null || height != null || title != null || src.startsWith("/") || /[\s()]/.test(src) || /[\[\]\r\n\t]/.test(alt)
+    const { src = "", alt = "", title, width, height, alignment } = node.attrs || {};
+    return alignment != null || width != null || height != null || title != null || src.startsWith("/") || /[\s()]/.test(src) || /[\[\]\r\n\t]/.test(alt)
       ? blockHTML(node) : this.parent(node, helpers);
   },
 });
