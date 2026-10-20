@@ -119,6 +119,14 @@ Cmd+Shift и Alt+Shift в Chromium с fixture-only navigator.platform; это н
 
 ## Выпуск и восстановление
 
+Обычный production release задаёт в Compose
+`ROLLAPP_DATABASE_INITIALIZATION: "verify"`. Backend проверяет существующую
+auth/document/planning схему в READ ONLY транзакции, сохраняя reserved-username
+guard; отсутствие таблиц/колонок — ошибка запуска без миграции или demo fallback.
+Не запускать `initializeDatabase`/backfill/очистку резервирований ради обновления
+UI. Изменения схемы/данных выполняются только отдельной явно разрешённой операцией.
+Template guard в `scripts/deploy-vm-metadata.test.js` входит в `npm test`/release.
+
 CI обновляет только ключ `docker-compose` через
 `scripts/deploy-vm-metadata.mjs`: официальный REST Instance.Get с `view=FULL`,
 UpdateMetadata с одним `upsert`, ожидание конкретной Operation.Get и повторная
