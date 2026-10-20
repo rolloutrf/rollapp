@@ -50,6 +50,10 @@ try{
    await page.goto(`http://127.0.0.1:5191/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+   if(!empty){
+    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 1'}).locator('.daily-todo__time').count(),0,'All-day legacy task shows 00:00 in To Do');
+    assert.equal(await page.getByRole('button',{name:'Редактировать задачу: Задача 2'}).locator('.daily-todo__time').textContent(),'09:00','Timed task lost its time in To Do');
+   }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');

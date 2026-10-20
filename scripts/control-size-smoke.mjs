@@ -110,7 +110,7 @@ try {
         await geometry(page, `${label} scrolled`);
         if (route.includes("view=day") || route.includes("/career") || route.includes("tab=todo")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : route.includes("tab=todo") ? "todo" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
-          await page.getByRole("button", { name: "Новое событие", exact: true }).click();
+          await page.getByRole("button", { name: "Новая задача в календаре", exact: true }).click();
           const screen = page.locator("[data-mobile-form-page]:visible"); await screen.waitFor();
           const back = screen.getByRole("button", { name: "Назад", exact: true });
           assert.equal((await back.boundingBox()).height, 48, "Native form Back differs from navigation");
