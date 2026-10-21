@@ -11,6 +11,26 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:400}});
+  await page.route('**/api/**',route=>route.abort());
+  await page.goto(`${origin}/__todo-ribbon?date=2026-10-18&empty`);
+  const field=page.getByRole('textbox',{name:'Новая задача на этот день',exact:true});
+  await field.fill('Однократная отправка');
+  await page.evaluate(()=>{
+   const form=document.querySelector('.daily-todo__composer');
+   window.todoNativeSubmits=0;
+   form.addEventListener('submit',()=>window.todoNativeSubmits++);
+   form.requestSubmit(); form.requestSubmit();
+  });
+  await page.waitForFunction(()=>document.querySelector('.daily-todo__composer textarea').value==='');
+  const result=await page.evaluate(()=>({events:window.todoNativeSubmits,calls:window.todoSaveCalls}));
+  assert.equal(result.events,2,'The browser must dispatch both real native submit events');
+  assert.equal(result.calls.length,1,`A pending/settling composer must save once: ${JSON.stringify(result)}`);
+  assert.equal(result.calls[0].title,'Однократная отправка');
+  await page.close();
+  console.log('PASS native same-frame submit: two native events, one saved task and one draft reset');
+ }
  for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of [844,400]){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
   // Date-only scenarios must survive midnight and not depend on the day the
@@ -244,7 +264,9 @@ try{
      await page.waitForFunction(()=>document.querySelector('.daily-todo__composer textarea').value==='');
      const payload=JSON.parse(await page.locator('[data-saved-task]').textContent());
      assert.equal(payload.title,'Черновик с айтемами');
-     assert.deepEqual(payload.relatedItems,[{kind:'wishlist',id:'wish-preview',title:'Книга с миниатюрой'}],'Save must send canonical related references, not thumbnail metadata');
+     const calls=await page.evaluate(()=>window.todoSaveCalls||[]);
+     assert.equal(calls.filter(call=>call.title==='Черновик с айтемами').length,1,`Composer must submit once: ${JSON.stringify(calls)}`);
+     assert.deepEqual(payload.relatedItems,[{kind:'wishlist',id:'wish-preview',title:'Книга с миниатюрой'}],`Save must send canonical related references, not thumbnail metadata. Calls: ${JSON.stringify(calls)}`);
      assert.equal(await composer.locator('.planning-related__choice').count(),0,'Successful send retained snippets');
      await attach.click();await picker.getByText('Книга с миниатюрой',{exact:true}).waitFor();
      for(const choice of await picker.locator('.planning-related__choice').all())await choice.click();
