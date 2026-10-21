@@ -30,7 +30,9 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 
 Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
 gate. Общий default `test:text-edit` включает captions перед baseline409 и
-ожидает417 PASS records; `check:comprehensive` сохраняет все10 этапов без
+давал417 PASS records до viewer-итерации. Теперь общий default также включает
+8 viewer cases (425 суммарно); `--image-reader-only` проверяет viewer и rich
+reader на восьми размерах, но остаётся diagnostic. `check:comprehensive` сохраняет все10 этапов без
 фильтров. Targeted captions/alignment/resize разных dirty snapshots нельзя
 складывать в полный PASS. Подробности и непроверенные случаи:
 `docs/notion-image-caption-verification-2026-10-20.md`.

@@ -1035,3 +1035,22 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 Наведённое/выбранное изображение шириной меньше доступной получает временное меню слева/по центру/справа: ControlBar48/20, gap8 и различимое выбранное положение. `alignment` хранится как безопасный необязательный enum под canonical `data-image-align`. Отсутствие сохраняет legacy left; выбор текущего положения не создаёт изменения или Undo. Команда сохраняет размеры, alt/title, соседей, выделение и общую очередь документа, включая nested/columns/table/fixed questions. Popup ограничен фактическими chrome/navigation и VisualViewport; outside/cancel/source/selection/access не возвращают устаревший фокус. Rich captions отдельно от alt/title и точные Notion edge anchors/minimum остаются открытыми.
 
 У изображений уже80px кнопка выравнивания размещается с доступной внешней стороны с gap8 после resize hit area, а не прижимается поверх изображения. Если ни одна сторона не вмещает общий48px control, кнопка скрыта. Native target изображения и обе edge rails остаются раздельными; проверяется фактический elementFromPoint, первый pointer capture, preview без записи и отдельный Undo для tiny1×30 при left/center/right на всей alignment матрице.
+# Image viewer
+
+Shared rich documents and their public read-only readers use the same owned
+image viewer. Double-click an image while editing, or press Alt+Enter with its
+image/figure selected. Read-only images support click, focus with Tab and
+Enter/Space. Disabled/loading documents do not open media. Ordinary native text
+selection, image resizing and caption editing retain their existing ownership.
+
+The viewer composes FullscreenDialog, shared VisualViewport/safe-area geometry
+and 48px ControlBar actions. Fit/natural-size display uses one scroll owner;
+Escape and Close dismiss it. Opening, zooming and dismissal are not document
+or Undo entries. Image attrs/caption/Markdown and save queues are unchanged.
+Only explicit dismissal may restore still-owned focus; source/document,
+selection, access, IME and lifecycle changes retire it without stale focus.
+Competing block/table/column/resize chrome stays suspended while viewing.
+
+The image-reader diagnostic and the default full text-edit suite include viewer
+cases at all eight editor viewports. Targeted PASS does not replace complete
+editor/comprehensive verification or actual-device IME checks.

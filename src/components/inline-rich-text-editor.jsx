@@ -1,6 +1,7 @@
 import { captureInlineLinkIntent, mapInlineLinkIntent, commitInlineLink, safeInlineLink } from "@/lib/inline-link-intent";
 import { hasEffectiveItalic, toggleEffectiveItalic } from "@/lib/inline-italic";
 import { InlineImageResize } from "@/components/inline-image-resize";
+import { InlineImageViewer } from "@/components/inline-image-viewer";
 import { selectionHasImageCaption } from "@/lib/inline-image-caption";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
@@ -52,6 +53,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
   const [imageTransferVisible, setImageTransferVisible] = useState(false);
   const [imageResizing, setImageResizing] = useState(false);
+  const [imageViewing, setImageViewing] = useState(false);
   const pickerChosen = useRef(false);
   const [menu, setMenu] = useState(null);
   const menuRef = useRef(null);
@@ -303,7 +305,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     if (!editable || editor.isDestroyed || !editor.isInitialized || editor.view.dom.contains(event.target) || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
     event.preventDefault(); event.stopPropagation(); callbacks.current.onBlur?.();
   }}>
-    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} actionsRef={blockActions} onCreateBlock={openPicker}>
+    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} actionsRef={blockActions} onCreateBlock={openPicker}>
       {format("Тип блока", Pilcrow, event => openPicker(selectedBlockPosition(editor.state.selection), null, event.currentTarget))}
       {format("Жирный", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
       {format("Курсив", Italic, () => toggleEffectiveItalic(editor), hasEffectiveItalic(editor.state))}
@@ -341,9 +343,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     </FloatingMenu>}
     {editable && <InlineImagePicker editor={editor} onVisibilityChange={setImagePickerVisible} />}
     {editable && <InlineImageTransfer editor={editor} onVisibilityChange={setImageTransferVisible} />}
-    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible)} onActiveChange={setImageResizing} />}
-    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
-    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} />}
+    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageViewing)} onActiveChange={setImageResizing} />}
+    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
+    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} />}
+    <InlineImageViewer editor={editor} disabled={disabled} accessKey={editable} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setImageViewing} />
     <EditorContent editor={editor} />
   </section>;
 }
