@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
-const server=await createServer({cacheDir:'node_modules/.vite-calendar-events',server:{host:'127.0.0.1',port:5198,strictPort: false,hmr:false,watch:null},plugins:[{name:'calendar-events-fixture',transform(source,id){if(id.includes('planning-space.jsx?calendar-events-export'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__calendar-events'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/calendar-events.jsx"></script></body></html>'));});}}]});
-await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+import { listenSmokeServer, smokeOrigin, smokePort } from './smoke-server.mjs';
+const server=await createServer({cacheDir:'node_modules/.vite-calendar-events',server:{host:'127.0.0.1',port:smokePort(process.env.CALENDAR_TEST_PORT),strictPort:true,hmr:false,watch:null},plugins:[{name:'calendar-events-fixture',transform(source,id){if(id.includes('planning-space.jsx?calendar-events-export'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__calendar-events'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/calendar-events.jsx"></script></body></html>'));});}}]});
+await listenSmokeServer(server);
+const fixtureOrigin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.CALENDAR_WIDTHS||'320,390,768,820,1024,1440,1920').split(',').map(Number))for(const height of [900,400]){
@@ -17,7 +18,7 @@ try{
   await page.locator('[data-calendar-event="long"]').waitFor();await page.evaluate(()=>document.fonts.ready);
   await page.screenshot({path:`/tmp/rollapp-events-${width}-${height}.png`});
   const state=async()=>JSON.parse(await page.locator('[data-state]').textContent());
-  const writes=async count=>{await page.waitForFunction(n=>JSON.parse(document.querySelector('[data-state]').textContent).writes.length===n,count);await page.locator('.schedule[aria-busy="false"]').waitFor();};
+  const writes=async count=>{try{await page.waitForFunction(n=>JSON.parse(document.querySelector('[data-state]').textContent).writes.length===n,count);await page.locator('.schedule[aria-busy="false"]').waitFor();}catch(error){console.error('calendar writes failure',JSON.stringify({width,height,expected:count,state:await state(),body:await page.locator('body').innerText(),errors}));await page.screenshot({path:`/tmp/rollapp-events-failed-${width}-${height}.png`});throw error;}};
   const close=async()=>{await page.getByRole('button',{name:width<768?'Назад':'Закрыть задачу',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor({state:'hidden'});};
   const event=id=>page.locator(`[data-calendar-event="${id}"] .schedule-event`);
   const edit=async id=>{await event(id).click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:id.startsWith('series')?'Изменить серию':'Изменить',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor();};

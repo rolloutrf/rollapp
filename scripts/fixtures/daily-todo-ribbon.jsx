@@ -24,7 +24,7 @@ function Fixture(){
  const [saved,setSaved]=useState(null);
  const [edited,setEdited]=useState(null);
  const [editor,setEditor]=useState(null);
- const save=async(id,payload)=>{if(payload.title==='Ошибка сохранения')throw Error('Не удалось сохранить задачу');setSaved(payload);};
+ const save=async(id,payload)=>{window.todoSaveCalls ||= []; window.todoSaveCalls.push(structuredClone(payload)); if(payload.title==='Ошибка сохранения')throw Error('Не удалось сохранить задачу');setSaved(payload);};
  const columns=[{id:'todo',title:'Запланировано',complete:false}];
  const [search,setSearch]=useSearchParams();
  const date=search.get('date')||localDateKey(new Date());
