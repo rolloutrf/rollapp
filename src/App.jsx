@@ -552,17 +552,15 @@ function Avatar({ user, size = "md", className = "", ...props }) {
   );
 }
 
-const SPHERE_SERVICES = [
+const SERVICE_SWITCHER_ITEMS = [
   { id: "identity", label: "Идентичность", path: "/app/spheres/identity", icon: Fingerprint, color: "#5967f2" },
-  { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
-  { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
   { id: "health", label: "Здоровье", path: "/app/spheres/health", icon: HeartPulse, color: "#43bd83" },
+  { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
+  { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
+  { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
 ];
 
-const SERVICE_SWITCHER_ITEMS = [
-  { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
-  ...SPHERE_SERVICES,
-];
+const SPHERE_SERVICES = SERVICE_SWITCHER_ITEMS.filter((item) => item.id !== "wishlist");
 
 const ROLLS_SERVICE = { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" };
 const PLANNING_SERVICE = { id: "planning", label: "Планирование", path: "/app/planning", icon: Columns3 };
@@ -988,9 +986,7 @@ function serviceChromeFromPath(pathname) {
     serviceId = "wishlist";
   }
   if (!serviceId) return null;
-  const service = serviceId === "wishlist"
-    ? SERVICE_SWITCHER_ITEMS[0]
-    : serviceId === "rolls"
+  const service = serviceId === "rolls"
       ? ROLLS_SERVICE
     : serviceId === "planning"
       ? PLANNING_SERVICE
