@@ -2,6 +2,7 @@ import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from "./smoke-browser-diagnostics.mjs";
 import { checkImageAlignment } from "./text-image-alignment-checks.mjs";
 import { checkImageCaptions } from "./text-image-caption-checks.mjs";
+import { checkImageViewer } from "./text-image-viewer-checks.mjs";
 import { smokeMode } from "./smoke-mode.mjs";
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 import {checkLinkIntent} from "./text-link-intent-checks.mjs";
@@ -95,6 +96,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 try {
+  if(!only || only === "--image-reader-only") await checkImageViewer(browser,origin);
   if(!only || only === "--image-captions-only") await checkImageCaptions(browser,origin);
   if(!only || only === "--image-alignment-only") await checkImageAlignment(browser,origin);
   if(only === "--paste-history-diagnostic") await checkCrossClipboard(browser,origin,true);

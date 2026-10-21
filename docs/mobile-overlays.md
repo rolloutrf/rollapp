@@ -1,5 +1,11 @@
 # Mobile overlay behavior
 
+Inline image viewing composes the existing FullscreenDialog. Its ControlBar
+header remains outside one min-height:0 scrolling image body; both respect the
+shared visible viewport and safe areas. Base UI retains modality/focus trapping.
+Fit/natural-size zoom must not enlarge the document root or hide Close. Native
+source focus returns only after explicit dismissal and a valid editor owner.
+
 `src/overlays.css` is the product layout layer for portalled drawers and dialogs.
 `useVisualViewport()` runs once in `App` and publishes the visible height, top
 and bottom offset to the document. It handles overlay keyboards, resized layout
