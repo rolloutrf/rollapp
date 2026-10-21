@@ -1,0 +1,6 @@
+.planning-notes { width: 100%; max-width: calc(var(--layout-document-width) + 2 * var(--layout-page-inset)); margin-inline: auto; padding-block-end: calc(var(--layout-navigation-bottom) + var(--layout-control-size) + var(--layout-page-gap)); }
+.planning-notes__list { display: flex; min-width: 0; flex-direction: column; gap: var(--layout-inline-gap); }
+.planning-notes__item { display: flex; min-width: 0; align-items: center; gap: var(--layout-inline-gap); min-height: var(--layout-control-size); padding: var(--layout-panel-inset); border-radius: var(--radius-lg); background: var(--card); color: var(--foreground); text-decoration: none; }
+.planning-notes__item:hover { background: var(--accent); }
+.planning-notes__item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.planning-notes__document { min-width: 0; overflow-wrap: anywhere; }

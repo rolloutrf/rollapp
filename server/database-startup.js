@@ -18,6 +18,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT token_hash,user_id,expires_at FROM sessions LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM identity_content LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM career_content LIMIT 0");
+    await client.query("SELECT id,user_id,title,content,created_at,updated_at FROM planning_notes LIMIT 0");
   });
   return mode;
 }

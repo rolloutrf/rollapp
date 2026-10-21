@@ -2015,12 +2015,13 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
+  const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      <div className={`app-layout app-layout--dark ${planningRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
+      <div className={`app-layout app-layout--dark ${planningRoute && !notesRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-          {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && (!planningRoute || notesRoute) && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}

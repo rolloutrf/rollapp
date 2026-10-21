@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowLeft, CalendarDays, ChevronDown, Columns3, Link2, ListTodo, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, Columns3, FileText, Link2, ListTodo, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { TaskContactPicker } from "@/components/task-contact-picker";
 import { planningApi } from "@/lib/planning-api";
@@ -22,6 +22,7 @@ import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { scheduleError } from "../../shared/planning-calendar.js";
 import { RECURRENCE_OPTIONS, recurrenceError } from "../../shared/planning-recurrence.js";
 import { PlanningKanban } from "@/components/planning-kanban";
+import { PlanningNotes } from "@/components/planning-notes";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePlanningSpaces } from "@/hooks/use-planning-spaces";
 import "./planning-space.css";
@@ -30,6 +31,7 @@ export const PLANNING_TABS = [
   { id: "kanban", label: "Kanban-доска", icon: Columns3 },
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
+  { id: "notes", label: "Заметки", icon: FileText },
 ];
 const EMPTY_TASK = { contactIds: [], title: "", description: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null, relatedItems: [] };
 function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }) {
@@ -170,6 +172,7 @@ export function PlanningSpace() {
   const [search] = useSearchParams();
   const activeTab = PLANNING_TABS.some(({ id }) => id === search.get("tab")) ? search.get("tab") : "kanban";
   const spaceId = search.get("space") || "main";
+  if (activeTab === "notes") return <PlanningNotes />;
   if (activeTab === "kanban" && spaceId === "main") return <PlanningBoardStart />;
   return <PlanningSpaceContent key={spaceId} spaceId={spaceId} activeTab={activeTab} />;
 }
