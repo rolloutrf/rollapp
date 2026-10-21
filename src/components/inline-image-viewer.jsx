@@ -57,9 +57,10 @@ export function InlineImageViewer({ editor, disabled = false, suspended = false,
     const decorate = () => {
       if (accessKey === false && !callbacks.current.disabled) for (const image of root.querySelectorAll("img")) {
         if (attributes.has(image)) continue;
-        attributes.set(image, ["tabindex", "role", "aria-label"].map(name => image.getAttribute(name)));
-        image.setAttribute("tabindex", "0"); image.setAttribute("role", "button");
-        image.setAttribute("aria-label", `Открыть изображение${image.alt ? `: ${image.alt}` : ""}`);
+        attributes.set(image, ["tabindex", "aria-keyshortcuts", "aria-description"].map(name => image.getAttribute(name)));
+        // Preserve native img semantics and the authored alt accessible name.
+        image.setAttribute("tabindex", "0"); image.setAttribute("aria-keyshortcuts", "Enter Space");
+        image.setAttribute("aria-description", "Enter или пробел: открыть изображение");
       }
     };
     decorate();
@@ -73,7 +74,7 @@ export function InlineImageViewer({ editor, disabled = false, suspended = false,
       observer.disconnect(); root.removeEventListener("click", pointer); root.removeEventListener("dblclick", pointer, true);
       root.removeEventListener("keydown", key, true); root.removeEventListener("compositionstart", compose, true);
       doc.removeEventListener("focusin", focus, true); editor.off("transaction", validate); editor.off("destroy", compose);
-      for (const [image, values] of attributes) ["tabindex", "role", "aria-label"].forEach((name, i) => { if (values[i] == null) image.removeAttribute(name); else image.setAttribute(name, values[i]); });
+      for (const [image, values] of attributes) ["tabindex", "aria-keyshortcuts", "aria-description"].forEach((name, i) => { if (values[i] == null) image.removeAttribute(name); else image.setAttribute(name, values[i]); });
       active.current = null;
     };
   }, [editor, disabled, accessKey]);

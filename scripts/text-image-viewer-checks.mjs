@@ -20,6 +20,7 @@ export async function checkImageViewer(browser, origin) {
       const root = page.locator('.inline-editor__content[aria-label="О себе"]'), image = root.locator("img");
       await image.waitFor(); await image.evaluate(el => el.decode()); await page.evaluate(() => document.fonts.ready);
       const before = await root.evaluate(el => el.editor.getJSON());
+      assert.equal(await root.getByRole("img", { name: "Viewer diagram", exact: true }).count(), 1, "Viewer affordances retain native image role and authored alt name");
       const dialog = page.getByRole("dialog", { name: "Просмотр изображения", exact: true });
       if (readonly) await image.press("Enter"); else await image.dblclick();
       await dialog.waitFor(); await dialog.locator("img").evaluate(el => el.decode()); await frames(page);
