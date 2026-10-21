@@ -9,6 +9,7 @@ const referenceQueries = [
   "SELECT 1 FROM contact_overrides WHERE user_id=$1 AND avatar_url=$2 LIMIT 1",
   "SELECT 1 FROM career_content WHERE user_id=$1 AND POSITION($2 IN content_json)>0 LIMIT 1",
   "SELECT 1 FROM identity_content WHERE user_id=$1 AND POSITION($2 IN content_json)>0 LIMIT 1",
+  "SELECT 1 FROM planning_notes WHERE user_id=$1 AND POSITION($2 IN content)>0 LIMIT 1",
 ];
 
 export async function imageIsInUse(query, userId, imageUrl) {
