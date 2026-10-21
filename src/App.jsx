@@ -1,3 +1,4 @@
+import { HealthTracker } from "@/components/health-tracker";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
@@ -953,6 +954,8 @@ const HEALTH_TABS = [
     label: "Препараты",
     description: "Назначенные препараты, схемы приёма и важные напоминания.",
   },
+  { id: "sleep", label: "Сон", description: "Дневник сна, длительность и качество отдыха." },
+  { id: "nutrition", label: "Питание", description: "Дневник питания, калории и БЖУ за день." },
 ];
 
 const SERVICE_TABS = {
@@ -2135,6 +2138,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                                     ? <LabResults />
                                     : sphere.id === "health" && tab.id === "sport"
                                       ? <Workouts />
+                                      : sphere.id === "health" && ["sleep", "nutrition"].includes(tab.id)
+                                        ? <HealthTracker key={tab.id} tracker={tab.id} />
                                       : sphere.id === "health" && tab.id === "medications"
                                         ? <Medications />
                                 : sphere.id === "career" && tab.id === "cv"

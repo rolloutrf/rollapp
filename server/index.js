@@ -1,3 +1,4 @@
+import { registerHealthTrackerRoutes } from "./health-trackers.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
@@ -1093,6 +1094,7 @@ registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
+registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
