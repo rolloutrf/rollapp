@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
@@ -37,9 +38,14 @@ try {
    await page.close();
   }
  }
+ for (const startupDelay of [0, 2200]) {
  const morning = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'Europe/Moscow' });
  await morning.route('**/api/**', route => { apiRequests++; return route.abort(); });
- await morning.clock.install({ time: new Date('2026-10-20T23:59:59+03:00') });
+ // Installing a ticking clock one second before midnight races cold CI loading.
+ // Own time before navigation; only the explicit advance may cross midnight.
+ await morning.clock.install({ time: new Date('2026-10-20T23:59:00+03:00') });
+ await morning.clock.pauseAt(new Date('2026-10-20T23:59:59+03:00'));
+ await delay(startupDelay);
  await morning.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&empty=1`);
  await morning.locator('[data-sleep-day="2026-10-20"]').waitFor();
  await morning.clock.fastForward(2100);
@@ -47,7 +53,8 @@ try {
  assert.equal(await morning.locator('[data-sleep-day="2026-10-20"]').count(), 0, 'Unsaved placeholders are not manufactured history');
  assert.equal(await morning.getByRole('dialog').count(), 0);
  await morning.close();
- console.log('PASS sleep midnight: a new daily tile appears automatically without API writes');
+ console.log(`PASS sleep midnight (${startupDelay}ms startup delay): a new daily tile appears automatically without API writes`);
+ }
  assert.equal(apiRequests, 0, "UI presentation fixtures must not call API");
 } finally { await browser.close(); await server.close(); }
 async function assertGeometry(page, label) {
