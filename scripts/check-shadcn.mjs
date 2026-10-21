@@ -53,8 +53,10 @@ for (const [file, classes] of [
   for (const name of classes) assert.match(source, new RegExp(`<ControlBar\\b[^>]*className="${name}"`), `${file}: ${name} must use ControlBar`);
 }
 const dailyTodo = await read("src/components/planning-daily-todo.jsx");
-assert.match(dailyTodo, /<div\b[^>]*className="daily-todo__ribbon"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
-assert.match(dailyTodo, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
+const dayRibbon = await read("src/components/planning-day-ribbon.jsx");
+assert.match(dailyTodo, /<PlanningDayRibbon\b/, "To Do must use the shared day ribbon");
+assert.match(dayRibbon, /<div\b[^>]*className="daily-todo__ribbon"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
+assert.match(dayRibbon, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);

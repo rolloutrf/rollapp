@@ -1,0 +1,13 @@
+@layer components {
+  /* The legacy sphere shell styles every paragraph. Component compositions
+     use their parent gap and inherit the shared body or secondary text role. */
+  .health-tracker .not-typeset p {
+    margin-block: 0;
+    color: inherit;
+  }
+}
+@layer components {
+  .nutrition-todo__body { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }
+  .nutrition-todo__meta { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+  .nutrition-todo__toolbar--readonly { grid-template-columns: var(--layout-control-size) minmax(0, 1fr) var(--layout-control-size); }
+}

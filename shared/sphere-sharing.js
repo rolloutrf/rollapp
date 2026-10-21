@@ -3,7 +3,7 @@ export const SPHERE_SECTIONS = {
   identity: ["four-questions", "values", "character", "gallup", "hogan", "mission", "ideal-state", "life-strategy", "theses", "principles"],
   career: ["about", "domain", "cv", "performance", "development-plan", "contacts"],
   education: ["courses", "conferences", "coaching"],
-  health: ["lab-results", "sport", "medications"],
+  health: ["lab-results", "sport", "medications", "sleep", "nutrition"],
   contacts: ["contacts"],
 };
 
@@ -30,6 +30,8 @@ export const SPHERE_SECTION_LABELS = {
   "lab-results": "Анализы",
   sport: "Спорт",
   medications: "Препараты",
+  sleep: "Сон",
+  nutrition: "Питание",
   contacts: "Контакты",
 };
 

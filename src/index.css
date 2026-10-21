@@ -8,6 +8,7 @@
 @import "./containers.css";
 @import "./overlays.css";
 @import "./identity-reports.css";
+@import "./components/health-tracker.css";
 
 @custom-variant dark (&:is(.dark *));
 
