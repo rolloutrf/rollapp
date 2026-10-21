@@ -1,7 +1,8 @@
 # Rollapp workspace instructions
 
 - Image viewing in shared rich editors/readers is non-authoring: preserve exact
-  image/figure/caption attrs, native selection, history and save queues. Compose
+  image/figure/caption attrs, native image role and authored alt accessible name,
+  native selection, history and save queues. Compose
   FullscreenDialog/ControlBar and the shared VisualViewport, never a separate
   focus trap. Retire on document/source/selection/access/IME/lifecycle changes;
   restore focus only after explicit dismissal with a still-valid owner. Keep

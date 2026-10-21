@@ -28,6 +28,24 @@ running. No production data or server configuration changed.
 
 ## Pending
 
+Full comprehensive on clean b8bf6ca failed, terminal1/session59980 at
+2026-10-21T18:30:24.947Z, during caption tests after viewer8PASS. New read-only
+affordance had incorrectly replaced native img role/alt accessible name with
+button/launch text. Existing caption test at line60 correctly rejected it.
+Full failure artifacts preserved as
+`/tmp/rollapp-viewer-comprehensive-failed-b8bf6ca-20261021.{json,log}`;
+all frozen hashes matched after failure. No full PASS or deployment of b8.
+Correction preserves native img role and authored alt; only tabindex,
+aria-keyshortcuts and aria-description are transient keyboard affordances.
+Added explicit native image-role/name assertion to the viewer browser suite;
+existing caption assertions remain unchanged. Caption recovery passed all8
+cases, terminal0/session9560,
+`/tmp/rollapp-viewer-caption-recovery-20261021.log`. Viewer8 and public-reader8
+recovery also passed, terminal0/session32500,
+`/tmp/rollapp-viewer-accessible-reader-recovery-20261021.log`, including explicit
+native img/alt assertion. These targeted recoveries do not replace a new full
+comprehensive run on the clean corrective commit, which is the next gate.
+
 UI implementation now exists in InlineImageViewer, connected to the shared
 editor (including its read-only rich readers). FullscreenDialog/ControlBar and
 the established theme/Geist roles are reused, following frontend-design's
