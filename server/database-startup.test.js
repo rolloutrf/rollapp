@@ -24,7 +24,7 @@ test("existing production startup verifies document/auth columns in a read-only 
   assert(!calls.includes("MIGRATE"));
 });
 test("a missing production document table is an error and cannot fall back to migration or demo data",async()=>{
-  for (const unavailable of ["identity_content", "planning_notes", "health_tracker_entries"]) {
+  for (const unavailable of ["identity_content", "planning_notes", "health_tracker_entries", "expected_result", "actual_result"]) {
     const {calls,options}=fixture({unavailable});await assert.rejects(initializeRuntimeDatabase(options),/Existing schema unavailable/);assert(!calls.includes("MIGRATE"));
   }
 });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
+import { runPlanningResultChecks } from './planning-result-checks.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{name:'todo-ribbon-fixture',transform(source,id){if(id.includes('planning-space.jsx?drawer-smoke-export=TaskEditor'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
  if(!req.url.startsWith('/__todo-ribbon'))return next();
  res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/daily-todo-ribbon.jsx"></script></body></html>'));
@@ -11,6 +12,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
+ await runPlanningResultChecks(browser,origin);
  {
   const page=await browser.newPage({viewport:{width:1440,height:400}});
   await page.route('**/api/**',route=>route.abort());

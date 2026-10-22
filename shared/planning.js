@@ -41,7 +41,7 @@ export function movePlanningTask(tasks, id, columnId, beforeId = null) {
 }
 
 export function planningMarkdown(columns, tasks) {
-  const card = (task) => `- [${task.completed ? "x" : " "}] ${task.title.replace(/\n/g, "<br>")}${task.dueOn ? ` @{${task.dueOn}}` : ""}${task.description ? `<br>${task.description.replace(/\n/g, "<br>")}` : ""}`;
+  const card = (task) => `- [${task.completed ? "x" : " "}] ${task.title.replace(/\n/g, "<br>")}${task.dueOn ? ` @{${task.dueOn}}` : ""}${task.description ? `<br>${task.description.replace(/\n/g, "<br>")}` : ""}${task.expectedResult ? `<br>Ожидаемый результат: ${task.expectedResult.replace(/\n/g, "<br>")}` : ""}${task.actualResult ? `<br>Факт: ${task.actualResult.replace(/\n/g, "<br>")}` : ""}`;
   return ["---\nkanban-plugin: board\n---", ...columns.map((column) => [
     `## ${column.title.replace(/\n/g, " ")}`,
     ...(column.complete ? ["**Complete**"] : []),

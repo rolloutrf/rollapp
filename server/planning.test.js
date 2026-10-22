@@ -18,8 +18,24 @@ test("planning dates validate leap days and reject normalized invalid dates", ()
 });
 
 test("task input validates titles, status, description limits and optional date", () => {
-  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", status: "todo", dueOn: "", relatedItems: [], contactIds: [] });
+  assert.deepEqual(planningTaskSchema.parse({ title: "  План  " }), { title: "План", description: "", expectedResult: "", actualResult: "", status: "todo", dueOn: "", relatedItems: [], contactIds: [] });
   for (const value of [{ title: " " }, { title: "x", status: "unknown" }, { title: "x", dueOn: "2026-02-30" }, { title: "x", description: "x".repeat(5001) }]) assert.equal(planningTaskSchema.safeParse(value).success, false);
+});
+
+test("task outcomes are independent optional text fields with bounded create and patch values", () => {
+  const outcomes = { expectedResult: "  План\n🎯  ", actualResult: "  Сделано\n✅  " };
+  const parsed = planningTaskSchema.parse({ title: "Задача", ...outcomes });
+  assert.equal(parsed.expectedResult, "План\n🎯");
+  assert.equal(parsed.actualResult, "Сделано\n✅");
+  assert.deepEqual(planningPatchSchema.parse({ actualResult: "  " }), { actualResult: "" });
+  assert.deepEqual(planningPatchSchema.parse({ completed: true }), { completed: true });
+  for (const field of ["expectedResult", "actualResult"]) {
+    for (const value of [null, 1, "x".repeat(5001)]) {
+      assert.equal(planningTaskSchema.safeParse({ title: "x", [field]: value }).success, false);
+      assert.equal(planningPatchSchema.safeParse({ [field]: value }).success, false);
+    }
+    assert.equal(planningPatchSchema.parse({ [field]: "x".repeat(5000) })[field].length, 5000);
+  }
 });
 
 test("task links accept distinct typed objects and reject duplicates", () => {
@@ -40,7 +56,7 @@ test("board moves preserve unmentioned cards and support insertion within the sa
   const tasks = [
     { id: "a", title: "First", columnId: "todo" },
     { id: "b", title: "Second", columnId: "todo", completed: true, dueOn: "2026-10-07" },
-    { id: "c", title: "Third", columnId: "doing", description: "- [ ] Step one\n- [x] Step two" },
+    { id: "c", title: "Third", columnId: "doing", description: "- [ ] Step one\n- [x] Step two", expectedResult: "План\n🎯", actualResult: "Факт\n✅" },
   ];
   assert.deepEqual(movePlanningTask(tasks, "b", "todo", "a").map((task) => task.id), ["b", "a", "c"]);
   assert.deepEqual(movePlanningTask(tasks, "a", "doing", null).map((task) => task.id), ["b", "c", "a"]);
@@ -49,6 +65,8 @@ test("board moves preserve unmentioned cards and support insertion within the sa
   assert.match(markdown, /kanban-plugin: board/);
   assert.match(markdown, /\[x\] Second @\{2026-10-07\}/);
   assert.match(markdown, /Step one<br>- \[x\] Step two/);
+  assert.match(markdown, /Ожидаемый результат: План<br>🎯<br>Факт: Факт<br>✅/);
+  assert.deepEqual(movePlanningTask(tasks, "c", "done").find(task => task.id === "c"), { ...tasks[2], columnId: "done" });
 });
 
 test("calendar navigation clamps month ends and keeps Monday weeks across year boundaries", async () => {
