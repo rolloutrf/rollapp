@@ -54,9 +54,19 @@ test("planning persists both views and isolates owners on production PostgreSQL"
       return { status: response.status, body: await response.json() };
     };
     assert.equal((await request("GET", "", undefined, "invalid")).status, 401);
-    const result = await request("POST", "", { title: "Проверить планирование", description: "Проверить оба представления", dueOn: localDateKey(new Date()) });
+    const result = await request("POST", "", { title: "Проверить планирование", description: "Проверить оба представления", expectedResult: "  План\n🎯  ", actualResult: "  Сделано\n✅  ", dueOn: localDateKey(new Date()) });
     assert.equal(result.status, 201);
     const id = result.body.task.id;
+    assert.equal(result.body.task.expectedResult, "План\n🎯");
+    assert.equal(result.body.task.actualResult, "Сделано\n✅");
+    const outcomes = task => [task.expectedResult, task.actualResult];
+    assert.deepEqual(outcomes((await request("GET")).body.tasks[0]), ["План\n🎯", "Сделано\n✅"]);
+    const updatedOutcome = await request("PATCH", `/${id}`, { actualResult: "Факт\nобновлён" });
+    assert.deepEqual(outcomes(updatedOutcome.body.task), ["План\n🎯", "Факт\nобновлён"]);
+    assert.equal((await request("PATCH", `/${id}`, { expectedResult: "Чужой результат" }, tokens[1])).status, 404);
+    for (const field of ["expectedResult", "actualResult"]) {
+      assert.equal((await request("PATCH", `/${id}`, { [field]: "x".repeat(5001) })).status, 400);
+    }
     const relatedItems = [{ kind: "wishlist", id: "wish-1", title: "Книга" }, { kind: "contact", id: "contact-1", title: "Анна" }];
     assert.deepEqual((await request("PATCH", `/${id}`, { relatedItems })).body.task.relatedItems, relatedItems);
     assert.deepEqual((await request("GET")).body.tasks[0].relatedItems, relatedItems);
@@ -96,6 +106,8 @@ test("planning persists both views and isolates owners on production PostgreSQL"
 
     assert.equal((await request("PATCH", `/${id}`, { status: "doing" })).body.task.title, "Проверить планирование");
     assert.equal((await request("GET")).body.tasks[0].status, "doing");
+    assert.deepEqual(outcomes((await request("GET")).body.tasks[0]), ["План\n🎯", "Факт\nобновлён"]);
+    assert.deepEqual(outcomes((await request("PATCH", `/${id}`, { expectedResult: "", actualResult: "" })).body.task), ["", ""]);
     assert.equal((await request("GET")).body.tasks[0].description, "Проверить оба представления");
     assert.equal((await request("GET")).body.tasks[0].dueOn, localDateKey(new Date()));
     assert.equal((await request("PATCH", `/${id}`, { title: "Чужая задача" }, tokens[1])).status, 404);
@@ -147,6 +159,7 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     const legacy = (await request("GET")).body.tasks.find((task) => task.id === legacyId);
     assert.equal(legacy.columnId, "done");
     assert.equal(legacy.completed, true);
+    assert.deepEqual(outcomes(legacy), ["", ""]);
     await request("DELETE", `/${legacyId}`);
 
     // Named variants isolate content, list configuration, and writes even within one owner.
@@ -184,7 +197,7 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     assert(todoSpaces.some((space) => space.id === todoSpace.id && space.kind === "todo"));
     assert(!todoSpaces.some((space) => [boardSpace.id, calendarSpace.id].includes(space.id)));
     assert.equal((await request("GET", "/spaces?kind=todo", undefined, tokens[1])).body.spaces.length, 1);
-    const todoTaskResult = await request("POST", todoScope, { title: "Задача отдельного To Do-листа", dueOn: localDateKey(new Date()) });
+    const todoTaskResult = await request("POST", todoScope, { title: "Задача отдельного To Do-листа", expectedResult: "Отдельный план", actualResult: "Отдельный факт", dueOn: localDateKey(new Date()) });
     assert.equal(todoTaskResult.status, 201);
     const todoTask = todoTaskResult.body.task;
     assert.equal((await request("GET", todoScope)).body.tasks[0].id, todoTask.id);
@@ -192,6 +205,7 @@ test("planning persists both views and isolates owners on production PostgreSQL"
     assert.deepEqual((await request("GET", scoped)).body.tasks, []);
     assert.equal((await request("GET", todoScope, undefined, tokens[1])).status, 404);
     assert.equal((await request("PATCH", `/${todoTask.id}${todoScope}`, { completed: true })).body.task.completed, true);
+    assert.deepEqual(outcomes((await request("GET", todoScope)).body.tasks[0]), ["Отдельный план", "Отдельный факт"]);
     assert.equal((await request("DELETE", `/${todoTask.id}${todoScope}`)).status, 200);
 
     if (process.env.PLANNING_RECURRENCE_UI === "1") {

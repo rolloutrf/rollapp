@@ -4,6 +4,17 @@
 
 ## Источники UI-контрактов
 
+Задачи To Do используют общий TaskEditor: после «Описания» идут независимые
+необязательные многострочные поля «Ожидаемый результат» и «Факт» (до5000 знаков).
+Общий planning API сохраняет их как expectedResult/actualResult; смена статуса,
+списка и представления не очищает их. Старая задача получает пустые значения.
+`test:todo` проверяет legacy/cancel/retry/save/reopen/clear и геометрию на320–1920px
+и коротких окнах; `test:planning:production` — API/owner/space isolation сROLLBACK.
+Для первого подключения нужна отдельно разрешённая additive миграция
+`node scripts/migrate-planning-results.mjs --apply` (без --apply только READ ONLY).
+Она добавляет только expected_result/actual_result TEXT NOT NULL DEFAULT ''; обычный
+verify startup проверяет их через LIMIT0, не создаёт и не изменяет записи.
+
 Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
 новую поверхность на восьми размерах и входит в `check:release`. До первого
 запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
