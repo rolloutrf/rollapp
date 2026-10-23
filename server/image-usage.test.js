@@ -13,7 +13,7 @@ test("a media reference in a career or identity document prevents deleting its a
   }
 });
 test("the original wish, profile, course, conference and contact references remain protected",async()=>{
-  for(const table of ["wishes","users","education_courses","education_conferences","contact_overrides"]){
+  for(const table of ["health_medications","wishes","users","education_courses","education_conferences","contact_overrides"]){
     assert(await imageIsInUse(async sql=>({rowCount:sql.includes(`FROM ${table} `)?1:0}),userId,imageUrl));
   }
 });
