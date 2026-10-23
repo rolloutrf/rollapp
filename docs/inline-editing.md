@@ -1066,3 +1066,20 @@ editor/comprehensive verification or actual-device IME checks.
 текстового блока, чтобы пустой код и вложенные абзацы сохраняли свою текстовую
 ось и первую строку. Проверка `text-placeholder-checks.mjs` входит
 в полный `test:text-edit` и диагностический `--surface-only` на восьми размерах.
+
+## Enter с экранной клавиатуры
+
+Нативный keydown синхронизирует DOM range до обработки ввода ProseMirror.
+`handleKeyDown` не повторяет эту синхронизацию: при DOM-first вводе мобильного
+WebKit и экранных клавиатур ProseMirror вызывает его с синтетическим Enter или
+Backspace во время разбора мутаций. В этот момент DOM caret уже относится к
+новому абзацу, а модель ещё содержит исходный текст; повторное отображение
+курсора в старую модель переносит разделение к началу блока.
+`text-mobile-enter-checks.mjs` проверяет keyboard и нативный `insertParagraph`
+без keydown: начало/середина/конец, прямой/обратный диапазон, точный курсор и
+соседи, Undo, последующий ввод, save/reload и нативное объединение Backspace.
+Все восемь размеров входят в default `test:text-edit`; `--mobile-enter-only`
+остаётся диагностикой. Отдельный запуск в Playwright WebKit с iPhone UA проверяет
+его DOM-first путь (`npx playwright-core install webkit`, затем
+`node scripts/text-edit-smoke.mjs --mobile-enter-webkit`), но не заменяет
+реальную клавиатуру и IME устройства.

@@ -151,7 +151,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       },
       handleKeyDown(view, event) {
         const editor = instance.current;
-        if (!event.isComposing) synchronizeInlineSelection(view);
+        // Native keydown captures the browser range above, before DOM input.
+        // ProseMirror also calls this hook with synthetic Enter/Backspace while
+        // parsing mobile DOM mutations. Their native caret already belongs to
+        // the new DOM, so mapping it into the old document moves the split.
         if (view.editable && blockActions.current?.(event)) { updateMenu(null); return true; }
         if (view.editable && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
           event.preventDefault();
