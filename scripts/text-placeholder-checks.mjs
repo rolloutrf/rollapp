@@ -39,6 +39,20 @@ export async function checkPlaceholders(browser, origin) {
     assert.deepEqual(await editor.evaluate(el => el.editor.getJSON()), before);
     assert.equal(await page.evaluate(() => window.inlineTest.saves.length), 0);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    await page.goto(`${origin}/__text-edit?source=${encodeURIComponent("```\n\n```\n\nAfter")}`);
+    const code = editor.locator("pre");
+    await code.waitFor();
+    await code.click();
+    await page.waitForFunction(() => document.querySelector('.inline-editor__content pre[data-placeholder]'));
+    const inset = await code.evaluate(el => {
+      const block = getComputedStyle(el), hint = getComputedStyle(el, "::before");
+      return { blockInline: block.paddingInlineStart, blockTop: block.paddingTop, hintInline: hint.paddingInlineStart, hintTop: hint.paddingTop, visibleHeight: parseFloat(hint.height) - parseFloat(hint.paddingTop) - parseFloat(hint.paddingBottom), lineHeight: parseFloat(hint.lineHeight) };
+    });
+    await page.screenshot({ path: `/tmp/rollapp-placeholder-code-${width}-${height}.png` });
+    assert.equal(inset.hintInline, inset.blockInline, "Code hints retain the code's real text inset");
+    assert.equal(inset.hintTop, inset.blockTop, "Code hints retain the code's first-line baseline");
+    assert(inset.visibleHeight >= inset.lineHeight - 1, "Code hint glyphs must not be clipped by inherited padding");
+    assert.equal(await page.evaluate(() => window.inlineTest.saves.length), 0);
     assert.deepEqual(errors, []);
     await page.close();
     console.log(`PASS placeholder ${width}x${height}: one bounded line, current block only, native caret and exact document, no saves/API`);
