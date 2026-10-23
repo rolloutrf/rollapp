@@ -1,9 +1,9 @@
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { PageActionButton } from "@/components/page-action-button";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, CirclePause, Clock3, Folder,
-  ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
+  ImagePlus, ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/api";
 import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
@@ -86,6 +86,7 @@ function emptyMedication(groupId = null) {
     startOn: localDateInputValue(),
     endOn: "",
     notes: "",
+    imageUrl: "",
   };
 }
 
@@ -105,6 +106,7 @@ function medicationForm(medication, groupId = null) {
     startOn: medication.startOn || "",
     endOn: medication.endOn || "",
     notes: medication.notes || "",
+    imageUrl: medication.imageUrl || "",
   };
 }
 
@@ -124,6 +126,7 @@ function courseLabel(medication) {
 }
 
 function scheduleLabel(medication) {
+  if (medication.frequency === "custom" && !medication.scheduleTimes?.length) return "Схема не указана";
   const frequency = MEDICATION_FREQUENCY[medication.frequency] || MEDICATION_FREQUENCY.custom;
   const times = normalizeMedicationTimes(medication.scheduleTimes);
   return times.length ? `${frequency} · ${times.join(", ")}` : frequency;
@@ -221,7 +224,7 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
         <span className="sr-only">Редактировать препарат «{medication.name}»</span>
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
-        <CollectionSnippetMedia icon={Pill}>
+        <CollectionSnippetMedia key={medication.imageUrl || "empty"} src={medication.imageUrl} icon={Pill}>
           <Badge variant={status.variant} className="collection-snippet__badge">
             <StatusIcon data-icon="inline-start" aria-hidden="true" />
             {status.label}
@@ -259,17 +262,48 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
   );
 }
 
+function MedicationPhotoPreview({ imageUrl, name }) {
+  const [failed, setFailed] = useState(false);
+  return failed
+    ? <FieldDescription>Не удалось показать фото. Проверьте ссылку или загрузите файл.</FieldDescription>
+    : <img className="h-40 w-full rounded-xl border object-contain" src={imageUrl}
+      alt={`Фото препарата «${name || "без названия"}»`} referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
+}
+
 function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChange, onSaved }) {
   const isMobile = useIsMobile();
   const formId = useId();
   const [form, setForm] = useState(emptyMedication);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const imageFileRef = useRef(null);
+  const photoOwnerRef = useRef(0);
+  const pendingImagesRef = useRef(new Set());
+  const busyRef = useRef(false);
+  const releasePendingImages = (keepUrl = "") => {
+    for (const id of pendingImagesRef.current) {
+      pendingImagesRef.current.delete(id);
+      if (`/api/media/${id}` !== keepUrl) void api.delete(`/uploads/images/${encodeURIComponent(id)}`).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    photoOwnerRef.current += 1;
+    return () => {
+      photoOwnerRef.current += 1;
+      releasePendingImages();
+    };
+  }, [open, medication, initialGroupId]);
 
   useEffect(() => {
     if (!open) return;
     setForm(medicationForm(medication, initialGroupId));
     setSaving(false);
+    setUploading(false);
+    setPhotoError("");
+    busyRef.current = false;
     setError("");
   }, [open, medication, initialGroupId]);
 
@@ -278,7 +312,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
     setForm((current) => ({
       ...current,
       frequency,
-      scheduleTimes: frequency === "as_needed" ? [] : [...(DEFAULT_TIMES[frequency] || current.scheduleTimes || ["08:00"])],
+      scheduleTimes: frequency === "as_needed" || frequency === "custom" && current.status === "planned" ? [] : [...(DEFAULT_TIMES[frequency] || current.scheduleTimes || ["08:00"])],
     }));
   };
   const updateTime = (index, value) => {
@@ -295,6 +329,11 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
 
   async function submit(event) {
     event.preventDefault();
+    if (busyRef.current) return;
+    const owner = photoOwnerRef.current;
+    const requestUploads = [...pendingImagesRef.current];
+    busyRef.current = true;
+    requestUploads.forEach(id => pendingImagesRef.current.delete(id));
     setSaving(true);
     setError("");
     const payload = { ...form, scheduleTimes: normalizeMedicationTimes(form.scheduleTimes) };
@@ -303,11 +342,52 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
       const { medication: savedMedication } = medication
         ? await api.patch(path, payload)
         : await api.post(path, payload);
+      for (const id of requestUploads) {
+        pendingImagesRef.current.delete(id);
+        if (`/api/media/${id}` !== savedMedication.imageUrl) void api.delete(`/uploads/images/${encodeURIComponent(id)}`).catch(() => {});
+      }
+      if (owner !== photoOwnerRef.current) return;
+      releasePendingImages(savedMedication.imageUrl);
       onSaved(savedMedication);
       onOpenChange(false);
     } catch (requestError) {
+      if (owner !== photoOwnerRef.current) return;
+      // A failed response may still have committed. Never race cleanup of the submitted asset.
+      requestUploads.filter(id => `/api/media/${id}` !== payload.imageUrl).forEach(id => pendingImagesRef.current.add(id));
       setError(requestError.message);
+      busyRef.current = false;
       setSaving(false);
+    }
+  }
+
+  async function uploadPhoto(file) {
+    if (!file || busyRef.current) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      setPhotoError("Подойдёт JPG, PNG или WEBP до 8 МБ.");
+      if (imageFileRef.current) imageFileRef.current.value = "";
+      return;
+    }
+    const owner = photoOwnerRef.current;
+    busyRef.current = true;
+    setUploading(true);
+    setPhotoError("");
+    try {
+      const result = await api.uploadImage(file);
+      if (owner !== photoOwnerRef.current) {
+        void api.delete(`/uploads/images/${encodeURIComponent(result.id)}`).catch(() => {});
+        return;
+      }
+      releasePendingImages();
+      pendingImagesRef.current.add(result.id);
+      update("imageUrl", result.imageUrl);
+    } catch (error) {
+      if (owner === photoOwnerRef.current) setPhotoError(error.message);
+    } finally {
+      if (owner === photoOwnerRef.current) {
+        busyRef.current = false;
+        setUploading(false);
+        if (imageFileRef.current) imageFileRef.current.value = "";
+      }
     }
   }
 
@@ -318,13 +398,13 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
       open={open}
       showSwipeHandle
       swipeDirection={isMobile ? "down" : "right"}
-      onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}
+      onOpenChange={(nextOpen) => !busyRef.current && onOpenChange(nextOpen)}
     >
       <DrawerContent
         className="rollapp-body app-drawer--form"
       >
         <DrawerClose
-          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />}
+          render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || uploading} />}
           aria-label="Закрыть форму препарата"
         >
           <X aria-hidden="true" />
@@ -371,6 +451,28 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
                 value={form.name}
                 onChange={(event) => update("name", event.target.value)}
               />
+            </Field>
+
+            <Field data-invalid={Boolean(photoError)}>
+              <FieldLabel htmlFor={`${formId}-image-url`}>Фото препарата</FieldLabel>
+              <div className="flex flex-col items-start gap-3">
+                {form.imageUrl && <MedicationPhotoPreview key={form.imageUrl} imageUrl={form.imageUrl} name={form.name} />}
+                <Input id={`${formId}-image-url`} type="url" maxLength={2000} placeholder="https://…" aria-label="Ссылка на фото препарата"
+                  disabled={saving || uploading} value={form.imageUrl.startsWith("/api/media/") ? "" : form.imageUrl}
+                  onChange={(event) => { update("imageUrl", event.target.value); setPhotoError(""); }} />
+                <Input className="sr-only" ref={imageFileRef} type="file" tabIndex={-1} aria-label="Файл фото препарата"
+                  accept="image/jpeg,image/png,image/webp" disabled={saving || uploading} onChange={(event) => uploadPhoto(event.target.files?.[0])} />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" type="button" disabled={saving || uploading} onClick={() => imageFileRef.current?.click()}>
+                    {uploading ? <Spinner aria-hidden="true" /> : <ImagePlus data-icon="inline-start" aria-hidden="true" />}
+                    {uploading ? "Загружаем" : form.imageUrl ? "Заменить фото" : "Загрузить фото"}
+                  </Button>
+                  {form.imageUrl && <Button variant="destructive" type="button" disabled={saving || uploading}
+                    onClick={() => { update("imageUrl", ""); setPhotoError(""); }}>Убрать фото</Button>}
+                </div>
+              </div>
+              <FieldDescription>Вставьте ссылку на изображение или загрузите JPG, PNG, WEBP до 8 МБ.</FieldDescription>
+              {photoError && <FieldError>{photoError}</FieldError>}
             </Field>
 
             <div className="flex flex-col gap-4">
@@ -528,11 +630,11 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
           </div>
 
           <DrawerFooter>
-            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || invalidDates || !form.name.trim()}>
+            <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || uploading || invalidDates || !form.name.trim()}>
               {saving && <Spinner aria-hidden="true" />}
               {saving ? "Сохраняем" : medication ? "Сохранить изменения" : "Добавить препарат"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving} />}>Отмена</DrawerClose>
+            <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || uploading} />}>Отмена</DrawerClose>
           </DrawerFooter>
         </form>
       </DrawerContent>

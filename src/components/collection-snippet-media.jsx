@@ -10,6 +10,7 @@ export function CollectionSnippetMedia({ src = "", sources, icon: Icon, children
       {candidate ? (
         <img
           key={candidate}
+          className="absolute inset-0 min-h-0 min-w-0"
           src={candidate}
           alt=""
           loading="lazy"

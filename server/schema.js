@@ -507,11 +507,14 @@ const schema = `
     instructions TEXT NOT NULL DEFAULT '',
     start_on DATE,
     end_on DATE,
+    image_url TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (start_on IS NULL OR end_on IS NULL OR end_on >= start_on)
   );
+
+  ALTER TABLE health_medications ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
 
   ALTER TABLE health_medications
     ADD COLUMN IF NOT EXISTS group_id TEXT REFERENCES health_medication_groups(id) ON DELETE SET NULL;

@@ -1,3 +1,4 @@
+import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { imageIsInUse } from "./image-usage.js";
@@ -343,43 +344,6 @@ const workoutReorderSchema = z.object({
 }).strict().superRefine(({ workoutIds }, context) => {
   if (new Set(workoutIds).size !== workoutIds.length) {
     context.addIssue({ code: "custom", path: ["workoutIds"], message: "Тренировки не должны повторяться" });
-  }
-});
-const medicationTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
-const medicationFrequencyTimeCount = {
-  once_daily: 1,
-  twice_daily: 2,
-  three_times_daily: 3,
-  weekly: 1,
-  as_needed: 0,
-};
-const medicationSchema = z.object({
-  name: z.string().trim().min(1).max(160),
-  groupId: z.string().trim().min(1).max(200).nullable().default(null),
-  medicationForm: z.enum(["tablet", "capsule", "solution", "drops", "spray", "injection", "cream", "other"]),
-  status: z.enum(["active", "planned", "paused", "completed"]),
-  dosage: z.string().trim().max(160),
-  frequency: z.enum(["once_daily", "twice_daily", "three_times_daily", "weekly", "as_needed", "custom"]),
-  scheduleTimes: z.array(medicationTimeSchema).max(6),
-  purpose: z.string().trim().max(240),
-  prescriber: z.string().trim().max(240),
-  instructions: z.string().trim().max(2_000),
-  startOn: optionalEducationDateSchema,
-  endOn: optionalEducationDateSchema,
-  notes: z.string().trim().max(4_000),
-}).strict().superRefine((medication, context) => {
-  if (medication.startOn && medication.endOn && medication.endOn < medication.startOn) {
-    context.addIssue({ code: "custom", path: ["endOn"], message: "Окончание курса должно быть не раньше начала" });
-  }
-  if (new Set(medication.scheduleTimes).size !== medication.scheduleTimes.length) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Время приёма не должно повторяться" });
-  }
-  const expectedTimeCount = medicationFrequencyTimeCount[medication.frequency];
-  if (expectedTimeCount !== undefined && medication.scheduleTimes.length !== expectedTimeCount) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Количество времён должно соответствовать частоте приёма" });
-  }
-  if (medication.frequency === "custom" && medication.scheduleTimes.length === 0) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Укажите хотя бы одно время приёма" });
   }
 });
 const medicationGroupSchema = z.object({
@@ -896,6 +860,7 @@ function mapHealthMedication(row) {
     id: row.id,
     groupId: row.group_id || null,
     name: row.name,
+    imageUrl: row.image_url || "",
     medicationForm: row.medication_form,
     status: row.status,
     dosage: row.dosage,
@@ -5933,7 +5898,7 @@ app.delete("/api/health/medication-groups/:groupId", requireAuth, requirePrivate
 app.get("/api/health/medications", requireAuth, requireSphereReadAccess("health", "medications"), asyncRoute(async (req, res) => {
   const [medicationsResult, groupsResult] = await Promise.all([
     query(
-      `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at
+      `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at
        FROM health_medications
        WHERE user_id=$1
        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'planned' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,
@@ -5967,6 +5932,10 @@ app.post("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyn
     });
   }
   const medication = parsed.data;
+  if (medication.imageUrl?.startsWith("/api/media/")) {
+    const owned = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2", [medication.imageUrl.slice("/api/media/".length), req.user.id]);
+    if (!owned.rowCount) return res.status(400).json({ error: "Загруженное фото не найдено" });
+  }
   if (medication.groupId) {
     const group = await query(
       "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
@@ -5976,14 +5945,14 @@ app.post("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyn
   }
   const result = await query(
     `INSERT INTO health_medications (
-       id,user_id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+       id,user_id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [
       randomUUID(), req.user.id, medication.groupId, medication.name, medication.medicationForm,
       medication.status, medication.dosage, medication.frequency, JSON.stringify(medication.scheduleTimes),
       medication.purpose, medication.prescriber, medication.instructions, medication.startOn || null,
-      medication.endOn || null, medication.notes,
+      medication.endOn || null, medication.notes, medication.imageUrl || "",
     ],
   );
   res.set("Cache-Control", "private, no-store");
@@ -6015,7 +5984,7 @@ app.patch("/api/health/medications/:medicationId/group", requireAuth, requirePri
     `UPDATE health_medications
      SET group_id=$1,updated_at=CURRENT_TIMESTAMP
      WHERE id=$2 AND user_id=$3
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [groupId, req.params.medicationId, req.user.id],
   ));
   if (!result.rowCount) {
@@ -6035,6 +6004,10 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
     });
   }
   const medication = parsed.data;
+  if (medication.imageUrl?.startsWith("/api/media/")) {
+    const owned = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2", [medication.imageUrl.slice("/api/media/".length), req.user.id]);
+    if (!owned.rowCount) return res.status(400).json({ error: "Загруженное фото не найдено" });
+  }
   if (medication.groupId) {
     const group = await query(
       "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
@@ -6045,14 +6018,14 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
   const result = await query(
     `UPDATE health_medications SET
        group_id=$1,name=$2,medication_form=$3,status=$4,dosage=$5,frequency=$6,schedule_times_json=$7,
-       purpose=$8,prescriber=$9,instructions=$10,start_on=$11,end_on=$12,notes=$13,updated_at=CURRENT_TIMESTAMP
+       purpose=$8,prescriber=$9,instructions=$10,start_on=$11,end_on=$12,notes=$13,image_url=COALESCE($16,image_url),updated_at=CURRENT_TIMESTAMP
      WHERE id=$14 AND user_id=$15
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [
       medication.groupId, medication.name, medication.medicationForm, medication.status, medication.dosage,
       medication.frequency, JSON.stringify(medication.scheduleTimes), medication.purpose, medication.prescriber,
       medication.instructions, medication.startOn || null, medication.endOn || null, medication.notes,
-      req.params.medicationId, req.user.id,
+      req.params.medicationId, req.user.id, medication.imageUrl ?? null,
     ],
   );
   if (!result.rowCount) return res.status(404).json({ error: "Препарат не найден" });
