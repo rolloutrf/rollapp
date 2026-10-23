@@ -37,7 +37,7 @@ const [configText, packageText, app, agents, coachingSessionsSource, conferences
 ]);
 const spacing = await read("src/spacing.css");
 const pageActionButton = await read("src/components/page-action-button.jsx");
-assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes");
+assert.match(pageActionButton, /cn\(className, "min-h-\(--layout-control-size\) rounded-full px-6 has-data-\[icon=inline-start\]:pl-6 has-data-\[icon=inline-end\]:pr-6"\)/, "PageActionButton must use the shared control token and 24px padding after caller classes, including icons and loading spinners");
 assert.deepEqual([...spacing.matchAll(/--layout-control-size\s*:\s*([^;{}]+)/g)].map((match) => match[1].trim()), ["3rem"], "Navigation must have exactly one 48px size declaration, without responsive or local rebinding");
 assert(!/--layout-(?:navigation|planning)-control\b/.test(spacing), "Do not restore separate navigation/planning control scales");
 const controlBar = await read("src/components/control-bar.jsx");
@@ -490,6 +490,7 @@ for (const [file, expectedImport] of Object.entries(expectedBaseUiImports)) {
 }
 
 const buttonSource = await readFile(path.join(uiDir, "button.jsx"), "utf8");
+assert.doesNotMatch(buttonSource, /\bshape\s*[:=]/, "Keep product shape variants in PageActionButton/ControlBar, outside the upstream Button primitive");
 const inputSource = await readFile(path.join(uiDir, "input.jsx"), "utf8");
 const inputGroupSource = await readFile(path.join(uiDir, "input-group.jsx"), "utf8");
 const selectSource = await readFile(path.join(uiDir, "select.jsx"), "utf8");
@@ -641,7 +642,13 @@ assert(!/<(?:Link|NavLink)\b/.test(appProfileButtonSource), "AppProfileButton mu
 const wishesProfileHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function WishesProfileControls"));
 assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(wishesProfileHeroSource), "PersistentProfileHero must expose the official profile button");
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
-const listTileContentSource = app.slice(app.indexOf("function ListTileContent"), app.indexOf("function useAsync"));
+const listTileContentSource = await read("src/components/list-tile-content.jsx");
+assert.doesNotMatch(listTileContentSource, /style=/, "List tile typography belongs to shared CSS, never inline styles");
+for (const file of ["src/App.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx"]) {
+  const source = await read(file);
+  assert(source.includes('@/components/list-tile-content'), `${file}: reuse shared ListTileContent`);
+  assert.doesNotMatch(source, /LIST_TILE_STYLE|function ListTileContent/, `${file}: do not copy list-tile geometry or content`);
+}
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
 assert((app.match(/<ListTileContent\b/g) || []).length >= 4, "Personal and public collection tiles must share the overlap-safe list-tile composition");
@@ -831,16 +838,9 @@ assert(
 );
 
 const sourceFiles = [];
-// Existing native date fields outside Planning are tracked until they are migrated.
-// Any new native date field fails this audit, including one added to a new file.
-const legacyNativeDateFields = new Map([
-  ["src/App.jsx", 2],
-  ["src/components/coaching-sessions.jsx", 1],
-  ["src/components/conferences.jsx", 2],
-  ["src/components/courses.jsx", 2],
-  ["src/components/medications.jsx", 2],
-  ["src/components/workouts.jsx", 1],
-]);
+// All application date fields share Calendar/Popover and native mobile pages.
+// No per-page browser-native date input exceptions remain.
+
 async function collect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const target = path.join(directory, entry.name);
@@ -855,7 +855,7 @@ for (const file of sourceFiles) {
   if (relativeFile !== "src/spacing.css") assert(!/--layout-control-size\s*:/.test(source), `${relativeFile}: do not override the shared control size`);
   assert(!/--layout-(?:navigation|planning)-control\b/.test(source), `${relativeFile}: use the one shared control size`);
   const nativeDateFields = [...source.matchAll(/\btype=["']date["']/g)].length;
-  assert(nativeDateFields <= (legacyNativeDateFields.get(relativeFile) ?? 0), `${relativeFile} adds a browser-native date picker; use shadcn Calendar and Popover`);
+  assert.equal(nativeDateFields, 0, `${relativeFile} adds a browser-native date picker; use shadcn Calendar and Popover`);
   assert(!source.includes("@radix-ui/"), `Base Nova source must not import Radix: ${relativeFile}`);
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {

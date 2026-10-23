@@ -1,3 +1,4 @@
+import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -376,19 +377,17 @@ export function PerformanceReview() {
     <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
-          <Button
-            className="h-12 shrink-0 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-            shape="pill"
+          <PageActionButton
+            className="shrink-0 min-w-[180px] max-[560px]:min-w-0"
             type="button"
             disabled={!activeCycle || careerContent.loading || importing || deleting}
             onClick={() => setEditorOpen(true)}
           >
             {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {careerContent.loading ? "Загружаем" : "Редактировать"}
-          </Button>
-          <Button
-            className="h-12 shrink-0 px-5 text-base"
-            shape="pill"
+          </PageActionButton>
+          <PageActionButton
+            className="shrink-0"
             variant="outline"
             type="button"
             disabled={careerContent.loading || importing || deleting}
@@ -396,7 +395,7 @@ export function PerformanceReview() {
           >
             {importing && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {importing ? "Разбираем PDF" : "Импортировать PDF"}
-          </Button>
+          </PageActionButton>
           <SphereBusinessControls sphereId="career" />
           <input
             ref={fileInputRef}

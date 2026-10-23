@@ -4,6 +4,10 @@
 
 ## Источники UI-контрактов
 
+Общая карта владельцев, граница upstream shadcn и продуктовых композиций,
+а также порядок централизованного изменения: [design-system.md](design-system.md).
+
+
 Задачи To Do используют общий TaskEditor: после «Описания» идут независимые
 необязательные многострочные поля «Ожидаемый результат» и «Факт» (до5000 знаков).
 Общий planning API сохраняет их как expectedResult/actualResult; смена статуса,
@@ -61,7 +65,7 @@ Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
 gate. Общий default `test:text-edit` включает captions перед baseline409 и
 давал417 PASS records до viewer-итерации. Теперь общий default также включает
 8 viewer cases (425 суммарно); `--image-reader-only` проверяет viewer и rich
-reader на восьми размерах, но остаётся diagnostic. `check:comprehensive` сохраняет все10 этапов без
+reader на восьми размерах, но остаётся diagnostic. `check:comprehensive` сохраняет все11 этапов без
 фильтров. Targeted captions/alignment/resize разных dirty snapshots нельзя
 складывать в полный PASS. Подробности и непроверенные случаи:
 `docs/notion-image-caption-verification-2026-10-20.md`.
@@ -95,7 +99,7 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
 | `npm run test:drag-drop` | Wishlist, группы, коллекции, публичный список владельца и календарь: порядок/отмена/rollback, подтверждение группировки, native mouse и touch handles на 8 ширинах; входит в `check:release`. Контракт: `docs/drag-and-drop.md` |
 | `npm run test:kanban` | Перетаскивание колонок: короткие/пустые/свёрнутые списки, промежутки, начало/конец, edge-scroll, отмена и ошибка сохранения, touch и меню на телефоне; входит в `check:release` |
-| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён |
+| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён; входит в `check:comprehensive` |
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon, два нативных submit в одном кадре → одно сохранение после commit, canonical related references |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
@@ -501,3 +505,14 @@ API. На отказе сохраняются bounded pageerror/console/HTTP/pen
 с удалёнными URL query strings. Он не фокусирует DOM, не ждёт/retry и не подавляет
 ошибки. Холодную проверку выполнять в новом отдельном cache directory; успешный
 повтор на старом кэше не подтверждает исправление startup.
+
+### Консистентность дат во всех формах
+
+`test:dates` дополнительно вызывает `date-field-consistency-checks.mjs`:
+семь реальных несохранённых форм (курс, конференция, коучинг, препарат,
+тренировка, профиль, событие Wishlist) на девяти ширинах 320–1920px.
+Проверяются отмена, выбор, очистка, вложенная mobile history, сохранение
+родительского черновика и ограничение окончания началом курса/события.
+Отдельная матрица проверяет keyboard, включительные min/max и disabled.
+Read effects этих форм отклоняются без подмены ответа, любые API mutations
+запрещены. Нативные date inputs запрещены для всего src через `test:ui`.

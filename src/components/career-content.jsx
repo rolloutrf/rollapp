@@ -98,7 +98,6 @@ export function CareerEditAction({ disabled = false, icon: Icon, loading = false
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Редактирование раздела">
         {showLabel ? (
           <PageActionButton
-            className="bg-white text-base text-black hover:bg-white/90"
             type="button"
             disabled={disabled || loading}
             aria-label={label}

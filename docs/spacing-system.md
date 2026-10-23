@@ -248,3 +248,18 @@ swipe-handle: шапка, поля и футер используют одина
 ### Общая лента дней To Do и питания
 
 `PlanningDayRibbon` (`src/components/planning-day-ribbon.jsx`) используется в ежедневном To Do и трекере питания. Сохраняются исходные стандартные content tiles 130×100px/18px corners, центр выбранного дня, стрелки/PageUp/PageDown/Home и внешний горизонтальный scroll owner. Лента остаётся вне ControlBar. Мобильное питание использует ту же композицию 48px Previous/гибкая дата с weekday/Next/круглая + с gap 8px; ленты ниже 768px нет. Список питания и добавление находятся в потоке документа; собственного вертикального scroller и фиксированного composer нет. Соседние блоки питания разделены page-stack, внутренние строки — parent gap. Метаданные питания используют общий caption 13/16. Общие навигационные размеры и upstream primitives не меняются.
+
+## Централизованные действия и плитки списков
+
+`PageActionButton` сохраняет padding-inline 24px также с `data-icon`
+inline-start/inline-end и индикатором загрузки; компактные icon paddings
+upstream Button переопределяются в этой общей композиции. Цвета задаются
+семантическим variant, без локальных bg-white/text-black/hover копий.
+
+Плитки Wishlist (личного и публичного), образовательных списков и групп
+препаратов используют общий `ListTileContent` из `src/components/list-tile-content.jsx`.
+Геометрия, flex basis, подпись и счётчик принадлежат `src/index.css` и
+`data-list-tile`; inline `LIST_TILE_STYLE` и локальные font-size запрещены.
+Общий размер остаётся 130×100px, радиус 18px, подпись 16/19px, счётчик
+24/29px. Полный `test:action-rails` проверяет настоящую навигацию образования
+с длинным названием и доступным счётчиком; `test:ui` запрещает копии реализации.
