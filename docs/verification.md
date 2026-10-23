@@ -39,6 +39,12 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 
 ## Безопасная последовательность
 
+Подсказки пустых блоков: default `test:text-edit` дополнительно выполняет
+8 случаев `text-placeholder-checks.mjs` (433 records вместо425). Нативные клики
+между соседними пустыми/заполненными абзацами оставляют только текущую подсказку,
+ограниченную одной строкой, без document/save/API writes. Диагностический
+`--surface-only` включает эти случаи, но не заменяет полную матрицу.
+
 Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
 gate. Общий default `test:text-edit` включает captions перед baseline409 и
 давал417 PASS records до viewer-итерации. Теперь общий default также включает
