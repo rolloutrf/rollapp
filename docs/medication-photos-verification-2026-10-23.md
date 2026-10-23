@@ -98,4 +98,5 @@ READ ONLY, mode=verify, production database/role совпали с конфиг�
 
 Реальное устройство, ручное взаимодействие с системным file picker и actual-device
 IME не проверены; filechooser→upload→Save проверен на настоящих файлах и записях.
-Проверка точного SHA и UI основного сайта будет дописана после обычного выпуска.
+Проверка exact production SHA/UI и восстановление публикации записаны в
+[production report](medication-photos-production-verification-2026-10-24.md).
