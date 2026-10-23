@@ -40,11 +40,22 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 ## Безопасная последовательность
 
 Подсказки пустых блоков: default `test:text-edit` дополнительно выполняет
-8 случаев `text-placeholder-checks.mjs` (433 records вместо425). Нативные клики
+8 случаев `text-placeholder-checks.mjs` (433 records вместо425 до Enter-итерации). Нативные клики
 между соседними пустыми/заполненными абзацами оставляют только текущую подсказку,
 ограниченную одной строкой, без document/save/API writes. Пустой блок кода
 сохраняет свои внутренние отступы и видимые glyphs. Диагностический
 `--surface-only` включает эти случаи, но не заменяет полную матрицу.
+
+Мобильный Enter: default `test:text-edit` также выполняет 8 случаев
+`text-mobile-enter-checks.mjs` (441 records суммарно). Проверяется нативный
+DOM-first `insertParagraph` без keydown, а не только desktop press Enter:
+точное разделение текста/диапазона, курсор, Undo, ввод и save/reload.
+`--mobile-enter-only` — диагностика; отдельный WebKit с iPhone UA не является
+проверкой настоящей экранной клавиатуры/IME. Воспроизводимая дополнительная
+диагностика: `npx playwright-core install webkit`, затем
+`node scripts/text-edit-smoke.mjs --mobile-enter-webkit`.
+После исправления требуется
+новый полный comprehensive на новом SHA, старый audit не разрешает выпуск.
 
 Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
 gate. Общий default `test:text-edit` включает captions перед baseline409 и

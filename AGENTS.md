@@ -144,3 +144,11 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 - Все продуктовые футеры штор форм используют общий `DrawerFooter` из `form-surface` или `MobileFormFooter` для нестандартных композиций контакта/желания. Настольная ветка — `ControlBar` с `app-form-actions`: primary первым и на свободную ширину, secondary следом, gap 8px, inset 16px, единый разделитель/поверхность; при нехватке места допускается перенос. Мобильная нативная строка сохраняет собственный контракт. Закрытие шторы и удаление задачи/желания — круги 48px с доступным именем; текстовые действия — капсулы. Не меняйте upstream primitives. `npm run test:drawers` проверяет реальные формы на всей матрице 320–1920px, включая 768/820 и короткое окно.
 - Настольная ветка `form-surface` открывает все продуктовые шторы справа и без дополнительной полосы swipe-handle, чтобы шапка, поля и футер сохраняли одинаковые внутренние отступы. Мобильные формы остаются нативными страницами; upstream Drawer сохраняется без изменений.
+
+- Synchronize native text ranges in handleDOMEvents.keydown before DOM input,
+  never again in handleKeyDown. ProseMirror invokes the latter with synthetic
+  Enter/Backspace while parsing mobile DOM-first input; its native caret already
+  belongs to the new DOM, so remapping it into the old model moves the split.
+  Keep the eight-viewport keyboard/native insertParagraph regression in full
+  test:text-edit, including selected ranges, caret, Undo, typing and canonical
+  reload. Browser WebKit diagnostics do not replace actual-device IME checks.
