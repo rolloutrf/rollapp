@@ -25,7 +25,41 @@ env:
   PUBLIC_URL: https://xn--80avakiab.xn--p1ai
 
 jobs:
+  audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Complete UI audit
+        shell: bash
+        env:
+          ROLLAPP_CHECK_OUTPUT: ${{ runner.temp }}/rollapp-comprehensive.json
+        run: |
+          set -euo pipefail
+          npm run check:comprehensive 2>&1 | tee "${RUNNER_TEMP}/rollapp-comprehensive.log"
+      - name: Preserve complete audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-audit-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/rollapp-comprehensive.json
+            ${{ runner.temp }}/rollapp-comprehensive.log
+            /tmp/rollapp-*-failure.png
+
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     # The complete block-editor browser matrix needs more than the former
     # 25-minute budget. Keep every release check before publishing the image.

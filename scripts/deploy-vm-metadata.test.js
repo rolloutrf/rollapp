@@ -119,3 +119,15 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.match(workflow, /YC_LOCKBOX_SOURCE: iam/);
   assert.doesNotMatch(workflow, /YC_LOCKBOX_SOURCE: cli/);
 });
+
+test("manual branch audits run the full matrix without production deployment or cloud credentials", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
+  const audit = workflow.split("  audit:\n")[1].split("  deploy:\n")[0];
+  assert.match(audit, /if: github.event_name == 'workflow_dispatch' && github.ref != 'refs\/heads\/main'/);
+  assert.match(audit, /permissions:\s+contents: read\s+steps:/);
+  assert.match(audit, /set -euo pipefail/);
+  assert.match(audit, /npm run check:comprehensive/);
+  assert.match(audit, /actions\/upload-artifact@v4/);
+  assert.doesNotMatch(audit, /id-token: write|yc-actions|docker push|deploy-vm-metadata/);
+  assert.match(workflow, /  deploy:\s+if: github.ref == 'refs\/heads\/main'/);
+});
