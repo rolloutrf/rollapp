@@ -4,6 +4,13 @@
 
 ## Источники UI-контрактов
 
+Фото препаратов: [medication-photos.md](medication-photos.md).
+`npm run test:medication-photos` входит в release gate; production-поле image_url
+добавляется только отдельной явно разрешённой миграцией
+`node scripts/migrate-medication-photo.mjs --apply` (без --apply — READ ONLY).
+Обычный startup/deploy использует verify и не меняет схему.
+
+
 Задачи To Do используют общий TaskEditor: после «Описания» идут независимые
 необязательные многострочные поля «Ожидаемый результат» и «Факт» (до5000 знаков).
 Общий planning API сохраняет их как expectedResult/actualResult; смена статуса,
