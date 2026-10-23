@@ -169,7 +169,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
                   <FileText className="size-5 shrink-0" aria-hidden="true" />
                   <span className="min-w-0">{file.filename}</span>
                 </a>
-                {!readOnly && <Button type="button" size="icon" variant="ghost" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
+                {!readOnly && <Button type="button" size="icon" variant="destructive" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
               </div>
             ))}
           </div>

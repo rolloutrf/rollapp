@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 // Scan every application JSX source, including lazy pages and editor modules.
 // NativeSelect is an official component, but Rollapp uses Select consistently.
 export function checkUiComposition(source, file) {
+  assert.doesNotMatch(source, /\bshape\s*=/, `${file}: shadcn Button has no shape prop; page text actions must use PageActionButton and navigation must use ControlBar`);
   for (const [tag] of source.matchAll(/<PageActionButton\b[\s\S]*?>/g)) {
     assert.doesNotMatch(tag, /\b(?:size|shape|style)=/, `${file}: PageActionButton owns its size, shape and padding`);
     const classes = tag.match(/className="([^"]*)"/)?.[1] || "";
     assert.doesNotMatch(classes, /(?:^|\s|:)(?:p[xyrlse]?|h|min-h|max-h|rounded(?:-[trblse]{1,2})?)-/, `${file}: do not override PageActionButton geometry; use the shared 48px/24px contract`);
+    assert.doesNotMatch(classes, /(?:^|\s|:)(?:bg-|text-(?:white|black)\b)/, `${file}: PageActionButton colors and interaction states come from the semantic shadcn variant`);
   }
   assert.doesNotMatch(source, /--drawer-content-width/, `${file}: choose a shared app-drawer size role instead of a one-off width`);
   assert.doesNotMatch(source, /components\/ui\/native-select|<NativeSelect\b/, `${file}: use shadcn Select, not the browser's native select menu`);

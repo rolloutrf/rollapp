@@ -19,7 +19,7 @@ function Fixture() {
   return <>
     <main className="app-page page-stack">
       <h1>Задачи</h1>
-      <PlanningDatePicker label="Выбрать дату" value={date} clearable onChange={(key) => setSearch((current) => {
+      <PlanningDatePicker label="Выбрать дату" value={date} clearable min={search.has('bounded')?'2026-10-16':undefined} max={search.has('bounded')?'2026-10-20':undefined} disabled={search.has('disabled')} onChange={(key) => setSearch((current) => {
         const next = new URLSearchParams(current);
         if (key) next.set("date", key); else next.delete("date");
         return next;

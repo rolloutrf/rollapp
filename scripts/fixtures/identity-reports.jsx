@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { IdentityGeneratedDocuments } from '@/components/identity-report-manager';
+import { BrowserRouter } from 'react-router-dom';
+import { IdentityGeneratedDocuments, IdentityReportControls } from '@/components/identity-report-manager';
 import '../../src/styles.css';
 import '../../src/index.css';
 
@@ -41,7 +42,8 @@ const report = {
 };
 
 createRoot(document.getElementById('root')).render(
-  <div className="app-layout app-layout--dark"><main className="app-main"><div className="app-page"><div className="identity-report-workspace">
+  <BrowserRouter><div className="app-layout app-layout--dark"><main className="app-main"><div className="app-page"><div className="identity-report-workspace">
+    <IdentityReportControls section={section} label={section} state={{files:[{id:'fixture-pdf',filename:'report-with-a-long-original-filename.pdf',pdfUrl:'https://example.test/report.pdf'}]}} setState={()=>{}} load={async()=>{}} />
     <IdentityGeneratedDocuments report={(typeof __IDENTITY_REPORT_REVIEW__ !== "undefined" && __IDENTITY_REPORT_REVIEW__) || report} />
-  </div></div></main></div>,
+  </div></div></main></div></BrowserRouter>,
 );

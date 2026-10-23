@@ -144,3 +144,8 @@ Gap-caret marker использует foreground в обеих темах; эт�
 native hit target и metadata command на mobile/desktop.
 
 Изображения с `data-image-align="left|center|right"` сохраняют общий media rhythm. Меняются только inline margins и grid justify-self; legacy без атрибута остаётся прежним. Нет нового размера текста, line-height, нижних margins или spacers. Общий normalText/blockquote и остальные typography roles не меняются.
+
+List title/count markup is shared by `src/components/list-tile-content.jsx`
+for personal/public Wishlist, education and medication groups. Do not copy
+inline font sizes into consumers: `src/index.css` owns the tile roles, including
+labels with a two-line clamp and private-list metadata on the count row.
