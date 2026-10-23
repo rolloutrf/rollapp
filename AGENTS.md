@@ -1,5 +1,11 @@
 # Rollapp workspace instructions
 
+- Empty inline-block hints decorate only the current collapsed text caret's
+  textblock, including nested lists/cells/columns/captions. Retire old hints on
+  selection-only changes without document/history/save writes. Keep each hint
+  on one bounded ellipsized line so it cannot paint over neighbouring prose.
+  Verify the eight-viewport placeholder cases and full text/comprehensive suite.
+
 - Image viewing in shared rich editors/readers is non-authoring: preserve exact
   image/figure/caption attrs, native image role and authored alt accessible name,
   native selection, history and save queues. Compose

@@ -1,4 +1,5 @@
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
+import { checkPlaceholders } from "./text-placeholder-checks.mjs";
 import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from "./smoke-browser-diagnostics.mjs";
 import { checkImageAlignment } from "./text-image-alignment-checks.mjs";
 import { checkImageCaptions } from "./text-image-caption-checks.mjs";
@@ -96,6 +97,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 try {
+  if (!only || only === "--surface-only") await checkPlaceholders(browser, origin);
   if(!only || only === "--image-reader-only") await checkImageViewer(browser,origin);
   if(!only || only === "--image-captions-only") await checkImageCaptions(browser,origin);
   if(!only || only === "--image-alignment-only") await checkImageAlignment(browser,origin);
