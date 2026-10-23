@@ -1054,6 +1054,7 @@ Competing block/table/column/resize chrome stays suspended while viewing.
 The image-reader diagnostic and the default full text-edit suite include viewer
 cases at all eight editor viewports. Targeted PASS does not replace complete
 editor/comprehensive verification or actual-device IME checks.
+
 ## Подсказки пустых блоков
 
 Подсказка активного пустого блока занимает не больше одной строки своего
@@ -1061,5 +1062,7 @@ editor/comprehensive verification or actual-device IME checks.
 подсказка вычисляется по текущему textblock, включая вложенные списки, таблицы,
 колонки и подписи изображений; старые декорации не накапливаются. Она не переносится на соседние
 блоки, не добавляет authored content и не меняет нативную позицию курсора,
-историю или очередь сохранения. Проверка `text-placeholder-checks.mjs` входит
+историю или очередь сохранения. Псевдоэлемент наследует внутренние отступы
+текстового блока, чтобы пустой код и вложенные абзацы сохраняли свою текстовую
+ось и первую строку. Проверка `text-placeholder-checks.mjs` входит
 в полный `test:text-edit` и диагностический `--surface-only` на восьми размерах.

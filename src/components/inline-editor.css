@@ -13,7 +13,7 @@
   background: transparent;
 }
 .inline-editor__content [data-placeholder] { position: relative; }
-.inline-editor__content [data-placeholder]::before { content: attr(data-placeholder); position: absolute; inset-inline: 0; inset-block-start: 0; height: 1lh; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; color: var(--muted-foreground); }
+.inline-editor__content [data-placeholder]::before { content: attr(data-placeholder); position: absolute; inset: 0; box-sizing: border-box; padding: inherit; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; color: var(--muted-foreground); }
 .inline-editor__content ul[data-type="taskList"] { list-style: none; padding-inline-start: 0; }
 .inline-editor__content li[data-type="taskItem"] { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 8px; row-gap: 0; align-items: start; padding-inline-start: 0; }
 .inline-editor__content li[data-type="taskItem"] > label { grid-column: 1; grid-row: 1; padding-block-start: 4px; }
