@@ -1,4 +1,5 @@
 import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
+import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from "./smoke-browser-diagnostics.mjs";
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
@@ -24,7 +25,7 @@ const server = await createServer({
 });
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
-const browser = await chromium.launch(browserLaunchOptions());
+const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 const errors = [];
 async function keyboard(page, height, offsetTop = 0) {
   await page.evaluate(({height, offsetTop}) => {
@@ -50,7 +51,16 @@ async function swipe(page, from, to) {
 }
 async function boundsVisible(locator, top, bottom, label) {
   const box = await locator.boundingBox();
-  if (box && box.y + box.height > bottom + 2) await locator.page().screenshot({path:'/tmp/rollapp-drawer-failure.png'});
+  if (!box || box.height <= 0 || box.y < top - 2 || box.y + box.height > bottom + 2) {
+    const page = locator.page();
+    console.error('DRAWER FAILURE', label, JSON.stringify(await page.evaluate(() => ({
+      ready: document.readyState, path: location.pathname, active: document.activeElement?.outerHTML?.slice(0, 500),
+      popup: [...document.querySelectorAll('[data-slot="drawer-popup"]')].slice(0, 4).map(el => ({html: el.outerHTML.slice(0, 500), box: el.getBoundingClientRect().toJSON(), display: getComputedStyle(el).display})),
+      events: window.drawerFixtureEvents, body: document.body.innerText.slice(0, 1000),
+    })).catch(error => ({diagnosticError: error.message}))));
+    console.error('DRAWER BROWSER', JSON.stringify(smokeBrowserDiagnostics(page)));
+    await page.screenshot({path:'/tmp/rollapp-drawer-failure.png'}).catch(error => console.error('DRAWER SCREENSHOT', error.message));
+  }
 
   assert(box && box.height > 0 && box.y >= top - 2 && box.y + box.height <= bottom + 2, `${label}: ${JSON.stringify(box)} outside ${top}..${bottom}`);
 }

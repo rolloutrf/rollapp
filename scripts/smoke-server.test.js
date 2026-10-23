@@ -23,7 +23,7 @@ test("two simultaneous smoke servers retain independent owners without disturbin
   assert.deepEqual(await Promise.all(origins.map(async origin => (await fetch(origin)).text())), ["first", "second"]);
 });
 test("complete smoke entry points derive URLs from their own bound server, never fixed shared ports", async () => {
-  for (const name of ["action-rails", "control-size", "daily-todo-ribbon", "date-picker-pages", "detail-actions", "drawer", "kanban-drag", "mobile-catalog-page", "mobile-form-pages", "mobile-navigation", "wish-group-names", "identity-reports", "form-actions", "text-edit"]) {
+  for (const name of ["action-rails", "contacts-feed", "control-size", "daily-todo-ribbon", "date-picker-pages", "detail-actions", "drawer", "kanban-drag", "mobile-catalog-page", "mobile-form-pages", "mobile-navigation", "wish-group-names", "identity-reports", "form-actions", "text-edit"]) {
     const source = await readFile(new URL(`./${name}-smoke.mjs`, import.meta.url), "utf8");
     assert.match(source, /smokePort\(/, name);assert.match(source, /await listenSmokeServer\(server\);\s*const origin = smokeOrigin\(server\);/, name);
     assert.match(source, /strictPort\s*:\s*true/, name);

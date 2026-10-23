@@ -75,7 +75,23 @@ if (formName) {
   function RealForm() {
     useVisualViewport();
     const [open, setOpen] = useState(true);
-    return open ? <Component {...props} open onOpenChange={setOpen} onClose={() => setOpen(false)} /> : null;
+    React.useEffect(() => {
+      const record = event => {
+        window.drawerFixtureEvents ??= [];
+        window.drawerFixtureEvents.push({type: event.type, key: event.key, target: event.target?.tagName, id: event.target?.id, related: event.relatedTarget?.tagName});
+        if (window.drawerFixtureEvents.length > 20) window.drawerFixtureEvents.shift();
+      };
+      const types = ['focusin', 'focusout', 'keydown', 'pointerdown', 'pointerup'];
+      for (const type of types) document.addEventListener(type, record, true);
+      return () => { for (const type of types) document.removeEventListener(type, record, true); };
+    }, []);
+    const changeOpen = React.useCallback((next, details) => {
+      window.drawerFixtureEvents ??= [];
+      window.drawerFixtureEvents.push({open: next, reason: details?.reason, type: details?.event?.type});
+      if (window.drawerFixtureEvents.length > 20) window.drawerFixtureEvents.shift();
+      setOpen(next);
+    }, []);
+    return open ? <Component {...props} open onOpenChange={changeOpen} onClose={() => changeOpen(false)} /> : null;
   }
   createRoot(document.getElementById('root')).render(<BrowserRouter><MobileFormPages><RealForm /></MobileFormPages></BrowserRouter>);
 } else createRoot(document.getElementById('root')).render(<Fixture />);
