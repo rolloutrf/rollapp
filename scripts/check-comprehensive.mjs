@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 
 const root = path.resolve(import.meta.dirname, "..");
-const checks = ["check:release", "test:navigation", "test:action-rails", "test:identity-reports", "test:todo", "test:form-pages", "test:catalog-page", "test:wish-groups", "test:drawers", "test:contacts"];
+const checks = ["check:release", "test:navigation", "test:action-rails", "test:identity-reports", "test:todo", "test:form-pages", "test:catalog-page", "test:wish-groups", "test:drawers", "test:contacts", "test:contact-notes"];
 if (process.argv.includes("--list")) {
   console.log(checks.join("\n"));
 } else {
@@ -12,7 +12,7 @@ if (process.argv.includes("--list")) {
   const output = path.resolve(process.env.ROLLAPP_CHECK_OUTPUT || path.join(os.tmpdir(), `rollapp-check-${Date.now()}.json`));
   const env = { ...process.env };
   // A comprehensive result must never silently inherit a partial smoke matrix.
-  for (const key of ["DRAG_WIDTHS", "CALENDAR_WIDTHS", "CONTROL_WIDTHS", "DETAIL_WIDTHS", "DATE_WIDTHS", "FORM_ACTION_WIDTHS", "FORM_ACTION_CASES", "TEXT_EDIT_WIDTHS", "ACTION_WIDTHS", "TODO_WIDTHS", "FORM_WIDTHS", "FORM_CASES", "DRAWER_WIDTHS", "DRAWER_MODES", "DRAWER_CASES"]) delete env[key];
+  for (const key of ["DRAG_WIDTHS", "CALENDAR_WIDTHS", "CONTROL_WIDTHS", "DETAIL_WIDTHS", "DATE_WIDTHS", "FORM_ACTION_WIDTHS", "FORM_ACTION_CASES", "TEXT_EDIT_WIDTHS", "ACTION_WIDTHS", "TODO_WIDTHS", "FORM_WIDTHS", "FORM_CASES", "DRAWER_WIDTHS", "DRAWER_MODES", "DRAWER_CASES", "IDENTITY_REPORT_REVIEW_LAYOUT", "IDENTITY_REPORT_REVIEW_PAGES", "HOGAN_SCALES_REVIEW_LAYOUT"]) delete env[key];
   const report = {
     status: "running",
     startedAt,

@@ -301,3 +301,17 @@ swipe-handle rail. This keeps header, fields and footer on the same 16px inset
 regardless of the caller's historical `showSwipeHandle`/direction props. The
 product wrapper owns this choice; mobile forms retain their native-page contract
 and upstream drawers keep gesture support.
+
+## Единый выбор даты во всех формах
+
+`PlanningDatePicker` используется также в профиле, событии Wishlist, курсах,
+конференциях, коучинге, препаратах и тренировках. Нативных date inputs нет.
+`min`/`max` задают включительные локальные date keys; недоступные дни нельзя
+выбрать, а день рождения ограничен текущей локальной датой. `disabled`
+блокирует открытие и закрывает уже открытый picker без изменения черновика.
+`aria-invalid` сохраняет состояние поля. Необязательные даты имеют общую
+очистку; обязательная дата тренировки не очищается, Save сохраняет свой guard.
+На мобильном выбор/очистка применяются после закрытия вложенной history entry;
+Back отменяет выбор, сохраняя текст родительской формы. На desktop остаётся
+shadcn Calendar в Popover. `test:dates` проверяет все семь реальных форм на
+320–1920px, короткие mobile/desktop, границы min/max, keyboard и disabled.

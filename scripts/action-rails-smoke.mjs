@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
-  name:'action-rails-fixture',configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, SessionContext, ToastContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
     res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/action-rails.jsx"></script></body></html>'));
@@ -17,8 +17,8 @@ try{
  for(const width of (process.env.ACTION_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number)){
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
-  await page.route('**/api/**',route=>{errors.push('Unexpected API request');return route.abort();});
-  for(const variant of ['text','collection','report','wishlist','narrow','short','icons','edit','dynamic','nested']){
+  await page.route('**/api/**',route=>{errors.push(`Unexpected API request: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
+  for(const variant of ['text','collection','contacts-real','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -30,6 +30,14 @@ try{
      overflow:document.documentElement.scrollWidth>innerWidth+1,copyLeft:document.querySelector('[data-content-copy]').getBoundingClientRect().left};
    });
    let metrics=await measure();
+   const textActions=await rail.locator('[data-page-action]').evaluateAll(elements=>elements.map(element=>{const s=getComputedStyle(element);return {left:s.paddingLeft,right:s.paddingRight,radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],height:element.getBoundingClientRect().height};}));
+   for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
+   if(['collection','wishlist-real'].includes(variant))assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
+   if(variant==='contacts-real')assert.equal(textActions.length,1);
+   if(['collection','wishlist-real'].includes(variant)){
+    const tiles=await page.locator('[data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
+    assert.equal(tiles.length,2);for(const tile of tiles){assert.equal(tile.width,130);assert.equal(tile.height,100);assert.equal(tile.radius,'18px');assert(!tile.inlineStyle,'List tiles must consume shared CSS without inline copies');assert(tile.countFits,'Tile count left its bounds');}
+   }
    if(variant==='nested'){
     const gap=await page.locator('[data-nested-content]').evaluate(element=>element.getBoundingClientRect().top-document.querySelector('.page-toolbar').getBoundingClientRect().bottom);
     assert.equal(gap,24,`${width}: outer toolbar to nested content gap`);
@@ -75,6 +83,17 @@ try{
    assertCentered(afterScroll);
    console.log(`PASS ${width} ${variant}: rail geometry, controls, scroll edges`);
   }
+  await page.goto(`${origin}/__action-rails?variant=wishlist-error`);
+  await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('heading',{name:'В этом списке пока пусто',exact:true}).count(),0,'Connection failure must never pretend the Wishlist is empty');
+  await page.getByRole('button',{name:'Повторить',exact:true}).click();
+  await page.waitForFunction(()=>window.wishlistLoadAttempts===2);
+  await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Повторить',exact:true}).click();
+  await page.getByRole('heading',{name:'В этом списке пока пусто',exact:true}).waitFor();
+  assert.equal(await page.getByText('Не удалось загрузить Вишлист',{exact:true}).count(),0);
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Wishlist load states overflow');
+  console.log(`PASS ${width} Wishlist: connection error, failed retry, successful empty response and no API`);
   assert.deepEqual(errors,[]);await page.close();
  }
 }finally{

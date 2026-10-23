@@ -1,3 +1,4 @@
+import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
@@ -254,10 +255,9 @@ export function LabResults() {
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
       {!readOnly && (
         <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          {selectedReport && <Button
-              className="min-h-12 shrink-0 rounded-full px-5"
+          {selectedReport && <PageActionButton
+              className="shrink-0"
               variant="destructive"
-              size="lg"
               type="button"
               disabled={deleteState.busy || uploadState.loading}
               aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
@@ -265,7 +265,7 @@ export function LabResults() {
               onClick={() => requestDeleteReport(selectedReport)}
             >
               Удалить
-            </Button>}
+            </PageActionButton>}
           <SphereBusinessControls sphereId="health" />
         </div>
       )}

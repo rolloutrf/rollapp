@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
+import { runDateFieldConsistencyChecks } from "./date-field-consistency-checks.mjs";
 
 // Actual picker, Router and task editor; unsaved props only, all API forbidden.
 const port = smokePort(process.env.DATE_PICKER_PORT);
@@ -11,13 +12,16 @@ const server = await createServer({
   server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: "date-page-fixture",
     transform(source, id) {
-      if (id.includes("planning-space.jsx?drawer-smoke-export=TaskEditor")) return `${source}\nexport { TaskEditor };`;
+      if (id.includes("App.jsx?date-fields-export")) return `${source}\nexport { ProfileSettingsModal, WishModal, SessionContext, ToastContext };`;
+      const name = new URLSearchParams(id.split('?')[1]).get('drawer-smoke-export');
+      if (name && /^[A-Z][A-Za-z]+$/.test(name) && id.includes('/src/') && !source.includes(`export function ${name}`)) return `${source}\nexport { ${name} };`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {
         if (!req.url.startsWith("/__date-page")) return next();
         res.setHeader("Content-Type", "text/html");
-        res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/date-picker-page.jsx"></script></body></html>'));
+        const fixture=new URL(req.url,'http://localhost').searchParams.has('form')?'date-fields':'date-picker-page';
+        res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/${fixture}.jsx"></script></body></html>`));
       });
     },
   }],
@@ -131,6 +135,7 @@ try {
       await page.close();
     }
   }
+  await runDateFieldConsistencyChecks(browser,origin,(process.env.DATE_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(',').map(Number));
 } catch (error) {
   for (const context of browser.contexts()) for (const page of context.pages()) {
     await page.screenshot({ path: "/tmp/rollapp-date-picker-failure.png" });

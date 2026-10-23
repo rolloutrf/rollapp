@@ -1,0 +1,185 @@
+{
+  "status": "passed-with-explicit-editor-exclusion",
+  "startedAt": "2026-10-23T18:44:18.956Z",
+  "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+  "dirty": true,
+  "sourceSha256": "f9b8decc84f3252275c1bf20fbb75477136c2a20d3b864dd47ef3595aa201396",
+  "files": 761,
+  "at": "2026-10-23T18:44:18.951Z",
+  "excluded": {
+    "name": "test:text-edit",
+    "reason": "Explicit user instruction to skip editor test; previous run interrupted. This is not an unqualified full release gate."
+  },
+  "priorPassed": [
+    "test:unit (823 passed, 1 optional integration skipped)",
+    "test:ui",
+    "test:controls",
+    "test:details",
+    "test:dates",
+    "test:calendar",
+    "test:form-actions"
+  ],
+  "priorLog": "/tmp/rollapp-consistency-verified-2026-10-23.log",
+  "checks": [
+    {
+      "name": "test:notes",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:44:18.956Z",
+      "exitCode": 0,
+      "durationMs": 57929,
+      "finishedAt": "2026-10-23T18:45:16.887Z"
+    },
+    {
+      "name": "test:kanban",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:45:16.889Z",
+      "exitCode": 0,
+      "durationMs": 48985,
+      "finishedAt": "2026-10-23T18:46:05.874Z"
+    },
+    {
+      "name": "test:drag-drop",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:46:05.875Z",
+      "exitCode": 0,
+      "durationMs": 118780,
+      "finishedAt": "2026-10-23T18:48:04.655Z"
+    },
+    {
+      "name": "test:health",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:48:04.656Z",
+      "exitCode": 0,
+      "durationMs": 72230,
+      "finishedAt": "2026-10-23T18:49:16.886Z"
+    },
+    {
+      "name": "build",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:49:16.889Z",
+      "exitCode": 0,
+      "durationMs": 2578,
+      "finishedAt": "2026-10-23T18:49:19.468Z"
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:49:19.468Z",
+      "exitCode": 0,
+      "durationMs": 38757,
+      "finishedAt": "2026-10-23T18:49:58.225Z"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:49:58.226Z",
+      "exitCode": 0,
+      "durationMs": 64810,
+      "finishedAt": "2026-10-23T18:51:03.036Z"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:51:03.036Z",
+      "exitCode": 0,
+      "durationMs": 79520,
+      "finishedAt": "2026-10-23T18:52:22.557Z"
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:52:22.558Z",
+      "exitCode": 0,
+      "durationMs": 100455,
+      "finishedAt": "2026-10-23T18:54:03.014Z"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:54:03.015Z",
+      "exitCode": 0,
+      "durationMs": 138129,
+      "finishedAt": "2026-10-23T18:56:21.144Z"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:56:21.145Z",
+      "exitCode": 0,
+      "durationMs": 15261,
+      "finishedAt": "2026-10-23T18:56:36.406Z"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:56:36.407Z",
+      "exitCode": 0,
+      "durationMs": 20676,
+      "finishedAt": "2026-10-23T18:56:57.083Z"
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-23T18:56:57.083Z",
+      "exitCode": 0,
+      "durationMs": 822891,
+      "finishedAt": "2026-10-23T19:10:39.975Z"
+    },
+    {
+      "name": "test:contacts",
+      "status": "passed",
+      "startedAt": "2026-10-23T19:10:39.976Z",
+      "exitCode": 0,
+      "durationMs": 43229,
+      "finishedAt": "2026-10-23T19:11:23.206Z"
+    },
+    {
+      "name": "test:contact-notes",
+      "status": "passed",
+      "startedAt": "2026-10-23T19:11:23.206Z",
+      "exitCode": 0,
+      "durationMs": 62119,
+      "finishedAt": "2026-10-23T19:12:25.325Z"
+    }
+  ],
+  "finalSnapshot": {
+    "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+    "dirty": true,
+    "sourceSha256": "f9b8decc84f3252275c1bf20fbb75477136c2a20d3b864dd47ef3595aa201396",
+    "files": 761,
+    "at": "2026-10-23T19:12:26.074Z"
+  },
+  "finishedAt": "2026-10-23T19:12:26.084Z",
+  "evidence": [
+    {
+      "path": "/tmp/rollapp-consistency-verified-2026-10-23.log",
+      "sha256": "e44a4bc8944d1fb5f8ced318c1d1cc9d27ae280070b2261a1df5c53e9e235f49",
+      "bytes": 222754
+    },
+    {
+      "path": "/tmp/rollapp-consistency-without-editor-2026-10-23.log",
+      "sha256": "aaee85fe33c72c78f493ecf1bbffacc426ffeb693f05f543bc91b280f30f0988",
+      "bytes": 54467
+    }
+  ],
+  "audits": {
+    "all": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "runtime": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "fullReleaseGatePassed": false,
+  "scope": "Application consistency audit, all configured matrices except explicitly excluded test:text-edit; no deployment."
+}
