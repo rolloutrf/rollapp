@@ -4,6 +4,12 @@
 
 ## Источники UI-контрактов
 
+Фото препаратов: [medication-photos.md](medication-photos.md).
+`npm run test:medication-photos` входит в release gate; production-поле image_url
+добавляется только отдельной явно разрешённой миграцией
+`node scripts/migrate-medication-photo.mjs --apply` (без --apply — READ ONLY).
+Обычный startup/deploy использует verify и не меняет схему.
+
 Общая карта владельцев, граница upstream shadcn и продуктовых композиций,
 а также порядок централизованного изменения: [design-system.md](design-system.md).
 
