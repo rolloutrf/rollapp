@@ -25,7 +25,7 @@ image upload сохраняет owner guards; reference check защищает �
 целевую production БД `rollapp`, роль `rollapp_app`; обычный startup остался verify.
 Команда без --apply до миграции показала missing image_url, --apply добавила только
 этот столбец. Постоянный TLS dev keepalive восстановлен на отдельных портах
-5178/8088, без memory/demo fallback и без остановки других сервисов.
+5358/8358, без memory/demo fallback и без остановки других сервисов.
 
 ## Выполненные проверки
 
@@ -44,6 +44,20 @@ image upload сохраняет owner guards; reference check защищает �
 - `npm audit` и `npm audit --omit=dev`: 0 vulnerabilities.
 - `git diff --check`: PASS.
 
-Полный comprehensive и live production UI после выпуска ещё не завершены.
+Live localhost frontend + production API/БД проверен в существующей сессии:
+семь записей в целевой группе, семь реальных фото loaded (naturalWidth>0),
+точные варианты упаковок. При первом запуске выявлен конфликт с backend другой
+рабочей копии на8088: новый сервис перенесён на проверенные свободные8358/5358;
+чужие процессы не останавливались. Read-only verify и keepalive восстановлены.
+
+Живая проверка также выявила intrinsic grid sizing: вертикальный PNG был выше
+рамки CollectionSnippetMedia, несмотря на object-fit:contain. Изображение теперь
+позиционируется внутри существующей рамки, не участвуя в расчёте её высоты.
+Проверка PNG47×69 на всех девяти размерах теперь явно сравнивает границы img/frame.
+Photo smoke получил собственный Vite cacheDir, чтобы не перезагружать dev UI.
+
+Первый CI audit b2e7c50 отменён после обнаружения обрезки; он не считается полным
+PASS. Полный comprehensive на окончательной версии и live production UI после
+выпуска ещё не завершены.
 Матрицы отдельных проверок не считаются заменой полного аудита. Реальное устройство,
 системный file picker и IME остаются непроверенными.

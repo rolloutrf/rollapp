@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
@@ -6,8 +7,8 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 const out = "/tmp/rollapp-medication-photo";
 await mkdir(out, { recursive: true });
-const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
-const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "medication-photo-fixture", enforce: "pre", transform(source, id) {
+const png = await sharp({ create: { width: 47, height: 69, channels: 4, background: "#dddddd" } }).png().toBuffer();
+const server = await createServer({ cacheDir: "node_modules/.vite-medication-photo-smoke", server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "medication-photo-fixture", enforce: "pre", transform(source, id) {
   if (id.endsWith("/src/components/medications.jsx?medication-photo-fixture")) return source + "\nexport { MedicationDrawer, MedicationCard };";
   if (id.endsWith("/src/lib/sphere-sharing.jsx")) return source + "\nexport { SphereSharingContext };";
   if (id.endsWith("/src/api.js")) return "export const api = new Proxy({}, { get: (_, key) => (...args) => { if (!window.medicationPhotoTransport?.[key]) throw Error('Unexpected fixture transport: '+key); return window.medicationPhotoTransport[key](...args); } });";
@@ -32,6 +33,10 @@ try {
   const cardImage = page.locator(".collection-snippet__media img");
   await cardImage.waitFor();
   assert(await cardImage.evaluate(img => img.complete && img.naturalWidth > 0));
+  assert(await cardImage.evaluate(img => {
+    const r = img.getBoundingClientRect(), p = img.parentElement.getBoundingClientRect();
+    return r.top >= p.top - 1 && r.left >= p.left - 1 && r.bottom <= p.bottom + 1 && r.right <= p.right + 1 && getComputedStyle(img).objectFit === "contain";
+  }), "portrait packaging must fit entirely within the shared media frame");
   await page.getByRole("button", { name: "Открыть форму", exact: true }).click();
   const photo = page.getByRole("img", { name: /Фото препарата/ }); await photo.waitFor();
   assert.equal(await page.getByLabel("Ссылка на фото препарата").inputValue(), `${smokeOrigin(server)}/__medication-photo.png`);
