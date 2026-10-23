@@ -1,3 +1,4 @@
+import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
@@ -361,12 +362,12 @@ function CoachingSessionDrawer({ initialListId = "", lists = [], open, session, 
             <div className="flex flex-col gap-4">
               <Field className="md:col-span-2">
                 <FieldLabel htmlFor={`${formId}-session-on`}>Дата</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
+                <PlanningDatePicker
+                  className="w-full justify-between"
                   id={`${formId}-session-on`}
-                  type="date"
+                  label="Дата" clearable
                   value={form.sessionOn}
-                  onChange={(event) => update("sessionOn", event.target.value)}
+                  onChange={(date) => update("sessionOn", date)}
                 />
               </Field>
               <Field>

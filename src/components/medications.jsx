@@ -1,3 +1,5 @@
+import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useId, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, CirclePause, Clock3, Folder,
@@ -6,7 +8,7 @@ import {
 import { api } from "@/api";
 import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
-import { ListTileContent } from "@/components/education-lists";
+import { ListTileContent } from "@/components/list-tile-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -468,18 +470,18 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel htmlFor={`${formId}-start`}>Начало курса</FieldLabel>
-                <Input className="min-h-12 text-base" id={`${formId}-start`} type="date" value={form.startOn} onChange={(event) => update("startOn", event.target.value)} />
+                <PlanningDatePicker className="w-full justify-between" id={`${formId}-start`} label="Начало курса" clearable value={form.startOn} onChange={(date) => update("startOn", date)} />
               </Field>
               <Field data-invalid={invalidDates}>
                 <FieldLabel htmlFor={`${formId}-end`}>Окончание курса</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
+                <PlanningDatePicker
+                  className="w-full justify-between"
                   id={`${formId}-end`}
-                  type="date"
+                  label="Окончание курса" clearable
                   min={form.startOn || undefined}
                   aria-invalid={invalidDates ? true : undefined}
                   value={form.endOn}
-                  onChange={(event) => update("endOn", event.target.value)}
+                  onChange={(date) => update("endOn", date)}
                 />
                 {invalidDates && <FieldError>Окончание курса должно быть не раньше начала.</FieldError>}
               </Field>
@@ -687,7 +689,7 @@ function MedicationGroupTabs({ groups, medications, value, onValueChange, onCrea
           {tiles.map((group) => {
             const count = countForGroup(group.id);
             return (
-              <ToggleGroupItem key={group.id} value={group.id} aria-label={`${group.title}, ${count} ${medicationCountLabel(count)}`}>
+              <ToggleGroupItem data-list-tile="" key={group.id} value={group.id} aria-label={`${group.title}, ${count} ${medicationCountLabel(count)}`}>
                 <ListTileContent title={group.title} count={count} />
               </ToggleGroupItem>
             );
@@ -819,13 +821,13 @@ export function Medications() {
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
           {selectedGroup && (
-            <Button className="h-12 shrink-0 px-5 text-base" variant="outline" shape="pill" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
+            <PageActionButton className="shrink-0" variant="outline" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
               Настройки группы
-            </Button>
+            </PageActionButton>
           )}
-          <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" type="button" onClick={addMedication}>
+          <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" type="button" onClick={addMedication}>
             Добавить
-          </Button>
+          </PageActionButton>
           <SphereBusinessControls sphereId="health" />
         </div>
       </header>}

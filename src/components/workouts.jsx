@@ -1,3 +1,4 @@
+import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
@@ -325,13 +326,12 @@ function WorkoutDrawer({ initialListId = "", lists = [], open, workout, onOpenCh
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel htmlFor={`${formId}-date`}>Дата</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
+                <PlanningDatePicker
+                  className="w-full justify-between"
                   id={`${formId}-date`}
-                  type="date"
-                  required
+                  label="Дата"
                   value={form.workoutOn}
-                  onChange={(event) => update("workoutOn", event.target.value)}
+                  onChange={(date) => update("workoutOn", date)}
                 />
               </Field>
               <Field>

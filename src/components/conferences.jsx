@@ -1,3 +1,4 @@
+import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
@@ -500,24 +501,24 @@ function ConferenceDrawer({ conference, initialListId = "", lists = [], open, on
             <div className="flex flex-col gap-4">
               <Field>
                 <FieldLabel htmlFor={`${formId}-starts-on`}>Дата начала</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
+                <PlanningDatePicker
+                  className="w-full justify-between"
                   id={`${formId}-starts-on`}
-                  type="date"
+                  label="Дата начала" clearable
                   value={form.startsOn}
-                  onChange={(event) => update("startsOn", event.target.value)}
+                  onChange={(date) => update("startsOn", date)}
                 />
               </Field>
               <Field data-invalid={datesInvalid}>
                 <FieldLabel htmlFor={`${formId}-ends-on`}>Дата завершения</FieldLabel>
-                <Input
-                  className="min-h-12 text-base"
+                <PlanningDatePicker
+                  className="w-full justify-between"
                   id={`${formId}-ends-on`}
-                  type="date"
+                  label="Дата завершения" clearable
                   min={form.startsOn || undefined}
                   aria-invalid={datesInvalid || undefined}
                   value={form.endsOn}
-                  onChange={(event) => update("endsOn", event.target.value)}
+                  onChange={(date) => update("endsOn", date)}
                 />
                 {datesInvalid && <FieldError>Дата завершения должна быть не раньше даты начала.</FieldError>}
               </Field>
