@@ -40,7 +40,7 @@
     "test:navigation": "node scripts/mobile-navigation-smoke.mjs",
     "test:action-rails": "node scripts/action-rails-smoke.mjs",
     "test:page-scrollers": "node scripts/page-scrollers-smoke.mjs",
-    "test:identity-reports": "node scripts/identity-reports-smoke.mjs && node scripts/hogan-scales-smoke.mjs",
+    "test:identity-reports": "node scripts/identity-reports-smoke.mjs && node scripts/hogan-scales-smoke.mjs && node scripts/identity-tests-smoke.mjs",
     "test:kanban": "node scripts/kanban-drag-smoke.mjs",
     "test:contact-notes": "node scripts/planning-contact-notes-smoke.mjs",
     "test:todo": "node scripts/daily-todo-ribbon-smoke.mjs",
