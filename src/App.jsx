@@ -3,6 +3,7 @@ import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { PageActionButton } from "@/components/page-action-button";
 import { HealthTracker } from "@/components/health-tracker";
+import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
@@ -55,8 +56,8 @@ import { CvResume } from "@/components/cv-resume";
 import { FourQuestions } from "@/components/four-questions";
 import { GallupProfile } from "@/components/gallup-profile";
 import {
-  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
-  IdentityReportStatus, useIdentityReport,
+  IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
+  IdentityReportStatus,
 } from "@/components/identity-report-manager";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
@@ -2247,45 +2248,7 @@ function HoganReport({ reportState: { state, error, load } }) {
 }
 
 function IdentityReportsPage() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const search = new URLSearchParams(location.search);
-  const selectedReport = search.get("report") === "hogan" || search.get("tab") === "hogan" ? "hogan" : "gallup";
-  const gallup = useIdentityReport("gallup");
-  const hogan = useIdentityReport("hogan");
-  const reportState = selectedReport === "hogan" ? hogan : gallup;
-  const selectReport = (report) => {
-    const params = new URLSearchParams(location.search);
-    params.set("tab", "identity-reports");
-    params.set("report", report);
-    navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true });
-  };
-  const navigation = (
-    <div className="min-w-0 not-typeset" data-report-navigation>
-      <TabsList className="list-tabs h-auto! w-full bg-transparent p-0" data-tab-scroller aria-label="Отчёт о личности">
-        <TabsTrigger data-report-tile value="gallup">
-          <span data-slot="list-tile-label">Gallup</span>
-          <span data-slot="list-tile-meta">CliftonStrengths</span>
-        </TabsTrigger>
-        <TabsTrigger data-report-tile value="hogan">
-          <span data-slot="list-tile-label">Hogan</span>
-          <span data-slot="list-tile-meta">HPI · HDS · MVPI</span>
-        </TabsTrigger>
-      </TabsList>
-    </div>
-  );
-  return (
-    <Tabs className="identity-reports-page identity-report-workspace" value={selectedReport} onValueChange={selectReport}>
-      <IdentityReportControls
-        section={selectedReport}
-        label={selectedReport === "hogan" ? "Hogan" : "Gallup"}
-        {...reportState}
-        navigation={navigation}
-      />
-      <TabsContent value="gallup" className="min-w-0"><GallupProfile reportState={gallup} /></TabsContent>
-      <TabsContent value="hogan" className="min-w-0"><HoganReport reportState={hogan} /></TabsContent>
-    </Tabs>
-  );
+  return <CustomIdentityReportsPage renderGallup={reportState => <GallupProfile reportState={reportState} />} renderHogan={reportState => <HoganReport reportState={reportState} />} />;
 }
 
 function TabbedSpherePage({ sphereId, tabs }) {
