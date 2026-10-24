@@ -66,3 +66,9 @@
 .daily-todo__empty { display: flex; min-height: 180px; flex-direction: column; align-items: center; justify-content: center; gap: var(--layout-item-gap); border: 1px dashed var(--border); border-radius: var(--radius-xl); padding: var(--layout-page-gap); color: var(--muted-foreground); text-align: center; text-wrap: pretty; }
 .daily-todo__empty svg { width: 28px; height: 28px; }
 .daily-todo__empty p { max-width: 34ch; margin: 0; }
+
+/* Nutrition retains its overview after the planning summary was removed. */
+.nutrition-todo .daily-todo__overview { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: var(--layout-item-gap); padding-block-end: var(--layout-item-gap); border-bottom: 1px solid var(--border); }
+.nutrition-todo .daily-todo__overview-copy { min-width: 0; }
+.nutrition-todo .daily-todo__eyebrow { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.nutrition-todo .daily-todo__date { margin: 4px 0 0; font-size: var(--text-3xl); line-height: var(--text-3xl--line-height); font-weight: 600; text-wrap: balance; }
