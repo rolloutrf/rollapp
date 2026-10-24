@@ -180,9 +180,9 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       ) : null}
 
       {!readOnly && <AlertDialog open={Boolean(deleteOpen)} onOpenChange={(open) => !busy && !open && setDeleteOpen(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
+            <AlertDialogTitle className="wrap-anywhere">{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteOpen === "all" ? "Все загруженные PDF и их содержимое будут удалены." : "Файл и извлечённое из него содержимое будут удалены из отчёта."}
             </AlertDialogDescription>
@@ -203,7 +203,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
 export function IdentityReportEmpty({ label }) {
   const { readOnly } = useSphereSharing();
   return (
-    <Empty className="identity-report-empty not-typeset rollapp-body">
+    <Empty className="identity-report-empty not-typeset rollapp-body wrap-anywhere">
       <EmptyHeader>
         <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>

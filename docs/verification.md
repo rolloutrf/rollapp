@@ -538,7 +538,7 @@ Read effects этих форм отклоняются без подмены от
 
 ### Произвольные личностные тесты (2026-10-24)
 
-`test:identity-reports` также выполняет `scripts/identity-tests-smoke.mjs`: восемь
+`test:identity-reports` также выполняет `scripts/identity-tests-smoke.mjs`: девять
 размеров, новая форма/ошибка/повтор/переименование, выбор теста после закрытия
 mobile history, PDF reader, отмена и подтверждение удаления; запросы к API
 запрещены. Парсер проверяется в database-free unit suite. Перед включением на

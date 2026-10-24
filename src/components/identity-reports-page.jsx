@@ -123,8 +123,8 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
       onAdd={!readOnly && !loading && !error ? () => setForm({}) : undefined}
       onEdit={current && !readOnly ? () => setForm(current) : undefined} onDelete={current && !readOnly ? () => setDeleteOpen(true) : undefined} />}
     <IdentityTestForm save={value => form?.id ? client.patch(`/identity/reports/${form.id}`, value) : client.post("/identity/reports", value)} test={form?.id ? form : null} open={Boolean(form)} onOpenChange={open => !open && setForm(null)} onSaved={test => { setTests(value => value.some(item => item.id === test.id) ? value.map(item => item.id === test.id ? test : item) : [...value, test]); selectReport(test.id); }} />
-    <AlertDialog open={deleteOpen} onOpenChange={open => !deleting && setDeleteOpen(open)}><AlertDialogContent>
-      <AlertDialogHeader><AlertDialogTitle>Удалить тест «{current?.title}»?</AlertDialogTitle><AlertDialogDescription>Тест, все его PDF и извлечённое содержимое будут удалены без возможности восстановления.</AlertDialogDescription></AlertDialogHeader>
+    <AlertDialog open={deleteOpen} onOpenChange={open => !deleting && setDeleteOpen(open)}><AlertDialogContent className="overflow-y-auto">
+      <AlertDialogHeader><AlertDialogTitle className="wrap-anywhere">Удалить тест «{current?.title}»?</AlertDialogTitle><AlertDialogDescription>Тест, все его PDF и извлечённое содержимое будут удалены без возможности восстановления.</AlertDialogDescription></AlertDialogHeader>
       <AlertDialogFooter><AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleting} onClick={removeTest}>{deleting ? "Удаляем" : "Удалить тест"}</AlertDialogAction></AlertDialogFooter>
     </AlertDialogContent></AlertDialog>
   </Tabs>;
