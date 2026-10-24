@@ -293,11 +293,13 @@ try{
     }
 
    }
-   const overview=page.locator('.daily-todo__overview');
-   assert(await overview.isVisible(),'Day overview is missing');
+   assert.equal(await page.locator('.daily-todo__overview').count(),0,'Removed day overview is still rendered');
    assert.equal(await page.locator('.daily-todo__empty').count(),empty?1:0,'Empty day state is incorrect');
    const beforeCalendar=new URL(page.url());
-   await page.getByRole('button',{name:/^Открыть .* в календаре$/}).click();
+   const destination=new URL(beforeCalendar);
+   destination.searchParams.set('tab','calendar');destination.searchParams.set('view','day');
+   destination.searchParams.set('spaceKind','todo');destination.searchParams.set('date',beforeCalendar.searchParams.get('date')||'2026-10-16');
+   await page.goto(destination.href);
    await page.waitForURL(url=>url.searchParams.get('tab')==='calendar'&&url.searchParams.get('view')==='day');
    const calendarUrl=new URL(page.url());
    assert.equal(calendarUrl.searchParams.get('date'),beforeCalendar.searchParams.get('date')||'2026-10-16','Calendar lost the selected date');

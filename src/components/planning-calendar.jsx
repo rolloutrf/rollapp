@@ -2,7 +2,7 @@ import { ControlBar } from "@/components/control-bar";
 import { calendarTaskSchedules } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays, ListTodo } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { relatedKindLabel } from "@/lib/planning-related-items";
 import { toast } from "sonner";
@@ -207,7 +207,6 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   }, [selected, view, sourceTasks]);
   const cancelInteractionRef = useRef(null);
   const navigate = (date, mode = view) => { cancelInteractionRef.current?.(); setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; }); };
-  const openTodo = (date = selected) => setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("tab", "todo"); next.delete("space"); next.delete("view"); return next; });
   const saveSchedule = async (task, patch) => {
     if (saving.current) return;
     saving.current = true; setBusy(true);
@@ -251,7 +250,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
       <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label={`Открыть To Do на ${label(selected)}`} title="Открыть To Do" onClick={() => openTodo()}><ListTodo aria-hidden="true" /></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button></div>
+        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button></div>
       </ControlBar>
       <div className="schedule-layout">
         <div className="schedule-main">
