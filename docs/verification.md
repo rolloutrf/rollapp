@@ -522,3 +522,5 @@ API. На отказе сохраняются bounded pageerror/console/HTTP/pen
 Отдельная матрица проверяет keyboard, включительные min/max и disabled.
 Read effects этих форм отклоняются без подмены ответа, любые API mutations
 запрещены. Нативные date inputs запрещены для всего src через `test:ui`.
+
+`npm run test:page-scrollers` входит в `check:release`: полная матрица горизонтальных лент и обоих краёв; контракт в `docs/spacing-system.md`.
