@@ -82,3 +82,23 @@ test("parseIdentityPdf restores all 34 ranks from the bundled Gallup report", as
   assert.equal(document.date, "2023-05-19");
   assert.deepEqual(document.rawLines, (await extractPdfLines(buffer)).map((line) => String(line).trim()).filter(Boolean));
 });
+
+test("custom tests retain their own title and source documents without Hogan/Gallup inference", () => {
+  const documents = [{ id: "b", uploadedAt: "2026-10-24T12:00:00Z", rawLines: ["Sociability 80"], layout: { pages: [] } }, { id: "a", uploadedAt: "2026-10-24T10:00:00Z", rawLines: ["Big Five"] }];
+  const report = generateIdentityReport("custom-123", documents, "Мой Big Five");
+  assert.equal(report.title, "Мой Big Five");
+  assert.deepEqual(report.documents.map(doc => doc.id), ["a", "b"]);
+  assert.deepEqual(report.documents[1].rawLines, ["Sociability 80"]);
+  assert.equal(report.profiles, undefined);
+  assert.equal(report.strengths, undefined);
+  assert.equal(documents[0].id, "b");
+});
+
+test("arbitrary PDF test uses generic layout and does not classify names as Hogan scales", async () => {
+  const buffer = await readFile(new URL("../src/assets/gallup/cliftonstrengths-top-5.pdf", import.meta.url));
+  const parsed = await parseIdentityPdf(buffer, { section: "custom-123", id: "pdf", filename: "arbitrary.pdf" });
+  assert.ok(parsed.rawLines.length > 0);
+  assert.ok(parsed.layout.pages.length > 0);
+  assert.equal(parsed.strengths, undefined);
+  assert.equal(parsed.profiles, undefined);
+});
