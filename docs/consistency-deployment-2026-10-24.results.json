@@ -1,0 +1,243 @@
+{
+  "status": "deployed-and-verified",
+  "release": {
+    "commit": "00e71d7726c108bbd3f135ce4d54563117756f80",
+    "sourceSha256": "0729f8efc11c8e408c8baaa759a3bc04c98b80e79591d9b1ce8e1be94ab79a86",
+    "files": 761
+  },
+  "workflow": {
+    "id": 40010699124,
+    "url": "https://github.com/rolloutrf/rollapp/actions/runs/40010699124",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "completedAt": "2026-10-23T21:24:38Z",
+        "conclusion": "success",
+        "databaseId": 120614037990,
+        "name": "deploy",
+        "startedAt": "2026-10-23T19:30:01Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-23T19:30:03Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-23T19:30:02Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T19:30:04Z",
+            "conclusion": "success",
+            "name": "Checkout",
+            "number": 2,
+            "startedAt": "2026-10-23T19:30:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T19:30:09Z",
+            "conclusion": "success",
+            "name": "Set up Node.js",
+            "number": 3,
+            "startedAt": "2026-10-23T19:30:04Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T19:30:19Z",
+            "conclusion": "success",
+            "name": "Install dependencies",
+            "number": 4,
+            "startedAt": "2026-10-23T19:30:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:21:19Z",
+            "conclusion": "success",
+            "name": "Test and build",
+            "number": 5,
+            "startedAt": "2026-10-23T19:30:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:21:23Z",
+            "conclusion": "success",
+            "name": "Log in to Yandex Container Registry via OIDC",
+            "number": 6,
+            "startedAt": "2026-10-23T21:21:19Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:22:59Z",
+            "conclusion": "success",
+            "name": "Build and push immutable image",
+            "number": 7,
+            "startedAt": "2026-10-23T21:21:23Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:23:00Z",
+            "conclusion": "success",
+            "name": "Exchange GitHub OIDC token for Yandex IAM token",
+            "number": 8,
+            "startedAt": "2026-10-23T21:22:59Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:23:09Z",
+            "conclusion": "success",
+            "name": "Deploy image to production VM",
+            "number": 9,
+            "startedAt": "2026-10-23T21:23:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:30Z",
+            "conclusion": "success",
+            "name": "Verify production health",
+            "number": 10,
+            "startedAt": "2026-10-23T21:23:09Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:34Z",
+            "conclusion": "success",
+            "name": "Configure Telegram Mini App",
+            "number": 11,
+            "startedAt": "2026-10-23T21:24:30Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:34Z",
+            "conclusion": "success",
+            "name": "Post Log in to Yandex Container Registry via OIDC",
+            "number": 20,
+            "startedAt": "2026-10-23T21:24:34Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:34Z",
+            "conclusion": "success",
+            "name": "Post Set up Node.js",
+            "number": 21,
+            "startedAt": "2026-10-23T21:24:34Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:35Z",
+            "conclusion": "success",
+            "name": "Post Checkout",
+            "number": 22,
+            "startedAt": "2026-10-23T21:24:34Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-23T21:24:35Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 23,
+            "startedAt": "2026-10-23T21:24:35Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/rolloutrf/rollapp/actions/runs/40010699124/job/120614037990"
+      },
+      {
+        "completedAt": "2026-10-23T19:29:58Z",
+        "conclusion": "skipped",
+        "databaseId": 120614040364,
+        "name": "audit",
+        "startedAt": "2026-10-23T19:29:58Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rolloutrf/rollapp/actions/runs/40010699124/job/120614040364"
+      }
+    ],
+    "status": "completed"
+  },
+  "production": {
+    "at": "2026-10-23T21:27:36.078556+00:00",
+    "health": {
+      "ok": true,
+      "service": "rollapp",
+      "version": "00e71d7726c108bbd3f135ce4d54563117756f80",
+      "capabilities": {
+        "marketplaceDirect": true,
+        "marketplaceAi": true,
+        "personalAiCredentials": true
+      }
+    },
+    "redirects": [
+      {
+        "url": "https://rollapp.130-193-58-26.sslip.io/api/healthz",
+        "status": 301,
+        "target": "https://xn--80avakiab.xn--p1ai/api/healthz"
+      },
+      {
+        "url": "https://www.xn--80avakiab.xn--p1ai/api/healthz",
+        "status": 301,
+        "target": "https://xn--80avakiab.xn--p1ai/api/healthz"
+      },
+      {
+        "url": "https://xn--80avakiab.xn--p1ai/u/koloskof",
+        "status": 301,
+        "target": "https://xn--80avakiab.xn--p1ai/koloskof"
+      },
+      {
+        "url": "https://xn--80avakiab.xn--p1ai/users/koloskof",
+        "status": 301,
+        "target": "https://xn--80avakiab.xn--p1ai/koloskof"
+      }
+    ],
+    "profileStatus": 200
+  },
+  "liveUi": {
+    "cases": 35,
+    "pages": [
+      "medications",
+      "wishlist",
+      "courses",
+      "performance",
+      "contacts"
+    ],
+    "widths": [
+      320,
+      390,
+      768,
+      820,
+      1024,
+      1440,
+      1920
+    ],
+    "shortViewport": "820x400",
+    "result": "passed",
+    "actions": {
+      "minHeight": 48,
+      "paddingInline": 24
+    },
+    "listTiles": {
+      "width": 130,
+      "height": 100
+    },
+    "rootOverflow": false,
+    "datePicker": "desktop Calendar/Popover; mobile nested native page; Back to parent then source; no manual save"
+  },
+  "preflight": {
+    "existingSchemaReadOnly": "passed",
+    "vmIdentity": "verified",
+    "diskBefore": "6.1GB",
+    "diskAfter": "4.9GB",
+    "manualVmRestart": false,
+    "imageDeletion": false,
+    "rollback": "237386530fd11e359f6f997735537b85e6ccb419"
+  },
+  "localReleaseValidation": {
+    "test:unit": "823 pass, 1 optional TON integration skipped, 0 failed",
+    "test:ui": "37 UI modules, 85 app JSX",
+    "build": "passed"
+  },
+  "limits": [
+    "Physical-device IME, Safari keyboard and external payments were not exercised.",
+    "Existing Wishlist preview maintenance can run on navigation; no manual authoring saves were performed.",
+    "Disk must be restored to at least 5GB before any future manual restart/pull per runbook."
+  ]
+}
