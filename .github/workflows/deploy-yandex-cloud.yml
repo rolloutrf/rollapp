@@ -89,7 +89,7 @@ jobs:
         run: npm ci
 
       - name: Install WebKit for native time field checks
-        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'none'
+        if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'
         run: npx playwright-core install --with-deps webkit
 
       - name: Test and build

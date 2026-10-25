@@ -124,6 +124,7 @@ test("targeted snippet releases require an explicit manual choice and retain con
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.match(workflow, /options: \[full, snippets, identity-reports, none\]\s+default: full/);
+  assert.match(workflow, /name: Install WebKit for native time field checks\s+if: github.event_name != 'workflow_dispatch' \|\| inputs.verification == 'full'/);
   assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'"));
   assert.match(workflow, /name: Verify targeted snippet release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'\s+run: npm run check:release:snippets/);
   assert(workflow.indexOf('run: npm run check:release:snippets') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
