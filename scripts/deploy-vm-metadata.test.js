@@ -120,6 +120,18 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.doesNotMatch(workflow, /YC_LOCKBOX_SOURCE: cli/);
 });
 
+test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(workflow, /options: \[full, snippets\]\s+default: full/);
+  assert.match(workflow, /name: Test and build\s+if: github.event_name != 'workflow_dispatch' \|\| inputs.verification != 'snippets'\s+run: npm run check:release/);
+  assert.match(workflow, /name: Verify targeted snippet release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'\s+run: npm run check:release:snippets/);
+  assert(workflow.indexOf('run: npm run check:release:snippets') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
+  for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:snippets', 'test:drag-drop', 'build']) {
+    assert(packageJson.scripts['check:release:snippets'].split(' && ').includes(`npm run ${command}`));
+  }
+});
+
 test("manual branch audits run the full matrix without production deployment or cloud credentials", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const audit = workflow.split("  audit:\n")[1].split("  deploy:\n")[0];
