@@ -8,6 +8,7 @@ import { MedicationGroupDrawer } from "@/components/medications.jsx?drawer-smoke
 import { ConferenceDrawer } from "@/components/conferences.jsx?drawer-smoke-export=ConferenceDrawer";
 import { CoachingSessionDrawer } from "@/components/coaching-sessions.jsx?drawer-smoke-export=CoachingSessionDrawer";
 import { ThesisEditor } from "@/components/theses.jsx?drawer-smoke-export=ThesisEditor";
+import { IdentityTestForm } from "@/components/identity-reports-page";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Drawer, DrawerContent, DrawerTitle, DrawerClose } from "@/components/form-surface";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ function Fixture() {
   if (!open) return null;
   const close = () => setOpen(false);
   const name = new URLSearchParams(location.search).get("form");
+  if (name === "identity-test") return <IdentityTestForm test={{ id: "custom-unsaved-fixture", title: "Личностный тест" }} open onOpenChange={setOpen} save={async () => { throw new Error("Сохранение запрещено в проверке"); }} remove={async () => { throw new Error("Удаление запрещено в проверке"); }} />;
   if (name === "principle") return <ThesisEditor section="principles" mode="edit" initialValue="Текст принципа" open onOpenChange={setOpen} onDelete={async () => { throw new Error("Удаление запрещено в проверке"); }} />;
   if (name === "task-new") return <TaskEditor task={{ title: "", dueOn: "2026-10-17" }} columns={columns} onClose={close} />;
   if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;

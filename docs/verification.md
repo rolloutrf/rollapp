@@ -620,7 +620,7 @@ mobile history, PDF reader, отмена и подтверждение удал�
 
 По прямому запросу пользователя 25 октября «Задеплой без сложного аудита» для UI-сниппетов добавлен явный manual release mode `verification=snippets`: `check:release:snippets` выполняет unit, UI, полный test:controls, test:wish-groups, полный test:snippets, полный drag/drop и build. Default и push-релизы сохраняют полный check:release. Веточный comprehensive не публикует приложение. Этот выбор разрешён только при явном запросе целевого выпуска; незавершённый comprehensive отмечается как отменённый, а не PASS. Schema verify, OIDC, сериализация rollout и exact-SHA health остаются обязательными.
 
-Для целевого выпуска интерфейса тестов личности предусмотрен manual `verification=identity-reports`: unit/UI, полный controls, identity-reports (включая custom tests), action-rails, page-scrollers и build. Действует тот же явно запрошенный целевой выпуск; полный default release остаётся прежним. Матрицы проверок не фильтруются, production schema verify и exact-SHA/live review сохраняются.
+Для целевого выпуска интерфейса тестов личности предусмотрен manual `verification=identity-reports`: unit/UI, полный controls, identity-reports (включая custom tests и settings/delete), form-actions, action-rails, page-scrollers и build. Действует тот же явно запрошенный целевой выпуск; полный default release остаётся прежним. Матрицы проверок не фильтруются, production schema verify и exact-SHA/live review сохраняются.
 
 
 По прямому запросу пользователя 25 октября «Заддеплой без тестирования» разрешён

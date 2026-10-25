@@ -32,7 +32,11 @@ const client = {
   },
   async delete(path) {
     window.__identityCalls.push(['delete', path]);
-    if (path.endsWith('/test')) return { deleted: true };
+    if (path.endsWith('/test')) {
+      if (window.__identityFailNextDelete) { window.__identityFailNextDelete = false; throw new Error('Не удалось удалить: повторите попытку'); }
+      if (window.__identityHoldDelete) await new Promise(resolve => { window.__identityReleaseDelete = () => { window.__identityHoldDelete = false; window.__identityReleaseDelete = null; resolve(); }; });
+      return { deleted: true };
+    }
     const section = path.split('/')[3];
     const previous = states.get(section);
     if(path.includes('/files/')) { const id=path.split('/').at(-1);const state={...previous,files:previous.files.filter(file=>file.id!==id),report:{documents:previous.report.documents.filter(doc=>doc.id!==id)}};states.set(section,state);return state; }
