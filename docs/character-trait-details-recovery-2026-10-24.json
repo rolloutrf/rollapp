@@ -1,0 +1,115 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-23T21:45:28.687Z",
+  "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+  "dirty": true,
+  "recoveryOf": "character-trait-details-verification-2026-10-23.json",
+  "reason": "Transient occupied legacy smoke port 5195; no process stopped. Retry failed and not-run checks with isolated legacy smoke offset 24535.",
+  "sourceFiles": [
+    "src/components/character-traits.jsx",
+    "src/components/character-traits.css",
+    "src/components/sphere-text-page.test.js",
+    "scripts/fixtures/drawer-cases.js"
+  ],
+  "sourceHash": "7f5954665d6dfd97d311939f2eb751d46d6a706a11cbd8a499058da8d36ba6b6",
+  "checks": [
+    {
+      "name": "test:drag-drop",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:45:28.721Z",
+      "exitCode": 0,
+      "durationMs": 110942,
+      "finishedAt": "2026-10-23T21:47:19.664Z"
+    },
+    {
+      "name": "test:health",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:47:19.664Z",
+      "exitCode": 0,
+      "durationMs": 55359,
+      "finishedAt": "2026-10-23T21:48:15.024Z"
+    },
+    {
+      "name": "build",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:48:15.025Z",
+      "exitCode": 0,
+      "durationMs": 1775,
+      "finishedAt": "2026-10-23T21:48:16.800Z"
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:48:16.801Z",
+      "exitCode": 0,
+      "durationMs": 32405,
+      "finishedAt": "2026-10-23T21:48:49.207Z"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:48:49.207Z",
+      "exitCode": 0,
+      "durationMs": 15951,
+      "finishedAt": "2026-10-23T21:49:05.158Z"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:49:05.158Z",
+      "exitCode": 0,
+      "durationMs": 57875,
+      "finishedAt": "2026-10-23T21:50:03.033Z"
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:50:03.033Z",
+      "exitCode": 0,
+      "durationMs": 66692,
+      "finishedAt": "2026-10-23T21:51:09.726Z"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:51:09.727Z",
+      "exitCode": 0,
+      "durationMs": 73332,
+      "finishedAt": "2026-10-23T21:52:23.059Z"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:52:23.060Z",
+      "exitCode": 0,
+      "durationMs": 7921,
+      "finishedAt": "2026-10-23T21:52:30.982Z"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:52:30.982Z",
+      "exitCode": 0,
+      "durationMs": 12332,
+      "finishedAt": "2026-10-23T21:52:43.315Z"
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:52:43.315Z",
+      "exitCode": 0,
+      "durationMs": 776734,
+      "finishedAt": "2026-10-23T22:05:40.050Z"
+    },
+    {
+      "name": "test:contacts",
+      "status": "passed",
+      "startedAt": "2026-10-23T22:05:40.051Z",
+      "exitCode": 0,
+      "durationMs": 36890,
+      "finishedAt": "2026-10-23T22:06:16.941Z"
+    }
+  ],
+  "finishedAt": "2026-10-23T22:06:16.942Z",
+  "finalSourceHash": "7f5954665d6dfd97d311939f2eb751d46d6a706a11cbd8a499058da8d36ba6b6"
+}

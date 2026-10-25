@@ -1,0 +1,5 @@
+.character-traits__composer { min-width: 0; }
+.character-traits__composer-input { opacity: 1; align-items: stretch; border-radius: calc(var(--layout-control-size) / 2); background: var(--muted); }
+.character-traits__composer textarea { min-width: 0; max-height: 10rem; padding: var(--layout-item-gap); overflow-y: auto; }
+.character-traits__composer-addon { padding: 0 var(--layout-item-gap) var(--layout-item-gap); }
+.character-traits__composer-actions { display: flex; width: 100%; min-width: 0; justify-content: flex-end; align-items: center; gap: var(--layout-inline-gap); }
