@@ -1,5 +1,7 @@
 import { HealthTracker } from "@/components/health-tracker";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
+import { ContactCardButton, ContactCardDialog } from "@/components/contact-card-dialog";
+import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -2932,11 +2934,12 @@ function LegacyContactsRedirect() {
   return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
 }
 
-function ContactsProfileControls({ onAdd }) {
+function ContactsProfileControls({ onAdd, onCard }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
+        <PageActionButton className="shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
+        {onCard && <PageActionButton variant="outline" className="shrink-0 whitespace-nowrap" onClick={onCard}><ContactRound aria-hidden="true" />Моя визитка</PageActionButton>}
         <SphereBusinessControls sphereId="career" />
       </div>
     </section>
@@ -2946,6 +2949,9 @@ function ContactsProfileControls({ onAdd }) {
 function ContactsSpherePage() {
   const toast = useToast();
   const access = useSphereSharing();
+  const session = useSession();
+  const cardProfile = access.owner || session?.user;
+  const [cardOpen, setCardOpen] = useState(false);
   const globalShareRef = useGlobalShareHandler();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -3028,7 +3034,8 @@ function ContactsSpherePage() {
 
   return (
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
-      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
+      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} onCard={cardProfile?.username ? () => setCardOpen(true) : undefined} />}
+      {cardOpen && !access.readOnly && cardProfile?.username && <ContactCardDialog key={cardProfile.username} profile={cardProfile} canSign={access.isOwner} onClose={() => setCardOpen(false)} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">
@@ -3541,7 +3548,6 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
 
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
-  const toast = useToast();
   const location = useLocation();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
@@ -3549,21 +3555,6 @@ function PersistentProfileHero({ user }) {
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
   const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && canAccessPrivateSpheres(user);
-  const profileUrl = `${window.location.origin}${publicProfilePath(profile.username)}`;
-  const qrUrl = `https://quickchart.io/qr?size=320&margin=2&text=${encodeURIComponent(profileUrl)}`;
-  const shareProfile = async () => {
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: `Профиль ${profile.name}`, url: profileUrl });
-      } else {
-        await navigator.clipboard.writeText(profileUrl);
-        toast("Ссылка на профиль скопирована");
-      }
-      setQrOpen(false);
-    } catch (error) {
-      if (error?.name !== "AbortError") toast("Не удалось поделиться ссылкой", "error");
-    }
-  };
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
@@ -3625,20 +3616,7 @@ function PersistentProfileHero({ user }) {
         scope={wishlistAccessControl ? { sphere: "wishlist", section: "wishlist" } : null}
         scopeLabel={wishlistAccessControl ? "Вишлист" : ""}
       />}
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="w-[min(24rem,calc(100%-2rem))] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Профиль {profile.name}</DialogTitle>
-            <DialogDescription>Отсканируйте код, чтобы открыть профиль.</DialogDescription>
-          </DialogHeader>
-          <div className="persistent-profile-hero__qr-code flex justify-center rounded-xl p-4">
-            <img className="size-64 max-w-full" src={qrUrl} alt={`QR-код профиля ${profile.name}`} />
-          </div>
-          <ShadcnButton type="button" variant="outline" className="min-h-12 w-full" onClick={shareProfile}>
-            <Share2 aria-hidden="true" />Поделиться
-          </ShadcnButton>
-        </DialogContent>
-      </Dialog>
+      {qrOpen && <ContactCardDialog key={profile.username} profile={profile} canSign={editable} onClose={() => setQrOpen(false)} />}
     </section>
   );
 }
@@ -7604,6 +7582,7 @@ function PublicProfile({ shared = false }) {
             aria-pressed={data.isFollowing}
             onClick={follow}
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</Button>}
+        <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
       </div>
     </section>
 

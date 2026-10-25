@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
 const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACTS_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contacts-feed-fixture', enforce: 'pre',
-  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider };`; },
+  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorContext, PersistentProfileHero, PublicProfile, CollectionNavigationProvider };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__contacts-feed')) return next();
     res.setHeader('Content-Type', 'text/html');
@@ -16,14 +17,83 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
-  for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[1440,400]]) {
+  for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[1440,400],[390,400]]) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => { if (!request.url().startsWith(origin) && !request.url().startsWith('data:')) errors.push('Unexpected external request'); });
+    await page.addInitScript(() => {
+      window.cardTest = { copied: '', failCopy: false, shareMode: 'success', shares: [] };
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { async writeText(value) { if (window.cardTest.failCopy) throw Error('Denied'); window.cardTest.copied = value; } } });
+      Object.defineProperty(navigator, 'share', { configurable: true, value: async (value) => { window.cardTest.shares.push(value); if (window.cardTest.shareMode === 'cancel') throw new DOMException('Cancelled', 'AbortError'); } });
+    });
     await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);
+    const cardButton = page.getByRole('button', { name: 'Моя визитка', exact: true });
+    assert.equal(await cardButton.evaluate((button) => getComputedStyle(button).paddingLeft), '24px');
+    assert.equal(await cardButton.evaluate((button) => getComputedStyle(button).paddingRight), '24px');
+    const requestsBeforeCard = await page.evaluate(() => window.feedTest.requests.length);
+    await cardButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Цифровая визитка' });
+    await dialog.getByRole('img', { name: 'QR-код профиля Михаил Колосков' }).waitFor();
+    await dialog.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
+    assert((await dialog.getByRole('img').getAttribute('src')).startsWith('data:image/png;base64,'));
+    const qrImage = dialog.getByRole('img');
+    await qrImage.scrollIntoViewIfNeeded();
+    assert(await qrImage.evaluate((image) => { const r = image.getBoundingClientRect(), body = image.closest('[data-contact-card-body]').getBoundingClientRect(); return r.top >= body.top - 1 && r.bottom <= body.bottom + 1; }), 'The complete QR must fit inside the scrollable body');
+    const bounds = await dialog.boundingBox();
+    assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1, 'Card outside viewport');
+    assert(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth), 'Card horizontal overflow');
+    for (const button of await dialog.locator('[data-control-bar] button').all()) {
+      assert.equal(Math.round((await button.boundingBox()).height), 48);
+      assert.deepEqual(await button.evaluate((element) => { const css = getComputedStyle(element); return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomLeftRadius, css.borderBottomRightRadius]; }), ['24px','24px','24px','24px']);
+    }
+    const vcardWait = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Скачать vCard', exact: true }).click();
+    const vcard = await vcardWait;
+    assert.equal(vcard.suggestedFilename(), 'mikhail.vcf');
+    const cardText = await readFile(await vcard.path(), 'utf8');
+    assert(cardText.includes('FN:Михаил Колосков\r\n'));
+    assert(cardText.includes(`URL:${origin}/mikhail\r\n`));
+    assert.doesNotMatch(cardText, /PRIVATE|private@example/);
+    const jsonWait = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Скачать JSON', exact: true }).click();
+    const json = await jsonWait;
+    const jsonText = await readFile(await json.path(), 'utf8');
+    assert.deepEqual(Object.keys(JSON.parse(jsonText)), ['format','version','name','username','url']);
+    assert.doesNotMatch(jsonText, /PRIVATE|private@example/);
+    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/mikhail`);
+    await page.evaluate(() => { window.cardTest.failCopy = true; });
+    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    await dialog.getByRole('alert').waitFor();
+    await page.evaluate(() => { window.cardTest.failCopy = false; });
+    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    assert.equal(await dialog.getByRole('alert').count(), 0);
+    assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/mikhail`);
+    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    assert.equal(await dialog.getByRole('alert').count(), 0);
+    assert.equal(await page.evaluate(() => window.cardTest.shares[0].url), `${origin}/mikhail`);
+    await page.evaluate(() => { window.cardTest.shareMode = 'cancel'; });
+    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    assert.equal(await dialog.getByRole('alert').count(), 0);
+    assert.equal(await page.evaluate(() => window.cardTest.shares.length), 2, 'Native Share cancellation was not exercised');
+    await page.evaluate(() => { Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }); window.cardTest.copied = ''; });
+    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/mikhail`, 'Share fallback did not copy the profile');
+    await page.screenshot({ path: `/tmp/rollapp-contact-card-${width}-${height}.png` });
+    await dialog.getByRole('button', { name: 'Закрыть визитку', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    assert(await cardButton.evaluate((element) => document.activeElement === element), 'Card did not restore opener focus');
+    assert.equal(await page.evaluate(() => window.feedTest.requests.length), requestsBeforeCard, 'Card changed feed');
+    await page.getByRole('button', { name: 'Показать QR-код профиля Михаил Колосков', exact: true }).click();
+    await dialog.getByRole('img').waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
+    await page.evaluate(() => scrollTo({top:0,behavior:'instant'}));
+    console.log(`PASS ${width}×${height}: card integration, local QR, private-field isolation, real downloads, clipboard retry, share/cancel, focus, 48px controls`);
     await page.evaluate(() => { window.firstCard = document.querySelector('.contact-card'); window.feedTest.failNext = true; scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}); });
     await page.getByRole('button', { name: 'Попробовать снова', exact: true }).waitFor();
     assert.equal(await page.locator('.contact-card').count(), 48, 'Failed append must retain cards');
@@ -71,8 +141,24 @@ try {
     assert.equal(await page.locator('.contact-card__name-row strong').textContent(), 'Контакт 001');
     await page.getByRole('searchbox').fill('Не существует');
     await page.getByText('Контакты не найдены', {exact:true}).waitFor();
+    await page.goto(`${origin}/__contacts-feed/public/mikhail`, { waitUntil: 'domcontentloaded' });
+    const visitorCard = page.getByRole('button', { name: 'Визитка', exact: true });
+    await visitorCard.click();
+    await dialog.getByRole('img', { name: 'QR-код профиля Михаил Колосков' }).waitFor();
+    await dialog.getByRole('button', { name: 'Закрыть визитку', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
+    assert(await visitorCard.evaluate((element) => document.activeElement === element));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Public profile horizontal overflow');
+    // Also inspect the card in the light theme and a short viewport.
+    await page.evaluate(() => document.documentElement.classList.remove('dark'));
+    await visitorCard.click();
+    await dialog.getByRole('img').waitFor();
+    await dialog.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
+    await page.screenshot({ path: `/tmp/rollapp-contact-card-light-${width}-${height}.png` });
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: append, retry, end, favorite scroll/DOM, failure, filters, stale request, overflow`);
+    console.log(`PASS ${width}×${height}: append, retry, end, favorite scroll/DOM, failure, filters, stale request, overflow; guest public card, light/dark`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }
