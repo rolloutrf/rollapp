@@ -2,7 +2,7 @@
   "date": "2026-10-25",
   "initialRemoteMain": "9daf0a4fff52c251eff6c5fa8cebcd55ccae4277",
   "integrationBranch": "codex/consolidate-workspaces-20261025",
-  "testedCommit": "761608856558153978459788a4be5d7e27e3b72b",
+  "testedCommit": "38cecf62f6a16817b25b32f8a0fece4f57ab3016",
   "worktrees": [
     {
       "workspace": "rollout",
@@ -340,7 +340,7 @@
       "result": "Clean checkout; commits already included in main."
     }
   ],
-  "sourceFingerprint": "f0b3796d7b704cd245301d08f1733a960d6ac44161c3694c71457c1b91560e37",
+  "sourceFingerprint": "634a9acc7797bc2f9ada9711f43021776211857c2b6e9c5c151b0afeacf6f56f",
   "trackedSourceFiles": 824,
   "sourceHashes": {
     "src/App.jsx": "f30f782ce44be4fb70b8a067178c5743aaffab3f86cf7e59d985c50c3a289406",
@@ -949,7 +949,7 @@
     "scripts/browser-runtime.mjs": "692c7a775428a5a773b9f48615cc7bad4416df19ca08e1ab89db17943791098c",
     "scripts/build-contact-card-registry.mjs": "e8df8480d012008d0f7c994a61d53aa3d8f2fc5cce56087408df553350053cef",
     "scripts/calendar-events-smoke.mjs": "764a632e9efde286c5155e023178ef878d84305bc27388a41b16cea450918a3e",
-    "scripts/calendar-gestures-smoke.mjs": "db734a0c74d1a810b06152a6daad2923f0df2e2cdb26c914f80a46587f906687",
+    "scripts/calendar-gestures-smoke.mjs": "62e73f6ac563bf3835cbc13db48e97396039c2a4152fb936ef9690420ee1fd3d",
     "scripts/calendar-macos-checks.mjs": "d0fb9517988e7327a840f9bc40f45d65b806accea449823edbf74e788e9799d2",
     "scripts/calendar-sync-smoke.mjs": "de0facfae5cbdd6c939715dbc836eaea1da781577afd42fb91366f3f10f1ab82",
     "scripts/check-comprehensive.mjs": "f7559c97ec61e69a2cca8a450d2fa8a1470823dc38c99a191bbc2cf7e8ba0e83",
@@ -1177,12 +1177,19 @@
     "exactReadback": true
   },
   "verification": {
-    "comprehensive": "running final full retry after replacing a private development fallback dependency in the isolated test fixture",
-    "run": "https://github.com/rolloutrf/rollapp/actions/runs/40208059941",
+    "comprehensive": "running full immutable CI snapshot; prior local run continues as diagnostic evidence after a calendar-test-only edit",
+    "run": "https://github.com/rolloutrf/rollapp/actions/runs/40210690011",
     "localReport": "/tmp/rollapp-consolidation-comprehensive-v2-20261025.json",
     "pullRequest": "https://github.com/rolloutrf/rollapp/pull/13",
     "failedLocalReport": "workspace-integration-comprehensive-failed-2026-10-25.json",
     "failedLocalCause": "Old test fixture relied on a removed private DevelopmentPlan fallback; replaced by a synthetic fixture document without changing assertions or restoring a production fallback.",
-    "cancelledPriorRun": "https://github.com/rolloutrf/rollapp/actions/runs/40203618589"
+    "cancelledPriorRun": "https://github.com/rolloutrf/rollapp/actions/runs/40203618589",
+    "failedCiReport": "workspace-integration-comprehensive-ci-failed-2026-10-25.json",
+    "failedCiRun": "https://github.com/rolloutrf/rollapp/actions/runs/40208059941",
+    "localStartCommit": "05545e4",
+    "localPostCalendarDelta": [
+      "scripts/calendar-gestures-smoke.mjs"
+    ],
+    "productionCodeDeltaSinceLocalStart": []
   }
 }
