@@ -2,7 +2,7 @@
   "date": "2026-10-25",
   "initialRemoteMain": "9daf0a4fff52c251eff6c5fa8cebcd55ccae4277",
   "integrationBranch": "codex/consolidate-workspaces-20261025",
-  "testedCommit": "0aa9934fda453fabcc5896351b359b728457c043",
+  "testedCommit": "761608856558153978459788a4be5d7e27e3b72b",
   "worktrees": [
     {
       "workspace": "rollout",
@@ -340,7 +340,7 @@
       "result": "Clean checkout; commits already included in main."
     }
   ],
-  "sourceFingerprint": "c88bc493edcba9fd36011e221dbf5bb1607f2a47ff5ffba15ea7d6c1b480448a",
+  "sourceFingerprint": "f0b3796d7b704cd245301d08f1733a960d6ac44161c3694c71457c1b91560e37",
   "trackedSourceFiles": 824,
   "sourceHashes": {
     "src/App.jsx": "f30f782ce44be4fb70b8a067178c5743aaffab3f86cf7e59d985c50c3a289406",
@@ -421,7 +421,7 @@
     "src/components/performance-review.jsx": "75202f784fbedf8fe5c5d352642642050a683b4bc38e405a14a63d050d990518",
     "src/components/performance-review.test.js": "fdb765f918382520702c328bd5542ce3e5812558973592dd6742e8f3b948e3d4",
     "src/components/personal-development-plan.jsx": "827f5a8be03e4cda063add493ba0dfa28ecf40c720523488ca608caeb356e075",
-    "src/components/planning-calendar.css": "89a21d5c41a30861637ebaa7f2e8bc56c335f9bd2cd71265e7bb74890f23088f",
+    "src/components/planning-calendar.css": "8d220d1f333c5056d6f8424d3630d85b25a90d9fb68dd7915ee7682e36779c99",
     "src/components/planning-calendar.jsx": "6725a687a72b01b05c85cac86c420b910490d816261d590019e8ec599a845efd",
     "src/components/planning-daily-todo.css": "049f496abf1cae07f839bac8e4ccc9b37ab7997db31d78e56724237d04b21911",
     "src/components/planning-daily-todo.jsx": "d196a71ee9d9b13308c9c2512867efcd6fe4b0df2a92a8a317cb360e77719681",
@@ -1005,7 +1005,7 @@
     "scripts/fixtures/snippet-badges.jsx": "2945183fb0727984d034d50f9b14b437bc12c53843be4ba7bc05b97598011842",
     "scripts/fixtures/snippets.jsx": "2647919117bea2f912c98716e76c20791b1a85fde9f3a865c934f6e548550ff8",
     "scripts/fixtures/text-chrome-frame.jsx": "ad2bb66f1b365bb097e314882c1f0774dd0ff916fef49c8d9bbc6ec461630c6a",
-    "scripts/fixtures/text-edit.jsx": "d3f6d89c93f2bbedec22ed31f2037db3dd17c22466060ce9c49808e1bfcef601",
+    "scripts/fixtures/text-edit.jsx": "94972190fe2a34a4d55b6d678cbc616bfa8e581429c257151c376e45c2ed7f7c",
     "scripts/fixtures/ton-card-wallet.js": "ebbb0b36d3ee83fdf19c5783b62d0f5804d0e20f0b269f993895884e63508107",
     "scripts/fixtures/ton-contact-card.jsx": "363aafe4cf33ed9ff7e62d863249d9a1b358ded5dfedec1910dad56f846ecfdd",
     "scripts/fixtures/wish-group-names.jsx": "3a74bd1b7a0f470382d1b8c2ae3add22d52901a0d294c4fd56d364d27f0812fa",
@@ -1080,7 +1080,7 @@
     "scripts/text-cross-clipboard-checks.mjs": "3b9fba4adca89160a41c231ed842bf720014ed0568464a9482651276958a45b6",
     "scripts/text-cut-history-checks.mjs": "2ed21bb13fe674e24445982f95f22c7784c60e3d662f006661cecc43b295fafc",
     "scripts/text-deep-list-checks.mjs": "09094d54934fd5ba9fe1555cc8ee5d41dbf10983444e8b8507818e9482a3be21",
-    "scripts/text-edit-smoke.mjs": "7b8683f840bf583b3e662c0ee6a90c8a9ee362ca3266094583e33bc5c370cf8d",
+    "scripts/text-edit-smoke.mjs": "4d362ca0cb1f288740f5ddff49f84a315a2a3bbda7ebd5b6a5c1d5a1cae3405d",
     "scripts/text-first-selection-checks.mjs": "0586330fd7a9a8d2311eee7103deac3c218e03e5f593cd56a96fdf52a81460b2",
     "scripts/text-four-document-checks.mjs": "fe4badbd1aa01eb25220fd0acc74ac985d9a2752cbedacbab9b42db75fb95469",
     "scripts/text-gutter-alignment-checks.mjs": "8d58be71feccfa75a0e9c8eda617b666c7b075e2192212eb69b02177dbc4f343",
@@ -1177,9 +1177,12 @@
     "exactReadback": true
   },
   "verification": {
-    "comprehensive": "pending final snapshot run",
-    "run": "https://github.com/rolloutrf/rollapp/actions/runs/40202905313",
-    "localReport": "/tmp/rollapp-consolidation-comprehensive-final-20261025.json",
-    "pullRequest": "https://github.com/rolloutrf/rollapp/pull/13"
+    "comprehensive": "running final full retry after replacing a private development fallback dependency in the isolated test fixture",
+    "run": "https://github.com/rolloutrf/rollapp/actions/runs/40208059941",
+    "localReport": "/tmp/rollapp-consolidation-comprehensive-v2-20261025.json",
+    "pullRequest": "https://github.com/rolloutrf/rollapp/pull/13",
+    "failedLocalReport": "workspace-integration-comprehensive-failed-2026-10-25.json",
+    "failedLocalCause": "Old test fixture relied on a removed private DevelopmentPlan fallback; replaced by a synthetic fixture document without changing assertions or restoring a production fallback.",
+    "cancelledPriorRun": "https://github.com/rolloutrf/rollapp/actions/runs/40203618589"
   }
 }

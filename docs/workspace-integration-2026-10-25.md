@@ -5,14 +5,14 @@
 ## Проверяемая версия
 
 - Ветка: `codex/consolidate-workspaces-20261025`; PR: https://github.com/rolloutrf/rollapp/pull/13.
-- Зафиксированный код: `0aa9934fda453fabcc5896351b359b728457c043`.
+- Зафиксированный код: `761608856558153978459788a4be5d7e27e3b72b`.
 - Исходная интеграционная копия была чистой, HEAD `f55cce47e5718bc411f39cfc9436930deb152f23`.
 - После fetch обнаружен более новый main `9daf0a4`; затем включены `d35e714` и `aaaba0b`.
 - Проверены 21 зарегистрированная рабочая копия, 11 с незакоммиченными файлами.
   Снимки и исходные копии сохранены; исходные ветки не сбрасывались и не очищались.
 - Полный список копий, исходных SHA, файлов и решений: [JSON](workspace-integration-2026-10-25.json).
 - SHA-256 824 исходных/тестовых/конфигурационных файлов:
-  `c88bc493edcba9fd36011e221dbf5bb1607f2a47ff5ffba15ea7d6c1b480448a`.
+  `f0b3796d7b704cd245301d08f1733a960d6ac44161c3694c71457c1b91560e37`.
   Датированные отчёты не входят в этот fingerprint.
 
 ## Собранные изменения
@@ -30,6 +30,7 @@
 | ИПР | Отдельный личный ИПР Идентичности, независимо от карьерного документа |
 | Календарь | Захват/preview/grab point/edge-scroll/Undo, сохранение authored minutes и отсутствующего времени, native touch scroll, read-only события устройства |
 | Apple companion | Исходники Mac/iOS, scoped device intake, Keychain/EventKit boundaries, pure tests и universal Mac build |
+| Общие панели/ленты | Прозрачный фон верхней/нижней навигации; общие tile rails с нативным обрезанием, до 820px от края экрана, на desktop в пределах родителя |
 | Поля времени | Общая border-box/appearance композиция, WebKit + Chromium проверки |
 
 Уже опубликованные отчёты личности, перформанс, редактор и горизонтальные ленты
@@ -54,7 +55,8 @@ owner-scoped запись `identity/personal-development-plan`; повторны
 Личные Markdown, исходные ответы, CV и feedback больше не используются как общий
 fallback и не входят в текущую клиентскую сборку. При отсутствии записи остаётся
 пустой документ; ошибки API/БД видимы. Проверены семь уникальных текстовых markers
-в JS/sourcemap/HTML сборки: совпадений нет. Личные исходники сохранены приватно вне
+и ещё 749 длинных фрагментов прежних ответов/планов/feedback/отчётов
+в 28 JS/sourcemap/HTML файлах сборки: совпадений нет. Личные исходники сохранены приватно вне
 репозитория; новый личный Markdown никогда не добавлялся в Git. Старую публичную
 историю Git эта работа не переписывает. PDF parser fixtures не импортируются клиентом.
 
@@ -71,6 +73,14 @@ fallback и не входят в текущую клиентскую сборк�
    Desktop теперь ограничен родителем, screen-edge rule действует до 820px.
 4. Объединённые package scripts сохраняют все действующие release/comprehensive
    этапы. Сохранена атомарная изоляция loopback ports для calendar smoke.
+5. Полный прогон на чистом `1aebc7f` остановился после 48 минут: старый fixture
+   ИПР ожидал личный h3 из удалённого fallback. Fixture теперь явно получает
+   синтетический учебный документ; assertions сохранены, product fallback остаётся
+   пустым. Изолированный повтор исходного сценария прошёл без API. Qrcode
+   добавлен в prebundle редакторного fixture, чтобы новая визитка не вызывала
+   позднюю перезагрузку графа модулей. Старый прогон записан как FAILED:
+   [JSON](workspace-integration-comprehensive-failed-2026-10-25.json); новый
+   comprehensive выполняется с начала, прежний branch run отменён.
 
 ## Проверки
 
@@ -91,7 +101,7 @@ fallback и не входят в текущую клиентскую сборк�
 | npm audit | 2 high в dev-only @ton/ton → Zod 3; совместимого исправления нет |
 | npm run dev:keepalive:status | Готов, API 8491 / frontend 5491, verify initialization; оставлен работающим |
 | git diff --check | PASS |
-| check:comprehensive | Итоговый полный прогон выполняется; PASS пока не заявляется |
+| check:comprehensive | Итоговый полный прогон выполняется; PASS пока не заявляется. [Branch audit](https://github.com/rolloutrf/rollapp/actions/runs/40208059941) проверяет зафиксированный код `7616088`; локальный повторный прогон проверяет тот же source fingerprint |
 
 SDK wallet constructors перенесены в devDependencies; runtime проверяет те же
 четыре официальных bytecode hashes. Unit suite независимо сверяет их с SDK и
