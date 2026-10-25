@@ -842,7 +842,7 @@ const IDENTITY_TABS = [
   },
   {
     id: "identity-reports",
-    label: "Gallup + Hogan",
+    label: "Тесты",
     description: "Сильные стороны, рабочий стиль, ценности и возможные риски в одном профиле.",
   },
   {
