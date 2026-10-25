@@ -140,7 +140,7 @@ function StrengthNavigation({ reportId, strengths }) {
   const [selectedRank, setSelectedRank] = useState([]);
 
   return (
-    <nav className="not-typeset mt-6 max-w-full overflow-x-auto p-1" aria-label="Разделы отчёта">
+    <nav className="page-edge-scroller not-typeset mt-6 p-1" aria-label="Разделы отчёта">
       <ToggleGroup
         aria-label="Таланты CliftonStrengths"
         multiple={false}

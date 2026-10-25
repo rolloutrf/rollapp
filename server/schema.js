@@ -603,7 +603,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS identity_generated_reports (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup') OR section ~ '^custom-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
     status TEXT NOT NULL DEFAULT 'generated' CHECK (status IN ('generated','empty')),
     report_json TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -614,7 +614,7 @@ const schema = `
   CREATE TABLE IF NOT EXISTS identity_report_uploads (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup') OR section ~ '^custom-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
     filename TEXT NOT NULL,
     mime_type TEXT NOT NULL DEFAULT 'application/pdf',
     pdf_data BYTEA NOT NULL,

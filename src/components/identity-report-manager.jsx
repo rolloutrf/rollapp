@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, FileUp, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -45,25 +45,25 @@ export function IdentityReportOverview({ titleId, eyebrow, title, description, d
   );
 }
 
-export function useIdentityReport(section) {
+export function useIdentityReport(section, client = api) {
   const [state, setState] = useState({ mode: "loading", report: null, files: [], updatedAt: null });
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setError("");
     try {
-      setState(await api.get(`/identity/reports/${section}`));
+      setState(await client.get(`/identity/reports/${section}`));
     } catch (loadError) {
       setError(loadError.message);
       setState((current) => ({ ...current, mode: "error" }));
     }
-  }, [section]);
+  }, [section, client]);
 
   useEffect(() => { load(); }, [load]);
   return { state, setState, error, load };
 }
 
-export function IdentityReportControls({ section, label, state, setState, load, navigation }) {
+export function IdentityReportControls({ section, label, state, setState, load, navigation, onAddTest, onEditTest, onDeleteTest, client = api }) {
   const { readOnly } = useSphereSharing();
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -92,7 +92,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
     setBusy(true);
     let latest = null;
     try {
-      for (const file of files) latest = await api.uploadIdentityReportPdf(section, file);
+      for (const file of files) latest = await client.uploadIdentityReportPdf(section, file);
       if (latest) setState(latest);
       toast.success(files.length === 1 ? "PDF загружен" : "PDF загружены");
     } catch (uploadError) {
@@ -107,7 +107,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
     if (busy || !canDelete) return;
     setBusy(true);
     try {
-      setState(await api.delete(`/identity/reports/${section}`));
+      setState(await client.delete(`/identity/reports/${section}`));
       setDeleteOpen(null);
       toast.success(`Контент ${label} и загруженные PDF удалены`);
     } catch (deleteError) {
@@ -121,7 +121,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
     if (busy || !canDelete) return;
     setBusy(true);
     try {
-      setState(await api.delete(`/identity/reports/${section}/files/${file.id}`));
+      setState(await client.delete(`/identity/reports/${section}/files/${file.id}`));
       setDeleteOpen(null);
       toast.success(`PDF «${file.filename}» удалён`);
     } catch (deleteError) {
@@ -144,6 +144,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
         onChange={upload}
       />}
       {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
+        {onAddTest && <PageActionButton type="button" disabled={busy} onClick={onAddTest}><Plus aria-hidden="true" />Добавить тест</PageActionButton>}
         {canUpload && (
           <PageActionButton type="button" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
             {busy && <Spinner data-icon="inline-start" />}
@@ -156,6 +157,8 @@ export function IdentityReportControls({ section, label, state, setState, load, 
             Удалить все
           </PageActionButton>
         )}
+        {onEditTest && <PageActionButton type="button" disabled={busy} onClick={onEditTest}>Изменить тест</PageActionButton>}
+        {onDeleteTest && <PageActionButton type="button" variant="destructive" disabled={busy} onClick={onDeleteTest}>Удалить тест</PageActionButton>}
         <SphereBusinessControls sphereId="identity" />
       </div>}
       {navigation}
@@ -169,7 +172,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
                   <FileText className="size-5 shrink-0" aria-hidden="true" />
                   <span className="min-w-0">{file.filename}</span>
                 </a>
-                {!readOnly && <Button type="button" size="icon" variant="ghost" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
+                {!readOnly && <Button type="button" size="icon" variant="destructive" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
               </div>
             ))}
           </div>
@@ -177,9 +180,9 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       ) : null}
 
       {!readOnly && <AlertDialog open={Boolean(deleteOpen)} onOpenChange={(open) => !busy && !open && setDeleteOpen(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle>{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
+            <AlertDialogTitle className="wrap-anywhere">{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteOpen === "all" ? "Все загруженные PDF и их содержимое будут удалены." : "Файл и извлечённое из него содержимое будут удалены из отчёта."}
             </AlertDialogDescription>
@@ -200,7 +203,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
 export function IdentityReportEmpty({ label }) {
   const { readOnly } = useSphereSharing();
   return (
-    <Empty className="identity-report-empty not-typeset rollapp-body">
+    <Empty className="identity-report-empty not-typeset rollapp-body wrap-anywhere">
       <EmptyHeader>
         <EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>

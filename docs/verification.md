@@ -26,6 +26,25 @@
 
 ## Команды
 
+`npm run test:time-inputs` входит в `check:release`: общий `Input type="time"`
+в `Field` и одно-/двухколоночной сетке на 320/390/768/820/1024/1440/1920px
+и 390×400, WebKit и Chromium (16 случаев), mobile DPR 3. Проверяет края
+каждого поля относительно Field и страницы, 48px, ввод и сохранность соседнего
+значения, отсутствие API, ошибки и opt-out из iOS native appearance.
+Установка WebKit: `npx playwright-core install --with-deps webkit` (также в CI).
+Это изолированная композиция общих контролов, не полная форма сна. macOS WebKit
+не воспроизводит iOS RenderTheme; реальный iPhone/Telegram требует отдельной
+проверки. Результат comprehensive не означает покрытие всех платформ/экранов.
+
+`npm run test:lab-results` входит в `check:release`: реальный `LabReportPanel`,
+первое раскрытие и повторное открытие, все четыре края внешнего 1px ring карточек
+относительно clipping ancestors, пиксели верхней/нижней линии и отсутствие
+горизонтального переполнения. Матрица: 320/390/768/820/1024/1440/1920px и 390×400,
+светлая/тёмная темы, DPR 1/3 (32 случая). UI fixture запрещает API-запросы.
+Внутри обрезающего аккордеона внешний ring требует запаса со всех четырёх сторон;
+одного горизонтального padding недостаточно. Upstream Card/Accordion не менять
+ради этой композиции.
+
 | Команда | Назначение |
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
@@ -44,7 +63,7 @@
 | `npm run test:wish-groups` | Реальные карточки групп Wishlist: троеточие в длинных названиях, границы текста и счётчика, клавиатура, отмена переименования, owner/read-only на полной матрице |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
-| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
+| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, native touch-перенос обычного события и времени серии (sourceId/исходная дата/одна запись/cancel), mouse-перенос серии и клавиатурное открытие после отмены, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
 | `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом |
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
@@ -65,6 +84,8 @@ bind `127.0.0.1:0` атомарно получает свободный порт
 Основные browser smoke-серверы используют `scripts/smoke-server.mjs`: ОС атомарно выделяет свободный loopback-порт, а URL выводится из фактически открытого listener. Для диагностики можно явно задать поддерживаемый `*_PORT`; занятый порт должен завершиться ошибкой, без остановки чужого процесса. DnD и оставшиеся legacy runners поддерживают отдельный диапазон через `ROLLAPP_SMOKE_PORT_OFFSET`; это не меняет API/production dev-сервис и не сокращает матрицу. Проверки разных checkout не должны обращаться к fixture-серверу соседа.
 
 На macOS Chrome может завершить все сценарии, но зависнуть в `browser.close()` из-за orphan crash-handler/GoogleUpdater, удерживающего stderr pipe. Общий launcher расширенных проверок использует только для принадлежащего тесту Chrome флаги `--disable-crashpad-for-testing` и `--disable-updater-scheduler` ([Chromium switches](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/common/chrome_switches.h)). При повторении проблемы `PASS` в логе ещё не означает exit 0. Сначала проверить точный тестовый Node PID, отсутствие живого headless Chrome и через `lsof -U` сопоставить его peer socket с FD 2 осиротевшего helper; сверить время запуска/PPID. Допустимо завершить только доказанно принадлежащий тесту helper, после чего дождаться кода завершения. Не использовать общий `pkill Chrome/Node` и не завершать пользовательские браузеры или постоянный dev-сервис.
+
+`npm run test:page-scrollers` — обязательная часть `check:release`: полная матрица горизонтальных лент и обоих краёв; контракт в `docs/spacing-system.md`.
 
 ## Матрица UI и критерии приёмки
 
@@ -433,3 +454,13 @@ API. На отказе сохраняются bounded pageerror/console/HTTP/pen
 с удалёнными URL query strings. Он не фокусирует DOM, не ждёт/retry и не подавляет
 ошибки. Холодную проверку выполнять в новом отдельном cache directory; успешный
 повтор на старом кэше не подтверждает исправление startup.
+
+
+### Произвольные личностные тесты (2026-10-24)
+
+`test:identity-reports` также выполняет `scripts/identity-tests-smoke.mjs`: девять
+размеров, новая форма/ошибка/повтор/переименование, выбор теста после закрытия
+mobile history, PDF reader, отмена и подтверждение удаления; запросы к API
+запрещены. Парсер проверяется в database-free unit suite. Перед включением на
+существующей БД отдельно согласовать и выполнить миграцию двух CHECK по порядку,
+описанному в `docs/identity-report-charts.md`; обычный запуск остаётся `verify`.

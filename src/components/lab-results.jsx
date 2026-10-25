@@ -92,7 +92,8 @@ function ReportGroup({ group }) {
         </span>
       </AccordionTrigger>
       <AccordionContent className="pb-0">
-        <ul className="m-0 grid list-none gap-2 px-px sm:grid-cols-2">
+        {/* Card's outer 1px ring needs clearance on every edge of the clipped panel. */}
+        <ul className="m-0 grid list-none gap-2 p-px sm:grid-cols-2">
           {group.items.map((item, index) => <ResultItem key={`${item.name}-${index}`} item={item} />)}
         </ul>
       </AccordionContent>
@@ -100,7 +101,7 @@ function ReportGroup({ group }) {
   );
 }
 
-function LabReportPanel({ report }) {
+export function LabReportPanel({ report }) {
   return (
     <div>
       <Accordion defaultValue={report.groups[0]?.id ? [report.groups[0].id] : []}>
