@@ -2,7 +2,7 @@ import { NutritionTodo } from "@/components/nutrition-todo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useId, useRef, useState } from "react";
-import { Pencil, Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@/api";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/form-surface";
@@ -43,7 +43,7 @@ function useToday() {
   return today;
 }
 
-function SleepHistory({ entries, today, canEdit, onEdit, onDelete }) {
+function SleepHistory({ entries, today, canEdit, onEdit }) {
   return <ul className="not-typeset grid min-w-0 list-none gap-4 p-0" aria-label="История сна">
     {sleepHistoryDays(entries, today).map(day => <li key={day.date} className="min-w-0" data-sleep-day={day.date}>
       <Card className="relative min-w-0">
@@ -55,7 +55,6 @@ function SleepHistory({ entries, today, canEdit, onEdit, onDelete }) {
             {day.entries.map(entry => <div key={entry.id} className="flex min-w-0 flex-col gap-3">
               <p>{entry.bedtime} — {entry.wakeTime} · {SLEEP_QUALITY[entry.quality]}</p>
               {entry.notes && <p className="whitespace-pre-wrap wrap-anywhere">{entry.notes}</p>}
-              {canEdit && <div className="relative z-20 flex flex-wrap gap-2 self-start"><Button variant="outline" onClick={() => onEdit(entry, day.date)} aria-label={`Редактировать: ${entry.bedtime}`}><Pencil aria-hidden="true" />Редактировать</Button><Button variant="destructive" onClick={() => onDelete(entry)} aria-label={`Удалить: ${entry.bedtime}`}><Trash2 aria-hidden="true" />Удалить</Button></div>}
             </div>)}
           </>}
         </CardContent>
@@ -163,9 +162,9 @@ export function HealthTracker({ tracker, initialEntries, onSaveEntry, onDeleteEn
     } catch (cause) { setDeleteError(cause.message); }
     finally { deleteLock.current = false; setDeleteBusy(false); }
   }
-  return <article className="health-tracker rollapp-body text-pretty page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={`Трекер: ${title}`}>
-    {sleep ? <section className="typeset typeset-rollapp" data-typeset-group><h1>Сон</h1><p>Ваш сон — день за днём.</p></section> : <h1 className="sr-only">Питание</h1>}
-    {loading ? <p role="status" className="not-typeset flex items-center gap-2"><Spinner />Загружаем записи…</p> : error ? <Alert className="not-typeset" variant="destructive"><AlertTitle>Не удалось загрузить трекер</AlertTitle><AlertDescription>{error}<Button variant="outline" onClick={() => setVersion(value => value + 1)}>Повторить</Button></AlertDescription></Alert> : sleep ? <SleepHistory entries={entries} today={today} canEdit={canEdit} onEdit={(entry, entryDate) => setEditor({ entry, date: entryDate })} onDelete={entry => { setDeleting(entry); setDeleteError(""); }} /> : <NutritionTodo entries={entries} selected={date} today={today} onDateChange={setDate} canEdit={canEdit} onCreate={(selectedDate, draft = null) => setEditor({ entry: draft, date: selectedDate })} onEdit={entry => setEditor({ entry, date: entry.date })} onSave={save} onDelete={entry => { setDeleting(entry); setDeleteError(""); }} />}
+  return <article className={`health-tracker rollapp-body text-pretty page-stack mx-auto w-full ${sleep ? "max-w-(--layout-form-width)" : "max-w-(--layout-collection-width)"}`} aria-label={`Трекер: ${title}`}>
+    <h1 className="sr-only">{title}</h1>
+    {loading ? <p role="status" className="not-typeset flex items-center gap-2"><Spinner />Загружаем записи…</p> : error ? <Alert className="not-typeset" variant="destructive"><AlertTitle>Не удалось загрузить трекер</AlertTitle><AlertDescription>{error}<Button variant="outline" onClick={() => setVersion(value => value + 1)}>Повторить</Button></AlertDescription></Alert> : sleep ? <SleepHistory entries={entries} today={today} canEdit={canEdit} onEdit={(entry, entryDate) => setEditor({ entry, date: entryDate })} /> : <NutritionTodo entries={entries} selected={date} today={today} onDateChange={setDate} canEdit={canEdit} onCreate={(selectedDate, draft = null) => setEditor({ entry: draft, date: selectedDate })} onEdit={entry => setEditor({ entry, date: entry.date })} onSave={save} onDelete={entry => { setDeleting(entry); setDeleteError(""); }} />}
     {editor && canEdit && <EntryForm tracker={tracker} entry={editor.entry} date={editor.date || date} onClose={() => setEditor(null)} onSave={save} canEdit={canEdit} />}
     <AlertDialog open={Boolean(deleting)} onOpenChange={open => { if (!open && !deleteLock.current) setDeleting(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить запись?</AlertDialogTitle><AlertDialogDescription>Запись будет удалена из трекера без возможности восстановления.</AlertDialogDescription></AlertDialogHeader>{deleteError && <Alert variant="destructive"><AlertDescription>{deleteError}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={deleteBusy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleteBusy} onClick={remove}>{deleteBusy ? "Удаляем" : "Удалить"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </article>;
