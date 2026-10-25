@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MoreHorizontal, Plus, X } from "lucide-react";
-import { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext } from "@/App.jsx?controls-smoke";
+import { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog } from "@/App.jsx?controls-smoke";
 import { ControlBar } from "@/components/control-bar";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
@@ -23,6 +23,7 @@ function Fixture() {
   const planning = location.pathname === "/app/planning";
   const tab = search.get("tab") || "kanban";
   const [editor, setEditor] = useState(null);
+  const [groupOpen, setGroupOpen] = useState(search.has('group-dialog'));
   const columns = [{ id: "todo", title: "Запланировано", complete: false }];
   const tasks = search.has("empty") ? [] : Array.from({ length: 24 }, (_, index) => ({
     id: `task-${index}`, title: `Задача ${index + 1}`, description: "", columnId: "todo", status: "todo", completed: false, archived: false,
@@ -57,6 +58,7 @@ function Fixture() {
       </section>
     </main></div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={async () => {}} />}
+    {groupOpen && <WishGroupDialog group={{ id: 'group', title: 'Проверка меню' }} count={0} moveTargets={[]} busy={search.has('busy-group')} onClose={() => setGroupOpen(false)} onRename={() => { throw new Error('Group must not save'); }} onMove={() => { throw new Error('Group must not move'); }} onDisband={() => { throw new Error('Group must not dissolve'); }}><p>Содержимое группы</p></WishGroupDialog>}
   </MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);
