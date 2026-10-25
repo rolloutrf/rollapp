@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-25",
+  "releaseSha": "58d71a14b20a55ddbb14b8bc76b1de455f173d94",
+  "releaseMode": "workflow_dispatch verification=none",
+  "explicitUserRequest": "Заддеплой без тестирования",
+  "pullRequest": "https://github.com/rolloutrf/rollapp/pull/13",
+  "workflowRun": "https://github.com/rolloutrf/rollapp/actions/runs/40214821300",
+  "workflowConclusion": "failure at initial health deadline; recovered after reviewed local image cleanup",
+  "buildAndPush": "success",
+  "metadataUpdate": "success",
+  "releaseTests": "skipped",
+  "fullComprehensive": "cancelled, not passed",
+  "image": "cr.yandex/crpvg7pqnbpjl26q93f6/rollapp:58d71a14b20a55ddbb14b8bc76b1de455f173d94",
+  "registryDigest": "sha256:eaa368c129b0025640fe179fd5eebfcc54d1e14e2d53a368d452f93bf86cfece",
+  "vmId": "fv4chl6pdb4lnhsj7139",
+  "runtimeSA": "ajers2ngi708sf3i1t4g",
+  "schema": {
+    "database": "rollapp",
+    "role": "rollapp_app",
+    "mode": "verify",
+    "readOnly": true,
+    "schemaChanges": false
+  },
+  "recovery": {
+    "initialFree": "416M according to df -h",
+    "cause": "COI image pull failed to register layers: no space left on device",
+    "containerReferencesReviewed": "all containers, including stopped; one running container at cleanup review",
+    "registryAvailabilityChecked": true,
+    "cleanup": [
+      {
+        "vm": "fv4chl6pdb4lnhsj7139",
+        "freeBefore": 1166356480,
+        "reviewedUnusedTags": [
+          "95223417bdd06683875ef7cf273ecab599270779",
+          "c8b7dc22b1259159aea112e7c412dec431020485",
+          "cbc2d6d11eab8db6306b99a16c1f9d013d1cf27f",
+          "07d86e7d70885a8b69eb7716831e3c832735e407",
+          "5ab7f67af0f22bc0f1ac57473c4269cc66c62e1b",
+          "237386530fd11e359f6f997735537b85e6ccb419"
+        ],
+        "allContainersChecked": 1
+      },
+      {
+        "removedUnusedTag": "95223417bdd06683875ef7cf273ecab599270779"
+      },
+      {
+        "removedUnusedTag": "c8b7dc22b1259159aea112e7c412dec431020485"
+      },
+      {
+        "removedUnusedTag": "cbc2d6d11eab8db6306b99a16c1f9d013d1cf27f"
+      },
+      {
+        "removedUnusedTag": "07d86e7d70885a8b69eb7716831e3c832735e407"
+      },
+      {
+        "removedUnusedTag": "5ab7f67af0f22bc0f1ac57473c4269cc66c62e1b"
+      },
+      {
+        "removedUnusedTag": "237386530fd11e359f6f997735537b85e6ccb419"
+      },
+      {
+        "freeAfter": 8382455808,
+        "containersDeleted": 0,
+        "volumesDeleted": 0,
+        "forceUsed": false
+      }
+    ],
+    "protectedCachedImages": [
+      "315f3ebce4a626a3c61f891db2cb013805883a74",
+      "d35e7146b5d9bc07502b6c2e7b4c79eed50c4344"
+    ],
+    "manualVmRestart": false,
+    "manualServiceRestart": false,
+    "manualImagePull": false,
+    "finalFree": "7.5G according to df -h"
+  },
+  "health": {
+    "verifiedAtUtc": "2026-10-25T17:35:17Z",
+    "verifiedAtMoscow": "2026-10-25T20:35:17+03:00",
+    "ok": true,
+    "service": "rollapp",
+    "version": "58d71a14b20a55ddbb14b8bc76b1de455f173d94"
+  },
+  "productionUiReadback": {
+    "sections": [
+      "character",
+      "values"
+    ],
+    "loadedFromProductionApi": true,
+    "writes": false,
+    "automatedTests": false
+  },
+  "limitations": [
+    "No full comprehensive PASS",
+    "Real EventKit permissions/iOS distribution and TON network transactions remain unverified",
+    "Telegram configure step was skipped after the original health timeout; existing URL/configuration unchanged"
+  ]
+}
