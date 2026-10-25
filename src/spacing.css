@@ -47,6 +47,12 @@
 }
 
 @layer utilities {
+  /* Product visibility must outrank the primitive's inline-flex utility. */
+  .education-card > [data-card-drag-handle] { display: none; }
+  @media (hover: none), (any-pointer: coarse) {
+    .education-card > [data-card-drag-handle] { display: inline-flex; }
+  }
+
   /* Application headers float without a shared surface, in every theme. */
   :is(.global-app-chrome, .public-profile > .profile-header) {
     background: transparent;

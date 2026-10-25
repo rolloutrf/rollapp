@@ -544,3 +544,9 @@ mobile history, PDF reader, отмена и подтверждение удал�
 запрещены. Парсер проверяется в database-free unit suite. Перед включением на
 существующей БД отдельно согласовать и выполнить миграцию двух CHECK по порядку,
 описанному в `docs/identity-report-charts.md`; обычный запуск остаётся `verify`.
+
+## Проверка сниппетов коллекций
+
+`npm run test:snippets` входит в `check:release`: реальные карточки курсов, конференций, коучинга, тренировок и препаратов, все статусы, owner/read-only/busy, обе темы, mouse/touch, 11 размеров 320–1920px и короткие окна. Проверяются glyph/badge bounds, ручки и native drag preview/cancel, меню/ссылки/клавиатура, overflow, изображения/loading/fallback/source replacement и отказ старого запроса. JSON и screenshots сохраняются в `/tmp/rollapp-snippets/`; веточный comprehensive job включает JSON/failure screenshots в artifact. `--diagnostic` запускает только 320px и не заменяет полный прогон. Контракт: [collection-snippets.md](collection-snippets.md).
+
+Релиз прозрачных панелей занял 117 минут. С добавлением обязательной матрицы сниппетов deploy job имеет 180 минут, как веточный audit; это запас времени, assertions и состав release не сокращаются.

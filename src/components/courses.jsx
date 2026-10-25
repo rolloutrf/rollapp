@@ -2,18 +2,18 @@ import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3, ExternalLink, FolderInput, GraduationCap,
+  AlertTriangle, CalendarDays, CheckCircle2, Clock3, FolderInput, GraduationCap,
   ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
+import { CollectionSnippetLink } from "@/components/collection-snippet-link";
+import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { GroupDialogHeader } from "@/components/group-dialog";
 import { EducationGroupDialog, educationGroupReturnFocus } from "@/components/education-item-groups";
 import {
@@ -144,7 +144,7 @@ function CourseCard({
         aria-describedby={dragDescriptionId || undefined}
         aria-haspopup="dialog"
         aria-label={draggable ? `Открыть и переместить курс «${course.title}»` : `Открыть курс «${course.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы редактировать"}
+        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другого курса и дождитесь подсветки" : "Нажмите, чтобы открыть"}
         onClick={() => onEdit(course)}
         onKeyDown={(event) => {
           if (!draggable) return;
@@ -162,16 +162,13 @@ function CourseCard({
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
         <CollectionSnippetMedia sources={courseLogoUrls(course)} icon={GraduationCap}>
-          <Badge variant={status.variant} className="collection-snippet__badge">
-            <StatusIcon data-icon="inline-start" aria-hidden="true" />
-            {status.label}
-          </Badge>
+          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
             <div className="flex min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium">{course.title}</h3>
-              {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground">{course.provider}</span>}
+              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={course.title}>{course.title}</h3>
+              {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground" title={course.provider}>{course.provider}</span>}
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
@@ -199,15 +196,7 @@ function CourseCard({
         </CardContent>
         {course.url && (
           <CardFooter className="justify-end">
-            <a
-              className={buttonVariants({ variant: "outline", size: "default", className: "pointer-events-auto relative z-20 min-h-12 px-4 text-base" })}
-              href={course.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink data-icon="inline-start" aria-hidden="true" />
-              Открыть курс
-            </a>
+            <CollectionSnippetLink href={course.url} label={`Открыть курс «${course.title}»`}>Открыть курс</CollectionSnippetLink>
           </CardFooter>
         )}
       </Card>
