@@ -8,7 +8,7 @@ on:
       verification:
         description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets, identity-reports, none]
+        options: [full, snippets, identity-reports, ui-copy, none]
         default: full
 
 permissions:
@@ -103,6 +103,10 @@ jobs:
       - name: Verify targeted identity report release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'identity-reports'
         run: npm run check:release:identity-reports
+
+      - name: Verify targeted UI copy release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'ui-copy'
+        run: npm run check:release:ui-copy
 
       - name: Record explicit deployment without tests
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'none'

@@ -123,7 +123,10 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
 test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(workflow, /options: \[full, snippets, identity-reports, none\]\s+default: full/);
+  assert.match(workflow, /options: \[full, snippets, identity-reports, ui-copy, none\]\s+default: full/);
+  assert.match(workflow, /name: Verify targeted UI copy release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'ui-copy'\s+run: npm run check:release:ui-copy/);
+  assert(workflow.indexOf('run: npm run check:release:ui-copy') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
+  for (const command of ['test:unit', 'test:ui', 'test:controls', 'build']) assert(packageJson.scripts['check:release:ui-copy'].split(' && ').includes(`npm run ${command}`));
   assert.match(workflow, /name: Install WebKit for native time field checks\s+if: github.event_name != 'workflow_dispatch' \|\| inputs.verification == 'full'/);
   assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'"));
   assert.match(workflow, /name: Verify targeted snippet release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'\s+run: npm run check:release:snippets/);

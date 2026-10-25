@@ -633,3 +633,5 @@ VM identity guards, immutable SHA, сериализация production rollout �
 используется `[skip ci]`, затем отдельный workflow_dispatch с `verification=none`;
 не запускать обычный push gate параллельно. Незавершённые аудиты помечаются отменёнными,
 а не успешными. Этот режим не используется без отдельного прямого запроса пользователя.
+
+Для явно запрошенного целевого выпуска с изменением только UI-подписи используется manual `verification=ui-copy`: unit/UI, полный controls и build. Режим сохраняет обязательный geometry gate в deployment workflow, schema verify, pool2, immutable SHA, сериализацию и exact-health/live review; не применяется к изменению поведения форм, редактора или данных. Default/full и остальные targeted matrices не меняются.
