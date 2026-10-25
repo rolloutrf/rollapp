@@ -30,7 +30,18 @@ try {
       await page.route('**/api/**', route => { errors.push('Unexpected API'); return route.abort(); });
       const state = () => page.locator('[data-state]').textContent().then(JSON.parse);
       const writes = async count => {
-        await page.waitForFunction(count => JSON.parse(document.querySelector('[data-state]').textContent).writes.length === count, count);
+        try {
+          await page.waitForFunction(count => JSON.parse(document.querySelector('[data-state]').textContent).writes.length === count, count);
+        } catch (error) {
+          console.error('CALENDAR WRITE FAILURE', await page.evaluate(() => {
+            const viewport = document.querySelector('.schedule-timeline [data-slot="scroll-area-viewport"]');
+            return { state: JSON.parse(document.querySelector('[data-state]').textContent), viewport: viewport && { box: viewport.getBoundingClientRect().toJSON(), left: viewport.scrollLeft, top: viewport.scrollTop, clientWidth: viewport.clientWidth },
+              columns: [...document.querySelectorAll('.schedule-time-column')].map(node => ({ date: node.dataset.date, box: node.getBoundingClientRect().toJSON() })),
+              preview: document.querySelector('[data-calendar-preview]')?.outerHTML };
+          }));
+          await page.screenshot({ path: '/tmp/rollapp-calendar-gestures-failure.png' });
+          throw error;
+        }
         await page.locator('.schedule[aria-busy="false"]').waitFor();
       };
       const event = id => page.locator(`[data-calendar-event="${id}"] .schedule-event`);
@@ -38,6 +49,9 @@ try {
       const load = async (view = 'day', extra = '') => {
         await page.goto(`${smokeOrigin(server)}/__calendar-gestures?date=2026-10-02&view=${view}${extra}`);
         await (view === 'month' ? page.locator('.schedule-month__grid') : event('long')).waitFor(); await page.evaluate(() => document.fonts.ready);
+        // Initial ScrollArea/ResizeObserver placement must complete before a
+        // native gesture owns its coordinates; fonts alone do not flush it.
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       };
       const reveal = async (locator, offset = 30) => {
         await locator.evaluate((node, offset) => {
@@ -155,11 +169,19 @@ try {
       }
       await load('week');
       const thursday = page.locator('.schedule-time-column[data-date="2026-10-01"]');
-      // Keep the two destination columns visible, even at narrow widths.
-      await viewport.evaluate(node => { const column = node.querySelector('[data-date="2026-10-01"]'); node.scrollLeft += column.getBoundingClientRect().left - node.getBoundingClientRect().left - 80; });
+      // Put the shared boundary in the usable viewport, so both the source
+      // and target remain hittable with narrow or classic-scrollbar layouts.
+      await viewport.evaluate(node => {
+        const column = node.querySelector('[data-date="2026-10-01"]');
+        node.scrollLeft += column.getBoundingClientRect().right - node.getBoundingClientRect().left - 76 - (node.clientWidth - 76) / 2;
+      });
       const shortBefore = (await state()).tasks.find(t => t.id === 'short');
       point = await start(event('short'), 5);
-      const previous = await thursday.boundingBox();
+      const previous = await thursday.boundingBox(), timeBounds = await viewport.boundingBox();
+      assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-calendar-event]')?.dataset.calendarEvent, point), 'short', 'Week move must start on the actual source event');
+      assert.equal(await event('short').evaluate(node => node.hasPointerCapture(1)), true, 'Week source must own native pointer capture');
+      assert(previous.x + previous.width - 12 > timeBounds.x + 76 && previous.x + previous.width - 12 < timeBounds.x + timeBounds.width, 'Week destination must be inside the usable viewport');
+      console.log('WEEK MOVE GEOMETRY', JSON.stringify({ width, height, point, previous, timeBounds }));
       await page.mouse.move(previous.x + previous.width - 12, point.y, { steps: 4 });
       await page.mouse.up(); await writes(1);
       assert.deepEqual((await state()).tasks.find(t => t.id === 'short'), { ...shortBefore, dueOn: '2026-10-01' });
