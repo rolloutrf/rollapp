@@ -607,7 +607,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS identity_content (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section TEXT NOT NULL CHECK (section IN ('four-questions','theses','principles','values','character','mission','ideal-state','life-strategy')),
+    section TEXT NOT NULL CHECK (section IN ('four-questions','theses','principles','values','character','mission','ideal-state','life-strategy','personal-development-plan')),
     content_json TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, section)
@@ -616,7 +616,7 @@ const schema = `
   ALTER TABLE identity_content DROP CONSTRAINT IF EXISTS identity_content_section_check;
   ALTER TABLE identity_content
     ADD CONSTRAINT identity_content_section_check
-    CHECK (section IN ('four-questions','theses','principles','values','character','mission','ideal-state','life-strategy'));
+    CHECK (section IN ('four-questions','theses','principles','values','character','mission','ideal-state','life-strategy','personal-development-plan'));
 
   CREATE TABLE IF NOT EXISTS identity_generated_reports (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

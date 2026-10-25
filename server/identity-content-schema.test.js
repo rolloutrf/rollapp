@@ -6,7 +6,7 @@ import { identityCharacterSchema, identityContentSchemas, identityFourQuestionsS
 test("principles accept Markdown and clearing, with the same limits as theses", () => {
   assert.equal(identitySectionSchema.parse("principles"), "principles");
   assert.equal(identitySectionSchema.safeParse("unknown").success, false);
-  for (const section of ["theses", "principles", "ideal-state"]) {
+  for (const section of ["theses", "principles", "ideal-state", "personal-development-plan"]) {
     assert.equal(identitySectionSchema.parse(section), section);
     const schema = identityContentSchemas[section];
     for (const content of ["", "> Держать слово.\n>\n> Предупреждать об изменениях.\n", "а".repeat(200_000)]) {

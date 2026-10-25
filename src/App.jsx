@@ -60,6 +60,7 @@ import {
   IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
   IdentityReportStatus,
 } from "@/components/identity-report-manager";
+import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
 import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
@@ -859,6 +860,11 @@ const IDENTITY_TABS = [
     id: "life-strategy",
     label: "Жизненная стратегия",
     description: "Цели, приоритеты и план движения по ключевым жизненным горизонтам.",
+  },
+  {
+    id: "personal-development-plan",
+    label: "Персональный План Развития",
+    description: "Текущий и желаемый образ жизни, роли, сильные стороны и направления развития.",
   },
   {
     id: "theses",
@@ -2306,6 +2312,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                           ? <Mission />
                           : sphere.id === "identity" && tab.id === "ideal-state"
                             ? <IdealState />
+                          : sphere.id === "identity" && tab.id === "personal-development-plan"
+                            ? <PersonalDevelopmentPlan />
                           : sphere.id === "identity" && tab.id === "life-strategy"
                             ? <EditableLifeStrategy />
                             : sphere.id === "education" && tab.id === "courses"
