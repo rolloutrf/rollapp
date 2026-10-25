@@ -65,7 +65,7 @@ export function useIdentityReport(section, client = api) {
   return { state, setState, error, load };
 }
 
-export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, onDeleteTest, client = api }) {
+export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, client = api }) {
   const { readOnly } = useSphereSharing();
   const uploadId = useId();
   const [busy, setBusy] = useState(false);
@@ -122,8 +122,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
   return (
     <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
       {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
-        {onEditTest && <PageActionButton type="button" disabled={busy} onClick={onEditTest}>Изменить тест</PageActionButton>}
-        {onDeleteTest && <PageActionButton type="button" variant="destructive" disabled={busy} onClick={onDeleteTest}>Удалить тест</PageActionButton>}
+        {onEditTest && <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>}
         <SphereBusinessControls sphereId="identity" />
       </div>}
       {typeof navigation === "function" ? navigation({ busy }) : navigation}

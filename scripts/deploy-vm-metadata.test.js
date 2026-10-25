@@ -132,7 +132,7 @@ test("targeted snippet releases require an explicit manual choice and retain con
   }
   assert.match(workflow, /name: Verify targeted identity report release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'identity-reports'\s+run: npm run check:release:identity-reports/);
   assert(workflow.indexOf('run: npm run check:release:identity-reports') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
-  for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:identity-reports', 'test:action-rails', 'test:page-scrollers', 'build']) {
+  for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:identity-reports', 'test:form-actions', 'test:action-rails', 'test:page-scrollers', 'build']) {
     assert(packageJson.scripts['check:release:identity-reports'].split(' && ').includes(`npm run ${command}`));
   }
 });
