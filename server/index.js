@@ -22,6 +22,7 @@ import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
+import { registerCalendarDeviceRoutes } from "./calendar-device.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
@@ -486,6 +487,7 @@ app.use(helmet({
   frameguard: false,
 }));
 app.use(compression());
+app.use("/api/calendar-device/snapshot", express.json({ limit: "4mb" }));
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 registerTonConnectRoutes(app);
@@ -1090,6 +1092,7 @@ registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);

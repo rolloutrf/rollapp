@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-10-25T14:25:15.764649+00:00",
+  "baseCommit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirtyState": [
+    " M AGENTS.md",
+    " M docs/drag-and-drop.md",
+    " M docs/mobile-overlays.md",
+    " M docs/verification.md",
+    " M package-lock.json",
+    " M package.json",
+    " M scripts/calendar-events-smoke.mjs",
+    " M scripts/fixtures/calendar-events.jsx",
+    " M server/index.js",
+    " M server/planning.js",
+    " M server/planning.test.js",
+    " M shared/planning-calendar.js",
+    " M src/components/mobile-form-pages.jsx",
+    " M src/components/planning-calendar.css",
+    " M src/components/planning-calendar.jsx",
+    " M src/components/planning-space.jsx",
+    "?? docs/calendar-device-verification-2026-10-25.md",
+    "?? docs/calendar-drag-comprehensive-2026-10-25.json",
+    "?? docs/calendar-drag-verification-2026-10-25.md",
+    "?? docs/calendar-sync-verification-2026-10-25.json",
+    "?? docs/calendar-sync-verification-2026-10-25.md",
+    "?? docs/calendar-sync.md",
+    "?? native/",
+    "?? scripts/calendar-gestures-smoke.mjs",
+    "?? scripts/calendar-sync-smoke.mjs",
+    "?? scripts/fixtures/calendar-sync.jsx",
+    "?? server/calendar-device.integration.test.js",
+    "?? server/calendar-device.js",
+    "?? server/calendar-device.test.js",
+    "?? src/components/calendar-sync-button.jsx",
+    "?? src/hooks/use-calendar-gesture.js",
+    "?? src/hooks/use-device-calendar.js"
+  ],
+  "direction": "Apple Calendar device -> Rollapp only",
+  "checks": {
+    "unit": {
+      "passed": 793,
+      "skipped": 1,
+      "failed": 0
+    },
+    "shadcn": "passed",
+    "controls": {
+      "status": "passed",
+      "marks": 143
+    },
+    "calendar": {
+      "status": "passed",
+      "combinations": 46
+    },
+    "deviceUIAfterFinalUIChange": {
+      "status": "passed",
+      "combinations": 16
+    },
+    "formActions": {
+      "status": "passed",
+      "marks": 101
+    },
+    "productionRollbackAPI": {
+      "passed": 3,
+      "failed": 0,
+      "includesInstallerDownload": true
+    },
+    "nativePureTests": "passed; no Calendar/Keychain/network access",
+    "nativeBuild": "passed; universal arm64/x86_64 macOS14+",
+    "codesign": "passed; local ad hoc; not notarized",
+    "plistProjectLint": "passed; iOS build not tested",
+    "nativeStartupUI": "launched and inspected via native AX/screenshot; no Calendar permission requested",
+    "webBuild": "passed",
+    "diffCheck": "passed"
+  },
+  "audits": {
+    "all": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "prod": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "sourceSha256": {
+    "docs/calendar-device-verification-2026-10-25.md": "bb88dbc64570a7c19a30a1afdb179d006851f86854295d5fef7e0304c5142edc",
+    "docs/calendar-sync.md": "50690050b266f2e803897396ef021134d9ac497dbd9b69bef12f37fe6d84d50d",
+    "docs/verification.md": "afc20b0cb6e7000c17f6a4c832010582e894b9654bef4970077c5ad774661cb1",
+    "native/apple-calendar/.gitignore": "020c2606e8ed484089c2083e0be438b9d0736bee1558a6b76af0d58bd23f69cf",
+    "native/apple-calendar/Info.plist": "837a68df9ae02d1b46ffb5761131de0cc4f5fd4f0cfcd36307545958e6fee449",
+    "native/apple-calendar/README.md": "68bdc1c29647a205de42ca80d093d82415c0cc9690cf8de96103e29bcc023e7e",
+    "native/apple-calendar/RollappCalendar.entitlements": "159828ae151cf9cac3ce49531d5f8f8434e538542e1c3b7d206ff83a8e6aaca6",
+    "native/apple-calendar/RollappCalendar.xcodeproj/project.pbxproj": "abfdedd1c0e81acc891ebd4cbc1daba5b739f817dbe6e4dd40bac2c5747bf877",
+    "native/apple-calendar/Sources/RollappCalendarApp.swift": "5892e850573d2478b7330ece00103a3febe436aebc719d20034cb8267a43bf4b",
+    "native/apple-calendar/Tests/BridgeTests.swift": "9c9fa011a046514cf9681226be1d6d8b03605a579482b03b5a75603d2601bb4e",
+    "native/apple-calendar/build-macos.sh": "69ed0cc865917877508f2dec994f60f6875675fd6f2f833cb0528ee43f7b9961",
+    "native/apple-calendar/test-macos.sh": "4ec62c1397fdcd1ad15f2dcfba09d77938ded78defdf407af3123e9337cbd6a2",
+    "package-lock.json": "93e55e4479fba2719d70c25c42c0d38ed01dbae7065ab7bbc6b147836e6327e8",
+    "package.json": "4f1109d99a4566a39b3f3368c958359d0684858cf1ad7b2d8d23b228b46df20d",
+    "scripts/calendar-sync-smoke.mjs": "de0facfae5cbdd6c939715dbc836eaea1da781577afd42fb91366f3f10f1ab82",
+    "scripts/fixtures/calendar-sync.jsx": "76191dbc7ecfa34bc99889b7bf5b673a29e347aa04f750aecf5c44180f412582",
+    "server/calendar-device.integration.test.js": "f1ce429af0744eed80124b578f7828681b2e12ccc15c978a083a60c7bf01d042",
+    "server/calendar-device.js": "36f94e9a48752ef64bcfed0ca162716724888dabfd38582cde74c8f926b0feba",
+    "server/calendar-device.test.js": "814a09934f8ed942632d9592e2ec7fdfa85a652a227ac39e98106ad5d5e25c5a",
+    "server/index.js": "4d709676e95c65be8276dcba63bdf894055170937ce45451835df1a8962acc00",
+    "server/planning.js": "68e1526ab87aa4f8ce837145dee40d81853bec3dae9ae7154991d2ec9ed245e8",
+    "src/components/calendar-sync-button.jsx": "73525bbd951644009f4e9f7b9703b1ce73975ae07c71be2ebed4eada740041ac",
+    "src/components/planning-calendar.css": "e7995e698a4c1bc037fbf89d1c4539e962f6e82e257d32edc640809f5067b166",
+    "src/components/planning-calendar.jsx": "1271aabac88e474a78ae670f0cc4e5170105c3bafc38df27e48bb5836ba873bb",
+    "src/components/planning-space.jsx": "fcd40e7f4c0a16b142b3a51063c36954d5b76ddf9a8bedaf3e38de645999315a",
+    "src/hooks/use-device-calendar.js": "264b7d5d256cd9b846659deb47684b3bd90f8b32ce870c0138ecb17d536353db"
+  },
+  "macOSArtifact": {
+    "path": "native/apple-calendar/build/RollappCalendar-macOS.zip",
+    "size": 243398,
+    "sha256": "0e0bcffc6f94f2295fd2b3d8cd8a6473481b5e5e98e6cb6c044c603d4dc27688",
+    "gitIgnored": true
+  },
+  "service": {
+    "keepaliveEnabled": true,
+    "pid": 51337,
+    "frontend": "http://127.0.0.1:5177",
+    "database": "configured production; direct TLS; initialization=verify",
+    "deviceUnauthenticatedHTTP": 401,
+    "removedSubscriptionHTTP": 404
+  },
+  "productionMutations": {
+    "schemaMigrations": false,
+    "persistentFixtureData": false,
+    "deployment": false,
+    "realCalendarSnapshotsUploaded": false
+  },
+  "remainingUserAction": [
+    "Create device code in authenticated Rollapp",
+    "Apply code in companion; confirm destination",
+    "Grant native Calendar full access yourself and select calendars",
+    "Confirm first synchronization"
+  ],
+  "limits": [
+    "Real TCC/Calendar reads and real data transfer not verified",
+    "iOS source/project only; no full Xcode/iOS SDK, signing/install/TestFlight",
+    "No notarized public Mac installer or production artifact packaging",
+    "Keychain credential restore/reboot/auto-refresh and Intel execution not verified",
+    "Subminute/nonmonotonic local DST fold events rejected explicitly before write",
+    "Minimum timeline visual duration 15 minutes for shorter external events",
+    "Complete check:release/check:comprehensive not repeated for this change"
+  ]
+}

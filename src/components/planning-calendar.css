@@ -51,8 +51,17 @@
 .schedule-month__event-time { flex-shrink: 0; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .schedule-month__event-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-event-wrap { position: relative; min-width: 0; }
-.schedule-event { display: flex; width: 100%; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; overflow: hidden; white-space: normal; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-foreground); cursor: grab; }
+.schedule-event { display: flex; width: 100%; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; overflow: hidden; white-space: normal; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-foreground); cursor: grab; }
 .schedule-event:active { cursor: grabbing; }
+.schedule-event[data-calendar-readonly], .schedule-event[data-calendar-readonly]:active { cursor: pointer; }
+.schedule-event[data-calendar-dragging] { opacity: .35; }
+.schedule-event { -webkit-user-drag: none; }
+.schedule-event-wrap[style] > .schedule-event { overflow: clip; }
+.schedule-event__content { display: flex; min-width: 0; max-width: 100%; flex-direction: column; gap: 2px; position: sticky; top: 8px; }
+.schedule-timegrid--week .schedule-event__content { top: 56px; }
+.schedule-event--compact .schedule-event__content { position: static; flex-direction: row; align-items: center; gap: 6px; }
+.schedule-drag-preview { pointer-events: none; }
+.schedule-timegrid { user-select: none; }
 .schedule-event-wrap[style] > .schedule-event { height: 100%; padding-block-end: 20px; }
 .schedule-event__title { flex-shrink: 0; max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .schedule-event__related { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
@@ -92,6 +101,7 @@
 .schedule-now { position: absolute; height: 2px; inset-inline: 0; background: var(--primary); z-index: 2; pointer-events: none; }
 .schedule-now::before { content: ""; position: absolute; top: -3px; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
 .schedule-range { position: absolute; inset-inline: 2px; padding: 8px; z-index: 2; pointer-events: none; border: 1px solid var(--ring); border-radius: var(--radius-md); background: var(--accent); color: var(--accent-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.schedule-range[data-calendar-preview="move"] { border-style: dashed; background: color-mix(in oklch, var(--accent) 30%, transparent); }
 .schedule-resize { position: absolute; bottom: 0; left: 0; width: 100%; height: 20px; min-block-size: 20px; min-inline-size: 0; padding: 0; cursor: ns-resize; touch-action: none; }
 .schedule-resize > span { width: 24px; height: 3px; border-radius: var(--radius-sm); background: var(--muted-foreground); }
 .schedule-year-panel { min-height: 0; overflow: auto; overscroll-behavior: contain; }
@@ -168,6 +178,10 @@
 .schedule-current-date { min-width: 0; }
 @media (max-width: 767px) {
   .schedule-current-date { flex: 1; }
+}
+@media (max-width: 374px) {
+  .schedule-current-date { padding-inline: 8px; }
+  .schedule-current-date__weekday { display: none; }
 }
 
 .schedule-toolbar { padding-block-start: var(--layout-screen-top); }

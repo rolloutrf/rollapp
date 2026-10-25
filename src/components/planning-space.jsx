@@ -229,7 +229,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
         <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
       ) : activeTab === "calendar" ? (
-        <PlanningCalendar onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
+        <PlanningCalendar deviceSync spaceId={spaceId} onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
         <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
