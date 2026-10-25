@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { ListTileContent } from "@/components/list-tile-content";
 import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
 const dateLabel = key => new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(key)).replace(/^./u, letter => letter.toUpperCase());
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
@@ -38,8 +39,7 @@ export function PlanningDayRibbon({ selected, today, onChange }) {
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
     <div ref={ribbon} className="daily-todo__ribbon horizontal-tile-scroller" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
       {dates.map((date) => <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-        <span data-slot="list-tile-label" aria-hidden="true">{weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, {monthLabel.format(dateFromKey(date))}</span>
-        <span data-slot="list-tile-meta" aria-hidden="true"><span data-slot="list-tile-count">{dateFromKey(date).getDate()}</span></span>
+        <ListTileContent title={`${weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, ${monthLabel.format(dateFromKey(date))}`} count={dateFromKey(date).getDate()} />
       </Button>)}
     </div>
   </header>;

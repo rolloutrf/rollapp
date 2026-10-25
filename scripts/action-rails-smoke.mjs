@@ -35,8 +35,15 @@ try{
    if(['collection','wishlist-real'].includes(variant))assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
    if(variant==='contacts-real')assert.equal(textActions.length,1);
    if(['collection','wishlist-real'].includes(variant)){
-    const tiles=await page.locator('[data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
+    const tiles=await page.locator('.list-tabs [data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
     assert.equal(tiles.length,2);for(const tile of tiles){assert.equal(tile.width,130);assert.equal(tile.height,100);assert.equal(tile.radius,'18px');assert(!tile.inlineStyle,'List tiles must consume shared CSS without inline copies');assert(tile.countFits,'Tile count left its bounds');}
+   }
+   if(variant==='wishlist-real'&&width>=768){
+    const parity=await page.evaluate(()=>{
+     const style=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect(),label=getComputedStyle(el.querySelector('[data-slot="list-tile-label"]')),count=getComputedStyle(el.querySelector('[data-slot="list-tile-count"]'));return {width:r.width,height:r.height,radius:s.borderRadius,padding:s.padding,background:s.backgroundColor,color:s.color,labelSize:label.fontSize,labelLine:label.lineHeight,labelWeight:label.fontWeight,countSize:count.fontSize,countLine:count.lineHeight,countWeight:count.fontWeight,countColor:count.color};};
+     return [false,true].map(selected=>{const state=selected?'true':'false';return {wishlist:style(document.querySelector(`.list-tabs [data-list-tile][aria-pressed="${state}"]`)),day:style(document.querySelector(`[data-day-tile-comparison] [data-list-tile][aria-pressed="${state}"]`))};});
+    });
+    for(const pair of parity)assert.deepEqual(pair.day,pair.wishlist,'Day tiles must match actual main Wishlist tiles, including selected count color');
    }
    if(variant==='nested'){
     const gap=await page.locator('[data-nested-content]').evaluate(element=>element.getBoundingClientRect().top-document.querySelector('.page-toolbar').getBoundingClientRect().bottom);

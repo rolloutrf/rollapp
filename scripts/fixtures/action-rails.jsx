@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PlanningDayRibbon } from '@/components/planning-day-ribbon';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Plus, ArrowRight } from 'lucide-react';
@@ -54,6 +55,7 @@ function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRou
             :variant!=='nested'&&<header className="not-typeset rollapp-body page-toolbar w-full justify-center"><Actions/></header>}
           {variant==='collection'&&<EducationListNavigation items={[]} lists={[{id:'courses',title:'Очень длинное название списка курсов, которое занимает несколько строк'},{id:'archive',title:'Архив'}]} selectedListId="courses" ariaLabel="Списки курсов" onCreateList={()=>{}} onSelectList={()=>{}}/>}
           {variant==='wishlist-real'&&<WishListNavigation value="personal"><ToggleGroup className="contents" value={['personal']} aria-label="Списки желаний"><ToggleGroupItem data-list-tile value="personal" aria-label="Личный список, 999, приватный"><ListTileContent title="Очень длинное название личного списка желаний" count={999} privateList/></ToggleGroupItem><ToggleGroupItem data-list-tile value="archive" aria-label="Архив, 0"><ListTileContent title="Архив" count={0}/></ToggleGroupItem></ToggleGroup></WishListNavigation>}
+          {variant==='wishlist-real'&&<div className="hidden md:block" data-day-tile-comparison><PlanningDayRibbon selected="2026-10-25" today="2026-10-25" onChange={()=>{}}/></div>}
           {variant==='nested'&&<article className="typeset typeset-rollapp typeset-document" data-nested-content><h3>Каков этот мир?</h3></article>}
           <p className="rollapp-body mt-6" data-content-copy>Содержимое страницы сохраняет стандартный отступ.</p>
           {Array.from({length:24},(_,index)=><p className="rollapp-body mt-6" key={index}>Проверка вертикальной прокрутки: действия перемещаются вместе с содержимым страницы.</p>)}

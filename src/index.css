@@ -722,6 +722,7 @@
     line-height: 1.8125rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    color: var(--muted-foreground);
   }
 
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):hover {

@@ -656,7 +656,7 @@ assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(w
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = await read("src/components/list-tile-content.jsx");
 assert.doesNotMatch(listTileContentSource, /style=/, "List tile typography belongs to shared CSS, never inline styles");
-for (const file of ["src/App.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx"]) {
+for (const file of ["src/App.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx", "src/components/planning-day-ribbon.jsx"]) {
   const source = await read(file);
   assert(source.includes('@/components/list-tile-content'), `${file}: reuse shared ListTileContent`);
   assert.doesNotMatch(source, /LIST_TILE_STYLE|function ListTileContent/, `${file}: do not copy list-tile geometry or content`);

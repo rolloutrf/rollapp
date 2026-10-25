@@ -23,7 +23,7 @@ Base Nova на Base UI, Tailwind v4, Lucide, neutral CSS variables. Конфиг
 | Страница, поля, интервалы, навигация | `src/spacing.css`, `ControlBar` | `docs/spacing-system.md`; `test:controls`, `test:navigation` |
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md`; затронутые полные UI-матрицы |
 | Текстовые действия панели страницы | `PageActionButton` | 48px минимум, капсула, padding-inline 24px; `test:action-rails` |
-| Плитка списка, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
+| Плитка списка/дня, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
 | Создание/настройки коллекций | `EducationSectionHeader`, `WishListNavigation`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:ui` |
 | Формы и их действия | `form-surface`, `MobileFormPages`, `MobileFormFooter` | `docs/mobile-overlays.md`; `test:form-pages`, `test:form-actions`, `test:drawers` |
 | Действия страниц деталей | `ContentPageActions` | `test:details` |
@@ -99,3 +99,5 @@ registry menu/RTL placeholders разрешены конфигурацией neu
 В Идентичности нет ни каталога, ни магазина, ни пустых панелей бизнес-действий. В остальных сферах `SphereBusinessControls` содержит только магазин за роллы;
 режима business/catalog нет ни в навигации, ни в React/API routes. Внутренние
 справочники парсеров не являются пользовательской сущностью каталога.
+
+Дневные плитки To Do/питания также используют ListTileContent. Их геометрия, подписи и приглушённый цвет числа (включая выбранное состояние) совпадают с главной Wishlist. Общий horizontal-tile-scroller владеет flex/gap8 и нулевыми вертикальными полями: одна строка стандартных плиток имеет высоту100px. Семантика выбора дня/центрирования и точка «сегодня» остаются в PlanningDayRibbon.

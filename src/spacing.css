@@ -309,6 +309,9 @@
   /* One edge contract for Wishlist, group navigation and day ribbons.
      Match the main page: native hard clipping, never a fading mask/overlay. */
   .horizontal-tile-scroller {
+    display: flex;
+    gap: var(--layout-inline-gap);
+    padding-block: 0;
     width: 100%;
     max-width: 100%;
     flex-shrink: 0;

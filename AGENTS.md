@@ -2,7 +2,7 @@
 
 ## Central design-system ownership
 
-- List tiles share `ListTileContent` and `data-list-tile` CSS in `src/index.css`; never duplicate inline tile geometry or label/count font styles. Page actions retain 24px padding on both sides even with inline icons or loading spinners.
+- List and day tiles share `ListTileContent` and `data-list-tile` CSS in `src/index.css`; never duplicate inline tile geometry or label/count font styles. Page actions retain 24px padding on both sides even with inline icons or loading spinners.
 
 - Follow `docs/design-system.md` for the shared shadcn Base Nova component/role map. Similar elements must share their role owner, geometry, state styling and keyboard/focus behavior. Change that owner and all consumers together; update the contract and its full checks. Keep product variants outside upstream primitives.
 - All in-flow page toolbar text actions, including list/group settings and imports, use `PageActionButton`; never restore a local Button `shape` prop or per-page height/padding/radius. `test:ui` guards this API and `test:action-rails` checks real contact/Wishlist/education headers.
