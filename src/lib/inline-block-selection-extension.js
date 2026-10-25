@@ -52,6 +52,7 @@ export function handleBlockKeyDown(editor, event) {
   const mod = event.metaKey || event.ctrlKey;
   if (mod && !event.altKey && !event.shiftKey && event.key === "Enter") return currentBlockAction(editor);
   if (event.key === "Backspace" && !mod && !event.altKey && !event.shiftKey && selection.empty && selection.$from.parent.isTextblock && selection.$from.parentOffset === 0 && selection.$from.depth > 1) {
+    if (selection.$from.parent.type.name === "imageCaption") return false;
     const position = selectedBlockPosition(selection), $position = doc.resolve(position);
     if ($position.parent.type.name === "nestedBlock" && $position.index() === 1) {
       const tr = changeBlockDepth(editor.state, true);

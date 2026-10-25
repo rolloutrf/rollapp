@@ -1,5 +1,39 @@
 # Rollapp workspace instructions
 
+## Central design-system ownership
+
+- List tiles share `ListTileContent` and `data-list-tile` CSS in `src/index.css`; never duplicate inline tile geometry or label/count font styles. Page actions retain 24px padding on both sides even with inline icons or loading spinners.
+
+- Follow `docs/design-system.md` for the shared shadcn Base Nova component/role map. Similar elements must share their role owner, geometry, state styling and keyboard/focus behavior. Change that owner and all consumers together; update the contract and its full checks. Keep product variants outside upstream primitives.
+- All in-flow page toolbar text actions, including list/group settings and imports, use `PageActionButton`; never restore a local Button `shape` prop or per-page height/padding/radius. `test:ui` guards this API and `test:action-rails` checks real contact/Wishlist/education headers.
+- Full consistency audits include `test:contact-notes` through `check:comprehensive`; partial case/viewport or report-review settings are diagnostic only.
+
+
+- Empty inline-block hints decorate only the current collapsed text caret's
+  textblock, including nested lists/cells/columns/captions. Retire old hints on
+  selection-only changes without document/history/save writes. Keep each hint
+  on one bounded ellipsized line so it cannot paint over neighbouring prose.
+  Verify the eight-viewport placeholder cases and full text/comprehensive suite.
+
+- Image viewing in shared rich editors/readers is non-authoring: preserve exact
+  image/figure/caption attrs, native image role and authored alt accessible name,
+  native selection, history and save queues. Compose
+  FullscreenDialog/ControlBar and the shared VisualViewport, never a separate
+  focus trap. Retire on document/source/selection/access/IME/lifecycle changes;
+  restore focus only after explicit dismissal with a still-valid owner. Keep
+  loading/disabled and competing block/table/column/resize guards. Run full
+  text-edit/comprehensive; image-reader-only is diagnostic, not release evidence.
+
+- Rich image captions are real inline content in the shared document/history/save
+  queue, separate from alt/title. Preserve the original image attrs inside one
+  figure/caption movement unit; normalize only explicit child image NodeSelection
+  to that figure, never native text ranges. Cut/Delete must not leave an empty-src
+  required image filler. Keep read-only/IME/source guards, canonical reload,
+  selected spaces/marks, separate creation/typing/paste Undo and shared caption
+  typography. Tiny media retain readable captions without descendant clipping.
+  Verify native clipboard, protected questions, draft/retry, resize capture and
+  full editor/comprehensive before integration; branch-only targets are not release.
+
 ## Database
 
 - Always use the repository's configured production database for Rollapp development, previews, diagnostics, and verification.
@@ -51,7 +85,7 @@
 - Match visible control bounds as well as DOM geometry. Keep product button/toggle backgrounds clipped to `border-box` in `src/index.css`; the primitive's `bg-clip-padding` otherwise makes a 48px filled control visibly 46px beside a 48px outline. Preserve upstream primitives. `test:controls` must retain its screenshot-pixel assertions and DPR 3 mobile coverage, along with 48px boxes, 20px glyphs and 18px/28px control text.
 - Disabled controls inside `ControlBar` remain opaque (`opacity: 1`, solid muted surface/text), so scrolled fields cannot show through fixed Save/Back actions. Keep the disabled/enabled distinction and verify opacity/background alpha in `test:form-actions`; do not modify the upstream button primitive's disabled defaults.
 - Use `PageActionButton` from `src/components/page-action-button.jsx` for text actions in page toolbars (for example, «Добавить» and «Редактировать»). Its shared contract is a pill shape, at least 48px height, and 24px padding on both sides at every viewport size. Do not rebuild it with a bare `Button`, override its padding/height/radius locally, or reduce padding on mobile to fit more actions; reflow or use the existing action scroller. Icon-only controls, calendar cells, and drawer/footer actions keep their own compositions. Keep upstream Base Nova button defaults unchanged. Run `npm run test:ui` and inspect computed padding on desktop and mobile when changing action buttons.
-- Build date-selection controls through the shared `PlanningDatePicker`: installed shadcn `Calendar` in a `Popover` on desktop, an independent `MobileFormScreen` below 768px. Mobile selection/clearing applies only after the picker history entry closes; Back cancels, restores the owner and preserves nested task drafts. Keep the single native document scroller, bottom 48px Back and no modal backdrop/scroll lock. Do not introduce native `input[type="date"]` for new UI or copy legacy date inputs; `scripts/check-shadcn.mjs` caps those exceptions. Preserve timezone-safe local-date keys, Russian labels and keyboard access. Run `npm run test:dates` (required in `check:release`) and the affected form/To Do smoke checks.
+- Build date-selection controls through the shared `PlanningDatePicker`: installed shadcn `Calendar` in a `Popover` on desktop, an independent `MobileFormScreen` below 768px. Mobile selection/clearing applies only after the picker history entry closes; Back cancels, restores the owner and preserves nested task drafts. Keep the single native document scroller, bottom 48px Back and no modal backdrop/scroll lock. All application date fields use this composition; native `input[type="date"]` has no remaining exceptions and is rejected by `scripts/check-shadcn.mjs`. Preserve inclusive min/max, invalid/disabled states and optional clearing in the shared picker, including birthday, wish-event and collection forms. Preserve timezone-safe local-date keys, Russian labels and keyboard access. Run `npm run test:dates` (required in `check:release`) and the affected form/To Do smoke checks.
 - Make the whole visible calendar tile or row interactive when it represents one destination, while preserving independent actions inside it, keyboard access, focus indication, and semantic labels.
 - For native mobile form pages, use `MobileFormFooter` for one fixed 48px row containing Back, submit and optional delete. Keep submit inside its HTML form, use the shared navigation bottom inset, and reserve document tail space. Never fix Back separately from a form footer. Run `npm run test:form-actions` when changing form actions or their scroll behavior.
 - Contact editor checks must include its real right-hand `contact-detail-drawer`, close toolbar, photo controls and form-owned `ScrollArea`. Desktop Save/Delete share one `ControlBar` row outside the scrolling body; never wrap the full editor in another scroller. On mobile, the document remains the only vertical scroll owner; adding link fields must not move the action row. Retain frame-by-frame checks for Back/Save/Delete while scrolling in both directions, including short screens and keyboard panning.
@@ -119,3 +153,15 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 - Все продуктовые футеры штор форм используют общий `DrawerFooter` из `form-surface` или `MobileFormFooter` для нестандартных композиций контакта/желания. Настольная ветка — `ControlBar` с `app-form-actions`: primary первым и на свободную ширину, secondary следом, gap 8px, inset 16px, единый разделитель/поверхность; при нехватке места допускается перенос. Мобильная нативная строка сохраняет собственный контракт. Закрытие шторы и удаление задачи/желания — круги 48px с доступным именем; текстовые действия — капсулы. Не меняйте upstream primitives. `npm run test:drawers` проверяет реальные формы на всей матрице 320–1920px, включая 768/820 и короткое окно.
 - Настольная ветка `form-surface` открывает все продуктовые шторы справа и без дополнительной полосы swipe-handle, чтобы шапка, поля и футер сохраняли одинаковые внутренние отступы. Мобильные формы остаются нативными страницами; upstream Drawer сохраняется без изменений.
+
+- Synchronize native text ranges in handleDOMEvents.keydown before DOM input,
+  never again in handleKeyDown. ProseMirror invokes the latter with synthetic
+  Enter/Backspace while parsing mobile DOM-first input; its native caret already
+  belongs to the new DOM, so remapping it into the old model moves the split.
+  Keep the eight-viewport keyboard/native insertParagraph regression in full
+  test:text-edit, including selected ranges, caret, Undo, typing and canonical
+  reload. Browser WebKit diagnostics do not replace actual-device IME checks.
+
+- Page-level horizontal collections must share the screen-edge contract in `src/spacing.css`: through 820px their scroll viewport reaches both screen edges even inside a capped content column. Use `data-tab-scroller`, `[data-group-navigation] .list-tabs`, `WishListNavigation`, the shared action rail, or `.page-edge-scroller`; never clip them at the prose gutter. Put equal leading/trailing gutters inside the scroll viewport. Run the complete `npm run test:page-scrollers` and affected existing smoke tests; retain it in `check:release`. Ordinary wrapping content tabs and local table/code/menu/drawer scrollers keep their semantic boundaries.
+
+- Шапка приложения и публичного профиля всегда прозрачная: без собственной фоновой подложки, градиента, blur/backdrop-filter, рамки и тени на всю панель. Это правило действует на всех экранах, размерах, темах и при прокрутке. Отдельные кнопки и селекторы сохраняют собственные непрозрачные поверхности.

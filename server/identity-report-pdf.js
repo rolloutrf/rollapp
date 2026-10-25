@@ -1,4 +1,4 @@
-import { extractPdfLines } from "./lab-pdf.js";
+import { LabPdfError, extractPdfLines } from "./lab-pdf.js";
 import { extractIdentityPdfLayout } from "./identity-report-layout.js";
 
 const GALLUP_TALENTS = [
@@ -153,7 +153,7 @@ function parseHoganProfiles(lines) {
 export async function parseIdentityPdf(buffer, { section, id, filename, uploadedAt = new Date() }) {
   const extractedLines = await extractPdfLines(buffer);
   const lines = cleanLines(extractedLines);
-  if (!extractedLines.some((line) => String(line).trim())) throw new Error("В PDF не найден текст для отображения");
+  if (!extractedLines.some((line) => String(line).trim())) throw new LabPdfError("В PDF нет текстового слоя. Загрузите оригинальный отчёт вместо скана", "IDENTITY_PDF_NO_TEXT");
   const title = filenameTitle(filename);
   return {
     id,
@@ -164,7 +164,7 @@ export async function parseIdentityPdf(buffer, { section, id, filename, uploaded
     date: findDate(extractedLines),
     rawLines: extractedLines.map((line) => String(line).trim()).filter(Boolean),
     layout: await extractIdentityPdfLayout(buffer),
-    ...(section === "gallup" ? { strengths: parseGallupStrengths(lines) } : { profiles: parseHoganProfiles(lines) }),
+    ...(section === "gallup" ? { strengths: parseGallupStrengths(lines) } : section === "hogan" ? { profiles: parseHoganProfiles(lines) } : {}),
   };
 }
 
@@ -172,9 +172,15 @@ export function identityReportForDisplay(section, report) {
   return report;
 }
 
-export function generateIdentityReport(section, documents) {
+export function generateIdentityReport(section, documents, title) {
   const ordered = [...documents].sort((left, right) => String(left.uploadedAt).localeCompare(String(right.uploadedAt)));
   const latest = ordered.at(-1) || {};
+  if (section !== "gallup" && section !== "hogan") return {
+    section,
+    title: title || "Личностный тест",
+    documents: ordered,
+    generatedAt: latest.uploadedAt || new Date().toISOString(),
+  };
   if (section === "gallup") {
     const byRank = new Map();
     for (const document of ordered) {

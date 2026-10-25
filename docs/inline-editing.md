@@ -1,7 +1,25 @@
 # Редактирование текста в странице
 
+Rich captions: `captionedImage`
+содержит исходный leaf image и `imageCaption` с inline marks. Подпись не alt/title
+и не отдельный editor/save queue; image/caption — одна block movement unit.
+Создание проверяет актуальные doc/selection/node, доступ/IME и reload depth,
+имеет отдельный Undo от набора; reopening не меняет документ. Canonical HTML
+отклоняет orphan/invalid caption structure. UI добавления/повторного открытия
+доступен из transient image controls, включая full-width media; подпись получает
+реальный caret без второго editor. Selection дочернего image нормализуется в
+целую фигуру без doc/history edit, чтобы Delete/Cut не создавали пустой image
+filler. Native текстовые диапазоны не нормализуются. Escape сохраняет общий
+block-selection contract, одиночная выбранная фигура сохраняет resize controls.
+Caption поддерживает inline styles, не структурное превращение в heading/list
+или slash-команды. Shift+Enter — hard break, Enter — выход в собственный пустой paragraph,
+Backspace в начале — выбор целой фигуры; это ещё не утверждение exact Notion keys.
+UI/native/full verification: [промежуточный отчёт](notion-image-caption-verification-2026-10-20.md).
+
 Текстовые документы «О себе», «4 вопроса», «Тезисы», «Принципы», «Миссия»,
-«Домен», «Жизненная стратегия», «Идеальное состояние», «План развития» редактируются на месте.
+«Домен», «Жизненная стратегия», «Идеальное состояние», «План развития» и «Заметки» редактируются на месте.
+У заметки название и текст используют одну очередь автосохранения; навигация,
+хранение и отдельная первоначальная миграция описаны в [planning-notes.md](planning-notes.md).
 Для начала достаточно поставить курсор в текст; отдельного режима, drawer,
 мобильного formScreen и кнопки сохранения нет. План развития — один свободный
 Markdown-документ в `InlineDocument`, без переключателей категорий и постоянных
@@ -1017,3 +1035,51 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 Наведённое/выбранное изображение шириной меньше доступной получает временное меню слева/по центру/справа: ControlBar48/20, gap8 и различимое выбранное положение. `alignment` хранится как безопасный необязательный enum под canonical `data-image-align`. Отсутствие сохраняет legacy left; выбор текущего положения не создаёт изменения или Undo. Команда сохраняет размеры, alt/title, соседей, выделение и общую очередь документа, включая nested/columns/table/fixed questions. Popup ограничен фактическими chrome/navigation и VisualViewport; outside/cancel/source/selection/access не возвращают устаревший фокус. Rich captions отдельно от alt/title и точные Notion edge anchors/minimum остаются открытыми.
 
 У изображений уже80px кнопка выравнивания размещается с доступной внешней стороны с gap8 после resize hit area, а не прижимается поверх изображения. Если ни одна сторона не вмещает общий48px control, кнопка скрыта. Native target изображения и обе edge rails остаются раздельными; проверяется фактический elementFromPoint, первый pointer capture, preview без записи и отдельный Undo для tiny1×30 при left/center/right на всей alignment матрице.
+# Image viewer
+
+Shared rich documents and their public read-only readers use the same owned
+image viewer. Double-click an image while editing, or press Alt+Enter with its
+image/figure selected. Read-only images support click, focus with Tab and
+Enter/Space. Disabled/loading documents do not open media. Ordinary native text
+selection, image resizing and caption editing retain their existing ownership.
+
+The viewer composes FullscreenDialog, shared VisualViewport/safe-area geometry
+and 48px ControlBar actions. Fit/natural-size display uses one scroll owner;
+Escape and Close dismiss it. Opening, zooming and dismissal are not document
+or Undo entries. Image attrs/caption/Markdown and save queues are unchanged.
+Only explicit dismissal may restore still-owned focus; source/document,
+selection, access, IME and lifecycle changes retire it without stale focus.
+Competing block/table/column/resize chrome stays suspended while viewing.
+
+The image-reader diagnostic and the default full text-edit suite include viewer
+cases at all eight editor viewports. Targeted PASS does not replace complete
+editor/comprehensive verification or actual-device IME checks.
+
+## Подсказки пустых блоков
+
+Подсказка активного пустого блока занимает не больше одной строки своего
+текстового контейнера и сокращается многоточием. На selection-only переходе
+подсказка вычисляется по текущему textblock, включая вложенные списки, таблицы,
+колонки и подписи изображений; старые декорации не накапливаются. Она не переносится на соседние
+блоки, не добавляет authored content и не меняет нативную позицию курсора,
+историю или очередь сохранения. Псевдоэлемент наследует внутренние отступы
+текстового блока, чтобы пустой код и вложенные абзацы сохраняли свою текстовую
+ось и первую строку. Проверка `text-placeholder-checks.mjs` входит
+в полный `test:text-edit` и диагностический `--surface-only` на восьми размерах.
+
+## Enter с экранной клавиатуры
+
+Нативный keydown синхронизирует DOM range до обработки ввода ProseMirror.
+`handleKeyDown` не повторяет эту синхронизацию: при DOM-first вводе мобильного
+WebKit и экранных клавиатур ProseMirror вызывает его с синтетическим Enter или
+Backspace во время разбора мутаций. В этот момент DOM caret уже относится к
+новому абзацу, а модель ещё содержит исходный текст; повторное отображение
+курсора в старую модель переносит разделение к началу блока.
+`text-mobile-enter-checks.mjs` проверяет keyboard и нативный `insertParagraph`
+без keydown: начало/середина/конец, прямой/обратный диапазон, точный курсор и
+соседи, Undo, последующий ввод, save/reload и нативное объединение Backspace.
+Все восемь размеров входят в default `test:text-edit`; `--mobile-enter-only`
+остаётся диагностикой. Отдельный запуск в Playwright WebKit с iPhone UA проверяет
+его DOM-first путь (`npx playwright-core install webkit`, затем
+`node scripts/text-edit-smoke.mjs --mobile-enter-webkit`), но не заменяет
+реальную клавиатуру и IME устройства.

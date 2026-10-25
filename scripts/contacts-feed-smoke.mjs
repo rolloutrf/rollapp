@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
-const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: 5196, strictPort: true, hmr: false, watch: null }, plugins: [{
+import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
+const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACTS_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contacts-feed-fixture', enforce: 'pre',
   transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
@@ -11,7 +12,8 @@ const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/contacts-feed.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[1440,400]]) {
@@ -19,7 +21,7 @@ try {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
-    await page.goto('http://127.0.0.1:5196/__contacts-feed', { waitUntil: 'domcontentloaded', timeout: 90000 });
+    await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);
     await page.evaluate(() => { window.firstCard = document.querySelector('.contact-card'); window.feedTest.failNext = true; scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}); });

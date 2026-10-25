@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
+import { runPlanningResultChecks } from './planning-result-checks.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-todo-ribbon',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{name:'todo-ribbon-fixture',transform(source,id){if(id.includes('planning-space.jsx?drawer-smoke-export=TaskEditor'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
  if(!req.url.startsWith('/__todo-ribbon'))return next();
  res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/daily-todo-ribbon.jsx"></script></body></html>'));
@@ -11,6 +12,27 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
+ await runPlanningResultChecks(browser,origin);
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:400}});
+  await page.route('**/api/**',route=>route.abort());
+  await page.goto(`${origin}/__todo-ribbon?date=2026-10-18&empty`);
+  const field=page.getByRole('textbox',{name:'Новая задача на этот день',exact:true});
+  await field.fill('Однократная отправка');
+  await page.evaluate(()=>{
+   const form=document.querySelector('.daily-todo__composer');
+   window.todoNativeSubmits=0;
+   form.addEventListener('submit',()=>window.todoNativeSubmits++);
+   form.requestSubmit(); form.requestSubmit();
+  });
+  await page.waitForFunction(()=>document.querySelector('.daily-todo__composer textarea').value==='');
+  const result=await page.evaluate(()=>({events:window.todoNativeSubmits,calls:window.todoSaveCalls}));
+  assert.equal(result.events,2,'The browser must dispatch both real native submit events');
+  assert.equal(result.calls.length,1,`A pending/settling composer must save once: ${JSON.stringify(result)}`);
+  assert.equal(result.calls[0].title,'Однократная отправка');
+  await page.close();
+  console.log('PASS native same-frame submit: two native events, one saved task and one draft reset');
+ }
  for(const width of (process.env.TODO_WIDTHS||'320,390,640,767,768,820,1024,1440,1920').split(',').map(Number))for(const height of [844,400]){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
   // Date-only scenarios must survive midnight and not depend on the day the
@@ -52,6 +74,8 @@ try{
    await page.goto(`${origin}/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+   const footerSurface=await page.locator('.daily-todo__footer').evaluate(element=>({background:getComputedStyle(element).backgroundColor,image:getComputedStyle(element).backgroundImage}));
+   assert.deepEqual(footerSurface,{background:'rgba(0, 0, 0, 0)',image:'none'},'Quick-add area must not have a shared background');
    if(!empty){
     for(const [number,time] of [[1,'10:00'],[2,'10:30']]){
      const row=page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true});
@@ -244,7 +268,9 @@ try{
      await page.waitForFunction(()=>document.querySelector('.daily-todo__composer textarea').value==='');
      const payload=JSON.parse(await page.locator('[data-saved-task]').textContent());
      assert.equal(payload.title,'Черновик с айтемами');
-     assert.deepEqual(payload.relatedItems,[{kind:'wishlist',id:'wish-preview',title:'Книга с миниатюрой'}],'Save must send canonical related references, not thumbnail metadata');
+     const calls=await page.evaluate(()=>window.todoSaveCalls||[]);
+     assert.equal(calls.filter(call=>call.title==='Черновик с айтемами').length,1,`Composer must submit once: ${JSON.stringify(calls)}`);
+     assert.deepEqual(payload.relatedItems,[{kind:'wishlist',id:'wish-preview',title:'Книга с миниатюрой'}],`Save must send canonical related references, not thumbnail metadata. Calls: ${JSON.stringify(calls)}`);
      assert.equal(await composer.locator('.planning-related__choice').count(),0,'Successful send retained snippets');
      await attach.click();await picker.getByText('Книга с миниатюрой',{exact:true}).waitFor();
      for(const choice of await picker.locator('.planning-related__choice').all())await choice.click();

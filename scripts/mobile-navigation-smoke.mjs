@@ -35,6 +35,15 @@ try{
    await page.goto(origin+route);
    const sphere=page.getByRole('button',{name:'Открыть переключатель сфер',exact:true}),select=page.locator('.global-service-select');await sphere.waitFor();
    assert.equal(await sphere.count(),1);assert.equal(await select.count(),1);
+   for(const dark of [true,false]){
+    await page.evaluate(value=>document.documentElement.classList.toggle('dark',value),dark);
+    const surface=await page.locator('.global-app-chrome').evaluate(element=>{
+     const css=getComputedStyle(element);
+     return {background:css.backgroundColor,image:css.backgroundImage,shadow:css.boxShadow,blur:css.backdropFilter,borders:[css.borderTopWidth,css.borderRightWidth,css.borderBottomWidth,css.borderLeftWidth]};
+    });
+    assert.deepEqual(surface,{background:'rgba(0, 0, 0, 0)',image:'none',shadow:'none',blur:'none',borders:['0px','0px','0px','0px']},`${route}: header must have no shared surface (${width}px, dark=${dark})`);
+   }
+   await page.evaluate(()=>document.documentElement.classList.add('dark'));
    const s=await sphere.boundingBox(),c=await select.boundingBox();
    if(width<768){
     assert(s.y>600&&c.y>600,`${route}: navigation stayed at top`);

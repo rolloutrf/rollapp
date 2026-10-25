@@ -11,6 +11,8 @@ const safeURL = value => /^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i.test(value ||
 const markTags = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code", link: "a", inlineStyle: "span", normalText: "span" };
 const tagMarks = { ...Object.fromEntries(Object.entries(markTags).map(([type, tag]) => [tag, type])), span: "inlineStyle" };
 const nodeTags = { columns: "div", column: "div", nestedBlock: "div", paragraph: "p", blockquote: "blockquote", bulletList: "ul", orderedList: "ol", listItem: "li", taskList: "ul", taskItem: "li", details: "details", detailsSummary: "summary", detailsContent: "div", typographyBlock: "p", table: "table", tableRow: "tr", tableCell: "td", tableHeader: "th", image: "img", hardBreak: "br", horizontalRule: "hr", codeBlock: "pre" };
+nodeTags.captionedImage = "figure";
+nodeTags.imageCaption = "figcaption";
 const voidTags = new Set(["br", "hr", "img"]);
 const allowedAttributes = new Set(["data-image-align", "data-inline-link", "data-inline-normal", "data-column-width", "data-header-row", "data-header-column", "data-width-number", "data-height-number", "data-inline-block", "data-block-color", "data-inline-table", "colspan", "rowspan", "colwidth", "align", "start", "type", "data-type", "data-checked", "open", "data-language", "data-typography", "src", "alt", "title", "width", "height", "href", "target", "rel", "class", "data-inline-color", "data-inline-background"]);
 const attrs = values => Object.entries(values || {}).filter(([, value]) => value != null).map(([key, value]) => ` ${key}="${esc(value)}"`).join("");
@@ -46,6 +48,7 @@ export function tableHTML(node) {
     if (node.type === "columns") attributes = { "data-type": "columns" };
     if (node.type === "column") attributes = { "data-type": "column", "data-column-width": a.width || 1 };
     if (node.type === "nestedBlock") attributes = { "data-type": "nestedBlock" };
+    if (node.type === "captionedImage") attributes = { "data-type": "captionedImage" };
     if (node.type === "table") attributes = { "data-inline-table": "true", "data-header-row": a.headerRow, "data-header-column": a.headerColumn };
     if (["tableCell", "tableHeader"].includes(node.type)) attributes = { colspan: a.colspan > 1 ? a.colspan : null, rowspan: a.rowspan > 1 ? a.rowspan : null, colwidth: a.colwidth?.join(","), align: a.align };
     if (node.type === "orderedList") attributes = { start: a.start, type: a.type };
@@ -108,6 +111,8 @@ function parseCanonicalHTML(source, kind) {
     }
     let type = { table: "table", tr: "tableRow", td: "tableCell", th: "tableHeader", p: "paragraph", blockquote: "blockquote", ul: "bulletList", ol: "orderedList", li: "listItem", details: "details", summary: "detailsSummary", div: "detailsContent", pre: "codeBlock", img: "image", br: "hardBreak", hr: "horizontalRule" }[tag];
     if (/^h[1-6]$/.test(tag)) type = "heading";
+    if (tag === "figure" && a["data-type"] === "captionedImage") type = "captionedImage";
+    if (tag === "figcaption") type = "imageCaption";
     if (!type) throw new Error(`Unknown table tag: ${tag}`);
     if (tag === "div" && ["columns", "column"].includes(a["data-type"])) type = a["data-type"];
     if (tag === "div" && a["data-type"] === "nestedBlock") type = "nestedBlock";
@@ -150,19 +155,21 @@ function parseCanonicalHTML(source, kind) {
   if (kind === "table" && (root.tag !== "table" || root.attrs["data-inline-table"] !== "true")) throw new Error("Not a rich table");
   if (kind === "block" && (root.tag !== "div" || root.attrs["data-inline-block"] !== "true" || Object.keys(root.attrs).length!==1 || root.children.length !== 1)) throw new Error("Not a styled block");
   const result = convert(kind === "block" ? root.children[0] : root)[0];
-  const blocks = new Set([...Object.keys(nodeTags), "heading"].filter(type => !["column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent", "listItem", "taskItem", "hardBreak"].includes(type)));
+  const blocks = new Set([...Object.keys(nodeTags), "heading"].filter(type => !["imageCaption", "column", "tableRow", "tableCell", "tableHeader", "detailsSummary", "detailsContent", "listItem", "taskItem", "hardBreak"].includes(type)));
   const validate = node => {
     const children = node.content || [];
     const allowed = node.type === "columns" ? ["column"] : node.type === "table" ? ["tableRow"] : node.type === "tableRow" ? ["tableCell", "tableHeader"]
       : ["column", "nestedBlock", "tableCell", "tableHeader", "blockquote", "detailsContent", "listItem", "taskItem"].includes(node.type) ? [...blocks]
       : node.type === "details" ? ["detailsSummary", "detailsContent"] : node.type === "taskList" ? ["taskItem"]
       : ["bulletList", "orderedList"].includes(node.type) ? ["listItem"] : node.type === "codeBlock" ? ["text"]
-      : ["paragraph", "heading", "detailsSummary", "typographyBlock"].includes(node.type) ? ["text", "hardBreak"] : [];
+      : node.type === "captionedImage" ? ["image", "imageCaption"]
+      : ["imageCaption", "paragraph", "heading", "detailsSummary", "typographyBlock"].includes(node.type) ? ["text", "hardBreak"] : [];
     if (children.some(child => !allowed.includes(child.type))) throw new Error("Invalid table content");
     if (["column", "nestedBlock", "table", "tableCell", "tableHeader", "blockquote", "detailsContent", "taskList", "bulletList", "orderedList"].includes(node.type) && !children.length) throw new Error("Empty table structure");
     if (node.type === "columns" && children.length < 2) throw new Error("Invalid document columns");
     if (["listItem", "taskItem"].includes(node.type) && children[0]?.type !== "paragraph") throw new Error("Invalid list item");
     if (node.type === "details" && (children.length !== 2 || children[0].type !== "detailsSummary" || children[1].type !== "detailsContent")) throw new Error("Invalid details");
+    if (node.type === "captionedImage" && (children.length !== 2 || children[0].type !== "image" || children[1].type !== "imageCaption")) throw new Error("Invalid captioned image");
     children.forEach(validate);
     if (node.type === "table") {
       const width = (children[0].content || []).reduce((sum, cell) => sum + cell.attrs.colspan, 0);

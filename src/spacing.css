@@ -47,6 +47,15 @@
 }
 
 @layer utilities {
+  /* Application headers float without a shared surface, in every theme. */
+  :is(.global-app-chrome, .public-profile > .profile-header) {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   /* One navigation size everywhere. These dimensions intentionally outrank
      primitive sizes and caller utilities; changing a screen cannot silently
      create another control scale. Text labels keep their available width. */
@@ -490,19 +499,28 @@
 
   .app-layout--dark .sphere-business-controls { display: contents; }
 
-  /* Break out of any centered content-width role, not only the page inset.
-     All action rails share this rule, independent of Wishlist variables.
-     Padding belongs inside the scroll viewport, never outside its edges. */
+  /* Page-level horizontal collections share one viewport contract. Keep
+     gutters INSIDE it: an inset clipping ancestor recreates a false screen edge. */
+  :is([data-tab-scroller], [data-group-navigation] .list-tabs, .page-edge-scroller) {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  :is([data-tab-scroller], [data-group-navigation] .list-tabs, .page-edge-scroller)::-webkit-scrollbar { display: none; }
+
   @media (max-width: 820px) {
-    .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller {
+    :is(.app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller,
+        .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller,
+        .wishes-page .list-tabs, [data-tab-scroller],
+        [data-group-navigation] .list-tabs, .page-edge-scroller) {
       width: 100vw;
       flex-shrink: 0;
       max-width: none;
       margin-inline: calc((100% - 100vw) / 2);
-      /* Equal inner gutters keep short groups on the viewport centre.
-         Safe centering falls back to start only when actions overflow. */
       padding-inline: var(--layout-page-inset);
-      justify-content: safe center;
       scroll-padding-inline: var(--layout-page-inset);
     }
   }

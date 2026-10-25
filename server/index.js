@@ -1,3 +1,5 @@
+import { medicationSchema } from "./medication-schema.js";
+import { registerHealthTrackerRoutes } from "./health-trackers.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
@@ -22,6 +24,7 @@ import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
+import { registerNotesRoutes } from "./notes.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
@@ -343,43 +346,6 @@ const workoutReorderSchema = z.object({
     context.addIssue({ code: "custom", path: ["workoutIds"], message: "Тренировки не должны повторяться" });
   }
 });
-const medicationTimeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
-const medicationFrequencyTimeCount = {
-  once_daily: 1,
-  twice_daily: 2,
-  three_times_daily: 3,
-  weekly: 1,
-  as_needed: 0,
-};
-const medicationSchema = z.object({
-  name: z.string().trim().min(1).max(160),
-  groupId: z.string().trim().min(1).max(200).nullable().default(null),
-  medicationForm: z.enum(["tablet", "capsule", "solution", "drops", "spray", "injection", "cream", "other"]),
-  status: z.enum(["active", "planned", "paused", "completed"]),
-  dosage: z.string().trim().max(160),
-  frequency: z.enum(["once_daily", "twice_daily", "three_times_daily", "weekly", "as_needed", "custom"]),
-  scheduleTimes: z.array(medicationTimeSchema).max(6),
-  purpose: z.string().trim().max(240),
-  prescriber: z.string().trim().max(240),
-  instructions: z.string().trim().max(2_000),
-  startOn: optionalEducationDateSchema,
-  endOn: optionalEducationDateSchema,
-  notes: z.string().trim().max(4_000),
-}).strict().superRefine((medication, context) => {
-  if (medication.startOn && medication.endOn && medication.endOn < medication.startOn) {
-    context.addIssue({ code: "custom", path: ["endOn"], message: "Окончание курса должно быть не раньше начала" });
-  }
-  if (new Set(medication.scheduleTimes).size !== medication.scheduleTimes.length) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Время приёма не должно повторяться" });
-  }
-  const expectedTimeCount = medicationFrequencyTimeCount[medication.frequency];
-  if (expectedTimeCount !== undefined && medication.scheduleTimes.length !== expectedTimeCount) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Количество времён должно соответствовать частоте приёма" });
-  }
-  if (medication.frequency === "custom" && medication.scheduleTimes.length === 0) {
-    context.addIssue({ code: "custom", path: ["scheduleTimes"], message: "Укажите хотя бы одно время приёма" });
-  }
-});
 const medicationGroupSchema = z.object({
   title: z.string().trim().min(1).max(60),
 }).strict();
@@ -466,7 +432,25 @@ const careerContentSchemas = {
   domain: careerMarkdownSchema,
   performance: careerPerformanceSchema,
 };
-const identityReportSectionSchema = z.enum(["hogan", "gallup"]);
+const customIdentityReportSectionSchema = z.string().regex(/^custom-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+const identityReportSectionSchema = z.union([z.enum(["hogan", "gallup"]), customIdentityReportSectionSchema]);
+const identityReportTitleSchema = z.object({ title: z.string().trim().min(1).max(80) }).strict();
+const identityReportReadAccess = (req, res, next) => req.params.section?.startsWith("custom-")
+  ? requirePrivateSphereOwner(req, res, next)
+  : requireSphereReadAccess("identity", req.params.section)(req, res, next);
+
+async function lockCustomIdentityReport(client, userId, section) {
+  if (!section.startsWith("custom-")) return null;
+  const result = await client.query(
+    "SELECT report_json FROM identity_generated_reports WHERE user_id=$1 AND section=$2 FOR UPDATE", [userId, section],
+  );
+  if (!result.rowCount) {
+    const error = new Error("Тест не найден");
+    error.code = "IDENTITY_TEST_NOT_FOUND";
+    throw error;
+  }
+  return parseStoredJson(result.rows[0].report_json);
+}
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -486,6 +470,7 @@ app.use(helmet({
   frameguard: false,
 }));
 app.use(compression());
+app.use("/api/planning/notes", express.json({ limit: "2mb" }));
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 registerTonConnectRoutes(app);
@@ -893,6 +878,7 @@ function mapHealthMedication(row) {
     id: row.id,
     groupId: row.group_id || null,
     name: row.name,
+    imageUrl: row.image_url || "",
     medicationForm: row.medication_form,
     status: row.status,
     dosage: row.dosage,
@@ -1090,6 +1076,8 @@ registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerNotesRoutes(app, { requireAuth, query, asyncRoute });
+registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
@@ -4387,7 +4375,7 @@ async function identityReportPayload(userId, section, client = null, ownerUserna
   }));
   if (!stateResult.rowCount) return { mode: "default", report: null, files, updatedAt: null };
   const state = stateResult.rows[0];
-  if (state.status === "empty") return { mode: "empty", report: null, files: [], updatedAt: state.updated_at };
+  if (state.status === "empty") return { mode: "empty", report: null, title: parseStoredJson(state.report_json)?.title || "", files: [], updatedAt: state.updated_at };
   const report = identityReportForDisplay(section, parseStoredJson(state.report_json));
   if (!report) throw new Error("Сохранённый отчёт повреждён");
   const legacyDocuments = (report.documents || []).filter((document) => !document.rawLines || document.layout?.version !== IDENTITY_PDF_LAYOUT_VERSION);
@@ -4408,7 +4396,7 @@ async function identityReportPayload(userId, section, client = null, ownerUserna
       return { ...document, rawLines: parsed.rawLines, layout: parsed.layout };
     }));
   }
-  return { mode: "generated", report, files, updatedAt: state.updated_at };
+  return { mode: "generated", report, title: report.title, files, updatedAt: state.updated_at };
 }
 
 function mapUploadedLabReport(row, ownerUsername = "") {
@@ -4626,10 +4614,58 @@ app.patch("/api/identity/content/:section", requireAuth, requirePrivateSphereOwn
   return res.json({ content: JSON.parse(result.rows[0].content_json), updatedAt: result.rows[0].updated_at });
 }));
 
-app.get("/api/identity/reports/:section", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
+// Custom tests are private to their owner; legacy Gallup/Hogan grants stay unchanged.
+app.get("/api/identity/reports", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const result = await query(
+    "SELECT section,report_json::jsonb->>'title' AS title FROM identity_generated_reports WHERE user_id=$1 AND section LIKE 'custom-%' ORDER BY created_at,section", [req.user.id],
+  );
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ tests: result.rows.map(row => ({ id: row.section, title: row.title || "Тест" })) });
+}));
+
+app.post("/api/identity/reports", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const parsed = identityReportTitleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Введите название теста до 80 символов" });
+  const id = `custom-${randomUUID()}`;
+  try {
+    await query("INSERT INTO identity_generated_reports (user_id,section,status,report_json) VALUES ($1,$2,'empty',$3)",
+      [req.user.id, id, JSON.stringify({ title: parsed.data.title })]);
+  } catch (error) {
+    if (error.code === "23514") return res.status(503).json({ error: "Добавление своих тестов ещё не включено в базе данных", code: "IDENTITY_TESTS_SCHEMA_REQUIRED" });
+    throw error;
+  }
+  return res.status(201).json({ test: { id, title: parsed.data.title } });
+}));
+
+app.patch("/api/identity/reports/:section", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = customIdentityReportSectionSchema.safeParse(req.params.section);
+  const parsed = identityReportTitleSchema.safeParse(req.body);
+  if (!section.success) return res.status(404).json({ error: "Тест не найден" });
+  if (!parsed.success) return res.status(400).json({ error: "Введите название теста до 80 символов" });
+  await transaction(async client => {
+    const report = await lockCustomIdentityReport(client, req.user.id, section.data);
+    await client.query("UPDATE identity_generated_reports SET report_json=$3,updated_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND section=$2",
+      [req.user.id, section.data, JSON.stringify({ ...report, title: parsed.data.title })]);
+  });
+  return res.json({ test: { id: section.data, title: parsed.data.title } });
+}));
+
+app.delete("/api/identity/reports/:section/test", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const section = customIdentityReportSectionSchema.safeParse(req.params.section);
+  if (!section.success) return res.status(404).json({ error: "Тест не найден" });
+  await transaction(async client => {
+    await lockCustomIdentityReport(client, req.user.id, section.data);
+    await client.query("DELETE FROM identity_report_uploads WHERE user_id=$1 AND section=$2", [req.user.id, section.data]);
+    await client.query("DELETE FROM identity_generated_reports WHERE user_id=$1 AND section=$2", [req.user.id, section.data]);
+  });
+  return res.json({ deleted: true });
+}));
+
+app.get("/api/identity/reports/:section", requireAuth, identityReportReadAccess, asyncRoute(async (req, res) => {
   const section = identityReportSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
   const payload = await identityReportPayload(req.user.id, section.data, null, req.query.owner);
+  if (section.data.startsWith("custom-") && payload.mode === "default") return res.status(404).json({ error: "Тест не найден" });
   res.set("Cache-Control", "private, no-store");
   return res.json(payload);
 }));
@@ -4649,7 +4685,7 @@ app.post(
     }
 
     const id = randomUUID();
-    const filename = pdfUploadFilename(req, section.data === "hogan" ? "Hogan" : "Gallup");
+    const filename = pdfUploadFilename(req, section.data === "hogan" ? "Hogan" : section.data === "gallup" ? "Gallup" : "Тест");
     let document;
     try {
       document = await parseIdentityPdf(req.body, {
@@ -4666,6 +4702,7 @@ app.post(
     const fileHash = createHash("sha256").update(req.body).digest("hex");
     try {
       await transaction(async (client) => {
+        const metadata = await lockCustomIdentityReport(client, req.user.id, section.data);
         const count = await client.query(
           "SELECT COUNT(*)::int AS count FROM identity_report_uploads WHERE user_id=$1 AND section=$2",
           [req.user.id, section.data],
@@ -4689,7 +4726,7 @@ app.post(
         const documents = documentsResult.rows
           .map((row) => parseStoredJson(row.document_json))
           .filter(Boolean);
-        const report = generateIdentityReport(section.data, documents);
+        const report = generateIdentityReport(section.data, documents, metadata?.title);
         const reportJson = JSON.stringify(report);
         if (Buffer.byteLength(reportJson, "utf8") > 2_000_000) {
           const sizeError = new Error("В загруженных PDF слишком много текста для одной страницы");
@@ -4722,20 +4759,21 @@ app.delete("/api/identity/reports/:section", requireAuth, requirePrivateSphereOw
   const section = identityReportSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).json({ error: "Отчёт не найден" });
   await transaction(async (client) => {
+    const metadata = await lockCustomIdentityReport(client, req.user.id, section.data);
     await client.query(
       "DELETE FROM identity_report_uploads WHERE user_id=$1 AND section=$2",
       [req.user.id, section.data],
     );
     await client.query(
       `INSERT INTO identity_generated_reports (user_id,section,status,report_json,updated_at)
-       VALUES ($1,$2,'empty','{}',CURRENT_TIMESTAMP)
+       VALUES ($1,$2,'empty',$3,CURRENT_TIMESTAMP)
        ON CONFLICT (user_id,section) DO UPDATE SET
-         status='empty',report_json='{}',updated_at=CURRENT_TIMESTAMP`,
-      [req.user.id, section.data],
+         status='empty',report_json=EXCLUDED.report_json,updated_at=CURRENT_TIMESTAMP`,
+      [req.user.id, section.data, JSON.stringify(metadata ? { title: metadata.title } : {})],
     );
   });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ mode: "empty", report: null, files: [] });
+  return res.json(await identityReportPayload(req.user.id, section.data));
 }));
 
 app.delete("/api/identity/reports/:section/files/:id", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
@@ -4745,6 +4783,7 @@ app.delete("/api/identity/reports/:section/files/:id", requireAuth, requirePriva
   }
   let missing = false;
   await transaction(async (client) => {
+    const metadata = await lockCustomIdentityReport(client, req.user.id, section.data);
     const removed = await client.query(
       "DELETE FROM identity_report_uploads WHERE id=$1 AND user_id=$2 AND section=$3 RETURNING id",
       [req.params.id, req.user.id, section.data],
@@ -4756,13 +4795,13 @@ app.delete("/api/identity/reports/:section/files/:id", requireAuth, requirePriva
       [req.user.id, section.data],
     );
     const documents = remaining.rows.map((row) => parseStoredJson(row.document_json)).filter(Boolean);
-    const report = documents.length ? generateIdentityReport(section.data, documents) : null;
+    const report = documents.length ? generateIdentityReport(section.data, documents, metadata?.title) : null;
     await client.query(
       `INSERT INTO identity_generated_reports (user_id,section,status,report_json,updated_at)
        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
        ON CONFLICT (user_id,section) DO UPDATE SET
          status=EXCLUDED.status,report_json=EXCLUDED.report_json,updated_at=CURRENT_TIMESTAMP`,
-      [req.user.id, section.data, report ? "generated" : "empty", JSON.stringify(report || {})],
+      [req.user.id, section.data, report ? "generated" : "empty", JSON.stringify(report || (metadata ? { title: metadata.title } : {}))],
     );
   });
   if (missing) return res.status(404).json({ error: "PDF не найден" });
@@ -4770,7 +4809,7 @@ app.delete("/api/identity/reports/:section/files/:id", requireAuth, requirePriva
   return res.json(await identityReportPayload(req.user.id, section.data));
 }));
 
-app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, requireSphereReadAccess("identity", (req) => req.params.section), asyncRoute(async (req, res) => {
+app.get("/api/identity/reports/:section/files/:id/pdf", requireAuth, identityReportReadAccess, asyncRoute(async (req, res) => {
   const section = identityReportSectionSchema.safeParse(req.params.section);
   if (!section.success) return res.status(404).end();
   const result = await query(
@@ -5928,7 +5967,7 @@ app.delete("/api/health/medication-groups/:groupId", requireAuth, requirePrivate
 app.get("/api/health/medications", requireAuth, requireSphereReadAccess("health", "medications"), asyncRoute(async (req, res) => {
   const [medicationsResult, groupsResult] = await Promise.all([
     query(
-      `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at
+      `SELECT id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at
        FROM health_medications
        WHERE user_id=$1
        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'planned' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,
@@ -5962,6 +6001,10 @@ app.post("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyn
     });
   }
   const medication = parsed.data;
+  if (medication.imageUrl?.startsWith("/api/media/")) {
+    const owned = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2", [medication.imageUrl.slice("/api/media/".length), req.user.id]);
+    if (!owned.rowCount) return res.status(400).json({ error: "Загруженное фото не найдено" });
+  }
   if (medication.groupId) {
     const group = await query(
       "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
@@ -5971,14 +6014,14 @@ app.post("/api/health/medications", requireAuth, requirePrivateSphereOwner, asyn
   }
   const result = await query(
     `INSERT INTO health_medications (
-       id,user_id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+       id,user_id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [
       randomUUID(), req.user.id, medication.groupId, medication.name, medication.medicationForm,
       medication.status, medication.dosage, medication.frequency, JSON.stringify(medication.scheduleTimes),
       medication.purpose, medication.prescriber, medication.instructions, medication.startOn || null,
-      medication.endOn || null, medication.notes,
+      medication.endOn || null, medication.notes, medication.imageUrl || "",
     ],
   );
   res.set("Cache-Control", "private, no-store");
@@ -6010,7 +6053,7 @@ app.patch("/api/health/medications/:medicationId/group", requireAuth, requirePri
     `UPDATE health_medications
      SET group_id=$1,updated_at=CURRENT_TIMESTAMP
      WHERE id=$2 AND user_id=$3
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [groupId, req.params.medicationId, req.user.id],
   ));
   if (!result.rowCount) {
@@ -6030,6 +6073,10 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
     });
   }
   const medication = parsed.data;
+  if (medication.imageUrl?.startsWith("/api/media/")) {
+    const owned = await query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2", [medication.imageUrl.slice("/api/media/".length), req.user.id]);
+    if (!owned.rowCount) return res.status(400).json({ error: "Загруженное фото не найдено" });
+  }
   if (medication.groupId) {
     const group = await query(
       "SELECT 1 FROM health_medication_groups WHERE id=$1 AND user_id=$2",
@@ -6040,14 +6087,14 @@ app.patch("/api/health/medications/:medicationId", requireAuth, requirePrivateSp
   const result = await query(
     `UPDATE health_medications SET
        group_id=$1,name=$2,medication_form=$3,status=$4,dosage=$5,frequency=$6,schedule_times_json=$7,
-       purpose=$8,prescriber=$9,instructions=$10,start_on=$11,end_on=$12,notes=$13,updated_at=CURRENT_TIMESTAMP
+       purpose=$8,prescriber=$9,instructions=$10,start_on=$11,end_on=$12,notes=$13,image_url=COALESCE($16,image_url),updated_at=CURRENT_TIMESTAMP
      WHERE id=$14 AND user_id=$15
-     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,created_at,updated_at`,
+     RETURNING id,group_id,name,medication_form,status,dosage,frequency,schedule_times_json,purpose,prescriber,instructions,start_on,end_on,notes,image_url,created_at,updated_at`,
     [
       medication.groupId, medication.name, medication.medicationForm, medication.status, medication.dosage,
       medication.frequency, JSON.stringify(medication.scheduleTimes), medication.purpose, medication.prescriber,
       medication.instructions, medication.startOn || null, medication.endOn || null, medication.notes,
-      req.params.medicationId, req.user.id,
+      req.params.medicationId, req.user.id, medication.imageUrl ?? null,
     ],
   );
   if (!result.rowCount) return res.status(404).json({ error: "Препарат не найден" });
@@ -6412,6 +6459,7 @@ if (isProduction) {
 }
 
 app.use((error, req, res, _next) => {
+  if (error?.code === "IDENTITY_TEST_NOT_FOUND") return res.status(404).json({ error: error.message });
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Проверьте введённые данные" });
   if (error?.type === "entity.too.large") {

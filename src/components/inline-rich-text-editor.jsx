@@ -1,6 +1,8 @@
 import { captureInlineLinkIntent, mapInlineLinkIntent, commitInlineLink, safeInlineLink } from "@/lib/inline-link-intent";
 import { hasEffectiveItalic, toggleEffectiveItalic } from "@/lib/inline-italic";
 import { InlineImageResize } from "@/components/inline-image-resize";
+import { InlineImageViewer } from "@/components/inline-image-viewer";
+import { selectionHasImageCaption } from "@/lib/inline-image-caption";
 import { InlineColumnResize } from "@/components/inline-column-resize";
 import { InlineImagePicker } from "@/components/inline-image-picker";
 import { InlineImageTransfer } from "@/components/inline-image-transfer";
@@ -51,6 +53,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   const [imagePickerVisible, setImagePickerVisible] = useState(false);
   const [imageTransferVisible, setImageTransferVisible] = useState(false);
   const [imageResizing, setImageResizing] = useState(false);
+  const [imageViewing, setImageViewing] = useState(false);
   const pickerChosen = useRef(false);
   const [menu, setMenu] = useState(null);
   const menuRef = useRef(null);
@@ -148,7 +151,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       },
       handleKeyDown(view, event) {
         const editor = instance.current;
-        if (!event.isComposing) synchronizeInlineSelection(view);
+        // Native keydown captures the browser range above, before DOM input.
+        // ProseMirror also calls this hook with synthetic Enter/Backspace while
+        // parsing mobile DOM mutations. Their native caret already belongs to
+        // the new DOM, so mapping it into the old document moves the split.
         if (view.editable && blockActions.current?.(event)) { updateMenu(null); return true; }
         if (view.editable && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
           event.preventDefault();
@@ -294,7 +300,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   if (!editor) return null;
   const colorPicker=["colors","blockColors","cellColors"].includes(picker?.kind);
   const colorLabel=picker?.kind==="blockColors"?"Цвет блока":picker?.kind==="cellColors"?"Цвет ячеек":"Цвет текста и фона";
-  const format = (name, Icon, run, active = false) => <Button key={name} variant={active ? "secondary" : "ghost"} size="icon" type="button" aria-label={name} title={symbolHints[name] ? `${name}: ${symbolHints[name]}` : name} aria-pressed={active}
+  const format = (name, Icon, run, active = false) => <Button key={name} variant={active ? "secondary" : "ghost"} size="icon" type="button" disabled={name === "Тип блока" && selectionHasImageCaption(editor.state)} aria-label={name} title={symbolHints[name] ? `${name}: ${symbolHints[name]}` : name} aria-pressed={active}
     onMouseDown={event => { synchronizeInlineSelection(editor.view); event.preventDefault(); }} onClick={event => { updateMenu(null); run(event); }}><Icon aria-hidden="true" /></Button>;
   return <section className={cn("inline-editor min-w-0", className)} data-editable-text={editable ? "" : undefined} data-table-handles={tableHandlesVisible ? "" : undefined} aria-label={label} onKeyDownCapture={event => {
     // Portal events retain this editor's React owner. Preserve ProseMirror's
@@ -302,7 +308,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     if (!editable || editor.isDestroyed || !editor.isInitialized || editor.view.dom.contains(event.target) || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "s") return;
     event.preventDefault(); event.stopPropagation(); callbacks.current.onBlur?.();
   }}>
-    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} actionsRef={blockActions} onCreateBlock={openPicker}>
+    {editable && <InlineBlockControls editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} actionsRef={blockActions} onCreateBlock={openPicker}>
       {format("Тип блока", Pilcrow, event => openPicker(selectedBlockPosition(editor.state.selection), null, event.currentTarget))}
       {format("Жирный", Bold, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
       {format("Курсив", Italic, () => toggleEffectiveItalic(editor), hasEffectiveItalic(editor.state))}
@@ -340,9 +346,10 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     </FloatingMenu>}
     {editable && <InlineImagePicker editor={editor} onVisibilityChange={setImagePickerVisible} />}
     {editable && <InlineImageTransfer editor={editor} onVisibilityChange={setImageTransferVisible} />}
-    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible)} onActiveChange={setImageResizing} />}
-    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
-    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} />}
+    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageViewing)} onActiveChange={setImageResizing} />}
+    {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
+    {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} />}
+    <InlineImageViewer editor={editor} disabled={disabled} accessKey={editable} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setImageViewing} />
     <EditorContent editor={editor} />
   </section>;
 }

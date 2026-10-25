@@ -24,6 +24,13 @@ test("accepts standard shadcn compositions", () => {
   checkUiComposition('<Dialog><DialogContent><Select><SelectTrigger /><SelectContent><SelectItem /></SelectContent></Select><Input /><Checkbox /><Button /></DialogContent></Dialog>', "src/components/editor.jsx");
 });
 
+test("product button geometry belongs to the shared compositions", () => {
+  for (const source of ['<Button shape="pill" />', '<Button shape={compact ? "pill" : "default"} />', '<PageActionButton className="px-5" />', '<PageActionButton size="lg" />', '<PageActionButton className="bg-white text-black" />']) {
+    assert.throws(() => checkUiComposition(source, "src/components/page.jsx"));
+  }
+  checkUiComposition('<PageActionButton variant="outline" disabled={busy}>Настройки списка</PageActionButton>', "src/components/page.jsx");
+});
+
 test("horizontal report tiles require an explicit scroller contract", () => {
   checkUiComposition('<TabsList data-tab-scroller className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx");
   assert.throws(() => checkUiComposition('<TabsList className="flex-nowrap overflow-x-auto" />', "src/components/reports.jsx"), /data-tab-scroller/);

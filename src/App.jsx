@@ -1,3 +1,9 @@
+import { ListTileContent } from "@/components/list-tile-content";
+import { localDateKey } from "../shared/planning.js";
+import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { PageActionButton } from "@/components/page-action-button";
+import { HealthTracker } from "@/components/health-tracker";
+import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
@@ -50,8 +56,8 @@ import { CvResume } from "@/components/cv-resume";
 import { FourQuestions } from "@/components/four-questions";
 import { GallupProfile } from "@/components/gallup-profile";
 import {
-  IdentityGeneratedDocuments, IdentityReportControls, IdentityReportEmpty, IdentityReportOverview,
-  IdentityReportStatus, useIdentityReport,
+  IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
+  IdentityReportStatus,
 } from "@/components/identity-report-manager";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
@@ -351,28 +357,6 @@ const placeSnippetAddress = (description = "") => String(description)
   .split(/\s+[•·]\s+/u, 1)[0]
   .trim();
 
-const LIST_TILE_STYLE = {
-  width: 130,
-  minWidth: 130,
-  height: 100,
-  minHeight: 100,
-  padding: 12,
-  flex: "0 0 130px",
-  borderRadius: 18,
-  fontSize: 16,
-  lineHeight: "19px",
-};
-
-function ListTileContent({ title, count, privateList = false }) {
-  return <>
-    <strong data-slot="list-tile-label" style={{ fontSize: 16, lineHeight: "19px" }}>{title}</strong>
-    <div data-slot="list-tile-meta">
-      {privateList && <LockKeyhole size={14} aria-hidden="true" />}
-      <span data-slot="list-tile-count" style={{ fontSize: 24, lineHeight: "29px", fontWeight: 600 }}>{count}</span>
-    </div>
-  </>;
-}
-
 function useAsync(load, dependencies = []) {
   const [state, setState] = useState({ data: null, loading: true, error: null });
   const requestIdRef = useRef(0);
@@ -552,17 +536,15 @@ function Avatar({ user, size = "md", className = "", ...props }) {
   );
 }
 
-const SPHERE_SERVICES = [
+const SERVICE_SWITCHER_ITEMS = [
   { id: "identity", label: "Идентичность", path: "/app/spheres/identity", icon: Fingerprint, color: "#5967f2" },
-  { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
-  { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
   { id: "health", label: "Здоровье", path: "/app/spheres/health", icon: HeartPulse, color: "#43bd83" },
+  { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
+  { id: "education", label: "Образование", path: "/app/spheres/education", icon: GraduationCap, color: "#f3c64e" },
+  { id: "career", label: "Карьера", path: "/app/spheres/career", icon: BriefcaseBusiness, color: "#ff7557" },
 ];
 
-const SERVICE_SWITCHER_ITEMS = [
-  { id: "wishlist", label: "Вишлист", path: APP_HOME, icon: Gift, color: "#f05f4f" },
-  ...SPHERE_SERVICES,
-];
+const SPHERE_SERVICES = SERVICE_SWITCHER_ITEMS.filter((item) => item.id !== "wishlist");
 
 const ROLLS_SERVICE = { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" };
 const PLANNING_SERVICE = { id: "planning", label: "Планирование", path: "/app/planning", icon: Columns3 };
@@ -953,6 +935,8 @@ const HEALTH_TABS = [
     label: "Препараты",
     description: "Назначенные препараты, схемы приёма и важные напоминания.",
   },
+  { id: "sleep", label: "Сон", description: "Дневник сна, длительность и качество отдыха." },
+  { id: "nutrition", label: "Питание", description: "Дневник питания, калории и БЖУ за день." },
 ];
 
 const SERVICE_TABS = {
@@ -1226,9 +1210,7 @@ function serviceChromeFromPath(pathname) {
     serviceId = "wishlist";
   }
   if (!serviceId) return null;
-  const service = serviceId === "wishlist"
-    ? SERVICE_SWITCHER_ITEMS[0]
-    : serviceId === "rolls"
+  const service = serviceId === "rolls"
       ? ROLLS_SERVICE
     : serviceId === "planning"
       ? PLANNING_SERVICE
@@ -2015,12 +1997,13 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
+  const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      <div className={`app-layout app-layout--dark ${planningRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
+      <div className={`app-layout app-layout--dark ${planningRoute && !notesRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-          {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && (!planningRoute || notesRoute) && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
@@ -2265,45 +2248,7 @@ function HoganReport({ reportState: { state, error, load } }) {
 }
 
 function IdentityReportsPage() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const search = new URLSearchParams(location.search);
-  const selectedReport = search.get("report") === "hogan" || search.get("tab") === "hogan" ? "hogan" : "gallup";
-  const gallup = useIdentityReport("gallup");
-  const hogan = useIdentityReport("hogan");
-  const reportState = selectedReport === "hogan" ? hogan : gallup;
-  const selectReport = (report) => {
-    const params = new URLSearchParams(location.search);
-    params.set("tab", "identity-reports");
-    params.set("report", report);
-    navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true });
-  };
-  const navigation = (
-    <div className="min-w-0 not-typeset" data-report-navigation>
-      <TabsList className="list-tabs h-auto! w-full bg-transparent p-0" data-tab-scroller aria-label="Отчёт о личности">
-        <TabsTrigger data-report-tile value="gallup">
-          <span data-slot="list-tile-label">Gallup</span>
-          <span data-slot="list-tile-meta">CliftonStrengths</span>
-        </TabsTrigger>
-        <TabsTrigger data-report-tile value="hogan">
-          <span data-slot="list-tile-label">Hogan</span>
-          <span data-slot="list-tile-meta">HPI · HDS · MVPI</span>
-        </TabsTrigger>
-      </TabsList>
-    </div>
-  );
-  return (
-    <Tabs className="identity-reports-page identity-report-workspace" value={selectedReport} onValueChange={selectReport}>
-      <IdentityReportControls
-        section={selectedReport}
-        label={selectedReport === "hogan" ? "Hogan" : "Gallup"}
-        {...reportState}
-        navigation={navigation}
-      />
-      <TabsContent value="gallup" className="min-w-0"><GallupProfile reportState={gallup} /></TabsContent>
-      <TabsContent value="hogan" className="min-w-0"><HoganReport reportState={hogan} /></TabsContent>
-    </Tabs>
-  );
+  return <CustomIdentityReportsPage renderGallup={reportState => <GallupProfile reportState={reportState} />} renderHogan={reportState => <HoganReport reportState={reportState} />} />;
 }
 
 function TabbedSpherePage({ sphereId, tabs }) {
@@ -2372,6 +2317,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                                     ? <LabResults />
                                     : sphere.id === "health" && tab.id === "sport"
                                       ? <Workouts />
+                                      : sphere.id === "health" && ["sleep", "nutrition"].includes(tab.id)
+                                        ? <HealthTracker key={tab.id} tracker={tab.id} />
                                       : sphere.id === "health" && tab.id === "medications"
                                         ? <Medications />
                                 : sphere.id === "career" && tab.id === "cv"
@@ -2934,7 +2881,7 @@ function ContactsProfileControls({ onAdd }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
+        <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         <SphereBusinessControls sphereId="career" />
       </div>
     </section>
@@ -3684,8 +3631,8 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         </Link>
       </nav>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        {selectedList && <Button className="h-12 shrink-0 whitespace-nowrap px-5 text-base" variant="outline" shape="pill" onClick={() => onEditList(selectedList)}>Настройки списка</Button>}
-        <Button className="h-12 min-w-[180px] shrink-0 whitespace-nowrap px-6 text-base" shape="pill" onClick={onAdd}>Добавить</Button>
+        {selectedList && <PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" onClick={() => onEditList(selectedList)}>Настройки списка</PageActionButton>}
+        <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
@@ -4156,7 +4103,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
               />}
               {owner && onRemoveFromGroup && <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>
               </>}
               {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
               {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
@@ -4864,7 +4811,7 @@ function WishesPage({ onAdd, version }) {
   const location = useLocation();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
-  const { data, loading, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -5029,6 +4976,11 @@ function WishesPage({ onAdd, version }) {
     }
   }, [openedGroupId, openedGroup?.id]);
   if (loading) return <LoadingScreen compact />;
+  const loadError = error && <Alert variant="destructive" className="not-typeset rollapp-body">
+    <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
+    <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
+  </Alert>;
+  if (error && !data) return <div className="app-page page-stack rollapp-body">{loadError}</div>;
   const share = async () => {
     if (selectedValue === "secret" || selectedList?.privacy === "private") {
       toast("Приватный список виден только вам", "error");
@@ -5829,7 +5781,7 @@ function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className="app-page wishes-page"><WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
+  return <div className="app-page wishes-page">{loadError}<WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
@@ -6858,7 +6810,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
               {showEventDate && <Field className="wish-editor__field wish-editor__field--date">
                 <FieldLabel htmlFor={fieldId("eventDate")}>Дата события</FieldLabel>
-                <Input id={fieldId("eventDate")} type="date" value={form.eventDate} onChange={(event) => setForm((current) => ({ ...current, eventDate: event.target.value }))} />
+                <PlanningDatePicker id={fieldId("eventDate")} label="Дата события" clearable value={form.eventDate} onChange={(date) => setForm((current) => ({ ...current, eventDate: date }))} className="w-full justify-between" />
               </Field>}
 
               <div className="wish-editor__settings flex flex-col gap-2" role="group" aria-label="Настройки желания">
@@ -7274,7 +7226,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
             </Field>
             <Field className="sm:max-w-[calc(50%-0.5rem)]">
               <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
-              <Input id="settings-profile-birthday" type="date" max={new Date().toISOString().slice(0, 10)} value={form.birthday} onChange={(event) => setForm({ ...form, birthday: event.target.value })} />
+              <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
             </Field>
           </FieldGroup>
           {(yandexEnabled || user.hasYandex) && (
@@ -7591,24 +7543,24 @@ function PublicProfile({ shared = false }) {
       {relationshipBlock}
       <div className={`page-actions wishes-page__hero-actions ${ownerCollection ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {ownerCollection ? <>
-          {selectedList && <Button className="h-12 px-5 text-base max-[560px]:flex-1" variant="outline" shape="pill" onClick={() => setListModal(selectedList)}>Настройки списка</Button>}
-          <Button className="h-12 min-w-[180px] px-6 text-base max-[560px]:min-w-0" shape="pill" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</Button>
+          {selectedList && <PageActionButton className="max-[560px]:flex-1" variant="outline" onClick={() => setListModal(selectedList)}>Настройки списка</PageActionButton>}
+          <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</PageActionButton>
         </> : data.isOwner && shared
-          ? <Button className="h-12 rounded-full px-6 text-base" onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</Button>
-          : <Button
-            variant={data.isFollowing ? "soft" : "primary"}
-            className="h-12 min-w-[180px] rounded-full px-6 text-base"
+          ? <PageActionButton onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</PageActionButton>
+          : <PageActionButton
+            variant={data.isFollowing ? "secondary" : "default"}
+            className="min-w-[180px]"
             type="button"
             aria-pressed={data.isFollowing}
             onClick={follow}
-          >{data.isFollowing ? "Отписаться" : "Подписаться"}</Button>}
+          >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
       </div>
     </section>
 
     {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
-          {showAllCollection && <ToggleGroupItem style={LIST_TILE_STYLE} value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}
-          {!shared && navigationLists.map((list) => <ToggleGroupItem style={LIST_TILE_STYLE} value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
+          {showAllCollection && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}
+          {!shared && navigationLists.map((list) => <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
         </ToggleGroup>
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
     </WishListNavigation>}

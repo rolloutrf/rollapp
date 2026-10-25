@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { PageActionButton } from "@/components/page-action-button";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
-  CalendarRange,
   FileUp,
   MessageSquareQuote,
-  Sparkles,
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -18,16 +17,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { CareerContentError, useCareerContent } from "@/components/career-content";
 import { PerformanceEditor } from "@/components/performance-editor";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PERFORMANCE_CYCLES } from "@/data/performance-review";
@@ -153,14 +144,14 @@ function ReviewerCard({ reviewer, interaction = false }) {
 
   return (
     <article className="flex flex-col gap-4 py-5 first:pt-0 last:pb-0">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar>
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <CardTitle className="truncate">{reviewer.name}</CardTitle>
-            {reviewer.role && <CardDescription className="truncate">{reviewer.role}</CardDescription>}
+            <h3 className="m-0 font-medium wrap-anywhere">{reviewer.name}</h3>
+            {reviewer.role && <p className="m-0 text-muted-foreground wrap-anywhere">{reviewer.role}</p>}
           </div>
         </div>
         <Score>{reviewer.score}</Score>
@@ -168,12 +159,10 @@ function ReviewerCard({ reviewer, interaction = false }) {
       <div className="flex flex-col gap-4">
         <ReviewBlocks blocks={positive} />
         {showImprove && (
-          <Alert role="note">
-            <AlertTitle>Что можно улучшить</AlertTitle>
-            <AlertDescription>
-              <ReviewBlocks blocks={reviewer.improve} />
-            </AlertDescription>
-          </Alert>
+          <section className="flex min-w-0 flex-col gap-3" aria-label="Что можно улучшить">
+            <h4 className="m-0 font-medium">Что можно улучшить</h4>
+            <ReviewBlocks blocks={reviewer.improve} />
+          </section>
         )}
       </div>
     </article>
@@ -200,63 +189,59 @@ function feedbackNoun(count) {
 
 function ProjectAccordion({ projects }) {
   return (
-    <Card className="min-w-0">
-      <CardContent>
-        <Accordion defaultValue={projects[0]?.id ? [projects[0].id] : []}>
-          {projects.map((project) => {
-            const score = leadingScore(project.reviewers);
-            return (
-              <AccordionItem key={project.id} value={project.id}>
-                <AccordionTrigger className="w-full min-w-0 hover:no-underline">
-                  <div className="flex min-w-0 flex-1 flex-col items-start gap-2 pr-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                    <div className="flex w-full min-w-0 flex-col gap-1 sm:flex-1">
-                      <div className="truncate text-lg font-medium leading-7 text-foreground">{project.title}</div>
-                      <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">
-                        {project.reviewers.length
-                          ? `${project.reviewers.length} ${feedbackNoun(project.reviewers.length)}`
-                          : "Самооценка"}
-                      </div>
-                    </div>
-                    <Score>{score}</Score>
+    <Accordion defaultValue={projects[0]?.id ? [projects[0].id] : []}>
+      {projects.map((project) => {
+        const score = leadingScore(project.reviewers);
+        return (
+          <AccordionItem key={project.id} value={project.id}>
+            <AccordionTrigger className="w-full min-w-0 hover:no-underline">
+              <div className="flex min-w-0 flex-1 flex-col items-start gap-2 pr-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex w-full min-w-0 flex-col gap-1 sm:flex-1">
+                  <div className="truncate text-lg font-medium leading-7 text-foreground">{project.title}</div>
+                  <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">
+                    {project.reviewers.length
+                      ? `${project.reviewers.length} ${feedbackNoun(project.reviewers.length)}`
+                      : "Самооценка"}
                   </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-2">
+                </div>
+                <Score>{score}</Score>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-2">
+                <div className="divide-y">
+                  {project.sections.map((section) => (
+                    <section className="flex max-w-none flex-col gap-3 py-5 first:pt-2" key={section.label}>
+                      <h3 className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight text-foreground">
+                        {section.label}
+                      </h3>
+                      <ReviewBlocks blocks={section.blocks} />
+                    </section>
+                  ))}
+                </div>
+
+                {project.reviewers.length > 0 && (
+                  <section className="flex max-w-none flex-col gap-4 border-t pt-5">
+                    <header className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <MessageSquareQuote className="size-4 text-muted-foreground" aria-hidden="true" />
+                        <h3 className="m-0 text-base leading-6 font-semibold tracking-tight text-foreground">Обратная связь</h3>
+                      </div>
+                      <p className="m-0 text-muted-foreground">Оценки и комментарии коллег по этому результату.</p>
+                    </header>
                     <div className="divide-y">
-                      {project.sections.map((section) => (
-                        <section className="flex max-w-none flex-col gap-3 py-5 first:pt-2" key={section.label}>
-                          <h3 className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight text-foreground">
-                            {section.label}
-                          </h3>
-                          <ReviewBlocks blocks={section.blocks} />
-                        </section>
+                      {project.reviewers.map((reviewer, reviewerIndex) => (
+                        <ReviewerCard key={`${reviewer.name}-${reviewerIndex}`} reviewer={reviewer} />
                       ))}
                     </div>
-
-                    {project.reviewers.length > 0 && (
-                      <section className="flex max-w-none flex-col gap-4 border-t pt-5">
-                        <header className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <MessageSquareQuote className="size-4 text-muted-foreground" aria-hidden="true" />
-                            <h3 className="m-0 text-base leading-6 font-semibold tracking-tight text-foreground">Обратная связь</h3>
-                          </div>
-                          <p className="m-0 text-muted-foreground">Оценки и комментарии коллег по этому результату.</p>
-                        </header>
-                        <div className="divide-y">
-                          {project.reviewers.map((reviewer, reviewerIndex) => (
-                            <ReviewerCard key={`${reviewer.name}-${reviewerIndex}`} reviewer={reviewer} />
-                          ))}
-                        </div>
-                      </section>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            );
-          })}
-        </Accordion>
-      </CardContent>
-    </Card>
+                  </section>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
   );
 }
 
@@ -307,12 +292,6 @@ export function PerformanceReview() {
     if (activeCycle && activeCycle.id !== activeCycleId) setActiveCycleId(activeCycle.id);
     if (!activeCycle && activeCycleId) setActiveCycleId("");
   }, [activeCycle, activeCycleId]);
-
-  const totals = useMemo(() => {
-    const projects = cycles.reduce((sum, cycle) => sum + cycle.projects.length, 0);
-    const feedback = cycles.reduce((sum, cycle) => sum + cycleStats(cycle).feedback, 0);
-    return { projects, feedback };
-  }, [cycles]);
 
   const stats = activeCycle ? cycleStats(activeCycle) : { feedback: 0, excellent: 0 };
 
@@ -376,19 +355,17 @@ export function PerformanceReview() {
     <article className="not-typeset rollapp-body career-content-rail page-stack">
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
-          <Button
-            className="h-12 shrink-0 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-            shape="pill"
+          <PageActionButton
+            className="shrink-0 min-w-[180px] max-[560px]:min-w-0"
             type="button"
             disabled={!activeCycle || careerContent.loading || importing || deleting}
             onClick={() => setEditorOpen(true)}
           >
             {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {careerContent.loading ? "Загружаем" : "Редактировать"}
-          </Button>
-          <Button
-            className="h-12 shrink-0 px-5 text-base"
-            shape="pill"
+          </PageActionButton>
+          <PageActionButton
+            className="shrink-0"
             variant="outline"
             type="button"
             disabled={careerContent.loading || importing || deleting}
@@ -396,7 +373,7 @@ export function PerformanceReview() {
           >
             {importing && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {importing ? "Разбираем PDF" : "Импортировать PDF"}
-          </Button>
+          </PageActionButton>
           <SphereBusinessControls sphereId="career" />
           <input
             ref={fileInputRef}
@@ -415,92 +392,72 @@ export function PerformanceReview() {
           <AlertDescription>{actionFeedback.message}</AlertDescription>
         </Alert>
       )}
-      <header className="flex flex-col gap-4">
-        <Badge variant="secondary"><Sparkles data-icon="inline-start" aria-hidden="true" />История результатов</Badge>
-        <div className="flex flex-col gap-2">
-          <h1 className="m-0 scroll-m-24 text-3xl leading-9 font-semibold tracking-tight">{performanceContent.heading}</h1>
-          <p className="m-0 text-muted-foreground sm:text-balance">
-            {performanceContent.description}
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard value={cycles.length} label="циклов ревью" />
-          <MetricCard value={totals.projects} label="результат" />
-          <MetricCard value={totals.feedback} label="отзывов коллег" />
-        </div>
-      </header>
-
-      <Separator />
-
       {activeCycle ? <Tabs className="min-w-0 gap-6" value={activeCycle.id} onValueChange={setActiveCycleId}>
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0" data-report-navigation>
           <TabsList
-            className="h-auto! min-w-0 w-full flex-wrap justify-start gap-1"
+            className="list-tabs h-auto! min-w-0 w-full flex-nowrap bg-transparent p-0"
+            data-tab-scroller
             aria-label="Циклы перфоманс-ревью"
           >
             {cycles.map((cycle) => (
-              <TabsTrigger className="h-auto min-w-0 basis-40 whitespace-normal wrap-anywhere" key={cycle.id} value={cycle.id}>
-                <CalendarRange data-icon="inline-start" aria-hidden="true" />
-                {cycle.season} {cycle.year}
+              <TabsTrigger
+                data-list-tile
+                data-report-tile
+                key={cycle.id}
+                value={cycle.id}
+                aria-label={`${cycle.season} ${cycle.year}, результатов: ${cycle.projects.length}`}
+              >
+                <span data-slot="list-tile-label">{cycle.season} {cycle.year}</span>
+                <span data-slot="list-tile-meta" aria-hidden="true">
+                  <span data-slot="list-tile-count">{cycle.projects.length}</span>
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
 
         <TabsContent className="flex min-w-0 flex-col gap-6" value={activeCycle.id}>
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2 className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight">Ключевые результаты</h2>
-              </CardTitle>
-              <CardDescription>
+          <section className="flex min-w-0 flex-col gap-6" aria-labelledby="performance-cycle-summary">
+            <header className="flex flex-col gap-2">
+              <h2 id="performance-cycle-summary" className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight">Ключевые результаты</h2>
+              <p className="m-0 text-muted-foreground">
                 Самооценка, подтверждённые результаты и комментарии ревьюеров за период {activeCycle.season.toLocaleLowerCase("ru-RU")} {activeCycle.year}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <MetricCard value={activeCycle.projects.length} label="направлений" />
-                <MetricCard value={stats.feedback} label="отзывов" />
-                <MetricCard value={stats.excellent} label="высоких оценок" />
-              </div>
-            </CardContent>
-          </Card>
+              </p>
+            </header>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricCard value={activeCycle.projects.length} label="направлений" />
+              <MetricCard value={stats.feedback} label="отзывов" />
+              <MetricCard value={stats.excellent} label="высоких оценок" />
+            </div>
+          </section>
 
           <ProjectAccordion key={activeCycle.id} projects={activeCycle.projects} />
 
           {activeCycle.interaction.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <h2 className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight">Качество взаимодействия</h2>
-                </CardTitle>
-                <CardDescription>
+            <section className="flex min-w-0 flex-col gap-6" aria-labelledby="performance-interaction">
+              <header className="flex flex-col gap-2">
+                <h2 id="performance-interaction" className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight">Качество взаимодействия</h2>
+                <p className="m-0 text-muted-foreground">
                   {activeCycle.interaction.length} комментариев о коммуникации, лидерстве и совместной работе.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="divide-y">
-                  {activeCycle.interaction.map((reviewer, index) => (
-                    <ReviewerCard key={`${reviewer.name}-${index}`} reviewer={reviewer} interaction />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                </p>
+              </header>
+              <div className="divide-y">
+                {activeCycle.interaction.map((reviewer, index) => (
+                  <ReviewerCard key={`${reviewer.name}-${index}`} reviewer={reviewer} interaction />
+                ))}
+              </div>
+            </section>
           )}
         </TabsContent>
       </Tabs> : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Циклов ревью пока нет</CardTitle>
-            <CardDescription>{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</CardDescription>
-          </CardHeader>
-          {!readOnly && <CardContent>
-            <Button variant="outline" type="button" disabled={importing} onClick={() => fileInputRef.current?.click()}>
-              <FileUp data-icon="inline-start" aria-hidden="true" />
-              Выбрать PDF
-            </Button>
-          </CardContent>}
-        </Card>
+        <section className="flex min-w-0 flex-col items-start gap-4" aria-label="Циклов ревью пока нет">
+          <h2 className="m-0 font-medium">Циклов ревью пока нет</h2>
+          <p className="m-0 text-muted-foreground">{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</p>
+          {!readOnly && <Button variant="outline" type="button" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+            <FileUp data-icon="inline-start" aria-hidden="true" />
+            Выбрать PDF
+          </Button>}
+        </section>
       )}
       {!readOnly && activeCycle && <PerformanceEditor
         activeCycleId={activeCycle.id}

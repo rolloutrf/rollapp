@@ -1,6 +1,49 @@
 /* Product overlay layout. Base UI owns modality, focus trapping and gestures;
    all portalled surfaces share the same visible (above-keyboard) viewport. */
 @layer utilities {
+  .inline-image-viewer__layout {
+    display: flex;
+    flex-direction: column;
+    block-size: 100%;
+    min-block-size: 0;
+  }
+  .inline-image-viewer__header {
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    padding: var(--layout-item-gap);
+    padding-block-start: max(var(--layout-item-gap), env(safe-area-inset-top));
+  }
+  .inline-image-viewer__body {
+    display: flex;
+    flex: 1;
+    min-block-size: 0;
+    min-inline-size: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--layout-item-gap);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: var(--layout-item-gap);
+    padding-block-end: max(var(--layout-item-gap), env(safe-area-inset-bottom));
+  }
+  .inline-image-viewer__body > img {
+    display: block;
+    flex-shrink: 0;
+    inline-size: auto;
+    block-size: auto;
+    max-inline-size: 100%;
+    max-block-size: 100%;
+    object-fit: contain;
+    margin: auto;
+  }
+  .inline-image-viewer__body > img[hidden] { display: none; }
+  .inline-image-viewer__body[data-image-zoom="expanded"] { align-items: flex-start; }
+  .inline-image-viewer__body[data-image-zoom="expanded"] > img {
+    max-inline-size: none;
+    max-block-size: none;
+    margin: 0;
+  }
   /* Measured --drawer-height must not freeze the smaller keyboard height
      after the keyboard closes. Snap-point drawers keep their own sizing. */
   [data-slot="drawer-popup"]:not([data-snap-points]) {
