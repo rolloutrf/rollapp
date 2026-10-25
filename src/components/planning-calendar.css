@@ -191,5 +191,3 @@
 .schedule-event-wrap[data-compact] > .schedule-resize { left: auto; right: 0; width: 24px; }
 .schedule-event-wrap[data-compact] > .schedule-resize > span { width: 12px; }
 
-/* Calendar tiles own touch moves; empty grid slots retain native scrolling. */
-.schedule-time-column .schedule-event { touch-action: none; user-select: none; -webkit-touch-callout: none; }
