@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       verification:
-        description: "Release verification (snippets only when explicitly requested)"
+        description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets]
+        options: [full, snippets, identity-reports]
         default: full
 
 permissions:
@@ -87,12 +87,16 @@ jobs:
         run: npm ci
 
       - name: Test and build
-        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'snippets'
+        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'snippets' && inputs.verification != 'identity-reports')
         run: npm run check:release
 
       - name: Verify targeted snippet release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'
         run: npm run check:release:snippets
+
+      - name: Verify targeted identity report release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'identity-reports'
+        run: npm run check:release:identity-reports
 
       - name: Log in to Yandex Container Registry via OIDC
         uses: yc-actions/yc-cr-login@v3

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileText, FileUp, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -12,8 +12,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const MAX_PDF_BYTES = 12 * 1024 * 1024;
@@ -63,14 +65,14 @@ export function useIdentityReport(section, client = api) {
   return { state, setState, error, load };
 }
 
-export function IdentityReportControls({ section, label, state, setState, load, navigation, onAddTest, onEditTest, onDeleteTest, client = api }) {
+export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, onDeleteTest, client = api }) {
   const { readOnly } = useSphereSharing();
-  const inputRef = useRef(null);
+  const uploadId = useId();
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(null);
   const canUpload = !readOnly && (state.files?.length || 0) < 8;
   const canDelete = !readOnly && (state.files?.length || 0) > 0;
-  const uploadDisabled = busy || !canUpload;
+  const uploadDisabled = busy || !canUpload || state.mode === "loading" || state.mode === "error";
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])];
@@ -103,20 +105,6 @@ export function IdentityReportControls({ section, label, state, setState, load, 
     }
   };
 
-  const removeAll = async () => {
-    if (busy || !canDelete) return;
-    setBusy(true);
-    try {
-      setState(await client.delete(`/identity/reports/${section}`));
-      setDeleteOpen(null);
-      toast.success(`Контент ${label} и загруженные PDF удалены`);
-    } catch (deleteError) {
-      toast.error(deleteError.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const removeFile = async (file) => {
     if (busy || !canDelete) return;
     setBusy(true);
@@ -133,35 +121,19 @@ export function IdentityReportControls({ section, label, state, setState, load, 
 
   return (
     <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {canUpload && <input
-        ref={inputRef}
-        className="sr-only"
-        type="file"
-        accept="application/pdf,.pdf"
-        aria-label={`Загрузить PDF для ${label}`}
-        multiple
-        disabled={uploadDisabled}
-        onChange={upload}
-      />}
       {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
-        {onAddTest && <PageActionButton type="button" disabled={busy} onClick={onAddTest}><Plus aria-hidden="true" />Добавить тест</PageActionButton>}
-        {canUpload && (
-          <PageActionButton type="button" disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
-            {busy && <Spinner data-icon="inline-start" />}
-            Загрузить
-          </PageActionButton>
-        )}
-        {canDelete && (
-          <PageActionButton type="button" variant="destructive" disabled={busy} onClick={() => setDeleteOpen("all")}>
-            {busy && <Spinner data-icon="inline-start" />}
-            Удалить все
-          </PageActionButton>
-        )}
         {onEditTest && <PageActionButton type="button" disabled={busy} onClick={onEditTest}>Изменить тест</PageActionButton>}
         {onDeleteTest && <PageActionButton type="button" variant="destructive" disabled={busy} onClick={onDeleteTest}>Удалить тест</PageActionButton>}
         <SphereBusinessControls sphereId="identity" />
       </div>}
-      {navigation}
+      {typeof navigation === "function" ? navigation({ busy }) : navigation}
+      {!readOnly && <Field className="min-w-0">
+        <FieldLabel className="min-w-0 wrap-anywhere" htmlFor={uploadId}>Загрузить PDF для {label}</FieldLabel>
+        <Input id={uploadId} className="min-h-12" type="file" accept="application/pdf,.pdf" multiple disabled={uploadDisabled} onChange={upload} aria-describedby={`${uploadId}-help`} />
+        <FieldDescription id={`${uploadId}-help`} className="text-xs">
+          {busy ? <span className="inline-flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем PDF…</span> : "До 8 файлов, каждый не больше 12 МБ. Можно выбрать несколько PDF."}
+        </FieldDescription>
+      </Field>}
       {state.files?.length ? (
         <section className="identity-report-files flex min-w-0 flex-col gap-3" aria-label="Исходные PDF">
           <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span>
@@ -182,14 +154,14 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       {!readOnly && <AlertDialog open={Boolean(deleteOpen)} onOpenChange={(open) => !busy && !open && setDeleteOpen(null)}>
         <AlertDialogContent className="overflow-y-auto">
           <AlertDialogHeader>
-            <AlertDialogTitle className="wrap-anywhere">{deleteOpen === "all" ? `Удалить все PDF ${label}?` : `Удалить PDF «${deleteOpen?.filename}»?`}</AlertDialogTitle>
+            <AlertDialogTitle className="wrap-anywhere">Удалить PDF «{deleteOpen?.filename}»?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteOpen === "all" ? "Все загруженные PDF и их содержимое будут удалены." : "Файл и извлечённое из него содержимое будут удалены из отчёта."}
+              Файл и извлечённое из него содержимое будут удалены из отчёта.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => deleteOpen === "all" ? removeAll() : removeFile(deleteOpen)}>
+            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => removeFile(deleteOpen)}>
               {busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
               Удалить
             </AlertDialogAction>
@@ -209,7 +181,6 @@ export function IdentityReportEmpty({ label }) {
         <EmptyTitle>Страница {label} пока пустая</EmptyTitle>
         <EmptyDescription>{readOnly ? "Владелец пока не добавил материалы в этот раздел." : "Загрузите один или несколько PDF — здесь появится извлечённый из них текст."}</EmptyDescription>
       </EmptyHeader>
-      {!readOnly && <EmptyContent><p>До 8 файлов, каждый не больше 12 МБ.</p></EmptyContent>}
     </Empty>
   );
 }

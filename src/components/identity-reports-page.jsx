@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/api";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ListTileContent } from "@/components/list-tile-content";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,22 +56,24 @@ export function IdentityTestForm({ test, open, onOpenChange, onSaved, save = (va
   </Drawer>;
 }
 
-export function IdentityReportNavigation({ tests }) {
+export function IdentityReportNavigation({ tests, onAddTest, disabled = false }) {
   return <div className="min-w-0 not-typeset" data-report-navigation>
-    <TabsList className="list-tabs h-auto! w-full bg-transparent p-0" data-tab-scroller aria-label="Отчёт о личности">
-      {[{ id: "gallup", title: "Gallup", detail: "CliftonStrengths" }, { id: "hogan", title: "Hogan", detail: "HPI · HDS · MVPI" }, ...tests].map(test => <TabsTrigger key={test.id} data-report-tile value={test.id} title={test.title} aria-label={test.title}>
-        <span data-slot="list-tile-label" className="max-w-full truncate">{test.title}</span>
-        <span data-slot="list-tile-meta">{test.detail || "Личностный тест"}</span>
-      </TabsTrigger>)}
-    </TabsList>
+    <div className="list-tabs" data-tab-scroller>
+      <TabsList className="contents" aria-label="Отчёт о личности">
+        {[{ id: "gallup", title: "Gallup", detail: "CliftonStrengths" }, { id: "hogan", title: "Hogan", detail: "HPI · HDS · MVPI" }, ...tests].map(test => <TabsTrigger key={test.id} data-list-tile data-report-tile value={test.id} title={test.title} aria-label={test.title}>
+          <ListTileContent title={test.title} detail={test.detail || "Личностный тест"} />
+        </TabsTrigger>)}
+      </TabsList>
+      {onAddTest && <Button className="list-tabs__add" type="button" variant="ghost" size="icon" aria-label="Новый тест" title="Новый тест" disabled={disabled} onClick={onAddTest}><Plus className="size-5" aria-hidden="true" /></Button>}
+    </div>
   </div>;
 }
 
-function SelectedIdentityReport({ section, label, navigation, renderBuiltin, onAdd, onEdit, onDelete, client }) {
+function SelectedIdentityReport({ section, label, navigation, renderBuiltin, onEdit, onDelete, client }) {
   const reportState = useIdentityReport(section, client);
   const { state, error, load } = reportState;
   return <>
-    <IdentityReportControls client={client} section={section} label={label} {...reportState} navigation={navigation} onAddTest={onAdd} onEditTest={onEdit} onDeleteTest={onDelete} />
+    <IdentityReportControls client={client} section={section} label={label} {...reportState} navigation={navigation} onEditTest={onEdit} onDeleteTest={onDelete} />
     <TabsContent value={section} className="min-w-0">
       {renderBuiltin ? renderBuiltin(reportState) : state.mode === "loading" || state.mode === "error"
         ? <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />
@@ -115,12 +118,11 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
     catch (cause) { setError(cause.message); setDeleteOpen(false); }
     finally { setDeleting(false); }
   }
-  const navigation = <IdentityReportNavigation tests={tests} />;
+  const navigation = ({ busy }) => <IdentityReportNavigation tests={tests} onAddTest={!readOnly ? () => setForm({}) : undefined} disabled={busy || loading || sharingLoading || Boolean(error)} />;
   return <Tabs className="identity-reports-page identity-report-workspace" value={selected} onValueChange={selectReport}>
     {error && <Alert variant="destructive"><AlertTitle>Не удалось загрузить тесты</AlertTitle><AlertDescription>{error}</AlertDescription><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></Alert>}
     {loading && requested.startsWith("custom-") ? <IdentityReportStatus mode="loading" /> : <SelectedIdentityReport client={client} key={selected} section={selected} label={current?.title || (selected === "hogan" ? "Hogan" : "Gallup")} navigation={navigation}
       renderBuiltin={selected === "gallup" ? renderGallup : selected === "hogan" ? renderHogan : null}
-      onAdd={!readOnly && !loading && !error ? () => setForm({}) : undefined}
       onEdit={current && !readOnly ? () => setForm(current) : undefined} onDelete={current && !readOnly ? () => setDeleteOpen(true) : undefined} />}
     <IdentityTestForm save={value => form?.id ? client.patch(`/identity/reports/${form.id}`, value) : client.post("/identity/reports", value)} test={form?.id ? form : null} open={Boolean(form)} onOpenChange={open => !open && setForm(null)} onSaved={test => { setTests(value => value.some(item => item.id === test.id) ? value.map(item => item.id === test.id ? test : item) : [...value, test]); selectReport(test.id); }} />
     <AlertDialog open={deleteOpen} onOpenChange={open => !deleting && setDeleteOpen(open)}><AlertDialogContent className="overflow-y-auto">
