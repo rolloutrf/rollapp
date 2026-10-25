@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
 import { MarkdownManager } from "@tiptap/markdown";
 import { inlineEditorExtensions } from "./inline-editor-extensions.js";
 import { getSchema } from "@tiptap/core";
@@ -14,9 +13,15 @@ const semantics = node => node.type === "text"
   : [{ type: node.type, attrs: node.attrs, content: (node.content || []).flatMap(semantics) }];
 const textOf = node => [node.text || "", ...(node.content || []).map(textOf)].join("");
 
-test("editor preserves existing documents through Markdown round trips", async () => {
-  for (const file of ["about-me", "mission", "domain", "life-strategy", "theses"]) {
-    const source = await readFile(new URL(`../data/${file}.md`, import.meta.url), "utf8");
+test("editor preserves representative documents through Markdown round trips without private fixtures", () => {
+  const documents = {
+    about: "### Вопрос\n\nОтвет с **выделением** и [ссылкой](https://example.com).\n\n### Второй вопрос\n\nДва абзаца.\n\nПоследний абзац.",
+    mission: "# Миссия\n\n:::label Ориентир\n\n:::statement Завершённая мысль\n\n- Первая практика\n- Вторая практика",
+    domain: "## Область\n\n1. Первый шаг\n2. Второй шаг\n   - Вложенная практика\n\n---\n\nСледующий раздел.",
+    strategy: "# 35 y.o.\n\n## Планы\n\n- [ ] Запланировано\n- [x] Завершено\n\n# 40 y.o.\n\nБудущий период.",
+    theses: "> Первая мысль.\n\n> Вторая мысль с *акцентом*.\n\nОбычный абзац после цитат.",
+  };
+  for (const [file, source] of Object.entries(documents)) {
     const markdown = manager();
     // Compare actual editor documents: the schema supplies default mark attrs
     // that a legacy Markdown parse can omit. Keep every explicit attribute.

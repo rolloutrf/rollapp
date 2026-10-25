@@ -2,7 +2,6 @@ import { useEffect, useId, useMemo, useState } from "react";
 import {
   AlertTriangle, Pencil, Plus, X,
 } from "lucide-react";
-import cvSource from "@/data/cv.md?raw";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
 import {
@@ -306,8 +305,8 @@ function formatMonth(value) {
 export function CvResume() {
   const { readOnly } = useSphereSharing();
   const [editor, setEditor] = useState(null);
-  const careerContent = useCareerContent("cv", normalizeCvContent(null, cvSource));
-  const cv = useMemo(() => normalizeCvContent(careerContent.content, cvSource), [careerContent.content]);
+  const careerContent = useCareerContent("cv", normalizeCvContent(null, ""));
+  const cv = useMemo(() => normalizeCvContent(careerContent.content, ""), [careerContent.content]);
   const hasStructuredContent = cvHasStructuredContent(cv);
 
   const saveEditor = (activeEditor, draft) => {

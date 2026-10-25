@@ -595,3 +595,20 @@ mobile history, PDF reader, отмена и подтверждение удал�
 `node scripts/migrate-personal-development-plan.mjs --apply` расширяет только список
 разделов после отдельного разрешения, без изменений существующих документов.
 Обычный startup/deploy остаётся в режиме verify.
+
+## Личные тексты и public source
+
+Личные документы сфер читаются только через authenticated content/report API.
+Не добавляйте личный Markdown, ответы, CV, планы или архивы feedback в src/data
+и не используйте их как общий fallback. При отсутствии записи показывается пустой
+документ; ошибки БД/API сохраняются видимыми. Синтетические тестовые props не
+являются production storage. Старые PDF используются только parser fixtures,
+не импортируются клиентом и не заменяют загруженные отчёты владельца.
+
+`node scripts/import-identity-document.mjs --username OWNER --section SECTION
+--file /private/document.md` проверяет точную production БД/роль и читает состояние
+без записи. Отдельный `--apply` создаёт только отсутствующий документ выбранного
+владельца через ON CONFLICT DO NOTHING. Существующие и параллельно созданные
+документы не перезаписываются; schema initialization/migrations не запускаются.
+Локальный Obsidian performance export по умолчанию сохраняется вне публичного
+репозитория с правами 0600, в формате JSON для последующего явного импорта.
