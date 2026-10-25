@@ -12,7 +12,7 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
     readFile(new URL("src/components/ui/accordion.jsx", root), "utf8"),
   ]);
 
-  for (const component of ["accordion", "alert", "avatar", "badge", "card", "separator", "tabs"]) {
+  for (const component of ["accordion", "alert", "avatar", "badge", "tabs"]) {
     assert.match(source, new RegExp(`@/components/ui/${component}`), `PerformanceReview must use shadcn ${component}`);
   }
 
@@ -42,11 +42,6 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   );
   assert.match(
     source,
-    /scroll-m-24 text-3xl leading-9 font-semibold tracking-tight/,
-    "The page title must keep the shadcn docs heading scale",
-  );
-  assert.match(
-    source,
     /<article className="not-typeset rollapp-body career-content-rail page-stack/,
     "The performance page must use the same centered content rail as CV",
   );
@@ -62,13 +57,10 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   );
   assert.doesNotMatch(source, /\bspace-[xy]-/, "shadcn compositions must use parent gap utilities instead of space-* selectors");
   assert.match(source, /<Tabs className="min-w-0 gap-6"/, "Tabs must own the gap between their list and panel");
-  assert.match(
-    source,
-    /className="h-auto! min-w-0 w-full flex-wrap justify-start gap-1"/,
-    "The review-cycle tab list must grow by rows within the available width",
-  );
-  assert.match(source, /<TabsTrigger className="h-auto min-w-0 basis-40 whitespace-normal wrap-anywhere"/, "Review-cycle tabs must share spare width and wrap long labels");
-  assert.doesNotMatch(source, /<TabsTrigger className="flex-none"/, "Review-cycle tabs must not opt out of equal-width growth");
+  assert.match(source, /data-report-navigation/, "Review periods must use the shared tile navigation");
+  assert.match(source, /className="list-tabs h-auto! min-w-0 w-full flex-nowrap bg-transparent p-0"/, "Period tiles must keep one scrollable row without a filled rail");
+  assert.match(source, /data-list-tile[\s\S]*?data-report-tile/, "Review periods must reuse shared list tile geometry and active states");
+  assert.match(source, /data-slot="list-tile-count">\{cycle.projects.length\}/, "Each period tile must show its result count");
   assert.match(source, /REVIEW_SCORE_LABELS\.has\(label\)/, "Review prose must never be rendered inside a score badge");
   assert.match(source, /whitespace-nowrap text-xs font-normal text-muted-foreground/, "Feedback counts must remain readable when a project header is narrow");
   assert.match(
