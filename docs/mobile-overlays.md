@@ -1,5 +1,13 @@
 # Mobile overlay behavior
 
+Native `Input type="time"` keeps its picker and HTML value semantics, but the
+product layer in `src/index.css` sets `appearance: none` and border-box sizing.
+iOS RenderTheme otherwise changes percentage-width date/time controls to
+content-box and enforces an intrinsic minimum, allowing their borders beyond
+the page rail. Do not fix this by clipping the page. `test:time-inputs` checks
+the shared controls in WebKit and Chromium; macOS WebKit does not reproduce the
+iOS native theme, so a pass does not establish actual-device correctness.
+
 Inline image viewing composes the existing FullscreenDialog. Its ControlBar
 header remains outside one min-height:0 scrolling image body; both respect the
 shared visible viewport and safe areas. Base UI retains modality/focus trapping.
