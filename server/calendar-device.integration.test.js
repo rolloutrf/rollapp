@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import { z } from "zod";
 import { registerCalendarDeviceRoutes } from "./calendar-device.js";
@@ -41,6 +43,10 @@ test("device Calendar intake persists read-only events with scoped, revocable cr
     const endpoint = (method, space, body, session) => request(method, `/api/planning/calendar-device?space=${space}`, body, session);
     const events = (space, session) => request("GET", `/api/planning/calendar-device/events?space=${space}`, null, session);
     assert.equal((await endpoint("GET", spaces[0], null, "invalid")).status, 401);
+    const archiveExists = existsSync(fileURLToPath(new URL("../native/apple-calendar/build/RollappCalendar-macOS.zip", import.meta.url)));
+    const download = await fetch(`${origin}/api/planning/calendar-device/macos`, { headers: { "X-Test-Session": sessions[0] } });
+    assert.equal(download.status, archiveExists ? 200 : 503, download.status === 500 ? await download.text() : "Installer response");
+    if (archiveExists) assert.equal(Buffer.from(await download.arrayBuffer()).subarray(0, 2).toString(), "PK");
     assert.equal((await endpoint("POST", spaces[0], {}, sessions[1])).status, 404);
     const first = await endpoint("POST", spaces[0], {}); assert.equal(first.status, 200);
     assert.equal((await endpoint("POST", spaces[0], {})).body.token, first.body.token);
