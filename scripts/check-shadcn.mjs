@@ -311,7 +311,16 @@ assert.doesNotMatch(legacyStyles, /--brand-logo-(?:left|right|center):/, "The re
 for (const component of ["Alert", "Badge", "Button", "Card", "Accordion", "Input", "Spinner", "Tabs"]) {
   assert(new RegExp(`<${component}\\b`).test(labResultsSource), `LabResults must compose the official shadcn ${component}`);
 }
-for (const component of ["Alert", "Badge", "Button", "Card", "Field", "Input", "Select", "Spinner", "Textarea"]) {
+const snippetMediaSource = await read("src/components/collection-snippet-media.jsx");
+assert.match(snippetMediaSource, /import \{ Badge \} from "@\/components\/ui\/badge"/, "CollectionSnippetBadge must use the official Badge primitive");
+assert.match(snippetMediaSource, /<Badge\b/, "CollectionSnippetBadge must compose the official Badge");
+const snippetLinkSource = await read("src/components/collection-snippet-link.jsx");
+assert.match(snippetLinkSource, /cn\(buttonVariants\(/, "Snippet links must merge official button variants through cn");
+assert.match(coursesSource, /<CollectionSnippetLink\b/, "Courses must use the shared wrapping snippet link");
+assert.match(coachingSessionsSource, /<CollectionSnippetLink\b/, "Coaching must use the shared wrapping snippet link");
+assert.match(JSON.parse(packageText).scripts["check:release"], /npm run test:snippets/, "The complete snippets matrix must remain a release gate");
+
+for (const component of ["Alert", "CollectionSnippetBadge", "Button", "Card", "Field", "Input", "Select", "Spinner", "Textarea"]) {
   assert(new RegExp(`<${component}\\b`).test(coachingSessionsSource), `CoachingSessions must compose the official shadcn ${component}`);
   assert(new RegExp(`<${component}\\b`).test(coursesSource), `Courses must compose the official shadcn ${component}`);
   assert(new RegExp(`<${component}\\b`).test(conferencesSource), `Conferences must compose the official shadcn ${component}`);

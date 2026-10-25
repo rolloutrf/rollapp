@@ -379,11 +379,8 @@ input.phone-otp__code {
 
 /* Education cards share the Wishlist pointer/long-press sorting language. */
 .education-card { position: relative; }
-.education-card__drag-handle { display: none; position: absolute; z-index: 20; top: 4px; left: 4px; width: var(--layout-control-size); height: var(--layout-control-size); border-radius: 50%; touch-action: none; -webkit-touch-callout: none; }
+.education-card__drag-handle { position: absolute; z-index: 20; top: 4px; left: 4px; width: var(--layout-control-size); height: var(--layout-control-size); border-radius: 50%; touch-action: none; -webkit-touch-callout: none; }
 .education-card__drag-handle svg { width: 20px; height: 20px; pointer-events: none; }
-@media (hover: none), (any-pointer: coarse) {
-  .education-card__drag-handle { display: inline-flex; }
-}
 .education-card--drag-preview .education-card__drag-handle { display: none !important; }
 .education-card.is-draggable {
   cursor: grab;
@@ -10078,9 +10075,14 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
   border: 1px solid color-mix(in oklch, white 26%, transparent);
   color: white;
   background: color-mix(in oklch, black 70%, transparent);
-  text-overflow: ellipsis;
-  white-space: nowrap;
   backdrop-filter: blur(10px);
+}
+/* Match touch-handle visibility, including wide touchscreens. */
+@media (hover: none), (any-pointer: coarse) {
+  .education-card > [data-card-drag-handle] ~ * .collection-snippet__badge {
+    top: auto;
+    bottom: 12px;
+  }
 }
 .collection-snippet__media img {
   display: block;
@@ -10098,7 +10100,8 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
 }
 .collection-snippet__placeholder svg { width: 48px; height: 48px; stroke-width: 1.5; }
 .collection-snippet > [data-slot="card-header"] { padding: 10px 2px 0; }
-.collection-snippet > [data-slot="card-content"] { padding: var(--snippet-flow) 2px 0; }
+.collection-snippet > [data-slot="card-content"] { min-width: 0; padding: var(--snippet-flow) 2px 0; overflow-wrap: anywhere; }
+.collection-snippet [data-slot="card-content"] svg { flex-shrink: 0; }
 .collection-snippet > [data-slot="card-footer"] {
   padding: var(--snippet-flow) 2px 0;
   border: 0;

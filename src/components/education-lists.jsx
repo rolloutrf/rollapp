@@ -52,7 +52,7 @@ export function EducationItemListMenu({
       <DropdownMenuTrigger
         render={(
           <Button
-            className="pointer-events-auto relative z-20 size-9 rounded-full"
+            className="pointer-events-auto relative z-20 size-(--layout-control-size) rounded-full"
             variant="ghost"
             size="icon-lg"
             type="button"
@@ -61,7 +61,7 @@ export function EducationItemListMenu({
         )}
         aria-label={grouping || onRemoveFromGroup || onDelete ? `Действия: ${itemTitle}` : `Переместить ${itemLabel} «${itemTitle}» в другой список`}
       >
-        {moving ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
+        {moving ? <Spinner className="size-5" aria-hidden="true" /> : <MoreHorizontal className="size-5" aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="rollapp-body w-(--layout-menu-wide-width) max-w-(--available-width) rounded-3xl p-3"
