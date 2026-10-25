@@ -21,3 +21,11 @@ PlanningDayRibbon теперь использует общий ListTileContent. 
 Standing user request: деплой без сложного аудита. После local affected full matrices используется targeted health gate (unit/UI/полный controls/полный health/build). Comprehensive/editor matrix не запускались и не заявляются PASS. Итоговый SHA/CI/production/live review будут дописаны после выпуска.
 
 Production до выпуска healthy2b04024. Рассмотрен старый image18bb093354bb8ea5c36f2696c6321381d8cd68a5 (id702dec9a,2026-10-23): ни один контейнер не ссылается, registry manifest доступен, не current/previous или сохранённый rollback checkpoint. Удалён только этот точный cache tag без force/prune/контейнеров/volumes. Current2b04024, previous3c440c9 и checkpoints сохранены; свободно6765240320bytes перед pull.
+
+## CI и синхронизация теста
+
+Run40232361429 на dfd84ab: unit/UI/полный controls прошли; test:health остановился на первом sleep navigation с ERR_ABORTED (переход к empty сразу после закрытия native form). Image/metadata rollout не выполнялись, production остался2b04024.
+
+Повторный анализ исходника MobileFormPages показал: unregister сначала скрывает DOM, затем через timer запускает history Back. Health smoke ждал только скрытия поля и мог начать следующий goto раньше этого Back. Лог optimizer bundling сам по себе НЕ доказывает reload: прежняя атрибуция ошибки холодному Vite была предварительной и недостаточной. Явная prebundle настройка сохранена; в health smoke добавлено ожидание реального возврата URL без formScreen после успешного Save/Back перед следующей формой/навигацией. Assertions не сокращены, перехвата/подавления ошибки или goto retry нет; продуктовый form lifecycle не менялся.
+
+Локальный повтор `npm run test:health` с ожиданием URL возврата — PASS20 cases, exit0; `/tmp/rollapp-carousel-health-return.log`. В промежуточной неподготовленной версии helper был объявлен const ниже исполняемого top-level цикла (ReferenceError); заменён hoisted function declaration до финального полного PASS, в release эта промежуточная версия не попадала. Остальные product sources dfd84ab и их полные local matrices не менялись.

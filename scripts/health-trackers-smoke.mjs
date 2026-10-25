@@ -8,7 +8,7 @@ import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 const output = "/tmp/rollapp-health-trackers";
 await mkdir(output, { recursive: true });
-// Discover fixture/Base UI imports before navigation so a cold optimizer cannot reload an active form.
+// Prebundle the transformed fixture and shared app chrome dependencies on cold startup.
 const server = await createServer({ cacheDir: "node_modules/.vite-health-smoke", optimizeDeps: { entries: ["scripts/fixtures/health-trackers.jsx"], include: [...smokeBaseUiDependencies, "next-themes", "qrcode", "sonner"] }, server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "health-fixture", enforce: "pre", transform(source, id) {
   if (id.endsWith("/src/lib/sphere-sharing.jsx")) return `${source}\nexport { SphereSharingContext };`;
   if (id.endsWith("/src/App.jsx?health-smoke")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext };`;
@@ -67,6 +67,10 @@ async function assertGeometry(page, label) {
  assert(result.controls.every(control => Math.abs(control.height - 48) < 0.1 && control.radius >= 24), `${label}: shared control geometry`);
 }
 
+// A native form unmounts before its queued history Back completes. Do not open
+// another form or navigate away until the owning tracker URL has returned.
+function waitForTrackerReturn(page) { return page.waitForURL(url => !url.searchParams.has("formScreen")); }
+
 async function checkSleepHistory(page, article, width, height) {
  await assertGeometry(page, `${width} sleep history`);
  assert.equal(await article.getByRole('button', { name: /Предыдущий день|Следующий день|День трекера|Добавить/ }).count(), 0);
@@ -85,12 +89,14 @@ async function checkSleepHistory(page, article, width, height) {
  assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Обновлённый сон');
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await article.getByText('Обновлённый сон', { exact: true }).waitFor();
+ await waitForTrackerReturn(page);
  await article.getByText('Прошлая ночь', { exact: true }).waitFor();
  assert.equal(await article.getByRole('button', { name: /^(Редактировать|Удалить):/ }).count(), 0, 'Sleep cards have no inline edit/delete actions');
  await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).click();
  assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Обновлённый сон');
  await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
  await page.getByLabel('Заметки', { exact: true }).waitFor({ state: 'hidden' });
+ await waitForTrackerReturn(page);
  await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&empty=1`);
  await article.waitFor();
  await page.getByRole('button', { name: `Записать сон: ${today}`, exact: true }).waitFor();
@@ -99,6 +105,7 @@ async function checkSleepHistory(page, article, width, height) {
  await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).waitFor();
+ await waitForTrackerReturn(page);
  await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&readonly=1`);
  await article.waitFor();
  assert.equal(await article.getByRole('button').count(), 0, 'Read-only history is not interactive');
@@ -109,6 +116,7 @@ async function checkSleepHistory(page, article, width, height) {
  await page.getByLabel('Заметки', { exact: true }).fill('Не сохранено');
  await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
  await article.getByText('Как вы спали?', { exact: true }).waitFor();
+ await waitForTrackerReturn(page);
  console.log(`PASS sleep history ${width}x${height}: daily tiles, descending history, whole-card open, no calendar/add, retry, card edit, no inline actions, create/cancel, read-only`);
 }
 
@@ -163,6 +171,7 @@ async function checkNutritionTodo(page, article, width, height) {
  assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Черновик питания');
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await article.getByText('Черновик питания', { exact: true }).waitFor();
+ await waitForTrackerReturn(page);
  await article.getByRole('button', { name: /^Удалить:/ }).click();
  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
  await article.getByRole('button', { name: /^Удалить:/ }).click();
@@ -180,6 +189,7 @@ async function checkNutritionTodo(page, article, width, height) {
  await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await article.getByRole('checkbox', { name: 'Съедено: Новый приём пищи', exact: true }).waitFor();
+ await waitForTrackerReturn(page);
  assert(!(await article.locator('section[aria-label="Запланировано"]').getByRole('checkbox', { name: 'Съедено: Новый приём пищи', exact: true }).isChecked()));
  if (width >= 768) {
   const composer = article.getByRole('textbox', { name: 'Новый приём пищи на этот день', exact: true });
