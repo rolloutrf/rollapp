@@ -1,11 +1,10 @@
 import { EditableMarkdownDocument } from "@/components/career-content";
-import domainSource from "@/data/domain.md?raw";
 
 export function Domain() {
   return (
     <EditableMarkdownDocument
       section="domain"
-      source={domainSource}
+      source={""}
       label="Домен"
       className="career-domain"
       showActionLabel
