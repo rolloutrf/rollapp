@@ -34,4 +34,5 @@ test("snapshot validation rejects duplicates, unknown fields, invalid ranges, ne
   for (const value of [snapshot([event, event]), { ...snapshot([event]), unknown: true }, { ...snapshot([event]), to: "2028-10-28" }, { ...snapshot([event]), timeZone: "Invalid/Zone" }, snapshot([{ ...event, end: event.start }])]) assert(!calendarDeviceSnapshotSchema.safeParse(value).success);
   const single = calendarDeviceTasks("owner", "space", snapshot([{ ...event, start: "2026-10-25T20:59:00Z", end: "2026-10-25T21:00:00Z" }]));
   assert.equal(single[0].durationMinutes, 1);
+  assert.throws(() => calendarDeviceTasks("owner", "space", { ...snapshot([{ ...event, start: "2026-11-01T05:30:00Z", end: "2026-11-01T06:15:00Z" }]), from: "2026-11-01", to: "2026-11-02", timeZone: "America/New_York" }), cause => cause.status === 400);
 });

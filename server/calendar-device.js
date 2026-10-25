@@ -51,6 +51,7 @@ export function calendarDeviceTasks(owner, space, snapshot) {
   for (const event of snapshot.events) {
     const start = local(event.start), end = local(event.end);
     if (end.date < start.date) throw error(400, "Не удалось представить событие в часовом поясе устройства");
+    if (start.date === end.date && end.minute <= start.minute) throw error(400, "В календаре есть событие короче минуты или с повторяющимся часом при смене часового пояса. Этот снимок не применён; прежние события сохранены.");
     const last = end.minute === 0 ? new Date(Date.parse(`${end.date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10) : end.date;
     let date = start.date < snapshot.from ? snapshot.from : start.date;
     for (; date <= last && date <= snapshot.to; date = next(date)) {
@@ -140,6 +141,8 @@ export function registerCalendarDeviceRoutes(app, { requireAuth, query, transact
   app.get("/api/planning/calendar-device/macos", requireAuth, route(async (_req, res) => {
     const file = env.ROLLAPP_CALENDAR_MACOS_ARCHIVE || fileURLToPath(new URL("../native/apple-calendar/build/RollappCalendar-macOS.zip", import.meta.url));
     if (!existsSync(file)) return res.status(503).json({ error: "Приложение для macOS ещё не собрано. См. native/apple-calendar/README.md" });
-    res.download(path.resolve(file), "RollappCalendar-macOS.zip");
+    // The trusted build path can live under .codex/worktrees on this Mac.
+    // No request path or filename is used to select a download.
+    res.download(path.resolve(file), "RollappCalendar-macOS.zip", { dotfiles: "allow" });
   }));
 }
