@@ -30,6 +30,8 @@ if (managedToken) {
 process.env.NODE_ENV ||= "development";
 process.env.DEMO_MODE = "false";
 process.env.ROLLAPP_DATABASE_INITIALIZATION = "verify";
+// Each persistent checkout shares the production role; avoid eight clients per preview.
+process.env.PG_POOL_SIZE ||= "1";
 if (productionConnectionMode(process.env) === "tunnel") {
   const tunnel = await startTunnel();
   if (!tunnel.ready) throw new Error("Production PostgreSQL недоступен через SSH-туннель.");

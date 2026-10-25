@@ -49,6 +49,8 @@
 
 ## Database
 
+- Keep the shared production PostgreSQL connection budget: `PG_POOL_SIZE=2` in the production Compose and `PG_POOL_SIZE=1` per persistent development preview. Follow `docs/database-connections.md`; never size each checkout as if the role limit were private to it. Preserve configured production/TLS/verify mode and keep managed previews running after changes.
+
 - Always use the repository's configured production database for Rollapp development, previews, diagnostics, and verification.
 - Never silently substitute an in-memory, demo, mock, or local database when the production database is unavailable. Report the connection problem instead.
 - Keep the production development connection running between tasks. Use direct TLS access by default; use the SSH tunnel only when `ROLLAPP_DATABASE_CONNECTION=tunnel` is explicitly configured. On this Mac, `npm run dev:keepalive` enables the persistent service and `npm run dev:keepalive:status` checks it. Do not stop it after verification unless the user asks.

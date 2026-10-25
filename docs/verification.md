@@ -228,6 +228,9 @@ Cmd+Shift и Alt+Shift в Chromium с fixture-only navigator.platform; это н
 
 ## Выпуск и восстановление
 
+Общий бюджет PostgreSQL: [database-connections.md](database-connections.md).
+Production pool — 2, один persistent preview — 1; учитывать общий лимит Odyssey 20.
+
 Обычный production release задаёт в Compose
 `ROLLAPP_DATABASE_INITIALIZATION: "verify"`. Backend проверяет существующую
 auth/document/planning схему в READ ONLY транзакции, сохраняя reserved-username
