@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      verification:
+        description: "Release verification (snippets only when explicitly requested)"
+        type: choice
+        options: [full, snippets]
+        default: full
 
 permissions:
   contents: read
@@ -86,7 +92,12 @@ jobs:
         run: npx playwright-core install --with-deps webkit
 
       - name: Test and build
+        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'snippets'
         run: npm run check:release
+
+      - name: Verify targeted snippet release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'
+        run: npm run check:release:snippets
 
       - name: Log in to Yandex Container Registry via OIDC
         uses: yc-actions/yc-cr-login@v3

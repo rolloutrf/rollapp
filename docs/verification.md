@@ -612,3 +612,5 @@ mobile history, PDF reader, отмена и подтверждение удал�
 документы не перезаписываются; schema initialization/migrations не запускаются.
 Локальный Obsidian performance export по умолчанию сохраняется вне публичного
 репозитория с правами 0600, в формате JSON для последующего явного импорта.
+
+По прямому запросу пользователя 25 октября «Задеплой без сложного аудита» для UI-сниппетов добавлен явный manual release mode `verification=snippets`: `check:release:snippets` выполняет unit, UI, полный test:controls, полный test:snippets, полный drag/drop и build. Default и push-релизы сохраняют полный check:release. Веточный comprehensive не публикует приложение. Этот выбор разрешён только при явном запросе целевого выпуска; незавершённый comprehensive отмечается как отменённый, а не PASS. Schema verify, OIDC, сериализация rollout и exact-SHA health остаются обязательными.

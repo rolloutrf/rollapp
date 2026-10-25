@@ -27,3 +27,9 @@ Upstream shadcn primitives, схема и пользовательские да�
 Подготовлен веточный запуск `check:comprehensive` без фильтров. `test:snippets` добавлен в release gate; audit artifact сохраняет его JSON и failure screenshots. Веточный job имеет contents:read и не публикует production. Ожидается итог всех11 этапов на одном commit; отдельные локальные PASS не выдаются за полный comprehensive.
 
 Production до нового явно запрошенного rollout остаётся на `9daf0a4`. Живой UI прочитан в существующей production-сессии без сохранений. Физические iOS/Android touch/IME не проверены; CDP touch не заменяет устройство.
+
+## Запрос на целевой выпуск
+
+Пользователь затем явно запросил: «Задеплой без сложного аудита». Comprehensive run40194923881 на чистом `a2a2c488c67589aba69df6e290f68a7cc6fabd95` отменён по этому запросу во время test:text-edit; полного comprehensive PASS нет. До отмены прошли unit/UI, все352 snippet records, page scrollers, lab results, controls, details, dates, calendar, form actions. Локальный финальный `test:snippets` на том же чистом SHA также дал352 PASS (`/tmp/rollapp-snippets/final-stable-theme.json`). Дополнительно просмотрены все пять типов на390/1440px в обеих темах, включая native touch screenshots.
+
+Для явно запрошенного UI-выпуска добавлен manual `verification=snippets` с unit/UI/controls/snippets/drag-drop/build. Полный default release и comprehensive не меняются. Схема проверяется в READ ONLY перед rollout, без миграций. Итоговый SHA и production health будут записаны после выпуска.
