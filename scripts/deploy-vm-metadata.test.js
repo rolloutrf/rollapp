@@ -134,6 +134,7 @@ test("targeted snippet releases require an explicit manual choice and retain con
 
 test("manual branch audits run the full matrix without production deployment or cloud credentials", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
+  assert(workflow.includes("group: ${{ github.ref == 'refs/heads/main' && 'rollapp-production-deploy' || format('rollapp-ui-audit-{0}', github.ref) }}"), "Read-only branch audits must not occupy the serialized production deployment queue");
   const audit = workflow.split("  audit:\n")[1].split("  deploy:\n")[0];
   assert.match(audit, /if: github.event_name == 'workflow_dispatch' && github.ref != 'refs\/heads\/main'/);
   assert.match(audit, /permissions:\s+contents: read\s+steps:/);
