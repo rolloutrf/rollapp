@@ -1,0 +1,128 @@
+{
+  "date": "2026-10-25",
+  "recordedAt": "2026-10-25T18:16:36.812326+00:00",
+  "sourceCommit": "2b308122f58d982e968330df44b619f8087c48cf",
+  "sourceDirtyAtFinalReadback": false,
+  "runtimeImageVersion": "8559466a181a957f115cad3b77305697447bcf07",
+  "error": {
+    "database": "rollapp",
+    "role": "rollapp_app",
+    "code": "53300",
+    "message": "too many active clients for user; pool_size20",
+    "route": "GET /api/dashboard",
+    "dashboardParallelQueryIndex": 5
+  },
+  "configuration": {
+    "productionPoolBefore": 8,
+    "productionPoolAfter": 2,
+    "managedPreviewDefault": 1,
+    "schemaMode": "verify",
+    "otherComposeFieldsChanged": false,
+    "applicationImageChangedByHotfix": false
+  },
+  "previewRecovery": {
+    "configuredAndRunning": [
+      {
+        "workspace": "520c",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "5b7f",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "8cc3",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "1931",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "rollout",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "38c7",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "15d7",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "b2bb",
+        "pool": "1",
+        "running": true
+      },
+      {
+        "workspace": "f9a8",
+        "pool": "1",
+        "running": true
+      }
+    ],
+    "untouchedProcesses": [
+      {
+        "workspace": "cdbd",
+        "reason": "source checkout absent; existing process left running"
+      },
+      {
+        "workspace": "b60c",
+        "reason": "source checkout absent; existing process left running"
+      },
+      {
+        "workspace": "8e97",
+        "reason": "source checkout absent; existing process left running"
+      },
+      {
+        "workspace": "ccee",
+        "reason": "source checkout absent; existing process left running"
+      },
+      {
+        "workspace": "4452",
+        "reason": "source checkout absent; existing process left running"
+      },
+      {
+        "workspace": "2bed",
+        "reason": "source checkout absent; existing process left running"
+      }
+    ],
+    "persistentServicesDisabled": 0,
+    "f9a8ApiPortCollisionFixed": {
+      "old": 8080,
+      "new": 8338,
+      "frontend": 5238
+    },
+    "privateEnvironmentBackups": "outside repository, permissions0600/0700"
+  },
+  "verification": {
+    "productionRuntimePool": 2,
+    "authenticatedDashboardReadback": true,
+    "productionWishlistVisible": true,
+    "visibleLoadError": false,
+    "realExistingSchemaReadOnlyVerify": true,
+    "recentPoolErrorsLastThreeMinutes": 0,
+    "automatedTests": "not run, preserving user request",
+    "sustainedLoadMatrix": "not run"
+  },
+  "dataSafety": {
+    "schemaChanges": false,
+    "databaseSessionsTerminated": false,
+    "authoredWishEdits": false,
+    "vmRestarted": false,
+    "databaseRoleLimitChanged": false
+  },
+  "releaseCoordination": {
+    "preservedIdentityUiCommit": "5f347fe213ba2593cfa5b8e2e19d533a214afd2e",
+    "nextSharedRelease": "2b308122f58d982e968330df44b619f8087c48cf",
+    "nextSharedRun": "https://github.com/rolloutrf/rollapp/actions/runs/40220215550",
+    "oldRunCancelledBeforeMetadata": "https://github.com/rolloutrf/rollapp/actions/runs/40219201016"
+  }
+}

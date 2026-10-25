@@ -20,3 +20,8 @@ PORT/frontend port, direct TLS, production target и startup `verify`; не ме
 Для emergency config-only rollout сохранять текущие image/APP_VERSION и остальные
 поля Compose, менять только PG_POOL_SIZE через штатный metadata guard. Следующий
 обычный выпуск использует то же ограничение из template. См. [случай 25 октября](wishlist-pool-recovery-2026-10-25.md).
+
+После `launchctl bootout` старый PID может ещё завершаться. Перед повторным enable
+дождаться подтверждённого выхода owned PID; сбой ps/lsof или EPERM не означает
+устаревший процесс. Использовать штатный controller и сохранять PID-файл, пока
+владелец не проверен. Не подменять readiness одной копии ответом другой на общем порту.
