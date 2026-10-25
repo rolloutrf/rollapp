@@ -66,7 +66,7 @@
     "cdek:import": "node scripts/import-cdek-points.mjs",
     "test:cdek:production": "ROLLAPP_TEST_CDEK=1 node --test server/cdek.integration.test.js",
     "test:cdek:visual": "ROLLAPP_TEST_CDEK=1 CDEK_TEST_UI=1 node --test server/cdek.integration.test.js",
-    "test:calendar": "node scripts/calendar-events-smoke.mjs",
+    "test:calendar": "node scripts/calendar-events-smoke.mjs && node scripts/calendar-gestures-smoke.mjs",
     "test:drag-drop": "node scripts/drag-drop-smoke.mjs",
     "test:snippet-badges": "node scripts/snippet-badges-smoke.mjs",
     "test:notes": "node scripts/planning-notes-smoke.mjs",
@@ -94,7 +94,6 @@
     "@tiptap/starter-kit": "^3.32.0",
     "@ton/core": "^0.63.1",
     "@ton/crypto": "^3.3.0",
-    "@ton/ton": "^16.3.0",
     "@tonconnect/sdk": "^4.0.2",
     "@vitejs/plugin-react": "latest",
     "class-variance-authority": "^0.7.1",
@@ -132,6 +131,7 @@
     "concurrently": "^9.2.5",
     "shadcn": "^4.22.1",
     "sharp": "^0.35.5",
-    "vite": "8.1.6"
+    "vite": "8.1.6",
+    "@ton/ton": "^16.3.0"
   }
 }
