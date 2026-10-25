@@ -582,3 +582,16 @@ mobile history, PDF reader, отмена и подтверждение удал�
 `npm run test:snippets` входит в `check:release`: реальные карточки курсов, конференций, коучинга, тренировок и препаратов, все статусы, owner/read-only/busy, обе темы, mouse/touch, 11 размеров 320–1920px и короткие окна. Проверяются glyph/badge bounds, ручки и native drag preview/cancel, меню/ссылки/клавиатура, overflow, изображения/loading/fallback/source replacement и отказ старого запроса. JSON и screenshots сохраняются в `/tmp/rollapp-snippets/`; веточный comprehensive job включает JSON/failure screenshots в artifact. `--diagnostic` запускает только 320px и не заменяет полный прогон. Контракт: [collection-snippets.md](collection-snippets.md).
 
 Релиз прозрачных панелей занял 117 минут. С добавлением обязательной матрицы сниппетов deploy job имеет 180 минут, как веточный audit; это запас времени, assertions и состав release не сокращаются.
+## Персональный План Развития в Идентичности
+
+Раздел `personal-development-plan` использует общий `EditableMarkdownDocument`
+и отдельный ключ `identity:personal-development-plan`, независимо от карьерного ИПР.
+Личный исходник Obsidian не входит в публичный репозиторий или клиентскую сборку.
+Экран показывает только документ владельца из authenticated API; пустой источник
+не подставляет чей-либо личный текст другим пользователям.
+Навигация и права доступа зарегистрированы в общей карте разделов.
+Для сохранения нужна отдельно разрешённая миграция ограничения `identity_content`:
+`node scripts/migrate-personal-development-plan.mjs` проверяет production READ ONLY;
+`node scripts/migrate-personal-development-plan.mjs --apply` расширяет только список
+разделов после отдельного разрешения, без изменений существующих документов.
+Обычный startup/deploy остаётся в режиме verify.
