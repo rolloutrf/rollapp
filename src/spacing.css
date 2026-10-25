@@ -195,6 +195,10 @@
   }
 
   .global-app-chrome {
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     top: calc(var(--layout-chrome-top) + var(--layout-safe-top));
     max-width: var(--layout-page-width);
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
@@ -302,22 +306,26 @@
     gap: var(--layout-inline-gap);
   }
 
-  .wishes-page .list-tabs {
-    --list-navigation-gutter: calc(var(--layout-page-inset) + var(--layout-shell-inset));
-    width: calc(100% + 2 * var(--wishes-viewport-inset));
+  /* One edge contract for Wishlist, group navigation and day ribbons.
+     Match the main page: native hard clipping, never a fading mask/overlay. */
+  .horizontal-tile-scroller {
+    width: 100%;
+    max-width: 100%;
+    flex-shrink: 0;
+    margin-inline: 0;
+    --list-navigation-gutter: 0px;
     min-width: 0;
-    max-width: none;
-    height: auto;
-    max-height: none;
-    margin-inline: calc(-1 * var(--wishes-viewport-inset));
-    padding-inline: var(--list-navigation-gutter);
     flex-wrap: nowrap;
+    padding-inline: var(--list-navigation-gutter);
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scroll-padding-inline: var(--list-navigation-gutter);
     scrollbar-width: none;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
+  .horizontal-tile-scroller::-webkit-scrollbar { display: none; }
 
   .sphere-page--tabbed .tabbed-sphere {
     padding: 0;
@@ -521,7 +529,7 @@
     :is(.app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller,
         .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller,
         .wishes-page .list-tabs, [data-tab-scroller],
-        [data-group-navigation] .list-tabs, .page-edge-scroller) {
+        [data-group-navigation] .list-tabs, .page-edge-scroller, .horizontal-tile-scroller) {
       width: 100vw;
       flex-shrink: 0;
       max-width: none;

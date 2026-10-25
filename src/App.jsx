@@ -1,10 +1,11 @@
 import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
-import { PageActionButton } from "@/components/page-action-button";
 import { HealthTracker } from "@/components/health-tracker";
 import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
+import { ContactCardButton, ContactCardDialog } from "@/components/contact-card-dialog";
+import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -59,6 +60,7 @@ import {
   IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportOverview,
   IdentityReportStatus,
 } from "@/components/identity-report-manager";
+import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
 import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
@@ -860,6 +862,11 @@ const IDENTITY_TABS = [
     description: "Цели, приоритеты и план движения по ключевым жизненным горизонтам.",
   },
   {
+    id: "personal-development-plan",
+    label: "Персональный План Развития",
+    description: "Текущий и желаемый образ жизни, роли, сильные стороны и направления развития.",
+  },
+  {
     id: "theses",
     label: "Тезисы",
     description: "Ключевые мысли, гипотезы и формулировки, к которым важно возвращаться.",
@@ -946,24 +953,6 @@ const SERVICE_TABS = {
   education: EDUCATION_TABS,
   health: HEALTH_TABS,
 };
-
-const HOGAN_PROFILES = [];
-
-const HOGAN_REPORT_STATS = [];
-
-const HOGAN_METHODS = [];
-
-const HOGAN_REPORT_USES = [];
-
-const HOGAN_CHANGE_STEPS = [];
-
-const HOGAN_NARRATIVE_SECTIONS = [];
-
-const HOGAN_INSIGHTS = [];
-
-const HOGAN_DEVELOPMENT_ACTIONS = [];
-
-const HOGAN_STRESS_CHECKLIST = [];
 
 function serviceChromeFromPath(pathname) {
   let serviceId = activeServiceFromPath(pathname);
@@ -1791,211 +1780,6 @@ function SpherePage({ sphereId }) {
   );
 }
 
-function HoganScoreChart({ profile }) {
-  return (
-    <section className={`hogan-chart hogan-chart--${profile.id}`} aria-labelledby={`hogan-chart-${profile.id}`}>
-      <header className="hogan-chart__header">
-        <span className="hogan-chart__code" aria-hidden="true">{profile.code}</span>
-        <div data-typeset-group>
-          <h3 id={`hogan-chart-${profile.id}`}>{profile.title}</h3>
-          <p>{profile.description}</p>
-        </div>
-      </header>
-      <div className="hogan-chart__scale" aria-hidden="true">
-        <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
-      </div>
-      <ol className="hogan-chart__rows" data-not-typeset>
-        {profile.scores.map(([label, score]) => (
-          <li key={label} className="hogan-chart__row">
-            <div className="hogan-chart__label"><span>{label}</span><strong>{score}</strong></div>
-            <div
-              className="hogan-chart__meter"
-              role="meter"
-              aria-label={`${label}: ${score} из 100`}
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow={score}
-            >
-              <span className="hogan-chart__fill" style={{ "--hogan-score": `${score}%` }} />
-            </div>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function HoganNarrativeSection({ section }) {
-  return (
-    <section className={`hogan-narrative hogan-narrative--${section.id}`} aria-labelledby={`hogan-narrative-${section.id}`}>
-      <header className="hogan-narrative__header">
-        <span className="hogan-narrative__code" aria-hidden="true">{section.code}</span>
-        <div data-typeset-group>
-          <span data-typography="label">{section.eyebrow}</span>
-          <h3 id={`hogan-narrative-${section.id}`}>{section.title}</h3>
-          <p>{section.lead}</p>
-        </div>
-      </header>
-      <div className="hogan-narrative__themes">
-        {section.themes.map((theme) => (
-          <article key={theme.title} className="hogan-theme">
-            <h4>{theme.title}</h4>
-            <ul>
-              {theme.points.map((point) => <li key={point}>{point}</li>)}
-            </ul>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function HoganScaleGuide({ profiles = HOGAN_PROFILES }) {
-  return (
-    <section className="hogan-report__scale-guide" aria-labelledby="hogan-scale-guide-title">
-      <div className="hogan-report__section-heading" data-typeset-group>
-        <span data-typography="label">Справочник</span>
-        <h3 id="hogan-scale-guide-title">Что означает каждая шкала</h3>
-        <p>Короткие определения помогают читать процентили в контексте, а не воспринимать отдельный балл как оценку личности.</p>
-      </div>
-      <div className="hogan-scale-guide">
-        {profiles.map((profile) => (
-          <section key={profile.id} className={`hogan-scale-group hogan-scale-group--${profile.id}`} aria-labelledby={`hogan-scale-group-${profile.id}`}>
-            <header>
-              <span aria-hidden="true">{profile.code}</span>
-              <h4 id={`hogan-scale-group-${profile.id}`}>{profile.title}</h4>
-            </header>
-            <dl data-not-typeset>
-              {profile.scores.map(([label, score, definition]) => (
-                <div key={label}>
-                  <dt><span>{label}</span><strong>{score}</strong></dt>
-                  <dd>{definition}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function DefaultHoganReport() {
-  return (
-    <article className="hogan-report identity-report typeset-document" aria-labelledby="hogan-report-title">
-      <IdentityReportOverview
-        titleId="hogan-report-title"
-        eyebrow="Leadership Forecast™"
-        title="Профиль Hogan"
-        description="Сводная карта сильных сторон, внутренних мотиваторов и поведенческих рисков на основе HPI, MVPI и HDS."
-        person="Тестовый Пользователь · нормы Russian2023"
-        date="2025-07-29"
-        dateLabel="29 июля 2025"
-        stats={HOGAN_REPORT_STATS}
-      />
-
-      <section className="hogan-report__summary" aria-labelledby="hogan-summary-title">
-        <div className="hogan-report__section-heading" data-typeset-group>
-          <span data-typography="label">Синтез двух отчётов</span>
-          <h3 id="hogan-summary-title">Главное в профиле</h3>
-        </div>
-        <div className="hogan-insights">
-          {HOGAN_INSIGHTS.map((insight) => (
-            <article key={insight.id} className={`hogan-insight hogan-insight--${insight.id}`}>
-              <span data-typography="label">{insight.eyebrow}</span>
-              <h4>{insight.title}</h4>
-              <p>{insight.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="hogan-report__methodology" aria-labelledby="hogan-methodology-title">
-        <div className="hogan-report__section-heading" data-typeset-group>
-          <span data-typography="label">Как читать профиль</span>
-          <h3 id="hogan-methodology-title">Три ракурса одной репутации</h3>
-          <p>Отчёт объединяет повседневный стиль, внутренние мотиваторы и реакции под нагрузкой. Вместе они дают более точную картину, чем любой показатель по отдельности.</p>
-        </div>
-        <div className="hogan-methods">
-          {HOGAN_METHODS.map((method) => (
-            <article key={method.code} className={`hogan-method hogan-method--${method.code.toLowerCase()}`}>
-              <span aria-hidden="true" data-typography="label">{method.code}</span>
-              <h4>{method.title}</h4>
-              <p>{method.text}</p>
-            </article>
-          ))}
-        </div>
-        <div className="hogan-report__reading-note">
-          <div>
-            <h4>Интерпретируйте целиком</h4>
-            <p>Высокие и низкие результаты имеют и преимущества, и ограничения. Несовпадение повседневной и «тёмной» стороны закономерно: под стрессом знакомое качество может проявляться иначе. Выводы полезно соотносить с карьерными целями, реальным поведением и обратной связью.</p>
-          </div>
-          <div>
-            <h4>Для чего использовать</h4>
-            <ul>
-              {HOGAN_REPORT_USES.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </div>
-          <div className="hogan-report__change-model" data-typeset-group>
-            <h4>Изменение начинается с трёх ответов</h4>
-            <ol data-not-typeset>
-              {HOGAN_CHANGE_STEPS.map(([label, text]) => (
-                <li key={label}><span>{label}</span><p>{text}</p></li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      <section className="hogan-report__scores" aria-labelledby="hogan-scores-title">
-        <div className="hogan-report__section-heading" data-typeset-group>
-          <span data-typography="label">Процентили · 0–100</span>
-          <h3 id="hogan-scores-title">Все шкалы</h3>
-          <p>Положение относительно нормативной выборки. Высокий или низкий балл сам по себе не означает «хорошо» или «плохо».</p>
-        </div>
-        <div className="hogan-charts">
-          {HOGAN_PROFILES.map((profile) => <HoganScoreChart key={profile.id} profile={profile} />)}
-        </div>
-      </section>
-
-      <section className="hogan-report__interpretation" aria-labelledby="hogan-interpretation-title">
-        <div className="hogan-report__section-heading" data-typeset-group>
-          <span data-typography="label">Подробная интерпретация</span>
-          <h3 id="hogan-interpretation-title">Как профиль проявляется в работе</h3>
-          <p>Ниже содержание отчётов собрано в тематические блоки: без страниц, повторов и мелкого текста.</p>
-        </div>
-        <div className="hogan-narratives">
-          {HOGAN_NARRATIVE_SECTIONS.map((section) => <HoganNarrativeSection key={section.id} section={section} />)}
-        </div>
-      </section>
-
-      <section className="hogan-report__development" aria-labelledby="hogan-development-title">
-        <div className="hogan-report__development-copy" data-typeset-group>
-          <span data-typography="label">Фокус развития</span>
-          <h3 id="hogan-development-title">Сохранить напор, добавить контакт</h3>
-          <p>Рекомендации отчёта сводятся к тому, чтобы не снижать самостоятельность и решительность, но сделать коммуникацию, делегирование и контроль деталей более осознанными.</p>
-        </div>
-        <ul data-not-typeset>
-          {HOGAN_DEVELOPMENT_ACTIONS.map((action) => (
-            <li key={action}><CheckCircle2 aria-hidden="true" /><span>{action}</span></li>
-          ))}
-        </ul>
-        <section className="hogan-report__stress-check" aria-labelledby="hogan-stress-check-title">
-          <span>Под нагрузкой</span>
-          <h4 id="hogan-stress-check-title">Пять контрольных вопросов к поведению</h4>
-          <ol data-not-typeset>
-            {HOGAN_STRESS_CHECKLIST.map((item) => <li key={item}>{item}</li>)}
-          </ol>
-        </section>
-      </section>
-
-      <p className="hogan-report__note">HDS описывает возможное поведение под нагрузкой, а не клиническую оценку. Интерпретировать профиль полезнее вместе с карьерным контекстом и обратной связью от людей.</p>
-
-      <HoganScaleGuide />
-    </article>
-  );
-}
-
 function GeneratedHoganReport({ report }) {
   return <IdentityGeneratedDocuments report={report} />;
 }
@@ -2067,6 +1851,8 @@ function TabbedSpherePage({ sphereId, tabs }) {
                           ? <Mission />
                           : sphere.id === "identity" && tab.id === "ideal-state"
                             ? <IdealState />
+                          : sphere.id === "identity" && tab.id === "personal-development-plan"
+                            ? <PersonalDevelopmentPlan />
                           : sphere.id === "identity" && tab.id === "life-strategy"
                             ? <EditableLifeStrategy />
                             : sphere.id === "education" && tab.id === "courses"
@@ -2639,11 +2425,12 @@ function LegacyContactsRedirect() {
   return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
 }
 
-function ContactsProfileControls({ onAdd }) {
+function ContactsProfileControls({ onAdd, onCard }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
+        <PageActionButton className="shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
+        {onCard && <PageActionButton variant="outline" className="shrink-0 whitespace-nowrap" onClick={onCard}><ContactRound aria-hidden="true" />Моя визитка</PageActionButton>}
         <SphereBusinessControls sphereId="career" />
       </div>
     </section>
@@ -2653,6 +2440,9 @@ function ContactsProfileControls({ onAdd }) {
 function ContactsSpherePage() {
   const toast = useToast();
   const access = useSphereSharing();
+  const session = useSession();
+  const cardProfile = access.owner || session?.user;
+  const [cardOpen, setCardOpen] = useState(false);
   const globalShareRef = useGlobalShareHandler();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -2735,7 +2525,8 @@ function ContactsSpherePage() {
 
   return (
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
-      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
+      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} onCard={cardProfile?.username ? () => setCardOpen(true) : undefined} />}
+      {cardOpen && !access.readOnly && cardProfile?.username && <ContactCardDialog key={cardProfile.username} profile={cardProfile} canSign={access.isOwner} onClose={() => setCardOpen(false)} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">
@@ -3248,7 +3039,6 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
 
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
-  const toast = useToast();
   const location = useLocation();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
@@ -3256,21 +3046,6 @@ function PersistentProfileHero({ user }) {
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
   const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && canAccessPrivateSpheres(user);
-  const profileUrl = `${window.location.origin}${publicProfilePath(profile.username)}`;
-  const qrUrl = `https://quickchart.io/qr?size=320&margin=2&text=${encodeURIComponent(profileUrl)}`;
-  const shareProfile = async () => {
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: `Профиль ${profile.name}`, url: profileUrl });
-      } else {
-        await navigator.clipboard.writeText(profileUrl);
-        toast("Ссылка на профиль скопирована");
-      }
-      setQrOpen(false);
-    } catch (error) {
-      if (error?.name !== "AbortError") toast("Не удалось поделиться ссылкой", "error");
-    }
-  };
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
@@ -3332,20 +3107,7 @@ function PersistentProfileHero({ user }) {
         scope={wishlistAccessControl ? { sphere: "wishlist", section: "wishlist" } : null}
         scopeLabel={wishlistAccessControl ? "Вишлист" : ""}
       />}
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="w-[min(24rem,calc(100%-2rem))] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Профиль {profile.name}</DialogTitle>
-            <DialogDescription>Отсканируйте код, чтобы открыть профиль.</DialogDescription>
-          </DialogHeader>
-          <div className="persistent-profile-hero__qr-code flex justify-center rounded-xl p-4">
-            <img className="size-64 max-w-full" src={qrUrl} alt={`QR-код профиля ${profile.name}`} />
-          </div>
-          <ShadcnButton type="button" variant="outline" className="min-h-12 w-full" onClick={shareProfile}>
-            <Share2 aria-hidden="true" />Поделиться
-          </ShadcnButton>
-        </DialogContent>
-      </Dialog>
+      {qrOpen && <ContactCardDialog key={profile.username} profile={profile} canSign={editable} onClose={() => setQrOpen(false)} />}
     </section>
   );
 }
@@ -4876,6 +4638,24 @@ function WishesPage({ onAdd, version }) {
     captureGridPositions();
     setOrderedWishIds(next);
   };
+  const reorderWishToGroup = (sourceId, groupId) => {
+    const scope = dragScopeRef.current;
+    const target = groupsById.get(groupId);
+    const targetKey = `group:${groupId}`;
+    if (scope?.kind !== "list" || !scope.wishIds.has(sourceId) || !target || lastReorderTargetRef.current === targetKey) return;
+    const next = moveWishGroupToTarget(orderedWishIdsRef.current, [sourceId], target.wishIds);
+    if (next === orderedWishIdsRef.current) return;
+    lastReorderTargetRef.current = targetKey;
+    orderDirtyRef.current = true;
+    orderedWishIdsRef.current = next;
+    captureGridPositions();
+    setOrderedWishIds(next);
+  };
+  const groupHoverMode = (element, clientX, clientY) => resolveWishHoverMode({
+    groupingEnabled: Boolean(groupingListId),
+    rect: element?.querySelector('.wish-group-tile__preview')?.getBoundingClientRect() || element?.getBoundingClientRect(),
+    clientX, clientY,
+  });
   const armGroupIntent = (target) => {
     if (hoverTargetRef.current === target) return;
     clearTimeout(groupTimerRef.current);
@@ -5026,7 +4806,10 @@ function WishesPage({ onAdd, version }) {
     if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    armGroupIntent(`group:${groupId}`);
+    if (groupHoverMode(event.currentTarget, event.clientX, event.clientY) === "reorder") {
+      clearGroupIntent();
+      reorderWishToGroup(dragSourceWishIdRef.current, groupId);
+    } else armGroupIntent(`group:${groupId}`);
   };
   const leaveNativeDropTarget = (event) => {
     if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
@@ -5190,6 +4973,11 @@ function WishesPage({ onAdd, version }) {
       if (sourceGroup && sourceGroup.id !== groupId) reorderGroup(sourceGroup.id, { kind: "group", id: groupId });
       finishDrag();
     } else if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
+    else if (groupHoverMode(event.currentTarget, event.clientX, event.clientY) === "reorder") {
+      clearGroupIntent();
+      reorderWishToGroup(sourceWishId, groupId);
+      finishDrag();
+    }
     else if (armedDropTargetRef.current === `group:${groupId}`) void addToGroup(sourceWishId, groupId);
     else finishDrag({ persist: false, restore: true });
   };
@@ -5343,7 +5131,8 @@ function WishesPage({ onAdd, version }) {
       && !targetGroupId;
     const groupingEnabled = Boolean(groupingListId && validGroupTarget);
     let hoverMode = null;
-    if (groupId || overlapGroupTarget) hoverMode = "group";
+    if (groupId) hoverMode = groupHoverMode(element.closest('[data-group-id]'), clientX, clientY);
+    else if (overlapGroupTarget) hoverMode = "group";
     else if (validReorderTarget) {
       hoverMode = resolveWishHoverMode({
         groupingEnabled,
@@ -5364,7 +5153,8 @@ function WishesPage({ onAdd, version }) {
       drag.hoverTarget = interactionTarget;
       // The card edge reorders immediately. Its center remains stable long enough
       // to arm grouping, so live sorting cannot move the intended group target away.
-      if (hoverMode === "reorder" && validReorderTarget) reorderWish(drag.wishId, wishId);
+      if (hoverMode === "reorder" && groupId && !dragGroupId) reorderWishToGroup(drag.wishId, groupId);
+      else if (hoverMode === "reorder" && validReorderTarget) reorderWish(drag.wishId, wishId);
       if (hoverMode !== "group" || dragGroupId || !groupingListId) {
         clearGroupIntent();
       } else {
@@ -5480,6 +5270,10 @@ function WishesPage({ onAdd, version }) {
     else if (dragGroupId) finishDrag({ persist: false, restore: true });
     else if (hoveredGroupId) addToGroup(drag.wishId, hoveredGroupId);
     else if (hoveredWishId && hoveredWishId !== drag.wishId) createGroup(drag.wishId, hoveredWishId);
+    else if (groupId && groupHoverMode(element.closest('[data-group-id]'), event.clientX, event.clientY) === "reorder") {
+      reorderWishToGroup(drag.wishId, groupId);
+      finishDrag();
+    }
     else if (!groupId && !targetGroupId && dragScopeRef.current?.wishIds?.has(wishId) && wishId !== drag.wishId) {
       reorderWish(drag.wishId, wishId);
       finishDrag();
@@ -7316,6 +7110,7 @@ function PublicProfile({ shared = false }) {
             aria-pressed={data.isFollowing}
             onClick={follow}
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
+        <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
       </div>
     </section>
 

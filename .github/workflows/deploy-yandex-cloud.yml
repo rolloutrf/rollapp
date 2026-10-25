@@ -8,7 +8,7 @@ on:
       verification:
         description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets, identity-reports]
+        options: [full, snippets, identity-reports, none]
         default: full
 
 permissions:
@@ -32,7 +32,7 @@ env:
 
 jobs:
   audit:
-    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.verification != 'none'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
@@ -47,6 +47,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install WebKit for native time field checks
+        run: npx playwright-core install --with-deps webkit
       - name: Complete UI audit
         shell: bash
         env:
@@ -86,8 +88,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install WebKit for native time field checks
+        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'none'
+        run: npx playwright-core install --with-deps webkit
+
       - name: Test and build
-        if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'snippets' && inputs.verification != 'identity-reports')
+        if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'
         run: npm run check:release
 
       - name: Verify targeted snippet release
@@ -97,6 +103,10 @@ jobs:
       - name: Verify targeted identity report release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'identity-reports'
         run: npm run check:release:identity-reports
+
+      - name: Record explicit deployment without tests
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'none'
+        run: echo "Tests skipped by explicit user request; Docker build, schema verify and exact-SHA health remain."
 
       - name: Log in to Yandex Container Registry via OIDC
         uses: yc-actions/yc-cr-login@v3

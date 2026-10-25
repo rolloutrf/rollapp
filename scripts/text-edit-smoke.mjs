@@ -61,7 +61,7 @@ import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = smokePort(process.env.TEXT_EDIT_PORT);
 const only = smokeMode(process.argv.slice(2), ["--mobile-enter-webkit", "--mobile-enter-only", "--image-captions-only", "--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
-const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker", "qrcode"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/api.js')) {
@@ -81,7 +81,7 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
       const start = source.indexOf("export function useCareerContent(");
       const end = source.indexOf("export function CareerContentError", start);
       return source.slice(0, start) + `export function useCareerContent(section, fallback) {
-        const [content, setContent] = useState(fallback);
+        const [content, setContent] = useState(() => window.inlineFixtureCareerContent?.[section] ?? fallback);
         return { content, loading: false, error: "", retry() {}, save: async value => { window.inlineTest.saves.push(value); window.inlineTest.saved = value; setContent(value); return value; } };
       }\n` + source.slice(end);
     }

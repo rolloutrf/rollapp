@@ -681,7 +681,7 @@ input.phone-otp__code {
 .public-profile--dark .button--outline:hover:not(:disabled) { border-color: color-mix(in oklch, var(--foreground) 28%, transparent); background: var(--profile-surface); }
 .public-profile--dark button:focus-visible, .public-profile--dark a:focus-visible { outline-color: #8bb0ff; }
 
-.public-profile--dark > .profile-header { height: 78px; max-width: none; margin: 0; padding: 0 16px; display: flex; align-items: center; position: sticky; z-index: 50; top: 0; border-bottom: 1px solid color-mix(in oklch, var(--foreground) 4%, transparent); background: color-mix(in oklch, var(--background) 84%, transparent); backdrop-filter: blur(18px); }
+.public-profile--dark > .profile-header { height: 78px; max-width: none; margin: 0; padding: 0 16px; display: flex; align-items: center; position: sticky; z-index: 50; top: 0; border-bottom: 1px solid color-mix(in oklch, var(--foreground) 4%, transparent); background: transparent; backdrop-filter: none; }
 .profile-header__dock { padding: 4px; position: absolute; left: 50%; display: flex; align-items: center; gap: 2px; border: 1px solid color-mix(in oklch, var(--foreground) 6%, transparent); border-radius: 999px; background: color-mix(in oklch, var(--muted) 72%, transparent); transform: translateX(-50%); box-shadow: 0 12px 38px color-mix(in oklch, var(--background) 28%, transparent); }
 .profile-header__dock a { width: 54px; height: 46px; display: grid; place-items: center; border-radius: 999px; color: color-mix(in oklch, var(--foreground) 48%, transparent); transition: color .16s ease, background .16s ease; }
 .profile-header__dock a:hover { color: var(--foreground); background: color-mix(in oklch, var(--foreground) 8%, transparent); }
@@ -837,7 +837,7 @@ input.phone-otp__code {
     height: calc(64px + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
     z-index: 70;
-    background: color-mix(in oklch, var(--background) 97%, transparent);
+    background: transparent;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -1591,7 +1591,7 @@ input, textarea, select { border-radius: 12px; font-family: var(--font-ui); }
   z-index: 40;
   inset: 0 0 auto;
   border: 0;
-  background: var(--background);
+  background: transparent;
   backdrop-filter: none;
   align-items: flex-start;
 }
@@ -10068,7 +10068,7 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
 }
 .collection-snippet__media .collection-snippet__badge {
   position: absolute;
-  top: 12px;
+  bottom: 12px;
   left: 12px;
   max-width: calc(100% - 24px);
   overflow: hidden;

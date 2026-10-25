@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/accordion";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
-import lifeStrategySource from "@/data/life-strategy.md?raw";
 
 const CHECKLIST_PATTERN = /^- \[([ xX])\](.*)$/u;
 const BULLET_PATTERN = /^- (.*)$/u;
@@ -310,10 +309,10 @@ export function MarkdownDocument({
   );
 }
 
-export function LifeStrategy() {
+export function LifeStrategy({ source = "" }) {
   return (
     <div className="sphere-text-page page-stack">
-      <MarkdownDocument source={lifeStrategySource} label="Жизненная стратегия" collapsibleAges />
+      <MarkdownDocument source={source} label="Жизненная стратегия" collapsibleAges />
     </div>
   );
 }

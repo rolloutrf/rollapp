@@ -123,8 +123,8 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
 test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(workflow, /options: \[full, snippets, identity-reports\]\s+default: full/);
-  assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || (inputs.verification != 'snippets' && inputs.verification != 'identity-reports')"));
+  assert.match(workflow, /options: \[full, snippets, identity-reports, none\]\s+default: full/);
+  assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'"));
   assert.match(workflow, /name: Verify targeted snippet release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'\s+run: npm run check:release:snippets/);
   assert(workflow.indexOf('run: npm run check:release:snippets') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:snippets', 'test:drag-drop', 'build']) {

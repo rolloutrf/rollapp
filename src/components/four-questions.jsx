@@ -14,7 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
-const DEFAULT_CONTENT = {};
+const DEFAULT_CONTENT = {
+  questions: IDENTITY_QUESTION_TITLES.map(title => ({ title, paragraphs: [] })),
+};
 
 const FourQuestionRichEditor = lazy(() => import("@/components/four-question-rich-editor"));
 

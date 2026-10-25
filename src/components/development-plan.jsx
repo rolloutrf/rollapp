@@ -4,22 +4,7 @@ import { InlineDocument } from "@/components/inline-document";
 import { CareerContentError, useCareerContent } from "@/components/career-content";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
-const STRENGTHS = [];
-
-const DEVELOPMENT_AREAS = [];
-
-function planItemsMarkdown(items) {
-  return items.map((item) => [
-    `### ${item.title}`,
-    item.summary,
-    `### ${item.approachTitle}`,
-    ...item.approach.map((entry) => `- ${entry}`),
-    "### Что мне с этим делать",
-    ...item.actions.map((entry) => `- ${entry}`),
-  ].join("\n\n")).join("\n\n");
-}
-
-const DEVELOPMENT_PLAN_SOURCE = [];
+const DEVELOPMENT_PLAN_SOURCE = "";
 
 export function DevelopmentPlan() {
   const sharing = useSphereSharing();

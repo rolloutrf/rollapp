@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
 import { registerTonConnectRoutes, TON_CONNECT_BRIDGE_ORIGINS } from "./ton-connect.js";
+import { registerTonContactCardRoutes } from "./ton-contact-cards.js";
 import { registerTonBalanceRoutes } from "./ton-balance.js";
 import { registerTonRollsRoutes, startTonPaymentPolling } from "./roll-ton.js";
 import path from "node:path";
@@ -25,6 +26,7 @@ import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { registerNotesRoutes } from "./notes.js";
+import { registerCalendarDeviceRoutes } from "./calendar-device.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
@@ -471,11 +473,13 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use("/api/planning/notes", express.json({ limit: "2mb" }));
+app.use("/api/calendar-device/snapshot", express.json({ limit: "4mb" }));
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 registerTonConnectRoutes(app);
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const contactCardRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30 });
 const passwordResetRequestRateLimit = createRateLimit({
   windowMs: Math.min(60 * 60, Math.max(60, Number.parseInt(process.env.PASSWORD_RESET_IP_WINDOW_SECONDS || "900", 10) || 900)) * 1_000,
   max: Math.min(1_000, Math.max(1, Number.parseInt(process.env.PASSWORD_RESET_IP_REQUEST_LIMIT || "20", 10) || 20)),
@@ -1072,12 +1076,14 @@ app.use("/api", requireTrustedSessionMutation);
 
 registerRollsRoutes(app, { requireAuth, query, transaction });
 registerTonBalanceRoutes(app, { requireAuth });
+registerTonContactCardRoutes(app, { requireAuth, rateLimit: contactCardRateLimit });
 registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
+registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);

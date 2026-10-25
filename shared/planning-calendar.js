@@ -142,3 +142,16 @@ export function calendarResize(task, minute) {
   const start = timeMinutes(task.startTime);
   return { durationMinutes: Math.max(15, Math.min(1440 - start, Math.round(minute / 15) * 15 - start)) };
 }
+
+// Pointer gestures snap the movement, not the authored start/end. Grabbing the
+// middle of a long event or a resize handle must never change its time by itself.
+export function calendarMoveBy(task, dueOn, deltaMinutes) {
+  const durationMinutes = task.durationMinutes || 60;
+  const start = Math.max(0, Math.min(1440 - durationMinutes,
+    timeMinutes(task.startTime) + Math.round(deltaMinutes / 15) * 15));
+  return { dueOn, startTime: minutesTime(start), durationMinutes };
+}
+export function calendarResizeBy(task, deltaMinutes) {
+  return { durationMinutes: Math.max(15, Math.min(1440 - timeMinutes(task.startTime),
+    (task.durationMinutes || 60) + Math.round(deltaMinutes / 15) * 15)) };
+}

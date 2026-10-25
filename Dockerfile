@@ -7,6 +7,7 @@ COPY index.html vite.config.js ./
 COPY public ./public
 COPY src ./src
 COPY shared ./shared
+COPY contracts ./contracts
 RUN npm run build
 
 FROM node:22-alpine AS runtime
@@ -28,6 +29,7 @@ RUN npm ci --omit=dev --ignore-scripts \
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY shared ./shared
+COPY contracts ./contracts
 COPY certs ./certs
 COPY Caddyfile /etc/caddy/Caddyfile
 

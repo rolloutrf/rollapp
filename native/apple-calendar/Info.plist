@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>rf.rollapp.calendar-device</string>
+<key>CFBundleName</key><string>Rollapp Calendar</string>
+<key>CFBundleDisplayName</key><string>Rollapp Calendar</string>
+<key>CFBundleExecutable</key><string>RollappCalendar</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Чтение выбранных календарей устройства для отображения их событий в Rollapp. Приложение не изменяет события Apple Calendar.</string>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Rollapp Calendar connection</string><key>CFBundleURLSchemes</key><array><string>rollapp-calendar</string></array></dict></array>
+<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/><key>NSExceptionDomains</key><dict><key>127.0.0.1</key><dict><key>NSExceptionAllowsInsecureHTTPLoads</key><true/></dict><key>localhost</key><dict><key>NSExceptionAllowsInsecureHTTPLoads</key><true/></dict></dict></dict>
+</dict></plist>
