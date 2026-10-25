@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { PageActionButton } from "@/components/page-action-button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -121,9 +120,8 @@ export function IdentityReportControls({ section, label, state, setState, load, 
 
   return (
     <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
-        {onEditTest && <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>}
-        <SphereBusinessControls sphereId="identity" />
+      {!readOnly && onEditTest && <div className="identity-report-manager__actions horizontal-action-scroller">
+        <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>
       </div>}
       {typeof navigation === "function" ? navigation({ busy }) : navigation}
       {!readOnly && <Field className="min-w-0">

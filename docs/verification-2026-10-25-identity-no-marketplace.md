@@ -1,0 +1,19 @@
+# Удаление бизнес-кнопки из Идентичности — 2026-10-25
+
+Основа904192c (runtime9c9d216 +docs-only report соседа). Начальная dirty state:5итоговых отчётов предыдущих задач и read-only diagnosis identity-report-load-errors; сохранены отдельно. Новый запрос пользователя относится к оставшейся Store bag-кнопке во всех разделах identity.
+
+identity исключена из общей BUSINESS_MARKETPLACE_SPHERES: все SphereBusinessControls consumers перестают рисовать кнопку, старый business/store UI route возвращает в приложение, list/purchase API identity отвечает404 до обращения к legacy offers. Остальные сферы сохраняют магазин, Wishlist сохраняет свой каталог. Записи/схема не удалялись и не мигрировались.
+
+Убраны внешние toolbar wrappers Four Questions/Values. InlineDocument показывает header только при наличии самостоятельного Add или доступного marketplace; authoring/editor/history/save логика не менялась. IdentityReportControls убрал business control/empty action rail у Gallup/Hogan, сохранил единственную «Настройки теста» у custom. Самостоятельный Add в тезисах/других документах сохранён.
+
+unit863total/862PASS/1skip/0FAIL, test:ui и build PASS. Расширенная полная action-rails matrix проверяет реальный InlineDocument identity без empty rail и с самостоятельным Add на всех9ширинах, generic marketplace rails теперь используют разрешённый career. Custom9-viewport test проверяет отсутствие identity links/empty builtin rail и прежние create/edit/PDF/delete/cancel flows. Новая domain unit проверяет отказ list/purchase identity404 без query/mutation; routing unit сохраняет пути остальных сфер. Полный comprehensive/editor suite для удаления навигационной панели не запускается; целевой identity-reports release сохраняет controls/report/form/rails/scrollers/build без фильтров.
+
+До rollout проверен disk:5434417152bytes свободно; все container image refs прочитаны. Current9c, rollbackacb/58 и сохранённые855/315/d35 защищены. Проверяемый локальный cache candidate00e71d7726c108bbd3f135ce4d54563117756f80: created2026-10-23T21:21:49Z, imageidsha256:dc67d05abc76c510c98c7b01cd0a634784f7d63b6e45dda1fe54dd1e94ebd753, ни один container не ссылается, registry manifest доступен. Удаление не применяется до завершения review; broad prune/force/container/volume deletion/VM restart запрещены.
+
+Итоговый SHA, полные CI results, READ ONLY schema preflight и exact-SHA/live review всех вкладок будут добавлены после выпуска. Production Save/Delete/upload/purchase не выполняются.
+
+Расширенные rails и9custom-test cases локально PASS на полном наборе размеров. npm audit --omit=dev0; полный npm audit2high из унаследованной dev-цепочки @ton/ton→zod, compatible fix нет, lock/dependencies не менялись.
+
+Review cache завершён: соседний владелец подтвердил отсутствие rollback-роли00e; exact id/created/registry и все container refs повторно проверены непосредственно перед удалением. Выполнен только docker image rm точного tag00e, без force. Shared layers остались, поэтому освобождение места не заявляется: actualfree5434408960bytes≥5GB. Все защищённые/current/rollback/container images сохранены. Package/lock неизменны относительно9c, следующий image переиспользует dependency layers; ручных restart/pull/контейнерных/volume операций нет.
+
+Финальная локальная unit863total/862PASS/1skip/0FAIL повторно PASS после всех source/fixture изменений. Перед rollout штатный production loader проверил exact database/role, authorized TLS, max1; existing-schema/reserved-name guard и business table LIMIT0 прошли READ ONLY/ROLLBACK, migration callback запрещён. Лог /tmp/rollapp-identity-no-marketplace-schema.log. Ограничение6старых preview с недоступными checkout из предыдущего восстановления сохраняется; из этого чата процессы/соединения не завершались.

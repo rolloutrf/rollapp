@@ -20,6 +20,8 @@ try {
     await page.route('**/api/**', route => { errors.push('Unexpected API request'); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__identity-tests`);
     assert.equal(await page.getByRole('button', { name: /^(Добавить тест|Загрузить|Удалить все)$/ }).count(), 0, 'Retired page action buttons must stay absent');
+    assert.equal(await page.locator('a[href*="/identity/business/"]').count(), 0, 'Identity reports have no marketplace action');
+    assert.equal(await page.locator('.identity-report-manager__actions').count(), 0, 'Built-in report must not reserve an empty action rail');
     const add = page.getByRole('button', { name: 'Новый тест', exact: true });
     assert.equal(await add.count(), 1);
     assert.equal(await add.evaluate(el => el.closest('[role="tablist"]') === null && !!el.closest('[data-tab-scroller]')), true, 'Add belongs to the tile rail, outside tab semantics');

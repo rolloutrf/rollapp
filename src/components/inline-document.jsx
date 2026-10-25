@@ -5,6 +5,7 @@ import { useSphereSharing } from "@/lib/sphere-sharing";
 import { Button } from "@/components/ui/button";
 import { PageActionButton } from "@/components/page-action-button";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
+import { businessMarketplacePath } from "@/lib/app-routing";
 
 export function InlineSaveStatus({ autosave }) {
   return <div className="inline-save-status not-typeset" role="status" aria-live="polite" data-save-status={autosave.status}>
@@ -23,7 +24,7 @@ export function InlineDocument({ value, onSave, label, documentKey, scope = "ide
   const editorRef = useRef(null);
   const editable = !readOnly && !disabled;
   return <>
-    {editable && showBusinessControls && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
+    {editable && showBusinessControls && (addBlock || businessMarketplacePath(scope)) && <header className="not-typeset rollapp-body page-toolbar w-full justify-center">
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${label}»`}>
         {addBlock && <PageActionButton type="button" onClick={() => {
           const editor = editorRef.current;

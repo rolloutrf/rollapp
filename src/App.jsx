@@ -110,7 +110,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import {
@@ -1828,12 +1828,7 @@ function TabbedSpherePage({ sphereId, tabs }) {
       <div className="sphere-page__content tabbed-sphere">
         <Tabs value={activeTab} onValueChange={selectTab} className="sphere-tabs">
           {[activeTabConfig].map((tab) => (
-            <TabsContent key={tab.id} value={tab.id} className={`sphere-tabs__content${sphere.id === "identity" && ["four-questions", "values"].includes(tab.id) ? " page-stack" : ""}`}>
-              {(sphere.id === "identity" && ["four-questions", "values"].includes(tab.id)) && (
-                <section className="page-toolbar w-full justify-center" aria-label="Бизнес-разделы" data-not-typeset>
-                  <div className="page-actions wishes-page__hero-actions horizontal-action-scroller"><SphereBusinessControls sphereId={sphereId} /></div>
-                </section>
-              )}
+            <TabsContent key={tab.id} value={tab.id} className="sphere-tabs__content">
               {sphere.id === "identity" && tab.id === "four-questions"
                 ? <FourQuestions />
                 : sphere.id === "identity" && tab.id === "theses"
@@ -3292,7 +3287,7 @@ function BusinessMarketplaceRoute() {
   const { sphereId = "" } = useParams();
   if (sphereId === "contacts") return <LegacyContactsRedirect />;
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
-  if (!sphere) return <Navigate to={APP_HOME} replace />;
+  if (!sphere || !businessMarketplacePath(sphereId)) return <Navigate to={APP_HOME} replace />;
   return <BusinessMarketplacePage sphere={sphere} />;
 }
 

@@ -9,6 +9,7 @@ import { ContactsProfileControls, WishesProfileControls, WishesPage, SessionCont
 import { api } from '@/api';
 import { WishListNavigation } from '@/components/wish-list-navigation';
 import { ListTileContent } from '@/components/list-tile-content';
+import { InlineDocument } from '@/components/inline-document';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import '../../src/styles.css';
 import '../../src/index.css';
@@ -36,12 +37,12 @@ function Actions(){
  <div className={`${railClass} ${['text','wishlist','narrow','icons','edit','dynamic'].includes(variant)?'wishes-page__hero-actions':''} horizontal-action-scroller`} aria-label="Действия">
   {!icons&&variant!=='edit'&&<PageActionButton>{variant==='icon-labels'&&<Plus data-icon="inline-start"/>}Добавить</PageActionButton>}
   {!icons&&variant!=='short'&&<PageActionButton variant="outline">Редактировать{variant==='icon-labels'&&<ArrowRight data-icon="inline-end"/>}</PageActionButton>}
-  {variant!=='short'&&<SphereBusinessControls sphereId="identity"/>}
+  {variant!=='short'&&<SphereBusinessControls sphereId="career"/>}
  </div>
  {variant==='dynamic'&&<button onClick={()=>setEditing(!editing)} data-toggle-actions>Изменить набор действий</button>}
  </>;
 }
-function Fixture(){if(variant==='wishlist-error')return <BrowserRouter><SessionContext.Provider value={{user:{id:'unsaved',username:'fixture'}}}><ToastContext.Provider value={()=>{}}><div className="app-layout app-layout--dark"><main className="app-main"><WishesPage onAdd={()=>{}} version={0}/></main></div></ToastContext.Provider></SessionContext.Provider></BrowserRouter>;return <BrowserRouter><div className="app-layout app-layout--dark"><main className={`app-main ${wishlist?'app-main--wishes':''}`}>
+function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRouter><div className="app-layout app-layout--dark"><main className="app-main"><article className="app-page sphere-text-page page-stack"><InlineDocument scope="identity" documentKey="unsaved-identity-rail" label="Документ идентичности" value="Текст раздела" onSave={async value=>value} addBlock={variant==='identity-document-add'?[{type:'paragraph'}]:undefined}/></article></main></div></BrowserRouter>;if(variant==='wishlist-error')return <BrowserRouter><SessionContext.Provider value={{user:{id:'unsaved',username:'fixture'}}}><ToastContext.Provider value={()=>{}}><div className="app-layout app-layout--dark"><main className="app-main"><WishesPage onAdd={()=>{}} version={0}/></main></div></ToastContext.Provider></SessionContext.Provider></BrowserRouter>;return <BrowserRouter><div className="app-layout app-layout--dark"><main className={`app-main ${wishlist?'app-main--wishes':''}`}>
   <article className={`app-page ${wishlist?'wishes-page':'sphere-page--tabbed'}`}>
     <div className={wishlist?'wishes-page__profile-controls':'sphere-page__content tabbed-sphere'}>
       <div className={`sphere-tabs__content ${variant==='nested'?'page-stack':''}`}>

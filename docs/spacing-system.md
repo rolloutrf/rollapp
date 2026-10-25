@@ -286,3 +286,5 @@ upstream Button переопределяются в этой общей комп
 В шапке WishGroupDialog меню с троеточием и Close используют одинаковые outline/bg-card кнопки с data-control-icon внутри ControlBar: круг48px, glyph20px, общий фон/рамка/hover/disabled. test:controls проверяет настоящую шапку группы в обеих темах на полной матрице, включая DPR3 и короткие окна.
 
 На desktop шире 820px общий horizontal-tile-scroller ограничен шириной родителя: width/max-width 100%, без отрицательного внешнего отступа и второго page inset. Полная ширина окна, компенсация внешнего отступа и внутренние gutters применяются только общим mobile media rule до 820px; иначе app-main с собственной геометрией обрезает край ленты. test:page-scrollers проверяет также desktop clipping ancestors, а не только root overflow.
+
+В сфере Идентичности бизнес-панели отсутствуют. Four Questions/Values не резервируют внешний toolbar; InlineDocument без самостоятельного Add не рендерит пустую панель, а у встроенных тестов отсутствует пустой actions rail. Независимые Add и настройки пользовательского теста сохраняются. Общий24px toolbar gap действует только при наличии реальных действий.

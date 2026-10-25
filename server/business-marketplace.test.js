@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { businessMarketplacePurchaseSchema, listBusinessMarketplaceItems } from "./business-marketplace.js";
+import { businessMarketplacePurchaseSchema, listBusinessMarketplaceItems, purchaseBusinessMarketplaceItem } from "./business-marketplace.js";
 
 test("business marketplace rejects client-controlled purchase data", () => {
   const input = { itemId: "offer-1", idempotencyKey: randomUUID() };
@@ -33,4 +33,10 @@ test("sphere catalogs are unavailable without querying legacy records", async ()
     await assert.rejects(() => listBusinessMarketplaceItems(async () => { queries += 1; return { rows: [] }; }, { sphere, kind: "catalog" }), error => error.status === 404);
   }
   assert.equal(queries, 0);
+});
+
+test("identity marketplace cannot list or purchase legacy offers", async () => {
+  const query = async () => { throw new Error("Removed identity marketplace must not query or mutate records"); };
+  await assert.rejects(() => listBusinessMarketplaceItems(query, { sphere: "identity", kind: "store" }), error => error.status === 404);
+  await assert.rejects(() => purchaseBusinessMarketplaceItem({ query }, "owner", "identity", { itemId: "legacy-offer", idempotencyKey: randomUUID() }), error => error.status === 404);
 });

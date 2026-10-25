@@ -121,7 +121,7 @@
 
 - All fixed or sticky action buttons must be round (icon-only) or pill-shaped (text); compose them through `ControlBar`. All buttons inside `ControlBar`, including Save, Back and Delete in every native mobile form, use the shared pill/circle radius (half the 48px control height) from `src/spacing.css`. Never allow primitive or local radius utilities to make these actions rectangular. Verify all four computed corner radii in `test:form-actions`; preserve upstream primitives.
 
-- Keep 24px (`--layout-page-gap`) between an in-flow page action toolbar and the following content on mobile and desktop. The common parent owns this distance through `page-stack`/flex/grid gap, including business/store controls above Four Questions and Values. Keep 8px between related controls; do not compensate with heading margins, spacer nodes, or an additional child margin. Verify the real outer-toolbar/nested-article composition in `test:action-rails`.
+- Keep 24px (`--layout-page-gap`) between an in-flow page action toolbar and the following content on mobile and desktop. The common parent owns this distance through `page-stack`/flex/grid gap, including business/store controls on pages where they are enabled. Keep 8px between related controls; do not compensate with heading margins, spacer nodes, or an additional child margin. Verify the real outer-toolbar/nested-article composition in `test:action-rails`.
 
 - Never draw a border, outline, ring or box shadow around inline-editable prose or `InlineTextField`, including hover, active, focus and focus-visible states. Editing must keep the page’s ordinary text appearance on desktop and mobile; retain keyboard focus cues on actual toolbar controls. Verify computed border/outline/shadow in `test:text-edit`.
 

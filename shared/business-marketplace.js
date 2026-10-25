@@ -1,4 +1,4 @@
-export const BUSINESS_MARKETPLACE_SPHERES = ["identity", "career", "education", "health", "contacts"];
+export const BUSINESS_MARKETPLACE_SPHERES = ["career", "education", "health", "contacts"];
 
 export const BUSINESS_MARKETPLACE_KINDS = ["store"];
 

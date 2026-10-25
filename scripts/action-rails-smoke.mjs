@@ -83,6 +83,16 @@ try{
    assertCentered(afterScroll);
    console.log(`PASS ${width} ${variant}: rail geometry, controls, scroll edges`);
   }
+  for(const variant of ['identity-document','identity-document-add']){
+   await page.goto(`${origin}/__action-rails?variant=${variant}`);
+   await page.locator('.ProseMirror').waitFor();
+   assert.equal(await page.locator('a[href*="/identity/business/"]').count(),0,'Identity document has no marketplace entry');
+   assert.equal(await page.locator('.page-toolbar').count(),variant==='identity-document-add'?1:0,'Empty identity toolbar reserved a gap');
+   assert.equal(await page.getByRole('button',{name:'Добавить',exact:true}).count(),variant==='identity-document-add'?1:0,'Independent block creation must stay available');
+   assert.equal(await page.locator('.ProseMirror').textContent(),'Текст раздела');
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Identity document overflow');
+   console.log(`PASS ${width} ${variant}: no marketplace/empty rail, document and Add retained`);
+  }
   await page.goto(`${origin}/__action-rails?variant=wishlist-error`);
   await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
   assert.equal(await page.getByRole('heading',{name:'В этом списке пока пусто',exact:true}).count(),0,'Connection failure must never pretend the Wishlist is empty');
