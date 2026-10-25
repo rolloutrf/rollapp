@@ -14,7 +14,7 @@ await mkdir("/tmp/rollapp-control-sizes", { recursive: true });
 const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes", server: { host: "127.0.0.1", port: smokePort(process.env.CONTROL_SIZE_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "control-size-fixture", enforce: "pre",
   transform(source, id) {
-    if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext };`;
+    if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog };`;
     if (id.endsWith("/src/components/planning-space.jsx?controls-smoke")) return `${source}\nexport { TaskEditor };`;
     // Supply presentation state at the hook boundary. API requests are rejected
     // below; no database or API-response fixtures are substituted.
@@ -151,6 +151,42 @@ try {
         }
         console.log(`PASS ${label}: 48px controls and visible paint, 20px icons, 18/28px text, scrolling`);
       }
+      for (const busy of [false, true]) {
+        await page.goto(`${origin}/app/wishes?group-dialog${busy ? '&busy-group' : ''}`);
+        const header = page.locator('.app-group-dialog__header'); await header.waitFor();
+        const buttons = header.locator('[data-control-bar] button');
+        const appearance = async () => buttons.evaluateAll(nodes => nodes.map(node => {
+          const style = getComputedStyle(node);
+          return { background: style.backgroundColor, border: style.borderTopColor, width: style.borderTopWidth, line: style.borderTopStyle, opacity: style.opacity };
+        }));
+        const settle = () => buttons.evaluateAll(async nodes => {
+          await Promise.all(nodes.flatMap(node => node.getAnimations()).map(animation => animation.finished.catch(() => {})));
+        });
+        for (const dark of [true, false]) {
+          await page.evaluate(value => document.documentElement.classList.toggle('dark', value), dark);
+          await page.mouse.move(0, 0); await settle();
+          await geometry(page, `${width}x${height} real wish group ${busy ? 'busy' : 'ready'} ${dark ? 'dark' : 'light'}`);
+          const normal = await appearance(); assert.equal(normal.length, 2);
+          assert.deepEqual(normal[0], normal[1], 'Real wish-group menu must match Close');
+          assert.equal(normal[0].width, '1px'); assert.equal(normal[0].line, 'solid'); assert.equal(normal[0].opacity, '1');
+          assert(![normal[0].background, normal[0].border].includes('rgba(0, 0, 0, 0)'), 'Real header controls need a visible surface and border');
+          if (busy) { for (const button of await buttons.all()) assert(await button.isDisabled()); }
+          else {
+            await buttons.nth(0).hover(); await settle(); const menuHover = (await appearance())[0];
+            await buttons.nth(1).hover(); await settle(); const closeHover = (await appearance())[1];
+            assert.deepEqual(menuHover, closeHover, 'Real wish-group hover surfaces must match');
+          }
+          if ([390, 1440].includes(width) && !busy) {
+            await page.mouse.move(0, 0); await settle();
+            await page.screenshot({ path: `/tmp/rollapp-control-sizes/wish-group-${width}x${height}-${dark ? 'dark' : 'light'}.png` });
+          }
+        }
+        if (!busy) {
+          await buttons.nth(0).click(); await page.getByRole('menuitem', { name: 'Переименовать', exact: true }).waitFor();
+          await page.keyboard.press('Escape'); await buttons.nth(1).click(); await header.waitFor({ state: 'hidden' });
+        }
+      }
+      console.log(`PASS ${width}x${height}: real WishGroupDialog menu/Close share normal, hover and disabled surfaces in both themes; native menu and close`);
       assert.deepEqual(errors, []); await page.close();
     }
   }
