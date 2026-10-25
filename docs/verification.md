@@ -83,6 +83,8 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 только contents:read и не публикует приложение; production job разрешён только
 для main и сохраняет обязательный release gate. Интегрировать затем тот же SHA.
 
+Бейджи общих медиакарточек: `npm run test:snippet-badges` входит в release-набор. Проверяет реальную WorkoutCard на восьми размерах с mouse/touch и author/reader: статус целиком внутри медиа, без пересечения с 48px drag handle. Общий контракт — `docs/drag-and-drop.md`.
+
 ## Команды
 
 | Команда | Назначение |

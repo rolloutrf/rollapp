@@ -29,7 +29,7 @@ export function WishListNavigation({ value, className, children }) {
   return (
     <div
       ref={viewportRef}
-      className={cn("list-tabs", className)}
+      className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
       aria-label="Списки желаний"
       onFocusCapture={(event) => revealList(viewportRef.current, event.target.closest("button"))}

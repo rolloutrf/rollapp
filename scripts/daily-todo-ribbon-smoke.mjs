@@ -84,6 +84,13 @@ try{
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
+   if(width>=768){
+    const edges=await page.locator('.daily-todo__ribbon').evaluate(el=>{
+     const s=getComputedStyle(el);return {shared:el.classList.contains('horizontal-tile-scroller'),mask:s.maskImage,overflowX:s.overflowX,overflowY:s.overflowY,padding:s.paddingLeft,scrollPadding:s.scrollPaddingLeft};
+    });
+    assert.equal(edges.shared,true); assert.equal(edges.mask,'none','Day ribbon must use the main page hard edge, without fading');
+    assert.equal(edges.overflowX,'auto');assert.equal(edges.overflowY,'hidden');assert.equal(edges.padding,edges.scrollPadding);
+   }
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');
     const dateTrigger=page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true});
@@ -293,11 +300,14 @@ try{
     }
 
    }
-   const overview=page.locator('.daily-todo__overview');
-   assert(await overview.isVisible(),'Day overview is missing');
+   assert.equal(await page.locator('.daily-todo__overview').count(),0,'Removed day overview must not reserve space');
    assert.equal(await page.locator('.daily-todo__empty').count(),empty?1:0,'Empty day state is incorrect');
    const beforeCalendar=new URL(page.url());
-   await page.getByRole('button',{name:/^Открыть .* в календаре$/}).click();
+   const destination=new URL(beforeCalendar);
+   destination.searchParams.set('tab','calendar'); destination.searchParams.set('view','day');
+   destination.searchParams.set('spaceKind','todo');
+   destination.searchParams.set('date',beforeCalendar.searchParams.get('date')||'2026-10-16');
+   await page.goto(destination.href);
    await page.waitForURL(url=>url.searchParams.get('tab')==='calendar'&&url.searchParams.get('view')==='day');
    const calendarUrl=new URL(page.url());
    assert.equal(calendarUrl.searchParams.get('date'),beforeCalendar.searchParams.get('date')||'2026-10-16','Calendar lost the selected date');

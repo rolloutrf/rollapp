@@ -218,7 +218,7 @@ export function EducationListNavigation({
   const showUnlisted = unlistedCount > 0 || lists.length === 0;
   return (
     <div className="min-w-0" data-group-navigation>
-      <div className="list-tabs mb-0">
+      <div className="list-tabs horizontal-tile-scroller mb-0">
         <div className="list-tabs__track">
           <ToggleGroup
             className="contents"
