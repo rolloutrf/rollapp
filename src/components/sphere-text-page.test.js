@@ -69,8 +69,8 @@ test("plain sphere pages share one centered content rail", async () => {
 
   assert.match(
     characterTraits,
-    /max-w-\(--layout-collection-width\)/u,
-    "Character traits must use the shared collection measure",
+    /max-w-\(--layout-form-width\)/u,
+    "Character traits must use the shared To Do/form measure",
   );
 
   for (const [label, source] of [

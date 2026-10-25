@@ -1,0 +1,148 @@
+{
+  "recordedAt": "2026-10-23T19:47:24.901Z",
+  "status": "unsigned-stage-superseded-by-ton-pilot",
+  "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+  "branch": "codex/portable-contact-card",
+  "dirty": true,
+  "runtimeAndTestSources": {
+    "src/App.jsx": "20a9ac12862a4f725f85feb939aacae96ac55f224c5f5c5a569f490499d05b64",
+    "src/components/contact-card-dialog.jsx": "f73e202086f14dcb701ce69d098910d536f6c70b9591684eed603c2d76569380",
+    "shared/contact-card.js": "c9529868da4ed60697ab96e4dd4bd12b4460e6dc8c6c03d2a6f78c003a754cae",
+    "shared/contact-card.test.js": "2f54441987bb580088c8a628e7aca1f2d889163f445ffde33bfb6bf95662b769",
+    "scripts/contacts-feed-smoke.mjs": "971c7aeffb1171657b066d5114ebc4e1d033f7683eaf20c9cdc759fc3917d82c",
+    "scripts/fixtures/contacts-feed.jsx": "52d7b0502406474a40eb28e501c8b51fe6a83fcfab9257636d3da299deb95b15"
+  },
+  "checks": {
+    "unit": {
+      "status": "passed",
+      "tests": 826,
+      "passed": 825,
+      "skipped": 1
+    },
+    "ui": {
+      "status": "passed"
+    },
+    "controls": {
+      "status": "passed"
+    },
+    "details": {
+      "status": "passed"
+    },
+    "dates": {
+      "status": "passed"
+    },
+    "calendar": {
+      "status": "passed"
+    },
+    "formActions": {
+      "status": "passed"
+    },
+    "contacts": {
+      "status": "passed",
+      "viewports": 9,
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "passRecords": 18
+    },
+    "actionRails": {
+      "status": "passed",
+      "passRecords": 90
+    },
+    "build": {
+      "status": "passed",
+      "warning": "Large chunks"
+    },
+    "audit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "productionAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "comprehensive": {
+      "status": "superseded",
+      "report": "/tmp/rollapp-contact-card-comprehensive-final.json",
+      "snapshot": {
+        "status": "superseded",
+        "startedAt": "2026-10-23T19:06:14.555Z",
+        "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+        "dirty": true,
+        "node": "v22.22.3",
+        "checks": [
+          {
+            "name": "check:release",
+            "status": "running",
+            "startedAt": "2026-10-23T19:06:14.700Z"
+          },
+          {
+            "name": "test:navigation",
+            "status": "not-run"
+          },
+          {
+            "name": "test:action-rails",
+            "status": "not-run"
+          },
+          {
+            "name": "test:identity-reports",
+            "status": "not-run"
+          },
+          {
+            "name": "test:todo",
+            "status": "not-run"
+          },
+          {
+            "name": "test:form-pages",
+            "status": "not-run"
+          },
+          {
+            "name": "test:catalog-page",
+            "status": "not-run"
+          },
+          {
+            "name": "test:wish-groups",
+            "status": "not-run"
+          },
+          {
+            "name": "test:drawers",
+            "status": "not-run"
+          },
+          {
+            "name": "test:contacts",
+            "status": "not-run"
+          }
+        ]
+      }
+    }
+  },
+  "production": {
+    "deployed": false,
+    "databaseWrites": false,
+    "connection": "configured production PostgreSQL, direct TLS, verify startup",
+    "developmentServiceLeftRunning": true,
+    "frontend": "http://127.0.0.1:5340"
+  },
+  "notImplemented": [
+    "cryptographic signatures",
+    "user keys and recovery",
+    "blockchain",
+    "contact import and automatic updates"
+  ],
+  "unverified": [
+    "physical-phone QR scan",
+    "native address-book import",
+    "real iOS/Android Share",
+    "completed comprehensive release matrix"
+  ],
+  "supersededBy": "docs/ton-contact-cards-verification-2026-10-23.md"
+}

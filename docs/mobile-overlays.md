@@ -1,5 +1,13 @@
 # Mobile overlay behavior
 
+Native `Input type="time"` keeps its picker and HTML value semantics, but the
+product layer in `src/index.css` sets `appearance: none` and border-box sizing.
+iOS RenderTheme otherwise changes percentage-width date/time controls to
+content-box and enforces an intrinsic minimum, allowing their borders beyond
+the page rail. Do not fix this by clipping the page. `test:time-inputs` checks
+the shared controls in WebKit and Chromium; macOS WebKit does not reproduce the
+iOS native theme, so a pass does not establish actual-device correctness.
+
 Inline image viewing composes the existing FullscreenDialog. Its ControlBar
 header remains outside one min-height:0 scrolling image body; both respect the
 shared visible viewport and safe areas. Base UI retains modality/focus trapping.
@@ -148,6 +156,10 @@ Entry and source-scroll restoration use explicit `behavior: "instant"` as well:
 once the form unmounts, the source's global smooth-scroll CSS is active again.
 Restoring its saved position must not animate from the top. `test:form-pages`
 checks both page and browser Back from a deep source position, frame by frame.
+Queued opener focus restoration applies only while the document has no focused
+control. If a source field or calendar control has already received focus after
+closing, preserve that new owner. `test:calendar` focuses the newly created
+event's resize control before the return frame and verifies its Arrow key action.
 
 `MobileFormFooter` keeps Back, submit and optional delete in one fixed
 `ControlBar`, with 48px controls and 8px gaps. Its bottom uses

@@ -18,7 +18,7 @@ try{
   await page.locator('[data-calendar-event="long"]').waitFor();await page.evaluate(()=>document.fonts.ready);
   await page.screenshot({path:`/tmp/rollapp-events-${width}-${height}.png`});
   const state=async()=>JSON.parse(await page.locator('[data-state]').textContent());
-  const writes=async count=>{try{await page.waitForFunction(n=>JSON.parse(document.querySelector('[data-state]').textContent).writes.length===n,count);await page.locator('.schedule[aria-busy="false"]').waitFor();}catch(error){console.error('calendar writes failure',JSON.stringify({width,height,expected:count,state:await state(),body:await page.locator('body').innerText(),errors}));await page.screenshot({path:`/tmp/rollapp-events-failed-${width}-${height}.png`});throw error;}};
+  const writes=async count=>{await page.waitForFunction(n=>JSON.parse(document.querySelector('[data-state]').textContent).writes.length===n,count);await page.locator('.schedule[aria-busy="false"]').waitFor();};
   const close=async()=>{await page.getByRole('button',{name:width<768?'Назад':'Закрыть задачу',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor({state:'hidden'});};
   const event=id=>page.locator(`[data-calendar-event="${id}"] .schedule-event`);
   const edit=async id=>{await event(id).click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:id.startsWith('series')?'Изменить серию':'Изменить',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor();};
@@ -41,6 +41,10 @@ try{
   await event('long').click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:'Дублировать',exact:true}).click();
   assert.equal(await page.getByLabel('Название',{exact:true}).inputValue(),'Встреча с командой — копия');
   await close();assert.equal((await state()).writes.length,1,'Cancel wrote a duplicate');
+  await event('untimed').click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:'Дублировать',exact:true}).click();
+  assert.equal(await page.getByLabel('Начало',{exact:true}).inputValue(),'','Duplicate materialized an untimed display slot');
+  assert.equal(await page.getByLabel('Длительность, минут',{exact:true}).inputValue(),'60','Duplicate replaced stored duration with a projection');
+  await close();assert.equal((await state()).writes.length,1,'Cancel wrote an untimed duplicate');
   await edit('long');await page.getByLabel('Начало',{exact:true}).fill('23:30');
   await page.getByRole('button',{name:'Сохранить',exact:true}).click();
   await page.getByText('Задача должна заканчиваться в пределах выбранного дня',{exact:true}).waitFor();
@@ -54,7 +58,25 @@ try{
   await page.getByText('Не удалось сохранить событие',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Название',{exact:true}).inputValue(),'Новое событие','Failure lost draft');
   await page.locator('[data-fail]').dispatchEvent('click');
+  if(width<768)await page.getByLabel('Название',{exact:true}).evaluate(input=>{
+   window.calendarReturnFocus=new Promise(resolve=>{
+    const observer=new MutationObserver(()=>{
+     const target=document.querySelector('[aria-label="Изменить длительность: Новое событие"]');
+     if(input.isConnected||!target||target.closest('[inert]'))return;
+     observer.disconnect();target.focus();resolve();
+    });
+    observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+   });
+  });
   await page.getByRole('button',{name:'Сохранить',exact:true}).click();await writes(2);
+  if(width<768){
+   const retained=await page.evaluate(async()=>{
+    await window.calendarReturnFocus;
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    return document.activeElement?.getAttribute('aria-label')==='Изменить длительность: Новое событие';
+   });
+   assert.equal(retained,true,'Closing form reclaimed a newly focused calendar control');
+  }
   await page.getByLabel('Название',{exact:true}).waitFor({state:'hidden'});
   await event('new-5').waitFor();
   await page.getByRole('button',{name:'Изменить длительность: Новое событие',exact:true}).press('ArrowDown');await writes(3);

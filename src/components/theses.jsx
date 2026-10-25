@@ -16,7 +16,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
-import thesesSource from "@/data/theses.md?raw";
 
 const STATEMENT_SECTIONS = {
   theses: {
@@ -32,7 +31,7 @@ const STATEMENT_SECTIONS = {
     emptyTitle: "Тезисов пока нет",
     emptyDescription: "Добавьте первую мысль, к которой хотите возвращаться.",
     emptyReadOnlyDescription: "Владелец пока не добавил тезисы.",
-    source: thesesSource,
+    source: "",
   },
   principles: {
     title: "Принципы",

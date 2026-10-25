@@ -172,3 +172,11 @@ test("moving a group updates its list, wish memberships, and list counters", () 
     { id: "target", wishCount: 2 },
   ]);
 });
+
+
+test("mixed grid reorder uses the visible group slot with interleaved members", () => {
+  const order = ["moving", "first", "outside", "second", "tail"];
+  assert.deepEqual(moveWishGroupToTarget(order, ["moving"], ["first", "second"]), ["first", "second", "moving", "outside", "tail"]);
+  assert.deepEqual(order, ["moving", "first", "outside", "second", "tail"]);
+  assert.deepEqual(moveWishGroupToTarget(["first", "outside", "second", "moving", "tail"], ["moving"], ["first", "second"]), ["moving", "first", "second", "outside", "tail"]);
+});

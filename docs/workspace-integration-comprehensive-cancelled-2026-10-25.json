@@ -1,0 +1,56 @@
+{
+  "status": "cancelled",
+  "startedAt": "2026-10-25T15:41:29.405Z",
+  "commit": "05545e4ada4f7791c40d46b0f79fd9bdbc38fda2",
+  "dirty": false,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "cancelled",
+      "startedAt": "2026-10-25T15:41:29.476Z"
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contact-notes",
+      "status": "not-run"
+    }
+  ],
+  "cancellationReason": "Explicit user request: deploy without testing",
+  "finishedAt": "2026-10-25T17:02:49Z"
+}

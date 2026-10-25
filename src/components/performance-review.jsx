@@ -21,13 +21,12 @@ import { CareerContentError, useCareerContent } from "@/components/career-conten
 import { PerformanceEditor } from "@/components/performance-editor";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PERFORMANCE_CYCLES } from "@/data/performance-review";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const DEFAULT_PERFORMANCE_CONTENT = {
   heading: "Перфоманс в динамике",
   description: "Архив рабочих результатов и обратной связи: от продуктовых запусков до развития команды, платформы и стратегического влияния.",
-  cycles: PERFORMANCE_CYCLES,
+  cycles: [],
 };
 
 const cleanScore = (score = "") => score.replace(/[)]+$/u, "").trim();
@@ -275,7 +274,7 @@ function orderPerformanceCycles(cycles) {
 
 export function PerformanceReview() {
   const { readOnly } = useSphereSharing();
-  const [activeCycleId, setActiveCycleId] = useState(PERFORMANCE_CYCLES[0]?.id || "");
+  const [activeCycleId, setActiveCycleId] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);

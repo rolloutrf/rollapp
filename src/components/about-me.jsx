@@ -1,6 +1,5 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
-import aboutMeSource from "@/data/about-me.md?raw";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { InlineDocument } from "@/components/inline-document";
 import {
@@ -141,8 +140,8 @@ function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, op
 
 export function AboutMe() {
   const sharing = useSphereSharing();
-  const careerContent = useCareerContent("about", aboutMeSource);
-  const content = typeof careerContent.content === "string" ? careerContent.content : aboutMeSource;
+  const careerContent = useCareerContent("about", "");
+  const content = typeof careerContent.content === "string" ? careerContent.content : "";
   return <div className="sphere-text-page page-stack">
     <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
     {!careerContent.loading && !careerContent.error && <InlineDocument

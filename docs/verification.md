@@ -13,6 +13,13 @@
 Общая карта владельцев, граница upstream shadcn и продуктовых композиций,
 а также порядок централизованного изменения: [design-system.md](design-system.md).
 
+В «Характере» быстрое добавление содержит только поле «Черта». Название своей
+черты открывает детали через общий form-surface: справа на десктопе, нативная
+страница формы на телефоне. Название и личное описание сохраняются вместе с
+текущим выбором в существующий identity/character документ; отмена не пишет данные,
+ошибка сохраняет набранные поля для повтора. Checkbox остаётся независимым от
+открытия деталей. Реальная форма входит в полную матрицу `test:drawers` как
+`character-trait`; ширина раздела и шторы использует `--layout-form-width`.
 
 Задачи To Do используют общий TaskEditor: после «Описания» идут независимые
 необязательные многострочные поля «Ожидаемый результат» и «Факт» (до5000 знаков).
@@ -93,7 +100,20 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 только contents:read и не публикует приложение; production job разрешён только
 для main и сохраняет обязательный release gate. Интегрировать затем тот же SHA.
 
+Бейджи общих медиакарточек: `npm run test:snippet-badges` входит в release-набор. Проверяет реальную WorkoutCard на восьми размерах с mouse/touch и author/reader: статус целиком внутри медиа, без пересечения с 48px drag handle. Общий контракт — `docs/drag-and-drop.md`.
+
 ## Команды
+
+`npm run test:time-inputs` входит в `check:release`: общий `Input type="time"`
+в `Field` и одно-/двухколоночной сетке на 320/390/768/820/1024/1440/1920px
+и 390×400, WebKit и Chromium (16 случаев), mobile DPR 3. Проверяет края
+каждого поля относительно Field и страницы, 48px, ввод и сохранность соседнего
+значения, отсутствие API, ошибки и opt-out из iOS native appearance.
+Установка WebKit: `npx playwright-core install --with-deps webkit` (также в CI).
+Это изолированная композиция общих контролов, не полная форма сна. macOS WebKit
+не воспроизводит iOS RenderTheme; реальный iPhone/Telegram требует отдельной
+проверки. Результат comprehensive не означает покрытие всех платформ/экранов.
+
 
 `npm run test:lab-results` входит в `check:release`: реальный `LabReportPanel`,
 первое раскрытие и повторное открытие, все четыре края внешнего 1px ring карточек
@@ -123,10 +143,12 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 | `npm run test:wish-groups` | Реальные карточки групп Wishlist: троеточие в длинных названиях, границы текста и счётчика, клавиатура, отмена переименования, owner/read-only на полной матрице |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
-| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
+| `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Дополнительная pointer-матрица на восьми ширинах и высотах 900/400 проверяет точку захвата, resize delta, no-op, capture/cancel, failed save/retry/Undo, перенос между днями, edge-scroll обеих осей и подпись длинного события при прокрутке (контракт `docs/drag-and-drop.md`). Fixture блокирует API; входит в `check:release` |
 | `npm run test:health` | Сон/питание: меню, автоматическая сегодняшняя плашка/смена дня и история сна без календаря/добавления; питание как To Do с общей лентой/мобильной строкой, галочками/итогами и composer, формы, черновик/retry, вложенная дата/Back, создание/удаление, read-only и геометрия 320–1920px/короткие окна; API запрещён. |
 | `npm run test:health:production` | Реальные CRUD-маршруты сна/питания на настроенном production PostgreSQL: reload, изоляция владельца/трекера. Только отдельная BEGIN → ROLLBACK транзакция, без инициализации схемы; отсутствие временных записей проверяется после отката. |
-| `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом |
+| `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом; приём событий устройства: отдельные календари/владельцы, idempotency, привязка к одному устройству/отзыв, защита обычных задач/списков и невозможность browser login по device credential |
+
+Подключение календаря устройства также входит в `test:calendar`: `calendar-sync-smoke.mjs` проверяет 16 комбинаций ширины/высоты, DPR 3 для 390px, две круглые кнопки, ошибки/retry, single-flight, копирование device-кода, статус реального snapshot, read-only события без drag/resize/editor, подтверждённый отзыв и возврат к календарю. Native pure tests/build: `zsh native/apple-calendar/test-macos.sh` и `build-macos.sh`; они не заменяют системное разрешение EventKit, Keychain/сеть на устройстве, iOS signing/install. Контракт: `docs/calendar-sync.md`.
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
 
@@ -475,6 +497,18 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 ## Лента контактов
 
+Цифровая визитка: [contact-cards.md](contact-cards.md). Тот же `test:contacts`
+дополнительно проверяет локальный QR, реальные vCard/JSON downloads с явным списком
+публичных полей, clipboard error/retry, share/cancel, восстановление фокуса,
+48px/24px контролы и гостевой публичный профиль в обеих темах. Матрица включает
+девять размеров, в том числе 390×400 и 1440×400. TON Testnet подпись и подготовка первоначальной регистрации проверяются отдельным
+`npm run test:contact-cards`, включённым в `check:release`: реальные HTTP обработчики
+и Ed25519 verification, явно синтетический кошелёк, девять размеров, отказ/повтор,
+Mainnet rejection, цепочка обновлений, файлы и отсутствие ложного подтверждения RPC.
+Unit suite воспроизводит Tolk artifact и проверяет права/ротацию/семидневное
+восстановление в TON Sandbox. Это не проверка реального Testnet-развёртывания;
+реальная подпись/деплой требуют кошелька владельца. Схема и данные БД не меняются.
+
 Контакты загружаются порциями по 48 с автоматической подгрузкой в пределах
 500px от нижнего края. Кнопка «Загрузить ещё» сохраняет ручной/клавиатурный доступ;
 ошибка следующей страницы не убирает уже загруженные карточки и требует явного
@@ -550,5 +584,47 @@ mobile history, PDF reader, отмена и подтверждение удал�
 `npm run test:snippets` входит в `check:release`: реальные карточки курсов, конференций, коучинга, тренировок и препаратов, все статусы, owner/read-only/busy, обе темы, mouse/touch, 11 размеров 320–1920px и короткие окна. Проверяются glyph/badge bounds, ручки и native drag preview/cancel, меню/ссылки/клавиатура, overflow, изображения/loading/fallback/source replacement и отказ старого запроса. JSON и screenshots сохраняются в `/tmp/rollapp-snippets/`; веточный comprehensive job включает JSON/failure screenshots в artifact. `--diagnostic` запускает только 320px и не заменяет полный прогон. Контракт: [collection-snippets.md](collection-snippets.md).
 
 Релиз прозрачных панелей занял 117 минут. С добавлением обязательной матрицы сниппетов deploy job имеет 180 минут, как веточный audit; это запас времени, assertions и состав release не сокращаются.
+## Персональный План Развития в Идентичности
+
+Раздел `personal-development-plan` использует общий `EditableMarkdownDocument`
+и отдельный ключ `identity:personal-development-plan`, независимо от карьерного ИПР.
+Личный исходник Obsidian не входит в публичный репозиторий или клиентскую сборку.
+Экран показывает только документ владельца из authenticated API; пустой источник
+не подставляет чей-либо личный текст другим пользователям.
+Навигация и права доступа зарегистрированы в общей карте разделов.
+Для сохранения нужна отдельно разрешённая миграция ограничения `identity_content`:
+`node scripts/migrate-personal-development-plan.mjs` проверяет production READ ONLY;
+`node scripts/migrate-personal-development-plan.mjs --apply` расширяет только список
+разделов после отдельного разрешения, без изменений существующих документов.
+Обычный startup/deploy остаётся в режиме verify.
+
+## Личные тексты и public source
+
+Личные документы сфер читаются только через authenticated content/report API.
+Не добавляйте личный Markdown, ответы, CV, планы или архивы feedback в src/data
+и не используйте их как общий fallback. При отсутствии записи показывается пустой
+документ; ошибки БД/API сохраняются видимыми. Синтетические тестовые props не
+являются production storage. Старые PDF используются только parser fixtures,
+не импортируются клиентом и не заменяют загруженные отчёты владельца.
+
+`node scripts/import-identity-document.mjs --username OWNER --section SECTION
+--file /private/document.md` проверяет точную production БД/роль и читает состояние
+без записи. Отдельный `--apply` создаёт только отсутствующий документ выбранного
+владельца через ON CONFLICT DO NOTHING. Существующие и параллельно созданные
+документы не перезаписываются; schema initialization/migrations не запускаются.
+Локальный Obsidian performance export по умолчанию сохраняется вне публичного
+репозитория с правами 0600, в формате JSON для последующего явного импорта.
 
 По прямому запросу пользователя 25 октября «Задеплой без сложного аудита» для UI-сниппетов добавлен явный manual release mode `verification=snippets`: `check:release:snippets` выполняет unit, UI, полный test:controls, test:wish-groups, полный test:snippets, полный drag/drop и build. Default и push-релизы сохраняют полный check:release. Веточный comprehensive не публикует приложение. Этот выбор разрешён только при явном запросе целевого выпуска; незавершённый comprehensive отмечается как отменённый, а не PASS. Schema verify, OIDC, сериализация rollout и exact-SHA health остаются обязательными.
+
+
+По прямому запросу пользователя 25 октября «Заддеплой без тестирования» разрешён
+явный manual production mode `verification=none`. Он пропускает тестовые наборы
+и установку WebKit, выполняет Docker build и штатный OIDC rollout. Default и push
+по-прежнему используют полный release gate. Перед публикацией обязательна реальная
+READ ONLY проверка существующей production-схемы; `ROLLAPP_DATABASE_INITIALIZATION=verify`,
+VM identity guards, immutable SHA, сериализация production rollout и проверка health
+с точной версией сохраняются. Для merge/push этого явно разрешённого выпуска
+используется `[skip ci]`, затем отдельный workflow_dispatch с `verification=none`;
+не запускать обычный push gate параллельно. Незавершённые аудиты помечаются отменёнными,
+а не успешными. Этот режим не используется без отдельного прямого запроса пользователя.

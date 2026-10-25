@@ -1,10 +1,14 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 
 const DEFAULT_SOURCE = "/Users/developer/Desktop/Obsidian/example-owner/03. Карьера/Feedback/Self Review and Feedback";
-const DEFAULT_OUTPUT = path.resolve("src/data/performance-review.js");
+const DEFAULT_OUTPUT = path.join(os.homedir(), "Library/Application Support/Rollapp/private-exports/performance-review.json");
 const sourceRoot = path.resolve(process.argv[2] || process.env.PERFORMANCE_SOURCE_DIR || DEFAULT_SOURCE);
 const outputFile = path.resolve(process.argv[3] || DEFAULT_OUTPUT);
+const repositoryPath = path.resolve(import.meta.dirname, "..");
+const relativeOutput = path.relative(repositoryPath, outputFile);
+if (!relativeOutput.startsWith(`..${path.sep}`) && !path.isAbsolute(relativeOutput)) throw new Error("Personal review exports must stay outside the public repository.");
 
 const normalizeText = (value = "") => value
   .replace(/\r/gu, "")
@@ -211,8 +215,9 @@ const cycles = [...cycleMap.values()]
       .map(({ order, ...project }) => project),
   }));
 
-const output = `// Generated from the Obsidian Self Review and Feedback archive.\n// Re-run scripts/import-obsidian-performance.mjs to refresh this snapshot.\nexport const PERFORMANCE_CYCLES = ${JSON.stringify(cycles, null, 2)};\n`;
-await writeFile(outputFile, output, "utf8");
+const output = JSON.stringify({ heading: "Перфоманс в динамике", description: "", cycles }, null, 2) + "\n";
+await mkdir(path.dirname(outputFile), { recursive: true, mode: 0o700 });
+await writeFile(outputFile, output, { encoding: "utf8", mode: 0o600 });
 
 const projectCount = cycles.reduce((sum, cycle) => sum + cycle.projects.length, 0);
 const projectFeedbackCount = cycles.reduce((sum, cycle) => sum + cycle.projects.reduce((count, project) => count + project.reviewers.length, 0), 0);

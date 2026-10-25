@@ -111,6 +111,20 @@ test("calendar gestures snap both directions and preserve valid day boundaries",
   assert.deepEqual(calendarResize(task, 1500), { durationMinutes: 900 });
 });
 
+test("calendar pointer deltas preserve authored minutes and duration at every grab point", async () => {
+  const { calendarMoveBy, calendarResizeBy } = await import("../shared/planning-calendar.js");
+  const task = { startTime: "09:07", durationMinutes: 137 };
+  assert.deepEqual(calendarMoveBy(task, "2026-10-16", 0), { dueOn: "2026-10-16", startTime: "09:07", durationMinutes: 137 });
+  assert.deepEqual(calendarMoveBy(task, "2026-10-17", 15), { dueOn: "2026-10-17", startTime: "09:22", durationMinutes: 137 });
+  assert.deepEqual(calendarMoveBy(task, "2026-10-17", -15), { dueOn: "2026-10-17", startTime: "08:52", durationMinutes: 137 });
+  assert.deepEqual(calendarResizeBy(task, 0), { durationMinutes: 137 });
+  assert.deepEqual(calendarResizeBy(task, 15), { durationMinutes: 152 });
+  assert.deepEqual(calendarMoveBy(task, "2026-10-17", 2000), { dueOn: "2026-10-17", startTime: "21:43", durationMinutes: 137 });
+  assert.deepEqual(calendarResizeBy(task, 2000), { durationMinutes: 893 });
+  assert.deepEqual(calendarResizeBy(task, -2000), { durationMinutes: 15 });
+  assert.deepEqual(task, { startTime: "09:07", durationMinutes: 137 });
+});
+
 test("dated tasks without a time use a half-hour display slot and can be resized", async () => {
   const { calendarTaskSchedule, layoutCalendarEvents, calendarResize, taskTimeLabel } = await import("../shared/planning-calendar.js");
   const original = { id: "untimed", dueOn: "2026-10-16", startTime: "", durationMinutes: 60 };
