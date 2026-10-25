@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { BUSINESS_MARKETPLACE_KINDS, BUSINESS_MARKETPLACE_SPHERES } from "../shared/business-marketplace.js";
+import { BUSINESS_MARKETPLACE_KINDS, BUSINESS_MARKETPLACE_SPHERES, isBusinessMarketplaceSphere } from "../shared/business-marketplace.js";
 import { ensureRollWallet, RollsError } from "./rolls.js";
 
 export const businessMarketplaceSchema = `
@@ -127,10 +127,13 @@ export async function purchaseBusinessMarketplaceItem(client, userId, sphere, in
 
 export function registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction }) {
   const handle = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-  app.get("/api/business-marketplace/:sphere/store", requireAuth, handle(async (req, res) => {
+  const availableSphere = (req, res, next) => isBusinessMarketplaceSphere(req.params.sphere)
+    ? next()
+    : res.status(404).json({ error: "Раздел бизнеса не найден", code: "MARKETPLACE_NOT_FOUND" });
+  app.get("/api/business-marketplace/:sphere/store", requireAuth, availableSphere, handle(async (req, res) => {
     res.json({ items: await listBusinessMarketplaceItems(query, { sphere: req.params.sphere, kind: "store" }) });
   }));
-  app.post("/api/business-marketplace/:sphere/purchases", requireAuth, handle(async (req, res) => {
+  app.post("/api/business-marketplace/:sphere/purchases", requireAuth, availableSphere, handle(async (req, res) => {
     const purchase = await transaction((client) => purchaseBusinessMarketplaceItem(client, req.user.id, req.params.sphere, req.body));
     res.status(purchase.replayed ? 200 : 201).json({ purchase });
   }));

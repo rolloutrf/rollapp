@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { businessMarketplacePurchaseSchema, listBusinessMarketplaceItems, purchaseBusinessMarketplaceItem } from "./business-marketplace.js";
+import { businessMarketplacePurchaseSchema, listBusinessMarketplaceItems, purchaseBusinessMarketplaceItem, registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 
 test("business marketplace rejects client-controlled purchase data", () => {
   const input = { itemId: "offer-1", idempotencyKey: randomUUID() };
@@ -39,4 +39,22 @@ test("identity marketplace cannot list or purchase legacy offers", async () => {
   const query = async () => { throw new Error("Removed identity marketplace must not query or mutate records"); };
   await assert.rejects(() => listBusinessMarketplaceItems(query, { sphere: "identity", kind: "store" }), error => error.status === 404);
   await assert.rejects(() => purchaseBusinessMarketplaceItem({ query }, "owner", "identity", { itemId: "legacy-offer", idempotencyKey: randomUUID() }), error => error.status === 404);
+});
+
+test("retired marketplace HTTP routes return 404 before querying or starting a transaction", async () => {
+  const routes = [];
+  const rejectDatabase = async () => { throw new Error("Retired route reached the database"); };
+  registerBusinessMarketplaceRoutes({
+    get: (_path, ...handlers) => routes.push(handlers),
+    post: (_path, ...handlers) => routes.push(handlers),
+  }, { requireAuth: (_req, _res, next) => next(), query: rejectDatabase, transaction: rejectDatabase });
+  for (const sphere of ["identity", "unknown"]) for (const handlers of routes) {
+    const req = { params: { sphere }, user: { id: "owner" }, body: { itemId: "legacy-offer", idempotencyKey: randomUUID() } };
+    const res = { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+    let cursor = 0;
+    const next = error => { if (error) throw error; return handlers[cursor++](req, res, next); };
+    await next();
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.body.code, "MARKETPLACE_NOT_FOUND");
+  }
 });
