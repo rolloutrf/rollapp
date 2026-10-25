@@ -163,3 +163,5 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
   reload. Browser WebKit diagnostics do not replace actual-device IME checks.
 
 - Page-level horizontal collections must share the screen-edge contract in `src/spacing.css`: through 820px their scroll viewport reaches both screen edges even inside a capped content column. Use `data-tab-scroller`, `[data-group-navigation] .list-tabs`, `WishListNavigation`, the shared action rail, or `.page-edge-scroller`; never clip them at the prose gutter. Put equal leading/trailing gutters inside the scroll viewport. Run the complete `npm run test:page-scrollers` and affected existing smoke tests; retain it in `check:release`. Ordinary wrapping content tabs and local table/code/menu/drawer scrollers keep their semantic boundaries.
+
+- Шапка приложения и публичного профиля всегда прозрачная: без собственной фоновой подложки, градиента, blur/backdrop-filter, рамки и тени на всю панель. Это правило действует на всех экранах, размерах, темах и при прокрутке. Отдельные кнопки и селекторы сохраняют собственные непрозрачные поверхности.

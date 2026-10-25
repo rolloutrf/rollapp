@@ -74,6 +74,8 @@ try{
    await page.goto(`${origin}/__todo-ribbon?date=2026-10-17${empty?'&empty':''}`);
    const ribbon=page.locator('.daily-todo__header'),selected=page.locator('.daily-todo__day[aria-pressed="true"]');
    await page.getByRole('button',{name:'Добавить задачу',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+   const footerSurface=await page.locator('.daily-todo__footer').evaluate(element=>({background:getComputedStyle(element).backgroundColor,image:getComputedStyle(element).backgroundImage}));
+   assert.deepEqual(footerSurface,{background:'rgba(0, 0, 0, 0)',image:'none'},'Quick-add area must not have a shared background');
    if(!empty){
     for(const [number,time] of [[1,'10:00'],[2,'10:30']]){
      const row=page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true});

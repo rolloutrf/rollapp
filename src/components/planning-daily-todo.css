@@ -1,6 +1,6 @@
 .daily-todo { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
 .daily-todo__scroll { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; gap: var(--layout-page-gap); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; padding-block: var(--layout-page-gap); padding-block-start: var(--layout-safe-top); }
-.daily-todo__footer { flex-shrink: 0; padding-block: var(--layout-item-gap) calc(28px + env(safe-area-inset-bottom)); background: var(--background); }
+.daily-todo__footer { flex-shrink: 0; padding-block: var(--layout-item-gap) calc(28px + env(safe-area-inset-bottom)); background: transparent; }
 .daily-todo__footer .daily-todo__content { gap: var(--layout-inline-gap); }
 .daily-todo__toolbar { display: grid; min-width: 0; grid-template-columns: var(--layout-control-size) minmax(0, 1fr) var(--layout-control-size) var(--layout-control-size); align-items: center; gap: var(--layout-inline-gap); }
 .daily-todo__toolbar > [data-slot="button"] { width: 100%; min-width: 0; }
@@ -56,7 +56,7 @@
   }
   /* One vertical scroll owner for the list and Add action. */
   .daily-todo__scroll { display: contents; }
-  .daily-todo__footer { padding-block: 0; background: transparent; }
+  .daily-todo__footer { padding-block: 0; }
 }
 
 @media (min-width: 768px) and (max-height: 500px) {
