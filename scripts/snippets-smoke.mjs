@@ -31,7 +31,8 @@ async function setTheme(page,dark){
   const animations=[...document.querySelectorAll('.collection-snippet')].flatMap(el=>el.getAnimations({subtree:true}));
   await Promise.all(animations.filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));
  },dark);
- assert(await page.locator('.collection-snippet').evaluateAll(cards=>cards.every(card=>getComputedStyle(card).color===getComputedStyle(document.documentElement).getPropertyValue('--card-foreground').trim())),'Snippet text must settle on the current theme foreground');
+ // Inherited color can start a child's transition after its parent has finished.
+ await page.waitForFunction(()=>[...document.querySelectorAll('.collection-snippet, .collection-snippet h3, .collection-snippet [data-slot="card-footer"] a')].every(element=>getComputedStyle(element).color===getComputedStyle(document.documentElement).getPropertyValue('--card-foreground').trim()));
 }
 async function measure(page){return page.locator('[data-audit-card]').evaluateAll(cards=>cards.map(card=>{
  const rect=el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
