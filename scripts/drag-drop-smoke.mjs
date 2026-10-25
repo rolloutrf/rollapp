@@ -73,6 +73,44 @@ try {
       if ([390,1440].includes(width)) await target.screenshot({path:`/tmp/rollapp-drag-drop/status-tags-${input}-${width}.png`});
     }
     console.log(`PASS ${width}: real workout status labels remain complete and disjoint from mouse/touch handles in both themes and read-only cards`);
+    for(const interleaved of [false,true]) for(const id of ['w1','w4']) for(const result of ['save','outside','fail']) {
+      await load(page, `?groups${interleaved?'&interleaved':''}${result==='fail'?'&fail':''}`);
+      const before=await order(page,'wishes');
+      await start(page,'wishes',id);
+      const target=page.locator('.wishes-page > .wish-grid [data-group-id="g0"]');
+      await target.scrollIntoViewIfNeeded(); const box=await target.boundingBox();
+      await page.mouse.move(box.x+3,box.y+8); await page.waitForTimeout(380);
+      const expected=before.filter(key=>key!==id),index=expected.indexOf('g0');
+      expected.splice(index+(before.indexOf(id)<before.indexOf('g0')?1:0),0,id);
+      assert.deepEqual(await order(page,'wishes'),expected,`${width}: item and whole group must reorder at the edge (${id})`);
+      if(result==='outside') await page.mouse.move(1,1);
+      else {const moved=await page.locator(`[data-group-wish-id="${id}"]`).boundingBox();await page.mouse.move(moved.x+moved.width/2,moved.y+20);}
+      await page.mouse.up();await page.waitForTimeout(100);
+      const writes=await calls(page);
+      assert.equal(writes.filter(call=>call.path==='/wishes/reorder').length,result==='outside'?0:1,'Mixed reorder saves exactly once, outside cancels');
+      assert(!writes.some(call=>call.path.includes('/groups')),'Edge reorder must not change membership');
+      assert.deepEqual(await order(page,'wishes'),result==='save'?expected:before,'Mixed reorder result/rollback');
+      if(result==='save') {
+        const saved=writes.find(call=>call.path==='/wishes/reorder').payload.wishIds;
+        assert(saved.indexOf(interleaved?'w8':'w3')===saved.indexOf('w2')+1,'Group members remain one ordered block');
+        await page.evaluate(()=>window.dragTest.remount());
+        await page.locator('[data-group-id="g0"]').waitFor();
+        assert.deepEqual(await order(page,'wishes'),expected,'Canonical dashboard reload retains mixed order');
+      }
+    }
+    console.log(`PASS ${width}: item/group edge reorder both directions, save/reload, outside/failure rollback`);
+    for(const confirmed of [false,true]) {
+      await load(page,'?groups');await start(page,'wishes','w1');
+      const target=page.locator('[data-group-id="g0"]');await target.scrollIntoViewIfNeeded();
+      const box=await target.locator('.wish-group-tile__preview').boundingBox();
+      await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+      if(confirmed) await page.locator('[data-group-id="g0"].is-drop-target').waitFor();
+      await page.mouse.up();await page.waitForTimeout(60);
+      const writes=await calls(page);
+      assert.equal(writes.filter(call=>call.path==='/lists/general/groups/g0/wishes').length,confirmed?1:0,'Existing group requires confirmed center intent');
+      assert(!writes.some(call=>call.path==='/wishes/reorder'),'Center grouping must not reorder the grid');
+    }
+
     for (const mode of ['wishes', 'collection']) {
       await load(page, `?mode=${mode}`);
       const original = await order(page, mode);
@@ -215,6 +253,26 @@ try {
     assert.deepEqual(errors, []);
     await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}.png`, fullPage: true });
     await touch.setViewportSize({ width, height: 900 });
+    for(const id of ['w1','w4']) for(const cancel of [false,true]) {
+      await load(touch,'?groups');const before=await order(touch,'wishes');
+      const handle=touch.locator(`[data-group-wish-id="${id}"] [data-wish-drag-handle]`);
+      await handle.scrollIntoViewIfNeeded();
+      const target=touch.locator('[data-group-id="g0"]');await target.scrollIntoViewIfNeeded();
+      // Keep both targets in the viewport before beginning the native captured gesture.
+      await handle.scrollIntoViewIfNeeded();const startBox=await handle.boundingBox();const box=await target.boundingBox();
+      await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:startBox.x+20,y:startBox.y+20}]});
+      await touch.locator('.wish-card--drag-preview').waitFor();
+      await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+3,y:box.y+8}]});
+      await touch.waitForTimeout(380);
+      const expected=before.filter(key=>key!==id),index=expected.indexOf('g0');expected.splice(index+(before.indexOf(id)<before.indexOf('g0')?1:0),0,id);
+      assert.deepEqual(await order(touch,'wishes'),expected,'Native touch reorders item/group as complete blocks');
+      if(!cancel){const moved=await touch.locator(`[data-group-wish-id="${id}"]`).boundingBox();await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:moved.x+moved.width/2,y:moved.y+20}]});}
+      await client.send('Input.dispatchTouchEvent',{type:cancel?'touchCancel':'touchEnd',touchPoints:[]});
+      await touch.waitForTimeout(60);const writes=await calls(touch);
+      assert.equal(writes.length,cancel?0:1);assert(!writes.some(call=>call.path.includes('/groups')));
+      assert.deepEqual(await order(touch,'wishes'),cancel?before:expected);
+    }
+
     for (const mode of ['wishes', 'collection', 'public']) {
       await load(touch, `?mode=${mode}`);
       const handle = touch.locator(mode === 'collection' ? '[data-sortable-card-id="w0"] [data-card-drag-handle]' : '[data-group-wish-id="w0"] [data-wish-drag-handle]');

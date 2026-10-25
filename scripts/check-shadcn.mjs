@@ -55,8 +55,11 @@ for (const [file, classes] of [
 const dailyTodo = await read("src/components/planning-daily-todo.jsx");
 const dayRibbon = await read("src/components/planning-day-ribbon.jsx");
 assert.match(dailyTodo, /<PlanningDayRibbon\b/, "To Do must use the shared day ribbon");
-assert.match(dayRibbon, /<div\b[^>]*className="daily-todo__ribbon"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
+assert.match(dayRibbon, /<div\b[^>]*className="daily-todo__ribbon horizontal-tile-scroller"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
 assert.match(dayRibbon, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
+assert.match(await read("src/components/wish-list-navigation.jsx"), /list-tabs horizontal-tile-scroller/, "Wishlist must share tile-rail edges with day ribbons");
+assert.match(await read("src/components/education-lists.jsx"), /list-tabs horizontal-tile-scroller/, "Group rails must share the main page edge contract");
+assert.doesNotMatch(await read("src/components/planning-daily-todo.css"), /mask(?:-image)?\s*:/, "Day rails cannot add a local fading mask");
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
 const packageJson = JSON.parse(packageText);

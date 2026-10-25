@@ -195,6 +195,10 @@
   }
 
   .global-app-chrome {
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     top: calc(var(--layout-chrome-top) + var(--layout-safe-top));
     max-width: var(--layout-page-width);
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
@@ -302,22 +306,26 @@
     gap: var(--layout-inline-gap);
   }
 
-  .wishes-page .list-tabs {
-    --list-navigation-gutter: calc(var(--layout-page-inset) + var(--layout-shell-inset));
-    width: calc(100% + 2 * var(--wishes-viewport-inset));
-    min-width: 0;
+  /* One edge contract for Wishlist, group navigation and day ribbons.
+     Match the main page: native hard clipping, never a fading mask/overlay. */
+  .horizontal-tile-scroller {
+    width: 100vw;
     max-width: none;
-    height: auto;
-    max-height: none;
-    margin-inline: calc(-1 * var(--wishes-viewport-inset));
-    padding-inline: var(--list-navigation-gutter);
+    flex-shrink: 0;
+    margin-inline: calc((100% - 100vw) / 2);
+    --list-navigation-gutter: calc(var(--layout-page-inset) + var(--layout-shell-inset));
+    min-width: 0;
     flex-wrap: nowrap;
+    padding-inline: var(--list-navigation-gutter);
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     scroll-padding-inline: var(--list-navigation-gutter);
     scrollbar-width: none;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
+  .horizontal-tile-scroller::-webkit-scrollbar { display: none; }
 
   .sphere-page--tabbed .tabbed-sphere {
     padding: 0;

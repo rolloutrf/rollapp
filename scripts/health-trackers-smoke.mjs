@@ -120,16 +120,16 @@ async function checkNutritionTodo(page, article, width, height) {
   assert.equal(day.width, 130); assert.equal(day.height, 100);
  }
  await article.getByText('350 ккал', { exact: true }).waitFor();
+ assert.equal(await article.locator('.daily-todo__overview').count(),0,'Removed nutrition overview must not reserve space');
  const checkbox = article.getByRole('checkbox', { name: 'Съедено: Омлет и овощи', exact: true });
  assert(await checkbox.isChecked(), 'Legacy logged meals count as eaten');
  await checkbox.click();
  await article.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
  assert(await checkbox.isChecked(), 'Failed completion writes retain the previous checkbox');
  await checkbox.click();
- await article.getByText('0 из 1 съедено', { exact: true }).waitFor();
+ await article.getByText('— ккал', { exact: true }).waitFor();
  assert(!(await checkbox.isChecked()));
  await checkbox.click();
- await article.getByText('1 из 1 съедено', { exact: true }).waitFor();
  await article.getByText('350 ккал', { exact: true }).waitFor();
  await page.screenshot({ path: `${output}/nutrition-todo-${width}x${height}.png`, fullPage: true });
  if (width < 768) {
@@ -175,7 +175,7 @@ async function checkNutritionTodo(page, article, width, height) {
  await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await article.getByRole('checkbox', { name: 'Съедено: Новый приём пищи', exact: true }).waitFor();
- await article.getByText('0 из 1 съедено', { exact: true }).waitFor();
+ await article.getByText('— ккал', { exact: true }).waitFor();
  if (width >= 768) {
   const composer = article.getByRole('textbox', { name: 'Новый приём пищи на этот день', exact: true });
   await composer.fill('Быстрый перекус'); await composer.press('Enter');
