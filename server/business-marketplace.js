@@ -8,19 +8,18 @@ export const businessMarketplaceSchema = `
     id TEXT PRIMARY KEY,
     business_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     sphere TEXT NOT NULL CHECK (sphere IN ('identity','career','education','health','contacts')),
-    kind TEXT NOT NULL CHECK (kind IN ('catalog','store')),
+    kind TEXT NOT NULL CHECK (kind = 'store'),
     item_type TEXT NOT NULL DEFAULT 'service' CHECK (item_type IN ('product','service')),
     title VARCHAR(160) NOT NULL,
     description VARCHAR(1200) NOT NULL DEFAULT '',
     category VARCHAR(80) NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',
     action_url TEXT NOT NULL DEFAULT '',
-    price_rolls BIGINT CHECK (price_rolls IS NULL OR price_rolls BETWEEN 1 AND 1000000),
+    price_rolls BIGINT NOT NULL CHECK (price_rolls BETWEEN 1 AND 1000000),
     active BOOLEAN NOT NULL DEFAULT TRUE,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK ((kind = 'store' AND price_rolls IS NOT NULL) OR kind = 'catalog')
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_business_marketplace_items_feed
     ON business_marketplace_items(sphere, kind, active, sort_order, created_at DESC);
@@ -128,8 +127,8 @@ export async function purchaseBusinessMarketplaceItem(client, userId, sphere, in
 
 export function registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction }) {
   const handle = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-  app.get("/api/business-marketplace/:sphere/:kind", requireAuth, handle(async (req, res) => {
-    res.json({ items: await listBusinessMarketplaceItems(query, req.params) });
+  app.get("/api/business-marketplace/:sphere/store", requireAuth, handle(async (req, res) => {
+    res.json({ items: await listBusinessMarketplaceItems(query, { sphere: req.params.sphere, kind: "store" }) });
   }));
   app.post("/api/business-marketplace/:sphere/purchases", requireAuth, handle(async (req, res) => {
     const purchase = await transaction((client) => purchaseBusinessMarketplaceItem(client, req.user.id, req.params.sphere, req.body));

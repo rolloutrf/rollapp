@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BriefcaseBusiness, Coins, ExternalLink, Image as ImageIcon, Package, ShoppingBag, Store } from "lucide-react";
+import { Coins, Image as ImageIcon, Package, Store } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api.js";
 import { businessMarketplacePath } from "@/lib/app-routing.js";
@@ -21,20 +21,18 @@ function initials(value = "") {
 }
 
 export function SphereBusinessControls({ sphereId }) {
+  const storePath = businessMarketplacePath(sphereId);
+  if (!storePath) return null;
   return (
     <nav className="sphere-business-controls horizontal-action-scroller" aria-label="Бизнес-разделы">
-      <Link className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })} to={businessMarketplacePath(sphereId, "catalog")} aria-label="Открыть предложения бизнеса" title="Предложения бизнеса">
-        <ShoppingBag aria-hidden="true" />
-      </Link>
-      <Link className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })} to={businessMarketplacePath(sphereId, "store")} aria-label="Открыть магазин за роллы" title="Магазин за роллы">
+      <Link className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })} to={storePath} aria-label="Открыть магазин за роллы" title="Магазин за роллы">
         <Store aria-hidden="true" />
       </Link>
     </nav>
   );
 }
 
-function MarketplaceItem({ item, kind, busy, onBuy }) {
-  const external = item.actionUrl && /^https?:\/\//i.test(item.actionUrl);
+function MarketplaceItem({ item, busy, onBuy }) {
   return (
     <Card className="business-marketplace-card overflow-hidden p-0">
       <div className="business-marketplace-card__media">
@@ -55,27 +53,20 @@ function MarketplaceItem({ item, kind, busy, onBuy }) {
           {item.description && <p>{item.description}</p>}
         </div>
         <div className="business-marketplace-card__footer">
-          {kind === "store" ? (
-            <>
-              <strong className="business-marketplace-card__price"><Coins aria-hidden="true" />{item.priceRolls.toLocaleString("ru-RU")} роллов</strong>
-              <Button disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button>
-            </>
-          ) : external ? (
-            <a className={buttonVariants({ variant: "outline" })} href={item.actionUrl} target="_blank" rel="noreferrer">Подробнее<ExternalLink aria-hidden="true" /></a>
-          ) : <Badge variant="outline">Предложение бизнеса</Badge>}
+          <strong className="business-marketplace-card__price"><Coins aria-hidden="true" />{item.priceRolls.toLocaleString("ru-RU")} роллов</strong>
+          <Button disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button>
         </div>
       </div>
     </Card>
   );
 }
 
-export function BusinessMarketplacePage({ sphere, kind }) {
+export function BusinessMarketplacePage({ sphere }) {
   const [state, setState] = useState({ loading: true, error: "", items: [] });
   const [selected, setSelected] = useState(null);
   const [busyId, setBusyId] = useState("");
-  const isStore = kind === "store";
-  const title = isStore ? `Магазин · ${sphere.label}` : `Предложения · ${sphere.label}`;
-  const endpoint = useMemo(() => `/business-marketplace/${sphere.id}/${kind}`, [sphere.id, kind]);
+  const title = `Магазин · ${sphere.label}`;
+  const endpoint = `/business-marketplace/${sphere.id}/store`;
 
   useEffect(() => {
     let active = true;
@@ -109,14 +100,14 @@ export function BusinessMarketplacePage({ sphere, kind }) {
       {!state.loading && !state.error && !state.items.length ? (
         <Empty className="business-marketplace-page__empty border">
           <EmptyHeader>
-            <EmptyMedia variant="icon">{isStore ? <Package aria-hidden="true" /> : <BriefcaseBusiness aria-hidden="true" />}</EmptyMedia>
-            <EmptyTitle>{isStore ? "В магазине пока пусто" : "Предложений пока нет"}</EmptyTitle>
+            <EmptyMedia variant="icon"><Package aria-hidden="true" /></EmptyMedia>
+            <EmptyTitle>В магазине пока пусто</EmptyTitle>
             <EmptyDescription>Здесь появятся предложения подтверждённых бизнес-аккаунтов.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : null}
       {state.items.length ? <section className="business-marketplace-grid" aria-label={title}>
-        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} kind={kind} busy={busyId === item.id} onBuy={setSelected} />)}
+        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} busy={busyId === item.id} onBuy={setSelected} />)}
       </section> : null}
 
       <AlertDialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !busyId) setSelected(null); }}>

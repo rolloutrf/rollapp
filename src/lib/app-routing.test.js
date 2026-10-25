@@ -19,10 +19,15 @@ test("the application catalog route wins over the clean public wish route", () =
   assert.equal(matches?.at(-1)?.route.id, "catalog");
 });
 
-test("business marketplace routes stay inside their sphere", () => {
-  assert.equal(businessMarketplacePath("career", "catalog"), "/app/spheres/career/business/catalog");
+test("sphere business routes expose stores, while catalog stays in Wishlist", () => {
+  for (const sphere of ["identity", "career", "education", "health", "contacts"]) {
+    assert.equal(businessMarketplacePath(sphere, "catalog"), null);
+    assert.equal(businessMarketplacePath(sphere), `/app/spheres/${sphere}/business/store`);
+  }
   assert.equal(businessMarketplacePath("health", "store"), "/app/spheres/health/business/store");
-  assert.equal(businessMarketplacePath("unknown", "unknown"), "/app/spheres/identity/business/catalog");
+  assert.equal(businessMarketplacePath("unknown", "unknown"), null);
+  assert.equal(businessMarketplacePath("wishlist", "catalog"), null);
+  assert.equal(APP_WISH_CATALOG_PATH, "/app/wishes/catalog");
 });
 
 test("catalog item has an independent route instead of falling into the application shell", () => {
