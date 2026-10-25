@@ -1,4 +1,6 @@
 import { ControlBar } from "@/components/control-bar";
+import { CalendarSyncButton } from "@/components/calendar-sync-button";
+import { useDeviceCalendar } from "@/hooks/use-device-calendar";
 import { calendarTaskSchedules } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -115,11 +117,12 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     </div><ScrollBar orientation="horizontal" />
   </ScrollArea>;
 }
-export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave }) {
+export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave, spaceId = "main", subscriptionTransport, deviceSync = false }) {
   const tasks = sourceTasks;
   // Display slots are projections. Editing must always start from stored data.
   const editTask = (task) => onEdit(sourceTasks.find((item) => item.id === (task.sourceId || task.id)) || task);
   const [search, setSearch] = useSearchParams();
+  const deviceCalendar = useDeviceCalendar(spaceId, deviceSync, subscriptionTransport);
   const today = localDateKey(new Date());
   const selected = isPlanningDate(search.get("date")) ? search.get("date") : today;
   const view = CALENDAR_VIEWS.some((item) => item.id === search.get("view")) ? search.get("view") : "month";
@@ -153,6 +156,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     return () => { endDrag(); window.removeEventListener("blur", endDrag); document.removeEventListener("visibilitychange", visibility); document.removeEventListener("keydown", key, true); };
   }, [selected, view, sourceTasks]);
   const cancelInteractionRef = useRef(null);
+  useEffect(() => { cancelInteractionRef.current?.(); }, [deviceCalendar.events]);
   const navigate = (date, mode = view) => { cancelInteractionRef.current?.(); setSearch((current) => { const next = new URLSearchParams(current); next.set("date", date); next.set("view", mode); return next; }); };
   const saveSchedule = async (task, patch) => {
     const original = sourceTasks.find((item) => item.id === task.id);
@@ -185,7 +189,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     : view === "week" ? calendarWeek(selected)
     : view === "day" ? [selected]
     : calendarDays(dateFromKey(selected)).map(localDateKey);
-  const visible = sortCalendarTasks(calendarTaskSchedules(expandRecurringTasks(tasks, dates[0], dates.at(-1))));
+  const visible = sortCalendarTasks(calendarTaskSchedules([...expandRecurringTasks(tasks, dates[0], dates.at(-1)), ...deviceCalendar.events.filter(event => event.dueOn >= dates[0] && event.dueOn <= dates.at(-1))]));
   const dayTasks = visible.filter((task) => task.dueOn === selected);
   const month = selected.slice(0, 7);
   const listed = visible.filter((task) => task.dueOn?.startsWith(month));
@@ -207,8 +211,9 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
       <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button>
+        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button><CalendarSyncButton spaceId={spaceId} transport={subscriptionTransport} onUpdate={deviceCalendar.refresh} /></div>
       </ControlBar>
+      {deviceCalendar.error && <p role="status" className="schedule-caption px-4">Не удалось обновить события устройства: {deviceCalendar.error} <Button variant="outline" onClick={deviceCalendar.refresh}>Повторить</Button></p>}
       <div className="schedule-layout">
         <div className="schedule-main">
           <h2 className="sr-only" aria-live="polite">{title}{view === "day" && `, ${label(selected, { weekday: "long" })}`}</h2>

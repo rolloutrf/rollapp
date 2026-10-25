@@ -156,6 +156,10 @@ Entry and source-scroll restoration use explicit `behavior: "instant"` as well:
 once the form unmounts, the source's global smooth-scroll CSS is active again.
 Restoring its saved position must not animate from the top. `test:form-pages`
 checks both page and browser Back from a deep source position, frame by frame.
+Queued opener focus restoration applies only while the document has no focused
+control. If a source field or calendar control has already received focus after
+closing, preserve that new owner. `test:calendar` focuses the newly created
+event's resize control before the return frame and verifies its Arrow key action.
 
 `MobileFormFooter` keeps Back, submit and optional delete in one fixed
 `ControlBar`, with 48px controls and 8px gaps. Its bottom uses
