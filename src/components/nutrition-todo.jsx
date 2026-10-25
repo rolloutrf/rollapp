@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
-import { MEAL_TYPES, nutritionTotals } from "../../shared/health-trackers.js";
+import { MEAL_TYPES } from "../../shared/health-trackers.js";
 import "./planning-daily-todo.css";
 
 const number = value => value == null ? "—" : new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value);
@@ -50,7 +50,6 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
   const dayEntries = entries.filter(entry => entry.date === selected).sort((a, b) => a.time.localeCompare(b.time));
   const done = dayEntries.filter(completed);
   const planned = dayEntries.filter(entry => !completed(entry));
-  const totals = nutritionTotals(done);
   async function add(event) {
     event.preventDefault();
     if (!title.trim() || lock.current || !canEdit) return;
@@ -72,7 +71,6 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
       {canEdit && <Button data-control-icon variant="outline" size="icon" aria-label="Добавить приём пищи" onClick={create}><Plus /></Button>}
     </ControlBar> : <PlanningDayRibbon selected={selected} today={today} onChange={onDateChange} />}
     <div className="nutrition-todo__body page-stack">
-      <div className="flex min-w-0 flex-col gap-2" aria-label="Итоги питания"><strong>{number(totals.calories)} ккал</strong><p className="text-muted-foreground wrap-anywhere">Белки: {number(totals.protein)} г · Жиры: {number(totals.fat)} г · Углеводы: {number(totals.carbs)} г</p><p className="nutrition-todo__meta text-muted-foreground">Итоги по отмеченным приёмам пищи</p></div>
       {planned.length > 0 && <section aria-label="Запланировано" className="page-stack">{rows(planned)}</section>}
       {done.length > 0 && <section aria-label="Съедено" className="page-stack">{rows(done)}</section>}
       {dayEntries.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет записей о питании</p>}

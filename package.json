@@ -53,6 +53,7 @@
     "test:wish-groups": "node scripts/wish-group-names-smoke.mjs",
     "check": "npm run check:release",
     "check:comprehensive": "node scripts/check-comprehensive.mjs",
+    "check:release:health": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:health && npm run build",
     "check:release:ui-copy": "npm run test:unit && npm run test:ui && npm run test:controls && npm run build",
     "check:release:identity-reports": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:identity-reports && npm run test:form-actions && npm run test:action-rails && npm run test:page-scrollers && npm run build",
     "check:release:snippets": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:wish-groups && npm run test:snippets && npm run test:drag-drop && npm run build",
