@@ -5,14 +5,14 @@
 ## Проверяемая версия
 
 - Ветка: `codex/consolidate-workspaces-20261025`; PR: https://github.com/rolloutrf/rollapp/pull/13.
-- Зафиксированный код: `761608856558153978459788a4be5d7e27e3b72b`.
+- Зафиксированный код: `38cecf62f6a16817b25b32f8a0fece4f57ab3016`.
 - Исходная интеграционная копия была чистой, HEAD `f55cce47e5718bc411f39cfc9436930deb152f23`.
 - После fetch обнаружен более новый main `9daf0a4`; затем включены `d35e714` и `aaaba0b`.
 - Проверены 21 зарегистрированная рабочая копия, 11 с незакоммиченными файлами.
   Снимки и исходные копии сохранены; исходные ветки не сбрасывались и не очищались.
 - Полный список копий, исходных SHA, файлов и решений: [JSON](workspace-integration-2026-10-25.json).
 - SHA-256 824 исходных/тестовых/конфигурационных файлов:
-  `f0b3796d7b704cd245301d08f1733a960d6ac44161c3694c71457c1b91560e37`.
+  `634a9acc7797bc2f9ada9711f43021776211857c2b6e9c5c151b0afeacf6f56f`.
   Датированные отчёты не входят в этот fingerprint.
 
 ## Собранные изменения
@@ -81,6 +81,20 @@ fallback и не входят в текущую клиентскую сборк�
    позднюю перезагрузку графа модулей. Старый прогон записан как FAILED:
    [JSON](workspace-integration-comprehensive-failed-2026-10-25.json); новый
    comprehensive выполняется с начала, прежний branch run отменён.
+6. CI на `7616088` остановился в calendar-gestures 320×900 при ожидании записи
+   переноса между днями; локальная матрица до этого проходила. В fixture начальное
+   размещение ScrollArea/ResizeObserver могло конкурировать с ручной установкой
+   координат. Тест теперь дожидается двух кадров после готовности шрифтов,
+   размещает границу дней в доступной ширине и явно подтверждает native hit/capture
+   источника и видимость цели. Таймауты и сохранность schedule assertions не
+   ослаблены; добавлен failure screenshot/geometry. Причина CI остаётся гипотезой
+   до повторного полного immutable run. [Failed CI JSON](workspace-integration-comprehensive-ci-failed-2026-10-25.json).
+
+Локальный повтор начат на чистом `05545e4`. После его календарного этапа изменён
+только `scripts/calendar-gestures-smoke.mjs`; код приложения/БД/сборки не менялся.
+Этот локальный результат не объявляется полным PASS финального SHA. Новая полная
+календарная матрица выполняется отдельно на Mac, а окончательный comprehensive
+запущен на неизменяемом `38cecf6` в CI.
 
 ## Проверки
 
@@ -94,6 +108,8 @@ fallback и не входят в текущую клиентскую сборк�
 | npm run test:page-scrollers | Полная матрица PASS после desktop rail fix |
 | npm run test:action-rails | Полная матрица PASS после desktop rail fix |
 | npm run test:todo | Полная матрица PASS после desktop rail fix |
+| npm run test:wish-groups | Полная owner/read-only матрица PASS на `7616088` |
+| npm run test:contact-cards | PASS на девяти размерах: реальные signature routes, синтетический кошелёк/RPC, file/tamper/retry/mainnet guards |
 | npm run test:planning:production | 3 PASS, BEGIN/ROLLBACK, включая device intake/download и изоляцию владельцев |
 | zsh native/apple-calendar/test-macos.sh | PASS; без Calendar/Keychain/network access |
 | zsh native/apple-calendar/build-macos.sh | PASS, universal arm64/x86_64, ad hoc local signature |
@@ -101,7 +117,7 @@ fallback и не входят в текущую клиентскую сборк�
 | npm audit | 2 high в dev-only @ton/ton → Zod 3; совместимого исправления нет |
 | npm run dev:keepalive:status | Готов, API 8491 / frontend 5491, verify initialization; оставлен работающим |
 | git diff --check | PASS |
-| check:comprehensive | Итоговый полный прогон выполняется; PASS пока не заявляется. [Branch audit](https://github.com/rolloutrf/rollapp/actions/runs/40208059941) проверяет зафиксированный код `7616088`; локальный повторный прогон проверяет тот же source fingerprint |
+| check:comprehensive | Итоговый полный прогон выполняется; PASS пока не заявляется. [Branch audit](https://github.com/rolloutrf/rollapp/actions/runs/40210690011) проверяет зафиксированный код `38cecf6`; локальный прогон на `05545e4` продолжается как диагностика, см. ниже |
 
 SDK wallet constructors перенесены в devDependencies; runtime проверяет те же
 четыре официальных bytecode hashes. Unit suite независимо сверяет их с SDK и
