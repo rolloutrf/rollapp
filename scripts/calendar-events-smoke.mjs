@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
+import { listenSmokeServer, smokeOrigin, smokePort } from './smoke-server.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-calendar-events',server:{host:'127.0.0.1',port:smokePort(process.env.CALENDAR_TEST_PORT),strictPort:true,hmr:false,watch:null},plugins:[{name:'calendar-events-fixture',transform(source,id){if(id.includes('planning-space.jsx?calendar-events-export'))return `${source}\nexport { TaskEditor };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__calendar-events'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/calendar-events.jsx"></script></body></html>'));});}}]});
-await server.listen();
-const fixtureOrigin = `http://127.0.0.1:${server.httpServer.address().port}`;
+await listenSmokeServer(server);
+const fixtureOrigin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 try{
  for(const width of (process.env.CALENDAR_WIDTHS||'320,390,768,820,1024,1440,1920').split(',').map(Number))for(const height of [900,400]){
