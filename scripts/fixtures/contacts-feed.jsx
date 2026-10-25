@@ -1,14 +1,16 @@
 // Explicit UI transport: no requests reach the API or a database.
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import { ContactsSpherePage, ToastProvider } from '../../src/App.jsx?contacts-feed-test-export';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorContext, PersistentProfileHero, PublicProfile, CollectionNavigationProvider } from '../../src/App.jsx?contacts-feed-test-export';
+import { useVisualViewport } from '../../src/hooks/use-visual-viewport.js';
 import { api } from '../../src/api.js';
 import '../../src/styles.css';
 import '../../src/index.css';
 const contacts = Array.from({ length: 145 }, (_, i) => ({ id: String(i), name: `Контакт ${String(i).padStart(3, '0')}`, company: 'Компания', role: 'Дизайнер', favorite: false, links: [] }));
 window.feedTest = { requests: [], failNext: false, delay: 0 };
 api.get = async (path) => {
+  if (path.startsWith('/profile/')) return { profile, lists: [], wishes: [], groups: [], isOwner: false, isFollowing: false, followersCount: 0, followingCount: 0 };
   const query = new URL(path, location.origin).searchParams;
   window.feedTest.requests.push(path);
   const delay = window.feedTest.delay;
@@ -24,4 +26,12 @@ api.patch = async (path, body) => {
   contacts.find((item) => path === `/contacts/${item.id}/favorite`).favorite = body.favorite;
   return { ok: true };
 };
-createRoot(document.getElementById('root')).render(<BrowserRouter><ToastProvider><ContactsSpherePage /></ToastProvider></BrowserRouter>);
+const profile = { name: 'Михаил Колосков', username: 'mikhail', email: 'private@example.org', bio: 'PRIVATE-BIO', id: 'PRIVATE-ID', notes: 'PRIVATE-NOTES' };
+function Fixture() {
+  useVisualViewport();
+  const publicView = location.pathname.includes('/public/');
+  return <BrowserRouter><SessionContext.Provider value={{ user: publicView ? null : profile, loading: false }}><ProfileEditorContext.Provider value={{ openProfileEditor() {} }}><CollectionNavigationProvider><ToastProvider>
+    <Routes><Route path="/__contacts-feed/public/:username" element={<PublicProfile />} /><Route path="*" element={<><PersistentProfileHero user={profile} /><ContactsSpherePage /></>} /></Routes>
+  </ToastProvider></CollectionNavigationProvider></ProfileEditorContext.Provider></SessionContext.Provider></BrowserRouter>;
+}
+createRoot(document.getElementById('root')).render(<Fixture />);
