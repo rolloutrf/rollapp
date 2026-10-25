@@ -4,6 +4,7 @@ export const drawerCases = [
   ['ideal-state', 'ideal-state', 'IdealStateItemEditor', { topics: [{ id: 'family', title: 'Семья' }] }],
   ['planning-event', 'planning-space', 'TaskEditor', { task: { title: '', dueOn: '2026-10-07', startTime: '08:15', durationMinutes: 60, recurrence: { frequency: 'weekly', until: '2026-12-31' } }, columns: [{ id: 'todo', title: 'Запланировано' }] }],
   ['planning-event-edit', 'planning-space', 'TaskEditor', { task: { id: 'existing-task', title: 'Задача на день', dueOn: '2026-10-07', startTime: '08:15', durationMinutes: 60, recurrence: { frequency: 'weekly', until: '2026-12-31' } }, columns: [{ id: 'todo', title: 'Запланировано' }] }],
+  ['character-trait', 'character-traits', 'CharacterTraitDetails', { trait: { id: 'new-trait', label: '', description: '' }, readOnly: false }],
   ['about', 'about-me', 'AboutMeQuestionEditor', { mode: 'create' }],
   ['thesis', 'theses', 'ThesisEditor', { mode: 'create' }],
   ['principle', 'theses', 'ThesisEditor', { mode: 'create', section: 'principles' }],
