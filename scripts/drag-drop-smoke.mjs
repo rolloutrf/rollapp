@@ -6,7 +6,7 @@ import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
 const port = smokePort(5195);
 const server = await createServer({ cacheDir: 'node_modules/.vite-drag-drop', server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'drag-drop-fixture', enforce: 'pre',
-  transform(source, id) { if (id.includes('/src/App.jsx?drag-drop-test-export')) return `${source}\nexport { WishesPage, SessionContext, ToastContext, PublicWishGrid };`; },
+  transform(source, id) { if (id.includes('/src/components/workouts.jsx?collection-badges-export')) return `${source}\nexport { WorkoutCard };`; if (id.includes('/src/App.jsx?drag-drop-test-export')) return `${source}\nexport { WishesPage, SessionContext, ToastContext, PublicWishGrid };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => { if (!req.url.startsWith('/__drag-drop')) return next(); res.setHeader('Content-Type', 'text/html'); res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/drag-drop.jsx"></script></body></html>')); }); },
 }] });
 await server.listen();
@@ -49,6 +49,30 @@ try {
     await page.setViewportSize({ width, height: width === 820 ? 450 : 900 });
     console.log(`RUN ${width}: drag/drop matrix`);
     errors = [];
+    await touch.setViewportSize({ width, height: width === 820 ? 450 : 900 });
+    for (const [target, input] of [[page, 'mouse'], [touch, 'touch']]) {
+      await load(target, '?mode=badges');
+      for (const dark of [true, false]) {
+        await target.evaluate(value => document.documentElement.classList.toggle('dark', value), dark);
+        const badges = await target.locator('[data-snippet-badge-case]').evaluateAll(cards => cards.map(card => {
+          const badge = card.querySelector('.collection-snippet__badge'), label = badge.querySelector('span'), icon = badge.querySelector('svg'), media = card.querySelector('.collection-snippet__media'), handle = card.querySelector('[data-card-drag-handle]');
+          const box = el => { const r = el.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
+          const range = document.createRange(); range.selectNodeContents(label);
+          return { status:card.dataset.snippetBadgeCase, badge:box(badge), media:box(media), icon:box(icon), glyphs:[...range.getClientRects()].map(r => ({left:r.left,right:r.right,top:r.top,bottom:r.bottom})), handle:handle && getComputedStyle(handle).display !== 'none' ? box(handle) : null };
+        }));
+        assert.equal(badges.length, 6, 'All owner/read-only workout statuses must be rendered');
+        for (const {status,badge,media,icon,glyphs,handle} of badges) {
+          assert(badge.left >= media.left && badge.right <= media.right && badge.top >= media.top && badge.bottom <= media.bottom, `${width} ${input} ${status}: badge leaves the media`);
+          assert.equal(icon.width,12, 'Status icon must not shrink beside a long label');
+          assert(glyphs.length && glyphs.every(r => r.left >= badge.left - .5 && r.right <= badge.right + .5 && r.top >= badge.top - .5 && r.bottom <= badge.bottom + .5), `${width} ${input} ${status}: status text is clipped`);
+          if (handle) assert(badge.right <= handle.left || badge.left >= handle.right || badge.bottom <= handle.top || badge.top >= handle.bottom, `${width} ${input} ${status}: drag handle overlaps the status ${JSON.stringify({badge,handle,media})}`);
+        }
+        assert(await target.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Status labels must not widen the document');
+      }
+      await target.evaluate(() => document.documentElement.classList.add('dark'));
+      if ([390,1440].includes(width)) await target.screenshot({path:`/tmp/rollapp-drag-drop/status-tags-${input}-${width}.png`});
+    }
+    console.log(`PASS ${width}: real workout status labels remain complete and disjoint from mouse/touch handles in both themes and read-only cards`);
     for (const mode of ['wishes', 'collection']) {
       await load(page, `?mode=${mode}`);
       const original = await order(page, mode);

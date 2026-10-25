@@ -2,14 +2,14 @@ import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { useEffect, useId, useState } from "react";
 import {
-  AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, ExternalLink, MapPin,
+  AlertTriangle, Ban, CalendarDays, CheckCircle2, Clock3, MapPin,
   RotateCcw, Video, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
+import { CollectionSnippetLink } from "@/components/collection-snippet-link";
+import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -133,7 +133,7 @@ function CoachingSessionCard({
         aria-describedby={dragDescriptionId || undefined}
         aria-haspopup="dialog"
         aria-label={draggable ? `Открыть и переместить коучинг-сессию «${session.title}»` : `Открыть коучинг-сессию «${session.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой сессии и дождитесь подсветки" : "Нажмите, чтобы редактировать"}
+        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой сессии и дождитесь подсветки" : "Нажмите, чтобы открыть"}
         onClick={() => onEdit(session)}
         onKeyDown={(event) => {
           if (!draggable) return;
@@ -151,16 +151,13 @@ function CoachingSessionCard({
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
         <CollectionSnippetMedia icon={Video}>
-          <Badge variant={status.variant} className="collection-snippet__badge">
-            <StatusIcon data-icon="inline-start" aria-hidden="true" />
-            {status.label}
-          </Badge>
+          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">
             <h3 className="m-0 font-heading text-base leading-snug font-medium wrap-anywhere">{session.title}</h3>
           </CardTitle>
-          {session.coach && <CardDescription className="min-w-0 truncate">{session.coach}</CardDescription>}
+          {session.coach && <CardDescription className="min-w-0 truncate" title={session.coach}>{session.coach}</CardDescription>}
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
             <EducationItemListMenu
               currentListId={session.listId}
@@ -192,15 +189,7 @@ function CoachingSessionCard({
         </CardContent>
         {session.url && (
           <CardFooter className="justify-end">
-            <a
-              className={buttonVariants({ variant: "outline", size: "default", className: "pointer-events-auto relative z-20 min-h-12 px-4 text-base" })}
-              href={session.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink data-icon="inline-start" aria-hidden="true" />
-              Открыть ссылку
-            </a>
+            <CollectionSnippetLink href={session.url} label={`Открыть ссылку коучинг-сессии «${session.title}»`}>Открыть ссылку</CollectionSnippetLink>
           </CardFooter>
         )}
       </Card>

@@ -6,13 +6,12 @@ import {
   Dumbbell, Flame, Footprints, Gauge, RotateCcw, Route, Timer, Trash2, Trophy, Waves, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
+import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
@@ -137,10 +136,7 @@ function WorkoutCard({
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
         <CollectionSnippetMedia icon={TypeIcon}>
-          <Badge variant={status.variant} className="collection-snippet__badge">
-            <StatusIcon data-icon="inline-start" aria-hidden="true" />
-            {status.label}
-          </Badge>
+          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">

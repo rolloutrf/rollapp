@@ -57,13 +57,15 @@ jobs:
             ${{ runner.temp }}/rollapp-comprehensive.json
             ${{ runner.temp }}/rollapp-comprehensive.log
             /tmp/rollapp-*-failure.png
+            /tmp/rollapp-snippets/*.json
+            /tmp/rollapp-snippets/*failure*.png
 
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    # The complete block-editor browser matrix needs more than the former
-    # 25-minute budget. Keep every release check before publishing the image.
-    timeout-minutes: 120
+    # The last complete release took 117 minutes before adding snippet coverage.
+    # Preserve every assertion and allow headroom for the full browser matrices.
+    timeout-minutes: 180
 
     steps:
       - name: Checkout

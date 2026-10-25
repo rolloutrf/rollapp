@@ -6,7 +6,7 @@ import {
   ImagePlus, ListPlus, MoreHorizontal, Pill, Plus, RotateCcw, Stethoscope, Trash2, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
+import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import { ListTileContent } from "@/components/list-tile-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,7 +14,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -141,7 +140,7 @@ function MedicationGroupMenu({ currentGroupId, disabled, groups, medicationName,
       <DropdownMenuTrigger
         render={(
           <Button
-            className="pointer-events-auto relative z-20 size-9 rounded-full"
+            className="pointer-events-auto relative z-20 size-(--layout-control-size) rounded-full"
             variant="ghost"
             size="icon-lg"
             type="button"
@@ -150,7 +149,7 @@ function MedicationGroupMenu({ currentGroupId, disabled, groups, medicationName,
         )}
         aria-label={`Переместить препарат «${medicationName}» в другую группу`}
       >
-        {moving ? <Spinner aria-hidden="true" /> : <MoreHorizontal aria-hidden="true" />}
+        {moving ? <Spinner className="size-5" aria-hidden="true" /> : <MoreHorizontal className="size-5" aria-hidden="true" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="rollapp-body w-(--layout-menu-wide-width) max-w-(--available-width) rounded-3xl p-3"
@@ -208,6 +207,7 @@ function MedicationGroupMenu({ currentGroupId, disabled, groups, medicationName,
 }
 
 function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGroup, onEdit, onMoveToGroup }) {
+  const { readOnly } = useSphereSharing();
   const status = MEDICATION_STATUS[medication.status] || MEDICATION_STATUS.active;
   const StatusIcon = status.icon;
   return (
@@ -217,18 +217,15 @@ function MedicationCard({ groups, medication, moveDisabled, moving, onCreateGrou
         variant="ghost"
         type="button"
         aria-haspopup="dialog"
-        aria-label={`Редактировать препарат «${medication.name}»`}
-        title="Редактировать препарат"
+        aria-label={`${readOnly ? "Открыть" : "Редактировать"} препарат «${medication.name}»`}
+        title={readOnly ? "Открыть препарат" : "Редактировать препарат"}
         onClick={() => onEdit(medication)}
       >
-        <span className="sr-only">Редактировать препарат «{medication.name}»</span>
+        <span className="sr-only">{readOnly ? "Открыть" : "Редактировать"} препарат «{medication.name}»</span>
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
         <CollectionSnippetMedia key={medication.imageUrl || "empty"} src={medication.imageUrl} icon={Pill}>
-          <Badge variant={status.variant} className="collection-snippet__badge">
-            <StatusIcon data-icon="inline-start" aria-hidden="true" />
-            {status.label}
-          </Badge>
+          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 flex-col items-start gap-1">
