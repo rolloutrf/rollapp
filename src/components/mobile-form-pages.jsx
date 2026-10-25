@@ -98,7 +98,10 @@ export function MobileFormPages({ children }) {
         // The source's smooth-scroll CSS is active again after the form closes.
         // Restoring history position must not animate through the whole page.
         window.scrollTo({ left: 0, top: entry.scrollY, behavior: "instant" });
-        if (entry.opener?.isConnected) entry.opener.focus?.({ preventScroll: true });
+        // A newly focused source control owns the next interaction. The queued
+        // return must not reclaim it after the form has already disappeared.
+        const focused = document.activeElement;
+        if (entry.opener?.isConnected && (!focused || focused === document.body || focused === document.documentElement)) entry.opener.focus?.({ preventScroll: true });
       });
     }, 0));
   }, [navigate, sync, finishClose]);

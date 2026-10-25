@@ -1,0 +1,203 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-25T10:11:43.585Z",
+  "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed",
+      "startedAt": "2026-10-25T10:11:43.629Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:21:13.715Z",
+      "durationMs": 4170085
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:21:13.716Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:21:42.829Z",
+      "durationMs": 29113
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:21:42.830Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:21:57.310Z",
+      "durationMs": 14480
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:21:57.311Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:22:55.707Z",
+      "durationMs": 58396
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:22:55.707Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:23:59.100Z",
+      "durationMs": 63392
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:23:59.102Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:25:17.363Z",
+      "durationMs": 78259
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:25:17.363Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:25:26.020Z",
+      "durationMs": 8656
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:25:26.021Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:25:38.499Z",
+      "durationMs": 12478
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:25:38.499Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:38:09.868Z",
+      "durationMs": 751368
+    },
+    {
+      "name": "test:contacts",
+      "status": "passed",
+      "startedAt": "2026-10-25T11:38:09.869Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-25T11:38:48.025Z",
+      "durationMs": 38156
+    }
+  ],
+  "finishedAt": "2026-10-25T11:38:48.025Z",
+  "finalVerification": {
+    "completedAt": "2026-10-25T11:50:21.681Z",
+    "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+    "dirty": true,
+    "sourceSha256": {
+      "shared/planning-calendar.js": "dfc0d6f907c27bcd24586b55aa361b47583a618204c114a61f59ff4e40443ebf",
+      "src/components/planning-calendar.jsx": "9afd3db7b25202db198f47d8f0cab107280cbfcf1efdec69cb486b9e81fc1749",
+      "src/components/planning-calendar.css": "bb4c56c21328d3bbef11399a5328990c8e937a65862843559820ffdaaa9eafd1",
+      "src/hooks/use-calendar-gesture.js": "9ccd4c0ab80d137de048891288eb5b858b9ddc11e4b426624bf4f7739177e01a",
+      "src/components/mobile-form-pages.jsx": "f325af5508c42e9973566ba44c5c76b5e91a7d09468e3676e714a36013580e28",
+      "scripts/calendar-events-smoke.mjs": "e6d6b3a40ce65f964c661f262992af854d70c7da2743aae1e8bd5bb76f2d495d",
+      "scripts/calendar-gestures-smoke.mjs": "db734a0c74d1a810b06152a6daad2923f0df2e2cdb26c914f80a46587f906687",
+      "scripts/fixtures/calendar-events.jsx": "e9fdaf36ff97968294cecab184f3534cd53e87611a7cd621ba553a1abe0b698d",
+      "server/planning.test.js": "ee25d067d962a09ece5a0520c84d009fc46933b1a2b114fa302d82b52816bc41",
+      "package.json": "2a96bda67cde6f30db317ef58c53493f0bbc6575bb9289eab448fad155dde7bf",
+      "package-lock.json": "93e55e4479fba2719d70c25c42c0d38ed01dbae7065ab7bbc6b147836e6327e8",
+      "AGENTS.md": "01b1b168be115d3486e26e6c6709cbd0fe55f936853d97041c1e946ec178c583",
+      "docs/drag-and-drop.md": "38644dc497f3b39280f05c56d9538383a0859aff5971a91daa26d7e92fb6e929",
+      "docs/mobile-overlays.md": "c2582842c859942cf5cb10a284f51ca31262d7cb1d0fdaa92cf525fe7af99818",
+      "docs/verification.md": "d652ef2b34a353fa8e816997d5e619b98fd1b9dae43f20496561edff3a130fb4"
+    },
+    "note": "The comprehensive run passed. Later calendar duplicate/sticky-preview changes were rechecked with the entire calendar matrix and production build. The form focus change was rechecked with complete form-actions, dates and form-pages matrices.",
+    "lateChecks": [
+      {
+        "command": "npm run test:calendar",
+        "status": "passed",
+        "exitCode": 0,
+        "eventsViewportRuns": 14,
+        "gestureViewportRuns": 16,
+        "log": "/tmp/rollapp-calendar-final-geometry-2026-10-25.log"
+      },
+      {
+        "command": "npm run test:form-actions",
+        "status": "passed",
+        "exitCode": 0,
+        "log": "/tmp/rollapp-calendar-form-actions-final-2026-10-25.log"
+      },
+      {
+        "command": "npm run test:dates",
+        "status": "passed",
+        "exitCode": 0,
+        "viewportRuns": 13,
+        "log": "/tmp/rollapp-calendar-dates-final-2026-10-25.log"
+      },
+      {
+        "command": "npm run test:drag-drop",
+        "status": "passed",
+        "exitCode": 0,
+        "widths": [
+          320,
+          390,
+          767,
+          768,
+          820,
+          1024,
+          1440,
+          1920
+        ],
+        "log": "/tmp/rollapp-calendar-drag-drop-final-2026-10-25.log"
+      },
+      {
+        "command": "npm run build",
+        "status": "passed",
+        "exitCode": 0,
+        "log": "/tmp/rollapp-calendar-build-final-geometry-2026-10-25.log"
+      },
+      {
+        "command": "npm run test:planning:production",
+        "status": "passed",
+        "exitCode": 0,
+        "testsPassed": 2,
+        "rollbackOnly": true,
+        "log": "/tmp/rollapp-calendar-production-2026-10-25.log"
+      }
+    ],
+    "audits": {
+      "all": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "production": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    "productionConnection": {
+      "mode": "direct",
+      "encrypted": true,
+      "authorized": true,
+      "protocol": "TLSv1.3",
+      "rejectUnauthorized": true,
+      "initialization": "verify",
+      "persistentServiceEnabled": true,
+      "servicePid": 6557,
+      "apiReady": true,
+      "frontendReady": true
+    },
+    "limitations": [
+      "No production deployment",
+      "Historical 02:30–24:00 event left unchanged pending original schedule",
+      "Physical iOS/Android, stylus and IME not verified",
+      "Touch event-body dragging is not provided; native scrolling, form editing and dedicated touch resizing remain available",
+      "Additional live review stopped when the Mac locked"
+    ]
+  }
+}
