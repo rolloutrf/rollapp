@@ -165,10 +165,15 @@ function CourseCard({
           <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
-          <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
-            <div className="flex min-w-0 flex-col items-start gap-1">
+          <CardTitle className="flex min-w-0 flex-col items-start gap-2 pr-2">
+            <div className="flex w-full min-w-0 flex-col items-start gap-1">
               <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={course.title}>{course.title}</h3>
               {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground" title={course.provider}>{course.provider}</span>}
+            </div>
+            {course.description && <p className="m-0 line-clamp-3 text-sm font-normal text-muted-foreground text-pretty">{course.description}</p>}
+            <div className="flex min-w-0 items-center gap-2 text-sm font-normal text-muted-foreground">
+              <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
+              <span>{courseDateLabel(course)}</span>
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
@@ -187,13 +192,6 @@ function CourseCard({
             />
           </CardAction>
         </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-4">
-          {course.description && <p className="m-0 text-sm text-muted-foreground text-pretty">{course.description}</p>}
-          <div className="mt-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <CalendarDays className="size-4" aria-hidden="true" />
-            <span>{courseDateLabel(course)}</span>
-          </div>
-        </CardContent>
         {course.url && (
           <CardFooter className="justify-end">
             <CollectionSnippetLink href={course.url} label={`Открыть курс «${course.title}»`}>Открыть курс</CollectionSnippetLink>
