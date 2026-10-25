@@ -1,0 +1,66 @@
+{
+  "status": "failed",
+  "startedAt": "2026-10-20T12:15:41.837Z",
+  "commit": "95223417bdd06683875ef7cf273ecab599270779",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed",
+      "startedAt": "2026-10-20T12:15:41.883Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-20T13:29:36.041Z",
+      "durationMs": 4434157
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-20T13:29:36.042Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-20T13:30:06.269Z",
+      "durationMs": 30227
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-20T13:30:06.269Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-20T13:30:21.160Z",
+      "durationMs": 14890
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "failed",
+      "startedAt": "2026-10-20T13:30:21.161Z",
+      "exitCode": 1,
+      "finishedAt": "2026-10-20T13:31:12.473Z",
+      "durationMs": 51312
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-10-20T13:31:12.473Z"
+}

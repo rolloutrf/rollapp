@@ -1,5 +1,15 @@
 # Единый выпуск inline editor — 2026-10-20
 
+Итог этого предыдущего выпуска: production/main
+`95223417bdd06683875ef7cf273ecab599270779`, CI39402041896 terminal success
+(Test/build, immutable image, metadata deploy, exact health, Telegram configure).
+Exact public health повторно подтверждён перед caption release. Live UI включал
+редактор на8 размерах и unsaved To Do thumbnail flow без создания задачи;
+новый caption-кандидат проверяется отдельно:
+[captions417/comprehensive10](notion-image-caption-verification-2026-10-20.md).
+Далее сохранён исторический ход подготовки952, включая pending формулировки
+на момент записи; они не описывают текущее состояние production.
+
 Пользователь разрешил push/deploy и согласование одного rollout с чатом
 «Отладь все drag-and-drop». Выпуск ведётся из текущего чата; второй чат сохраняет
 свои результаты, не отменяет CI и не меняет production. Все изменения чужой

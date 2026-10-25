@@ -1,3 +1,4 @@
+import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
@@ -92,7 +93,8 @@ function ReportGroup({ group }) {
         </span>
       </AccordionTrigger>
       <AccordionContent className="pb-0">
-        <ul className="m-0 grid list-none gap-2 px-px sm:grid-cols-2">
+        {/* Card's outer 1px ring needs clearance on every edge of the clipped panel. */}
+        <ul className="m-0 grid list-none gap-2 p-px sm:grid-cols-2">
           {group.items.map((item, index) => <ResultItem key={`${item.name}-${index}`} item={item} />)}
         </ul>
       </AccordionContent>
@@ -100,7 +102,7 @@ function ReportGroup({ group }) {
   );
 }
 
-function LabReportPanel({ report }) {
+export function LabReportPanel({ report }) {
   return (
     <div>
       <Accordion defaultValue={report.groups[0]?.id ? [report.groups[0].id] : []}>
@@ -254,10 +256,9 @@ export function LabResults() {
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
       {!readOnly && (
         <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          {selectedReport && <Button
-              className="min-h-12 shrink-0 rounded-full px-5"
+          {selectedReport && <PageActionButton
+              className="shrink-0"
               variant="destructive"
-              size="lg"
               type="button"
               disabled={deleteState.busy || uploadState.loading}
               aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
@@ -265,7 +266,7 @@ export function LabResults() {
               onClick={() => requestDeleteReport(selectedReport)}
             >
               Удалить
-            </Button>}
+            </PageActionButton>}
           <SphereBusinessControls sphereId="health" />
         </div>
       )}

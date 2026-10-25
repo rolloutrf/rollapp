@@ -8,6 +8,7 @@
 @import "./containers.css";
 @import "./overlays.css";
 @import "./identity-reports.css";
+@import "./components/health-tracker.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -652,6 +653,7 @@
   }
 
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]) {
+    flex: 0 0 8.125rem;
     width: 8.125rem;
     min-width: 8.125rem;
     height: 6.25rem;
@@ -831,21 +833,6 @@
       font-size: var(--text-rollapp-body);
     }
 
-    .wishes-page .list-tabs [data-slot="toggle-group-item"] {
-      width: 5rem;
-      min-width: 5rem;
-      height: 4.375rem;
-      min-height: 4.375rem;
-      padding: 0.5rem;
-      border-radius: 0.75rem;
-      font-size: 13px;
-      line-height: 14px;
-    }
-
-    .wishes-page .list-tabs [data-slot="list-tile-label"] {
-      font-size: 13px;
-      line-height: 14px;
-    }
   }
 }
 

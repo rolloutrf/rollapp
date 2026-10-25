@@ -1,4 +1,5 @@
-import { AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, Captions } from "lucide-react";
+import { commitInlineImageCaption } from "@/lib/inline-image-caption";
 import { Button } from "@/components/ui/button";
 import { ControlBar } from "@/components/control-bar";
 import { Popover, PopoverContent } from "@/components/ui/popover";
@@ -7,6 +8,7 @@ import { commitInlineImageAlignment } from "@/lib/inline-image-alignment";
 import { imageAlignmentActionLeft } from "@/lib/inline-image-controls";
 import { useEffect, useId, useRef, useState } from "react";
 import { NodeSelection } from "@tiptap/pm/state";
+import { isBlockSelection } from "@/lib/inline-block-selection";
 import { ScreenPortal } from "@/components/ui/screen-portal";
 import { useInlineMenuPortal } from "@/hooks/use-inline-menu-portal";
 import { measureVisualViewport } from "@/hooks/use-visual-viewport";
@@ -89,7 +91,11 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
         if(alignmentRef.current){if(!owned(alignmentRef.current))closeAlignment();else{publish([]);return;}}
         if(editor.isDestroyed || !editor.isInitialized || !root?.isConnected || !editor.isEditable || editor.view.composing || callbacks.current.suspended){cancel();publish([]);return;}
         const active=root.ownerDocument.activeElement,controlFocused=ownsControl(active);
-        const selected=active===root && !otherHover.current && editor.state.selection instanceof NodeSelection && editor.state.selection.node.type.name==="image" ? editor.view.nodeDOM(editor.state.selection.from) : null;
+        const selection=editor.state.selection;
+        const selectedPosition=selection instanceof NodeSelection?selection.from:isBlockSelection(selection)&&selection.positions.length===1?selection.headBlock:null;
+        const selectedType=selectedPosition==null?null:editor.state.doc.nodeAt(selectedPosition)?.type.name;
+        const selectedDOM=active===root && !otherHover.current && ["image","captionedImage"].includes(selectedType) ? editor.view.nodeDOM(selectedPosition) : null;
+        const selected=selectedDOM?.tagName==="IMG"?selectedDOM:selectedDOM?.querySelector?.(":scope > img");
         const value=drag.current || locate(controlFocused?focused.current:null) || locate(hovered.current) || locate(selected);
         if(!value){publish([]);return;}
         const rect=value.image.getBoundingClientRect(),viewport=measureVisualViewport(window),header=document.querySelector('.global-app-chrome')?.getBoundingClientRect(),navigation=document.querySelector('.mobile-app-navigation')?.getBoundingClientRect();
@@ -169,7 +175,15 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     if(operation.moved)commitInlineImageResize(editor,value,operation.dimensions);
     measureRef.current();
   };
-  const target=!drag.current&&handles[0],action=target&&target.width<target.maxWidth-1?imageActionRect(target.image):null;
+  const target=!drag.current&&handles[0],action=target?imageActionRect(target.image):null;
+  const fullWidth=target&&target.width>=target.maxWidth-1;
+  const captionLabel=target&&target.doc.resolve(target.position).parent.type.name==="captionedImage"?"Редактировать подпись":"Добавить подпись";
+  const applyCaption=()=>{
+    const request=alignmentRef.current||target;
+    if(!request||!owned(request))return;
+    closeAlignment();
+    commitInlineImageCaption(editor,request);
+  };
   const openAlignment=()=>{
     if(!target || !action || !valid(target))return;
     focused.current=target.image;
@@ -184,10 +198,10 @@ export function InlineImageResize({ editor, suspended=false, onActiveChange }) {
     if(!editor.isDestroyed&&editor.isEditable)editor.view.focus();
   };
   return <ScreenPortal container={append()}>
-    {action&&<ControlBar className="inline-editor__image-alignment-control not-typeset" style={{left:action.x,top:action.y}}><Button type="button" variant="secondary" size="icon" data-control-icon data-image-resize-owner={owner} aria-label="Выравнивание изображения" aria-expanded={Boolean(alignment)} onFocus={()=>{focused.current=target.image;measureRef.current();}} onClick={openAlignment}><AlignCenter aria-hidden="true" /></Button></ControlBar>}
+    {action&&<ControlBar className="inline-editor__image-alignment-control not-typeset" style={{left:action.x,top:action.y}}><Button type="button" variant="secondary" size="icon" data-control-icon data-image-resize-owner={owner} aria-label={fullWidth?captionLabel:"Выравнивание изображения"} aria-expanded={fullWidth?undefined:Boolean(alignment)} onFocus={()=>{focused.current=target.image;measureRef.current();}} onClick={fullWidth?applyCaption:openAlignment}>{fullWidth?<Captions aria-hidden="true" />:<AlignCenter aria-hidden="true" />}</Button></ControlBar>}
     <Popover open={Boolean(alignment)} onOpenChange={open=>{if(!open)closeAlignment();}}>
       {alignment&&<PopoverContent anchor={alignment.anchor} collisionBoundary={boundary} collisionPadding={16} collisionAvoidance={{side:"shift",align:"shift"}} positionMethod="fixed" className="inline-editor__image-alignment-menu not-typeset" aria-label="Выравнивание изображения" finalFocus={()=>false} onKeyDown={event=>{if(event.key==="Escape"&&!event.nativeEvent.isComposing){event.preventDefault();closeAlignment();editor.view.focus();}}}>
-        <ControlBar className="flex gap-2" aria-label="Положение изображения">{[["left","По левому краю",AlignLeft],["center","По центру",AlignCenter],["right","По правому краю",AlignRight]].map(([value,label,Icon])=><Button key={value} type="button" variant={(alignment.node.attrs.alignment||"left")===value?"default":"ghost"} size="icon" data-control-icon data-image-resize-owner={owner} aria-label={label} aria-pressed={(alignment.node.attrs.alignment||"left")===value} onClick={()=>applyAlignment(value)}><Icon aria-hidden="true" /></Button>)}</ControlBar>
+        <ControlBar className="flex gap-2" aria-label="Положение изображения">{[["left","По левому краю",AlignLeft],["center","По центру",AlignCenter],["right","По правому краю",AlignRight]].map(([value,label,Icon])=><Button key={value} type="button" variant={(alignment.node.attrs.alignment||"left")===value?"default":"ghost"} size="icon" data-control-icon data-image-resize-owner={owner} aria-label={label} aria-pressed={(alignment.node.attrs.alignment||"left")===value} onClick={()=>applyAlignment(value)}><Icon aria-hidden="true" /></Button>)}<Button type="button" variant="ghost" size="icon" data-control-icon data-image-resize-owner={owner} aria-label={alignment.doc.resolve(alignment.position).parent.type.name==="captionedImage"?"Редактировать подпись":"Добавить подпись"} aria-pressed={false} onClick={applyCaption}><Captions aria-hidden="true" /></Button></ControlBar>
       </PopoverContent>}
     </Popover>
     {handles.map(value=><div key={`${value.position}:${value.side}`} role="separator" aria-orientation="vertical" aria-label={`Изменить ширину изображения ${value.side==="left"?"слева":"справа"}`} aria-valuemin={1} aria-valuemax={value.maxWidth} aria-valuenow={Math.round(value.width)} tabIndex={0} data-image-resize-owner={owner} data-image-resize={value.side} className="inline-editor__image-resize not-typeset" style={{left:value.x,top:value.y,height:value.height,width:value.hitWidth,"--image-resize-guide-x":`${value.guideX}px`}} onFocus={()=>{focused.current=value.image;measureRef.current();}} onPointerDown={event=>begin(event,value)} onLostPointerCapture={()=>{cancel();measureRef.current();}} onKeyDown={event=>key(event,value)}/>)}</ScreenPortal>;

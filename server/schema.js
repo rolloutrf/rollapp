@@ -9,6 +9,7 @@ import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
 import { rollsSchema } from "./rolls.js";
 import { businessMarketplaceSchema } from "./business-marketplace.js";
 import { planningSchema } from "./planning.js";
+import { notesSchema } from "./notes.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -34,6 +35,7 @@ const schema = `
   ${businessMarketplaceSchema}
 
   ${planningSchema}
+  ${notesSchema}
 
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
@@ -440,6 +442,18 @@ const schema = `
   ALTER TABLE education_coaching_sessions
     ADD COLUMN IF NOT EXISTS list_id TEXT REFERENCES education_lists(id) ON DELETE SET NULL;
 
+  CREATE TABLE IF NOT EXISTS health_tracker_entries (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tracker TEXT NOT NULL CHECK (tracker IN ('sleep','nutrition')),
+    entry_on DATE NOT NULL,
+    data_json TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS health_tracker_entries_user_day_idx
+    ON health_tracker_entries (user_id,tracker,entry_on DESC);
+
   CREATE TABLE IF NOT EXISTS health_workouts (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -493,11 +507,14 @@ const schema = `
     instructions TEXT NOT NULL DEFAULT '',
     start_on DATE,
     end_on DATE,
+    image_url TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (start_on IS NULL OR end_on IS NULL OR end_on >= start_on)
   );
+
+  ALTER TABLE health_medications ADD COLUMN IF NOT EXISTS image_url TEXT NOT NULL DEFAULT '';
 
   ALTER TABLE health_medications
     ADD COLUMN IF NOT EXISTS group_id TEXT REFERENCES health_medication_groups(id) ON DELETE SET NULL;
@@ -603,7 +620,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS identity_generated_reports (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup') OR section ~ '^custom-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
     status TEXT NOT NULL DEFAULT 'generated' CHECK (status IN ('generated','empty')),
     report_json TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -614,7 +631,7 @@ const schema = `
   CREATE TABLE IF NOT EXISTS identity_report_uploads (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    section TEXT NOT NULL CHECK (section IN ('hogan','gallup')),
+    section TEXT NOT NULL CHECK (section IN ('hogan','gallup') OR section ~ '^custom-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
     filename TEXT NOT NULL,
     mime_type TEXT NOT NULL DEFAULT 'application/pdf',
     pdf_data BYTEA NOT NULL,

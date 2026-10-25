@@ -7,7 +7,7 @@ function markupDepth(node, depth = 2) {
   node.forEach(child => { maximum = Math.max(maximum, markupDepth(child, next)); });
   return maximum;
 }
-function hasNestedBlock(node) { return ["nestedBlock", "columns"].includes(node.type.name) || node.content.content.some(hasNestedBlock); }
+function hasNestedBlock(node) { return ["captionedImage", "nestedBlock", "columns"].includes(node.type.name) || node.content.content.some(hasNestedBlock); }
 
 
 export function canReloadNestedBlocks(doc) {

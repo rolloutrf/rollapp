@@ -1,3 +1,5 @@
+import { ListTileContent } from "@/components/list-tile-content";
+import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useId, useState } from "react";
 import { FolderInput, ListPlus, MoreHorizontal, Plus, Trash2, Ungroup, X } from "lucide-react";
 import { api } from "@/api";
@@ -27,29 +29,6 @@ import {
   educationListItemCount,
   UNLISTED_EDUCATION_LIST_ID,
 } from "@/lib/education-lists";
-
-const LIST_TILE_STYLE = {
-  width: 130,
-  minWidth: 130,
-  height: 100,
-  minHeight: 100,
-  padding: 12,
-  flex: "0 0 130px",
-  borderRadius: 18,
-  fontSize: 16,
-  lineHeight: "19px",
-};
-
-export function ListTileContent({ title, count }) {
-  return (
-    <>
-      <strong data-slot="list-tile-label" style={{ fontSize: 16, lineHeight: "19px" }}>{title}</strong>
-      <div data-slot="list-tile-meta">
-        <span data-slot="list-tile-count" style={{ fontSize: 24, lineHeight: "29px", fontWeight: 600 }}>{count}</span>
-      </div>
-    </>
-  );
-}
 
 export function EducationItemListMenu({
   currentListId,
@@ -180,24 +159,22 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
       <h2 className="sr-only" id={titleId}>{title}</h2>
       <div className="page-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
         {selectedList && (
-          <Button
-            className="h-12 shrink-0 px-5 text-base"
+          <PageActionButton
+            className="shrink-0"
             variant="outline"
-            shape="pill"
             type="button"
             onClick={() => onEditList(selectedList)}
           >
             Настройки списка
-          </Button>
+          </PageActionButton>
         )}
-        <Button
-          className="h-12 shrink-0 min-w-[180px] px-6 text-base max-[560px]:min-w-0"
-          shape="pill"
+        <PageActionButton
+          className="shrink-0 min-w-[180px] max-[560px]:min-w-0"
           type="button"
           onClick={onAdd}
         >
           Добавить
-        </Button>
+        </PageActionButton>
         <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
@@ -228,7 +205,7 @@ export function EducationListNavigation({
           >
             {showUnlisted && (
               <ToggleGroupItem
-                style={LIST_TILE_STYLE}
+                data-list-tile=""
                 value={UNLISTED_EDUCATION_LIST_ID}
                 aria-label={`${unlistedTitle}, ${unlistedCount}`}
               >
@@ -239,7 +216,7 @@ export function EducationListNavigation({
               const count = educationListItemCount(items, list.id);
               return (
                 <ToggleGroupItem
-                  style={LIST_TILE_STYLE}
+                  data-list-tile=""
                   value={list.id}
                   key={list.id}
                   aria-label={`${list.title}, ${count}`}

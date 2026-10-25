@@ -4,6 +4,39 @@
 
 ## Источники UI-контрактов
 
+Фото препаратов: [medication-photos.md](medication-photos.md).
+`npm run test:medication-photos` входит в release gate; production-поле image_url
+добавляется только отдельной явно разрешённой миграцией
+`node scripts/migrate-medication-photo.mjs --apply` (без --apply — READ ONLY).
+Обычный startup/deploy использует verify и не меняет схему.
+
+Общая карта владельцев, граница upstream shadcn и продуктовых композиций,
+а также порядок централизованного изменения: [design-system.md](design-system.md).
+
+
+Задачи To Do используют общий TaskEditor: после «Описания» идут независимые
+необязательные многострочные поля «Ожидаемый результат» и «Факт» (до5000 знаков).
+Общий planning API сохраняет их как expectedResult/actualResult; смена статуса,
+списка и представления не очищает их. Старая задача получает пустые значения.
+`test:todo` проверяет legacy/cancel/retry/save/reopen/clear и геометрию на320–1920px
+и коротких окнах; `test:planning:production` — API/owner/space isolation сROLLBACK.
+Для первого подключения нужна отдельно разрешённая additive миграция
+`node scripts/migrate-planning-results.mjs --apply` (без --apply только READ ONLY).
+Она добавляет только expected_result/actual_result TEXT NOT NULL DEFAULT ''; обычный
+verify startup проверяет их через LIMIT0, не создаёт и не изменяет записи.
+
+Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
+новую поверхность на восьми размерах и входит в `check:release`. До первого
+запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
+проверка — `node scripts/migrate-planning-notes.mjs`, применение после разрешения —
+та же команда с `--apply`. Обычный verify startup таблицу не создаёт.
+После миграции выполнить `npm run test:notes:production`: HTTP CRUD, owner isolation,
+Unicode payload и media guards на production PostgreSQL с обязательным ROLLBACK,
+без DDL и инициализации схемы.
+`npm run test:notes:production:ui` дополнительно открывает настоящий dev frontend
+на всех восьми размерах; session/notes API идут в ту же production rollback-only
+транзакцию. Нужен готовый keepalive; адрес можно задать `NOTES_TEST_BASE_URL`.
+
 | Область | Реализация | Документация |
 | --- | --- | --- |
 | Текст и семантические роли | `src/typeset.css`, токены `src/index.css` | `docs/typography.md` |
@@ -16,6 +49,33 @@
 
 ## Безопасная последовательность
 
+Подсказки пустых блоков: default `test:text-edit` дополнительно выполняет
+8 случаев `text-placeholder-checks.mjs` (433 records вместо425 до Enter-итерации). Нативные клики
+между соседними пустыми/заполненными абзацами оставляют только текущую подсказку,
+ограниченную одной строкой, без document/save/API writes. Пустой блок кода
+сохраняет свои внутренние отступы и видимые glyphs. Диагностический
+`--surface-only` включает эти случаи, но не заменяет полную матрицу.
+
+Мобильный Enter: default `test:text-edit` также выполняет 8 случаев
+`text-mobile-enter-checks.mjs` (441 records суммарно). Проверяется нативный
+DOM-first `insertParagraph` без keydown, а не только desktop press Enter:
+точное разделение текста/диапазона, курсор, Undo, ввод и save/reload.
+`--mobile-enter-only` — диагностика; отдельный WebKit с iPhone UA не является
+проверкой настоящей экранной клавиатуры/IME. Воспроизводимая дополнительная
+диагностика: `npx playwright-core install webkit`, затем
+`node scripts/text-edit-smoke.mjs --mobile-enter-webkit`.
+После исправления требуется
+новый полный comprehensive на новом SHA, старый audit не разрешает выпуск.
+
+Rich captions: `--image-captions-only` — diagnostic8 viewports, не release
+gate. Общий default `test:text-edit` включает captions перед baseline409 и
+давал417 PASS records до viewer-итерации. Теперь общий default также включает
+8 viewer cases (425 суммарно); `--image-reader-only` проверяет viewer и rich
+reader на восьми размерах, но остаётся diagnostic. `check:comprehensive` сохраняет все11 этапов без
+фильтров. Targeted captions/alignment/resize разных dirty snapshots нельзя
+складывать в полный PASS. Подробности и непроверенные случаи:
+`docs/notion-image-caption-verification-2026-10-20.md`.
+
 1. Прочитать `AGENTS.md`, проверить `git status --short`; сохранить чужие незакоммиченные изменения. Записать SHA и наличие dirty-файлов, чтобы результат не выдавался за проверку чистого релиза.
 2. Проверить `npm run dev:keepalive:status`. На этом Mac постоянный сервис использует настроенный production PostgreSQL по TLS. При сбое восстановить соединение, не подменять БД. Ограничение sandbox на `ps`/`lsof` требует повторения с разрешениями и не означает устаревший PID. После проверки сервис оставить работающим.
 3. Запустить `npm run check:comprehensive`. Он последовательно выполняет полный безопасный набор ниже, сбрасывает фильтры частичных матриц и останавливается на первой ошибке. Путь к JSON-отчёту печатается в начале; `ROLLAPP_CHECK_OUTPUT=/absolute/path/report.json` задаёт своё имя. Отчёт содержит SHA, dirty-флаг, версии Node, коды завершения и длительность этапов; приватные данные приложения в него не попадают.
@@ -24,20 +84,39 @@
 6. Выполнить `npm audit` и отдельно `npm audit --omit=dev`: различать инструменты разработки и зависимости рабочего образа. Проверять advisories по первоисточникам, обновлять совместимые версии и lockfile, затем повторять затронутые проверки. Не запускать `npm audit fix --force` и не откатывать shadcn на несовместимую старую версию ради зелёного счётчика.
 7. Записать найденные проблемы, исправления, выполненные команды, результаты и ограничения в датированный отчёт. `git diff --check`; просмотреть diff перед фиксацией. В итоговом сообщении сообщить фактический результат и оставшиеся ограничения.
 
+На Mac закрытие крышки может прервать даже loopback-загрузку Chromium с
+`ERR_NETWORK_IO_SUSPENDED`; пустой fixture после сна не доказывает дефект UI.
+`caffeinate -i` защищает только от idle sleep, не от закрытия крышки. Для
+непрерывного полного прогона можно отправить проверяемую ветку и выполнить
+`gh workflow run deploy-yandex-cloud.yml --ref <ветка>`: веточный manual job
+запускает весь `check:comprehensive` и сохраняет JSON/log artifact. Он имеет
+только contents:read и не публикует приложение; production job разрешён только
+для main и сохраняет обязательный release gate. Интегрировать затем тот же SHA.
+
 ## Команды
+
+`npm run test:lab-results` входит в `check:release`: реальный `LabReportPanel`,
+первое раскрытие и повторное открытие, все четыре края внешнего 1px ring карточек
+относительно clipping ancestors, пиксели верхней/нижней линии и отсутствие
+горизонтального переполнения. Матрица: 320/390/768/820/1024/1440/1920px и 390×400,
+светлая/тёмная темы, DPR 1/3 (32 случая). UI fixture запрещает API-запросы.
+Внутри обрезающего аккордеона внешний ring требует запаса со всех четырёх сторон;
+одного горизонтального padding недостаточно. Upstream Card/Accordion не менять
+ради этой композиции.
+
 
 | Команда | Назначение |
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
 | `npm run test:text-edit` | Полная матрица inline-документов: ввод без рамок, selection toolbar, блоки/группы, символы, стили/цвета, save/reload, очереди/draft/retry и доступ. Включает native clipboard и буквальные Markdown/HTML/whitespace в строчном коде, отдельный Undo и сохранение соседей; единый редактор четырёх ответов со сквозными диапазонами, фиксированными вопросами и общей историей. Block-colour матрица включает slash/palette, группы/ячейки/диапазоны через ответы, пустой блок/Enter/type, exact reload/public read, HTML clipboard, draft/retry, общий browser preference и его отказ, read-only/viewport. Slash-матрица проверяет команды в существующем тексте, middle-of-line/Shift+Enter, dismissal/clipboard/history guards, атомарные duplicate/delete/type, cell/four-answer scope и panning. Табличная матрица включает команды, merge/split, native resize, spans/ширины/вложенные блоки, public read, draft/retry и отзыв доступа во время drag. Контракт: `docs/inline-editing.md` |
-| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, production build; этот же набор обязателен в CI |
+| `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, трекеры сна/питания, production build; этот же набор обязателен в CI |
 | `npm run check:comprehensive` | Release-набор плюс все расширенные UI-проверки ниже; без запросов к API/БД |
 | `npm run test:navigation` | Верхняя/нижняя навигация, полноширинные меню, safe area, короткий экран и клавиатура |
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
 | `npm run test:drag-drop` | Wishlist, группы, коллекции, публичный список владельца и календарь: порядок/отмена/rollback, подтверждение группировки, native mouse и touch handles на 8 ширинах; входит в `check:release`. Контракт: `docs/drag-and-drop.md` |
 | `npm run test:kanban` | Перетаскивание колонок: короткие/пустые/свёрнутые списки, промежутки, начало/конец, edge-scroll, отмена и ошибка сохранения, touch и меню на телефоне; входит в `check:release` |
-| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён |
-| `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon |
+| `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён; входит в `check:comprehensive` |
+| `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon, два нативных submit в одном кадре → одно сохранение после commit, canonical related references |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
 | `npm run test:contacts` | Бесконечная лента реального ContactsSpherePage: добавление страниц без перемонтирования, ошибка/повтор, конец списка, кадры прокрутки при избранном, отказ сохранения, фильтры и устаревшие ответы; 320–1920px и короткий desktop. Только явный UI transport, реальные API запрещены. |
@@ -45,6 +124,8 @@
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
 | `npm run test:calendar` | События календаря на 320/390/768/820/1024/1440/1920 px при высоте 900/400: видимые названия, точная 15-минутная геометрия, формы/дубликат/удаление, ошибки/retry, исходная дата серии и отсутствие времени, resize/Undo/Escape/range/drag, четыре вида без root overflow. Fixture блокирует API; входит в `check:release` |
+| `npm run test:health` | Сон/питание: меню, автоматическая сегодняшняя плашка/смена дня и история сна без календаря/добавления; питание как To Do с общей лентой/мобильной строкой, галочками/итогами и composer, формы, черновик/retry, вложенная дата/Back, создание/удаление, read-only и геометрия 320–1920px/короткие окна; API запрещён. |
+| `npm run test:health:production` | Реальные CRUD-маршруты сна/питания на настроенном production PostgreSQL: reload, изоляция владельца/трекера. Только отдельная BEGIN → ROLLBACK транзакция, без инициализации схемы; отсутствие временных записей проверяется после отката. |
 | `npm run test:planning:production` | Проверки API и изоляции владельцев на настроенном production PostgreSQL, с откатом |
 
 Расширенные UI-сценарии запускают временные Vite-серверы на loopback и настоящий Chrome с production CSS. Они передают несохранённые props компонентам и отклоняют все `/api/` запросы. Это проверка представления, а не замена production БД. Нужен установленный Chrome/Chromium; `CHROME_PATH` задаёт executable. `node scripts/check-comprehensive.mjs --list` выводит этапы без запуска.
@@ -59,6 +140,12 @@ bind `127.0.0.1:0` атомарно получает свободный порт
 один Vite cache. Кэши разных worktrees/диагностик должны оставаться раздельными.
 Матрицы размеров, API guards, screenshot/DOM assertions и состав release/comprehensive
 не сокращаются; collision/owner guards входят в `npm test`.
+
+Лента контактов также использует атомарный loopback port0 и фактический адрес
+своего listener; `CONTACTS_PORT` задаёт только строгий диагностический override.
+Она не занимает фиксированный dev-порт5196. Drawer smoke при невалидной геометрии,
+включая отсутствующий popup, сохраняет screenshot и bounded DOM/focus/open-event/
+network diagnostics. Наблюдатели не меняют ожидания, фокус или assertions.
 
 Не запускать общий `node --test` или исторический `npm run test:visual` в качестве обычной проверки: они включают старые сценарии с memory-серверами или сохранением данных. `npm test` и `npm run check` перенаправлены на безопасные наборы. Индивидуальные smoke-фильтры годятся для диагностики, но не заменяют полный итоговый прогон.
 
@@ -345,7 +432,8 @@ x14→41/y72→94.5; контракты источника/проверки об
 
 `--surface-only` проверяет существующий основной inline-document сценарий отдельно:
 8viewport records (320–1920px и390×400) и3общих deep-document/creation/history/save
-records, всего11. ArrowUp из начала должен выбирать последний элемент актуального
+records, всего11 основных случаев плюс8 placeholder cases (19 суммарно).
+ArrowUp из начала должен выбирать последний элемент актуального
 `blockTypes`, а весь каталог должен быть отрисован; aria-pressed и полная видимость
 выбранного пункта внутри собственного scroller обязательны. Не привязывать эту
 проверку к прежнему последнему имени «Таблица». Диагностика не заменяет полный
@@ -433,3 +521,26 @@ API. На отказе сохраняются bounded pageerror/console/HTTP/pen
 с удалёнными URL query strings. Он не фокусирует DOM, не ждёт/retry и не подавляет
 ошибки. Холодную проверку выполнять в новом отдельном cache directory; успешный
 повтор на старом кэше не подтверждает исправление startup.
+
+### Консистентность дат во всех формах
+
+`test:dates` дополнительно вызывает `date-field-consistency-checks.mjs`:
+семь реальных несохранённых форм (курс, конференция, коучинг, препарат,
+тренировка, профиль, событие Wishlist) на девяти ширинах 320–1920px.
+Проверяются отмена, выбор, очистка, вложенная mobile history, сохранение
+родительского черновика и ограничение окончания началом курса/события.
+Отдельная матрица проверяет keyboard, включительные min/max и disabled.
+Read effects этих форм отклоняются без подмены ответа, любые API mutations
+запрещены. Нативные date inputs запрещены для всего src через `test:ui`.
+
+`npm run test:page-scrollers` входит в `check:release`: полная матрица горизонтальных лент и обоих краёв; контракт в `docs/spacing-system.md`.
+
+
+### Произвольные личностные тесты (2026-10-24)
+
+`test:identity-reports` также выполняет `scripts/identity-tests-smoke.mjs`: девять
+размеров, новая форма/ошибка/повтор/переименование, выбор теста после закрытия
+mobile history, PDF reader, отмена и подтверждение удаления; запросы к API
+запрещены. Парсер проверяется в database-free unit suite. Перед включением на
+существующей БД отдельно согласовать и выполнить миграцию двух CHECK по порядку,
+описанному в `docs/identity-report-charts.md`; обычный запуск остаётся `verify`.

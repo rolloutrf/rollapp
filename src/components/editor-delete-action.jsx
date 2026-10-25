@@ -40,7 +40,7 @@ export function EditorDeleteAction({ compact = false, description, disabled, lab
   return (
     <Wrapper {...(compact ? {} : { className: "border-t pt-4" })}>
       <AlertDialog open={open} onOpenChange={changeOpen}>
-        <AlertDialogTrigger {...(compact ? { "data-slot": "button" } : {})} render={<Button className={compact ? "shrink-0" : "w-full"} data-control-icon={compact || undefined} size={compact ? "icon" : "default"} shape={compact ? "pill" : "default"} variant="destructive" type="button" aria-label={label} title={compact ? label : undefined} disabled={disabled || deleting} />}>
+        <AlertDialogTrigger {...(compact ? { "data-slot": "button" } : {})} render={<Button className={compact ? "shrink-0 rounded-full" : "w-full"} data-control-icon={compact || undefined} size={compact ? "icon" : "default"} variant="destructive" type="button" aria-label={label} title={compact ? label : undefined} disabled={disabled || deleting} />}>
           <Trash2 data-icon={compact ? undefined : "inline-start"} aria-hidden="true" />
           {!compact && label}
         </AlertDialogTrigger>

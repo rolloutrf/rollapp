@@ -26,6 +26,17 @@ try {
     await page.goto(`${origin}/__identity-reports?section=${section}`);
     await page.locator('.identity-pdf-content h3').first().waitFor();
     await page.evaluate(() => document.fonts.ready);
+    const removeFile=page.getByRole('button',{name:'Удалить PDF report-with-a-long-original-filename.pdf',exact:true});
+    const removeAll=page.getByRole('button',{name:'Удалить все',exact:true});
+    const removalColors=await Promise.all([removeFile,removeAll].map(control=>control.evaluate(element=>({color:getComputedStyle(element).color,background:getComputedStyle(element).backgroundColor,destructive:element.classList.contains('text-destructive')}))));
+    assert(removalColors.every(style=>style.destructive),'Individual and bulk PDF removal must both use the destructive variant');
+    assert.deepEqual(removalColors[0],removalColors[1],'Individual and bulk PDF removal must share their warning colors');
+    await removeFile.click();
+    await page.getByRole('alertdialog').waitFor();
+    const confirm=page.getByRole('alertdialog').getByRole('button',{name:'Удалить',exact:true});
+    assert(await confirm.evaluate(element=>element.classList.contains('text-destructive')),'PDF confirmation must retain destructive styling');
+    await page.getByRole('button',{name:'Отмена',exact:true}).click();
+    await page.getByRole('alertdialog').waitFor({state:'hidden'});
     if (!review) {
     assert.equal(await page.locator('.identity-pdf-content h3').first().textContent(), 'СИЛЬНЫЕ СТОРОНЫ');
     assert.equal(await page.locator('.identity-pdf-content p').first().textContent(), 'Этот абзац извлечён из PDF. Переносы строк исходной страницы объединены, а слова сохранены.');

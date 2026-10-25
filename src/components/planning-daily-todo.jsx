@@ -1,3 +1,4 @@
+import { PlanningDayRibbon } from "@/components/planning-day-ribbon";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,58 +15,12 @@ import { isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { expandRecurringTasks } from "../../shared/planning-recurrence.js";
 import "./planning-daily-todo.css";
 
-const dateLabel = (key) => {
-  const label = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(key));
-  return label.charAt(0).toUpperCase() + label.slice(1);
-};
-
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
-const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long" });
 const compactDateLabel = (key) => {
   const date = dateFromKey(key);
   const weekday = weekdayLabel.format(date);
   return `${new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(date)}, ${weekday.charAt(0).toUpperCase() + weekday.slice(1)}`;
 };
-
-function DayRibbon({ selected, today, onChange }) {
-  const ribbon = useRef(null);
-  const focusSelection = useRef(false);
-  const dates = Array.from({ length: 63 }, (_, index) => addCalendarDays(selected, index - 31));
-
-  useLayoutEffect(() => {
-    const element = ribbon.current;
-    const active = element.querySelector('[aria-pressed="true"]');
-    const center = () => {
-      element.scrollLeft += active.getBoundingClientRect().left - element.getBoundingClientRect().left - (element.clientWidth - active.offsetWidth) / 2;
-    };
-    center();
-    if (focusSelection.current) {
-      active.focus({ preventScroll: true });
-      focusSelection.current = false;
-    }
-    const observer = new ResizeObserver(center);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [selected]);
-
-  const navigate = (event) => {
-    const offset = { ArrowLeft: -1, ArrowRight: 1, PageUp: -7, PageDown: 7 }[event.key];
-    if (offset === undefined && event.key !== "Home") return;
-    event.preventDefault();
-    focusSelection.current = true;
-    onChange(event.key === "Home" ? today : addCalendarDays(selected, offset));
-  };
-
-  return <header className="daily-todo__header">
-    <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
-    <div ref={ribbon} className="daily-todo__ribbon" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
-      {dates.map((date) => <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-        <span data-slot="list-tile-label" aria-hidden="true">{weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, {monthLabel.format(dateFromKey(date))}</span>
-        <span data-slot="list-tile-meta" aria-hidden="true"><span data-slot="list-tile-count">{dateFromKey(date).getDate()}</span></span>
-      </Button>)}
-    </div>
-  </header>;
-}
 
 function TodoRow({ task, displayTime, onSave, onEdit }) {
   const [busy, setBusy] = useState(false);
@@ -95,6 +50,11 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const [relatedDraft, setRelatedDraft] = useState({ owner: composerOwner, items: [] });
   const relatedItems = relatedDraft.owner === composerOwner ? relatedDraft.items : [];
   const [busy, setBusy] = useState(false);
+  const submitLock = useRef(false);
+  const [settledSubmit, setSettledSubmit] = useState(0);
+  // Keep the native submit owner until the success/error state has committed.
+  // A state-only busy flag cannot stop two submits before React paints.
+  useLayoutEffect(() => { if (!busy) submitLock.current = false; }, [busy, settledSubmit]);
   const [error, setError] = useState("");
   const setDate = (date) => {
     if (!isPlanningDate(date)) return;
@@ -107,14 +67,15 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   };
   const add = async (event) => {
     event.preventDefault();
-    if (busy || !title.trim()) return;
+    if (submitLock.current || busy || !title.trim()) return;
+    submitLock.current = true;
     setBusy(true); setError("");
     try {
       await onSave(null, { title: title.trim(), description: "", columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false, dueOn: selected, startTime: nextCalendarTaskStart(expanded, selected) || "", durationMinutes: 30, relatedItems: relatedItems.map(({ kind, id, title }) => ({ kind, id, title })) }, { quiet: true });
       setTitle("");
       setRelatedDraft({ owner: composerOwner, items: [] });
     } catch (cause) { setError(cause.message || "Не удалось добавить задачу"); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setSettledSubmit(value => value + 1); }
   };
   const expanded = expandRecurringTasks(tasks, selected, selected);
   const originalById = new Map(expanded.map((task) => [task.id, task]));
@@ -156,7 +117,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   return <div className="daily-todo">
     {mobile && controls}
     <div className="daily-todo__scroll">
-      {!mobile && <DayRibbon selected={selected} today={today} onChange={setDate} />}
+      {!mobile && <PlanningDayRibbon selected={selected} today={today} onChange={setDate} />}
       {dayTasks.length > 0 && <div className="daily-todo__content">
       {active.length > 0 && <section className="daily-todo__group" aria-label="Нужно сделать">
         <ul className="daily-todo__list">{active.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>

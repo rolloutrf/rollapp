@@ -1,5 +1,11 @@
 # Mobile overlay behavior
 
+Inline image viewing composes the existing FullscreenDialog. Its ControlBar
+header remains outside one min-height:0 scrolling image body; both respect the
+shared visible viewport and safe areas. Base UI retains modality/focus trapping.
+Fit/natural-size zoom must not enlarge the document root or hide Close. Native
+source focus returns only after explicit dismissal and a valid editor owner.
+
 `src/overlays.css` is the product layout layer for portalled drawers and dialogs.
 `useVisualViewport()` runs once in `App` and publishes the visible height, top
 and bottom offset to the document. It handles overlay keyboards, resized layout
@@ -295,3 +301,17 @@ swipe-handle rail. This keeps header, fields and footer on the same 16px inset
 regardless of the caller's historical `showSwipeHandle`/direction props. The
 product wrapper owns this choice; mobile forms retain their native-page contract
 and upstream drawers keep gesture support.
+
+## Единый выбор даты во всех формах
+
+`PlanningDatePicker` используется также в профиле, событии Wishlist, курсах,
+конференциях, коучинге, препаратах и тренировках. Нативных date inputs нет.
+`min`/`max` задают включительные локальные date keys; недоступные дни нельзя
+выбрать, а день рождения ограничен текущей локальной датой. `disabled`
+блокирует открытие и закрывает уже открытый picker без изменения черновика.
+`aria-invalid` сохраняет состояние поля. Необязательные даты имеют общую
+очистку; обязательная дата тренировки не очищается, Save сохраняет свой guard.
+На мобильном выбор/очистка применяются после закрытия вложенной history entry;
+Back отменяет выбор, сохраняя текст родительской формы. На desktop остаётся
+shadcn Calendar в Popover. `test:dates` проверяет все семь реальных форм на
+320–1920px, короткие mobile/desktop, границы min/max, keyboard и disabled.

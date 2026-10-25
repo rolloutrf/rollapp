@@ -1,4 +1,5 @@
 import { insertTextBlock, selectedBlockPosition } from "./inline-blocks.js";
+import { selectionHasImageCaption } from "./inline-image-caption.js";
 import { requestInlineImage } from "./inline-image-intent.js";
 export { createBlockNode } from "./inline-block-nodes.js";
 import { convertParagraphToToggle } from "./inline-symbol-shortcuts.js";
@@ -76,6 +77,7 @@ export const filterBlockTypes = query => {
 export function applyBlockType(editor, id, { separateHistory = true } = {}) {
   if(editor.isEditable===false || editor.isDestroyed)return false;
   if (id === "image") return requestInlineImage(editor);
+  if (selectionHasImageCaption(editor.state)) return false;
   if (isBlockSelection(editor.state.selection) && (editor.state.selection.disjoint && id !== "details" || editor.state.selection.positions.some(pos => editor.state.doc.nodeAt(pos).type.name === "nestedBlock")) && !["horizontalRule", "table", "columns"].includes(id)) return applySeparateBlockTypes(editor, id, separateHistory);
   let colors;
   const remember=({tr})=>{colors=captureBlockColors(tr);return true;};

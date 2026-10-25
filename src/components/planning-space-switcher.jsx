@@ -1,10 +1,11 @@
 import { useId, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Check, ChevronDown, Columns3, ListTodo, Plus } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { CalendarDays, Check, ChevronDown, Columns3, FileText, ListTodo, Plus } from "lucide-react";
 import { api } from "@/api";
 import { usePlanningSpaces } from "@/hooks/use-planning-spaces";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 export function PlanningSpaceSwitcher() {
   const [search, setSearch] = useSearchParams();
   const tab = search.get("tab");
+  if (tab === "notes") return <Link to="?tab=notes" className={cn(buttonVariants({ variant: "outline" }), "space-select global-service-select rounded-full")} aria-label="К списку заметок"><FileText aria-hidden="true" /><span className="space-select__label">Заметки</span></Link>;
   const kind = tab === "todo" || (tab === "calendar" && search.get("spaceKind") === "todo") ? "todo" : tab === "calendar" ? "calendar" : "kanban";
   // A tool change also resets any pending fetch or creation form.
   return <SpaceSwitcher key={kind} kind={kind} selected={search.get("space") || "main"} onSelect={(id, options) => {

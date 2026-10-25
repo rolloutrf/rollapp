@@ -380,6 +380,15 @@
       margin-block-start: calc(0.75em / 0.875);
     }
 
+    &:where(figure[data-type="captionedImage"] > figcaption) {
+      inline-size: var(--inline-image-caption-width, 100%);
+      min-inline-size: min(100%, 3em);
+      max-inline-size: 100%;
+      overflow-wrap: anywhere;
+    }
+    &:where(figure[data-type="captionedImage"][data-image-align="center"] > figcaption) { margin-inline: auto; }
+    &:where(figure[data-type="captionedImage"][data-image-align="right"] > figcaption) { margin-inline-start: auto; margin-inline-end: 0; }
+
     &:where(caption) {
       caption-side: bottom;
       text-align: center;
