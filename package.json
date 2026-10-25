@@ -77,7 +77,7 @@
     "test:contact-cards": "node scripts/ton-contact-card-smoke.mjs",
     "build:contact-registry": "node scripts/build-contact-card-registry.mjs",
     "verify:contact-card": "node scripts/verify-contact-card.mjs",
-    "check:release:snippets": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:snippets && npm run test:drag-drop && npm run build"
+    "check:release:snippets": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:wish-groups && npm run test:snippets && npm run test:drag-drop && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
