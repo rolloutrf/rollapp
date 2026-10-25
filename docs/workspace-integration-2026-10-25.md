@@ -1,6 +1,6 @@
 # Объединение рабочих версий — 25 октября 2026
 
-Статус: итоговый полный аудит выполняется. Это не подтверждение production deployment.
+Статус: полный аудит отменён по прямому запросу пользователя «Заддеплой без тестирования». Успех comprehensive не заявляется. Выпуск выполняется отдельно в явном manual mode `verification=none`.
 
 ## Проверяемая версия
 
@@ -117,7 +117,7 @@ fallback и не входят в текущую клиентскую сборк�
 | npm audit | 2 high в dev-only @ton/ton → Zod 3; совместимого исправления нет |
 | npm run dev:keepalive:status | Готов, API 8491 / frontend 5491, verify initialization; оставлен работающим |
 | git diff --check | PASS |
-| check:comprehensive | Итоговый полный прогон выполняется; PASS пока не заявляется. [Branch audit](https://github.com/rolloutrf/rollapp/actions/runs/40210690011) проверяет зафиксированный код `38cecf6`; локальный прогон на `05545e4` продолжается как диагностика, см. ниже |
+| check:comprehensive | CANCELLED по прямому запросу пользователя; локальный и [branch audit](https://github.com/rolloutrf/rollapp/actions/runs/40210690011) не объявляются PASS |
 
 SDK wallet constructors перенесены в devDependencies; runtime проверяет те же
 четыре официальных bytecode hashes. Unit suite независимо сверяет их с SDK и
@@ -149,5 +149,15 @@ fixture matrix: live mount имеет существующий mutating preview-
 Реальный iPhone/IME/системная клавиатура, EventKit permission и передача личных
 календарей, signing/notarization/distribution installer, TON Testnet transaction
 и внешний аудит контракта не проверены. Mac artifact собран локально и не
-публиковался как installer в production. Полный итоговый comprehensive JSON/log,
-его точный SHA и финальный source fingerprint нужно записать после завершения.
+публиковался как installer в production. Полный итоговый comprehensive PASS отсутствует: пользователь явно остановил проверки и запросил выпуск без тестирования. Предыдущие failed/cancelled результаты сохранены как evidence, а не release gate.
+
+
+## Выпуск по последнему запросу
+
+Пользователь прямо запросил «Заддеплой без тестирования». Локальный audit process
+и веточный CI остановлены; постоянный production-connected dev service оставлен.
+Полная отдельная календарная матрица на `38cecf6` успела пройти 14+16+16 случаев;
+`test:drawers` — 280 PASS, включая десять character-trait layouts. Тесты для нового
+выпуска больше не запускаются. Перед rollout реальный existing-schema verify
+выполнен READ ONLY, миграции и cleanup запрещены. Предыдущая здоровая production
+версия — `315f3ebce4a626a3c61f891db2cb013805883a74`.
