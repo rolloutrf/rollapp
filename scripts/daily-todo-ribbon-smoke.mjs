@@ -86,6 +86,13 @@ try{
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
+   if(width>=768){
+    const edges=await page.locator('.daily-todo__ribbon').evaluate(el=>{
+     const s=getComputedStyle(el);return {shared:el.classList.contains('horizontal-tile-scroller'),mask:s.maskImage,overflowX:s.overflowX,overflowY:s.overflowY,padding:s.paddingLeft,scrollPadding:s.scrollPaddingLeft};
+    });
+    assert.equal(edges.shared,true); assert.equal(edges.mask,'none','Day ribbon must use the main page hard edge, without fading');
+    assert.equal(edges.overflowX,'auto');assert.equal(edges.overflowY,'hidden');assert.equal(edges.padding,edges.scrollPadding);
+   }
    if(width<768){
     assert.equal(await ribbon.count(),0,'Mobile circular date ribbon is still rendered');
     const dateTrigger=page.getByRole('button',{name:'Выбрать дату: 17.10.2026',exact:true});

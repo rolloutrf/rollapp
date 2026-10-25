@@ -4876,6 +4876,24 @@ function WishesPage({ onAdd, version }) {
     captureGridPositions();
     setOrderedWishIds(next);
   };
+  const reorderWishToGroup = (sourceId, groupId) => {
+    const scope = dragScopeRef.current;
+    const target = groupsById.get(groupId);
+    const targetKey = `group:${groupId}`;
+    if (scope?.kind !== "list" || !scope.wishIds.has(sourceId) || !target || lastReorderTargetRef.current === targetKey) return;
+    const next = moveWishGroupToTarget(orderedWishIdsRef.current, [sourceId], target.wishIds);
+    if (next === orderedWishIdsRef.current) return;
+    lastReorderTargetRef.current = targetKey;
+    orderDirtyRef.current = true;
+    orderedWishIdsRef.current = next;
+    captureGridPositions();
+    setOrderedWishIds(next);
+  };
+  const groupHoverMode = (element, clientX, clientY) => resolveWishHoverMode({
+    groupingEnabled: Boolean(groupingListId),
+    rect: element?.querySelector('.wish-group-tile__preview')?.getBoundingClientRect() || element?.getBoundingClientRect(),
+    clientX, clientY,
+  });
   const armGroupIntent = (target) => {
     if (hoverTargetRef.current === target) return;
     clearTimeout(groupTimerRef.current);
@@ -5026,7 +5044,10 @@ function WishesPage({ onAdd, version }) {
     if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    armGroupIntent(`group:${groupId}`);
+    if (groupHoverMode(event.currentTarget, event.clientX, event.clientY) === "reorder") {
+      clearGroupIntent();
+      reorderWishToGroup(dragSourceWishIdRef.current, groupId);
+    } else armGroupIntent(`group:${groupId}`);
   };
   const leaveNativeDropTarget = (event) => {
     if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
@@ -5190,6 +5211,11 @@ function WishesPage({ onAdd, version }) {
       if (sourceGroup && sourceGroup.id !== groupId) reorderGroup(sourceGroup.id, { kind: "group", id: groupId });
       finishDrag();
     } else if (dragScopeRef.current?.kind !== "list") finishDrag({ persist: false, restore: true });
+    else if (groupHoverMode(event.currentTarget, event.clientX, event.clientY) === "reorder") {
+      clearGroupIntent();
+      reorderWishToGroup(sourceWishId, groupId);
+      finishDrag();
+    }
     else if (armedDropTargetRef.current === `group:${groupId}`) void addToGroup(sourceWishId, groupId);
     else finishDrag({ persist: false, restore: true });
   };
@@ -5343,7 +5369,8 @@ function WishesPage({ onAdd, version }) {
       && !targetGroupId;
     const groupingEnabled = Boolean(groupingListId && validGroupTarget);
     let hoverMode = null;
-    if (groupId || overlapGroupTarget) hoverMode = "group";
+    if (groupId) hoverMode = groupHoverMode(element.closest('[data-group-id]'), clientX, clientY);
+    else if (overlapGroupTarget) hoverMode = "group";
     else if (validReorderTarget) {
       hoverMode = resolveWishHoverMode({
         groupingEnabled,
@@ -5364,7 +5391,8 @@ function WishesPage({ onAdd, version }) {
       drag.hoverTarget = interactionTarget;
       // The card edge reorders immediately. Its center remains stable long enough
       // to arm grouping, so live sorting cannot move the intended group target away.
-      if (hoverMode === "reorder" && validReorderTarget) reorderWish(drag.wishId, wishId);
+      if (hoverMode === "reorder" && groupId && !dragGroupId) reorderWishToGroup(drag.wishId, groupId);
+      else if (hoverMode === "reorder" && validReorderTarget) reorderWish(drag.wishId, wishId);
       if (hoverMode !== "group" || dragGroupId || !groupingListId) {
         clearGroupIntent();
       } else {
@@ -5480,6 +5508,10 @@ function WishesPage({ onAdd, version }) {
     else if (dragGroupId) finishDrag({ persist: false, restore: true });
     else if (hoveredGroupId) addToGroup(drag.wishId, hoveredGroupId);
     else if (hoveredWishId && hoveredWishId !== drag.wishId) createGroup(drag.wishId, hoveredWishId);
+    else if (groupId && groupHoverMode(element.closest('[data-group-id]'), event.clientX, event.clientY) === "reorder") {
+      reorderWishToGroup(drag.wishId, groupId);
+      finishDrag();
+    }
     else if (!groupId && !targetGroupId && dragScopeRef.current?.wishIds?.has(wishId) && wishId !== drag.wishId) {
       reorderWish(drag.wishId, wishId);
       finishDrag();

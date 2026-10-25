@@ -37,20 +37,32 @@ export function moveWishGroupToTarget(wishIds, sourceWishIds = [], targetWishIds
   const sourceBlock = wishIds.filter((wishId) => sourceIds.has(wishId));
   if (!sourceBlock.length) return wishIds;
 
-  const sourceIndex = wishIds.findIndex((wishId) => sourceIds.has(wishId));
-  const targetIndex = wishIds.findIndex((wishId) => targetIds.has(wishId));
-  if (sourceIndex < 0 || targetIndex < 0) return wishIds;
+  const targetBlock = wishIds.filter((wishId) => targetIds.has(wishId));
+  if (!targetBlock.length) return wishIds;
 
-  const withoutSource = wishIds.filter((wishId) => !sourceIds.has(wishId));
-  const targetIndexes = withoutSource
-    .map((wishId, index) => targetIds.has(wishId) ? index : -1)
-    .filter((index) => index >= 0);
-  if (!targetIndexes.length) return wishIds;
-  const insertIndex = sourceIndex < targetIndex
-    ? Math.max(...targetIndexes) + 1
-    : Math.min(...targetIndexes);
-  const next = [...withoutSource];
-  next.splice(insertIndex, 0, ...sourceBlock);
+  // A group occupies its first member's visible slot even when its stored
+  // members are interleaved. Move rendered units, then flatten their members;
+  // inserting after the last stored member skips unrelated visible cards.
+  let sourceEmitted = false;
+  let targetEmitted = false;
+  const blocks = wishIds.flatMap((wishId) => {
+    if (sourceIds.has(wishId)) {
+      if (sourceEmitted) return [];
+      sourceEmitted = true;
+      return [sourceBlock];
+    }
+    if (targetIds.has(wishId)) {
+      if (targetEmitted) return [];
+      targetEmitted = true;
+      return [targetBlock];
+    }
+    return [[wishId]];
+  });
+  const sourceIndex = blocks.indexOf(sourceBlock);
+  const targetIndex = blocks.indexOf(targetBlock);
+  blocks.splice(sourceIndex, 1);
+  blocks.splice(targetIndex, 0, sourceBlock);
+  const next = blocks.flat();
   if (next.length === wishIds.length && next.every((wishId, index) => wishId === wishIds[index])) return wishIds;
   return next;
 }

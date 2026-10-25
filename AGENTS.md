@@ -8,6 +8,19 @@
 - All in-flow page toolbar text actions, including list/group settings and imports, use `PageActionButton`; never restore a local Button `shape` prop or per-page height/padding/radius. `test:ui` guards this API and `test:action-rails` checks real contact/Wishlist/education headers.
 - Full consistency audits include `test:contact-notes` through `check:comprehensive`; partial case/viewport or report-review settings are diagnostic only.
 
+- Horizontal tile rails must match the main Wishlist edge treatment. Compose
+  Wishlist/group navigation and day ribbons with `horizontal-tile-scroller`;
+  keep gutters, clipping, scrollbar and edge behavior centralized in
+  `src/spacing.css`. Use native hard clipping, without fading masks, gradients
+  or overlay veils. Change shared behavior centrally rather than adding local
+  per-page treatments. Preserve each rail’s selection and keyboard behavior.
+
+- Never paint the application or public-profile header background. Keep the
+  header transparent on every route, theme, viewport and scroll state: no solid
+  or translucent fill, gradient, backdrop blur, shadow, or painted pseudo-element
+  underlay. Individual buttons/selects retain their semantic surfaces. Preserve
+  this rule when changing navigation; verify computed header background and
+  backdrop-filter in the navigation smoke matrix.
 
 - Empty inline-block hints decorate only the current collapsed text caret's
   textblock, including nested lists/cells/columns/captions. Retire old hints on
