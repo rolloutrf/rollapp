@@ -129,7 +129,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       {typeof navigation === "function" ? navigation({ busy }) : navigation}
       {!readOnly && <Field className="min-w-0">
         <FieldLabel className="min-w-0 wrap-anywhere" htmlFor={uploadId}>Загрузить PDF для {label}</FieldLabel>
-        <Input id={uploadId} className="min-h-12" type="file" accept="application/pdf,.pdf" multiple disabled={uploadDisabled} onChange={upload} aria-describedby={`${uploadId}-help`} />
+        <Input id={uploadId} type="file" accept="application/pdf,.pdf" multiple disabled={uploadDisabled} onChange={upload} aria-describedby={`${uploadId}-help`} />
         <FieldDescription id={`${uploadId}-help`} className="text-xs">
           {busy ? <span className="inline-flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем PDF…</span> : "До 8 файлов, каждый не больше 12 МБ. Можно выбрать несколько PDF."}
         </FieldDescription>

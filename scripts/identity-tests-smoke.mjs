@@ -64,6 +64,8 @@ try {
     const uploadField = page.getByLabel(`Загрузить PDF для ${renamedTitle}`, { exact: true });
     assert(await uploadField.isVisible());
     const beforeInvalid = await page.evaluate(() => window.__identityCalls.filter(call => call[0] === 'upload').length);
+    await uploadField.setInputFiles([]);
+    assert.equal(await page.evaluate(() => window.__identityCalls.filter(call => call[0] === 'upload').length), beforeInvalid, 'Cancelling file selection must not upload');
     await uploadField.setInputFiles({ name: 'wrong.txt', mimeType: 'text/plain', buffer: Buffer.from('not PDF') });
     assert.equal(await page.evaluate(() => window.__identityCalls.filter(call => call[0] === 'upload').length), beforeInvalid);
     await page.evaluate(() => { window.__identityFailNextUpload = true; });

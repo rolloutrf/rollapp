@@ -58,7 +58,7 @@ export function IdentityTestForm({ test, open, onOpenChange, onSaved, save = (va
 
 export function IdentityReportNavigation({ tests, onAddTest, disabled = false }) {
   return <div className="min-w-0 not-typeset" data-report-navigation>
-    <div className="list-tabs" data-tab-scroller>
+    <div className="list-tabs horizontal-tile-scroller" data-tab-scroller>
       <TabsList className="contents" aria-label="Отчёт о личности">
         {[{ id: "gallup", title: "Gallup", detail: "CliftonStrengths" }, { id: "hogan", title: "Hogan", detail: "HPI · HDS · MVPI" }, ...tests].map(test => <TabsTrigger key={test.id} data-list-tile data-report-tile value={test.id} title={test.title} aria-label={test.title}>
           <ListTileContent title={test.title} detail={test.detail || "Личностный тест"} />
