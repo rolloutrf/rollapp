@@ -634,6 +634,6 @@ VM identity guards, immutable SHA, сериализация production rollout �
 не запускать обычный push gate параллельно. Незавершённые аудиты помечаются отменёнными,
 а не успешными. Этот режим не используется без отдельного прямого запроса пользователя.
 
-Для явно запрошенного целевого выпуска с изменением только UI-подписи используется manual `verification=ui-copy`: unit/UI, полный controls и build. Режим сохраняет обязательный geometry gate в deployment workflow, schema verify, pool2, immutable SHA, сериализацию и exact-health/live review; не применяется к изменению поведения форм, редактора или данных. Default/full и остальные targeted matrices не меняются.
+Для явно запрошенного целевого выпуска с изменением только UI-подписи или отображаемого порядка пунктов меню используется manual `verification=ui-copy`: unit/UI, полный controls и build. Режим сохраняет обязательный geometry gate в deployment workflow, schema verify, pool2, immutable SHA, сериализацию и exact-health/live review; не применяется к изменению поведения форм, редактора или данных. Default/full и остальные targeted matrices не меняются.
 
 Для целевого выпуска питания/сна без сложного аудита доступен manual `verification=health`: unit/UI, полный controls, полный test:health (включая формы, retry, date Back и read-only) и build. Полный default release сохраняется. Изменения общей геометрии форм/дат требуют также их полных профильных проверок. Schema verify, immutable SHA, сериализация, pool2 и exact-health/live review обязательны.

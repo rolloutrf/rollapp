@@ -28,10 +28,10 @@ import { usePlanningSpaces } from "@/hooks/use-planning-spaces";
 import "./planning-space.css";
 
 export const PLANNING_TABS = [
+  { id: "notes", label: "Заметки", icon: FileText },
   { id: "kanban", label: "Kanban-доска", icon: Columns3 },
   { id: "calendar", label: "Календарь", icon: CalendarDays },
   { id: "todo", label: "To Do на каждый день", icon: ListTodo },
-  { id: "notes", label: "Заметки", icon: FileText },
 ];
 const EMPTY_TASK = { contactIds: [], title: "", description: "", expectedResult: "", actualResult: "", status: "todo", dueOn: "", startTime: "", durationMinutes: 60, recurrence: null, relatedItems: [] };
 function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }) {
