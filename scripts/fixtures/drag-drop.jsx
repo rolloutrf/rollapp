@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { WishesPage, SessionContext, ToastContext, PublicWishGrid } from '../../src/App.jsx?drag-drop-test-export';
 import { api } from '../../src/api.js';
 import { CardDragHandle } from '../../src/components/card-drag-handle';
+import { WorkoutCard } from '../../src/components/workouts.jsx?collection-badges-export';
 import { useCardReorder } from '../../src/hooks/use-card-reorder';
 import { PlanningCalendar } from '../../src/components/planning-calendar';
 import '../../src/styles.css';
@@ -44,6 +45,17 @@ function Collection() {
   const drag = useCardReorder({ scopeKey: scope, items, onItemsChange: setItems, disabled, persistOrder: ids => api.patch('/collection/reorder', { ids }), getItemLabel: item => item.title, collectionLabel: 'карточек', groupingEnabled: true, onCreateGroup: (id, target) => api.post('/collection/groups', { id, target }) });
   return <div className="app-page"><div className="wish-grid" ref={drag.listRef}>{items.map(item => <article key={item.id} data-sortable-card-id={item.id} onPointerDown={event => drag.beginPointerDrag(event, item.id)} className={`education-card ${drag.draggedId === item.id ? 'is-dragging' : ''}`}><CardDragHandle title={item.title} disabled={disabled} /><button data-card-drag-trigger className="w-full touch-pan-y bg-muted p-8">{item.title}</button></article>)}</div><output hidden data-order-busy>{String(drag.orderBusy)}</output></div>;
 }
+function CollectionBadges() {
+  return <div className="app-page"><ul className="grid list-none grid-cols-2 gap-x-3 gap-y-7 lg:grid-cols-4">
+    {[false, true].flatMap(readOnly => ['planned', 'completed', 'skipped'].map(status => {
+      const workout = { id: `${readOnly}-${status}`, title: 'Тренировка в бассейне', workoutType: 'swimming', status, workoutOn: '2026-10-24', durationMinutes: 30 };
+      return <li key={workout.id} className="education-card min-w-0" data-sortable-card-id={workout.id} data-snippet-badge-case={status}>
+        {!readOnly && <CardDragHandle title={workout.title} />}
+        <WorkoutCard workout={workout} lists={[]} draggable={!readOnly} onEdit={() => {}} onMove={() => {}} onCreateList={() => {}} onDelete={() => {}} onMoveToList={() => {}} />
+      </li>;
+    }))}
+  </ul></div>;
+}
 function PublicCollection() {
   const [enabled, setEnabled] = useState(true);
   window.dragTest.disable = () => setEnabled(false);
@@ -55,7 +67,7 @@ function Calendar() {
 }
 const root = createRoot(document.getElementById('root'));
 let generation = 0;
-function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : '/app/wishes?tab=media']}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <WishesPage version={0} onAdd={() => {}} />}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
+function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : '/app/wishes?tab=media']}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'badges' ? <CollectionBadges /> : mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <WishesPage version={0} onAdd={() => {}} />}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
 window.dragTest.reset = (query = location.search) => {
   history.replaceState(null, '', `/__drag-drop${query}`);
   params = new URLSearchParams(query); mode = params.get('mode') || 'wishes';

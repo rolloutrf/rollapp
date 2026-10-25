@@ -6,9 +6,8 @@ import {
   ImagePlus, RotateCcw, TicketCheck, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetMedia } from "@/components/collection-snippet-media";
+import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle,
@@ -139,7 +138,7 @@ function ConferenceCard({
         aria-describedby={dragDescriptionId || undefined}
         aria-haspopup="dialog"
         aria-label={draggable ? `Открыть и переместить конференцию «${conference.title}»` : `Открыть конференцию «${conference.title}»`}
-        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы редактировать"}
+        title={draggable ? "Нажмите, чтобы редактировать. Для группы перетащите на центр другой конференции и дождитесь подсветки" : "Нажмите, чтобы открыть"}
         onClick={() => onEdit(conference)}
         onKeyDown={(event) => {
           if (!draggable) return;
@@ -157,16 +156,13 @@ function ConferenceCard({
       </Button>
       <Card className="collection-snippet pointer-events-none h-full min-w-0 transition-colors">
         <CollectionSnippetMedia src={conference.logoUrl} icon={TicketCheck}>
-          <Badge variant={status.variant} className="collection-snippet__badge">
-            <StatusIcon data-icon="inline-start" aria-hidden="true" />
-            {status.label}
-          </Badge>
+          <CollectionSnippetBadge variant={status.variant} icon={StatusIcon}>{status.label}</CollectionSnippetBadge>
         </CollectionSnippetMedia>
         <CardHeader>
           <CardTitle className="flex min-w-0 items-start gap-3 pr-2">
             <div className="flex min-w-0 flex-col items-start gap-1">
-              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium">{conference.title}</h3>
-              {conference.location && <CardDescription className="w-full truncate">{conference.location}</CardDescription>}
+              <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={conference.title}>{conference.title}</h3>
+              {conference.location && <CardDescription className="w-full truncate" title={conference.location}>{conference.location}</CardDescription>}
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
