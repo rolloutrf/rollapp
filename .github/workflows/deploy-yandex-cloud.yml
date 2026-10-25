@@ -16,7 +16,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: rollapp-production
+  group: ${{ github.ref == 'refs/heads/main' && 'rollapp-production-deploy' || format('rollapp-ui-audit-{0}', github.ref) }}
   # A cancelled job can leave an asynchronous VM metadata update racing the
   # next deployment. Let each production rollout reach a terminal state.
   cancel-in-progress: false
