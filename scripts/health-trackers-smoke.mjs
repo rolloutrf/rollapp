@@ -5,9 +5,11 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
+import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 const output = "/tmp/rollapp-health-trackers";
 await mkdir(output, { recursive: true });
-const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "health-fixture", enforce: "pre", transform(source, id) {
+// Discover fixture/Base UI imports before navigation so a cold optimizer cannot reload an active form.
+const server = await createServer({ cacheDir: "node_modules/.vite-health-smoke", optimizeDeps: { entries: ["scripts/fixtures/health-trackers.jsx"], include: [...smokeBaseUiDependencies, "next-themes", "qrcode", "sonner"] }, server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{ name: "health-fixture", enforce: "pre", transform(source, id) {
   if (id.endsWith("/src/lib/sphere-sharing.jsx")) return `${source}\nexport { SphereSharingContext };`;
   if (id.endsWith("/src/App.jsx?health-smoke")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext };`;
 }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {

@@ -17,3 +17,11 @@
 По ранее данному запросу на деплой без сложного аудита добавлен targeted `verification=health`: unit/UI, полный controls, полный health и build. Default/full не изменён. CI ещё должен подтвердить этот набор на итоговом SHA; далее обязательны exact-SHA health и read-only live review. Comprehensive/editor matrix не запускались и не заявляются пройденными.
 
 Перед выпуском production healthy на 3c440c9, конкурирующих rollout нет. Освобождён только рассмотренный unused registry cache tag `9daf0a4fff52c251eff6c5fa8cebcd55ccae4277` (id ac102e65): проверены все container refs и наличие remote manifest; current/rollback сохранены. Свободно 6744977408 bytes. Без prune/force/удаления контейнеров/volumes/restart.
+
+## Первый CI и исправление проверки
+
+Run40230605487 на e7bda8aec8915858752ea5c303b881c6f8979417: unit864/863PASS/1skip/0fail, UI и полная controls matrix прошли. Health остановился на первом sleep navigation с net::ERR_ABORTED после cold Vite optimizer bundling; image/metadata rollout не запускались, production остался на 3c440c9.
+
+Для health fixture добавлены отдельный cacheDir, явный fixture entry и общий smokeBaseUiDependencies, как в существующих notes/lab проверках: все Base UI imports обнаруживаются до навигации. Assertions/viewport matrix не сокращены, ошибок не подавляем, retry навигации не добавляем. После изменения повторяем полную health matrix на холодном кэше и весь targeted gate в CI.
+
+Первый локальный cold run после явного entry/Base UI прошёл 20 cases, но лог ещё показал позднее обнаружение next-themes/qrcode/sonner. Эти три зависимости также включены заранее; перед финальной проверкой отдельный генерируемый cacheDir перемещён в /tmp, без изменения исходных/пользовательских данных.
