@@ -4076,7 +4076,7 @@ function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisban
       /> : group.title}
       description={`${count} ${wishCountNoun(count)}`}
       actions={!editing && <DropdownMenu>
-        <DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="size-12 rounded-full" disabled={busy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<ShadcnButton data-control-icon type="button" variant="outline" size="icon" className="rounded-full bg-card" disabled={busy} />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger>
         <DropdownMenuContent
           align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"
           finalFocus={() => { const restore = !renamingFromMenuRef.current; renamingFromMenuRef.current = false; return restore; }}
