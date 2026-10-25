@@ -17,6 +17,7 @@ import "../../src/styles.css";
 import "../../src/index.css";
 
 const TextChromeFrame = lazy(() => import("./text-chrome-frame.jsx"));
+const developmentSource = "### Учебный план\n\n- Разобрать учебный пример\n- Проверить результат";
 const source = "### Что для меня важно?\n\nТекст ответа можно выделять и копировать.\n\n[Ссылка на материал](https://example.com)\n\n:::statement Важная мысль\n\n- [ ] Задача\n\n- Пункт списка";
 function PlainFieldFixture({source,disabled}) {
  const [value,setValue]=useState(source);
@@ -27,6 +28,7 @@ function PlainFieldFixture({source,disabled}) {
 function Fixture() {
   useVisualViewport();
   const params = new URLSearchParams(location.search);
+  window.inlineFixtureCareerContent = params.has("development") ? { development: developmentSource } : {};
   const [accessReadOnly, setAccessReadOnly] = useState(params.has("readonly"));
   const [content, setContent] = useState(params.has("source") ? params.get("source") : window.inlineFixtureSource || (params.has("long") ? Array.from({ length: 24 }, (_, index) => `Блок ${index + 1}: Длинный документ для проверки действий у курсора.`).join("\n\n") : source));
   const [questions, setQuestions] = useState(params.has('questions') ? JSON.parse(params.get('questions')) : window.inlineFixtureQuestions || { questions: IDENTITY_QUESTION_TITLES.map(title => ({ title, paragraphs: params.has("selection") ? Array.from({ length: 12 }, (_, paragraph) => `Ответ ${title}, абзац ${paragraph + 1}. Выделенный текст должен показывать панель рядом с собой при прокрутке страницы и переключении между ответами.`) : ["Исходный ответ"] })) });

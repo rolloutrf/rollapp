@@ -190,4 +190,3 @@
 .schedule-event--compact .schedule-event__title { min-width: 0; flex-shrink: 1; }
 .schedule-event-wrap[data-compact] > .schedule-resize { left: auto; right: 0; width: 24px; }
 .schedule-event-wrap[data-compact] > .schedule-resize > span { width: 12px; }
-
