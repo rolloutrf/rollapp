@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Address, Cell, contractAddress, loadStateInit } from "@ton/core";
 import { signVerify } from "@ton/crypto";
-import { WalletContractV3R1, WalletContractV3R2, WalletContractV4, WalletContractV5R1 } from "@ton/ton";
+import { KNOWN_WALLET_CODE_HASHES } from "./ton-wallet-code-hashes.js";
 import { z } from "zod";
 import { publicContactCard } from "../shared/contact-card.js";
 import { CONTACT_CARD_NETWORK, CONTACT_CARD_PURPOSE, contactCardClaimText } from "../shared/ton-contact-card.js";
@@ -45,10 +45,7 @@ function base64(value, expectedBytes) {
   ensure(buffer.toString("base64").replace(/=+$/, "") === value.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "") && (!expectedBytes || buffer.length === expectedBytes), "Некорректная длина подписи");
   return buffer;
 }
-const knownWallets = [WalletContractV3R1, WalletContractV3R2, WalletContractV4, WalletContractV5R1].map((type) => ({
-  code: type.create({ workchain: 0, publicKey: Buffer.alloc(32) }).init.code,
-  skip: type === WalletContractV5R1 ? 65 : 64,
-}));
+
 
 export function validatedWallet(value) {
   const wallet = walletSchema.parse(value);
@@ -59,7 +56,7 @@ export function validatedWallet(value) {
   const address = Address.parseRaw(wallet.address);
   ensure(init.code && init.data && !init.libraries && init.splitDepth === undefined && init.special === undefined, "Неподдерживаемое состояние кошелька");
   ensure(contractAddress(address.workChain, init).equals(address), "Адрес не соответствует состоянию кошелька");
-  const known = knownWallets.find(({ code }) => code.equals(init.code));
+  const known = KNOWN_WALLET_CODE_HASHES.find(({ codeHash }) => codeHash === init.code.hash().toString("hex"));
   ensure(known, "Этот тип кошелька пока не поддерживается. Используйте стандартный v3/v4/v5 Tonkeeper или MyTonWallet.");
   const data = init.data.beginParse(); data.skip(known.skip);
   const publicKey = data.loadBuffer(32);
