@@ -120,6 +120,50 @@ try{
    assert.equal((await state()).tasks.find(t=>t.id==='long').durationMinutes,150,'Touch resize did not save');
    await touch.detach();
   }
+  // Real touch input must move both ordinary appointments and recurring occurrences.
+  // Start from fresh data so each viewport proves the exact persistence boundary.
+  await page.goto(`${fixtureOrigin}/__calendar-events?date=2026-10-02&view=day`);
+  await event('short').waitFor();
+  const client=await page.context().newCDPSession(page);
+  for(const id of ['short','series@2026-10-02']){
+   const tile=event(id);await tile.scrollIntoViewIfNeeded();
+   const box=await tile.boundingBox(),x=box.x+box.width/2,y=box.y+5;
+   for(const cancel of [true,false]){
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y+48}]});
+    assert.equal(await tile.evaluate(e=>e.hasPointerCapture(2)||[...Array(20).keys()].some(n=>e.hasPointerCapture(n))),true,'Touch move lost original pointer owner');
+    await client.send('Input.dispatchTouchEvent',{type:cancel?'touchCancel':'touchEnd',touchPoints:[]});
+    await page.waitForTimeout(50);
+    assert.equal((await state()).writes.length,(id==='short'?0:1)+(cancel?0:1),'Touch cancel/drop persistence count');
+   }
+   const saved=(await state()).writes.at(-1);
+   assert.equal(saved.id,id==='short'?'short':'series','Occurrence id leaked into persistence');
+   assert.equal(saved.patch.startTime,id==='short'?'12:30':'14:30','Touch move must preserve grab offset and snap to 15 minutes');
+   if(id.startsWith('series')){
+    assert.equal(saved.patch.dueOn,undefined,'Moving series time changed its start date');
+    assert.equal((await state()).tasks.find(t=>t.id==='series').dueOn,'2026-09-25');
+   }
+   assert.equal(await page.locator('.schedule-preview[data-open]').count(),0,'Drop opened event popover');
+  }
+  await client.detach();
+  const seriesTile=event('series@2026-10-02');
+  await seriesTile.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+  const seriesBox=await seriesTile.boundingBox(),sx=seriesBox.x+seriesBox.width/2,sy=seriesBox.y+5;
+  await page.mouse.move(sx,sy);await page.mouse.down();await page.mouse.move(sx,sy+24,{steps:4});
+  await page.keyboard.press('Escape');await page.mouse.up();
+  assert.equal((await state()).writes.length,2,'Escape saved a series move');
+  await seriesTile.press('Enter');
+  await page.locator('.schedule-preview[data-open]').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('.schedule-preview[data-open]').waitFor({state:'hidden'});
+  await seriesTile.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+  const sb=await seriesTile.boundingBox();
+  await page.mouse.move(sb.x+sb.width/2,sb.y+5);await page.mouse.down();
+  await page.mouse.move(sb.x+sb.width/2,sb.y+29,{steps:4});await page.mouse.up();
+  await writes(3);
+  assert.equal((await state()).tasks.find(t=>t.id==='series').startTime,'14:45','Mouse series move failed');
+  await page.locator('[data-sonner-toast]').filter({hasText:'Время всей серии обновлено'}).first().getByRole('button',{name:'Отменить',exact:true}).press('Enter');await writes(4);
+  assert.equal((await state()).tasks.find(t=>t.id==='series').startTime,'14:30','Series Undo did not target original id');
   for(const [name,selector] of [['Неделя','.schedule-timegrid--week'],['Месяц','.schedule-month__grid'],['Год','.schedule-year']]){
    await page.getByRole('tab',{name,exact:true}).click();await page.locator(selector).waitFor();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`Root overflow: ${name}`);

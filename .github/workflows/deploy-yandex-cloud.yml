@@ -80,6 +80,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install WebKit for native time field checks
+        run: npx playwright-core install --with-deps webkit
+
       - name: Test and build
         run: npm run check:release
 

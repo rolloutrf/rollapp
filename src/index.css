@@ -484,6 +484,17 @@
     padding-inline: 1rem;
   }
 
+  /* iOS RenderTheme's native time appearance forces content-box sizing for
+     percentage widths, adding padding/borders outside w-full. Keep the native
+     time picker and value semantics, but let product CSS own the field box. */
+  input[data-slot="input"][type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
   .friends-search [data-slot="input-group-control"] {
     padding-inline: 0 1.5rem;
     font-size: 1.1875rem;

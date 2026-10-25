@@ -31,11 +31,19 @@ function EventDetails({ task, onAction }) {
     <div className="flex flex-wrap gap-2"><Button onClick={() => { onAction?.(); onEdit(task); }}><Pencil />{task.recurrence ? "Изменить серию" : "Изменить"}</Button><Button variant="outline" onClick={() => { onAction?.(); const { id, sourceId, occurrenceDate, seriesDueOn, recurrenceCompletedDates, ...copy } = task; onCreate({ ...copy, completed: false, title: `${task.title.slice(0, 190)} — копия` }); }}><Copy />Дублировать</Button></div>
   </>;
 }
-function EventPreview({ task, children, className, ...props }) {
+function EventPreview({ task, children, className, onMove, ...props }) {
   const { onEdit, busy, startDrag, endDrag } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
+  const suppressClick = useRef(false);
   const interaction = {
     draggable: !busy && !task.recurrence,
+    onPointerDown: (event) => {
+      suppressClick.current = false;
+      onMove?.(event, task, () => { suppressClick.current = true; setOpen(false); });
+    },
+    onClickCapture: (event) => {
+      if (suppressClick.current && event.detail !== 0) { event.preventDefault(); event.stopPropagation(); }
+    },
     onDoubleClick: () => { setOpen(false); onEdit(task); },
     onDragStart: (event) => { if (!startDrag(event, task)) return; setOpen(false); },
     onDragEnd: endDrag,
@@ -45,9 +53,9 @@ function EventPreview({ task, children, className, ...props }) {
     <PopoverContent className="rollapp-body schedule-preview" side="right" align="start"><PopoverTitle className="text-xl font-semibold">{task.title}</PopoverTitle><EventDetails task={task} onAction={() => setOpen(false)} /></PopoverContent>
   </Popover>;
 }
-function EventButton({ task, compact = false, style, onResize }) {
+function EventButton({ task, compact = false, style, onResize, onMove }) {
   return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}>
-    <EventPreview task={task} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
+    <EventPreview task={task} onMove={onMove} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
       {compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}{task.relatedItems?.length > 0 && <span className="schedule-caption schedule-event__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}
     </EventPreview>
     {onResize && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
@@ -129,11 +137,34 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     gesture.current = { kind: "resize", owner: event.currentTarget, pointerId: event.pointerId, task, column: event.currentTarget.closest(".schedule-time-column"), y: event.clientY, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
+  const beginMove = (event, task, suppressClick) => {
+    // Mouse keeps native DnD for ordinary tasks. Series and touch use capture.
+    if (busy || event.button !== 0 || event.isPrimary === false || (event.pointerType === "mouse" && !task.recurrence)) return;
+    event.stopPropagation();
+    const column = event.currentTarget.closest(".schedule-time-column");
+    gesture.current = { kind: "move", owner: event.currentTarget, pointerId: event.pointerId, task, column,
+      first: minuteAt(event, column), y: event.clientY, x: event.clientX, moved: false, suppressClick };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
   const moveGesture = (event) => {
     const active = gesture.current;
     if (!active || event.pointerId !== active.pointerId) return;
-    active.moved ||= Math.abs(event.clientY - active.y) > 4;
+    active.moved ||= Math.hypot(event.clientY - active.y, event.clientX - (active.x ?? event.clientX)) > 4;
     if (!active.moved) return;
+    if (active.kind === "move") {
+      active.suppressClick();
+      const viewport = scroll.current?.querySelector('[data-slot="scroll-area-viewport"]');
+      const bounds = viewport?.getBoundingClientRect();
+      const column = [...scroll.current.querySelectorAll(".schedule-time-column")].find((node) => {
+        const rect = node.getBoundingClientRect();
+        return bounds && event.clientY >= bounds.top && event.clientY <= bounds.bottom && event.clientX >= Math.max(bounds.left, rect.left) && event.clientX <= Math.min(bounds.right, rect.right);
+      });
+      // Series retain their original dates: dragging adjusts the whole series' time.
+      active.patch = column && (!active.task.recurrence || column.dataset.date === active.task.dueOn)
+        ? calendarMove(active.task, column.dataset.date, timeMinutes(active.task.startTime) + minuteAt(event, active.column) - active.first) : null;
+      setPreview(active.patch ? { ...active.patch, date: active.patch.dueOn, id: active.task.id } : null);
+      return;
+    }
     const minute = minuteAt(event, active.column);
     const patch = active.kind === "range" ? calendarRange(active.first, minute) : calendarResize(active.task, minute);
     active.patch = patch;
@@ -146,9 +177,12 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     if (!active?.moved || !active.patch) return;
     skipClick.current = true;
     if (active.kind === "range") onCreate({ dueOn: active.date, ...active.patch });
-    else saveSchedule(active.task, active.patch);
+    else if (active.kind === "move" && active.task.recurrence) {
+      const { dueOn, ...patch } = active.patch;
+      saveSchedule(active.task, patch);
+    } else saveSchedule(active.task, active.patch);
   };
-  const rendered = preview?.id ? tasks.map((task) => task.id === preview.id ? { ...task, durationMinutes: preview.durationMinutes } : task) : tasks;
+  const rendered = preview?.id ? tasks.map((task) => task.id === preview.id && task.dueOn === preview.date ? { ...task, ...preview } : task) : tasks;
   return <ScrollArea ref={scroll} className="schedule-timeline" aria-label="Расписание по времени">
     {tasks.some((task) => dates.includes(task.dueOn) && !task.startTime) && <section className="flex flex-col gap-2 p-4" aria-label="Задачи без свободного получасового слота">
       <p className="schedule-caption">Нет свободного получасового слота</p>
@@ -162,10 +196,10 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
       </div>
       <div className="schedule-timegrid__body">
         <div className="schedule-hour-labels" aria-hidden="true">{Array.from({ length: 24 }, (_, hour) => <span key={hour} className="schedule-caption" style={{ top: hour * 96 }}>{minutesTime(hour * 60)}</span>)}</div>
-        {dates.map((date) => <div className="schedule-time-column" key={date} aria-label={label(date)} data-weekend={[0, 6].includes(dateFromKey(date).getDay()) || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, minuteAt(event, event.currentTarget))}>
+        {dates.map((date) => <div className="schedule-time-column" data-date={date} key={date} aria-label={label(date)} data-weekend={[0, 6].includes(dateFromKey(date).getDay()) || undefined} onDragOver={allowDrop} onDrop={(event) => dropTask(event, date, minuteAt(event, event.currentTarget))}>
           {Array.from({ length: 48 }, (_, slot) => <Button variant="ghost" key={slot} className="schedule-slot" aria-label={`Добавить задачу ${label(date)}, ${minutesTime(slot * 30)}`} onPointerDown={(event) => beginRange(event, date)} onClick={(event) => { const skip = skipClick.current && event.detail !== 0; skipClick.current = false; if (skip || busy) return; onCreate({ dueOn: date, startTime: minutesTime(slot * 30), durationMinutes: slot === 47 ? 30 : 60 }); }} />)}
-          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} compact={end - start < 60} onResize={beginResize} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
-          {preview && !preview.id && preview.date === date && <div className="schedule-range" style={{ top: timeMinutes(preview.startTime) * 1.6, height: preview.durationMinutes * 1.6 }}>{taskTimeLabel(preview)}</div>}
+          {layoutCalendarEvents(rendered.filter((task) => task.dueOn === date)).map(({ task, start, end, lane, lanes }) => <EventButton key={task.id} task={task} compact={end - start < 60} onResize={beginResize} onMove={beginMove} style={{ position: "absolute", top: start * 1.6, height: (end - start) * 1.6 - 2, left: `calc(${lane / lanes * 100}% + 2px)`, width: `calc(${100 / lanes}% - 4px)` }} />)}
+          {preview && (!preview.id || tasks.find((task) => task.id === preview.id)?.dueOn !== preview.date) && preview.date === date && <div className="schedule-range" style={{ top: timeMinutes(preview.startTime) * 1.6, height: preview.durationMinutes * 1.6 }}>{taskTimeLabel(preview)}</div>}
           {date === today && <div className="schedule-now" style={{ top: (now.getHours() * 60 + now.getMinutes()) * 1.6 }} aria-label={`Сейчас ${minutesTime(now.getHours() * 60 + now.getMinutes())}`} />}
         </div>)}
       </div>
@@ -211,10 +245,11 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
     if (saving.current) return;
     saving.current = true; setBusy(true);
     try {
-      await onSave(task.id, { startTime: task.startTime, durationMinutes: task.durationMinutes, ...patch }, { quiet: true });
-      const original = sourceTasks.find((item) => item.id === task.id) || task;
+      const id = task.sourceId || task.id;
+      await onSave(id, { startTime: task.startTime, durationMinutes: task.durationMinutes, ...patch }, { quiet: true });
+      const original = sourceTasks.find((item) => item.id === id) || task;
       const previous = Object.fromEntries([...new Set(["startTime", "durationMinutes", ...Object.keys(patch)])].map((key) => [key, original[key] ?? (key === "durationMinutes" ? 60 : "")]));
-      toast.success("Расписание обновлено", { action: { label: "Отменить", onClick: () => onSave(task.id, previous).catch((error) => toast.error(error.message)) } });
+      toast.success(task.recurrence ? "Время всей серии обновлено" : "Расписание обновлено", { action: { label: "Отменить", onClick: () => onSave(id, previous).catch((error) => toast.error(error.message)) } });
     } catch (error) { toast.error(error.message); }
     finally { saving.current = false; setBusy(false); }
   };
