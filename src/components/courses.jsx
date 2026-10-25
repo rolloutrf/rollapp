@@ -170,10 +170,10 @@ function CourseCard({
               <h3 className="m-0 w-full truncate font-heading text-base leading-snug font-medium" title={course.title}>{course.title}</h3>
               {course.provider && <span className="w-full truncate text-sm font-normal text-muted-foreground" title={course.provider}>{course.provider}</span>}
             </div>
-            {course.description && <p className="m-0 line-clamp-3 text-sm font-normal text-muted-foreground text-pretty">{course.description}</p>}
-            <div className="flex min-w-0 items-center gap-2 text-sm font-normal text-muted-foreground">
+            {course.description && <p className="m-0 w-full min-w-0 line-clamp-3 wrap-anywhere text-sm font-normal text-muted-foreground text-pretty">{course.description}</p>}
+            <div className="flex w-full min-w-0 items-center gap-2 text-sm font-normal text-muted-foreground">
               <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-              <span>{courseDateLabel(course)}</span>
+              <span className="min-w-0 wrap-anywhere">{courseDateLabel(course)}</span>
             </div>
           </CardTitle>
           <CardAction className="pointer-events-auto relative z-20 flex items-center gap-1">
