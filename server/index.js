@@ -26,6 +26,7 @@ import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { registerNotesRoutes } from "./notes.js";
+import { registerCalendarDeviceRoutes } from "./calendar-device.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
@@ -472,6 +473,7 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use("/api/planning/notes", express.json({ limit: "2mb" }));
+app.use("/api/calendar-device/snapshot", express.json({ limit: "4mb" }));
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 registerTonConnectRoutes(app);
@@ -1081,6 +1083,7 @@ registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
+registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);

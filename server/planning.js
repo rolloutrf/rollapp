@@ -113,7 +113,7 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
     : q(`INSERT INTO planning_boards (user_id,columns_json,task_order) VALUES ($1,$2,$3)
     ON CONFLICT (user_id) DO UPDATE SET columns_json=EXCLUDED.columns_json,task_order=EXCLUDED.task_order,updated_at=CURRENT_TIMESTAMP`, [userId, JSON.stringify(board.columns), JSON.stringify(board.order)]);
   const readTasks = async (q, userId, board) => {
-    const result = await q(`SELECT ${taskColumns} FROM planning_tasks WHERE user_id=$1 AND space_id=$2 ORDER BY created_at,id`, [userId, board.spaceId]);
+    const result = await q(`SELECT ${taskColumns} FROM planning_tasks WHERE user_id=$1 AND space_id=$2 AND id NOT LIKE 'apple-device:%' ORDER BY created_at,id`, [userId, board.spaceId]);
     return withPlanningContacts(q, userId, orderPlanningTasks(result.rows, board.order));
   };
   const responseBoard = async (q, userId, board) => ({ columns: board.columns, tasks: await readTasks(q, userId, board) });
@@ -124,6 +124,7 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
   };
   const columnStatus = (column) => column.complete ? "done" : column.id === "doing" ? "doing" : "todo";
   const mutate = (handler) => asyncRoute(async (req, res) => {
+    if (req.params?.id?.startsWith("apple-device:")) return res.status(409).json({ error: "Это событие из календаря устройства. Измените его в Apple Calendar." });
     try {
       const result = await transaction(async (client) => {
         const q = (sql, params) => client.query(sql, params);
@@ -250,7 +251,7 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
   app.delete("/api/planning/columns/:id", requireAuth, mutate(async (req, q, board) => {
     ownedColumn(board, req.params.id);
     if (board.columns.length === 1) throw fail(409, "Оставьте хотя бы один список");
-    const occupied = await q("SELECT id FROM planning_tasks WHERE user_id=$1 AND COALESCE(column_id,status)=$2 AND space_id=$3 LIMIT 1", [req.user.id, req.params.id, board.spaceId]);
+    const occupied = await q("SELECT id FROM planning_tasks WHERE user_id=$1 AND COALESCE(column_id,status)=$2 AND space_id=$3 AND id NOT LIKE 'apple-device:%' LIMIT 1", [req.user.id, req.params.id, board.spaceId]);
     if (occupied.rowCount) throw fail(409, "Сначала переместите карточки из списка, включая архивные");
     board.columns = board.columns.filter((item) => item.id !== req.params.id);
     await writeBoard(q, req.user.id, board);

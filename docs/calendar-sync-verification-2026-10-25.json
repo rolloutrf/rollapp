@@ -1,0 +1,121 @@
+{
+  "timestamp": "2026-10-25T12:16:30.648438+00:00",
+  "baseCommit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirtyState": [
+    " M AGENTS.md",
+    " M docs/drag-and-drop.md",
+    " M docs/mobile-overlays.md",
+    " M docs/verification.md",
+    " M package-lock.json",
+    " M package.json",
+    " M scripts/calendar-events-smoke.mjs",
+    " M scripts/fixtures/calendar-events.jsx",
+    " M server/index.js",
+    " M server/planning.test.js",
+    " M shared/planning-calendar.js",
+    " M src/components/mobile-form-pages.jsx",
+    " M src/components/planning-calendar.css",
+    " M src/components/planning-calendar.jsx",
+    " M src/components/planning-space.jsx",
+    "?? docs/calendar-drag-comprehensive-2026-10-25.json",
+    "?? docs/calendar-drag-verification-2026-10-25.md",
+    "?? docs/calendar-sync-verification-2026-10-25.md",
+    "?? docs/calendar-sync.md",
+    "?? scripts/calendar-gestures-smoke.mjs",
+    "?? scripts/calendar-sync-smoke.mjs",
+    "?? scripts/fixtures/calendar-sync.jsx",
+    "?? server/calendar-subscriptions.integration.test.js",
+    "?? server/calendar-subscriptions.js",
+    "?? server/calendar-subscriptions.test.js",
+    "?? src/components/calendar-sync-button.jsx",
+    "?? src/hooks/use-calendar-gesture.js"
+  ],
+  "scope": "Apple Calendar subscription button and read-only feed; existing calendar gesture edits preserved",
+  "checks": {
+    "unit": {
+      "passed": 794,
+      "skipped": 1,
+      "failed": 0
+    },
+    "shadcn": "passed",
+    "controls": {
+      "status": "passed",
+      "marks": 143
+    },
+    "calendar": {
+      "status": "passed",
+      "eventCombinations": 14,
+      "gestureCombinations": 16,
+      "syncCombinations": 16
+    },
+    "syncAfterFinalChange": {
+      "status": "passed",
+      "combinations": 16
+    },
+    "formActions": {
+      "status": "passed",
+      "marks": 101
+    },
+    "planningProductionRollback": {
+      "passed": 3,
+      "failed": 0
+    },
+    "build": "passed",
+    "diffCheck": "passed"
+  },
+  "audits": {
+    "all": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "prod": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    }
+  },
+  "sourceSha256": {
+    "server/calendar-subscriptions.js": "8042cc0b65e641f04918012e4d1d769a7b505c97f70859f5f8c4dcfc0e462ee8",
+    "server/calendar-subscriptions.test.js": "0b4a15115648ea3a81bf1a199eacef1a46878324eeedb2f7e9edcece1e198d6e",
+    "server/calendar-subscriptions.integration.test.js": "0a2d580a9ff4a1f555d4dbf939dd076196a7384c0ef2623a335057b876b8b87c",
+    "server/index.js": "73004ea9c9aaa433d1121793b3dd3661ca8948422b5863045bd7c7e1938b2f8e",
+    "src/components/calendar-sync-button.jsx": "a9621d735b652d858980434d58a7dda93f724cb9da64b04afff1f02fef483fff",
+    "src/components/planning-calendar.jsx": "3d435bbfd467d8d07302dcef952cc58878f9fd93e5e6fde4bd6a5f643ec151b5",
+    "src/components/planning-calendar.css": "8d220d1f333c5056d6f8424d3630d85b25a90d9fb68dd7915ee7682e36779c99",
+    "src/components/planning-space.jsx": "459e976dddc5358fbcd5bfbdc8e92164b03163e22e479f4bdb129c8e318cbf89",
+    "scripts/calendar-sync-smoke.mjs": "a0f2889d60bce73df01e0cdce02774066bfc474e912e08957754e0602b419e3e",
+    "scripts/fixtures/calendar-sync.jsx": "507d15e3be90addcfa2d63021fa313e3c403cfa684d9876e4ba84b10973aef4a",
+    "package.json": "67d85f1d7765c475e8d9d445a20fbfdf1f49986bb0ae10f28e7f618c0504e7e0",
+    "docs/calendar-sync.md": "6e43c35fe781afea127c0735be0b4c9995705443447ab39d1ce27e3172504e49",
+    "docs/verification.md": "fd684e75567c32a608d868dd3f12eec68c1e292f39f581b46da40a9b04302c1d",
+    "docs/calendar-sync-verification-2026-10-25.md": "c093a3eee5462b3ba328b5ce2dffec9dccc0ebb07921c67a24a82c7d7fcaacf6"
+  },
+  "productionChanges": {
+    "schemaMigrations": false,
+    "persistentTestData": false,
+    "deployment": false
+  },
+  "limitations": [
+    "No native Apple Calendar install/refresh or physical iOS/iCloud verification",
+    "Native webcal handler SSL settings not verified",
+    "Read-only live UI pass interrupted by concurrent user browser activity",
+    "Full check:comprehensive/check:release not repeated for this change",
+    "Loopback preview URL is not accessible from another device"
+  ],
+  "service": {
+    "keepaliveEnabled": true,
+    "pid": 21483,
+    "frontend": "http://127.0.0.1:5177",
+    "apiPort": 8097,
+    "database": "configured production, direct TLS, initialization=verify"
+  },
+  "supersededBy": "calendar-device-verification-2026-10-25.json",
+  "historicalOnly": true
+}
