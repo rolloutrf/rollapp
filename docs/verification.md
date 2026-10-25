@@ -522,3 +522,16 @@ API. На отказе сохраняются bounded pageerror/console/HTTP/pen
 Отдельная матрица проверяет keyboard, включительные min/max и disabled.
 Read effects этих форм отклоняются без подмены ответа, любые API mutations
 запрещены. Нативные date inputs запрещены для всего src через `test:ui`.
+
+## Персональный План Развития в Идентичности
+
+Раздел `personal-development-plan` использует общий `EditableMarkdownDocument`
+и отдельный ключ `identity:personal-development-plan`, независимо от карьерного ИПР.
+Исходный Obsidian Markdown хранится без изменений в
+`src/data/personal-development-plan.md`; сохранённый документ имеет приоритет.
+Навигация и права доступа зарегистрированы в общей карте разделов.
+Для сохранения нужна отдельно разрешённая миграция ограничения `identity_content`:
+`node scripts/migrate-personal-development-plan.mjs` проверяет production READ ONLY;
+`node scripts/migrate-personal-development-plan.mjs --apply` расширяет только список
+разделов после отдельного разрешения, без изменений существующих документов.
+Обычный startup/deploy остаётся в режиме verify.
