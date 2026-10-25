@@ -1177,7 +1177,7 @@
     "exactReadback": true
   },
   "verification": {
-    "comprehensive": "running full immutable CI snapshot; prior local run continues as diagnostic evidence after a calendar-test-only edit",
+    "comprehensive": "cancelled by explicit user request to deploy without tests",
     "run": "https://github.com/rolloutrf/rollapp/actions/runs/40210690011",
     "localReport": "/tmp/rollapp-consolidation-comprehensive-v2-20261025.json",
     "pullRequest": "https://github.com/rolloutrf/rollapp/pull/13",
@@ -1190,6 +1190,8 @@
     "localPostCalendarDelta": [
       "scripts/calendar-gestures-smoke.mjs"
     ],
-    "productionCodeDeltaSinceLocalStart": []
+    "productionCodeDeltaSinceLocalStart": [],
+    "releaseMode": "workflow_dispatch verification=none",
+    "previousProductionSha": "315f3ebce4a626a3c61f891db2cb013805883a74"
   }
 }

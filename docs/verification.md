@@ -616,3 +616,15 @@ mobile history, PDF reader, отмена и подтверждение удал�
 репозитория с правами 0600, в формате JSON для последующего явного импорта.
 
 По прямому запросу пользователя 25 октября «Задеплой без сложного аудита» для UI-сниппетов добавлен явный manual release mode `verification=snippets`: `check:release:snippets` выполняет unit, UI, полный test:controls, test:wish-groups, полный test:snippets, полный drag/drop и build. Default и push-релизы сохраняют полный check:release. Веточный comprehensive не публикует приложение. Этот выбор разрешён только при явном запросе целевого выпуска; незавершённый comprehensive отмечается как отменённый, а не PASS. Schema verify, OIDC, сериализация rollout и exact-SHA health остаются обязательными.
+
+
+По прямому запросу пользователя 25 октября «Заддеплой без тестирования» разрешён
+явный manual production mode `verification=none`. Он пропускает тестовые наборы
+и установку WebKit, выполняет Docker build и штатный OIDC rollout. Default и push
+по-прежнему используют полный release gate. Перед публикацией обязательна реальная
+READ ONLY проверка существующей production-схемы; `ROLLAPP_DATABASE_INITIALIZATION=verify`,
+VM identity guards, immutable SHA, сериализация production rollout и проверка health
+с точной версией сохраняются. Для merge/push этого явно разрешённого выпуска
+используется `[skip ci]`, затем отдельный workflow_dispatch с `verification=none`;
+не запускать обычный push gate параллельно. Незавершённые аудиты помечаются отменёнными,
+а не успешными. Этот режим не используется без отдельного прямого запроса пользователя.
