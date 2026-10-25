@@ -53,7 +53,7 @@
     "test:wish-groups": "node scripts/wish-group-names-smoke.mjs",
     "check": "npm run check:release",
     "check:comprehensive": "node scripts/check-comprehensive.mjs",
-    "check:release": "npm run test:unit && npm run test:ui && npm run test:snippets && npm run test:page-scrollers && npm run test:lab-results && npm run test:controls && npm run test:details && npm run test:dates && npm run test:time-inputs && npm run test:calendar && npm run test:form-actions && npm run test:text-edit && npm run test:notes && npm run test:kanban && npm run test:drag-drop && npm run test:snippet-badges && npm run test:health && npm run test:medication-photos && npm run build",
+    "check:release": "npm run test:unit && npm run test:ui && npm run test:snippets && npm run test:page-scrollers && npm run test:lab-results && npm run test:controls && npm run test:details && npm run test:dates && npm run test:time-inputs && npm run test:calendar && npm run test:form-actions && npm run test:text-edit && npm run test:notes && npm run test:kanban && npm run test:drag-drop && npm run test:snippet-badges && npm run test:health && npm run test:medication-photos && npm run test:contact-cards && npm run build",
     "test:planning:production": "ROLLAPP_TEST_PLANNING=1 node --test server/planning.integration.test.js server/planning-recurrence.integration.test.js",
     "test:visual": "node scripts/visual-smoke.mjs",
     "test:drawers": "DRAWER_REAL_FORMS=1 node scripts/drawer-smoke.mjs",
@@ -73,7 +73,10 @@
     "test:notes:production": "ROLLAPP_TEST_NOTES=1 node --test server/notes.integration.test.js",
     "test:notes:production:ui": "ROLLAPP_TEST_NOTES=1 NOTES_TEST_UI=1 node --test server/notes.integration.test.js",
     "test:medication-photos": "node scripts/medication-photo-smoke.mjs",
-    "test:snippets": "node scripts/snippets-smoke.mjs"
+    "test:snippets": "node scripts/snippets-smoke.mjs",
+    "test:contact-cards": "node scripts/ton-contact-card-smoke.mjs",
+    "build:contact-registry": "node scripts/build-contact-card-registry.mjs",
+    "verify:contact-card": "node scripts/verify-contact-card.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -90,6 +93,8 @@
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
     "@ton/core": "^0.63.1",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^16.3.0",
     "@tonconnect/sdk": "^4.0.2",
     "@vitejs/plugin-react": "latest",
     "class-variance-authority": "^0.7.1",
@@ -122,6 +127,8 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@ton/sandbox": "^0.45.0",
+    "@ton/tolk-js": "^1.5.0",
     "concurrently": "^9.2.5",
     "shadcn": "^4.22.1",
     "sharp": "^0.35.5",

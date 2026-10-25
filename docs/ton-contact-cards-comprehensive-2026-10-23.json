@@ -1,0 +1,90 @@
+{
+  "status": "passed",
+  "startedAt": "2026-10-23T20:28:36.947Z",
+  "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed",
+      "startedAt": "2026-10-23T20:28:36.998Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:44:34.268Z",
+      "durationMs": 4557269
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:44:34.269Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:45:02.828Z",
+      "durationMs": 28559
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:45:02.829Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:45:16.138Z",
+      "durationMs": 13309
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:45:16.139Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:46:13.667Z",
+      "durationMs": 57528
+    },
+    {
+      "name": "test:todo",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:46:13.667Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:47:19.680Z",
+      "durationMs": 66012
+    },
+    {
+      "name": "test:form-pages",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:47:19.681Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:48:37.338Z",
+      "durationMs": 77657
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:48:37.339Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:48:47.088Z",
+      "durationMs": 9749
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:48:47.089Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T21:49:01.524Z",
+      "durationMs": 14435
+    },
+    {
+      "name": "test:drawers",
+      "status": "passed",
+      "startedAt": "2026-10-23T21:49:01.525Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T22:01:39.383Z",
+      "durationMs": 757858
+    },
+    {
+      "name": "test:contacts",
+      "status": "passed",
+      "startedAt": "2026-10-23T22:01:39.384Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-23T22:02:34.053Z",
+      "durationMs": 54669
+    }
+  ],
+  "finishedAt": "2026-10-23T22:02:34.054Z"
+}

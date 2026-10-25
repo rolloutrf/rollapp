@@ -1,0 +1,205 @@
+{
+  "recordedAt": "2026-10-23T20:42:34.888699+00:00",
+  "status": "pilot-verified-comprehensive-running",
+  "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+  "branch": "codex/portable-contact-card",
+  "dirty": true,
+  "sourceSha256": {
+    "contracts/contact-card-registry.compiled.json": "9a8f2baf319c69f2fd971c9271466828f2143ec84bcf341166fbe25d668aef17",
+    "contracts/contact-card-registry.tolk": "a2d213c0bf4bb1612fb6e5cf4469ff304e29db50e79c6f1c27ce0b5f8351a9ac",
+    "Dockerfile": "859558b46052fc0428c7e0dfdaea6204b267c06b7574962d6528e851d696e9b5",
+    "package.json": "aa7fe91f40f9c5e9716299902618bd3dd6884d1cd13262b6558627663a93002c",
+    "package-lock.json": "e9fba9b3bdf95aed4bcbb2db8e4150e2bec1c1a5a8f52291b9fc7959037fa953",
+    "server/index.js": "4ffad791c92bdb32fccdf45058617f2879b07b5ddcddfe2ab1147341470a96a4",
+    "src/App.jsx": "1843044bdcb738cab877159bb79d12f6c582cbfa6b2dc4947f76685b7d7fb25f",
+    "shared/contact-card.js": "c9529868da4ed60697ab96e4dd4bd12b4460e6dc8c6c03d2a6f78c003a754cae",
+    "shared/contact-card.test.js": "2f54441987bb580088c8a628e7aca1f2d889163f445ffde33bfb6bf95662b769",
+    "shared/ton-contact-card.js": "a235e0214000beba0a15c88849d135eee2d4d2236e5b4913a1a71e211a59110c",
+    "server/ton-contact-cards.js": "44cecae4c7b474e5d615863cc9315e923e045bb030bef01523f81dbfbe4a2cc4",
+    "server/ton-contact-signatures.js": "d5e31c7aeb58b7c6acee8efe846ac02d46b537cfece935ff79044688abc9b00c",
+    "server/contact-card-registry.js": "fcab835e4316d2aa52200e7831bcb756f32cbbb79206a46baa99ee363fa71943",
+    "server/ton-contact-cards.test.js": "1135f988fbfc5efc84ef4379ef957c589b2a807dbf9d4219106409d20c3f0a83",
+    "server/contact-card-registry.test.js": "30c7610b79ee8a0c72787790659e8d66a1eee0bf71cb21e2a80fd640493de492",
+    "scripts/ton-contact-card-smoke.mjs": "06ad536f7895b5e52a88b8c64321a05c3b81c87011f339fae3655b986919f0d5",
+    "scripts/build-contact-card-registry.mjs": "e8df8480d012008d0f7c994a61d53aa3d8f2fc5cce56087408df553350053cef",
+    "scripts/verify-contact-card.mjs": "920ef862261a11a90c24e9d4d8ad174561b91d7e046f4a5be73723e64909e454",
+    "scripts/fixtures/ton-card-wallet.js": "ebbb0b36d3ee83fdf19c5783b62d0f5804d0e20f0b269f993895884e63508107",
+    "scripts/fixtures/ton-contact-card.jsx": "363aafe4cf33ed9ff7e62d863249d9a1b358ded5dfedec1910dad56f846ecfdd",
+    "scripts/fixtures/signed-contact-card.js": "48a365772d8260501b4ef8b8987ca3665544050897a59d5a8962f0a2d0afccca",
+    "scripts/contacts-feed-smoke.mjs": "971c7aeffb1171657b066d5114ebc4e1d033f7683eaf20c9cdc759fc3917d82c",
+    "scripts/fixtures/contacts-feed.jsx": "52d7b0502406474a40eb28e501c8b51fe6a83fcfab9257636d3da299deb95b15",
+    "src/components/contact-card-dialog.jsx": "40d1b4e312da8c86a50ab3a597481e3855bd2b34ae44f305f3363d01f48f3551",
+    "src/components/ton-card-signer.jsx": "dcf2a804b713c65088c72804bc880ab533c59a1c4d7d7aaf968d394e741c1075",
+    "src/components/signed-card-verifier.jsx": "9f452e081a8dba1cccaecf94d3e35a09f4373c733088a913b8e69dd4cda6cb17",
+    "src/lib/ton-card-api.js": "c755015b64763456bd9cb0d727d6c2ee3132cf2f4cd127712a07fcbe7bafc926"
+  },
+  "checks": {
+    "unit": {
+      "status": "passed",
+      "tests": 840,
+      "passed": 839,
+      "skipped": 1
+    },
+    "ui": {
+      "status": "passed"
+    },
+    "build": {
+      "status": "passed",
+      "warning": "Large chunks"
+    },
+    "tonCardUI": {
+      "status": "passed",
+      "viewports": 9,
+      "transport": "synthetic wallet and RPC; real signing HTTP routes and Ed25519"
+    },
+    "offlineCLI": {
+      "validFileExit": 0,
+      "tamperedFileExit": 1
+    },
+    "audit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "productionAudit": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "comprehensive": {
+      "status": "running",
+      "startedAt": "2026-10-23T20:28:36.947Z",
+      "commit": "237386530fd11e359f6f997735537b85e6ccb419",
+      "dirty": true,
+      "node": "v22.22.3",
+      "checks": [
+        {
+          "name": "check:release",
+          "status": "running",
+          "startedAt": "2026-10-23T20:28:36.998Z"
+        },
+        {
+          "name": "test:navigation",
+          "status": "not-run"
+        },
+        {
+          "name": "test:action-rails",
+          "status": "not-run"
+        },
+        {
+          "name": "test:identity-reports",
+          "status": "not-run"
+        },
+        {
+          "name": "test:todo",
+          "status": "not-run"
+        },
+        {
+          "name": "test:form-pages",
+          "status": "not-run"
+        },
+        {
+          "name": "test:catalog-page",
+          "status": "not-run"
+        },
+        {
+          "name": "test:wish-groups",
+          "status": "not-run"
+        },
+        {
+          "name": "test:drawers",
+          "status": "not-run"
+        },
+        {
+          "name": "test:contacts",
+          "status": "not-run"
+        }
+      ],
+      "liveReport": "docs/ton-contact-cards-comprehensive-2026-10-23.json"
+    },
+    "contacts": {
+      "status": "passed",
+      "records": 18,
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "viewports": 9
+    },
+    "actionRails": {
+      "status": "passed",
+      "records": 90
+    },
+    "controls": {
+      "status": "passed",
+      "evidence": "completed earlier in ongoing check:release; subsequent script entered"
+    },
+    "details": {
+      "status": "passed",
+      "evidence": "completed earlier in ongoing check:release; subsequent script entered"
+    },
+    "dates": {
+      "status": "passed",
+      "evidence": "completed earlier in ongoing check:release; subsequent script entered"
+    },
+    "calendar": {
+      "status": "passed",
+      "evidence": "completed earlier in ongoing check:release; subsequent script entered"
+    },
+    "formActions": {
+      "status": "passed",
+      "evidence": "completed earlier in ongoing check:release; subsequent script entered"
+    }
+  },
+  "contract": {
+    "network": "-3",
+    "codeHash": "3c56f5f3eb0c21f0061137182c0800170453d27e7903c8f411c7d911ae78983c",
+    "compiler": "1.5.0",
+    "recoveryDelay": 604800,
+    "liveDeployment": false
+  },
+  "production": {
+    "deployed": false,
+    "databaseWrites": false,
+    "schemaChanges": false,
+    "configuredConnection": "production PostgreSQL/direct TLS/verify",
+    "devServiceLeftRunning": true,
+    "frontend": "http://127.0.0.1:5340",
+    "readOnlyHealth": {
+      "path": "/api/healthz",
+      "status": 200,
+      "ok": true,
+      "query": "SELECT 1",
+      "checkedAt": "2026-10-23T20:43:00Z"
+    },
+    "transientIssue": "existing dev log includes PostgreSQL 53300 user pool limit; current read-only health recovered; no connection termination or fallback"
+  },
+  "unverified": [
+    "real Testnet wallet proof/signData",
+    "actual Testnet transaction/funding and RPC confirmation",
+    "seven-day recovery on real Testnet",
+    "hardware QR/native address-book import/iOS or Android Share",
+    "independent smart-contract audit",
+    "completed comprehensive matrix"
+  ],
+  "limits": [
+    "initial registry deployment UI only; update/rotate/recovery contract operations tested in sandbox",
+    "signed updated files prepare a new registry; do not update existing contract",
+    "no recovery/rotation UI or post-rotation signed-file history transition",
+    "no automatic contact updates, contact import, DID or independent file distribution",
+    "in-memory replay cache fails closed across restart/workers",
+    "registry locator advisory, not signed; fresh RPC verification required"
+  ],
+  "handoff": {
+    "state": "ready for owner Testnet wallet trial; no production release",
+    "walletActionPerformed": false,
+    "remainingAction": "owner connects Testnet wallet, signs card, supplies separate recovery address and approves Testnet deployment",
+    "comprehensiveStillRunning": true
+  }
+}
