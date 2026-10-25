@@ -13,7 +13,6 @@ import "./planning-daily-todo.css";
 
 const number = value => value == null ? "—" : new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value);
 const completed = entry => entry.completed !== false;
-const dateLabel = date => new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dateFromKey(date)).replace(/^./u, letter => letter.toUpperCase());
 const compactDate = date => new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", weekday: "short" }).format(dateFromKey(date));
 export const nutritionEntryPayload = entry => ({ date: entry.date, time: entry.time, mealType: entry.mealType, title: entry.title, completed: completed(entry), calories: entry.calories ?? null, protein: entry.protein ?? null, fat: entry.fat ?? null, carbs: entry.carbs ?? null, notes: entry.notes || "" });
 
@@ -73,10 +72,6 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
       {canEdit && <Button data-control-icon variant="outline" size="icon" aria-label="Добавить приём пищи" onClick={create}><Plus /></Button>}
     </ControlBar> : <PlanningDayRibbon selected={selected} today={today} onChange={onDateChange} />}
     <div className="nutrition-todo__body page-stack">
-      <div className="daily-todo__overview">
-        <div className="daily-todo__overview-copy flex min-w-0 flex-col gap-2"><span className="daily-todo__eyebrow">Питание на день</span><h2 className="daily-todo__date">{dateLabel(selected)}</h2><p className="text-muted-foreground" aria-live="polite">{dayEntries.length ? `${done.length} из ${dayEntries.length} съедено` : "Приёмов пищи пока нет"}</p></div>
-        {!mobile && <PlanningDatePicker value={selected} onChange={onDateChange} label="День питания" />}
-      </div>
       <div className="flex min-w-0 flex-col gap-2" aria-label="Итоги питания"><strong>{number(totals.calories)} ккал</strong><p className="text-muted-foreground wrap-anywhere">Белки: {number(totals.protein)} г · Жиры: {number(totals.fat)} г · Углеводы: {number(totals.carbs)} г</p><p className="nutrition-todo__meta text-muted-foreground">Итоги по отмеченным приёмам пищи</p></div>
       {planned.length > 0 && <section aria-label="Запланировано" className="page-stack">{rows(planned)}</section>}
       {done.length > 0 && <section aria-label="Съедено" className="page-stack">{rows(done)}</section>}

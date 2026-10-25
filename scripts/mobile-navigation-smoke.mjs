@@ -35,6 +35,10 @@ try{
    await page.goto(origin+route);
    const sphere=page.getByRole('button',{name:'Открыть переключатель сфер',exact:true}),select=page.locator('.global-service-select');await sphere.waitFor();
    assert.equal(await sphere.count(),1);assert.equal(await select.count(),1);
+   const headerStyle=await page.locator('.global-app-chrome').evaluate(el=>{
+    const s=getComputedStyle(el); return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter,shadow:s.boxShadow};
+   });
+   assert.deepEqual(headerStyle,{background:'rgba(0, 0, 0, 0)',image:'none',blur:'none',shadow:'none'},'Application header must stay transparent');
    const s=await sphere.boundingBox(),c=await select.boundingBox();
    if(width<768){
     assert(s.y>600&&c.y>600,`${route}: navigation stayed at top`);
