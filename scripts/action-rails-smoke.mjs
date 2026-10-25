@@ -18,7 +18,7 @@ try{
   const page=await browser.newPage({viewport:{width,height:width===820?414:844}}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push(`Unexpected API request: ${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.abort();});
-  for(const variant of ['text','collection','contacts-real','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
+  for(const variant of ['text','overflow','collection','contacts-real','wishlist-real','report','wishlist','narrow','short','icons','icon-labels','edit','dynamic','nested']){
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    const rail=page.locator('.page-actions.horizontal-action-scroller,.identity-report-manager__actions.horizontal-action-scroller');
    await rail.waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -29,6 +29,7 @@ try{
      controls:controls.map(control=>{const r=control.getBoundingClientRect(),s=getComputedStyle(control);return {top:r.top,height:r.height,width:r.width,paddingLeft:s.paddingLeft,paddingRight:s.paddingRight}}),
      overflow:document.documentElement.scrollWidth>innerWidth+1,copyLeft:document.querySelector('[data-content-copy]').getBoundingClientRect().left};
    });
+   const gutter=width<=640?16:width<=820?24:width<=1180?40:48;
    let metrics=await measure();
    const textActions=await rail.locator('[data-page-action]').evaluateAll(elements=>elements.map(element=>{const s=getComputedStyle(element);return {left:s.paddingLeft,right:s.paddingRight,radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],height:element.getBoundingClientRect().height};}));
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
@@ -58,19 +59,19 @@ try{
    }
    const assertCentered=(m)=>{if(m.scrollWidth<=m.clientWidth+1)assert(Math.abs((m.first+m.last)/2-(m.left+m.right)/2)<1,`${width} ${variant}: fitting action group is not centered ${JSON.stringify(m)}`);};
    assertCentered(metrics);
-   if(width<=820){
+   {
     assert(Math.abs(metrics.left)<1&&Math.abs(metrics.right-width)<1,`${width} ${variant}: inset scroll viewport ${JSON.stringify(metrics)}`);
-    if(metrics.scrollWidth>metrics.clientWidth)assert.equal(metrics.first,width<=640?16:24,`${width} ${variant}: initial action inset`);
+    if(metrics.scrollWidth>metrics.clientWidth)assert.equal(metrics.first,gutter,`${width} ${variant}: initial action inset`);
     assert(metrics.copyLeft>=16,`${width} ${variant}: content lost its page inset`);
     if(metrics.scrollWidth>metrics.clientWidth){
-     await rail.evaluate(element=>{element.scrollLeft=42});metrics=await measure();
-     assert(metrics.first<(width<=640?16:24),`${width} ${variant}: action did not scroll`);
-     if(metrics.scrollWidth-metrics.clientWidth>(width<=640?16:24))assert(metrics.first<metrics.left,`${width} ${variant}: action did not pass behind left screen edge`);
+     await rail.evaluate(element=>{element.scrollLeft=64});metrics=await measure();
+     assert(metrics.first<(gutter),`${width} ${variant}: action did not scroll`);
+     if(metrics.scrollWidth-metrics.clientWidth>(gutter))assert(metrics.first<metrics.left,`${width} ${variant}: action did not pass behind left screen edge`);
      await rail.evaluate(element=>{element.scrollLeft=element.scrollWidth});metrics=await measure();
-     assert(Math.abs(metrics.last-(width-(width<=640?16:24)))<1,`${width} ${variant}: unequal trailing gutter`);
+     assert(Math.abs(metrics.last-(width-(gutter)))<1,`${width} ${variant}: unequal trailing gutter`);
      if(width===390&&variant==='text')await page.screenshot({path:'/tmp/rollapp-action-rail-edges.png',clip:{x:0,y:0,width,height:192}});
     }
-   }else assert(metrics.left>=0&&metrics.right<=width,`${width} ${variant}: desktop rail leaves content`);
+   }
    if(variant==='dynamic'){
     await page.locator('[data-toggle-actions]').click();
     await page.waitForFunction(()=>document.querySelector('[aria-label="Действия"]').querySelectorAll('button').length===0);

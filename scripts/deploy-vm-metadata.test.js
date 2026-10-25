@@ -123,10 +123,13 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
 test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(workflow, /options: \[full, snippets, identity-reports, health, ui-copy, none\]\s+default: full/);
+  assert.match(workflow, /options: \[full, snippets, identity-reports, health, page-rails, ui-copy, none\]\s+default: full/);
   assert.match(workflow, /name: Verify targeted health release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'health'\s+run: npm run check:release:health/);
   assert(workflow.indexOf('run: npm run check:release:health') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:health', 'build']) assert(packageJson.scripts['check:release:health'].split(' && ').includes(`npm run ${command}`));
+  assert.match(workflow, /name: Verify targeted page rail release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'page-rails'\s+run: npm run check:release:page-rails/);
+  assert(workflow.indexOf('run: npm run check:release:page-rails') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
+  for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:page-scrollers', 'test:action-rails', 'build']) assert(packageJson.scripts['check:release:page-rails'].split(' && ').includes(`npm run ${command}`));
   assert.match(workflow, /name: Verify targeted UI copy release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'ui-copy'\s+run: npm run check:release:ui-copy/);
   assert(workflow.indexOf('run: npm run check:release:ui-copy') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'build']) assert(packageJson.scripts['check:release:ui-copy'].split(' && ').includes(`npm run ${command}`));

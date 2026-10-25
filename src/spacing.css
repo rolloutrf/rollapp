@@ -312,18 +312,12 @@
     display: flex;
     gap: var(--layout-inline-gap);
     padding-block: 0;
-    width: 100%;
-    max-width: 100%;
     flex-shrink: 0;
-    margin-inline: 0;
-    --list-navigation-gutter: 0px;
     min-width: 0;
     flex-wrap: nowrap;
-    padding-inline: var(--list-navigation-gutter);
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
-    scroll-padding-inline: var(--list-navigation-gutter);
     scrollbar-width: none;
     mask-image: none;
     -webkit-mask-image: none;
@@ -528,18 +522,24 @@
   }
   :is([data-tab-scroller], [data-group-navigation] .list-tabs, .page-edge-scroller)::-webkit-scrollbar { display: none; }
 
-  @media (max-width: 820px) {
-    :is(.app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller,
-        .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller,
-        .wishes-page .list-tabs, [data-tab-scroller],
-        [data-group-navigation] .list-tabs, .page-edge-scroller, .horizontal-tile-scroller) {
-      width: 100vw;
-      flex-shrink: 0;
-      max-width: none;
-      margin-inline: calc((100% - 100vw) / 2);
-      padding-inline: var(--layout-page-inset);
-      scroll-padding-inline: var(--layout-page-inset);
-    }
+  /* Ordinary page shells must let their full-viewport rails pass through the
+     desktop shell inset. Planning keeps its own full-screen scroll owners. */
+  .app-layout--dark:not(.app-layout--planning) > .app-main {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
+  :is(.app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller,
+      .app-layout--dark .wishes-page__hero-actions.horizontal-action-scroller,
+      .wishes-page .list-tabs, [data-tab-scroller],
+      [data-group-navigation] .list-tabs, .page-edge-scroller, .horizontal-tile-scroller) {
+    --page-scroller-gutter: calc(var(--layout-page-inset) + var(--layout-shell-inset));
+    width: 100vw;
+    flex-shrink: 0;
+    max-width: none;
+    margin-inline: calc((100% - 100vw) / 2);
+    padding-inline: var(--page-scroller-gutter);
+    scroll-padding-inline: var(--page-scroller-gutter);
   }
 
 }

@@ -11,13 +11,13 @@ const server = await createServer({ cacheDir: 'node_modules/.vite-page-scrollers
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
- for (const width of [320,390,640,767,768,820,1024,1440,1920]) for (const variant of ['reports','wishlist','groups','talents']) for (const count of [1,2,12]) {
+ for (const width of [320,390,640,767,768,820,1024,1440,1920]) for (const variant of ['reports','wishlist','public-wishlist','groups','identity','days','talents']) for (const count of (variant === 'days' ? [63] : [1,2,12,32])) {
   const page = await browser.newPage({ viewport: {width,height:width===820?414:844} });
   const errors=[];
   page.on('pageerror', e=>errors.push(e.message));
   await page.route('**/api/**',r=>{errors.push('Unexpected API request');return r.abort();});
   await page.goto(`${smokeOrigin(server)}/__page-scrollers?variant=${variant}&count=${count}`);
-  const rail=page.locator('[data-tab-scroller], [data-wishlist-list-navigation], [data-group-navigation] .list-tabs, .page-edge-scroller');
+  const rail=page.locator('[data-tab-scroller], [data-wishlist-list-navigation], [data-group-navigation] .list-tabs, .page-edge-scroller, .daily-todo__ribbon');
   await rail.waitFor(); await page.evaluate(()=>document.fonts.ready);
   const measure=()=>rail.evaluate(el=>{
    const r=el.getBoundingClientRect(), buttons=[...el.querySelectorAll('button')], first=buttons[0].getBoundingClientRect(),last=buttons.at(-1).getBoundingClientRect();
@@ -29,11 +29,11 @@ try {
   let m=await measure();
   assert(!m.overflow,`${width}/${variant}: root overflow`);
   assert.deepEqual(m.clips,[],`${width}/${variant}: ancestor clips viewport`);
-  if(width<=820){
+  {
    assert(Math.abs(m.left)<1&&Math.abs(m.right-width)<1,`${width}/${variant}: inset viewport ${JSON.stringify(m)}`);
    assert(m.copy>=16,'copy lost page inset');
    if(m.max>1){
-    const gutter=width<=640?16:24;
+    const gutter=width<=640?16:width<=820?24:width<=1180?40:48;
     assert(Math.abs(m.first-gutter)<1,`${width}/${variant}: first item unreachable`);
     await rail.evaluate(el=>{el.scrollLeft=64;});m=await measure();
     if(m.max>64)assert(m.first<0,`${width}/${variant}: item clipped before screen edge`);

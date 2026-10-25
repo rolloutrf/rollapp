@@ -8,7 +8,7 @@ on:
       verification:
         description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets, identity-reports, health, ui-copy, none]
+        options: [full, snippets, identity-reports, health, page-rails, ui-copy, none]
         default: full
 
 permissions:
@@ -107,6 +107,10 @@ jobs:
       - name: Verify targeted health release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'health'
         run: npm run check:release:health
+
+      - name: Verify targeted page rail release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'page-rails'
+        run: npm run check:release:page-rails
 
       - name: Verify targeted UI copy release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'ui-copy'

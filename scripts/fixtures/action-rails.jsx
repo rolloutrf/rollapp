@@ -36,6 +36,7 @@ function Actions(){
  const icons=['icons','nested'].includes(variant)||(variant==='dynamic'&&editing);
  return <>
  <div className={`${railClass} ${['text','wishlist','narrow','icons','edit','dynamic'].includes(variant)?'wishes-page__hero-actions':''} horizontal-action-scroller`} aria-label="Действия">
+  {variant==='overflow'&&Array.from({length:20},(_,i)=><PageActionButton key={i} variant="outline">Действие {i+1}</PageActionButton>)}
   {!icons&&variant!=='edit'&&<PageActionButton>{variant==='icon-labels'&&<Plus data-icon="inline-start"/>}Добавить</PageActionButton>}
   {!icons&&variant!=='short'&&<PageActionButton variant="outline">Редактировать{variant==='icon-labels'&&<ArrowRight data-icon="inline-end"/>}</PageActionButton>}
   {variant!=='short'&&<SphereBusinessControls sphereId="career"/>}

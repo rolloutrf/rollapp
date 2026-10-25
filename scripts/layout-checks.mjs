@@ -25,14 +25,15 @@ export function measureApplicationLayout() {
       a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top)),
     headerBottom: header ? box(header).bottom : 0,
     firstSurface: box(firstSurface),
-    tabNavigation: [...document.querySelectorAll('[data-slot="tabs-list"], .list-tabs, .public-list-tabs')].filter(visible).map((element) => {
+    tabNavigation: [...document.querySelectorAll('[data-slot="tabs-list"], .list-tabs, .public-list-tabs, .horizontal-tile-scroller')].filter(visible).map((element) => {
       const bounds = box(element);
       const style = getComputedStyle(element);
-      const items = [...element.querySelectorAll('[data-slot="tabs-trigger"], [data-slot="toggle-group-item"], .list-tabs__add')].map(box);
-      const tiles = [...element.querySelectorAll('[data-slot="toggle-group-item"], [data-report-tile]')].map(box);
+      const items = [...element.querySelectorAll('[data-slot="tabs-trigger"], [data-slot="toggle-group-item"], [data-list-tile], .list-tabs__add')].map(box);
+      const tiles = [...element.querySelectorAll('[data-slot="toggle-group-item"], [data-report-tile], [data-list-tile]')].map(box);
       return {
         label: element.getAttribute("aria-label") || element.className,
-        horizontalList: element.hasAttribute("data-wishlist-list-navigation")
+        insetViewport: Math.abs(bounds.left) > 1 || Math.abs(bounds.right - innerWidth) > 1,
+        horizontalList: element.classList.contains("horizontal-tile-scroller") || element.hasAttribute("data-wishlist-list-navigation")
           || element.hasAttribute("data-tab-scroller") || Boolean(element.closest("[data-group-navigation]")),
         singleRow: tiles.every((tile) => Math.abs(tile.top - tiles[0].top) <= 1),
         verticalOverflow: element.scrollHeight > element.clientHeight + 1 || items.some((rect) => rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1),
@@ -44,7 +45,7 @@ export function measureApplicationLayout() {
       const bounds = box(element);
       const actions = [...element.querySelectorAll("button, a")].filter(visible).map(box);
       return {
-        insetViewport: innerWidth <= 820 && (Math.abs(bounds.left) > 1 || Math.abs(bounds.right - innerWidth) > 1),
+        insetViewport: Math.abs(bounds.left) > 1 || Math.abs(bounds.right - innerWidth) > 1,
         offCenter: actions.length > 0 && element.scrollWidth <= element.clientWidth + 1 && Math.abs((actions[0].left + actions.at(-1).right - bounds.left - bounds.right) / 2) > 1,
         singleRow: actions.every((action) => Math.abs(action.top - actions[0].top) <= 1),
         undersized: actions.some((action) => action.width < 47 || action.height < 47),
@@ -88,6 +89,7 @@ export function assertApplicationLayout(result, label = "Application layout") {
   if (result.headerOverlap) errors.push("overlapping header controls");
   for (const navigation of result.tabNavigation || []) {
     if (navigation.horizontalList) {
+      if (navigation.insetViewport) errors.push("collection scroller stops before the viewport edge: " + navigation.label);
       if (!navigation.singleRow || navigation.verticalOverflow) errors.push("wrapped or vertically clipped list navigation: " + navigation.label);
     } else if (navigation.scrollable || navigation.clipped) errors.push("scrollable or clipped tab navigation: " + navigation.label);
   }
