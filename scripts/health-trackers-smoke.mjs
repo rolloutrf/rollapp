@@ -84,14 +84,17 @@ async function checkSleepHistory(page, article, width, height) {
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await article.getByText('Обновлённый сон', { exact: true }).waitFor();
  await article.getByText('Прошлая ночь', { exact: true }).waitFor();
- await article.locator(`[data-sleep-day="${today}"]`).getByRole('button', { name: /^Удалить:/ }).click();
- await page.getByRole('button', { name: 'Отмена', exact: true }).click();
- await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).waitFor();
- await article.locator(`[data-sleep-day="${today}"]`).getByRole('button', { name: /^Удалить:/ }).click();
- await page.getByRole('alertdialog').getByRole('button', { name: 'Удалить', exact: true }).click();
+ assert.equal(await article.getByRole('button', { name: /^(Редактировать|Удалить):/ }).count(), 0, 'Sleep cards have no inline edit/delete actions');
+ await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).click();
+ assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Обновлённый сон');
+ await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
+ await page.getByLabel('Заметки', { exact: true }).waitFor({ state: 'hidden' });
+ await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&empty=1`);
+ await article.waitFor();
  await page.getByRole('button', { name: `Записать сон: ${today}`, exact: true }).waitFor();
- await article.getByText('Прошлая ночь', { exact: true }).waitFor();
  await page.getByRole('button', { name: `Записать сон: ${today}`, exact: true }).click();
+ await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+ await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
  await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).waitFor();
  await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&readonly=1`);
@@ -104,7 +107,7 @@ async function checkSleepHistory(page, article, width, height) {
  await page.getByLabel('Заметки', { exact: true }).fill('Не сохранено');
  await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
  await article.getByText('Как вы спали?', { exact: true }).waitFor();
- console.log(`PASS sleep history ${width}x${height}: daily tiles, descending history, whole-card open, no calendar/add, retry, edit/delete, create/cancel, read-only`);
+ console.log(`PASS sleep history ${width}x${height}: daily tiles, descending history, whole-card open, no calendar/add, retry, card edit, no inline actions, create/cancel, read-only`);
 }
 
 async function checkNutritionTodo(page, article, width, height) {
