@@ -47,6 +47,15 @@
 }
 
 @layer utilities {
+  /* Application headers float without a shared surface, in every theme. */
+  :is(.global-app-chrome, .public-profile > .profile-header) {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   /* One navigation size everywhere. These dimensions intentionally outrank
      primitive sizes and caller utilities; changing a screen cannot silently
      create another control scale. Text labels keep their available width. */
