@@ -10,7 +10,7 @@ for (const file of new Set(files)) {
   try { if (!(await stat(path.join(root, file))).isFile()) continue; }
   catch (error) { if (error.code === "ENOENT") continue; throw error; }
   // A same-named UI component is an implementation, not an authored data archive.
-  if (forbidden.test(file) && file !== "server/performance-review.js") errors.push(`${file}: personal storage/archive path`);
+  if ((forbidden.test(file) && file !== "server/performance-review.js") || file === "server/lab-results-data.test.js") errors.push(`${file}: personal storage/archive path`);
 }
 for (const file of ["server/contacts.js", "server/planning-contacts.js", "server/lab-results.js"]) {
   const source = await readFile(path.join(root, file), "utf8");

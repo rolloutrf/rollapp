@@ -9,7 +9,8 @@ export function privateHistoryPaths(lines) {
     if (split < 0) return false;
     const filename = line.slice(split + 1);
     return /^(?:exports\/|public\/(?:contact-avatars|avatars)\/|server\/contact-avatars-data\/|src\/assets\/gallup\/|src\/data\/.*\.md$)|(?:^|\/)(?:contacts-data\.js|contact-avatar-data\.js|lab-results-data\.js|gallup-report-content\.js|[^/]+\.(?:zip|docx|dump|sqlite|sqlite3|db))$/.test(filename)
-      || filename === "src/data/performance-review.js";
+      || filename === "src/data/performance-review.js"
+      || filename === "server/lab-results-data.test.js";
   }).map(line => line.slice(line.indexOf(" ") + 1));
 }
 
