@@ -91,3 +91,26 @@ test("payment support and terms commands resolve to the agreed contact", () => {
   assert.match(telegramLaunchReply({ message }, bot).text, /https:\/\/t.me\/support_example/);
   assert.match(telegramLaunchReply({ message: { ...message, text: "/terms" } }, bot).text, /100 роллов стоят 10/);
 });
+
+test("external worker uses the application's database-backed support reply without a personal contact default", async () => {
+  const config = { ...bot, webAppUrl: "https://app.example.test/" };
+  const update = { update_id: 100, message: { text: "/paysupport", chat: { id: 7, type: "private" } } };
+  const reply = { method: "sendMessage", chat_id: 7, text: "Support: https://support.example.test" };
+  const delivered = [];
+  const fetchImpl = async (input, options) => {
+    const url = new URL(input);
+    if (url.hostname === "app.example.test") {
+      assert.equal(url.pathname, "/api/telegram/webhook");
+      assert.equal(options.headers["X-Telegram-Bot-Api-Secret-Token"], "test-secret");
+      return json(reply);
+    }
+    if (url.pathname.endsWith("/getUpdates")) return json({ ok: true, result: [update] });
+    delivered.push(JSON.parse(options.body));
+    return json({ ok: true, result: true });
+  };
+  assert.equal(await pollTelegramBotOnce({ config, fetchImpl, handleUpdate: event => forwardTelegramPaymentUpdate(event, config, fetchImpl) }), 101);
+  assert.deepEqual(delivered, [{ chat_id: 7, text: reply.text }]);
+  await assert.rejects(forwardTelegramPaymentUpdate(update, config, async () => json({ ...reply, chat_id: 99 })), /did not confirm/);
+  assert.equal(await forwardTelegramPaymentUpdate({ message: { text: "/support", chat: { id: 7, type: "group" } } }, config), null);
+  assert.deepEqual(await forwardTelegramPaymentUpdate({ ...paid, message: { ...paid.message, text: "/support", chat: { id: 7, type: "private" } } }, config, async () => json({ paymentProcessed: true })), { paymentProcessed: true });
+});

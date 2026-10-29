@@ -99,7 +99,11 @@ function isRetryableTelegramError(error) {
 }
 
 export async function forwardTelegramPaymentUpdate(update, config, fetchImpl = fetch) {
-  if (!update?.pre_checkout_query && !update?.message?.successful_payment) return null;
+  const command = String(update?.message?.text || "").trim().split(/\s+/, 1)[0].split("@", 1)[0].toLowerCase();
+  const paymentUpdate = Boolean(update?.pre_checkout_query || update?.message?.successful_payment);
+  const supportUpdate = !paymentUpdate && update?.message?.chat?.type === "private" && Number.isSafeInteger(update.message.chat.id)
+    && ["/paysupport", "/support", "/terms"].includes(command);
+  if (!paymentUpdate && !supportUpdate) return null;
   if (!config.webhookEnabled) throw new Error("Telegram payment forwarding secret is not configured");
   const response = await fetchImpl(new URL("/api/telegram/webhook", config.webAppUrl), {
     method: "POST",
@@ -107,9 +111,14 @@ export async function forwardTelegramPaymentUpdate(update, config, fetchImpl = f
     body: JSON.stringify(update), signal: AbortSignal.timeout(7_000),
   });
   const result = await response.json().catch(() => null);
-  if (!response.ok || (update.pre_checkout_query
-    ? result?.method !== "answerPreCheckoutQuery" || result.pre_checkout_query_id !== update.pre_checkout_query.id || typeof result.ok !== "boolean"
-    : result?.paymentProcessed !== true)) throw new Error("Rollapp did not confirm processing the Telegram payment update");
+  // The external worker has no database credential. Resolve operational support
+  // through the authenticated app endpoint, whose runtime loads it from the DB.
+  const confirmed = supportUpdate
+    ? result?.method === "sendMessage" && result.chat_id === update.message.chat.id && typeof result.text === "string" && Boolean(result.text.trim())
+    : update.pre_checkout_query
+      ? result?.method === "answerPreCheckoutQuery" && result.pre_checkout_query_id === update.pre_checkout_query.id && typeof result.ok === "boolean"
+      : result?.paymentProcessed === true;
+  if (!response.ok || !confirmed) throw new Error("Rollapp did not confirm processing the Telegram update");
   return result;
 }
 
