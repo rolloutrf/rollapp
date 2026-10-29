@@ -98,7 +98,21 @@ jobs:
 
       - name: Test and build
         if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'
-        run: npm run check:release
+        env:
+          ROLLAPP_CHECK_OUTPUT: ${{ runner.temp }}/rollapp-comprehensive.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run check:comprehensive 2>&1 | tee "${RUNNER_TEMP}/rollapp-comprehensive.log"
+
+      - name: Preserve complete release verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-audit-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/rollapp-comprehensive.json
+            ${{ runner.temp }}/rollapp-comprehensive.log
 
       - name: Verify targeted snippet release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'
