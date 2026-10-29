@@ -5,7 +5,7 @@ import { createStarInvoice, getStarsConfig, starOrderInput } from "./roll-stars.
 import { forwardTelegramPaymentUpdate, getTelegramBotRuntimeConfig, pollTelegramBotOnce, telegramLaunchReply } from "./telegram-bot.js";
 import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS_VERSION } from "../shared/roll-stars.js";
 
-const bot = getTelegramBotRuntimeConfig({ TELEGRAM_BOT_TOKEN: "test:token", TELEGRAM_WEBHOOK_SECRET: "test-secret", TELEGRAM_DELIVERY_MODE: "external-polling" });
+const bot = getTelegramBotRuntimeConfig({ TELEGRAM_BOT_TOKEN: "test:token", TELEGRAM_PAYMENT_SUPPORT_URL: "https://t.me/support_example", TELEGRAM_WEBHOOK_SECRET: "test-secret", TELEGRAM_DELIVERY_MODE: "external-polling" });
 const checkout = { update_id: 91, pre_checkout_query: { id: "checkout-91" } };
 const paid = { update_id: 92, message: { successful_payment: { telegram_payment_charge_id: "charge" } } };
 const json = (result, status = 200) => new Response(JSON.stringify(result), { status, headers: { "Content-Type": "application/json" } });
@@ -88,6 +88,6 @@ test("expired checkout answers do not block following successful payments", asyn
 
 test("payment support and terms commands resolve to the agreed contact", () => {
   const message = { text: "/paysupport", chat: { id: 1, type: "private" } };
-  assert.match(telegramLaunchReply({ message }, bot).text, /https:\/\/t.me\/example-owner/);
+  assert.match(telegramLaunchReply({ message }, bot).text, /https:\/\/t.me\/support_example/);
   assert.match(telegramLaunchReply({ message: { ...message, text: "/terms" } }, bot).text, /100 роллов стоят 10/);
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { syntheticGallupPdf } from "./fixtures/synthetic-pdf.js";
 import test from "node:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { extractIdentityPdfLayout, formatIdentityPdfPage } from "./identity-report-layout.js";
@@ -58,8 +58,8 @@ test("PDF layout retains source subheadings and right-aligned label groups", () 
   assert.deepEqual(blocks.at(-1).items.map((entry) => entry.text), ["Короткая", "Более длинная", "Третья"]);
 });
 
-test("PDF layout keeps every source character in the bundled Gallup report", async () => {
-  const buffer = await readFile(new URL("../src/assets/gallup/cliftonstrengths-34.pdf", import.meta.url));
+test("PDF layout keeps every source character in a generated multi-page styled PDF", async () => {
+  const buffer = syntheticGallupPdf();
   const layout = await extractIdentityPdfLayout(buffer);
   const pdf = await getDocument({ data: new Uint8Array(buffer), verbosity: 0 }).promise;
   try {
@@ -72,9 +72,9 @@ test("PDF layout keeps every source character in the bundled Gallup report", asy
     assert(layout.pages.some((page) => page.blocks.some((block) => block.type === "heading")));
     assert.equal(layout.pages[2].blocks.filter((block) => block.type === "source-emphasis").length, 5);
     assert.equal(layout.pages[2].blocks.find((block) => block.type === "rank-chart").cells.length, 34);
-    assert(layout.pages[2].blocks.find((block) => block.type === "heading" && block.text.startsWith("1. Learner")).runs.some((run) => run.superscript));
-    assert(!layout.pages[2].blocks.some((block) => block.text === "®"));
-    assert(layout.pages[2].blocks.find((block) => block.text?.startsWith("These Strengths Insights")).runs.some((run) => run.italic));
+    assert(layout.pages[2].blocks.find((block) => block.type === "heading" && block.text.startsWith("1. Achiever")).runs.some((run) => run.superscript));
+    assert(!layout.pages[2].blocks.some((block) => block.text === "*"));
+    assert(layout.pages[2].blocks.find((block) => block.text?.startsWith("These synthetic insights")).runs.some((run) => run.italic));
     for (const block of layout.pages.flatMap((page) => page.blocks)) {
       if (block.runs) assert.equal(block.runs.map((run) => run.text).join(""), block.text);
       if (block.type === "list") for (const item of block.items) if (item.runs) assert.equal(item.runs.map((run) => run.text).join(""), item.text);

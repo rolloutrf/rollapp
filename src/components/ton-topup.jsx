@@ -117,7 +117,7 @@ export function TonTopup({ wallet, connector, onPaid }) {
           <p role="status">{order.status === "paid" ? "Оплата подтверждена. Роллы начислены." : order.status === "expired" ? "Срок счёта истёк. Уже отправленная оплата продолжит проверяться." : sent ? "Ожидаем подтверждения в блокчейне. Можно закрыть это окно." : "Если вы уже отправили оплату, дождитесь подтверждения. Повторный перевод не требуется."}</p>
           {order.status === "pending" && !sent && <Button disabled={busy} onClick={() => pay(order)}>{busy ? <Spinner /> : null}Открыть оплату в кошельке</Button>}
           <p className="text-xs break-all text-muted-foreground">Номер счёта: {order.id}</p>
-          <a href="https://t.me/example-owner" target="_blank" rel="noreferrer" className="underline">Поддержка по оплате и возвратам</a>
+          <a href={config?.supportUrl || "https://t.me/rollappRFbot"} target="_blank" rel="noreferrer" className="underline">Поддержка по оплате и возвратам</a>
         </div> : <div className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Количество роллов">
             {(config?.packages || []).map((value) => <Button key={value} variant={amount === value ? "default" : "outline"} aria-pressed={amount === value} disabled={busy || Boolean(intent.current)} onClick={() => setAmount(value)}>{value} роллов</Button>)}

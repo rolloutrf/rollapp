@@ -31,7 +31,7 @@ test("validates signed Telegram initData and normalizes its user", () => {
     user: {
       id: 2_817_443_759_779_512,
       first_name: " Тестовый ",
-      last_name: "Тестовый",
+      last_name: "Пользователь",
       username: "example-owner",
       language_code: "ru",
       is_premium: true,
@@ -45,7 +45,7 @@ test("validates signed Telegram initData and normalizes its user", () => {
   assert.deepEqual(result.user, {
     id: "2817443759779512",
     firstName: "Тестовый",
-    lastName: "Тестовый",
+    lastName: "Пользователь",
     name: "Тестовый Пользователь",
     username: "example-owner",
     languageCode: "ru",

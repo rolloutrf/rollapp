@@ -66,11 +66,16 @@ test("private sphere APIs are owner-only while the wishlist profile stays public
   const ownerHealth = await fetch(`${baseUrl}/health/lab-results`, { headers: { Cookie: ownerCookie } });
   assert.equal(ownerHealth.status, 200);
 
-  const search = await fetch(`${baseUrl}/contacts?search=${encodeURIComponent("Synthetic contact 343")}`, { headers: { Cookie: ownerCookie } });
+  for (const [name, links] of [["Синтетический контакт A", []], ["Синтетический контакт B", [{ label: "Facebook", url: "https://www.facebook.com/example.person" }]]]) {
+    const response = await fetch(`${baseUrl}/contacts`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: ownerCookie }, body: JSON.stringify({ name, company: "Example", role: "", category: "", status: "", links, notes: "тестовая заметка" }) });
+    assert.equal(response.status, 201);
+  }
+
+  const search = await fetch(`${baseUrl}/contacts?search=${encodeURIComponent("Синтетический контакт A")}`, { headers: { Cookie: ownerCookie } });
   assert.equal(search.status, 200);
   const result = await search.json();
   assert.equal(result.total, 1);
-  assert.equal(result.contacts[0].name, "Synthetic contact 343");
+  assert.equal(result.contacts[0].name, "Синтетический контакт A");
   assert.equal("notes" in result.contacts[0], false);
 
   const deniedDetail = await fetch(`${baseUrl}/contacts/${result.contacts[0].id}`, { headers: { Cookie: visitorCookie } });
@@ -92,11 +97,11 @@ test("private sphere APIs are owner-only while the wishlist profile stays public
 
   const detail = await fetch(`${baseUrl}/contacts/${result.contacts[0].id}`, { headers: { Cookie: ownerCookie } });
   assert.equal(detail.status, 200);
-  assert.match((await detail.json()).contact.notes, /нейронки/u);
+  assert.match((await detail.json()).contact.notes, /тестовая заметка/u);
 
-  const facebookContact = await fetch(`${baseUrl}/contacts?search=${encodeURIComponent("Synthetic contact 118")}`, { headers: { Cookie: ownerCookie } });
+  const facebookContact = await fetch(`${baseUrl}/contacts?search=${encodeURIComponent("Синтетический контакт B")}`, { headers: { Cookie: ownerCookie } });
   assert.equal(facebookContact.status, 200);
-  assert.match((await facebookContact.json()).contacts[0].avatarUrl, /^\/api\/contacts\/[a-f0-9]+\/avatar$/u);
+  assert.match((await facebookContact.json()).contacts[0].avatarUrl, /^\/api\/contacts\/[a-f0-9-]+\/avatar(?:\?v=\d+)?$/u);
 
   const create = await fetch(`${baseUrl}/contacts`, {
     method: "POST",

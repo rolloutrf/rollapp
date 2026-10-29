@@ -10,6 +10,7 @@ import { rollsSchema } from "./rolls.js";
 import { businessMarketplaceSchema } from "./business-marketplace.js";
 import { planningSchema } from "./planning.js";
 import { notesSchema } from "./notes.js";
+import { privateDataSchema } from "./private-data-schema.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -723,15 +724,22 @@ const schema = `
     ORDER BY ww.wish_id, l.created_at, l.id
   ) src
   WHERE wishes.id = src.wish_id AND wishes.space IS NULL;
+  ${privateDataSchema}
 `;
 
-const example-ownerWishOrder = [];
-
 const dataMigrations = [
-{
+  {
+    id: "2026-08-09-default-profile-friend",
+    requireMatch: true,
+    run: async (client) => {
+      const result = await backfillDefaultFriend(client);
+      return { rowCount: result.targetFound ? 1 : 0 };
+    },
+  },
+  {
     id: "2026-08-19-wish-group-space-members-v2",
     run: backfillWishGroupSpaces,
-  }
+  },
 ];
 
 async function runDataMigrations(client) {

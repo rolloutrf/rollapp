@@ -1,6 +1,6 @@
 # Telegram Stars purchases
 
-`Пополнить` opens packages of 100 / 500 / 1,000 rolls for 10 / 50 / 100 Stars. The user accepts the versioned purchase terms and pays from the Telegram identity linked to their Rollapp account. In Mini Apps the client uses `openInvoice`; in browsers it offers the invoice link. Support and `/paysupport` point to https://t.me/example-owner. `/terms` returns the purchase terms.
+`Пополнить` opens packages of 100 / 500 / 1,000 rolls for 10 / 50 / 100 Stars. The user accepts the versioned purchase terms and pays from the Telegram identity linked to their Rollapp account. In Mini Apps the client uses `openInvoice`; in browsers it offers the invoice link. Support and `/paysupport` use the operational support contact loaded from PostgreSQL. `/terms` returns the purchase terms.
 
 ## Accounting and delivery
 
@@ -18,7 +18,7 @@ No outbound messages are sent to support automatically. Customers contact suppor
 
 Schema initialization adds `roll_star_orders` after the wallet tables. The change is additive. Never enable the new frontend before its backend schema and handlers are running.
 
-`TELEGRAM_STARS_ENABLED=false` pauses new invoices and checkout approvals; successful payments still settle. `TELEGRAM_PAYMENT_SUPPORT_URL` defaults to `https://t.me/example-owner`. The configured bot token remains in Lockbox. Invoice endpoints never expose it.
+`TELEGRAM_STARS_ENABLED=false` pauses new invoices and checkout approvals; successful payments still settle. `TELEGRAM_PAYMENT_SUPPORT_URL` explicitly overrides the database setting; otherwise the product bot is the generic fallback. The configured bot token remains in Lockbox. Invoice endpoints never expose it.
 
 Both `message` and `pre_checkout_query` must be allowed updates. The repository's production deployment uses **external-polling**, so deploy the updated backend first, then restart the GitHub `Run Telegram bot` worker with the updated code. That worker reads both `bot_token` and `webhook_secret` from Lockbox, forwards payment updates to the authenticated Rollapp webhook, executes checkout answers returned by it, and advances its offset only after settlement is acknowledged. `/start`, `/terms`, and `/paysupport` are answered by the worker directly. Do not start a competing local poller for the same bot.
 

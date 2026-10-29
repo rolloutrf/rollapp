@@ -15,7 +15,7 @@ export function getStarsConfig(env = process.env) {
   const bot = getTelegramBotRuntimeConfig(env);
   let supportUrl = "";
   try {
-    const url = new URL(env.TELEGRAM_PAYMENT_SUPPORT_URL || "https://t.me/example-owner");
+    const url = new URL(bot.paymentSupportUrl);
     if (["https:", "mailto:"].includes(url.protocol)) supportUrl = url.href;
   } catch { /* Sales stay disabled until payment support is configured. */ }
   return {

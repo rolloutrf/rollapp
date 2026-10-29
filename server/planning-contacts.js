@@ -1,6 +1,6 @@
-import { contactFromOverride, findContact, mergeContactOverride } from "./contacts.js";
+import { contactFromOverride } from "./contacts.js";
 
-// Resolve only this owner's overrides; imported contacts are shared source data.
+// Resolve materialized contacts belonging only to this owner.
 export async function planningContacts(query, userId, ids, { validate = false } = {}) {
   const unique = [...new Set(ids)];
   if (!unique.length) return [];
@@ -14,8 +14,7 @@ export async function planningContacts(query, userId, ids, { validate = false } 
   const overrides = new Map(result.rows.map((row) => [row.contact_id, row]));
   return unique.flatMap((id) => {
     const override = overrides.get(id);
-    const source = findContact(id);
-    const contact = source ? mergeContactOverride(source, override) : contactFromOverride(override);
+    const contact = contactFromOverride(override);
     if (!contact || contact.deletedAt) {
       if (validate) throw Object.assign(new Error("Контакт недоступен. Удалите его из участников и выберите заново."), { planningStatus: 400 });
       return [];

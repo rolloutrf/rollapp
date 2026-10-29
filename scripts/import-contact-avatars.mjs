@@ -1,95 +1,40 @@
-import { access, mkdir, readdir, rename, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import sharp from "sharp";
-import { CONTACTS } from "../server/contacts-data.js";
+import { productionRollsDatabase } from "./rolls-database.mjs";
 import { createContactAvatarLoader, facebookProfileUrl } from "../server/contact-avatars.js";
+import { contactFromOverride } from "../server/contacts.js";
+import { storePrivateImage } from "../server/private-data-import.js";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outputDir = path.join(rootDir, "server/contact-avatars-data");
-const manifestPath = path.join(rootDir, "server/contact-avatar-data.js");
-const refresh = process.argv.includes("--refresh");
-const manifestOnly = process.argv.includes("--manifest-only");
-const verbose = process.argv.includes("--verbose");
-const contactLimitArg = process.argv.find((value) => value.startsWith("--limit="));
-const contactLimit = contactLimitArg ? Math.max(1, Number.parseInt(contactLimitArg.split("=")[1], 10) || 1) : Infinity;
-const concurrencyArg = process.argv.find((value) => value.startsWith("--concurrency="));
-const concurrency = concurrencyArg ? Math.max(1, Number.parseInt(concurrencyArg.split("=")[1], 10) || 1) : 2;
-const delayArg = process.argv.find((value) => value.startsWith("--delay="));
-const delayMs = delayArg ? Math.max(0, Number.parseInt(delayArg.split("=")[1], 10) || 0) : 1_000;
-const candidates = CONTACTS.filter((contact) => facebookProfileUrl(contact)).slice(0, contactLimit);
-const loadAvatar = createContactAvatarLoader({ concurrency, maxEntries: 32 });
-
-await mkdir(outputDir, { recursive: true });
-
-let completed = 0;
-let imported = 0;
-let skipped = 0;
-let failed = 0;
-
-function wait(durationMs) {
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
-}
-
-async function importContactAvatar(contact) {
-  const outputPath = path.join(outputDir, `${contact.id}.webp`);
-  if (!refresh) {
-    try {
-      await access(outputPath);
-      skipped += 1;
-      return false;
-    } catch {
-      // The static avatar is not imported yet.
+const { values } = parseArgs({ options: { username: { type: "string" }, limit: { type: "string", default: "100" }, refresh: { type: "boolean", default: false }, apply: { type: "boolean", default: false } } });
+if (!values.username) throw new Error("Usage: --username OWNER [--limit 100] [--refresh] [--apply]");
+const limit = Number(values.limit);
+if (!Number.isInteger(limit) || limit < 1 || limit > 2000) throw new Error("Invalid contact limit");
+process.env.PG_POOL_SIZE = "1";
+const db = await productionRollsDatabase();
+try {
+  const owner = await db.query("SELECT id FROM users WHERE username=$1", [values.username]);
+  if (owner.rowCount !== 1) throw new Error("A single existing owner is required");
+  const ownerId = owner.rows[0].id;
+  const rows = await db.query("SELECT * FROM contact_overrides WHERE user_id=$1 AND deleted_at IS NULL ORDER BY source_order NULLS FIRST,contact_id", [ownerId]);
+  const contacts = rows.rows.map(contactFromOverride).filter(contact => facebookProfileUrl(contact) && (values.refresh || !contact.avatarUrl)).slice(0, limit);
+  if (!values.apply) console.log(JSON.stringify({ candidates: contacts.length, apply: false }));
+  else {
+    const load = createContactAvatarLoader({ concurrency: 1, maxEntries: 1 });
+    let saved = 0, failed = 0;
+    for (const contact of contacts) {
+      try {
+        const remote = await load(contact);
+        const body = await sharp(remote.body).rotate().resize(160, 160, { fit: "cover" }).webp({ quality: 78 }).toBuffer();
+        await db.transaction(async client => {
+          // Lock and recheck before allocating an asset; a concurrent edit wins.
+          const current = await client.query("SELECT avatar_url FROM contact_overrides WHERE user_id=$1 AND contact_id=$2 AND deleted_at IS NULL FOR UPDATE", [ownerId, contact.id]);
+          if (!current.rowCount || current.rows[0].avatar_url !== contact.avatarUrl) return;
+          const url = await storePrivateImage(client, ownerId, { body, mimeType: "image/webp" });
+          await client.query("UPDATE contact_overrides SET avatar_url=$3 WHERE user_id=$1 AND contact_id=$2", [ownerId, contact.id, url]);
+          saved += 1;
+        });
+      } catch { failed += 1; }
     }
+    console.log(JSON.stringify({ saved, failed }));
   }
-
-  const temporaryPath = `${outputPath}.tmp`;
-  try {
-    const image = await loadAvatar(contact);
-    await sharp(image.body, { failOn: "warning" })
-      .rotate()
-      .resize(160, 160, { fit: "cover", position: "centre", withoutEnlargement: false })
-      .webp({ quality: 78, effort: 4 })
-      .toFile(temporaryPath);
-    await rename(temporaryPath, outputPath);
-    imported += 1;
-  } catch (error) {
-    failed += 1;
-    await unlink(temporaryPath).catch(() => {});
-    if (verbose) process.stderr.write(`\nНе удалось загрузить ${contact.name} (${contact.id}): ${error.message}\n`);
-  } finally {
-    completed += 1;
-    if (completed % 25 === 0 || completed === candidates.length) {
-      process.stdout.write(`\rОбработано ${completed}/${candidates.length}; загружено ${imported}; уже было ${skipped}; ошибок ${failed}`);
-    }
-  }
-  return true;
-}
-
-if (!manifestOnly) {
-  let nextIndex = 0;
-  const workers = Array.from({ length: concurrency }, async () => {
-    while (nextIndex < candidates.length) {
-      const contact = candidates[nextIndex];
-      nextIndex += 1;
-      const attempted = await importContactAvatar(contact);
-      if (attempted && delayMs) await wait(delayMs);
-    }
-  });
-  await Promise.all(workers);
-}
-
-const staticIds = (await readdir(outputDir, { withFileTypes: true }))
-  .filter((entry) => entry.isFile() && entry.name.endsWith(".webp"))
-  .map((entry) => entry.name.slice(0, -".webp".length))
-  .sort((left, right) => left.localeCompare(right, "en"));
-const manifest = [
-  "// Generated by scripts/import-contact-avatars.mjs. Do not edit by hand.",
-  "export const STATIC_CONTACT_AVATAR_IDS = new Set([",
-  ...staticIds.map((id) => `  ${JSON.stringify(id)},`),
-  "]);",
-  "",
-].join("\n");
-await writeFile(manifestPath, manifest, "utf8");
-
-process.stdout.write(`\nГотово. Статических аватаров: ${staticIds.length}.\n`);
+} finally { await db.pool.end(); }

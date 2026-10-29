@@ -159,7 +159,7 @@ export function registerTonRollsRoutes(app, { requireAuth, query, transaction, c
     catch (error) { if (error instanceof RollsError) res.status(error.status).json({ error: error.message, code: error.code }); else next(error); }
   };
   app.get("/api/rolls/ton", requireAuth, handle(async (_req, res) => {
-    res.json({ ...config(), packages: [100, 500, 1000] });
+    res.json({ ...config(), supportUrl: process.env.TELEGRAM_PAYMENT_SUPPORT_URL || "https://t.me/rollappRFbot", packages: [100, 500, 1000] });
   }));
   app.get("/api/rolls/ton/orders", requireAuth, handle(async (req, res) => {
     const rows = await query("SELECT * FROM roll_ton_orders WHERE user_id=$1 ORDER BY created_at DESC LIMIT 10", [req.user.id]);

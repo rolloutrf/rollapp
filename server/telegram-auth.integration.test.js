@@ -86,7 +86,7 @@ test("Telegram Mini App login links an existing account and protects the webhook
     botUrl: "https://t.me/rollappRFbot",
   });
 
-  const telegramUser = { id: 9_876_543_210, first_name: "Тестовый", last_name: "Тестовый", username: "example-owner" };
+  const telegramUser = { id: 9_876_543_210, first_name: "Тестовый", last_name: "Пользователь", username: "example-owner" };
   const initData = signedInitData(telegramUser);
   const unlinked = await post("/auth/telegram", { initData });
   assert.equal(unlinked.status, 409);

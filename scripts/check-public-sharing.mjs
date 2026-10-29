@@ -5,7 +5,8 @@ import { loadLockboxValue } from "../server/lockbox.js";
 import { findProfileByUsername, lockProfileUsernames, preserveProfileUsername } from "../server/profile-aliases.js";
 
 const origin = process.env.SHARING_CHECK_URL || "http://127.0.0.1:8188";
-const username = process.env.SHARING_CHECK_USERNAME || "example-owner";
+const username = process.env.SHARING_CHECK_USERNAME;
+if (!username) throw new Error("SHARING_CHECK_USERNAME must explicitly identify the profile to verify");
 Object.assign(process.env, createProductionDatabaseEnvironment(process.env, readTunnelConfig()));
 if (!process.env.PGPASSWORD && process.env.YC_LOCKBOX_SECRET_ID) {
   process.env.PGPASSWORD = await loadLockboxValue(process.env.YC_LOCKBOX_SECRET_ID, process.env.YC_LOCKBOX_SECRET_KEY || "postgresql_password");

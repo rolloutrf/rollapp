@@ -40,8 +40,8 @@ const hasPostgresConfig = Boolean(process.env.DATABASE_URL || process.env.PGHOST
 
 export const isMemoryDatabase = !hasPostgresConfig;
 
-if (isMemoryDatabase && process.env.DEMO_MODE === "false") {
-  throw new Error("DATABASE_URL or PGHOST is required when DEMO_MODE=false");
+if (isMemoryDatabase && !(process.env.NODE_ENV === "test" && process.env.DEMO_MODE === "true")) {
+  throw new Error("DATABASE_URL or PGHOST is required; memory mode is available only to explicit test fixtures");
 }
 
 export const pool = isMemoryDatabase

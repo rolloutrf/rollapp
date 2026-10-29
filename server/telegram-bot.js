@@ -29,7 +29,7 @@ export function getTelegramBotRuntimeConfig(env = process.env) {
     botUsername,
     webAppUrl,
     deliveryMode,
-    paymentSupportUrl: String(env.TELEGRAM_PAYMENT_SUPPORT_URL || "https://t.me/example-owner"),
+    paymentSupportUrl: String(env.TELEGRAM_PAYMENT_SUPPORT_URL || `https://t.me/${botUsername}`),
     apiBase: String(env.TELEGRAM_BOT_API_BASE || "https://api.telegram.org").replace(/\/$/, ""),
   };
 }

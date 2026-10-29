@@ -2,9 +2,10 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 
-const DEFAULT_SOURCE = "/Users/developer/Desktop/Obsidian/example-owner/03. Карьера/Feedback/Self Review and Feedback";
 const DEFAULT_OUTPUT = path.join(os.homedir(), "Library/Application Support/Rollapp/private-exports/performance-review.json");
-const sourceRoot = path.resolve(process.argv[2] || process.env.PERFORMANCE_SOURCE_DIR || DEFAULT_SOURCE);
+const configuredSource = process.argv[2] || process.env.PERFORMANCE_SOURCE_DIR;
+if (!configuredSource) throw new Error("Specify the private review source directory");
+const sourceRoot = path.resolve(configuredSource);
 const outputFile = path.resolve(process.argv[3] || DEFAULT_OUTPUT);
 const repositoryPath = path.resolve(import.meta.dirname, "..");
 const relativeOutput = path.relative(repositoryPath, outputFile);

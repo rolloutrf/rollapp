@@ -58,7 +58,7 @@
     "check:release:ui-copy": "npm run test:unit && npm run test:ui && npm run test:controls && npm run build",
     "check:release:identity-reports": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:identity-reports && npm run test:form-actions && npm run test:action-rails && npm run test:page-scrollers && npm run build",
     "check:release:snippets": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:wish-groups && npm run test:snippets && npm run test:drag-drop && npm run build",
-    "check:release": "npm run test:unit && npm run test:ui && npm run test:snippets && npm run test:page-scrollers && npm run test:lab-results && npm run test:controls && npm run test:details && npm run test:dates && npm run test:time-inputs && npm run test:calendar && npm run test:form-actions && npm run test:text-edit && npm run test:notes && npm run test:kanban && npm run test:drag-drop && npm run test:snippet-badges && npm run test:health && npm run test:medication-photos && npm run test:contact-cards && npm run build",
+    "check:release": "npm run test:unit && npm run test:private-data && npm run test:ui && npm run test:snippets && npm run test:page-scrollers && npm run test:lab-results && npm run test:controls && npm run test:details && npm run test:dates && npm run test:time-inputs && npm run test:calendar && npm run test:form-actions && npm run test:text-edit && npm run test:notes && npm run test:kanban && npm run test:drag-drop && npm run test:snippet-badges && npm run test:health && npm run test:medication-photos && npm run test:contact-cards && npm run build",
     "test:planning:production": "ROLLAPP_TEST_PLANNING=1 node --test server/planning.integration.test.js server/planning-recurrence.integration.test.js server/calendar-device.integration.test.js",
     "test:visual": "node scripts/visual-smoke.mjs",
     "test:drawers": "DRAWER_REAL_FORMS=1 node scripts/drawer-smoke.mjs",
@@ -82,7 +82,9 @@
     "test:contact-cards": "node scripts/ton-contact-card-smoke.mjs",
     "build:contact-registry": "node scripts/build-contact-card-registry.mjs",
     "verify:contact-card": "node scripts/verify-contact-card.mjs",
-    "check:release:snippets": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:wish-groups && npm run test:snippets && npm run test:drag-drop && npm run build"
+    "test:private-data": "node scripts/check-private-data.mjs",
+    "test:private-data:production": "ROLLAPP_TEST_PRIVATE_DATA=1 node --test server/private-data.integration.test.js",
+    "private-data:import": "node scripts/migrate-private-data.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

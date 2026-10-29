@@ -83,9 +83,6 @@ test("contact avatar loader downloads through the safe fetchers and caches the r
   assert.equal(imageRequests, 1);
 });
 
-test("imported contact avatars are served from the private server bundle", async () => {
-  const image = await loadContactAvatar({ id: "fe7fd6741beb688b57c7", links: [] });
-  assert.equal(image.mimeType, "image/webp");
-  assert.deepEqual([...image.body.subarray(0, 4)], [0x52, 0x49, 0x46, 0x46]);
-  assert.match(image.etag, /^"[A-Za-z0-9_-]{32}"$/u);
+test("an unknown contact cannot read a local avatar by id", async () => {
+  await assert.rejects(loadContactAvatar({ id: "synthetic-no-photo", links: [] }), /Фото профиля недоступно/);
 });

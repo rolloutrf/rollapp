@@ -1,6 +1,7 @@
 import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
+import { registerPrivateFiles } from "./private-files.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import "dotenv/config";
@@ -50,10 +51,10 @@ import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
 import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
-import { contactAvatarPath, contactFromOverride, findContact, listContacts, mergeContactOverride } from "./contacts.js";
+import { contactAvatarPath, contactFromOverride, listContacts } from "./contacts.js";
 import {
-  LAB_ATTENTION_ITEMS, LAB_REPORTS, LAB_TRENDS, mergeLabReportsByDate,
-} from "./lab-results-data.js";
+  mergeLabReportsByDate,
+} from "./lab-results.js";
 import {
   isPdfBuffer, LAB_PDF_MAX_BYTES, LabPdfError, parseLabPdf,
 } from "./lab-pdf.js";
@@ -2170,6 +2171,8 @@ app.get("/api/me", asyncRoute(async (req, res) => {
   res.json({ user: await cleanAuthenticatedUser(req.user) });
 }));
 
+registerPrivateFiles(app, { query, requireAuth, asyncRoute });
+
 const openRouterCredentialRow = (userId) => readOpenRouterCredential(query, userId);
 
 async function resolveOpenRouterApiKey(userId) {
@@ -4180,7 +4183,7 @@ async function contactOverrides(userId, contactId = "") {
             links_json AS "linksJson",notes,deleted_at AS "deletedAt",updated_at AS "updatedAt"
      FROM contact_overrides
      WHERE user_id=$1${contactId ? " AND contact_id=$2" : ""}
-     ORDER BY updated_at DESC,contact_id`,
+     ORDER BY source_order ASC NULLS FIRST,updated_at DESC,contact_id`,
     params,
   );
   return result.rows;
@@ -4204,8 +4207,7 @@ async function contactForUser(userId, contactId) {
     contactFavoriteIds(userId, contactId),
   ]);
   if (override?.deletedAt) return null;
-  const source = findContact(contactId);
-  const contact = source ? mergeContactOverride(source, override) : contactFromOverride(override);
+  const contact = contactFromOverride(override);
   if (!contact) return null;
   return { ...contact, favorite: favoriteIds.includes(contactId) };
 }
@@ -4469,19 +4471,21 @@ async function lockLabResultsMutation(client, userId) {
 }
 
 async function labResultsPayload(userId, ownerUsername = "", client = null) {
-  const [uploadedReports, deletedKeys] = await Promise.all([
+  const [uploadedReports, deletedKeys, stored] = await Promise.all([
     uploadedLabReports(userId, ownerUsername, client),
     deletedLabReportKeys(userId, client),
+    (client ? client.query.bind(client) : query)("SELECT content_json FROM health_lab_content WHERE user_id=$1", [userId]),
   ]);
-  const reports = mergeLabReportsByDate([...uploadedReports, ...LAB_REPORTS])
+  const content = stored.rowCount ? JSON.parse(stored.rows[0].content_json) : { reports: [], trends: [], attentionItems: [] };
+  const reports = mergeLabReportsByDate([...uploadedReports, ...content.reports])
     .filter((report) => !deletedKeys.has(labReportKey(report)));
   const visibleDates = labReportDateAliases(reports);
   return {
     reports,
-    trends: LAB_TRENDS
+    trends: content.trends
       .map((trend) => ({ ...trend, points: trend.points.filter((point) => visibleDates.has(point.date)) }))
       .filter((trend) => trend.points.length),
-    attentionItems: LAB_ATTENTION_ITEMS.filter((item) => visibleDates.has(item.date)),
+    attentionItems: content.attentionItems.filter((item) => visibleDates.has(item.date)),
   };
 }
 
@@ -6318,19 +6322,11 @@ app.patch("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, as
 app.delete("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
   const source = await contactForUser(req.user.id, req.params.contactId);
   if (!source) return res.status(404).json({ error: "Контакт не найден" });
-  const imported = Boolean(findContact(source.id));
   await withMutationLock(`contact:${req.user.id}:${source.id}`, () => transaction(async (client) => {
     await client.query(
       "DELETE FROM contact_favorites WHERE user_id=$1 AND contact_id=$2",
       [req.user.id, source.id],
     );
-    if (!imported) {
-      await client.query(
-        "DELETE FROM contact_overrides WHERE user_id=$1 AND contact_id=$2",
-        [req.user.id, source.id],
-      );
-      return;
-    }
     await client.query(
       `INSERT INTO contact_overrides (
          user_id,contact_id,name,company,role,category,status,avatar_url,links_json,notes,deleted_at,updated_at
@@ -6478,6 +6474,8 @@ app.use((error, req, res, _next) => {
 });
 
 const databaseInitialization = await initializeRuntimeDatabase({ environment: process.env, isMemoryDatabase, transaction, migrate: initializeDatabase });
+const runtimeSettings = await query("SELECT value_text FROM application_settings WHERE key=$1", ["telegram_payment_support_url"]);
+if (!process.env.TELEGRAM_PAYMENT_SUPPORT_URL && runtimeSettings.rowCount) process.env.TELEGRAM_PAYMENT_SUPPORT_URL = runtimeSettings.rows[0].value_text;
 if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema verified without migrations or data cleanup.");
 
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });

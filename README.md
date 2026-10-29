@@ -112,7 +112,7 @@ The store order list is available at `/app/orders`. `GET /api/rolls/orders` retu
 
 Run `npm run test:rolls:production` to verify real PostgreSQL behavior. All test writes, including fixture users and wallet/schema changes, are rolled back. It never substitutes a local or in-memory database.
 
-**Пополнить** offers 100 / 500 / 1,000 rolls for 10 / 50 / 100 Telegram Stars. Purchases require a linked Telegram identity and accepted terms. Only a server-verified `successful_payment` credits the wallet; invoice retries and repeated Telegram updates are idempotent. Support is @example-owner. See [Telegram Stars setup, delivery, and verification](docs/telegram-stars.md) before rollout, including updating the external polling worker. `npm run test:stars:production` runs rollback-only PostgreSQL checks; after building, `npm run test:stars:visual` also checks desktop/mobile purchase flows without charging Stars.
+**Пополнить** offers 100 / 500 / 1,000 rolls for 10 / 50 / 100 Telegram Stars. Purchases require a linked Telegram identity and accepted terms. Only a server-verified `successful_payment` credits the wallet; invoice retries and repeated Telegram updates are idempotent. The support contact is loaded from operational database settings. See [Telegram Stars setup, delivery, and verification](docs/telegram-stars.md) before rollout, including updating the external polling worker. `npm run test:stars:production` runs rollback-only PostgreSQL checks; after building, `npm run test:stars:visual` also checks desktop/mobile purchase flows without charging Stars.
 
 ### CDEK pickup for store cats
 

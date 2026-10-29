@@ -1,4 +1,4 @@
-export const DEFAULT_FRIEND_USERNAME = process.env.DEFAULT_FRIEND_USERNAME || "example-owner";
+export const DEFAULT_FRIEND_USERNAME = process.env.DEFAULT_FRIEND_USERNAME || "";
 
 export async function addDefaultFriend(client, followerId) {
   await client.query(
@@ -11,10 +11,11 @@ export async function addDefaultFriend(client, followerId) {
   );
 }
 
-export async function backfillDefaultFriend(client) {
+export async function backfillDefaultFriend(client, username = DEFAULT_FRIEND_USERNAME) {
+  if (!username) return { targetFound: false };
   const target = await client.query(
     "SELECT id FROM users WHERE username=$1",
-    [DEFAULT_FRIEND_USERNAME],
+    [username],
   );
   if (!target.rowCount) return { targetFound: false };
 

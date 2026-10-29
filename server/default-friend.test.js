@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { newDb } from "pg-mem";
-import { addDefaultFriend, backfillDefaultFriend, DEFAULT_FRIEND_USERNAME } from "./default-friend.js";
+import { addDefaultFriend, backfillDefaultFriend } from "./default-friend.js";
+
+const SYNTHETIC_USERNAME = "default-owner";
 
 async function createClient() {
   const memory = newDb({ autoCreateForeignKeyIndices: true });
@@ -32,10 +34,10 @@ test("backfill makes example-owner the default friend for every existing user", 
   t.after(() => client.end());
   await client.query(
     "INSERT INTO users (id,username) VALUES ($1,$2),($3,$4),($5,$6)",
-    ["synthetic-user", DEFAULT_FRIEND_USERNAME, "alisa", "alisa", "max", "max"],
+    ["synthetic-user", SYNTHETIC_USERNAME, "alisa", "alisa", "max", "max"],
   );
 
-  const first = await backfillDefaultFriend(client);
+  const first = await backfillDefaultFriend(client, SYNTHETIC_USERNAME);
   assert.deepEqual(first, { targetFound: true });
   assert.deepEqual(
     (await client.query("SELECT follower_id,following_id FROM follows ORDER BY follower_id")).rows,
@@ -45,7 +47,7 @@ test("backfill makes example-owner the default friend for every existing user", 
     ],
   );
 
-  const repeated = await backfillDefaultFriend(client);
+  const repeated = await backfillDefaultFriend(client, SYNTHETIC_USERNAME);
   assert.deepEqual(repeated, { targetFound: true });
   assert.equal((await client.query("SELECT 1 FROM follows")).rowCount, 2);
 
@@ -63,7 +65,7 @@ test("new users follow example-owner once while example-owner never follows hims
   t.after(() => client.end());
   await client.query(
     "INSERT INTO users (id,username) VALUES ($1,$2),($3,$4)",
-    ["synthetic-user", DEFAULT_FRIEND_USERNAME, "new-user", "new-user"],
+    ["synthetic-user", SYNTHETIC_USERNAME, "new-user", "new-user"],
   );
   await client.query("INSERT INTO default_follow_targets (user_id) VALUES ($1)", ["synthetic-user"]);
 
@@ -81,7 +83,7 @@ test("default friendship waits safely when the example-owner profile is absent",
   t.after(() => client.end());
   await client.query("INSERT INTO users (id,username) VALUES ($1,$2)", ["alisa", "alisa"]);
 
-  assert.deepEqual(await backfillDefaultFriend(client), { targetFound: false });
+  assert.deepEqual(await backfillDefaultFriend(client, SYNTHETIC_USERNAME), { targetFound: false });
   await addDefaultFriend(client, "alisa");
   assert.equal((await client.query("SELECT 1 FROM follows")).rowCount, 0);
 });

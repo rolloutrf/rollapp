@@ -12,3 +12,10 @@ npm-debug.log*
 .rollapp-retailer-chrome/
 *.pem
 !certs/yandex-cloud-ca.pem
+exports/
+private-exports/
+private-migrations/
+*.bundle
+*.dump
+*.sqlite
+*.sqlite3

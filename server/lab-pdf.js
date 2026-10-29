@@ -1,5 +1,5 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { LAB_REPORTS } from "./lab-results-data.js";
+import { LAB_ANALYTES } from "./lab-analytes.js";
 
 export const LAB_PDF_MAX_BYTES = 12 * 1024 * 1024;
 const LAB_PDF_MAX_PAGES = 50;
@@ -95,22 +95,9 @@ function slug(value) {
 
 function createAnalyteCatalog() {
   const catalog = new Map();
-  for (const report of LAB_REPORTS) {
-    for (const group of report.groups) {
-      for (const item of group.items) {
-        const key = normalizedKey(item.name);
-        if (catalog.has(key)) continue;
-        catalog.set(key, {
-          id: slug(item.name),
-          name: item.name,
-          code: item.code || "",
-          unit: item.unit || "",
-          groupId: group.id,
-          groupTitle: group.title,
-          aliases: [item.name, ...(ANALYTE_ALIASES.get(key) || [])],
-        });
-      }
-    }
+  for (const item of LAB_ANALYTES) {
+    const key = normalizedKey(item.name);
+    catalog.set(key, { id: slug(item.name), ...item, aliases: [item.name, ...(ANALYTE_ALIASES.get(key) || [])] });
   }
   for (const [id, name, groupTitle, groupId, code] of EXTRA_ANALYTES) {
     const key = normalizedKey(name);

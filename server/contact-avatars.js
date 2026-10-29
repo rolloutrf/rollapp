@@ -1,8 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { STATIC_CONTACT_AVATAR_IDS } from "./contact-avatar-data.js";
 import { decodeHtmlEntities } from "./metadata.js";
 import { fetchPublicHtml, fetchPublicImage, MetadataFetchError } from "./metadata-fetch.js";
 
@@ -203,27 +199,7 @@ export function createContactAvatarLoader({
 
 const loadRemoteContactAvatar = createContactAvatarLoader();
 export const resolveContactSocialAvatar = createContactSocialAvatarResolver();
-const staticAvatarCache = new Map();
-const staticAvatarDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "contact-avatars-data");
-
-async function loadStaticContactAvatar(contactId) {
-  if (staticAvatarCache.has(contactId)) return staticAvatarCache.get(contactId);
-  let body;
-  try {
-    body = await readFile(path.join(staticAvatarDir, `${contactId}.webp`));
-  } catch (error) {
-    throw avatarError("Сохранённое фото профиля недоступно", { cause: error });
-  }
-  const value = {
-    body,
-    mimeType: "image/webp",
-    etag: `"${createHash("sha256").update(body).digest("base64url").slice(0, 32)}"`,
-  };
-  staticAvatarCache.set(contactId, value);
-  return value;
-}
 
 export async function loadContactAvatar(contact) {
-  if (STATIC_CONTACT_AVATAR_IDS.has(contact?.id)) return loadStaticContactAvatar(contact.id);
   return loadRemoteContactAvatar(contact);
 }
