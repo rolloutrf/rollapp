@@ -35,10 +35,16 @@ export async function checkLinkIntent(browser,origin){
    await page.goto(`${origin}/__text-edit?public=1&source=${encodeURIComponent(saved)}`);const publicLink=page.getByRole("link",{name:"target",exact:true});assert.equal(await publicLink.getAttribute("href"),"https://example.test/a)b");assert.equal(await publicLink.getAttribute("target"),"_blank");assert.equal(await publicLink.getAttribute("rel"),"noopener noreferrer");assert.notEqual(await publicLink.getAttribute("class"),"author-link");assert.equal(await page.locator('[contenteditable="true"]').count(),0);
   }
   // Outside pointer/focus belongs to its destination and retires stale portals.
-  await goto("Original", "&twins=1");const other=page.getByRole("textbox",{name:"Второй документ",exact:true});await other.waitFor();const firstBefore=await read(),otherBefore=await other.evaluate(el=>el.editor.getJSON());
+  // The destination needs a visible paragraph outside the open link panel.
+  // A one-line sibling directly below the caret is covered by that panel.
+  await goto("Original", `&twins=1&secondSource=${encodeURIComponent("Первый абзац второго документа\n\nСередина второго документа\n\nВнешняя цель")}`);const other=page.getByRole("textbox",{name:"Второй документ",exact:true});await other.waitFor();const firstBefore=await read(),otherBefore=await other.evaluate(el=>el.editor.getJSON());
   for(const method of ["pointer","focus"]){
    await editor.click();await page.keyboard.press("ControlOrMeta+k");await address.waitFor();await address.fill("https://pending.test");
-   if(method==="pointer")await other.locator("p").click();else await other.focus();await address.waitFor({state:"hidden"});assert(await other.evaluate(el=>document.activeElement===el),"Closing the first form must not reclaim focus from its destination");assert.deepEqual(await read(),firstBefore);assert.deepEqual(await other.evaluate(el=>el.editor.getJSON()),otherBefore);
+   if(method==="pointer"){
+    const destination=other.locator("p").last();
+    assert(await destination.evaluate(el=>{const r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return el.contains(hit);}),"The native outside-click destination must be visible and uncovered by the link form");
+    await destination.click();
+   }else await other.focus();await address.waitFor({state:"hidden"});assert(await other.evaluate(el=>document.activeElement===el),"Closing the first form must not reclaim focus from its destination");assert.deepEqual(await read(),firstBefore);assert.deepEqual(await other.evaluate(el=>el.editor.getJSON()),otherBefore);
    await page.keyboard.press("ControlOrMeta+k");await address.waitFor();assert.equal(await address.count(),1,"Only the current editor owns a link form");await address.press("Escape");await address.waitFor({state:"hidden"});
   }
   // Invalid URLs and Escape change neither history nor prose.
