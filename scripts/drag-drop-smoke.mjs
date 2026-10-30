@@ -3,6 +3,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { mkdir } from 'node:fs/promises';
 import { browserLaunchOptions, smokePort } from './browser-runtime.mjs';
+import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from './smoke-browser-diagnostics.mjs';
 const port = smokePort(5195);
 const server = await createServer({ cacheDir: 'node_modules/.vite-drag-drop', server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'drag-drop-fixture', enforce: 'pre',
@@ -10,7 +11,7 @@ const server = await createServer({ cacheDir: 'node_modules/.vite-drag-drop', se
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => { if (!req.url.startsWith('/__drag-drop')) return next(); res.setHeader('Content-Type', 'text/html'); res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/drag-drop.jsx"></script></body></html>')); }); },
 }] });
 await server.listen();
-const browser = await chromium.launch(browserLaunchOptions());
+const browser = instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 await mkdir('/tmp/rollapp-drag-drop', { recursive: true });
 const calls = page => page.evaluate(() => window.dragTest.calls);
 const order = (page, mode) => page.locator(mode === 'collection' ? '[data-sortable-card-id]' : '.wishes-page > .wish-grid > *').evaluateAll(nodes => nodes.map(node => node.dataset.sortableCardId || node.dataset.groupWishId || node.dataset.groupId));
@@ -25,10 +26,15 @@ async function start(page, mode = 'wishes', id = 'w0') {
   const source = page.locator(mode === 'collection' ? `[data-sortable-card-id="${id}"]` : `.wishes-page > .wish-grid [data-group-wish-id="${id}"]`);
   await source.scrollIntoViewIfNeeded();
   const rect = await source.boundingBox();
-  await page.mouse.move(rect.x + rect.width / 2, rect.y + 20);
+  // On a short viewport the card's top can be inside the auto-scroll band.
+  // Pick it up at its visible centre so revealing the intended target cannot
+  // start an unrelated edge-scroll reorder before the pointer moves there.
+  const point = { x: rect.x + rect.width / 2, y: rect.y + (mode === 'wishes' ? rect.height / 2 : 20) };
+  await page.mouse.move(point.x, point.y);
+  assert(await source.evaluate((element, position) => element.contains(document.elementFromPoint(position.x, position.y)), point), 'The native pickup point must hit its source card');
   await page.mouse.down();
   if (mode === 'wishes') await page.waitForTimeout(280);
-  await page.mouse.move(rect.x + rect.width / 2 + 12, rect.y + 20);
+  await page.mouse.move(point.x + 12, point.y);
   const preview = page.locator(mode === 'collection' ? '.education-card--drag-preview' : '.wish-card--drag-preview');
   await preview.waitFor();
   const sizes = await source.evaluate(element => ({ width: element.offsetWidth, height: element.offsetHeight }));
@@ -79,6 +85,7 @@ try {
       await start(page,'wishes',id);
       const target=page.locator('.wishes-page > .wish-grid [data-group-id="g0"]');
       await target.scrollIntoViewIfNeeded(); const box=await target.boundingBox();
+      assert.deepEqual(await order(page,'wishes'),before,'Revealing the target must not reorder unrelated cards before the intended hover');
       await page.mouse.move(box.x+3,box.y+8); await page.waitForTimeout(380);
       const expected=before.filter(key=>key!==id),index=expected.indexOf('g0');
       expected.splice(index+(before.indexOf(id)<before.indexOf('g0')?1:0),0,id);
@@ -308,6 +315,7 @@ try {
   }
 } catch (error) {
   for (const context of browser.contexts()) for (const page of context.pages()) {
+    console.error('BROWSER NETWORK/CONSOLE', JSON.stringify(smokeBrowserDiagnostics(page)));
     console.error('FAIL STATE', page.url(), await page.locator('body').innerText({ timeout: 3000 }).catch(() => 'unavailable'));
     await page.screenshot({ path: '/tmp/rollapp-drag-drop/failure.png', timeout: 5000 }).catch(() => {});
   }
