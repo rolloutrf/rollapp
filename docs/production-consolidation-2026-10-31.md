@@ -48,3 +48,7 @@ ReferenceError useId после удаления импорта при объе�
 Импорт восстановлен: он нужен также существующему PDF content renderer.
 Повторная сборка и static binding review React hooks в22 изменённых JS/JSX
 источниках прошли. Публикуется отдельный исправляющий commit без отката данных.
+
+Расширенный static binding review обнаружил также прежний отсутствующий toast
+в StorePage success callback. Восстановлен существующий useToast context;
+покупка/кошелёк/checkout не менялись и реальные операции не выполнялись.

@@ -3163,6 +3163,7 @@ const STORE_CATS = [
 const STORE_CAT_PRICE = "1 000 ролл";
 
 function StorePage({ user }) {
+  const toast = useToast();
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
   const [purchase, setPurchase] = useState(() => restoreCatPurchase(storageKey, STORE_CATS));
   const beginPurchase = (cat) => {
