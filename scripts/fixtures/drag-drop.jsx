@@ -17,7 +17,14 @@ let params = new URLSearchParams(location.search);
 let mode = params.get('mode') || 'wishes';
 window.dragTest = { calls: [], errors: [] };
 const wishes = Array.from({ length: 12 }, (_, i) => ({ id: `w${i}`, title: `Медиа ${i + 1} с длинным названием для проверки переноса текста`, space: 'media', listIds: ['general'], status: 'active', privacy: 'public', imageUrl: '', url: 'https://www.youtube.com/watch?v=dQw4w9WgXc' }));
-const dashboard = { wishes, lists: [{ id: 'general', title: 'Мои желания', description: 'Всё, чему я буду рад' }], groups: params.has('groups') ? [{ id: 'g0', title: 'Группа', listId: 'general', space: 'media', wishIds: params.has('interleaved') ? ['w2', 'w8'] : ['w2', 'w3'] }] : [] };
+const fixtureSpace = () => params.has('products') ? 'products' : 'media';
+const fixtureWishes = () => (params.has('pair') ? (params.has('sourcefirst') ? [wishes[1], wishes[0]] : wishes.slice(0, 2)) : wishes).map(wish => params.has('products') ? { ...wish, space: 'products', url: '' } : wish);
+const fixtureGroups = () => params.has('pair')
+  ? [{ id: 'g0', title: 'Группа', listId: 'general', space: fixtureSpace(), wishIds: ['w0'] }]
+  : params.has('mixed')
+  ? [['w0', 'w3', 'w11'], ['w1', 'w2'], ['w5', 'w9'], ['w6', 'w10'], ['w7', 'w8']].map((wishIds, index) => ({ id: `g${index}`, title: `Группа ${index + 1}`, listId: 'general', space: fixtureSpace(), wishIds }))
+  : params.has('groups') ? [{ id: 'g0', title: 'Группа', listId: 'general', space: fixtureSpace(), wishIds: params.has('interleaved') ? ['w2', 'w8'] : ['w2', 'w3'] }] : [];
+const dashboard = { wishes: fixtureWishes(), lists: [{ id: 'general', title: 'Мои желания', description: 'Всё, чему я буду рад' }], groups: fixtureGroups() };
 // Presentation boundary only. The runner rejects every network API request.
 api.get = async path => {
   if (path === '/dashboard') return structuredClone(dashboard);
@@ -27,6 +34,17 @@ api.get = async path => {
 api.post = async (path, payload) => {
   if (path === '/wishes/backfill-previews') return { updated: 0 };
   window.dragTest.calls.push({ path, payload });
+  if (path === '/lists/general/groups') {
+    const group = { id: 'new', listId: 'general', space: payload.space, wishIds: payload.wishIds, title: 'Новая группа' };
+    dashboard.groups.push(group);
+    return { group: structuredClone(group) };
+  }
+  const groupId = path.match(/^\/lists\/general\/groups\/([^/]+)\/wishes$/)?.[1];
+  if (groupId) {
+    const group = dashboard.groups.find(item => item.id === groupId);
+    group.wishIds = [...new Set([...group.wishIds, payload.wishId])];
+    return { group: structuredClone(group) };
+  }
   return { group: { id: 'new', listId: 'general', space: 'media', wishIds: payload.wishIds || [], title: 'Новая группа' } };
 };
 api.patch = async (path, payload) => {
@@ -67,14 +85,14 @@ function Calendar() {
 }
 const root = createRoot(document.getElementById('root'));
 let generation = 0;
-function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : '/app/wishes?tab=media']}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'badges' ? <CollectionBadges /> : mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <WishesPage version={0} onAdd={() => {}} />}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
+function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : `/app/wishes?tab=${fixtureSpace()}`]}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'badges' ? <CollectionBadges /> : mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <WishesPage version={0} onAdd={() => {}} />}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
 window.dragTest.remount = () => { generation++; flushSync(render); };
 window.dragTest.reset = (query = location.search) => {
   history.replaceState(null, '', `/__drag-drop${query}`);
   params = new URLSearchParams(query); mode = params.get('mode') || 'wishes';
-  dashboard.groups = params.has('groups') ? [{ id: 'g0', title: 'Группа', listId: 'general', space: 'media', wishIds: params.has('interleaved') ? ['w2', 'w8'] : ['w2', 'w3'] }] : [];
+  dashboard.groups = fixtureGroups();
   window.dragTest.calls = []; window.dragTest.errors = [];
-  dashboard.wishes = [...wishes];
+  dashboard.wishes = fixtureWishes();
   generation++; flushSync(render); window.scrollTo({ top: 0, behavior: 'instant' });
 };
 render();

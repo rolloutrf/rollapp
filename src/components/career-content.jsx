@@ -336,7 +336,6 @@ export function EditableMarkdownDocument({
       : <InlineDocument key={`${scope}:${section}:${sharing.owner?.id || "self"}`} documentKey={`${scope}:${section}`} scope={scope}
         value={content} onSave={careerContent.save} label={label} className={className}
         disabled={sharing.loading || Boolean(sharing.error)}
-        addBlock={collapsibleAges ? [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Новый период" }] }, { type: "paragraph" }] : undefined}
       />)}
   </div>;
 }

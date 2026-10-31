@@ -118,6 +118,217 @@ try {
       assert(!writes.some(call=>call.path==='/wishes/reorder'),'Center grouping must not reorder the grid');
     }
 
+
+    for (const sourceId of ['w2','w3']) for (const outcome of ['save','Escape','fail']) {
+      await load(page, `?groups&products${outcome === 'fail' ? '&fail' : ''}`);
+      await page.getByRole('button',{name:'Открыть группу «Группа», 2 желания',exact:true}).click();
+      const grid = page.locator('.wish-group-open > .wish-grid');
+      await grid.waitFor();
+      const source = grid.locator(`[data-group-wish-id="${sourceId}"]`);
+      const targetId = sourceId === 'w2' ? 'w3' : 'w2';
+      const expected = ['w3','w2'];
+      await source.scrollIntoViewIfNeeded();
+      const sourceBox = await source.boundingBox();
+      await page.mouse.move(sourceBox.x+sourceBox.width/2,sourceBox.y+20); await page.mouse.down();
+      await page.waitForTimeout(280);
+      const targetBox = await grid.locator(`[data-group-wish-id="${targetId}"]`).boundingBox();
+      await page.mouse.move(targetBox.x+targetBox.width/2,targetBox.y+20,{steps:24});
+      await page.waitForFunction(expected => JSON.stringify([...document.querySelector('.wish-group-open > .wish-grid').children].map(e=>e.dataset.groupWishId)) === JSON.stringify(expected),expected);
+      await page.waitForTimeout(380);
+      const gap = await grid.evaluate(grid=>{
+        const boxes=[...grid.children].map(e=>e.getBoundingClientRect());
+        if(boxes[0].right<=boxes[1].left||boxes[1].right<=boxes[0].left){
+          boxes.sort((a,b)=>a.left-b.left);
+          return {x:(boxes[0].right+boxes[1].left)/2,y:Math.max(boxes[0].top,boxes[1].top)+20};
+        }
+        boxes.sort((a,b)=>a.top-b.top);
+        return {x:Math.max(boxes[0].left,boxes[1].left)+20,y:(boxes[0].bottom+boxes[1].top)/2};
+      });
+      await page.mouse.move(gap.x,gap.y);
+      assert(await page.evaluate(({x,y})=>document.elementFromPoint(x,y)===document.querySelector('.wish-group-open > .wish-grid'),gap),'Open-group drop must hit a real gap in the source grid');
+      assert.deepEqual(await calls(page),[]);
+      if(outcome==='Escape')await page.keyboard.press('Escape');
+      await page.mouse.up();
+      if(outcome!=='Escape')await page.waitForFunction(()=>window.dragTest.calls.length===1);
+      if(outcome==='fail')await page.waitForFunction(()=>window.dragTest.errors.length>0);
+      const finalOrder=outcome==='save'?expected:['w2','w3'];
+      await page.waitForFunction(expected=>JSON.stringify([...document.querySelector('.wish-group-open > .wish-grid').children].map(e=>e.dataset.groupWishId))===JSON.stringify(expected),finalOrder);
+      assert.deepEqual(await calls(page),outcome==='Escape'?[]:[{path:'/wishes/reorder',payload:{wishIds:['w0','w1','w3','w2',...Array.from({length:8},(_,i)=>`w${i+4}`)]}}]);
+      if(outcome==='Escape'){
+        await page.keyboard.press('Escape');
+        await grid.waitFor({state:'hidden'});
+      }
+    }
+    console.log(`PASS ${width}: open-group grid-gap reorder, Escape and failed-save rollback in both directions`);
+    for (const sourceFirst of [false, true]) for (const intent of ['quick-center', 'edge-jitter', 'group']) {
+      console.log(`RUN ${width}: two tiles ${sourceFirst ? 'after' : 'before'}/${intent}`);
+      await load(page, `?pair&products${sourceFirst ? '&sourcefirst' : ''}`);
+      const source = page.locator('[data-group-wish-id="w1"]');
+      await source.scrollIntoViewIfNeeded();
+      const sourceBox = await source.locator('.wish-card__image').boundingBox();
+      const target = page.locator('[data-group-id="g0"]');
+      const targetBox = await target.locator('.wish-group-tile__preview').boundingBox();
+      await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+      await page.mouse.down();
+      const x = intent === 'edge-jitter' ? targetBox.x + (sourceFirst ? targetBox.width - 3 : 3) : targetBox.x + targetBox.width / 2;
+      const y = targetBox.y + targetBox.height / 2;
+      await page.mouse.move(x, y, { steps: intent === 'quick-center' ? 1 : 24 });
+      if (intent === 'edge-jitter') {
+        for (let step = 0; step < 16; step++) {
+          await page.mouse.move(x, y + step % 2);
+          await page.waitForTimeout(35);
+        }
+        assert.deepEqual(await order(page, 'wishes'), sourceFirst ? ['g0', 'w1'] : ['w1', 'g0'], 'The two tiles must stay reordered while the pointer remains at the original edge');
+        await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-two-tiles-${sourceFirst ? 'after' : 'before'}-before-drop.png` });
+      } else if (intent === 'group') await target.locator('xpath=self::*[contains(@class,"is-drop-target")]').waitFor();
+      assert.deepEqual(await calls(page), [], 'A two-tile gesture must not save before release');
+      await page.mouse.up();
+      await page.waitForFunction(() => window.dragTest.calls.length === 1);
+      const expected = intent === 'group'
+        ? [{ path: '/lists/general/groups/g0/wishes', payload: { wishId: 'w1' } }]
+        : [{ path: '/wishes/reorder', payload: { wishIds: sourceFirst ? ['w0', 'w1'] : ['w1', 'w0'] } }];
+      assert.deepEqual(await calls(page), expected, 'Two visible tiles must reorder in both directions and still allow confirmed grouping');
+      assert.deepEqual(await order(page, 'wishes'), intent === 'group' ? ['g0'] : sourceFirst ? ['g0', 'w1'] : ['w1', 'g0']);
+    }
+    console.log(`PASS ${width}: two-tile center drop, stationary edge release and confirmed grouping`);
+    for (const sourceKind of ['wish', 'group']) for (const sourceFirst of [false, true]) for (const outcome of ['save', 'Escape', 'fail']) {
+      await load(page, `?pair&products${sourceFirst ? '&sourcefirst' : ''}${outcome === 'fail' ? '&fail' : ''}`);
+      const original = await order(page, 'wishes');
+      const expected = [...original].reverse();
+      const source = page.locator(sourceKind === 'wish' ? '[data-group-wish-id="w1"]' : '[data-group-id="g0"]');
+      await source.scrollIntoViewIfNeeded();
+      const sourceBox = await source.boundingBox();
+      await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + 20);
+      await page.mouse.down();
+      await page.waitForTimeout(280);
+      const target = page.locator(sourceKind === 'wish' ? '[data-group-id="g0"]' : '[data-group-wish-id="w1"]');
+      const box = await target.boundingBox();
+      await page.mouse.move(box.x + 3, box.y + 20, { steps: 24 });
+      await page.waitForFunction(expected => JSON.stringify([...document.querySelector('.wishes-page > .wish-grid').children].map(e => e.dataset.groupId || e.dataset.groupWishId)) === JSON.stringify(expected), expected);
+      await page.waitForTimeout(380);
+      const gap = await page.locator('.wishes-page > .wish-grid').evaluate(grid => {
+        const boxes = [...grid.children].map(e => e.getBoundingClientRect()).sort((a,b) => a.left-b.left);
+        return { x: (boxes[0].right + boxes[1].left) / 2, y: Math.max(boxes[0].top, boxes[1].top) + 20 };
+      });
+      await page.mouse.move(gap.x, gap.y);
+      assert(await page.evaluate(({x,y}) => {
+        const element = document.elementFromPoint(x,y);
+        return element === document.querySelector('.wishes-page > .wish-grid');
+      }, gap), 'Gap drop must hit the grid itself, not a card or its descendants');
+      assert.deepEqual(await calls(page), [], 'A preview in a grid gap must remain unsaved until release');
+      if (outcome === 'Escape') await page.keyboard.press('Escape');
+      await page.mouse.up();
+      if (outcome !== 'Escape') await page.waitForFunction(() => window.dragTest.calls.length === 1);
+      if (outcome === 'fail') await page.waitForFunction(() => window.dragTest.errors.length > 0);
+      const finalOrder = outcome === 'save' ? expected : original;
+      await page.waitForFunction(expected => JSON.stringify([...document.querySelector('.wishes-page > .wish-grid').children].map(e => e.dataset.groupId || e.dataset.groupWishId)) === JSON.stringify(expected), finalOrder);
+      assert.deepEqual(await calls(page), outcome === 'Escape' ? [] : [{ path:'/wishes/reorder', payload:{wishIds:expected.map(id => id === 'g0' ? 'w0' : id)} }], `${sourceKind}/${outcome}: a grid-gap drop must preserve the proposed order, cancellation and failed-save rollback`);
+      assert.equal(await page.locator('[data-group-id="g0"]').count(), 1, 'Moving through a gap must preserve the group');
+    }
+    // Exercise both features successively without resetting presentation state.
+    await load(page, '?pair&products');
+    for (const expectedIds of [['w1','w0'], ['w0','w1']]) {
+      const source = await page.locator('[data-group-wish-id="w1"] .wish-card__image').boundingBox();
+      const target = await page.locator('[data-group-id="g0"] .wish-group-tile__preview').boundingBox();
+      await page.mouse.move(source.x+source.width/2,source.y+source.height/2); await page.mouse.down();
+      const targetX = source.x < target.x ? target.x+3 : target.x+target.width-3;
+      await page.mouse.move(targetX,target.y+target.height/2,{steps:24});
+      const expectedTiles = expectedIds[0] === 'w1' ? ['w1','g0'] : ['g0','w1'];
+      await page.waitForFunction(expected=>JSON.stringify([...document.querySelector('.wishes-page > .wish-grid').children].map(e=>e.dataset.groupId||e.dataset.groupWishId))===JSON.stringify(expected),expectedTiles);
+      await page.mouse.up();
+      await page.waitForFunction(n => window.dragTest.calls.length === n, expectedIds[0] === 'w1' ? 1 : 2);
+      assert.deepEqual((await calls(page)).at(-1), {path:'/wishes/reorder',payload:{wishIds:expectedIds}});
+      await page.waitForTimeout(380);
+    }
+    const roundTripSource = await page.locator('[data-group-wish-id="w1"] .wish-card__image').boundingBox();
+    const roundTripTarget = page.locator('[data-group-id="g0"]');
+    const roundTripCenter = await roundTripTarget.locator('.wish-group-tile__preview').boundingBox();
+    await page.mouse.move(roundTripSource.x+roundTripSource.width/2,roundTripSource.y+roundTripSource.height/2); await page.mouse.down();
+    await page.mouse.move(roundTripCenter.x+roundTripCenter.width/2,roundTripCenter.y+roundTripCenter.height/2,{steps:24});
+    await roundTripTarget.locator('xpath=self::*[contains(@class,"is-drop-target")]').waitFor(); await page.mouse.up();
+    await page.waitForFunction(() => window.dragTest.calls.length === 3);
+    assert.deepEqual((await calls(page)).at(-1), {path:'/lists/general/groups/g0/wishes',payload:{wishId:'w1'}});
+    await page.waitForFunction(() => !document.querySelector('.wishes-page > .wish-grid [data-group-wish-id="w1"]'));
+    assert.match(await roundTripTarget.getByRole('button',{name:/^Открыть группу/}).getAttribute('aria-label'), /2 желания/);
+    console.log(`PASS ${width}: grid-gap wish/group drop, Escape, failed save and reorder/reorder/group in one session`);
+    // The owner's grid can contain just one loose wish among group tiles.
+    // It must still move in both directions without changing group membership.
+    for (const direction of ['before', 'after']) for (const outcome of ['save', 'Escape', 'outside', 'capture', 'fail']) {
+      console.log(`RUN ${width}: mixed ${direction}/${outcome}`);
+      await load(page, `?mixed&products${outcome === 'fail' ? '&fail' : ''}`);
+      const original = await order(page, 'wishes');
+      const expected = direction === 'before' ? ['g0', 'w4', 'g1', 'g2', 'g3', 'g4'] : ['g0', 'g1', 'g2', 'w4', 'g3', 'g4'];
+      await start(page, 'wishes', 'w4');
+      const target = page.locator(`[data-group-id="${direction === 'before' ? 'g1' : 'g2'}"]`);
+      await target.scrollIntoViewIfNeeded();
+      const box = await target.locator('.wish-group-tile__preview').boundingBox();
+      await page.mouse.move(box.x + box.width - 3, box.y + box.height / 2);
+      await page.waitForFunction(expected => {
+        const ids = [...document.querySelector('.wishes-page > .wish-grid').children].map(node => node.dataset.groupWishId || node.dataset.groupId);
+        return JSON.stringify(ids) === JSON.stringify(expected);
+      }, expected, { timeout: 3000 });
+      assert.equal(await page.locator('.wish-group-tile.is-drop-target').count(), 0, 'A group edge must offer reordering');
+      assert.deepEqual(await calls(page), [], 'Live sorting must not save before release');
+      if (outcome === 'Escape') await page.keyboard.press('Escape');
+      else if (outcome === 'outside') await page.mouse.move(1, 1);
+      else if (outcome === 'capture') await page.evaluate(() => {
+        const grid = document.querySelector('.wish-grid');
+        for (let id = 1; id < 10; id++) if (grid.hasPointerCapture(id)) grid.releasePointerCapture(id);
+      });
+      else {
+        await page.waitForTimeout(380);
+        const moved = await page.locator('[data-group-wish-id="w4"]').boundingBox();
+        await page.mouse.move(moved.x + moved.width / 2, moved.y + 20);
+      }
+      await page.mouse.up();
+      const saved = outcome === 'save' || outcome === 'fail';
+      if (saved) await page.waitForFunction(() => window.dragTest.calls.length === 1);
+      if (outcome === 'fail') await page.waitForFunction(() => window.dragTest.errors.length > 0);
+      const finalOrder = outcome === 'save' ? expected : original;
+      await page.waitForFunction(expected => {
+        const ids = [...document.querySelector('.wishes-page > .wish-grid').children].map(node => node.dataset.groupWishId || node.dataset.groupId);
+        return JSON.stringify(ids) === JSON.stringify(expected);
+      }, finalOrder, { timeout: 3000 });
+      assert.deepEqual(await order(page, 'wishes'), finalOrder, `${direction}/${outcome}: mixed-grid drop or cancellation must keep the exact tile order`);
+      const expectedIds = direction === 'before' ? ['w0', 'w4', 'w1', 'w2', 'w3', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10', 'w11'] : ['w0', 'w1', 'w2', 'w3', 'w5', 'w9', 'w4', 'w6', 'w7', 'w8', 'w10', 'w11'];
+      assert.deepEqual(await calls(page), saved ? [{ path: '/wishes/reorder', payload: { wishIds: expectedIds } }] : [], 'Reordering around groups must never add the wish to a group');
+      assert.equal(await page.locator('[data-group-id]').count(), 5, 'Every group must remain intact');
+    }
+    console.log(`PASS ${width}: lone wish reorders around group tiles, Escape/outside/capture and failed-save rollback`);
+    await load(page, '?mixed&products');
+    await start(page, 'wishes', 'w4');
+    const movingEdgeTarget = page.locator('[data-group-id="g2"]');
+    await movingEdgeTarget.scrollIntoViewIfNeeded();
+    const movingEdge = await movingEdgeTarget.locator('.wish-group-tile__preview').boundingBox();
+    for (let step = 0; step < 7; step++) {
+      await page.mouse.move(movingEdge.x + movingEdge.width - 3, movingEdge.y + movingEdge.height / 2 + step % 2);
+      await page.waitForTimeout(35);
+    }
+    assert.deepEqual(await order(page, 'wishes'), ['g0', 'g1', 'g2', 'w4', 'g3', 'g4'], 'Small ongoing pointer movements at an edge must not postpone sorting forever');
+    await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-mixed-edge-reorder.png` });
+    await page.keyboard.press('Escape'); await page.mouse.up();
+    assert.deepEqual(await calls(page), [], 'Cancelling a moving edge intent must not save');
+    await load(page, '?mixed&products');
+    await start(page, 'wishes', 'w4');
+    const quickTarget = page.locator('[data-group-id="g2"]');
+    await quickTarget.scrollIntoViewIfNeeded();
+    const quickEdge = await quickTarget.locator('.wish-group-tile__preview').boundingBox();
+    await page.mouse.move(quickEdge.x + quickEdge.width - 3, quickEdge.y + quickEdge.height / 2);
+    await page.mouse.up();
+    await page.waitForFunction(() => window.dragTest.calls.length === 1);
+    assert.deepEqual(await calls(page), [{ path: '/wishes/reorder', payload: { wishIds: ['w0', 'w1', 'w2', 'w3', 'w5', 'w9', 'w4', 'w6', 'w7', 'w8', 'w10', 'w11'] } }], 'A quick edge drop must reorder without waiting for the hover timer');
+    await load(page, '?mixed&products');
+    await start(page, 'wishes', 'w4');
+    const mixedGroup = page.locator('[data-group-id="g2"]');
+    await mixedGroup.scrollIntoViewIfNeeded();
+    const mixedCenter = await mixedGroup.locator('.wish-group-tile__preview').boundingBox();
+    await page.mouse.move(mixedCenter.x + mixedCenter.width / 2, mixedCenter.y + mixedCenter.height / 2, { steps: 24 });
+    await page.locator('[data-group-id="g2"].is-drop-target').waitFor();
+    await page.mouse.up();
+    await page.waitForFunction(() => !document.querySelector('.wishes-page > .wish-grid [data-group-wish-id="w4"]'));
+    assert.deepEqual(await calls(page), [{ path: '/lists/general/groups/g2/wishes', payload: { wishId: 'w4' } }], 'The same mixed grid must still allow confirmed grouping');
+    assert.match(await mixedGroup.getByRole('button', { name: /^Открыть группу/ }).getAttribute('aria-label'), /3 желания/);
+    console.log(`PASS ${width}: moving edge intent and confirmed mixed-grid grouping`);
     for (const mode of ['wishes', 'collection']) {
       await load(page, `?mode=${mode}`);
       const original = await order(page, mode);
@@ -137,7 +348,11 @@ try {
         await targetNode.scrollIntoViewIfNeeded();
         const box = await targetNode.boundingBox();
         await page.mouse.move(box.x + box.width - 3, box.y + 4);
-        await page.waitForTimeout(80);
+        await page.waitForFunction(({ mode, original }) => {
+          const selector = mode === 'collection' ? '[data-sortable-card-id]' : '.wishes-page > .wish-grid > *';
+          const ids = [...document.querySelectorAll(selector)].map(node => node.dataset.sortableCardId || node.dataset.groupWishId || node.dataset.groupId);
+          return JSON.stringify(ids) !== JSON.stringify(original);
+        }, { mode, original });
         assert.notDeepEqual(await order(page, mode), original, `${width} ${mode}: live edge reorder`);
         if (cancellation === 'Escape') await page.keyboard.press('Escape');
         if (cancellation === 'outside') await page.mouse.move(1, 1);
@@ -202,6 +417,29 @@ try {
     await groupTarget.locator('xpath=self::*[contains(@class,"is-group-target")]').waitFor();
     await page.mouse.up();
     assert.equal((await calls(page)).filter(call => call.path.includes('/groups')).length, 1, 'Confirmed grouping saves once');
+    // A real gesture crosses the target's edge before reaching its center.
+    // Teleporting the pointer directly to the center misses live-sort races.
+    for (const space of ['media', 'products']) for (const destination of ['wish', 'group']) {
+      await load(page, `?${new URLSearchParams({ ...(destination === 'group' ? { groups: '' } : {}), ...(space === 'products' ? { products: '' } : {}) })}`);
+      const source = page.locator('.wishes-page > .wish-grid [data-group-wish-id="w0"]');
+      await source.scrollIntoViewIfNeeded();
+      const sourceBox = await source.locator('.wish-card__image').boundingBox();
+      const target = page.locator(destination === 'group'
+        ? '.wishes-page > .wish-grid [data-group-id="g0"]'
+        : '.wishes-page > .wish-grid [data-group-wish-id="w1"]');
+      const targetBox = await target.locator(destination === 'group' ? '.wish-group-tile__preview' : '.wish-card__image').boundingBox();
+      await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 24 });
+      await target.locator(`xpath=self::*[contains(@class,"${destination === 'group' ? 'is-drop-target' : 'is-group-target'}")]`).waitFor({ timeout: 3000 });
+      await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-${space}-${destination}-grouping.png` });
+      assert.deepEqual(await calls(page), [], 'Highlight alone must not save or reorder');
+      await page.mouse.up();
+      assert.deepEqual((await calls(page)).map(call => ({ path: call.path, payload: call.payload })), [destination === 'group'
+        ? { path: '/lists/general/groups/g0/wishes', payload: { wishId: 'w0' } }
+        : { path: '/lists/general/groups', payload: { wishIds: ['w0', 'w1'], space } }], 'Continuous mouse grouping saves the intended destination once without reordering');
+    }
+    console.log(`PASS ${width}: continuous mouse grouping into a wish and existing group`);
     for (const cancel of [true, false]) {
       await load(page, '?groups');
       const before = await order(page, 'wishes');
@@ -280,6 +518,34 @@ try {
       assert.deepEqual(await order(touch,'wishes'),cancel?before:expected);
     }
 
+
+    for (const direction of ['before', 'after']) for (const cancel of [true, false]) {
+      await load(touch, '?mixed&products');
+      const handle = touch.locator('[data-group-wish-id="w4"] [data-wish-drag-handle]');
+      await handle.scrollIntoViewIfNeeded();
+      const box = await handle.boundingBox();
+      await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + 20, y: box.y + 20 }] });
+      await touch.locator('.wish-card--drag-preview').waitFor();
+      const target = touch.locator(`[data-group-id="${direction === 'before' ? 'g1' : 'g2'}"]`);
+      await target.scrollIntoViewIfNeeded();
+      const targetBox = await target.locator('.wish-group-tile__preview').boundingBox();
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: targetBox.x + targetBox.width - 3, y: targetBox.y + targetBox.height / 2 }] });
+      const expected = direction === 'before' ? ['g0', 'w4', 'g1', 'g2', 'g3', 'g4'] : ['g0', 'g1', 'g2', 'w4', 'g3', 'g4'];
+      await touch.waitForFunction(expected => {
+        const ids = [...document.querySelector('.wishes-page > .wish-grid').children].map(node => node.dataset.groupWishId || node.dataset.groupId);
+        return JSON.stringify(ids) === JSON.stringify(expected);
+      }, expected);
+      if (cancel) await client.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      else {
+        await touch.waitForTimeout(380);
+        const moved = await touch.locator('[data-group-wish-id="w4"]').boundingBox();
+        await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: moved.x + moved.width / 2, y: moved.y + 20 }] });
+        await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      }
+      assert.deepEqual(await order(touch, 'wishes'), cancel ? ['g0', 'g1', 'w4', 'g2', 'g3', 'g4'] : expected);
+      assert.deepEqual((await calls(touch)).map(call => call.path), cancel ? [] : ['/wishes/reorder'], 'Touch sorting around groups must not group the card');
+    }
+    console.log(`PASS ${width}: native touch reordering around groups and cancellation`);
     for (const mode of ['wishes', 'collection', 'public']) {
       await load(touch, `?mode=${mode}`);
       const handle = touch.locator(mode === 'collection' ? '[data-sortable-card-id="w0"] [data-card-drag-handle]' : '[data-group-wish-id="w0"] [data-wish-drag-handle]');

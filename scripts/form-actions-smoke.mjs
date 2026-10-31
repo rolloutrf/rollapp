@@ -82,7 +82,7 @@ try {
             const r = el.getBoundingClientRect(); return { left: r.left, right: r.right };
           }));
           assert(parts.every((part, i) => !i || part.left >= parts[i - 1].right), "Contact avatar, name and favorite overlap");
-          assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 1);
+          assert.equal(await page.getByRole('button', { name: 'Удалить фото', exact: true }).count(), 0);
           assert.equal(await page.getByRole('button', { name: 'Удалить', exact: true }).count(), 0, "Ambiguous Delete action");
           const footer = page.locator('.contact-detail__edit-actions');
           assert.equal(await footer.locator('xpath=ancestor::*[@data-slot="scroll-area-viewport"]').count(), 0, "Contact actions scroll with the fields");

@@ -456,12 +456,13 @@ input.phone-otp__code {
 .wish-group-tile__meta input { width: calc(100% - 46px); height: 32px; margin: -5px 0 6px; padding: 0 8px; order: 1; font-size: 16px; }
 @keyframes group-screen-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 .wish-group-open > .wish-grid { width: 100%; max-width: var(--layout-collection-width); margin: 0 auto; }
-.wish-card.is-fulfilled { opacity: .68; }
+.wish-card.is-fulfilled .wish-card__image > img,
+.wish-card.is-fulfilled .wish-card__placeholder,
+.wish-card.is-fulfilled .wish-card__body { opacity: .68; }
 .wish-card__image { aspect-ratio: 1.18; position: relative; overflow: hidden; border-radius: 17px 17px 0 0; background: var(--paper-deep); }
 .wish-card__image img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease; }
 .wish-card:hover .wish-card__image img { transform: scale(1.035); }
-.wish-card__image > span { height: 100%; display: grid; place-items: center; color: var(--coral); }
-.fulfilled-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--foreground); background: rgba(31,76,60,.72); font-size: 13px; font-weight: 800; }
+.wish-card__placeholder { height: 100%; display: grid; place-items: center; color: var(--coral); }
 .wish-card__body { min-height: 205px; padding: 15px 16px 16px; display: flex; flex-direction: column; }
 .wish-card__top { position: relative; display: flex; align-items: center; justify-content: space-between; }
 .wish-card__top > span { color: var(--coral); font-size: 13px; font-weight: 800; }
@@ -743,7 +744,7 @@ input.phone-otp__code {
 .public-profile--dark .wish-card--public:hover .wish-card__image { border-color: color-mix(in oklch, var(--foreground) 22%, transparent); filter: brightness(.96); }
 .public-profile--dark .wish-card--public .wish-card__image img { width: 100%; height: 100%; object-fit: cover; object-position: center top; transform: none; }
 .public-profile--dark .wish-card--public:hover .wish-card__image img { transform: none; }
-.public-profile--dark .wish-card--public .wish-card__image > span { color: var(--background); }
+.public-profile--dark .wish-card--public .wish-card__placeholder { color: var(--background); }
 .public-profile--dark .wish-card--public .wish-card__body { min-height: 0; padding: 10px 1px 0; display: flex; }
 .public-profile--dark .wish-card--public h3 { order: 1; min-width: 0; margin: 0 0 5px; overflow: hidden; font-family: var(--sans); font-size: 15px; line-height: 1.25; font-weight: 720; letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
 .public-profile--dark .wish-card--public .wish-card__top { order: 2; min-height: 26px; }
@@ -755,7 +756,6 @@ input.phone-otp__code {
 .public-profile--dark .wish-card--public .wish-card__body > .button:hover:not(:disabled) { color: var(--foreground); border-color: var(--profile-blue); background: var(--profile-blue); }
 .public-profile--dark .wish-card--public .wish-card__owner-meta { order: 4; margin-top: 7px; }
 .public-profile--dark .wish-card--public .wish-card__owner-meta span { color: color-mix(in oklch, var(--foreground) 52%, transparent); background: var(--profile-surface); }
-.public-profile--dark .wish-card--public .fulfilled-badge { border-radius: 19px; background: color-mix(in oklch, var(--background) 68%, transparent); }
 .public-profile--dark .wish-card--public .card-menu { top: 32px; color: var(--foreground); border-color: var(--profile-line); background: var(--card); box-shadow: 0 18px 50px color-mix(in oklch, var(--background) 48%, transparent); }
 .public-profile--dark .wish-card--public .card-menu button:hover, .public-profile--dark .wish-card--public .card-menu a:hover { background: color-mix(in oklch, var(--foreground) 7%, transparent); }
 .public-profile--dark .wish-card--public .card-menu .danger { color: #ff796b; }
@@ -1211,7 +1211,6 @@ input.phone-otp__code {
 .app-layout--dark .wish-card__owner-meta span { color: var(--app-muted); background: var(--app-surface); }
 .app-layout--dark .wish-card__body > .button { order: 4; border-color: var(--app-line); color: color-mix(in oklch, var(--foreground) 86%, transparent); background: var(--app-surface); }
 .app-layout--dark .wish-card__body > .button:hover:not(:disabled) { color: var(--foreground); border-color: var(--app-blue); background: var(--app-blue); }
-.app-layout--dark .fulfilled-badge { border-radius: 19px; background: color-mix(in oklch, var(--background) 72%, transparent); }
 .app-layout--dark .card-menu { color: var(--foreground); border-color: var(--app-line); border-radius: 20px; background: var(--app-surface-2); box-shadow: var(--shadow); }
 .app-layout--dark .card-menu button:hover,
 .app-layout--dark .card-menu a:hover { background: color-mix(in oklch, var(--foreground) 8%, transparent); }
@@ -6868,13 +6867,6 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
 }
 .contact-detail__avatar-picker:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 .contact-detail__avatar-picker:disabled { cursor: wait; }
-.contact-detail__avatar-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--layout-inline-gap);
-}
-.contact-detail__avatar-controls [data-slot="button"] { border-radius: 999px; }
-.contact-detail__avatar-controls svg { width: 20px; height: 20px; }
 .contact-detail__avatar-message {
   margin: 0;
   color: var(--muted-foreground);

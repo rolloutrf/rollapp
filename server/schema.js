@@ -11,6 +11,7 @@ import { businessMarketplaceSchema } from "./business-marketplace.js";
 import { planningSchema } from "./planning.js";
 import { notesSchema } from "./notes.js";
 import { privateDataSchema } from "./private-data-schema.js";
+import { businessCategorySchema } from "./business-accounts.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -42,6 +43,7 @@ const schema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'personal';
+  ${businessCategorySchema};
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 

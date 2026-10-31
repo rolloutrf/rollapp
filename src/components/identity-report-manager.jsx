@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileText, FileUp, RotateCcw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FileText, FileUp, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { PageActionButton } from "@/components/page-action-button";
@@ -13,8 +13,6 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const MAX_PDF_BYTES = 12 * 1024 * 1024;
@@ -66,7 +64,7 @@ export function useIdentityReport(section, client = api) {
 
 export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, client = api }) {
   const { readOnly } = useSphereSharing();
-  const uploadId = useId();
+  const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(null);
   const canUpload = !readOnly && (state.files?.length || 0) < 8;
@@ -120,17 +118,14 @@ export function IdentityReportControls({ section, label, state, setState, load, 
 
   return (
     <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {!readOnly && onEditTest && <div className="identity-report-manager__actions horizontal-action-scroller">
-        <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>
+      {!readOnly && <input ref={inputRef} className="sr-only" type="file" accept="application/pdf,.pdf" aria-label={`Загрузить PDF для ${label}`} aria-hidden="true" tabIndex={-1} multiple disabled={uploadDisabled} onChange={upload} />}
+      {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
+        {onEditTest && <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>}
+        <Button type="button" variant="ghost" size="icon" data-control-icon className="size-12 shrink-0 rounded-full" aria-label={`Загрузить PDF для ${label}`} title={`Загрузить PDF для ${label}`} aria-busy={busy || undefined} disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
+          {busy ? <Spinner aria-hidden="true" /> : <Plus aria-hidden="true" />}
+        </Button>
       </div>}
       {typeof navigation === "function" ? navigation({ busy }) : navigation}
-      {!readOnly && <Field className="min-w-0">
-        <FieldLabel className="min-w-0 wrap-anywhere" htmlFor={uploadId}>Загрузить PDF для {label}</FieldLabel>
-        <Input id={uploadId} type="file" accept="application/pdf,.pdf" multiple disabled={uploadDisabled} onChange={upload} aria-describedby={`${uploadId}-help`} />
-        <FieldDescription id={`${uploadId}-help`} className="text-xs">
-          {busy ? <span className="inline-flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем PDF…</span> : "До 8 файлов, каждый не больше 12 МБ. Можно выбрать несколько PDF."}
-        </FieldDescription>
-      </Field>}
       {state.files?.length ? (
         <section className="identity-report-files flex min-w-0 flex-col gap-3" aria-label="Исходные PDF">
           <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span>

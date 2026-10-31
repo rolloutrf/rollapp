@@ -93,6 +93,25 @@ test("moveWishGroupToTarget does not split the target group", () => {
   );
 });
 
+test("moving past an interleaved group keeps its visible neighbours in place", () => {
+  const order = ["moving", "target-first", "outside-first", "target-second", "outside-second"];
+  assert.deepEqual(
+    moveWishGroupToTarget(order, ["moving"], ["target-first", "target-second"]),
+    ["target-first", "target-second", "moving", "outside-first", "outside-second"],
+  );
+  assert.deepEqual(order, ["moving", "target-first", "outside-first", "target-second", "outside-second"]);
+});
+
+test("moving before an interleaved group preserves the target's internal order", () => {
+  assert.deepEqual(
+    moveWishGroupToTarget(
+      ["outside-first", "target-first", "outside-second", "target-second", "moving"],
+      ["moving"], ["target-first", "target-second"],
+    ),
+    ["outside-first", "moving", "target-first", "target-second", "outside-second"],
+  );
+});
+
 test("moveWishGroupToTarget keeps order for missing or overlapping targets", () => {
   const order = ["first", "second", "third"];
 

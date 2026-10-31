@@ -84,11 +84,15 @@ npm run test:drawers
 npm run test:planning:production
 ```
 
-`check:release` runs the database-free unit suite, shadcn/UI audit, required browser checks for controls, details, dates, form actions and text editing, then the production build. The deployment workflow uses the same command. `npm test` aliases `test:unit`; `npm run check` aliases `check:release`. Unit discovery rejects direct database fixtures and excludes integration/legacy memory tests. Do not use bare `node --test` or the mutating historical `test:visual` for ordinary verification.
+`check:release` runs the database-free unit suite, shadcn/UI audit, required browser checks for business registration, controls, details, dates, form actions and text editing, then the production build. The deployment workflow uses the same command. `npm test` aliases `test:unit`; `npm run check` aliases `check:release`. Unit discovery rejects direct database fixtures and excludes integration/legacy memory tests. Do not use bare `node --test` or the mutating historical `test:visual` for ordinary verification.
 
 `check:comprehensive` also runs the complete navigation, action-rail, To Do, native-form, catalog-page and drawer matrices, then writes a JSON report with the tested SHA and workspace state. The current UI acceptance criteria, live review and deployment/recovery instructions are in [docs/verification.md](docs/verification.md).
 
 Database checks use the configured production connection explicitly. `test:planning:production` verifies task persistence, recurrence, named boards/calendars/To Do lists, and owner isolation inside transactions that roll back all fixture writes. `test:drawers` uses presentation fixtures that reject API requests and checks mobile pages, desktop drawers, keyboard fit, and scroll restoration without saving application data.
+
+### Business registration
+
+New business accounts choose a required category: psychologist/coach → Identity, doctor → Health, seller → Wishlist, teacher → Education, career consultant → Career. Categories restrict which client spaces can be requested; client consent remains required. Existing uncategorized business accounts retain their grants. See [docs/business-accounts.md](docs/business-accounts.md) for the storage contract, eight-viewport checks and the separately authorized nullable-column migration. Normal startup verifies the schema without applying it.
 
 ### OhMyWishes brand import
 

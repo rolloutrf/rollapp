@@ -11,7 +11,7 @@
 .daily-todo__day { position: relative; flex: 0 0 auto; border: 0; transition-property: color, background-color, border-color, box-shadow; }
 .daily-todo__day[aria-current="date"]::after { content: ""; position: absolute; inset-inline-end: 12px; bottom: 12px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .daily-todo__composer { display: flex; flex-direction: column; align-items: stretch; gap: var(--layout-inline-gap); }
-.daily-todo__composer-input { opacity: 1; align-items: stretch; border-radius: calc(var(--layout-control-size) / 2); background: var(--muted); }
+.daily-todo__composer-input { opacity: 1; align-items: stretch; border-radius: calc(var(--layout-control-size) / 2); background: transparent; }
 .daily-todo__composer textarea { min-width: 0; max-height: 10rem; padding: var(--layout-item-gap); overflow-y: auto; }
 .daily-todo__composer-addon { padding: 0 var(--layout-item-gap) var(--layout-item-gap); }
 .daily-todo__composer-related.planning-related__selected { display: flex; flex-wrap: wrap; width: 100%; min-width: 0; gap: var(--layout-inline-gap); padding: 0 var(--layout-item-gap) var(--layout-item-gap); overflow: visible; }

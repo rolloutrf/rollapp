@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { access } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
+import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
 
 let executablePath;
 for (const candidate of [process.env.CHROME_PATH, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter(Boolean)) {
   try { await access(candidate); executablePath = candidate; break; } catch {}
 }
 assert(executablePath, 'Install Chrome or set CHROME_PATH');
-const server = await createServer({ server: { host: '127.0.0.1', port: 5296, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: 'node_modules/.vite-contact-photo', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACT_PHOTO_TEST_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contact-photo-fixture',
   transform(source, id) {
     if (id.endsWith('/src/App.jsx?form-actions')) return `${source}\nexport { ContactEditForm, ToastContext, WishModal };`;
@@ -21,7 +22,8 @@ const server = await createServer({ server: { host: '127.0.0.1', port: 5296, str
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/form-actions.jsx"></script></body></html>'));
   }); },
 }] });
-await server.listen();
+await listenSmokeServer(server);
+const origin = smokeOrigin(server);
 const browser = await chromium.launch({ executablePath, headless: true, args: ['--disable-crashpad-for-testing', '--disable-updater-scheduler'] });
 const imageUrl = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="84" height="84"%3E%3Crect width="84" height="84" fill="gray"/%3E%3C/svg%3E';
 try {
@@ -44,7 +46,7 @@ try {
       if (url.pathname === '/api/uploads/images/fixture-photo' && route.request().method() === 'DELETE') return route.fulfill({ json: {} });
       throw new Error(`Unexpected API call: ${route.request().method()} ${url.pathname}`);
     });
-    await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__contact-photo?form=contact-photo`);
+    await page.goto(`${origin}/__contact-photo?form=contact-photo`);
     await page.getByRole('button', { name: 'Добавить ссылку', exact: true }).click();
     const url = page.getByRole('textbox', { name: 'Адрес ссылки 1', exact: true });
     await url.fill('https://example.com/person');
@@ -64,7 +66,7 @@ try {
     assert.equal(requests.length, 2);
     assert.equal(requests[1].links[0].label, 'Telegram');
     assert.equal(requests[1].links[0].url, 'https://t.me/first_person', 'Restoring a cancelled URL must retry');
-    assert.equal(await page.getByRole('button', { name: /^(Загрузить фото|Из соцсетей)$/ }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: /^(Загрузить фото|Из соцсетей|Удалить фото)$/ }).count(), 0);
     const picker = page.getByRole('button', { name: 'Сменить фото контакта', exact: true });
     const chooser = page.waitForEvent('filechooser');
     await picker.click();

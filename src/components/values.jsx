@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListChecks, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { ListChecks, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_VALUE_GROUPS, PERSONAL_VALUES } from "@/data/personal-values";
 import { useSphereSharing } from "@/lib/sphere-sharing";
@@ -56,7 +55,6 @@ export function Values() {
   const { readOnly } = useSphereSharing();
   const valuesContent = useCareerContent("values", EMPTY_VALUES, "identity");
   const [draft, setDraft] = useState(EMPTY_VALUES);
-  const [search, setSearch] = useState("");
   const [customValue, setCustomValue] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -72,18 +70,6 @@ export function Values() {
   const dirty = !sameContent(draft, savedContent);
   const selected = useMemo(() => new Set(draft.selected), [draft.selected]);
   const selectedCount = draft.selected.length;
-  const normalizedSearch = search.trim().toLocaleLowerCase("ru-RU");
-  const visibleGroups = useMemo(() => PERSONAL_VALUE_GROUPS.map((group) => ({
-    ...group,
-    values: group.values.filter((value) => (
-      !normalizedSearch
-      || `${value.label} ${value.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)
-    )),
-  })).filter((group) => group.values.length > 0), [normalizedSearch]);
-  const visibleCustomValues = useMemo(() => draft.custom.filter((value) => (
-    !normalizedSearch
-    || `${value.label} ${value.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)
-  )), [draft.custom, normalizedSearch]);
 
   const toggle = (id, checked) => {
     setDraft((current) => ({
@@ -158,34 +144,15 @@ export function Values() {
 
   return (
     <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
-      <header className="flex flex-col gap-5">
-        <div className="flex justify-end">
-          <span className="inline-flex min-h-8 items-center gap-2 text-base leading-6 font-normal text-muted-foreground sm:text-lg" role="status">
-            <ListChecks className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-            <span>Выбрано: {selectedCount}</span>
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <InputGroup className="values-search h-12 min-w-0 flex-1">
-            <InputGroupAddon align="inline-start"><Search className="size-5" aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput
-              className="h-12 text-base md:text-base"
-              type="text"
-              role="searchbox"
-              aria-label="Найти ценность"
-              inputMode="search"
-              enterKeyHint="search"
-              placeholder="Найти ценность"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </InputGroup>
-          {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
-            {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
-          </Button>}
-        </div>
+      <header className="flex flex-wrap items-center justify-end gap-2">
+        <span className="inline-flex min-h-8 items-center gap-2 text-base leading-6 font-normal text-muted-foreground sm:text-lg" role="status">
+          <ListChecks className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+          <span>Выбрано: {selectedCount}</span>
+        </span>
+        {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
+          {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
+          {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
+        </Button>}
       </header>
 
       <CareerContentError error={valuesContent.error} onRetry={valuesContent.retry} />
@@ -196,11 +163,11 @@ export function Values() {
         </Alert>
       )}
 
-      {visibleCustomValues.length > 0 && (
+      {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-values-title">
           <h3 className="m-0 text-xl font-semibold" id="custom-values-title">Мои ценности</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleCustomValues.map((value) => (
+            {draft.custom.map((value) => (
               <div key={value.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(value.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox
                   className="mt-1 size-5"
@@ -222,7 +189,7 @@ export function Values() {
         </section>
       )}
 
-      {visibleGroups.map((group) => (
+      {PERSONAL_VALUE_GROUPS.map((group) => (
         <section className="flex flex-col gap-3" key={group.id} aria-labelledby={`values-${group.id}`}>
           <div className="flex items-center gap-3">
             <h3 className="m-0 text-xl font-semibold" id={`values-${group.id}`}>{group.label}</h3>
@@ -242,11 +209,6 @@ export function Values() {
           </div>
         </section>
       ))}
-      {visibleGroups.length === 0 && visibleCustomValues.length === 0 && (
-        <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-          {readOnly ? "По вашему запросу ничего не найдено." : "По вашему запросу ничего не найдено. Добавьте собственную ценность ниже."}
-        </div>
-      )}
 
       {!readOnly && <section className="flex flex-col gap-3 rounded-2xl border bg-card p-5" aria-labelledby="add-value-title">
         <div className="flex flex-col gap-1">

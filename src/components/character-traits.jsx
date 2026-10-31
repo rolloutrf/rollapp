@@ -1,12 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowUp, ListChecks, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { ArrowUp, RotateCcw, Trash2, X } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ControlBar } from "@/components/control-bar";
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group";
+import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -113,7 +113,6 @@ export function CharacterTraits() {
   const { readOnly, owner } = useSphereSharing();
   const characterContent = useCareerContent("character", EMPTY_CHARACTER_TRAITS, "identity");
   const [draft, setDraft] = useState(EMPTY_CHARACTER_TRAITS);
-  const [search, setSearch] = useState("");
   const [customTrait, setCustomTrait] = useState("");
   const [details, setDetails] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -130,14 +129,6 @@ export function CharacterTraits() {
   const dirty = !sameContent(draft, savedContent);
   const selected = useMemo(() => new Set(draft.selected), [draft.selected]);
   const selectedCount = draft.selected.length;
-  const normalizedSearch = search.trim().toLocaleLowerCase("ru-RU");
-  const visibleGroups = useMemo(() => PERSONAL_CHARACTER_TRAIT_GROUPS.map((group) => ({
-    ...group,
-    traits: group.traits.filter((trait) => !normalizedSearch || `${trait.label} ${trait.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)),
-  })).filter((group) => group.traits.length > 0), [normalizedSearch]);
-  const visibleCustomTraits = useMemo(() => draft.custom.filter((trait) => (
-    !normalizedSearch || `${trait.label} ${trait.description}`.toLocaleLowerCase("ru-RU").includes(normalizedSearch)
-  )), [draft.custom, normalizedSearch]);
 
   const toggle = (id, checked) => {
     setDraft((current) => ({
@@ -215,33 +206,14 @@ export function CharacterTraits() {
 
   return (
     <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-form-width)" aria-busy={characterContent.loading || saving}>
-      <header className="flex flex-col gap-5">
-        <div className="flex justify-end">
-          <span className="inline-flex min-h-8 items-center gap-2 text-base leading-6 font-normal text-muted-foreground sm:text-lg" role="status">
-            <ListChecks className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-            <span>Ключевых черт: {selectedCount}</span>
-          </span>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <InputGroup className="values-search h-12 min-w-0 flex-1">
-            <InputGroupAddon align="inline-start"><Search className="size-5" aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput className="h-12 text-base md:text-base" type="text" role="searchbox" aria-label="Найти черту характера" inputMode="search" enterKeyHint="search" placeholder="Найти черту" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </InputGroup>
-          {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
-            {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {characterContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || characterContent.error ? "Сохранить выбор" : "Сохранено"}
-          </Button>}
-        </div>
-      </header>
-
       <CareerContentError error={characterContent.error} onRetry={characterContent.retry} />
       {saveError && <Alert variant="destructive"><AlertTitle>Не удалось сохранить черты характера</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
 
-      {visibleCustomTraits.length > 0 && (
+      {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-traits-title">
           <h3 className="m-0 text-xl font-semibold" id="custom-traits-title">Мои черты</h3>
           <div className="grid gap-3 sm:grid-cols-2">
-            {visibleCustomTraits.map((trait) => (
+            {draft.custom.map((trait) => (
               <div key={trait.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(trait.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox className="mt-1 size-5" checked={selected.has(trait.id)} disabled={editingDisabled} onCheckedChange={(checked) => toggle(trait.id, checked)} aria-label={trait.label} />
                 <Button variant="ghost" type="button" className="h-auto min-h-12 min-w-0 flex-1 items-start justify-start whitespace-normal px-0 py-0 text-left" disabled={saving || characterContent.loading || Boolean(characterContent.error)} aria-label={`Открыть детали черты «${trait.label}»`} onClick={() => setDetails({ trait, source: characterContent.content, owner: owner?.id })}><strong className="min-w-0 break-words font-semibold">{trait.label}</strong></Button>
@@ -252,7 +224,7 @@ export function CharacterTraits() {
         </section>
       )}
 
-      {visibleGroups.map((group) => (
+      {PERSONAL_CHARACTER_TRAIT_GROUPS.map((group) => (
         <section className="flex flex-col gap-3" key={group.id} aria-labelledby={`traits-${group.id}`}>
           <div className="flex items-center gap-3"><h3 className="m-0 text-xl font-semibold" id={`traits-${group.id}`}>{group.label}</h3><Badge variant="outline">{group.traits.length}</Badge></div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -260,7 +232,6 @@ export function CharacterTraits() {
           </div>
         </section>
       ))}
-      {visibleGroups.length === 0 && visibleCustomTraits.length === 0 && <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">{readOnly ? "По вашему запросу ничего не найдено." : "По вашему запросу ничего не найдено. Добавьте свою черту ниже."}</div>}
 
       {!readOnly && <form className="character-traits__composer" aria-label="Добавить свою черту характера" onSubmit={addCustom}>
         <InputGroup className="character-traits__composer-input">

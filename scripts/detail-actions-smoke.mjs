@@ -64,7 +64,7 @@ try {
             return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(parseFloat);
           }));
           assert(radii.length >= 2, "Wish primary and overflow actions missing");
-          assert(radii.every(corners => corners.every(radius => radius === (width >= 768 ? 0 : 24))), "Desktop wish actions must be square; mobile actions must retain pill/circle corners");
+          assert(radii.every(corners => corners.every(radius => radius === 24)), "Wish actions must retain the shared pill/circle corners on desktop and mobile");
         }
         if (width < 768) {
           const before = await mobileGeometry(page, catalog ? 2 : 3);

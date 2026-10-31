@@ -43,6 +43,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
 import { BusinessMarketplacePage, SphereBusinessControls } from "@/components/business-marketplace-page";
+import { RegistrationAccountFields } from "@/components/registration-account-fields";
+import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -106,11 +108,12 @@ import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { useWishReorder } from "@/hooks/use-wish-reorder";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import {
-  isGeneralList, listDisplayTitle, resolveVisibleListSelection, shouldShowListNavigation,
+  isGeneralList, listDisplayTitle, orderWishListsForNavigation, resolveVisibleListSelection, shouldShowListNavigation,
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
 import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import {
@@ -1414,7 +1417,7 @@ function AuthPage({ mode }) {
   const location = useLocation();
   const { user, refresh } = useSession();
   const toast = useToast();
-  const [form, setForm] = useState({ name: "", email: "", password: "", accountType: "personal" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", accountType: "personal", businessCategory: null });
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
@@ -1655,22 +1658,7 @@ function AuthPage({ mode }) {
             ? <PhoneOtpFields flow={phoneFlow} verifyLabel={shouldLinkYandex ? "Подтвердить и привязать Yandex ID" : undefined} />
             : <>
               <FieldGroup className="gap-4">
-                {mode === "register" && (
-                  <Field>
-                    <FieldLabel>Тип аккаунта</FieldLabel>
-                    <RadioGroup className="auth-account-types" value={form.accountType} onValueChange={(accountType) => setForm({ ...form, accountType })} aria-label="Тип аккаунта">
-                      <label className="auth-account-type" data-active={form.accountType === "personal" ? "true" : undefined}>
-                        <RadioGroupItem value="personal" />
-                        <span><strong>Личный</strong><small>Вишлист и личные сферы</small></span>
-                      </label>
-                      <label className="auth-account-type" data-active={form.accountType === "business" ? "true" : undefined}>
-                        <RadioGroupItem value="business" />
-                        <span><strong>Бизнес</strong><small>Запросы на доступ к пространствам клиентов</small></span>
-                      </label>
-                    </RadioGroup>
-                    <FieldDescription>Бизнес получает доступ только после подтверждения владельца сферы.</FieldDescription>
-                  </Field>
-                )}
+                {mode === "register" && <RegistrationAccountFields id={authId} value={form} onChange={setForm} disabled={loading} />}
                 {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
                 <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
@@ -2007,14 +1995,13 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   const [deleting, setDeleting] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [avatarResolving, setAvatarResolving] = useState(false);
-  const [avatarCleared, setAvatarCleared] = useState(false);
   const [avatarError, setAvatarError] = useState("");
   const [avatarStatus, setAvatarStatus] = useState("");
   const [saveError, setSaveError] = useState("");
   const avatarFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const initialAvatarSourceUrl = contact?.avatarSourceUrl || "";
-  const previewAvatarUrl = form.avatarUrl || (avatarCleared ? "" : contact?.avatarUrl || "");
+  const previewAvatarUrl = form.avatarUrl || contact?.avatarUrl || "";
   const busy = saving || deleting || imageUploading || avatarResolving;
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const setLink = (index, field, value) => setForm((current) => ({
@@ -2046,7 +2033,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     const previousId = uploadedImageIdFromUrl(form.avatarUrl);
     if (result.id) uploadedImageIdsRef.current.add(result.id);
     setForm((current) => ({ ...current, avatarUrl: result.imageUrl }));
-    setAvatarCleared(false);
     setAvatarError("");
     setAvatarStatus(message);
     if (previousId && uploadedImageIdsRef.current.has(previousId) && previousId !== result.id) {
@@ -2088,7 +2074,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
   }));
   useEffect(() => {
     // Keep existing or manually chosen photos. Only resolve complete social URLs.
-    if (form.avatarUrl || previewAvatarUrl || avatarCleared || imageUploading || saving || deleting || socialLinksKey === "[]") return;
+    if (form.avatarUrl || previewAvatarUrl || imageUploading || saving || deleting || socialLinksKey === "[]") return;
     let active = true;
     const timer = setTimeout(async () => {
       setAvatarResolving(true);
@@ -2116,19 +2102,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
       setAvatarResolving(false);
       setAvatarStatus((current) => current === "Получаем фото из соцсети…" ? "" : current);
     };
-  }, [socialLinksKey, form.avatarUrl, previewAvatarUrl, avatarCleared, imageUploading, saving, deleting]);
-  const removeAvatar = async () => {
-    if (busy || !previewAvatarUrl) return;
-    const previousId = uploadedImageIdFromUrl(form.avatarUrl);
-    setForm((current) => ({ ...current, avatarUrl: "" }));
-    setAvatarCleared(true);
-    setAvatarError("");
-    setAvatarStatus("Фото будет удалено после сохранения");
-    if (previousId && uploadedImageIdsRef.current.has(previousId)) {
-      uploadedImageIdsRef.current.delete(previousId);
-      await api.delete(`/uploads/images/${encodeURIComponent(previousId)}`).catch(() => {});
-    }
-  };
+  }, [socialLinksKey, form.avatarUrl, previewAvatarUrl, imageUploading, saving, deleting]);
   const save = async (event) => {
     event.preventDefault();
     if (busy) return;
@@ -2226,11 +2200,6 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
               aria-label="Загрузить фото контакта"
               onChange={(event) => uploadAvatar(event.target.files?.[0])}
             />
-            {previewAvatarUrl && <div className="contact-detail__avatar-controls" role="group" aria-label="Фото контакта">
-              <ShadcnButton type="button" variant="destructive" className="rounded-full" disabled={busy} onClick={removeAvatar}>
-                <Trash2 />Удалить фото
-              </ShadcnButton>
-            </div>}
             {(avatarStatus || avatarError) && <p className={`contact-detail__avatar-message${avatarError ? " is-error" : ""}`} role={avatarError ? "alert" : "status"}>{avatarError || avatarStatus}</p>}
           </div>
           <div className="contact-detail__edit-fields">
@@ -2735,6 +2704,9 @@ function BusinessAccessPage() {
   const { user } = useSession();
   const isMobile = useIsMobile();
   const toast = useToast();
+  const category = businessCategoryFor(user);
+  const availableSpheres = businessRequestSpheres(user);
+  const initialSphere = availableSpheres[0]?.id || "identity";
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
@@ -2742,8 +2714,8 @@ function BusinessAccessPage() {
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [selectedPerson, setSelectedPerson] = useState(null);
-  const [sphere, setSphere] = useState("identity");
-  const [section, setSection] = useState(SPHERE_SECTIONS.identity[0]);
+  const [sphere, setSphere] = useState(initialSphere);
+  const [section, setSection] = useState(SPHERE_SECTIONS[initialSphere][0]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
@@ -2792,8 +2764,8 @@ function BusinessAccessPage() {
   };
   const openRequest = (person) => {
     setSelectedPerson(person);
-    setSphere("identity");
-    setSection(SPHERE_SECTIONS.identity[0]);
+    setSphere(initialSphere);
+    setSection(SPHERE_SECTIONS[initialSphere][0]);
     setMessage("");
   };
   const sendRequest = async (event) => {
@@ -2835,6 +2807,7 @@ function BusinessAccessPage() {
       <header className="business-access-page__header">
         <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
         <h1>Доступ к пространствам клиентов</h1>
+        {category && <p>{category.label} · {category.sphereLabel}</p>}
         <p>Найдите пользователя и запросите конкретный раздел. Доступ только для чтения откроется после его подтверждения.</p>
       </header>
 
@@ -2868,7 +2841,7 @@ function BusinessAccessPage() {
               return (
                 <Card key={request.id} className="business-access-request">
                   <div className="business-access-request__owner"><Avatar user={request.owner} size="sm" className="!size-11" /><span><strong>{request.owner.name}</strong><small>@{request.owner.username}</small></span></div>
-                  <div className="business-access-request__scope"><strong>{SPHERE_SERVICES.find((item) => item.id === request.sphere)?.label || request.sphere}</strong><span>{SPHERE_SECTION_LABELS[request.section] || request.section}</span></div>
+                  <div className="business-access-request__scope"><strong>{request.sphere === "wishlist" ? "Вишлист" : SPHERE_SERVICES.find((item) => item.id === request.sphere)?.label || request.sphere}</strong><span>{SPHERE_SECTION_LABELS[request.section] || request.section}</span></div>
                   <Badge variant={status.variant}>{status.label}</Badge>
                   <div className="business-access-request__action">
                     {request.status === "approved" ? (
@@ -2895,8 +2868,7 @@ function BusinessAccessPage() {
             <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
             <FieldGroup className="gap-4">
-              <Field><FieldLabel htmlFor="business-access-sphere">Сфера</FieldLabel><Select value={sphere} onValueChange={selectSphere} disabled={saving}><SelectTrigger id="business-access-sphere" className="w-full"><SelectValue>{() => SPHERE_SERVICES.find((item) => item.id === sphere)?.label || sphere}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SERVICES.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select></Field>
-              <Field><FieldLabel htmlFor="business-access-section">Пространство</FieldLabel><Select value={section} onValueChange={setSection} disabled={saving}><SelectTrigger id="business-access-section" className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger><SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>{SPHERE_SECTIONS[sphere].map((item) => <SelectItem key={item} value={item}>{SPHERE_SECTION_LABELS[item] || item}</SelectItem>)}</SelectContent></Select></Field>
+              <BusinessRequestScopeFields account={user} sphere={sphere} section={section} onSphereChange={selectSphere} onSectionChange={setSection} disabled={saving} />
               <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
             </FieldGroup>
             </div>
@@ -3531,7 +3503,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
     <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
       {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
       {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
-      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge className="fulfilled-badge"><Check /> Исполнено</Badge>}</div>
+      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span className="wish-card__placeholder"><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge variant="secondary" className="absolute left-3 top-3"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>}</div>
       <div className="wish-card__body">
         <div className="wish-card__top">
           {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
@@ -4348,6 +4320,8 @@ function WishesPage({ onAdd, version }) {
   const [removingGroupId, setRemovingGroupId] = useState(null);
   const pointerDragRef = useRef(null);
   const pointerTimerRef = useRef(null);
+  const reorderTimerRef = useRef(null);
+  const reorderTargetRef = useRef(null);
   const pointerListenerCleanupRef = useRef(null);
   const pointerAutoScrollFrameRef = useRef(null);
   const pointerAutoScrollTimeRef = useRef(null);
@@ -4412,6 +4386,7 @@ function WishesPage({ onAdd, version }) {
   }, [user?.id, reload]);
   useEffect(() => () => {
     clearTimeout(pointerTimerRef.current);
+    clearTimeout(reorderTimerRef.current);
     clearTimeout(groupTimerRef.current);
     cancelAnimationFrame(pointerAutoScrollFrameRef.current);
     pointerListenerCleanupRef.current?.();
@@ -4445,7 +4420,7 @@ function WishesPage({ onAdd, version }) {
     .sort((a, b) => (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER));
   const listsById = new Map(dashboardLists.map((list) => [list.id, list]));
   const allCategoryLists = dashboardLists.filter((list) => !isGeneralList(list));
-  const categoryLists = allCategoryLists.filter((list) => listSpace(list) === selectedSpace);
+  const categoryLists = orderWishListsForNavigation(allCategoryLists.filter((list) => listSpace(list) === selectedSpace));
   const generalList = dashboardLists.find(isGeneralList) || null;
   const spaceWishes = visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, selectedSpace));
   const unlistedWishes = filterWishesWithoutList(spaceWishes, allCategoryLists);
@@ -4541,6 +4516,11 @@ function WishesPage({ onAdd, version }) {
     armedDropTargetRef.current = null;
     setDropTarget(null);
   };
+  const clearReorderIntent = () => {
+    clearTimeout(reorderTimerRef.current);
+    reorderTimerRef.current = null;
+    reorderTargetRef.current = null;
+  };
   const captureGridPositions = () => {
     const positions = new Map();
     document.querySelectorAll(".wishes-page > .wish-grid [data-group-wish-id], .wishes-page > .wish-grid [data-group-id], .wish-group-open > .wish-grid [data-group-wish-id]").forEach((card) => {
@@ -4603,18 +4583,35 @@ function WishesPage({ onAdd, version }) {
       }
     })();
   };
-  const reorderWish = (sourceId, targetId) => {
-    if (!sourceId || !targetId || sourceId === targetId || lastReorderTargetRef.current === targetId) return;
+  const reorderWish = (sourceId, targetId, targetKind = "wish") => {
+    const targetKey = `${targetKind}:${targetId}`;
+    if (!sourceId || !targetId || sourceId === targetId || lastReorderTargetRef.current === targetKey) return;
     const dragScope = dragScopeRef.current;
-    const next = dragScope?.wishIds
-      ? moveWishWithinSubset(orderedWishIdsRef.current, dragScope.wishIds, sourceId, targetId)
-      : moveWishToTargetPosition(orderedWishIdsRef.current, sourceId, targetId);
+    const targetGroup = targetKind === "group" ? groupsById.get(targetId) : null;
+    if (targetKind === "group" && (dragScope?.kind !== "list" || !dragScope.wishIds.has(sourceId) || !targetGroup)) return;
+    const next = targetGroup
+      ? moveWishGroupToTarget(orderedWishIdsRef.current, [sourceId], targetGroup.wishIds)
+      : dragScope?.wishIds
+        ? moveWishWithinSubset(orderedWishIdsRef.current, dragScope.wishIds, sourceId, targetId)
+        : moveWishToTargetPosition(orderedWishIdsRef.current, sourceId, targetId);
     if (next === orderedWishIdsRef.current) return;
-    lastReorderTargetRef.current = targetId;
+    lastReorderTargetRef.current = targetKey;
     orderDirtyRef.current = true;
     orderedWishIdsRef.current = next;
     captureGridPositions();
     setOrderedWishIds(next);
+  };
+  const queueWishReorder = (sourceId, targetId, targetKind = "wish", pointerDrag = null) => {
+    const target = `${targetKind}:${targetId}`;
+    if (reorderTargetRef.current === target) return;
+    clearReorderIntent();
+    reorderTargetRef.current = target;
+    reorderTimerRef.current = setTimeout(() => {
+      if (!dragSessionRef.current || dragSourceWishIdRef.current !== sourceId
+        || pointerDragRef.current !== pointerDrag || reorderTargetRef.current !== target
+        || (pointerDrag && pointerDrag.hoverTarget !== `reorder:${target}`)) return;
+      reorderWish(sourceId, targetId, targetKind);
+    }, 120);
   };
   const reorderGroup = (sourceGroupId, target) => {
     if (!sourceGroupId || !target?.id) return;
@@ -4731,6 +4728,7 @@ function WishesPage({ onAdd, version }) {
     requestAnimationFrame(() => preview.remove());
   };
   const finishDrag = ({ persist = true, restore = false } = {}) => {
+    clearReorderIntent();
     const activeSession = dragSessionRef.current;
     const shouldRestoreOrder = activeSession && restore && orderDirtyRef.current && dragInitialOrderRef.current.length > 0;
     const orderToPersist = [...orderedWishIdsRef.current];
@@ -4777,6 +4775,7 @@ function WishesPage({ onAdd, version }) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     if (sourceWishId === wishId) {
+      clearReorderIntent();
       if (hoverTargetRef.current) clearGroupIntent();
       lastReorderTargetRef.current = null;
       return;
@@ -4784,8 +4783,20 @@ function WishesPage({ onAdd, version }) {
     if (dragScope.kind === "group") {
       reorderWish(sourceWishId, wishId);
     } else if (groupingListId) {
-      armGroupIntent(`wish:${wishId}`);
-    }
+      const hoverMode = resolveWishHoverMode({
+        groupingEnabled: true,
+        rect: event.currentTarget.querySelector(".wish-card__image")?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect(),
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+      if (hoverMode === "group") {
+        clearReorderIntent();
+        armGroupIntent(`wish:${wishId}`);
+      } else {
+        clearGroupIntent();
+        queueWishReorder(sourceWishId, wishId);
+      }
+    } else reorderWish(sourceWishId, wishId);
   };
   const allowNativeGroupDrop = (event, groupId) => {
     const sourceGroup = dragSourceGroupRef.current;
@@ -4800,16 +4811,26 @@ function WishesPage({ onAdd, version }) {
     if (!dragSessionRef.current || !dragSourceWishIdRef.current || dragScopeRef.current?.kind !== "list") return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    if (groupHoverMode(event.currentTarget, event.clientX, event.clientY) === "reorder") {
+    const hoverMode = resolveWishHoverMode({
+      groupingEnabled: true,
+      rect: event.currentTarget.querySelector(".wish-group-tile__preview")?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect(),
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    if (hoverMode === "group") {
+      clearReorderIntent();
+      armGroupIntent(`group:${groupId}`);
+    } else {
       clearGroupIntent();
-      reorderWishToGroup(dragSourceWishIdRef.current, groupId);
-    } else armGroupIntent(`group:${groupId}`);
+      queueWishReorder(dragSourceWishIdRef.current, groupId, "group");
+    }
   };
   const leaveNativeDropTarget = (event) => {
     if (event.relatedTarget && event.currentTarget.contains(event.relatedTarget)) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     if (event.clientX >= bounds.left && event.clientX <= bounds.right
       && event.clientY >= bounds.top && event.clientY <= bounds.bottom) return;
+    clearReorderIntent();
     clearGroupIntent();
   };
   const createGroup = async (sourceWishId, targetWishId = null) => {
@@ -4973,7 +4994,10 @@ function WishesPage({ onAdd, version }) {
       finishDrag();
     }
     else if (armedDropTargetRef.current === `group:${groupId}`) void addToGroup(sourceWishId, groupId);
-    else finishDrag({ persist: false, restore: true });
+    else {
+      reorderWish(sourceWishId, groupId, "group");
+      finishDrag();
+    }
   };
   const stopPointerAutoScroll = () => {
     if (pointerAutoScrollFrameRef.current !== null) cancelAnimationFrame(pointerAutoScrollFrameRef.current);
@@ -4981,6 +5005,7 @@ function WishesPage({ onAdd, version }) {
     pointerAutoScrollTimeRef.current = null;
   };
   const clearPointerListeners = () => {
+    clearReorderIntent();
     stopPointerAutoScroll();
     pointerListenerCleanupRef.current?.();
     pointerListenerCleanupRef.current = null;
@@ -4997,7 +5022,7 @@ function WishesPage({ onAdd, version }) {
     const end = (event) => endPointerDrag(event);
     const cancel = (event) => cancelPointerDrag(event);
     const visibility = (event) => { if (document.hidden) cancelPointerDrag(event); };
-    const key = (event) => { if (event.key === "Escape") { event.preventDefault(); cancelPointerDrag(event); } };
+    const key = (event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); cancelPointerDrag(event); } };
     window.addEventListener("pointermove", move, { capture: true, passive: false });
     window.addEventListener("pointerup", end, true);
     window.addEventListener("pointercancel", cancel, true);
@@ -5068,9 +5093,12 @@ function WishesPage({ onAdd, version }) {
     }, 260);
   };
   const updatePointerDragPosition = (drag, clientX, clientY) => {
+    // Crossing an edge on the way to a card's center is not a reorder intent.
+    // Give that edge a short grace period; movement within it keeps the intent.
     movePointerGhost(clientX, clientY);
     const element = document.elementFromPoint(clientX, clientY);
-    const groupId = element?.closest?.("[data-group-id]")?.dataset.groupId;
+    const pointerGroupTile = element?.closest?.("[data-group-id]");
+    const groupId = pointerGroupTile?.dataset.groupId;
     const pointerWishCard = element?.closest?.("[data-group-wish-id]");
     if (drag.kind === "group") {
       const targetGroupId = groupId && groupId !== drag.group.id ? groupId : null;
@@ -5115,29 +5143,32 @@ function WishesPage({ onAdd, version }) {
     }
     const wishId = wishCard?.dataset.groupWishId;
     const targetGroupId = wishCard?.dataset.wishGroupId || null;
-    const validReorderTarget = wishId
+    const validWishReorderTarget = wishId
       && wishId !== drag.wishId
       && dragScopeRef.current?.wishIds?.has(wishId)
       && (dragGroupId ? targetGroupId === dragGroupId : !targetGroupId);
-    const validGroupTarget = wishId
+    const validGroupReorderTarget = !dragGroupId && groupsById.has(groupId);
+    const validReorderTarget = validWishReorderTarget || validGroupReorderTarget;
+    const validGroupTarget = validGroupReorderTarget || (wishId
       && wishId !== drag.wishId
       && !dragGroupId
-      && !targetGroupId;
+      && !targetGroupId);
     const groupingEnabled = Boolean(groupingListId && validGroupTarget);
     let hoverMode = null;
-    if (groupId) hoverMode = groupHoverMode(element.closest('[data-group-id]'), clientX, clientY);
-    else if (overlapGroupTarget) hoverMode = "group";
+    if (overlapGroupTarget) hoverMode = "group";
     else if (validReorderTarget) {
       hoverMode = resolveWishHoverMode({
         groupingEnabled,
-        rect: wishCard.querySelector(".wish-card__image")?.getBoundingClientRect() || wishCard.getBoundingClientRect(),
+        rect: validGroupReorderTarget
+          ? pointerGroupTile.querySelector(".wish-group-tile__preview")?.getBoundingClientRect() || pointerGroupTile.getBoundingClientRect()
+          : wishCard.querySelector(".wish-card__image")?.getBoundingClientRect() || wishCard.getBoundingClientRect(),
         clientX,
         clientY,
       });
     } else if (groupingEnabled) hoverMode = "group";
     const target = dragGroupId
       ? validReorderTarget ? `wish:${wishId}` : null
-      : groupId
+      : validGroupReorderTarget
         ? `group:${groupId}`
         : groupingListId
           ? validGroupTarget ? `wish:${wishId}` : null
@@ -5145,10 +5176,6 @@ function WishesPage({ onAdd, version }) {
     const interactionTarget = target && hoverMode ? `${hoverMode}:${target}` : null;
     if (interactionTarget && interactionTarget !== drag.hoverTarget) {
       drag.hoverTarget = interactionTarget;
-      // The card edge reorders immediately. Its center remains stable long enough
-      // to arm grouping, so live sorting cannot move the intended group target away.
-      if (hoverMode === "reorder" && groupId && !dragGroupId) reorderWishToGroup(drag.wishId, groupId);
-      else if (hoverMode === "reorder" && validReorderTarget) reorderWish(drag.wishId, wishId);
       if (hoverMode !== "group" || dragGroupId || !groupingListId) {
         clearGroupIntent();
       } else {
@@ -5159,6 +5186,15 @@ function WishesPage({ onAdd, version }) {
       lastReorderTargetRef.current = null;
       clearGroupIntent();
     }
+    if (hoverMode === "reorder" && validReorderTarget) {
+      const targetId = validGroupReorderTarget ? groupId : wishId;
+      const targetKind = validGroupReorderTarget ? "group" : "wish";
+      if (groupingEnabled) queueWishReorder(drag.wishId, targetId, targetKind, drag);
+      else {
+        clearReorderIntent();
+        reorderWish(drag.wishId, targetId, targetKind);
+      }
+    } else clearReorderIntent();
   };
   const startPointerAutoScroll = (drag) => {
     if (pointerAutoScrollFrameRef.current !== null) return;
@@ -5249,8 +5285,9 @@ function WishesPage({ onAdd, version }) {
     if (drag.kind === "group") {
       if (groupId && groupId !== drag.group.id) reorderGroup(drag.group.id, { kind: "group", id: groupId });
       else if (wishId && !(drag.group.wishIds || []).includes(wishId) && !targetGroupId) reorderGroup(drag.group.id, { kind: "wish", id: wishId });
-      const validDrop = Boolean((groupId && groupsById.has(groupId)) || (wishId && !targetGroupId));
-      if (validDrop && orderDirtyRef.current) finishDrag();
+      // A previewed move belongs to the source grid, including its gaps and
+      // the thin space exposed by the scaled source placeholder.
+      if (orderDirtyRef.current) finishDrag();
       else finishDrag({ persist: false, restore: true });
 
       return;
@@ -5260,19 +5297,19 @@ function WishesPage({ onAdd, version }) {
       ? armedDropTargetRef.current : null;
     const hoveredGroupId = hoverGroupTarget?.startsWith("group:") ? hoverGroupTarget.slice("group:".length) : null;
     const hoveredWishId = hoverGroupTarget?.startsWith("wish:") ? hoverGroupTarget.slice("wish:".length) : null;
-    if (dragGroupId && targetGroupId === dragGroupId && wishId && (wishId !== drag.wishId || orderDirtyRef.current)) finishDrag();
+    if (dragGroupId && orderDirtyRef.current) finishDrag();
     else if (dragGroupId) finishDrag({ persist: false, restore: true });
     else if (hoveredGroupId) addToGroup(drag.wishId, hoveredGroupId);
     else if (hoveredWishId && hoveredWishId !== drag.wishId) createGroup(drag.wishId, hoveredWishId);
-    else if (groupId && groupHoverMode(element.closest('[data-group-id]'), event.clientX, event.clientY) === "reorder") {
-      reorderWishToGroup(drag.wishId, groupId);
+    else if (groupId && groupsById.has(groupId)) {
+      reorderWish(drag.wishId, groupId, "group");
       finishDrag();
     }
     else if (!groupId && !targetGroupId && dragScopeRef.current?.wishIds?.has(wishId) && wishId !== drag.wishId) {
       reorderWish(drag.wishId, wishId);
       finishDrag();
     }
-    else if (wishId === drag.wishId && orderDirtyRef.current) finishDrag();
+    else if (orderDirtyRef.current) finishDrag();
     else finishDrag({ persist: false, restore: true });
 
   };
@@ -5639,7 +5676,6 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
             className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
             role="group"
             aria-label="Действия с желанием"
-            data-desktop-square-actions
           >
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
@@ -5715,7 +5751,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
             {previewImageUrl
               ? <img className="block h-auto w-full" src={previewImageUrl} alt={`Фото желания «${wish.title}»`} referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} />
               : <span className="grid aspect-[4/3] w-full place-items-center text-muted-foreground"><Gift /></span>}
-            {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute right-2 bottom-2"><Check /> Исполнено</Badge>}
+            {wish.status === "fulfilled" && <Badge variant="secondary" className="absolute left-3 top-3"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>}
           </Card>
 
           <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
@@ -6939,7 +6975,7 @@ function PublicProfile({ shared = false }) {
   const routeList = lists.find((list) => list.id === selected) || (routeWish && !location.state?.collectionPath ? lists.find((list) => !isGeneralList(list) && routeWish.listIds.includes(list.id)) : null);
   const routeSelectedList = routeList && !isGeneralList(routeList) ? routeList : null;
   const activeSpace = routeSelectedList ? listSpace(routeSelectedList) : routeWish ? wishSpaceId(routeWish, lists) : selectedSpace;
-  const navigationLists = shared ? lists : lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace);
+  const navigationLists = shared ? lists : orderWishListsForNavigation(lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace));
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const spaceWishes = shared ? visibleWishes : visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
   const unlistedWishes = shared ? spaceWishes : filterWishesWithoutList(spaceWishes, lists.filter((list) => !isGeneralList(list)));
