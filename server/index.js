@@ -2736,9 +2736,11 @@ async function decorateCatalogItems(items, userId, space) {
   });
 }
 
-app.get("/api/catalog/brands", requireAuth, asyncRoute(async (_req, res) => {
+app.get("/api/catalog/brands", requireAuth, asyncRoute(async (req, res) => {
+  const parsedSpace = listSpaceSchema.safeParse(req.query.space || "products");
+  if (!parsedSpace.success) return res.status(400).json({ error: "Неизвестное пространство каталога" });
   res.set("Cache-Control", "private, no-store");
-  return res.json({ brands: await getStoredCatalogBrands(query, "ohmywishes") });
+  return res.json({ brands: await getStoredCatalogBrands(query, "ohmywishes", parsedSpace.data) });
 }));
 
 app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
@@ -2747,12 +2749,13 @@ app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
   const { source, brand, space, limit, offset } = parsed.data;
   res.set("Cache-Control", "private, no-store");
   if (source === "ohmywishes" && brand) {
-    const page = await getStoredCatalogBrandPage(query, source, brand, limit, offset);
+    const page = await getStoredCatalogBrandPage(query, source, brand, limit, offset, space);
     if (!page) return res.status(404).json({ error: "Бренд не найден в каталоге" });
-    const items = await decorateCatalogItems(page.items, req.user.id, "products");
-    return res.json({ source, brand: page.brand, space: "products", total: page.total, limit, offset, items });
+    const items = await decorateCatalogItems(page.items, req.user.id, space);
+    return res.json({ source, brand: page.brand, space, total: page.total, limit, offset, items });
   }
   if (source === "ohmywishes") {
+    if (space !== "products") return res.json({ source, space, collection: "recommendations", total: 0, limit, offset, items: [] });
     let page;
     try { page = await getOhMyWishesRecommendationsPage(limit, offset); }
     catch (error) { return res.status(502).json({ error: error.message }); }

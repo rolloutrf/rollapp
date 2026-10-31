@@ -3079,7 +3079,7 @@ function PersistentProfileHero({ user }) {
 }
 
 function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action, backTo, backLabel = "В мой вишлист" }) {
-  const heroTitle = title || (source === "brands" ? "Бренды" : "Лента");
+  const heroTitle = title || `${source === "brands" ? "Бренды" : "Лента"} · ${SPACES.find(space => space.id === selectedSpace)?.label || "Товары"}`;
   return (
     <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
@@ -3132,7 +3132,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           <Newspaper aria-hidden="true" />
         </Link>
         <Link
-          to={brandCatalogPath()}
+          to={brandCatalogPath("", selectedSpace)}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
           aria-label="Открыть каталог брендов"
           title="Каталог брендов"
@@ -3140,7 +3140,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           <ShoppingBag aria-hidden="true" />
         </Link>
         <Link
-          to={APP_STORE_PATH}
+          to={`${APP_STORE_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
           aria-label="Открыть магазин"
           title="Магазин"
@@ -3162,22 +3162,25 @@ const STORE_CATS = [
 ];
 const STORE_CAT_PRICE = "1 000 ролл";
 
-function StorePage({ user }) {
+function StorePage({ user, selectedSpace }) {
   const toast = useToast();
+  const storeCats = selectedSpace === "products" ? STORE_CATS : [];
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
-  const [purchase, setPurchase] = useState(() => restoreCatPurchase(storageKey, STORE_CATS));
+  const [purchase, setPurchase] = useState(() => selectedSpace === "products" ? restoreCatPurchase(storageKey, STORE_CATS) : null);
   const beginPurchase = (cat) => {
+    if (selectedSpace !== "products") return;
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <CatalogProfileHero selectedSpace="products" title="Магазин" icon={Store} action={
-      <Link to={APP_ORDERS_PATH} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
+    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={selectedSpace === "products" &&
+      <Link to={`${APP_ORDERS_PATH}?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
         <PackageCheck aria-hidden="true" />Заказы
       </Link>
     } />
     <div className="app-page wish-catalog-page cat-store-page">
+      {!storeCats.length && <EmptyState icon={Store} title="Магазин пока пуст" text="В этом пространстве пока нет предложений." />}
       <div className="wish-grid catalog-wish-grid">
-        {STORE_CATS.map((cat) => (
+        {storeCats.map((cat) => (
           <article className="catalog-wish-card cat-store-card" key={cat.id}>
             <div className="catalog-wish-card__image cat-store-card__image">
               <img src={cat.image} alt={`${cat.name} кот${cat.mood ? ` — ${cat.mood.toLowerCase()}` : ""}`} loading="lazy" />
@@ -3212,7 +3215,9 @@ function ProtectedStore() {
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><StorePage key={user.id} user={user} /></AppShell>;
+  const tab = new URLSearchParams(location.search).get("tab");
+  const selectedSpace = SPACE_IDS.includes(tab) ? tab : "products";
+  return <AppShell><StorePage key={`${user.id}:${selectedSpace}`} user={user} selectedSpace={selectedSpace} /></AppShell>;
 }
 
 function ProtectedOrders() {
@@ -4017,7 +4022,7 @@ function WishCatalogPage() {
   const requestedSpace = new URLSearchParams(location.search).get("tab");
   const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
   const catalogFilter = source === "brands"
-    ? `source=brands${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
+    ? `source=brands&space=${encodeURIComponent(selectedSpace)}${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
     : `source=community&space=${encodeURIComponent(selectedSpace)}`;
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
@@ -4238,7 +4243,7 @@ function WishCatalogPage() {
             )}
           </>
         ) : (
-          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся товары, которые не относятся к селлерам.") : "Здесь появятся публичные желания участников."} />
+          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся предложения этого пространства.") : "Здесь появятся публичные желания участников."} />
         )}
         {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
         {selectedCatalogItem && (

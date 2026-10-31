@@ -167,7 +167,7 @@ async function persist(snapshot) {
           [snapshot.source, brand.id, idea.id, rank, item.url, JSON.stringify(idea), syncedAt]);
         }
         const page = await getStoredCatalogBrandPage(client.query.bind(client), snapshot.source, brand.slug, 96, 0);
-        if (page.total !== brand.total || page.items.length !== Math.min(96, brand.total)) throw new Error(`Проверка записи ${brand.slug} не пройдена.`);
+        if ((page?.total || 0) !== brand.total || (page?.items.length || 0) !== Math.min(96, brand.total)) throw new Error(`Проверка записи ${brand.slug} не пройдена.`);
       }
     });
     console.log(`Импорт завершён: ${snapshot.brands.length} брендов, ${snapshot.brands.reduce((sum, brand) => sum + brand.total, 0)} товаров.`);
@@ -183,8 +183,8 @@ async function verify(snapshot) {
       const items = [];
       for (let offset = 0; offset < Math.max(1, brand.total); offset += 48) {
         const page = await getStoredCatalogBrandPage(database.query, snapshot.source, brand.slug, 48, offset);
-        if (!page || page.total !== brand.total) throw new Error(`Число товаров ${brand.slug} в БД не совпало со снимком.`);
-        items.push(...page.items);
+        if ((page?.total || 0) !== brand.total) throw new Error(`Число товаров ${brand.slug} в БД не совпало со снимком.`);
+        items.push(...(page?.items || []));
       }
       for (const [index, idea] of brand.items.entries()) {
         const item = items[index];

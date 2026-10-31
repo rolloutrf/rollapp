@@ -35,14 +35,19 @@ function brandFromRow(row) {
   return { id: row.external_id, slug: row.slug, label: row.label, logoUrl: row.logo_url };
 }
 
-export async function getStoredCatalogBrands(query, source) {
+export async function getStoredCatalogBrands(query, source, space = "products") {
   const result = await query(
-    `SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=ANY($2::text[]) ORDER BY sort_order,slug`, [source, CATALOG_BRAND_SLUGS],
+    `SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=ANY($2::text[]) AND EXISTS (
+      SELECT 1 FROM external_catalog_brand_items bi JOIN external_catalog_items i
+      ON i.source=bi.source AND i.external_id=bi.external_id
+      WHERE bi.source=external_catalog_brands.source AND bi.brand_id=external_catalog_brands.external_id
+      AND bi.synced_at=external_catalog_brands.synced_at AND i.active=TRUE AND i.space=$3
+    ) ORDER BY sort_order,slug`, [source, CATALOG_BRAND_SLUGS, space],
   );
   return result.rows.map(brandFromRow);
 }
 
-export async function getStoredCatalogBrandPage(query, source, slug, limit, offset) {
+export async function getStoredCatalogBrandPage(query, source, slug, limit, offset, space = "products") {
   if (!CATALOG_BRAND_SLUGS.includes(slug)) return null;
   const result = await query(`SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=$2`, [source, slug]);
   if (!result.rowCount) return null;
@@ -50,10 +55,11 @@ export async function getStoredCatalogBrandPage(query, source, slug, limit, offs
   const from = `FROM external_catalog_brand_items bi
     JOIN external_catalog_brands b ON b.source=bi.source AND b.external_id=bi.brand_id AND b.synced_at=bi.synced_at
     JOIN external_catalog_items i ON i.source=bi.source AND i.external_id=bi.external_id
-    WHERE bi.source=$1 AND bi.brand_id=$2 AND i.active=TRUE`;
+    WHERE bi.source=$1 AND bi.brand_id=$2 AND i.active=TRUE AND i.space=$3`;
   const [count, items] = await Promise.all([
-    query(`SELECT COUNT(*)::int AS total ${from}`, [source, brand.id]),
-    query(`SELECT i.* ${from} ORDER BY bi.sort_order,bi.external_id LIMIT $3 OFFSET $4`, [source, brand.id, limit, offset]),
+    query(`SELECT COUNT(*)::int AS total ${from}`, [source, brand.id, space]),
+    query(`SELECT i.* ${from} ORDER BY bi.sort_order,bi.external_id LIMIT $4 OFFSET $5`, [source, brand.id, space, limit, offset]),
   ]);
+  if (!count.rows[0].total) return null;
   return { brand, total: count.rows[0].total, items: items.rows.map((row) => ({ ...externalCatalogItemFromRow(row), brand })) };
 }
