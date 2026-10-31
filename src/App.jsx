@@ -2932,7 +2932,9 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
         section: person.granted ? (person.grantSection || section) : section,
         granted,
       });
-      setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted } : item));
+      setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted, grantSection: section } : item));
+      const refreshed = await api.get(`/sphere-shares/candidates?${new URLSearchParams({ sphere, section, search: debouncedSearch })}`).catch(() => null);
+      if (refreshed) setPeople(refreshed.people || []);
       if (scope) await onAccessChanged?.();
       else await access.reload();
       const selectedLabel = scopeLabel || SPHERE_SECTION_LABELS[section] || section;

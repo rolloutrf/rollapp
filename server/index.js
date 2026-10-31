@@ -2261,6 +2261,7 @@ app.get("/api/sphere-shares/candidates", requireAuth, requirePrivateSphereOwner,
      WHERE u.id<>$1
        AND u.account_type='business'
        AND (u.business_category IS NULL OR u.business_category=$6)
+       AND ($2<>'wishlist' OR u.business_category IS NULL OR u.seller_space IS NULL OR u.seller_space=$3 OR $3='wishlist')
        AND ($4='' OR LOWER(u.name) LIKE $5 OR LOWER(u.username) LIKE $5)
      ORDER BY (s.viewer_user_id IS NOT NULL) DESC,
               u.name,u.username
