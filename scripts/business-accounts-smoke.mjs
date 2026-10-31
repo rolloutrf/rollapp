@@ -104,11 +104,12 @@ try {
       const section = page.getByRole("combobox", { name: "Пространство", exact: true });
       await section.click();
       await page.getByRole("option").first().waitFor();
-      const expected = SPHERE_SECTIONS[category.sphere].map((id) => SPHERE_SECTION_LABELS[id]);
+      const eligibleSections = SPHERE_SECTIONS[category.sphere].filter(id => category.sphere !== "wishlist" || id !== "wishlist");
+      const expected = eligibleSections.map((id) => SPHERE_SECTION_LABELS[id]);
       assert.deepEqual(await page.getByRole("option").allTextContents(), expected);
       await page.getByRole("option").last().click();
       await page.getByRole("button", { name: "Отправить запрос" }).click();
-      assert.deepEqual(JSON.parse(await page.locator("[data-submitted]").textContent()), { sphere: category.sphere, section: SPHERE_SECTIONS[category.sphere].at(-1) });
+      assert.deepEqual(JSON.parse(await page.locator("[data-submitted]").textContent()), { sphere: category.sphere, section: eligibleSections.at(-1) });
       await geometry(page, `${label} request ${category.id}`);
     }
     assert.deepEqual(errors, [], `${label}: runtime errors or API requests`);

@@ -32,4 +32,24 @@ production оставался здоровым, но на SHA05264a5. VM fv4chl6
 folder/SA проверены; metadata содержит новый образ, pool2 и verify. SSH закрывается
 до авторизации; свежий df/5GB и pull errors не подтверждены. Ручные restart/pull,
 удаления образов, контейнеров/volumes и изменение SSH/сетевых прав не выполнялись.
-Финальный rollout и exact health SHA фиксируются после завершения.
+Финальный runtime commit: a1d9fb004090bafd42f8a1c342661849158eb0cf.
+Build до его фиксации прошёл на соответствующем рабочем diff; node --check и
+финальный git diff --check прошли. Последующее изменение smoke-контракта/этого отчёта
+не меняет runtime. Тестовые наборы по запросу пользователя не запускались.
+
+Финальный run https://github.com/rolloutrf/rollapp/actions/runs/41194374020
+завершился failure на exact-SHA health. Промежуточный41194035605 также failure.
+Cloud metadata содержит именно image:a1d9fb004090bafd42f8a1c342661849158eb0cf,
+pool2/verify; runtime SA имеет registry images.puller. Обычный health и прямой
+TLS-запрос с --resolve на130.193.58.26 оба подтвердили здоровый прежний
+05264a5796932d842a1d5f70b74da7dd5275c675. Это не завершённая production-публикация.
+SSH закрывается до key exchange; свежий df и состояние Docker недоступны.
+Ручной restart/pull без подтверждения свободного места/отката не выполнялся.
+Нужен доступ к диагностике VM; повторные одинаковые rollout больше не запускаются.
+
+Финальный локальный просмотр: кнопка «Предложения» рядом с «Магазином» открывает
+реальное пустое состояние /app/wishes/offers?tab=products. Снимки сохранены вне Git:
+wishlist-offers-button-2026-10-31.png и wishlist-offers-2026-10-31.png.
+Автовосстановление preview870b1f47e704 включено, frontend5511/API8191 готовы,
+production TLS/pool1/verify. Реальная отправка/создание/покупки не проверялись;
+матрицы других размеров не выполнялись. Не заявляется comprehensive PASS.
