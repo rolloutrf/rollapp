@@ -1,3 +1,5 @@
+import { WishlistBusinessPage, WishlistBusinessListing } from "@/components/wishlist-business";
+import { canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
@@ -557,7 +559,7 @@ function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
-  if (pathname.startsWith("/app/wishes")) return "wishlist";
+  if (pathname.startsWith("/app/wishes") || pathname === APP_STORE_PATH) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
   if (pathname.startsWith("/app/friends")) return "wishlist";
   if (pathname.startsWith("/app/spheres/contacts")) return "career";
@@ -2715,7 +2717,7 @@ function BusinessAccessPage() {
   const [loadingRequests, setLoadingRequests] = useState(true);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [sphere, setSphere] = useState(initialSphere);
-  const [section, setSection] = useState(SPHERE_SECTIONS[initialSphere][0]);
+  const [section, setSection] = useState(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
@@ -2765,7 +2767,7 @@ function BusinessAccessPage() {
   const openRequest = (person) => {
     setSelectedPerson(person);
     setSphere(initialSphere);
-    setSection(SPHERE_SECTIONS[initialSphere][0]);
+    setSection(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
     setMessage("");
   };
   const sendRequest = async (event) => {
@@ -2808,7 +2810,8 @@ function BusinessAccessPage() {
         <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
-        <p>Найдите пользователя и запросите конкретный раздел. Доступ только для чтения откроется после его подтверждения.</p>
+        <p>Найдите пользователя и запросите конкретный раздел. Доступ откроется после его подтверждения.</p>
+        {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
       <section className="business-access-page__section" aria-labelledby="business-people-title">
@@ -2926,7 +2929,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
       await api.post("/sphere-shares", {
         viewerId: person.id,
         sphere,
-        section,
+        section: person.granted ? (person.grantSection || section) : section,
         granted,
       });
       setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted } : item));
@@ -2945,7 +2948,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
 
   const label = scopeLabel || SPHERE_SECTION_LABELS[section] || section;
   const accessDescription = sphere === "wishlist"
-    ? "Выберите бизнес-аккаунты, которым хотите открыть весь вишлист для чтения."
+    ? "Выберите бизнес-аккаунты, которым хотите открыть это пространство Вишлиста для чтения и предложений."
     : "Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.";
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(nextOpen) => !savingId && onOpenChange(nextOpen)}>
@@ -2981,7 +2984,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
                     onClick={() => toggle(person)}
                   >
                     <Avatar user={person} size="sm" className="!size-11" />
-                    <span><strong>{person.name}</strong><small>@{person.username}</small></span>
+                    <span><strong>{person.name}</strong><small>@{person.username}{person.grantSection === "wishlist" ? " · Доступ ко всему Вишлисту" : ""}</small></span>
                     {person.accountType === "business" && (
                       <Badge variant="secondary" className="sphere-share-picker__account-type">
                         <BriefcaseBusiness aria-hidden="true" />
@@ -3070,8 +3073,8 @@ function PersistentProfileHero({ user }) {
       {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
-        scope={wishlistAccessControl ? { sphere: "wishlist", section: "wishlist" } : null}
-        scopeLabel={wishlistAccessControl ? "Вишлист" : ""}
+        scope={wishlistAccessControl ? { sphere: "wishlist", section: SPACE_IDS.includes(new URLSearchParams(window.location.search).get("tab")) ? new URLSearchParams(window.location.search).get("tab") : "products" } : null}
+        scopeLabel={wishlistAccessControl ? SPACES.find(item => item.id === (new URLSearchParams(window.location.search).get("tab") || "products"))?.label : ""}
       />}
       {qrOpen && <ContactCardDialog key={profile.username} profile={profile} canSign={editable} onClose={() => setQrOpen(false)} />}
     </section>
@@ -3102,6 +3105,7 @@ function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, acti
 }
 
 function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd }) {
+  const { user } = useSession();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <nav className="wishes-page__friend-links" aria-label="Связи профиля">
@@ -3147,6 +3151,10 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         >
           <Store aria-hidden="true" />
         </Link>
+        <ControlBar className="flex shrink-0 gap-2">
+          <Link to={`/app/wishes/offers?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Открыть предложения" title="Предложения"><Send aria-hidden="true" /></Link>
+          {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
+        </ControlBar>
       </div>
     </section>
   );
@@ -3163,22 +3171,24 @@ const STORE_CATS = [
 const STORE_CAT_PRICE = "1 000 ролл";
 
 function StorePage({ user, selectedSpace }) {
+  const { search } = useLocation();
+  const business = new URLSearchParams(search).get("business") || "";
   const toast = useToast();
-  const storeCats = selectedSpace === "products" ? STORE_CATS : [];
+  const storeCats = selectedSpace === "products" && !business ? STORE_CATS : [];
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
-  const [purchase, setPurchase] = useState(() => selectedSpace === "products" ? restoreCatPurchase(storageKey, STORE_CATS) : null);
+  const [purchase, setPurchase] = useState(() => selectedSpace === "products" && !business ? restoreCatPurchase(storageKey, STORE_CATS) : null);
   const beginPurchase = (cat) => {
-    if (selectedSpace !== "products") return;
+    if (selectedSpace !== "products" || business) return;
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={selectedSpace === "products" &&
+    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={selectedSpace === "products" && !business &&
       <Link to={`${APP_ORDERS_PATH}?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
         <PackageCheck aria-hidden="true" />Заказы
       </Link>
     } />
-    <div className="app-page wish-catalog-page cat-store-page">
-      {!storeCats.length && <EmptyState icon={Store} title="Магазин пока пуст" text="В этом пространстве пока нет предложений." />}
+    <div className="app-page wish-catalog-page cat-store-page page-stack">
+      <WishlistBusinessListing key={`${selectedSpace}:${business}`} space={selectedSpace} business={business} />
       <div className="wish-grid catalog-wish-grid">
         {storeCats.map((cat) => (
           <article className="catalog-wish-card cat-store-card" key={cat.id}>
@@ -3206,7 +3216,7 @@ function StorePage({ user, selectedSpace }) {
         ))}
       </div>
     </div>
-    {purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
+    {purchase && !business && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
   </>;
 }
 
@@ -3274,7 +3284,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="wishes/offers" element={<WishlistBusinessPage user={user} />} /><Route path="wishes/business" element={<WishlistBusinessPage user={user} manager />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -4218,7 +4228,8 @@ function WishCatalogPage() {
   return (
     <>
       <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
-      <div className="app-page wish-catalog-page">
+      <div className="app-page wish-catalog-page page-stack">
+        {source === "brands" && !selectedBrand && <WishlistBusinessListing space={selectedSpace} />}
         {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
           <>
             <div className="wish-grid catalog-wish-grid">

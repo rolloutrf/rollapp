@@ -72,6 +72,10 @@ try {
       assert(fits, `${label}: ${category.label} option text clipped`);
       await option.click();
       assert.equal(await picker.locator('[data-slot="select-value"]').textContent(), category.label);
+      if (category.id === "seller") {
+        await page.getByRole("combobox", { name: "Раздел Вишлиста" }).click();
+        await page.getByRole("option", { name: "Транспорт", exact: true }).click();
+      }
       await page.getByRole("button", { name: "Создать бизнес-аккаунт" }).click();
       assert.equal(JSON.parse(await page.locator("[data-submitted]").textContent()).businessCategory, category.id);
       await geometry(page, `${label} ${category.id}`);

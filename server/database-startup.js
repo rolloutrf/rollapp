@@ -14,7 +14,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     if (reserved.length) throw new Error(`Reserved profile usernames already exist: ${reserved.join(", ")}`);
     // Check the columns required by authentication and the edited documents.
     // LIMIT 0 validates the real schema without reading profile/document data.
-    await client.query("SELECT account_type,business_category FROM users LIMIT 0");
+    await client.query("SELECT account_type,business_category,seller_space FROM users LIMIT 0");
     await client.query("SELECT user_id,contact_ids,description,expected_result,actual_result,due_on,start_time FROM planning_tasks LIMIT 0");
     await client.query("SELECT token_hash,user_id,expires_at FROM sessions LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM identity_content LIMIT 0");
@@ -26,6 +26,9 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT user_id,content_json FROM health_lab_content LIMIT 0");
     await client.query("SELECT id,user_id,source_path,file_sha256,size_bytes FROM private_files LIMIT 0");
     await client.query("SELECT key,value_text FROM application_settings LIMIT 0");
+    await client.query("SELECT business_user_id,space,title,description,published FROM wishlist_business_pages LIMIT 0");
+    await client.query("SELECT id,business_user_id,space,title,description,brand,image_url,action_url,price,active FROM wishlist_business_items LIMIT 0");
+    await client.query("SELECT id,item_id,buyer_user_id,dismissed FROM wishlist_business_offers LIMIT 0");
   });
   return mode;
 }

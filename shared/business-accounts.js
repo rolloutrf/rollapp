@@ -1,3 +1,4 @@
+import { WISHLIST_SPACE_IDS } from "./wishlist-business.js";
 import { canonicalSphereSection, isSphereSection, SPHERE_SECTIONS } from "./sphere-sharing.js";
 
 export const BUSINESS_CATEGORIES = [
@@ -25,10 +26,12 @@ export function canBusinessAccessSection(account, sphere, section) {
   // Existing business accounts keep their consent-based grants. Registration
   // requires a category for every new business account; unknown IDs fail closed.
   if (categoryId == null) return true;
+  const sellerSpace = account.sellerSpace ?? account.seller_space;
+  if (categoryId === "seller" && sellerSpace && (!WISHLIST_SPACE_IDS.includes(sellerSpace) || (section !== sellerSpace && section !== "wishlist"))) return false;
   return businessCategoryFor(account)?.sphere === canonicalSphereSection(sphere, section).sphere;
 }
 
 export function businessRequestSpheres(account) {
-  return BUSINESS_CATEGORIES.filter(({ sphere }) => canBusinessAccessSection(account, sphere, SPHERE_SECTIONS[sphere][0]))
+  return BUSINESS_CATEGORIES.filter(({ sphere }) => canBusinessAccessSection(account, sphere, sphere === "wishlist" ? (account.sellerSpace ?? account.seller_space ?? "products") : SPHERE_SECTIONS[sphere][0]))
     .map(({ sphere, sphereLabel }) => ({ id: sphere, label: sphereLabel }));
 }

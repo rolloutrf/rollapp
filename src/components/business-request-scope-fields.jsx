@@ -21,7 +21,7 @@ export function BusinessRequestScopeFields({ account, sphere, section, onSphereC
         <Select value={section} onValueChange={onSectionChange} disabled={disabled}>
           <SelectTrigger id="business-access-section" className="w-full"><SelectValue>{() => SPHERE_SECTION_LABELS[section] || section}</SelectValue></SelectTrigger>
           <SelectContent className="w-(--anchor-width)" alignItemWithTrigger={false}>
-            {(SPHERE_SECTIONS[sphere] || []).map((id) => <SelectItem key={id} value={id}>{SPHERE_SECTION_LABELS[id] || id}</SelectItem>)}
+            {(SPHERE_SECTIONS[sphere] || []).filter(id => sphere !== "wishlist" || (id !== "wishlist" && (!account.sellerSpace || id === account.sellerSpace))).map((id) => <SelectItem key={id} value={id}>{SPHERE_SECTION_LABELS[id] || id}</SelectItem>)}
           </SelectContent>
         </Select>
       </Field>

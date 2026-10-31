@@ -9,7 +9,7 @@ const credentials = { name: "Новый пользователь", email: "busin
 
 test("new business registration requires exactly one recognized category", () => {
   for (const category of BUSINESS_CATEGORIES) {
-    const value = { ...credentials, accountType: "business", businessCategory: category.id };
+    const value = { ...credentials, accountType: "business", businessCategory: category.id, ...(category.id === "seller" ? { sellerSpace: "products" } : {}) };
     assert.deepEqual(schema.parse(value), value);
   }
   for (const category of [undefined, null, "", "admin", ["doctor", "seller"]]) {
@@ -24,4 +24,15 @@ test("personal registration stays category-free and rejects submitted business c
   assert(schema.safeParse({ ...credentials, accountType: "personal", businessCategory: null }).success);
   assert.equal(schema.safeParse({ ...credentials, accountType: "personal", businessCategory: "doctor" }).success, false);
   assert.equal(schema.safeParse({ ...credentials, accountType: "admin", businessCategory: "doctor" }).success, false);
+});
+
+
+test("seller registration requires a Wishlist space and other accounts cannot carry it", () => {
+  assert.equal(schema.safeParse({ ...credentials, accountType: "business", businessCategory: "seller" }).success, false);
+  for (const sellerSpace of ["products", "places", "events", "media", "food", "transport"]) {
+    assert.equal(schema.parse({ ...credentials, accountType: "business", businessCategory: "seller", sellerSpace }).sellerSpace, sellerSpace);
+  }
+  for (const value of [{ accountType: "personal" }, { accountType: "business", businessCategory: "doctor" }]) {
+    assert.equal(schema.safeParse({ ...credentials, ...value, sellerSpace: "products" }).success, false);
+  }
 });

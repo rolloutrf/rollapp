@@ -1,3 +1,4 @@
+import { wishlistBusinessSchema } from "./wishlist-business.js";
 import { profileAliasesSchema } from "./profile-aliases.js";
 import { randomUUID } from "node:crypto";
 import { backfillDefaultFriend } from "./default-friend.js";
@@ -44,6 +45,7 @@ const schema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'personal';
   ${businessCategorySchema};
+  ${wishlistBusinessSchema}
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
     ON users(phone_hash) WHERE phone_hash IS NOT NULL;
 

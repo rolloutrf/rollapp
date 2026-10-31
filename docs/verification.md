@@ -655,3 +655,10 @@ VM identity guards, immutable SHA, сериализация production rollout �
 Для целевого выпуска питания/сна без сложного аудита доступен manual `verification=health`: unit/UI, полный controls, полный test:health (включая формы, retry, date Back и read-only) и build. Полный default release сохраняется. Изменения общей геометрии форм/дат требуют также их полных профильных проверок. Schema verify, immutable SHA, сериализация, pool2 и exact-health/live review обязательны.
 
 Для явно запрошенного выпуска общих границ страничных лент без сложного аудита manual `verification=page-rails` выполняет unit/UI, полный controls, полный page-scrollers, полный action-rails и build. Также до выпуска нужны полные затронутые профильные matrices (To Do/health/navigation/identity reports), без viewport filters. Default/full и его WebKit/editor/comprehensive gate сохраняются. Schema verify, immutable SHA, pool2, сериализация и exact-health/live review обязательны.
+
+## Страницы продавцов Wishlist
+
+Контракт и отдельная additive миграция: [wishlist-business.md](wishlist-business.md).
+Обычный verify startup только читает новую схему. Новая функциональность требует
+отдельного разрешения на seller_space и три таблицы перед первым rollout; не включать
+DDL в UI deployment. Отчёт текущего выпуска: [wishlist-business-2026-10-31.md](wishlist-business-2026-10-31.md).

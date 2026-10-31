@@ -2,6 +2,7 @@
 // Keep it alive when profile/course cleanup asks to remove the same asset.
 // These are existing tables; checking references never initializes a schema.
 const referenceQueries = [
+  "SELECT 1 FROM wishlist_business_items WHERE business_user_id=$1 AND image_url=$2 LIMIT 1",
   "SELECT 1 FROM health_medications WHERE user_id=$1 AND image_url=$2 LIMIT 1",
   "SELECT 1 FROM wishes WHERE user_id=$1 AND image_url=$2 LIMIT 1",
   "SELECT 1 FROM users WHERE id=$1 AND avatar_url=$2 LIMIT 1",

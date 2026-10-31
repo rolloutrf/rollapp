@@ -1,5 +1,6 @@
+import { WISHLIST_SPACE_IDS, WISHLIST_SPACES } from "./wishlist-business.js";
 export const SPHERE_SECTIONS = {
-  wishlist: ["wishlist"],
+  wishlist: [...WISHLIST_SPACE_IDS, "wishlist"],
   identity: ["four-questions", "values", "character", "gallup", "hogan", "mission", "ideal-state", "life-strategy", "personal-development-plan", "theses", "principles"],
   career: ["about", "domain", "cv", "performance", "development-plan", "contacts"],
   education: ["courses", "conferences", "coaching"],
@@ -8,7 +9,8 @@ export const SPHERE_SECTIONS = {
 };
 
 export const SPHERE_SECTION_LABELS = {
-  wishlist: "Вишлист",
+  ...Object.fromEntries(WISHLIST_SPACES.map(({ id, label }) => [id, label])),
+  wishlist: "Весь Вишлист (существующий доступ)",
   "four-questions": "4 вопроса",
   values: "Ценности",
   character: "Характер",
@@ -56,7 +58,7 @@ export function sphereSectionPath({ ownerUsername = "", sphere, section }) {
     ? ownerUsername ? `/u/${encodeURIComponent(ownerUsername)}` : "/app/wishes"
     : `/app/spheres/${encodeURIComponent(sphere)}`;
   const search = new URLSearchParams();
-  if (sphere !== "wishlist") search.set("tab", section);
+  if (sphere !== "wishlist" || section !== "wishlist") search.set("tab", section);
   if (ownerUsername && sphere !== "wishlist") search.set("owner", ownerUsername);
   const query = search.toString();
   return query ? `${pathname}?${query}` : pathname;

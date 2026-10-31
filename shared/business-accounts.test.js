@@ -34,3 +34,12 @@ test("pre-existing uncategorized business accounts retain eligibility without as
     assert(canBusinessAccessSection({ account_type: "business", business_category: null }, sphere, sections[0]));
   }
 });
+
+
+test("categorized sellers are eligible only for their chosen Wishlist space", () => {
+  const seller = { accountType: "business", businessCategory: "seller", sellerSpace: "transport" };
+  for (const section of SPHERE_SECTIONS.wishlist.filter(id => id !== "wishlist")) {
+    assert.equal(canBusinessAccessSection(seller,"wishlist",section),section === "transport");
+  }
+  assert.equal(canBusinessAccessSection({ ...seller,sellerSpace:"unknown" },"wishlist","transport"),false);
+});

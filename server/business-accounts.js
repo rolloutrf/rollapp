@@ -1,3 +1,4 @@
+import { WISHLIST_SPACE_IDS } from "../shared/wishlist-business.js";
 import { z } from "zod";
 import { BUSINESS_CATEGORY_IDS } from "../shared/business-accounts.js";
 
@@ -10,10 +11,13 @@ export function createRegistrationSchema(credentialsSchema) {
     name: z.string().trim().min(2).max(80),
     accountType: z.enum(["personal", "business"]).default("personal"),
     businessCategory: z.enum(BUSINESS_CATEGORY_IDS).nullish(),
+    sellerSpace: z.enum(WISHLIST_SPACE_IDS).nullish(),
   }).superRefine((value, context) => {
     if (value.accountType === "business" && !value.businessCategory) {
       context.addIssue({ code: "custom", path: ["businessCategory"], message: "Выберите категорию бизнеса" });
     }
+    if (value.businessCategory === "seller" && !value.sellerSpace) context.addIssue({ code: "custom", path: ["sellerSpace"], message: "Выберите раздел Вишлиста" });
+    if (value.sellerSpace != null && (value.accountType !== "business" || value.businessCategory !== "seller")) context.addIssue({ code: "custom", path: ["sellerSpace"], message: "Раздел доступен только продавцу" });
     if (value.accountType === "personal" && value.businessCategory != null) {
       context.addIssue({ code: "custom", path: ["businessCategory"], message: "Категория доступна только бизнес-аккаунту" });
     }
