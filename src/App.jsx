@@ -3222,6 +3222,14 @@ function StorePage({ user, selectedSpace }) {
   </>;
 }
 
+function ProtectedWishlistBusiness({ manager = false }) {
+  const location = useLocation();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  return <AppShell><WishlistBusinessPage user={user} manager={manager} /></AppShell>;
+}
+
 function ProtectedStore() {
   const location = useLocation();
   const { user, loading } = useSession();
@@ -3286,7 +3294,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="wishes/offers" element={<WishlistBusinessPage user={user} />} /><Route path="wishes/business" element={<WishlistBusinessPage user={user} manager />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -7238,6 +7246,8 @@ export default function App() {
             <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
             <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
             <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
+            <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
+            <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
             <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
