@@ -1,4 +1,4 @@
-import { WishlistBusinessPage, WishlistBusinessListing } from "@/components/wishlist-business";
+import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
@@ -1738,7 +1738,8 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
   const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
-  const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS);
+  const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS)
+    || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningRoute && !notesRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
@@ -2683,7 +2684,7 @@ function SphereAccessRequestBanner() {
             {request.message && <p>{request.message}</p>}
           </div>
           <div className="sphere-access-request__actions">
-            <ShadcnButton type="button" variant="outline" disabled={Boolean(savingId)} onClick={() => respond(request, "declined")}>Отклонить</ShadcnButton>
+            <ShadcnButton type="button" variant="destructive" disabled={Boolean(savingId)} onClick={() => respond(request, "declined")}>Отклонить</ShadcnButton>
             <ShadcnButton type="button" disabled={Boolean(savingId)} onClick={() => respond(request, "approved")}>
               {savingId === request.id && <Spinner data-icon="inline-start" />}
               Открыть доступ
@@ -3016,7 +3017,7 @@ function PersistentProfileHero({ user }) {
   const [qrOpen, setQrOpen] = useState(false);
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
-  const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && canAccessPrivateSpheres(user);
+  const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && (user?.accountType === "personal" || canAccessPrivateSpheres(user));
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
@@ -3050,7 +3051,7 @@ function PersistentProfileHero({ user }) {
               <Plus aria-hidden="true" />
             </ShadcnButton>
           )}
-          {access.active && access.isOwner && (
+          {access.active && access.isOwner && !wishlistAccessControl && (
             <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
               {access.people.slice(0, 3).map((person) => <Avatar key={person.id} user={person} size="sm" className="sphere-share-avatars__person !size-12" title={person.name} />)}
               <ShadcnButton
@@ -3076,6 +3077,7 @@ function PersistentProfileHero({ user }) {
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
         scope={wishlistAccessControl ? { sphere: "wishlist", section: SPACE_IDS.includes(new URLSearchParams(window.location.search).get("tab")) ? new URLSearchParams(window.location.search).get("tab") : "products" } : null}
+        onAccessChanged={access.active ? access.reload : null}
         scopeLabel={wishlistAccessControl ? SPACES.find(item => item.id === (new URLSearchParams(window.location.search).get("tab") || "products"))?.label : ""}
       />}
       {qrOpen && <ContactCardDialog key={profile.username} profile={profile} canSign={editable} onClose={() => setQrOpen(false)} />}

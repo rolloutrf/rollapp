@@ -88,7 +88,7 @@ export function WishlistBusinessManager({user,space}) {
  <Field><FieldLabel htmlFor="seller-page-description">Описание</FieldLabel><Textarea id="seller-page-description" maxLength={4000} value={page.description} disabled={busy} onChange={e=>setPage({...page,description:e.target.value})}/></Field>
  <label className="flex items-center gap-2"><Checkbox checked={page.published} disabled={busy} onCheckedChange={published=>setPage({...page,published:Boolean(published)})}/>Опубликовать страницу в каталоге и магазине</label>
  <ErrorMessage message={error}/><ControlBar className="flex gap-2"><Button type="submit" disabled={busy}>{busy?"Сохраняем…":"Сохранить страницу"}</Button></ControlBar></form>
- <div className="page-toolbar horizontal-action-scroller"><PageActionButton onClick={()=>setEditor({})}><Plus aria-hidden="true"/>Добавить айтем</PageActionButton></div>
+ <div className="page-actions page-toolbar horizontal-action-scroller"><PageActionButton onClick={()=>setEditor({})}><Plus aria-hidden="true"/>Добавить айтем</PageActionButton></div>
  <div className="wish-grid catalog-wish-grid">{(state.data?.items || []).map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>
  {!state.data?.items?.length&&<Blank title="Добавьте первый айтем" text="Загрузите изображение, укажите бренд и описание. После публикации айтем можно предложить покупателю."/>}
  {selected&&<ItemDetails key={selected.id} item={selected} space={space} owner onClose={()=>setSelected(null)} onEdit={item=>{setSelected(null);setEditor(item);}}/>}
@@ -110,5 +110,5 @@ export function WishlistBusinessListing({space,offers=false,business=""}) {
 }
 export function WishlistBusinessPage({user,manager=false}) {
  const location=useLocation();const space=wishlistSpace(location.search);
- return <div className="app-page page-stack rollapp-body"><ControlBar className="horizontal-action-scroller"><Link to={`/app/wishes?tab=${space}`} className={buttonVariants({variant:"outline",size:"icon"})} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true"/></Link></ControlBar><h1>{manager?"Моя страница":"Предложения"} · {labelFor(space)}</h1>{manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}</div>;
+ return <div className="app-page page-stack rollapp-body"><ControlBar className="page-actions horizontal-action-scroller"><Link to={`/app/wishes?tab=${space}`} className={buttonVariants({variant:"outline",size:"icon"})} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true"/></Link></ControlBar><header className="typeset typeset-rollapp"><h1>{manager?"Моя страница":"Предложения"} · {labelFor(space)}</h1></header>{manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}</div>;
 }

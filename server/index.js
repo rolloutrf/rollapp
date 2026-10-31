@@ -991,6 +991,16 @@ function requirePrivateSphereOwner(req, res, next) {
   next();
 }
 
+function requireShareOwner(req, res, next) {
+  const sphere = req.method === "GET" ? req.query.sphere : req.body?.sphere;
+  if (sphere === "wishlist" && req.user?.account_type === "personal") {
+    const owner = String(req.query.owner || "").trim().toLowerCase();
+    if (owner && owner !== req.user.username) return res.status(403).json({ error: "Нельзя менять доступ другого владельца" });
+    return next();
+  }
+  return requirePrivateSphereOwner(req, res, next);
+}
+
 function requireBusinessAccount(req, res, next) {
   if (req.user?.account_type !== "business") {
     return res.status(403).json({ error: "Раздел доступен только бизнес-аккаунтам", code: "BUSINESS_ACCOUNT_REQUIRED" });
@@ -1015,15 +1025,16 @@ async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
   ({ sphere, section } = sphereSectionStorageScope(sphere, section));
   const ownerUsername = String(requestedOwner || "").trim().toLowerCase();
   if (!ownerUsername || ownerUsername === viewer.username) {
-    if (!viewer.can_discover_spheres) return { status: 403, error: "Раздел доступен только владельцу профиля" };
+    if (!viewer.can_discover_spheres && !(sphere === "wishlist" && viewer.account_type === "personal")) return { status: 403, error: "Раздел доступен только владельцу профиля" };
     return { owner: viewer, isOwner: true };
   }
   const owner = await query(
-    `SELECT u.*,TRUE AS can_discover_spheres
+    `SELECT u.*,(dft.user_id IS NOT NULL) AS can_discover_spheres
      FROM users u
-     JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE (u.username=$1 OR u.id IN (SELECT user_id FROM profile_username_aliases WHERE username=$1))`,
-    [ownerUsername],
+     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE (u.username=$1 OR u.id IN (SELECT user_id FROM profile_username_aliases WHERE username=$1))
+       AND (dft.user_id IS NOT NULL OR ($2='wishlist' AND u.account_type='personal'))`,
+    [ownerUsername, sphere],
   );
   if (!owner.rowCount) return { status: 404, error: "Владелец раздела не найден" };
   if (owner.rows[0].id === viewer.id) return { owner: owner.rows[0], isOwner: true };
@@ -2249,7 +2260,7 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
   return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
 }));
 
-app.get("/api/sphere-shares/candidates", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
   if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
   const search = String(req.query.search || "").trim().slice(0, 80).toLocaleLowerCase("ru-RU");
@@ -2277,12 +2288,12 @@ app.get("/api/business-access/users", requireAuth, requireBusinessAccount, async
   const result = await query(
     `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
      FROM users u
-     JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE u.id<>$1 AND u.account_type='personal'
+     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE u.id<>$1 AND u.account_type='personal' AND (dft.user_id IS NOT NULL OR $4)
        AND ($2='' OR LOWER(u.name) LIKE $3 OR LOWER(u.username) LIKE $3)
      ORDER BY u.name,u.username
      LIMIT 50`,
-    [req.user.id, search, `%${search}%`],
+    [req.user.id, search, `%${search}%`, canBusinessAccessSection(req.user,"wishlist",req.user.seller_space || "products")],
   );
   res.set("Cache-Control", "private, no-store");
   return res.json({ people: result.rows.map(shareUser) });
@@ -2333,9 +2344,9 @@ app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, a
   const owner = await query(
     `SELECT u.id,u.username,u.name,u.avatar_url,u.account_type
      FROM users u
-     JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE u.id=$1 AND u.account_type='personal'`,
-    [ownerId],
+     LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
+     WHERE u.id=$1 AND u.account_type='personal' AND (dft.user_id IS NOT NULL OR $2='wishlist')`,
+    [ownerId, sphere],
   );
   if (!owner.rowCount) return res.status(404).json({ error: "Пользователь с доступными сферами не найден" });
   const existingShare = await query(
@@ -2391,7 +2402,7 @@ app.delete("/api/business-access/requests/:requestId", requireAuth, requireBusin
   return res.json({ cancelled: true });
 }));
 
-app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, asyncRoute(async (req, res) => {
   const parsed = z.object({ decision: z.enum(["approved", "declined"]) }).strict().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
   const response = await transaction(async (client) => {
@@ -2405,6 +2416,7 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requireP
     if (!request.rowCount) return { status: 404, error: "Запрос не найден" };
     if (request.rows[0].status !== "pending") return { status: 409, error: "На этот запрос уже ответили" };
     const row = request.rows[0];
+    if (!req.user.can_discover_spheres && !(row.sphere === "wishlist" && req.user.account_type === "personal")) return { status: 403, error: "Раздел недоступен" };
     if (parsed.data.decision === "approved") {
       const requester = await client.query("SELECT account_type,business_category,seller_space FROM users WHERE id=$1", [row.requester_user_id]);
       if (requester.rows[0]?.account_type !== "business") {
@@ -2439,7 +2451,7 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, requireP
   return res.json(response);
 }));
 
-app.post("/api/sphere-shares", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const parsed = z.object({
     viewerId: z.string().trim().min(1).max(100),
     sphere: z.string().trim().min(1).max(40),
