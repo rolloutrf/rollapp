@@ -41,3 +41,10 @@ Serial output не содержит найденных ENOSPC/capacity errors. �
 
 Результат rollout, точный deployed SHA и affected read-only UI review будут
 добавлены после публикации. Это не отчёт полного regression PASS.
+
+Первый rollout71fb966/run41187263610 завершился SUCCESS и exact health.
+Values, Character и Wishlist загрузились; в read-only review отчётов обнаружен
+ReferenceError useId после удаления импорта при объединении PDF controls.
+Импорт восстановлен: он нужен также существующему PDF content renderer.
+Повторная сборка и static binding review React hooks в22 изменённых JS/JSX
+источниках прошли. Публикуется отдельный исправляющий commit без отката данных.
