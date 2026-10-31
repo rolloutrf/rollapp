@@ -5,12 +5,10 @@ import { pathToFileURL } from "node:url";
 import { OHMYWISHES_API_BASE, OHMYWISHES_SOURCE } from "../server/ohmywishes-catalog.js";
 import { ohMyWishesBrandItem } from "../server/ohmywishes-brands.js";
 import { externalCatalogBrandsSchema, getStoredCatalogBrandPage } from "../server/external-catalog-brands.js";
+import { CATALOG_BRAND_SLUGS } from "../shared/catalog-brands.js";
 
-// The eleven storefronts requested for this import, in screenshot order.
-export const BRAND_SLUGS = [
-  "littleblackjewelry", "moonswoon", "genotek", "bork.ru", "aprell", "tengran",
-  "design_eho", "moonsoul", "papershoot", "store77", "sokolov",
-];
+// Import the same storefronts that the catalog publishes.
+export const BRAND_SLUGS = CATALOG_BRAND_SLUGS;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const argument = (name) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 
@@ -41,7 +39,7 @@ export function validateSnapshot(snapshot) {
   if (snapshot?.version !== 1 || snapshot.source !== OHMYWISHES_SOURCE.id || !Number.isFinite(Date.parse(snapshot.fetchedAt))) {
     throw new Error("Неизвестный формат снимка каталога.");
   }
-  if (!Array.isArray(snapshot.brands) || snapshot.brands.length !== BRAND_SLUGS.length) throw new Error("Нужны все 11 брендов.");
+  if (!Array.isArray(snapshot.brands) || snapshot.brands.length !== BRAND_SLUGS.length) throw new Error(`Нужен полный снимок разрешённых брендов (${BRAND_SLUGS.length}).`);
   const slugs = new Set();
   const ids = new Set();
   const allItemIds = new Set();

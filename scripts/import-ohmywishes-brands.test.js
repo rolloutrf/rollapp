@@ -19,18 +19,19 @@ test("brand import refuses incomplete storefronts before opening a database", ()
 test("brand import requires every requested brand and validates the provider identity", () => {
   const missing = completeSnapshot();
   missing.brands.pop();
-  assert.throws(() => validateSnapshot(missing), /все 11 брендов/);
+  assert.throws(() => validateSnapshot(missing), /полный снимок разрешённых брендов/);
   const wrong = completeSnapshot();
   wrong.brands[0].items[0].creator.id = "different-brand";
   assert.throws(() => validateSnapshot(wrong), /Некорректная/);
 });
 
-test("brand import rejects repeated pages and conflicting product identities", () => {
+test("brand import rejects repeated products and unavailable storefronts", () => {
   const duplicate = completeSnapshot();
   duplicate.brands[0].items.push(duplicate.brands[0].items[0]);
   duplicate.brands[0].total = duplicate.brands[0].profile.wishesCount = 2;
   assert.throws(() => validateSnapshot(duplicate), /повторная карточка/);
   const conflict = completeSnapshot();
-  conflict.brands[1].items[0].id = conflict.brands[0].items[0].id;
-  assert.throws(() => validateSnapshot(conflict), /повторная карточка/);
+  conflict.brands[0].slug = "removed-brand";
+  conflict.brands[0].profile.username = "removed-brand";
+  assert.throws(() => validateSnapshot(conflict), /Не удалось подтвердить бренд/);
 });

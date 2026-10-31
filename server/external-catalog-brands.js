@@ -1,3 +1,4 @@
+import { CATALOG_BRAND_SLUGS } from "../shared/catalog-brands.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
 
 // Also used by the importer so it never runs unrelated application migrations.
@@ -36,12 +37,13 @@ function brandFromRow(row) {
 
 export async function getStoredCatalogBrands(query, source) {
   const result = await query(
-    `SELECT * FROM external_catalog_brands WHERE source=$1 ORDER BY sort_order,slug`, [source],
+    `SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=ANY($2::text[]) ORDER BY sort_order,slug`, [source, CATALOG_BRAND_SLUGS],
   );
   return result.rows.map(brandFromRow);
 }
 
 export async function getStoredCatalogBrandPage(query, source, slug, limit, offset) {
+  if (!CATALOG_BRAND_SLUGS.includes(slug)) return null;
   const result = await query(`SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=$2`, [source, slug]);
   if (!result.rowCount) return null;
   const brand = brandFromRow(result.rows[0]);
