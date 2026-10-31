@@ -39,8 +39,7 @@ Serial output не содержит найденных ENOSPC/capacity errors. �
 очистка images/containers/volumes и изменения SSH/security не выполнялись.
 Штатный сериализованный metadata rollout сохраняет здоровую версию при задержке.
 
-Результат rollout, точный deployed SHA и affected read-only UI review будут
-добавлены после публикации. Это не отчёт полного regression PASS.
+Это не отчёт полного regression PASS.
 
 Первый rollout71fb966/run41187263610 завершился SUCCESS и exact health.
 Values, Character и Wishlist загрузились; в read-only review отчётов обнаружен
@@ -52,3 +51,23 @@ ReferenceError useId после удаления импорта при объе�
 Расширенный static binding review обнаружил также прежний отсутствующий toast
 в StorePage success callback. Восстановлен существующий useToast context;
 покупка/кошелёк/checkout не менялись и реальные операции не выполнялись.
+
+## Итог
+
+Финальный runtime commit: `36f381ee8804c3726d1eab2b6c6d2b3df4b14f1b`.
+[Workflow41187937907](https://github.com/rolloutrf/rollapp/actions/runs/41187937907)
+завершился SUCCESS в manual verification=none. Независимый GET/api/healthz
+вернул ok=true/service=rollapp и точный ожидаемый SHA. Рабочее дерево runtime
+commit было чистым; этот заключительный update меняет только отчёт.
+
+На этой версии read-only просмотр подтвердил Values без поиска, Character
+без верхнего счётчика/поиска, загруженный Gallup PDF content и активную кнопку
+upload «+», а также загруженные карточки Wishlist. Проверка исходных данных,
+включая selection в Values, не сопровождалась сохранением. Финальный screenshot
+находится вне Git. Временные browser tabs закрыты; исходная пользовательская
+вкладка сохранена. Регистрация/изменение бизнес-разрешений, покупки/переводы,
+upload/delete и полная viewport/regression matrix не выполнялись.
+
+Файлы первоначальных worktrees и работающие previews не переносились/reset/rebase,
+старые refs не публиковались, обязательный pre-push guard не обходился.
+Новых DDL/backfill/data cleanup, ручных VM restart/pull и широких image prune не было.
