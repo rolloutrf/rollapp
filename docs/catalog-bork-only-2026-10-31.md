@@ -17,4 +17,13 @@ Existing-schema verify выполнен READ ONLY на настроенной pr
 BORK/bork.ru и6 товаров в его актуальном снимке. Production template сохраняет
 pool2 и initialization=verify. Импорт/записи в БД не выполнялись.
 
-Итог workflow/exact-SHA health и read-only review меню будет добавлен после rollout.
+Runtime commit:05264a5796932d842a1d5f70b74da7dd5275c675.
+[Manual workflow41189798651](https://github.com/rolloutrf/rollapp/actions/runs/41189798651)
+запущен с verification=none. Независимый health подтвердил ok=true и точный SHA.
+В авторизованном production UI витрина BORK загрузилась; раскрытое меню содержит
+только Рекомендации и BORK, остальных10 брендов нет. Screenshot сохранён вне Git,
+временная вкладка закрыта. Загрузки/likes/add/save/delete не выполнялись.
+При локальном polling были краткие network reset/EOF у GitHub и health;
+повторный health и UI успешны. VM не перезапускалась вручную.
+Это read-only review, не полный regression PASS. Заключительный update отчёта
+не меняет runtime-код.
