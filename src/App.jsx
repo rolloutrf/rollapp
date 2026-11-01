@@ -27,6 +27,7 @@ import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.j
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
+import { BusinessGiftAction } from "@/components/gift-cards";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
@@ -3287,11 +3288,12 @@ function ProtectedWishCatalog() {
 }
 
 function BusinessMarketplaceRoute() {
+  const { user } = useSession();
   const { sphereId = "" } = useParams();
   if (sphereId === "contacts") return <LegacyContactsRedirect />;
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
   if (!sphere || !businessMarketplacePath(sphereId)) return <Navigate to={APP_HOME} replace />;
-  return <BusinessMarketplacePage sphere={sphere} />;
+  return <BusinessMarketplacePage key={`${user?.id}:${sphere.id}`} user={user} sphere={sphere} />;
 }
 
 function ProtectedApp() {
@@ -7134,7 +7136,14 @@ function PublicProfile({ shared = false }) {
       <div><dt>Подписки</dt><dd>{data.followingCount}</dd></div>
       <div><dt>Подписчики</dt><dd>{data.followersCount}</dd></div>
     </dl> : null;
-  const identity = data.isOwner
+  const businessProfile = !shared && data.profile.accountType === "business";
+  const identity = businessProfile
+    ? <div className="wishes-page__identity friend-profile-page__identity">
+      {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" /></ShadcnButton> : <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />}
+      <BusinessGiftAction business={data.profile} user={user} />
+      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span></span>
+    </div>
+    : data.isOwner
     ? <ShadcnButton
       type="button"
       variant="ghost"
@@ -7175,6 +7184,8 @@ function PublicProfile({ shared = false }) {
         <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
       </div>
     </section>
+
+    {businessProfile && <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" />}
 
     {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">

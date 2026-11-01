@@ -262,6 +262,14 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
   // Locking also gives a consistent balance/history snapshot at READ COMMITTED.
   await ensureRollWallet(client, userId);
   const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+  const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
+  const giftHistory = giftSchema.rows[0]?.events ? `
+       UNION ALL
+       SELECT e.id,'gift_topup' AS kind,e.actor_id AS sender_id,NULL::text AS recipient_id,
+              e.amount,u.name AS note,NULL::text AS wish_title,e.created_at
+       FROM business_gift_card_events e JOIN business_gift_cards c ON c.id=e.card_id
+       JOIN users u ON u.id=c.business_id WHERE e.actor_id=$1 AND e.kind='topup'
+  ` : "";
   const history = await client.query(
     `WITH history AS (
        SELECT id,kind,sender_id,recipient_id,amount,note,NULL::text AS wish_title,created_at
@@ -282,6 +290,7 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
        SELECT id,'ton_topup' AS kind,NULL::text AS sender_id,user_id AS recipient_id,
               rolls AS amount,nanotons::text AS note,NULL::text AS wish_title,paid_at AS created_at
        FROM roll_ton_orders WHERE user_id=$1 AND paid_at IS NOT NULL
+       ${giftHistory}
      )
      SELECT h.*,u.name AS person_name,u.username AS person_username,u.avatar_url AS person_avatar_url
      FROM history h
@@ -389,12 +398,59 @@ function orderFromRow(row) {
 }
 
 export async function readRollOrders(client, userId) {
+  const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
+  const giftOrders = giftSchema.rows[0]?.events ? `
+    UNION ALL
+    SELECT e.id,e.purchase->>'productId' AS product_id,e.purchase->>'productTitle' AS product_title,
+           e.amount,e.purchase->'delivery' AS delivery,e.created_at,r.created_at AS refunded_at
+    FROM business_gift_card_events e
+    LEFT JOIN business_gift_card_events r ON r.purchase_id=e.id AND r.kind='refund'
+    WHERE e.actor_id=$1 AND e.kind='spend' AND e.purchase IS NOT NULL
+  ` : "";
   const orders = await client.query(
-    `SELECT id,product_id,product_title,amount,delivery,created_at,refunded_at
-     FROM roll_store_purchases WHERE user_id=$1 ORDER BY created_at DESC,id DESC`,
+    `WITH orders AS (
+       SELECT id,product_id,product_title,amount,delivery,created_at,refunded_at
+       FROM roll_store_purchases WHERE user_id=$1
+       ${giftOrders}
+     ) SELECT * FROM orders ORDER BY created_at DESC,id DESC`,
     [userId],
   );
   return { orders: orders.rows.map(orderFromRow) };
+}
+
+async function refundGiftCardOrder(client, userId, purchaseId) {
+  const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
+  if (!giftSchema.rows[0]?.events) throw new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
+  const purchase = await client.query(
+    `SELECT e.*,r.created_at AS refunded_at FROM business_gift_card_events e
+     LEFT JOIN business_gift_card_events r ON r.purchase_id=e.id AND r.kind='refund'
+     WHERE e.id=$1 AND e.actor_id=$2 AND e.kind='spend' AND e.purchase IS NOT NULL`,
+    [purchaseId, userId],
+  );
+  if (!purchase.rowCount) throw new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
+  const row = purchase.rows[0];
+  const order = {
+    id: row.id, product_id: row.purchase.productId, product_title: row.purchase.productTitle,
+    amount: row.amount, delivery: row.purchase.delivery, created_at: row.created_at, refunded_at: row.refunded_at,
+  };
+  if (row.refunded_at) {
+    const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+    return { order: orderFromRow(order), balance: Number(wallet.rows[0].balance), replayed: true };
+  }
+  const amount = Number(row.amount);
+  const credit = await client.query(
+    "UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2 AND balance <= $3 RETURNING balance",
+    [amount, row.card_id, ROLLS_MAX_TRANSFER - amount],
+  );
+  if (!credit.rowCount) throw new RollsError("Баланс карты достиг лимита", "BALANCE_LIMIT", 409);
+  const refund = await client.query(
+    `INSERT INTO business_gift_card_events(id,card_id,actor_id,kind,amount,request_key,purchase_id)
+     VALUES($1,$2,$3,'refund',$4,$5,$6) RETURNING created_at`,
+    [randomUUID(), row.card_id, userId, amount, randomUUID(), row.id],
+  );
+  order.refunded_at = refund.rows[0].created_at;
+  const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+  return { order: orderFromRow(order), balance: Number(wallet.rows[0].balance), replayed: false };
 }
 
 export async function refundRollPurchase(client, userId, purchaseId) {
@@ -407,22 +463,27 @@ export async function refundRollPurchase(client, userId, purchaseId) {
      FROM roll_store_purchases WHERE id=$1 AND user_id=$2 FOR UPDATE`,
     [purchaseId, userId],
   );
-  if (!purchase.rowCount) throw new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
+  if (!purchase.rowCount) return refundGiftCardOrder(client, userId, purchaseId);
   if (purchase.rows[0].refunded_at) {
     const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
     return { order: orderFromRow(purchase.rows[0]), balance: Number(wallet.rows[0].balance), replayed: true };
   }
 
   const amount = Number(purchase.rows[0].amount);
-  const credit = await client.query(
-    "UPDATE roll_wallets SET balance=balance+$1 WHERE user_id=$2 AND balance <= $3 RETURNING balance",
-    [amount, userId, ROLLS_MAX_BALANCE - amount],
-  );
-  if (!credit.rowCount) throw new RollsError("Кошелёк достиг лимита", "BALANCE_LIMIT", 409);
+  const giftCardId = purchase.rows[0].delivery?.giftCardId;
+  // Refund to the original payment source, even if the card has been sent on.
+  const credit = giftCardId
+    ? await client.query("UPDATE business_gift_cards SET balance=balance+$1 WHERE id=$2 AND balance <= $3 RETURNING balance", [amount, giftCardId, ROLLS_MAX_TRANSFER - amount])
+    : await client.query("UPDATE roll_wallets SET balance=balance+$1 WHERE user_id=$2 AND balance <= $3 RETURNING balance", [amount, userId, ROLLS_MAX_BALANCE - amount]);
+  if (!credit.rowCount) throw new RollsError("Баланс достиг лимита", "BALANCE_LIMIT", 409);
+  if (giftCardId) {
+    await client.query(`INSERT INTO business_gift_card_events(id,card_id,actor_id,kind,amount,request_key)
+      VALUES($1,$2,$3,'refund',$4,$5)`, [randomUUID(), giftCardId, userId, amount, randomUUID()]);
+  }
   const refunded = await client.query(
     `UPDATE roll_store_purchases SET refunded_at=CURRENT_TIMESTAMP
      WHERE id=$1 AND user_id=$2 RETURNING id,product_id,product_title,amount,delivery,created_at,refunded_at`,
     [purchaseId, userId],
   );
-  return { order: orderFromRow(refunded.rows[0]), balance: Number(credit.rows[0].balance), replayed: false };
+  return { order: orderFromRow(refunded.rows[0]), balance: giftCardId ? Number((await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId])).rows[0].balance) : Number(credit.rows[0].balance), replayed: false };
 }

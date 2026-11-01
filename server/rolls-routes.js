@@ -1,3 +1,4 @@
+import { registerGiftCardRoutes } from "./gift-cards.js";
 import { createRateLimit } from "./rate-limit.js";
 import { purchaseWithRolls, readRollOrders, readRollWallet, refundRollPurchase, RollsError, transferRolls } from "./rolls.js";
 import { createStarInvoice, createStarOrder, getStarsConfig, publicStarOrder } from "./roll-stars.js";
@@ -6,6 +7,7 @@ import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js
 
 export function registerRollsRoutes(app, { requireAuth, query, transaction, starsConfig = getStarsConfig, createInvoice = createStarInvoice, env = process.env }) {
   registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
+  registerGiftCardRoutes(app, { requireAuth, query, transaction });
   const handle = (handler) => async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     try { await handler(req, res); } catch (error) {

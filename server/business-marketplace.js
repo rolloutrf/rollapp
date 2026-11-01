@@ -1,3 +1,4 @@
+import { lockOwnedGiftCard, recordGiftEvent } from "./gift-cards.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { BUSINESS_MARKETPLACE_KINDS, BUSINESS_MARKETPLACE_SPHERES, isBusinessMarketplaceSphere } from "../shared/business-marketplace.js";
@@ -33,6 +34,7 @@ const routeSchema = z.object({
 }).strict();
 
 export const businessMarketplacePurchaseSchema = z.object({
+  giftCardId: z.string().min(1).max(200).optional(),
   itemId: z.string().trim().min(1).max(200),
   idempotencyKey: z.string().uuid(),
 }).strict();
@@ -78,7 +80,32 @@ export async function purchaseBusinessMarketplaceItem(client, userId, sphere, in
   }
   const parsed = businessMarketplacePurchaseSchema.safeParse(input);
   if (!parsed.success) throw new RollsError("Некорректные данные покупки", "INVALID_PURCHASE");
-  const { itemId, idempotencyKey } = parsed.data;
+  const { itemId, idempotencyKey, giftCardId } = parsed.data;
+  await ensureRollWallet(client, userId);
+  const previous = await client.query(
+    "SELECT * FROM roll_store_purchases WHERE user_id=$1 AND idempotency_key=$2",
+    [userId, idempotencyKey],
+  );
+  if (previous.rowCount) {
+    const row = previous.rows[0];
+    if (row.product_id !== `business:${itemId}` || row.delivery?.sphere !== sphere || (row.delivery?.giftCardId || null) !== (giftCardId || null)) {
+      throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
+    }
+    const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+    return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
+  }
+  const giftSchema = await client.query("SELECT to_regclass('business_gift_card_events')::text AS events");
+  if (giftSchema.rows[0]?.events) {
+    const previousGift = await client.query("SELECT * FROM business_gift_card_events WHERE actor_id=$1 AND request_key=$2", [userId, idempotencyKey]);
+    if (previousGift.rowCount) {
+      const row = previousGift.rows[0];
+      if (row.kind !== "spend" || row.card_id !== giftCardId || row.purchase?.productId !== `business:${itemId}` || row.purchase?.delivery?.sphere !== sphere) {
+        throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
+      }
+      const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
+      return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
+    }
+  }
   const itemResult = await client.query(
     `SELECT i.*,u.name AS business_name,u.username AS business_username
      FROM business_marketplace_items i
@@ -91,42 +118,53 @@ export async function purchaseBusinessMarketplaceItem(client, userId, sphere, in
   const item = itemResult.rows[0];
   const productId = `business:${item.id}`;
   const amount = Number(item.price_rolls);
-  await ensureRollWallet(client, userId);
-  const previous = await client.query(
-    "SELECT * FROM roll_store_purchases WHERE user_id=$1 AND idempotency_key=$2",
-    [userId, idempotencyKey],
-  );
-  if (previous.rowCount) {
-    const row = previous.rows[0];
-    if (row.product_id !== productId || Number(row.amount) !== amount) {
-      throw new RollsError("Этот запрос уже использован для другой покупки", "IDEMPOTENCY_CONFLICT", 409);
-    }
-    const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
-    return { id: row.id, replayed: true, balance: Number(wallet.rows[0].balance) };
-  }
-  const debit = await client.query(
-    "UPDATE roll_wallets SET balance=balance-$1 WHERE user_id=$2 AND balance >= $1 RETURNING balance",
-    [amount, userId],
-  );
-  if (!debit.rowCount) throw new RollsError("Недостаточно роллов для покупки", "INSUFFICIENT_ROLLS", 409);
   const id = randomUUID();
   const delivery = {
     provider: "business",
+    ...(giftCardId ? { giftCardId } : {}),
     marketplaceItemId: item.id,
     sphere,
     itemType: item.item_type,
     business: { id: item.business_user_id, name: item.business_name, username: item.business_username },
   };
-  await client.query(
-    `INSERT INTO roll_store_purchases (id,user_id,product_id,product_title,amount,idempotency_key,delivery)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
-    [id, userId, productId, item.title, amount, idempotencyKey, JSON.stringify(delivery)],
-  );
-  return { id, replayed: false, balance: Number(debit.rows[0].balance) };
+  let balance;
+  if (giftCardId) {
+    const card = await lockOwnedGiftCard(client, userId, giftCardId);
+    if (card.business_id !== item.business_user_id) throw new RollsError("Карта действует только у своего бизнеса", "GIFT_CARD_BUSINESS_MISMATCH", 409);
+    const debit = await client.query("UPDATE business_gift_cards SET balance=balance-$1 WHERE id=$2 AND balance >= $1 RETURNING balance", [amount, giftCardId]);
+    if (!debit.rowCount) throw new RollsError("На карте недостаточно роллов", "INSUFFICIENT_GIFT_ROLLS", 409);
+    // Older deployed servers refund every roll_store_purchase into the ordinary
+    // wallet. Keep restricted payments out of that ledger during mixed versions.
+    await recordGiftEvent(client, { id, cardId: giftCardId, userId, kind: "spend", amount, requestKey: idempotencyKey,
+      purchase: { productId, productTitle: item.title, delivery } });
+    balance = Number((await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId])).rows[0].balance);
+  } else {
+    const debit = await client.query("UPDATE roll_wallets SET balance=balance-$1 WHERE user_id=$2 AND balance >= $1 RETURNING balance", [amount, userId]);
+    if (!debit.rowCount) throw new RollsError("Недостаточно роллов для покупки", "INSUFFICIENT_ROLLS", 409);
+    balance = Number(debit.rows[0].balance);
+    await client.query(
+      `INSERT INTO roll_store_purchases (id,user_id,product_id,product_title,amount,idempotency_key,delivery)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)`,
+      [id, userId, productId, item.title, amount, idempotencyKey, JSON.stringify(delivery)],
+    );
+  }
+  return { id, replayed: false, balance };
 }
 
 export function registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction }) {
-  const handle = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+  const handle = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch((error) => {
+    if (error instanceof RollsError) return res.status(error.status).json({ error: error.message, code: error.code });
+    if (error.code === "42P01" && req.body?.giftCardId) return res.status(503).json({ error: "Подарочные карты временно недоступны. Попробуйте позже.", code: "GIFT_CARDS_UNAVAILABLE" });
+    next(error);
+  });
+  app.get("/api/business-profiles/:username/offers", handle(async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const items = await query(`SELECT i.*,u.name AS business_name,u.username AS business_username,u.avatar_url AS business_avatar_url
+      FROM business_marketplace_items i JOIN users u ON u.id=i.business_user_id
+      WHERE lower(u.username)=lower($1) AND u.account_type='business' AND i.active=TRUE AND i.kind='store' AND i.sphere=ANY($2::text[])
+      ORDER BY i.sort_order,i.created_at DESC,i.id`, [req.params.username, BUSINESS_MARKETPLACE_SPHERES]);
+    res.json({ items: items.rows.map(itemFromRow) });
+  }));
   const availableSphere = (req, res, next) => isBusinessMarketplaceSphere(req.params.sphere)
     ? next()
     : res.status(404).json({ error: "Раздел бизнеса не найден", code: "MARKETPLACE_NOT_FOUND" });
