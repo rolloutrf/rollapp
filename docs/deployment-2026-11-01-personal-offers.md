@@ -24,3 +24,9 @@
 Результат rollout и live review записываются после выкладки. Аутентифицированные реальные оплаты не выполняются ради проверки.
 
 Перед rollout подтверждена здоровая версия/rollback `322dac0e58236594e8b0868e52c7eb8afc44464b`, предыдущий workflow 41329088206 завершился success.
+
+## Результат
+
+Выложен immutable SHA `597e064b757aa7345a5b6dd20d82f20f51e0e0fb`. [Workflow 41330063059](https://github.com/rolloutrf/rollapp/actions/runs/41330063059) завершился success в manual verification=none. Public `/api/healthz` подтверждает ok=true, service=rollapp и точный SHA; workflow также проверил канонические redirects. Перезапуск VM вручную не понадобился.
+
+Live browser review 390×844 и 1440×900: закрытая страница кошелька приводит к «Войти в Rollapp», runtime errors и горизонтального overflow нет; screenshots `/tmp/rollapp-offers-production-390.png` и `/tmp/rollapp-offers-production-1440.png`. GET `/api/personal-offers` и `/api/personal-offers/items` возвращают 401 без сессии. Прежний локальный live-review скрипт остановлен из-за неверного ожидаемого заголовка «Вход»; после сверки с исходником использован реальный заголовок, без изменения приложения. Аутентифицированный UI production и реальная оплата не проверялись: нет подходящей бизнес/покупательской сессии; соответствующие сценарии покрыты целевой UI матрицей и rollback-only production DB проверками. Полный аудит намеренно не повторялся.
