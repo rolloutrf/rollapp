@@ -870,3 +870,5 @@
     background-color: var(--muted);
   }
 }
+
+:root { --story-ring: #f97316; }

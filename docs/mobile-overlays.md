@@ -327,3 +327,7 @@ and upstream drawers keep gesture support.
 Back отменяет выбор, сохраняя текст родительской формы. На desktop остаётся
 shadcn Calendar в Popover. `test:dates` проверяет все семь реальных форм на
 320–1920px, короткие mobile/desktop, границы min/max, keyboard и disabled.
+
+## Переход из сторис к настройкам
+
+`form-surface.Drawer` принимает `onAfterClose`: на мобильном вызывает его через `MobileFormScreen` после восстановления исходной Router/history записи, на desktop — через `onOpenChangeComplete(false)` примитива. Открывать следующий экран следует из этого callback, а не из нулевого таймера одновременно с закрытием. `MobileFormPages` охватывает `ProfileEditorProvider`, чтобы настройки, открытые из сторис или имени владельца, имели тот же нативный history/portal host. Сторис используют form-owned primary submit и общий Footer; это сохраняет контраст основной кнопки в тёмной теме. Контракт сторис: `docs/stories.md`.

@@ -149,3 +149,5 @@ List title/count markup is shared by `src/components/list-tile-content.jsx`
 for personal/public Wishlist, education and medication groups. Do not copy
 inline font sizes into consumers: `src/index.css` owns the tile roles, including
 labels with a two-line clamp and private-list metadata on the count row.
+
+Кнопка имени владельца профиля (`.profile-name-button`) внутри h1 наследует шрифт, размер, насыщенность и интерлиньяж заголовка, сохраняя доступ к настройкам после переноса записи сторис на аватарку. Это локальная семантическая роль заголовка, а не новая шкала контролов.

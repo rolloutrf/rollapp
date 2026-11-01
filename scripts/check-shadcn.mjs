@@ -887,3 +887,9 @@ for (const file of sourceFiles) {
 }
 
 console.log(`shadcn audit passed (${installedUiFiles.size} UI primitives; ${sourceFiles.filter((file) => /\.[jt]sx$/.test(file) && !file.startsWith(`${uiDir}${path.sep}`)).length} application JSX sources scanned).`);
+
+const appRootSource = app.slice(app.indexOf("export default function App()"));
+assert(appRootSource.indexOf("<MobileFormPages>") < appRootSource.indexOf("<ProfileEditorProvider>"), "Profile settings must share MobileFormPages with stories before opening a native form");
+
+const publicProfileSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function LegacyProfileRedirect"));
+assert(!/<StoryAvatar\b/.test(publicProfileSource), "Public profile avatars must retain profile behavior without a stories entry");

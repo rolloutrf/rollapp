@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 
 // Product composition: native form pages on phones, official Drawer on desktop.
 const FormMode = createContext(false);
-export function Drawer({ children, ...props }) {
+export function Drawer({ children, onAfterClose, onOpenChangeComplete, ...props }) {
   const mobile = useIsMobile();
   return mobile
-    ? <MobileFormScreen open={props.open} onOpenChange={props.onOpenChange}><FormMode.Provider value>{children}</FormMode.Provider></MobileFormScreen>
-    : <Sheet.Drawer {...props} swipeDirection="right" showSwipeHandle={false}>{children}</Sheet.Drawer>;
+    ? <MobileFormScreen open={props.open} onOpenChange={props.onOpenChange} onAfterClose={onAfterClose}><FormMode.Provider value>{children}</FormMode.Provider></MobileFormScreen>
+    : <Sheet.Drawer {...props} swipeDirection="right" showSwipeHandle={false} onOpenChangeComplete={(open) => { onOpenChangeComplete?.(open); if (!open) onAfterClose?.(); }}>{children}</Sheet.Drawer>;
 }
 export function DrawerContent({ children, className, finalFocus, initialFocus, ...props }) {
   const page = useContext(FormMode);

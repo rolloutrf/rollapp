@@ -6,6 +6,8 @@ import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { HealthTracker } from "@/components/health-tracker";
 import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
+
+import { StoryAvatar } from "@/components/story-avatar";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { ContactCardButton, ContactCardDialog } from "@/components/contact-card-dialog";
 import { PageActionButton } from "@/components/page-action-button";
@@ -1703,21 +1705,15 @@ function AppFriendsLink({ active = false }) {
 
 function AppProfileButton({ user, compact = false }) {
   const { openProfileEditor } = useProfileEditor();
-  return (
-    <ShadcnButton
-      type="button"
-      variant="ghost"
-      className={compact
-        ? "app-user-profile app-user-profile--compact size-12 rounded-full p-2 active:translate-y-0"
-        : "app-user-profile h-12 max-w-[240px] min-w-0 justify-start gap-2 rounded-xl px-3 text-left active:translate-y-0"}
-      aria-label={`Редактировать профиль ${user.name}`}
-      title="Редактировать профиль"
-      onClick={openProfileEditor}
-    >
-      <Avatar user={user} size="sm" className="!size-8" />
-      {!compact && <span className="app-user-profile__copy flex min-w-0 flex-col items-start"><strong className="max-w-full truncate text-sm leading-4">{user.name}</strong><span className="max-w-full truncate text-xs leading-4 text-muted-foreground">@{user.username}</span></span>}
-    </ShadcnButton>
-  );
+  const location = useLocation();
+  const storiesEnabled = /^\/app\/friends(?:\/|$)/.test(location.pathname);
+  return <div className="flex min-w-0 items-center gap-2">
+    {storiesEnabled ? <StoryAvatar user={user} own onEditProfile={openProfileEditor}><Avatar user={user} size="sm" className="!size-8" /></StoryAvatar>
+      : <ShadcnButton type="button" variant="ghost" size="icon" className="rounded-full" aria-label={`Редактировать профиль ${user.name}`} onClick={openProfileEditor}><Avatar user={user} size="sm" className="!size-8" /></ShadcnButton>}
+    {!compact && <ShadcnButton type="button" variant="ghost" className="app-user-profile h-12 min-w-0 rounded-xl px-3" aria-label={`Редактировать профиль ${user.name}`} onClick={openProfileEditor}>
+      <span className="app-user-profile__copy flex min-w-0 flex-col items-start"><strong className="max-w-full truncate text-sm leading-4">{user.name}</strong><span className="max-w-full truncate text-xs leading-4 text-muted-foreground">@{user.username}</span></span>
+    </ShadcnButton>}
+  </div>;
 }
 
 function FriendsTopbar({ user }) {
@@ -3040,11 +3036,11 @@ function PersistentProfileHero({ user }) {
           >
             <QrCode aria-hidden="true" />
           </ShadcnButton>
-          {editable ? (
-            <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
-              <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
-            </ShadcnButton>
-          ) : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
+          {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
+            <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
+          </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
+            <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
+          </ShadcnButton> : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
           {wishlistAccessControl && (
             <ShadcnButton
               type="button"
@@ -3076,7 +3072,7 @@ function PersistentProfileHero({ user }) {
           )}
         </div>
         <span className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{profile.name}</h1>
+          <h1 id="persistent-profile-name">{editable ? <ShadcnButton type="button" variant="link" className="profile-name-button" aria-label={`Редактировать профиль ${profile.name}`} onClick={openProfileEditor}>{profile.name}</ShadcnButton> : profile.name}</h1>
         </span>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
@@ -7250,9 +7246,9 @@ export default function App() {
   return (
     <ToastProvider>
       <SessionProvider>
+        <MobileFormPages>
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
-          <MobileFormPages>
           <GlobalAppChrome />
           <PlanningFab />
           <Routes>
@@ -7279,9 +7275,9 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </MobileFormPages>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>
+        </MobileFormPages>
       </SessionProvider>
     </ToastProvider>
   );

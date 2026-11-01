@@ -30,6 +30,8 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT id,business_user_id,space,title,description,brand,image_url,action_url,price,active FROM wishlist_business_items LIMIT 0");
     await client.query("SELECT id,item_id,buyer_user_id,dismissed FROM wishlist_business_offers LIMIT 0");
     await client.query("SELECT id,business_user_id,recipient_id,item_id,wishlist_item_id,item_title,price_rolls,expires_at,created_at,idempotency_key,purchase_id FROM business_personal_offers LIMIT 0");
+
+    await client.query("SELECT id,user_id,video_data,size_bytes,duration_seconds,created_at,expires_at FROM stories LIMIT 0");
   });
   return mode;
 }

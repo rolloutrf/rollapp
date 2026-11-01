@@ -2,6 +2,8 @@ import { registerMessengerRoutes } from "./messenger.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
+
+import { registerStoryRoutes } from "./stories.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { registerPrivateFiles } from "./private-files.js";
 import { imageIsInUse } from "./image-usage.js";
@@ -466,6 +468,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      mediaSrc: ["'self'", "blob:"],
       imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "https://telegram.org"],
@@ -1113,6 +1116,8 @@ registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
+
+registerStoryRoutes(app, { requireAuth, query, asyncRoute });
 
 async function createSession(res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);

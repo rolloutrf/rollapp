@@ -17,7 +17,7 @@ ENV XDG_DATA_HOME=/data
 ENV XDG_CONFIG_HOME=/config
 WORKDIR /app
 
-RUN apk add --no-cache caddy chromium su-exec tini xvfb-run \
+RUN apk add --no-cache caddy chromium ffmpeg su-exec tini xvfb-run \
   && addgroup -S -g 10001 retailer-renderer \
   && adduser -S -D -H -u 10001 -G retailer-renderer retailer-renderer \
   && mkdir -p /data /config

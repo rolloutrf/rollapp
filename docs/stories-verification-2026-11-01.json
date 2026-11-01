@@ -1,0 +1,108 @@
+{
+  "date": "2026-11-01",
+  "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "initialDirty": false,
+  "testedDirty": true,
+  "deployment": "not performed",
+  "featureVerification": "passed",
+  "comprehensiveVerification": "failed; see two separate attempt reports",
+  "checks": {
+    "npm test": {
+      "status": "passed",
+      "tests": 799,
+      "passed": 798,
+      "failed": 0,
+      "skipped": 1
+    },
+    "npm run test:ui": {
+      "status": "passed",
+      "primitives": 37,
+      "sources": 80
+    },
+    "npm run test:stories": {
+      "status": "passed",
+      "cases": 16,
+      "viewports": 8,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "transport": "explicit test-only; API requests rejected"
+    },
+    "npm run test:form-actions": {
+      "status": "passed",
+      "records": 101
+    },
+    "npm run test:navigation": {
+      "status": "passed",
+      "records": 46
+    },
+    "npm run test:action-rails": {
+      "status": "passed",
+      "records": 90
+    },
+    "npm run test:drawers": {
+      "status": "passed",
+      "records": 270,
+      "viewportCases": 10,
+      "filters": null
+    },
+    "npm run build": {
+      "status": "passed",
+      "warning": "large chunks"
+    },
+    "git diff --check": {
+      "status": "passed"
+    },
+    "npm audit": {
+      "production": 0,
+      "all": 6,
+      "low": 2,
+      "moderate": 4,
+      "high": 0,
+      "critical": 0
+    }
+  },
+  "production": {
+    "migration": "server/migrations/20261101-stories.sql",
+    "explicitlyAuthorized": true,
+    "targetFingerprint": "66207e5a4c8b49fb",
+    "tlsCertificateVerified": true,
+    "existingRecordsChanged": false,
+    "testStoriesPublished": false,
+    "startup": "read-only verify",
+    "liveViewportCases": 8,
+    "keepalive": "running; API 8096; frontend 5196"
+  },
+  "limits": [
+    "Full comprehensive audit did not pass; errors in editor navigation and controls navigation, cause not proven.",
+    "Physical expiry cleanup is not implemented: expired rows are inaccessible through API.",
+    "Actual iPhone/Safari, Android and Telegram WebView camera and audio have not been verified.",
+    "No production application deployment or real story publication was performed."
+  ],
+  "sha256": {
+    ".github/workflows/deploy-yandex-cloud.yml": "48fce8617453897439914545b73f6748e565ed4397444b67937938329dbed97b",
+    "Dockerfile": "73ab6982d8695428b4d377ad9b1633b77abe12e937d9ba3800474ef117eba733",
+    "package-lock.json": "429c5ea024935f0af6d7d214b16c7023f8a22e3282bde012a2c445dc8fc00819",
+    "package.json": "bdb2673434058f6b7e59c8aac9b02bad94532e6ed1a6c39d49afadd2952bf0d2",
+    "scripts/check-shadcn.mjs": "5ff83b4826f4a931e013f698c609d12818a2348bcfd219fd8678407a7d9d8829",
+    "scripts/fixtures/stories.jsx": "5f026e7f8224d3650d39ff08b1dcbc05c7f9346f660241bd5e4fbc6eaf441258",
+    "scripts/stories-smoke.mjs": "b300b6d29863aa461a5217ebe0a8b3ef8b3fc622860095dc4ac99a6abd0e4323",
+    "server/database-startup.js": "cc819dc5b0c7ea0f74c643e81b06690678beb3c406bc2840751b70ebf44fd78a",
+    "server/database-startup.test.js": "9eedc317db7a496df75c3cdef89141febf7bc63e47cd5ea4f3ab4463115a7d52",
+    "server/index.js": "3ef5547740ebd573beadb5d5e0c99169cd6ee8d7a22424d28594aa53e22a5311",
+    "server/migrations/20261101-stories.sql": "6e185d55accae428d4942ecddfd1b644cd1e1ae57c9765fd8307ab6f02620970",
+    "server/stories.js": "f55ff44603151acd4834ef6459b9bf39bd319e4b007b3f6ee063702f1dd732a7",
+    "server/stories.test.js": "4d99a3e2dbf042e378f204a300222eb83a262d3882de62f3e20fa4f4fc2cc722",
+    "server/story-video.js": "1612734b7dfff6716fd5ae37d7e891e0e742fa29cb7d4469e56a2cd2135fe24c",
+    "server/story-video.test.js": "7e9ee5b69483a67f4d81f759276e58b606fe2abf4f9e7f90cc5e891fcc2d200c",
+    "src/App.jsx": "0176c1c8256ae7b086661d7039e3d60edfaef6a660f92ebcc971ca71ae859e47",
+    "src/api.js": "3a5cdd778712b840d2185d9eec25a2b15317e35b6fbdda87c5c99dafb89710b7",
+    "src/api.test.js": "5126250b8c941ef4f7d382b3960987db0f9f859fe2cc8ebebefc734ed6b9b0c0",
+    "src/components/form-surface.jsx": "710f51797a4f0c7900bfdce07a518d1162eae1e6ca861309b53b8ffc5dc1dca6",
+    "src/components/stories.css": "0655e5da44ff90692e9ace5b31e81fa46031f5d4ac19f9a2700d3d60ee8f8948",
+    "src/components/story-avatar.jsx": "74687e1253bf3179e9b63b4f34ff8a55ba7976679bae3495c5ec88e498e60885",
+    "src/hooks/use-user-stories.js": "bd494433824f595ab6c89f6b62f142cc32a8192bb992ee73be01568bc187d7cb",
+    "src/index.css": "4ea728d7dd07a65703e29afdffaf5738ac856014a97a00a2f67956bb82463b3a"
+  }
+}
