@@ -9,3 +9,10 @@
 Исходный HEADc2f9578, дерево до начала чистое. npm run build и git diff --check
 прошли. Existing production schema проверена READ ONLY; миграций/записей не было.
 Тестовые наборы не запускались по сохранённому запросу пользователя.
+
+Runtime1531e984d25f0ae9e8b63d083a225ee9a433fcf2 опубликован workflow
+[41300785863](https://github.com/rolloutrf/rollapp/actions/runs/41300785863), success,
+verification=none. Production health подтвердил точный SHA. В браузере просмотрен
+реальный экран предложений: кнопки Back и видимого заголовка нет, пустое состояние
+загружено без ошибки. Снимок offers-header-removed-2026-11-01.png сохранён вне Git.
+Это ограниченный read-only просмотр, не полный UI-аудит; записей данных не было.
