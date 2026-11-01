@@ -29,6 +29,7 @@ const client = {
       const older = { ...base, id: "older-offer", title: "Ранний счёт", status: paid ? "paid" : "active" };
       return path.includes("offset=100") ? { offers: [first, older], nextOffset: null } : { offers: [first], nextOffset: 100 };
     }
+    if (path === "/rolls/gift-cards") return { cards: [] };
     if (path === "/rolls") return { balance: 100, transactions: [], features: {}, nextOffset: null };
     if (path === "/business-access/requests") return { requests: [] };
     if (path === "/personal-offers/items") return { items: scenario === "business-page" ? [item] : createdItem ? [createdItem] : [] };

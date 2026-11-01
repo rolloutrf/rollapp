@@ -132,6 +132,7 @@ try {
     await page.getByText("Повторите рекомендацию").waitFor();
     await page.getByRole("button", {name:"Предложить",exact:true}).click();
     await page.getByLabel("Цена в роллах", {exact:true}).waitFor({state:"hidden"});
+    await page.waitForURL(url=>!url.searchParams.has("formScreen"));
     const recommendations=await page.evaluate(()=>window.offerCalls);
     assert.equal(recommendations.length,2);assert.deepEqual(recommendations[0],recommendations[1]);
     assert.equal(recommendations[0].body.priceRolls,75);assert.equal(recommendations[0].body.durationHours,72);
@@ -142,6 +143,7 @@ try {
     await page.getByText("Недостаточно роллов").waitFor();
     await page.getByRole("button", {name:"Подтвердить оплату"}).click();
     await page.getByRole("alertdialog").waitFor({state:"hidden"});
+    await page.waitForURL(url=>!url.searchParams.has("formScreen"));
     await page.getByRole("button", {name:'Открыть «Wishlist товар»'}).click();
     await page.getByRole("status").filter({hasText:"Оплачен"}).waitFor();
     assert.equal(await page.getByRole("button", {name:"Оплатить",exact:true}).count(),0);
