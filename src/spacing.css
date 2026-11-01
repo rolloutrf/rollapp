@@ -578,7 +578,7 @@ html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="tr
 /* The messenger shortcut shares the planning rail's safe area and viewport
    position, with exactly one control and an 8px gap above its trigger. */
 @layer components {
-  .planning-fab-controls > .messenger-fab {
+  .planning-fab-controls .messenger-fab {
     position: absolute;
     right: 0;
     bottom: calc(var(--layout-control-size) + var(--layout-inline-gap));

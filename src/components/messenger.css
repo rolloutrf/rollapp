@@ -1,7 +1,8 @@
-.messenger-page { padding-block-start: var(--layout-page-gap); }
-.messenger-layout { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr); height: calc(var(--app-visual-height, 100dvh) - var(--app-chrome-overlay-height) - var(--layout-page-gap) * 2); min-height: 240px; border: 1px solid var(--border); border-radius: 24px; background: var(--card); overflow: hidden; }
+.messenger-page { padding-block-start: var(--layout-page-gap); max-width: calc(var(--layout-compact-width) + var(--layout-page-inset) * 2); margin-inline: auto; }
+.messenger-layout { display: flex; flex-direction: column; height: min(36rem, calc(var(--app-visual-height, 100dvh) - var(--app-chrome-overlay-height) - var(--layout-page-gap) * 2)); min-height: 240px; border: 1px solid var(--border); border-radius: 24px; background: var(--card); overflow: hidden; }
 .messenger-directory, .messenger-conversation { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.messenger-directory { border-inline-end: 1px solid var(--border); }
+.messenger-directory, .messenger-conversation { flex: 1; }
+.messenger-page[data-conversation-open] .messenger-directory { display: none; }
 .messenger-heading { display: flex; align-items: center; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); border-bottom: 1px solid var(--border); flex-shrink: 0; min-width: 0; }
 .messenger-search { display: flex; align-items: center; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); }
 .messenger-search svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--muted-foreground); }
@@ -35,7 +36,7 @@
 .messenger-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); overflow-wrap: anywhere; }
 .messenger-send-error { grid-column: 1 / -1; color: var(--destructive); overflow-wrap: anywhere; }
 @media (max-width: 767px) {
-  .messenger-page.app-page { position: fixed; inset-inline: 0; top: var(--app-visual-top, 0px); height: var(--app-visual-height, 100dvh); padding: 0; z-index: 45; background: var(--background); }
+  .messenger-page.app-page { max-width: none; margin: 0; position: fixed; inset-inline: 0; top: var(--app-visual-top, 0px); height: var(--app-visual-height, 100dvh); padding: 0; z-index: 45; background: var(--background); }
   .messenger-layout { display: flex; height: 100%; min-height: 0; border: 0; border-radius: 0; }
   .messenger-directory, .messenger-conversation { width: 100%; }
   .messenger-welcome, .messenger-page[data-conversation-open] .messenger-directory { display: none; }
@@ -43,3 +44,9 @@
   .messenger-heading { padding-top: max(var(--layout-item-gap), env(safe-area-inset-top)); }
   .messenger-composer, .messenger-directory-scroll { padding-bottom: max(var(--layout-item-gap), env(safe-area-inset-bottom)); }
 }
+
+/* One compact pane, anchored above the desktop shortcut. Base UI owns dismiss,
+   focus restoration and collision handling; each pane has one scroll body. */
+.messenger-popup { width: min(var(--layout-compact-width), calc(100vw - var(--layout-page-inset) * 2)); max-height: var(--available-height); overflow: hidden; }
+.messenger-embedded { padding: 0; width: 100%; min-height: 0; }
+.messenger-embedded .messenger-layout { height: min(36rem, var(--available-height), calc(var(--app-visual-height, 100dvh) - var(--layout-page-gap) * 2)); min-height: 0; border: 0; border-radius: 0; }
