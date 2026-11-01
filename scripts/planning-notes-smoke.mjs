@@ -13,9 +13,31 @@ const sizes=[[320,740],[390,844],[768,1024],[820,414],[1024,768],[1440,900],[192
 try{for(const [width,height] of sizes){
  const page=await browser.newPage({viewport:{width,height}}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',route=>{errors.push('Unexpected API');return route.abort();});
- await page.goto(`${origin}/app/planning?tab=notes`);
+ await page.goto(`${origin}/app/planning?tab=notes`,{waitUntil:"domcontentloaded"});
  await page.getByRole('heading',{name:'Заметки',exact:true}).waitFor();
  await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
+ await page.evaluate(()=>document.fonts.ready);
+ assert.equal(await page.locator('.notes-template__button').count(),6);
+ const galleryStyle=await page.getByRole('button',{name:'Галерея шаблонов',exact:true}).evaluate(el=>{const s=getComputedStyle(el);return {left:s.paddingLeft,right:s.paddingRight,height:el.getBoundingClientRect().height};});assert.equal(galleryStyle.left,'24px');assert.equal(galleryStyle.right,'24px');assert(galleryStyle.height>=48);
+
+ await page.getByRole('button',{name:'Галерея шаблонов',exact:true}).click();assert.equal(await page.locator('.notes-template__button').count(),8);
+ await page.getByRole('button',{name:'Галерея шаблонов',exact:true}).click();assert.equal(await page.locator('.notes-template__button').count(),6);
+ const search=page.getByRole('textbox',{name:'Поиск заметок',exact:true});await search.fill('мыСЛи');assert.equal(await page.locator('.notes-document__link').count(),1);
+ await search.fill('нет совпадений');await page.getByText('Ничего не найдено',{exact:true}).waitFor();await page.getByRole('button',{name:'Сбросить поиск',exact:true}).click();
+ await page.getByRole('button',{name:'Список',exact:true}).click();assert.equal(await page.locator('.notes-document-list .notes-document__link').count(),2);
+ await page.getByRole('button',{name:'Карточки',exact:true}).click();
+ await page.getByRole('combobox',{name:'Сортировка заметок',exact:true}).click();await page.getByRole('option',{name:/По названию/}).click();
+ assert.equal(await page.locator('.notes-document__link').first().getAttribute('aria-label'),'Другая заметка');
+ const geometry=await page.evaluate(()=>({root:document.documentElement.scrollWidth<=innerWidth+1,children:[...document.querySelectorAll('.notes-library__section-header,.notes-document__link,.notes-library__search')].every(el=>{const r=el.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1;}),controls:[...document.querySelectorAll('.notes-library__views button')].map(el=>{const r=el.getBoundingClientRect();return [r.width,r.height];})}));
+ assert(geometry.root&&geometry.children,`Library overflow ${width}x${height}`);for(const [w,h] of geometry.controls){assert.equal(w,48);assert.equal(h,48);}
+ await page.locator('[data-slot=select-content]').waitFor({state:'hidden'});
+ await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+ assert.equal(await page.getByRole('heading',{name:'Заметки',exact:true}).evaluate(el=>getComputedStyle(el).fontSize),'36px');
+ if(width<768){
+  const rail=page.locator('.notes-template-grid');await rail.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  const reachable=await page.locator('.notes-template__button').last().boundingBox();assert(reachable.x>=0&&reachable.x+reachable.width<=width+1,'Last mobile template must be reachable');await rail.evaluate(el=>{el.scrollLeft=0;});
+ }
+ await page.screenshot({path:`/tmp/rollapp-notes-library-${width}x${height}.png`,fullPage:true});
  await page.getByRole('button',{name:'Открыть планирование',exact:true}).click();
  await page.locator('.planning-fab__panel').getByRole('link',{name:'Заметки',exact:true}).waitFor();
  await page.locator('.planning-fab__panel').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));});
@@ -70,8 +92,17 @@ try{for(const [width,height] of sizes){
   await page.evaluate(()=>window.notesTest.finishDelete());await page.waitForFunction(()=>window.notesTest.deletedDone);
   assert.equal(new URL(page.url()).searchParams.get('note'),'created','Late deletion must not navigate away from another note');assert.equal(await title.innerText(),'Без названия');
  }
- await page.goto(`${origin}/app/planning?tab=notes&empty=1`);await page.getByText('Пока нет заметок.',{exact:false}).waitFor();
+ await page.goto(`${origin}/app/planning?tab=notes&empty=1`,{waitUntil:"domcontentloaded"});await page.getByText('Здесь будут ваши документы',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Создать заметку',exact:true}).click();await editor.waitFor();assert.equal(await title.innerText(),'Без названия');
- await page.goto(`${origin}/app/planning?tab=notes&error=1`);await page.getByRole('button',{name:'Повторить',exact:true}).waitFor();assert.equal(await page.locator('.ProseMirror').count(),0);await page.evaluate(()=>{window.notesTest.loadFail=false;});await page.getByRole('button',{name:'Повторить',exact:true}).click();await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
+ await page.goto(`${origin}/app/planning?tab=notes&empty=1`,{waitUntil:"domcontentloaded"});await page.getByText('Здесь будут ваши документы',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Создать заметку: Заметки встречи',exact:true}).click();await editor.waitFor();assert.equal(await title.innerText(),'Заметки встречи');assert((await editor.innerText()).includes('Следующие шаги'));
+ await page.goto(`${origin}/app/planning?tab=notes&loading=1`,{waitUntil:"domcontentloaded"});
+ await page.getByRole('status',{name:'Загружаем заметки',exact:true}).waitFor();assert(await page.getByRole('button',{name:'Создать заметку',exact:true}).isDisabled());assert.equal(await page.locator('[data-slot=skeleton]').count(),4);
+ await page.evaluate(()=>window.notesTest.finishLoad());await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
+ await page.goto(`${origin}/app/planning?tab=notes&long=1`,{waitUntil:"domcontentloaded"});await page.waitForFunction(()=>document.querySelectorAll('.notes-document__link').length===14);
+ assert.equal(await page.locator('.notes-document__title').last().evaluate(el=>getComputedStyle(el).textOverflow),'ellipsis');
+ await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
+ const lastNote=await page.locator('.notes-document__link').last().boundingBox(),bottomDock=await page.locator('.planning-fab-controls').boundingBox();assert(lastNote.y+lastNote.height<=bottomDock.y,`Last document is hidden ${width}x${height}`);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.goto(`${origin}/app/planning?tab=notes&error=1`,{waitUntil:"domcontentloaded"});await page.getByRole('button',{name:'Повторить',exact:true}).waitFor();assert.equal(await page.locator('.ProseMirror').count(),0);await page.evaluate(()=>{window.notesTest.loadFail=false;});await page.getByRole('button',{name:'Повторить',exact:true}).click();await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
  assert.deepEqual(errors,[]);console.log(`PASS notes ${width}x${height}: navigation, edit/title/save/reopen/retry, delete/cancel, empty/create/error, scroll, controls`);await page.close();
 }}finally{await browser.close();await server.close();}
