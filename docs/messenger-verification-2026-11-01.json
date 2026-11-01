@@ -1,0 +1,65 @@
+{
+  "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirty": true,
+  "sourceSha256": {
+    "src/App.jsx": "eb45629eace0fd1cd4de8ff9722e76a7e7e4adc46cdefaf3f3cad95e0597abbb",
+    "src/components/messenger.jsx": "5856e44237fabe1452263a39017af724f3d44fe2162bd16605f9c79d8054e73b",
+    "src/components/messenger.css": "9822d591cb505ee545e8384e83922c053e8470d5b409ada64b3dc6b63ffd382d",
+    "src/spacing.css": "cc25fbc42ce5a08d310b2c730c7f6073245b13b57478756e069dab59da042e8c",
+    "server/index.js": "8dce58e1d28d488cc3e28f5bacade0791d813ae0c2cc4084d868735f22de8bb1",
+    "server/messenger.js": "66b40e2630a0b25732af6f2b4376849025f289dc4b80296551419fe782378798",
+    "server/messenger-schema.js": "257b9ee3dcfee4f513dab1878205cfa0b327d18a7d633f5c626e7d933f6a28c4",
+    "server/messenger.test.js": "3e89bf9bcb576c2d4fe71f1b28b9d7e1ec36d5d56af857685d625ff0051e39df",
+    "server/messenger.integration.test.js": "09121e22b1ed7fc0571a2ab50c58edfe7dc95f206eab7f22aa8f4245e7c208aa",
+    "scripts/migrate-messenger.mjs": "c64990a5f87a4e19c7c2a5ec810897a700f7fe400baa6eab7e6036ef79de0b60",
+    "scripts/messenger-smoke.mjs": "4eb203546ea0e0322b944e476ee7905f1e3e11ab69fb93d4460498461e675637",
+    "scripts/fixtures/messenger.jsx": "6227cdc6074be4ec9fe86f0c1204102e0f68db54a9d6182917d85c2ef22341e4",
+    "package.json": "663ba4c1c7a94a01091a77a7f61b02b85f13bc5fce1d901515fa71fcc354475f",
+    "package-lock.json": "429c5ea024935f0af6d7d214b16c7023f8a22e3282bde012a2c445dc8fc00819",
+    "scripts/check-comprehensive.mjs": "4931c5946b2fd511efa80113f8ee838fbb703e80e2469f3824d9a59bb41a9ef7"
+  },
+  "productionDatabase": {
+    "database": "rollapp",
+    "role": "rollapp_app",
+    "migration": "messenger-v1",
+    "authorized": true,
+    "applied": true,
+    "rollbackIntegration": "passed"
+  },
+  "verification": {
+    "unit": {
+      "tests": 798,
+      "passed": 797,
+      "skipped": 1,
+      "failed": 0
+    },
+    "messengerUI": {
+      "passed": 9,
+      "apiRequestsForbidden": true,
+      "coldCache": "node_modules/.vite-messenger-cold3-20261101",
+      "documentReloads": 0
+    },
+    "build": "passed",
+    "audit": {
+      "runtime": 0,
+      "development": 6
+    },
+    "comprehensive": {
+      "status": "failed",
+      "stage": "check:release/test:text-edit",
+      "reason": "page.goto load timeout 30000ms at insertion ownership 820x844",
+      "editorPassRecords": 102,
+      "fullMatrixPassed": false,
+      "report": "messenger-comprehensive-2026-11-01.json"
+    },
+    "editorInsertionDiagnostic": {
+      "passed": 8,
+      "replacesFullMatrix": false
+    },
+    "navigation": "passed",
+    "actionRails": "passed",
+    "finalIAB": "ERR_EMPTY_RESPONSE then URL-policy rejection on data error page; earlier authenticated search passed",
+    "frontendHTTP": 200,
+    "productionHealth": "ok"
+  }
+}

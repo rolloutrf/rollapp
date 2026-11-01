@@ -681,3 +681,19 @@ DDL в UI deployment. Отчёт текущего выпуска: [wishlist-busi
 место согласованным обслуживанием с сохранением журналов. Приостановка контроллера
 допустима лишь после проверки отдельной cgroup работающего контейнера; восстановить
 его исходный restart policy после очистки. Не перезапускать здоровую VM на полном диске.
+
+
+## Мессенджер
+
+`npm run test:messenger` включён в `check:comprehensive`: реальный AppShell,
+chrome/позиция новой кнопки, поиск, диалог, страницы истории, безопасный
+повтор отправки, черновик при переходе, literal text, control geometry/overflow
+на девяти viewport. Это изолированный UI transport с запретом реальных API,
+не замена production PostgreSQL. `server/messenger.test.js` входит в `npm test`
+и проверяет auth/membership, public-only search, validation/read cursors,
+повторную отправку и видимую ошибку отсутствующей схемы.
+
+Три таблицы мессенджера устанавливает только отдельная авторизованная операция:
+`node scripts/migrate-messenger.mjs` сначала проверяет production target read-only;
+после явного разрешения — та же команда с `--apply --database=<проверенная БД>`.
+Обычный запуск/release в verify-режиме не вызывает эту миграцию. См. `messenger.md`.

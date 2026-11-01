@@ -1,3 +1,4 @@
+import { registerMessengerRoutes } from "./messenger.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
@@ -1104,6 +1105,7 @@ registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerWishlistBusinessRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });

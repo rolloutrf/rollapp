@@ -88,7 +88,9 @@
     "test:private-data": "node scripts/check-private-data.mjs",
     "test:private-data:production": "ROLLAPP_TEST_PRIVATE_DATA=1 node --test server/private-data.integration.test.js",
     "private-data:import": "node scripts/migrate-private-data.mjs",
-    "test:private-history": "node scripts/private-history-pre-push.mjs --head"
+    "test:private-history": "node scripts/private-history-pre-push.mjs --head",
+    "test:messenger": "node scripts/messenger-smoke.mjs",
+    "test:messenger:production": "ROLLAPP_TEST_MESSENGER=1 node --test server/messenger.integration.test.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
