@@ -112,10 +112,18 @@ try {
       const box=await target.locator('.wish-group-tile__preview').boundingBox();
       await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
       if(confirmed) await page.locator('[data-group-id="g0"].is-drop-target').waitFor();
-      await page.mouse.up();await page.waitForTimeout(60);
+      await page.mouse.up();await page.waitForFunction(()=>window.dragTest.calls.length===1);
       const writes=await calls(page);
-      assert.equal(writes.filter(call=>call.path==='/lists/general/groups/g0/wishes').length,confirmed?1:0,'Existing group requires confirmed center intent');
-      assert(!writes.some(call=>call.path==='/wishes/reorder'),'Center grouping must not reorder the grid');
+      const remaining=Array.from({length:8},(_,index)=>`w${index+4}`);
+      assert.deepEqual(writes,confirmed
+        ? [{path:'/lists/general/groups/g0/wishes',payload:{wishId:'w1'}}]
+        : [{path:'/wishes/reorder',payload:{wishIds:['w0','w2','w3','w1',...remaining]}}],
+      'A quick center drop reorders once; only confirmed grouping changes membership and never writes order');
+      const expected=confirmed?['w0','g0',...remaining]:['w0','g0','w1',...remaining];
+      assert.deepEqual(await order(page,'wishes'),expected);
+      await page.evaluate(()=>window.dragTest.remount());
+      await page.locator('[data-group-id="g0"]').waitFor();
+      assert.deepEqual(await order(page,'wishes'),expected,'Quick transfer and confirmed membership both survive canonical reload');
     }
 
 

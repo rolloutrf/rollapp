@@ -6,11 +6,12 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
+import { smokeBaseUiDependencies } from './smoke-dependencies.mjs';
 const output = '/tmp/rollapp-stories';
 await mkdir(output, { recursive: true });
 await promisify(execFile)('ffmpeg',['-v','error','-f','lavfi','-i','color=c=orange:s=32x64:r=10','-t','1','-c:v','libx264','-pix_fmt','yuv420p','-y',`${output}/fixture-story.mp4`]);
 const videoFixture=await readFile(`${output}/fixture-story.mp4`);
-const server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{
+const server = await createServer({ cacheDir: process.env.STORIES_CACHE_DIR || 'node_modules/.vite-stories', optimizeDeps: { entries: ['scripts/fixtures/stories.jsx', 'scripts/fixtures/story-navigation.jsx'], include: [...smokeBaseUiDependencies, 'date-fns/locale', 'next-themes', 'qrcode', 'react-day-picker', 'sonner', 'zod'] }, server: { host: '127.0.0.1', port: 0, hmr: false, watch: null }, plugins: [{
   name: 'story-presentation', enforce: 'pre',
   transform(source, id) {
     if(id.endsWith('/src/App.jsx?story-navigation')) return source+'\nexport { PersistentProfileHero, ProfileEditorContext, ToastContext };';
@@ -30,7 +31,7 @@ const server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: f
   }); },
 }] });
 await listenSmokeServer(server);
-const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: [...browserLaunchOptions().args, '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const browser = await chromium.launch({ ...browserLaunchOptions(), args: [...browserLaunchOptions().args, '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 try {
   for(const width of [320,390,768,820,1024,1440,1920]) {
     const page=await browser.newPage({viewport:{width,height:844}}),errors=[];
