@@ -3,6 +3,7 @@ import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { BusinessAccessPage, SessionContext, ToastContext } from "../../src/App.jsx?personal-offers-test-export";
 import { MobileFormPages } from "../../src/components/mobile-form-pages";
+import { WishlistBusinessManager, WishlistBusinessListing } from "../../src/components/wishlist-business";
 import { RollsWallet } from "../../src/components/rolls-wallet";
 import { api } from "../../src/api.js";
 import { createRoot } from "react-dom/client";
@@ -18,8 +19,11 @@ let paid = false;
 let creationFailed = false;
 let paymentFailed = false;
 window.offerCalls = [];
+const wishlistItem = { id:"wishlist-item",title:"Wishlist товар",description:"Описание товара",price:"999 RUB",active:true,brand:"Бренд",business:{id:"seller",name:"Продавец",username:"seller",pageTitle:"Магазин"} };
 const client = {
   async get(path) {
+    if(path.endsWith("/buyers"))return {buyers:[{id:"buyer",name:"Получатель",username:"buyer"}]};
+    if(path.startsWith("/wishlist-business/")) return path.endsWith("/page")?{page:{title:"Магазин",description:"",published:true},items:[wishlistItem]}:{items:[{...wishlistItem,personalOffer:{id:"wishlist-invoice",title:wishlistItem.title,priceRolls:75,expiresAt:base.expiresAt,status:paid?"paid":"active",business:wishlistItem.business}}]};
     if (scenario === "pagination" && path.startsWith("/personal-offers")) {
       const first = { ...base, id: "first-page", title: "Первый счёт", status: "paid" };
       const older = { ...base, id: "older-offer", title: "Ранний счёт", status: paid ? "paid" : "active" };
@@ -36,6 +40,7 @@ const client = {
   },
   async post(path, body) {
     window.offerCalls.push({ path, body });
+    if(path.startsWith("/wishlist-business/")){if(!creationFailed){creationFailed=true;throw new Error("Повторите рекомендацию");}return{sent:true,personalOfferId:"wishlist-invoice"};}
     if (path === "/personal-offers/items") { if (!itemFailed) { itemFailed = true; throw new Error("Повторите сохранение"); } createdItem = { id: "new-item", title: body.title }; return { item: createdItem }; }
     if (path === "/personal-offers") { if (!creationFailed) { creationFailed = true; throw new Error("Повторите создание"); } return { offer: { id: "created" } }; }
     if (!paymentFailed) { paymentFailed = true; throw new Error("Недостаточно роллов"); }
@@ -48,5 +53,5 @@ api.get = client.get;
 api.post = client.post;
 const user = { id: scenario === "business-page" ? "seller" : "buyer", name: "Пользователь", username: "fixture", accountType: scenario === "business-page" ? "business" : "personal" };
 const showToast = () => {};
-const content = scenario === "business-page" ? <BusinessAccessPage /> : scenario === "wallet-page" ? <RollsWallet user={user} /> : <main className="app-page rollapp-body page-stack">{scenario === "business" ? <BusinessPersonalOffers client={client} /> : <>{(!scenario || scenario === "long-recipient") && <PersonalOfferComposer item={item} client={client} />}<PersonalOffers user={{ id: scenario === "seller" ? "seller" : "buyer" }} client={client} /></>}</main>;
+const content = scenario === "wishlist-manager" ? <main className="app-page rollapp-body"><WishlistBusinessManager user={{id:"seller",accountType:"business",businessCategory:"seller",sellerSpace:"products"}} space="products" /></main> : scenario === "wishlist-buyer" ? <main className="app-page rollapp-body"><WishlistBusinessListing space="products" offers /></main> : scenario === "business-page" ? <BusinessAccessPage /> : scenario === "wallet-page" ? <RollsWallet user={user} /> : <main className="app-page rollapp-body page-stack">{scenario === "business" ? <BusinessPersonalOffers client={client} /> : <>{(!scenario || scenario === "long-recipient") && <PersonalOfferComposer item={item} client={client} />}<PersonalOffers user={{ id: scenario === "seller" ? "seller" : "buyer" }} client={client} /></>}</main>;
 createRoot(document.getElementById("root")).render(<BrowserRouter><SessionContext.Provider value={{ user }}><ToastContext.Provider value={showToast}><MobileFormPages>{content}</MobileFormPages></ToastContext.Provider></SessionContext.Provider></BrowserRouter>);

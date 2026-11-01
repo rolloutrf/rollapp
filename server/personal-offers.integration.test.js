@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createPersonalOffer, payPersonalOffer, createPersonalOfferItem, registerPersonalOfferRoutes } from "./personal-offers.js";
+import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { ensureRollWallet, refundRollPurchase } from "./rolls.js";
 
 test("personal offers on existing production schema: every test write is rolled back", { skip: process.env.ROLLAPP_TEST_PERSONAL_OFFERS !== "1" }, async t => {
@@ -18,7 +19,7 @@ test("personal offers on existing production schema: every test write is rolled 
       await client.query("INSERT INTO users (id,email,username,name,password_hash,account_type) VALUES ($1,$2,$3,'Offer test','unusable',$4)", [id, `${id}@offer-test.invalid`, `offer-${id}`, type]);
       await ensureRollWallet(client, id);
     }
-    const product = await createPersonalOfferItem(client, seller, { title: "Frozen title", sphere: "education", itemType: "service", idempotencyKey: itemId });
+    const product = await createPersonalOfferItem(client, seller, { title: "Frozen title", priceRolls: 70, sphere: "education", itemType: "service", idempotencyKey: itemId });
     const data = { itemId: product.id, recipientId: buyer, priceRolls: 40, durationHours: 24, idempotencyKey: randomUUID() };
     const offer = await createPersonalOffer(client, seller, data);
     const balances = async () => (await client.query("SELECT user_id,balance::text FROM roll_wallets WHERE user_id=ANY($1::text[]) ORDER BY user_id", [[seller,buyer,other]])).rows;
@@ -39,15 +40,17 @@ test("personal offers on existing production schema: every test write is rolled 
       const app = express();
       app.use(express.json());
       let mutationRequests = 0;
-      registerPersonalOfferRoutes(app, {
-        requireAuth(req, _res, next) { req.user = { id: req.headers["x-test-user"], account_type: req.headers["x-test-user"] === seller ? "business" : "personal" }; next(); },
+      const dependencies = {
+        requireAuth(req, _res, next) { req.user = { id: req.headers["x-test-user"], account_type: req.headers["x-test-user"] === seller ? "business" : "personal", business_category: req.headers["x-test-user"] === seller ? "seller" : null, seller_space: "products" }; next(); },
         query: client.query.bind(client), transaction: async callback => {
           mutationRequests += 1;
           await client.query("SAVEPOINT http_offer_request");
           try { const result = await callback(client); await client.query("RELEASE SAVEPOINT http_offer_request"); return result; }
           catch (error) { await client.query("ROLLBACK TO SAVEPOINT http_offer_request"); await client.query("RELEASE SAVEPOINT http_offer_request"); throw error; }
         },
-      });
+      };
+      registerPersonalOfferRoutes(app, dependencies);
+      registerWishlistBusinessRoutes(app, dependencies);
       app.use((error, _req, res, _next) => res.status(500).json({ error: error.message }));
       const server = app.listen(0, "127.0.0.1");
       await new Promise(resolve => server.once("listening", resolve));
@@ -113,6 +116,34 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(await buyerBalance(), "99");
           assert.equal((await client.query("SELECT count(*)::int AS count FROM roll_store_purchases WHERE user_id=$1", [buyer])).rows[0].count, 1);
         } finally { await client.query("ROLLBACK TO SAVEPOINT http_invoice_lifecycle"); }
+        await client.query("SAVEPOINT wishlist_checkout");
+        try {
+          await client.query("UPDATE users SET business_category='seller',seller_space='products' WHERE id=$1",[seller]);
+          await client.query("INSERT INTO wishlist_business_pages(business_user_id,space,title,published) VALUES($1,'products','Seller page',TRUE)",[seller]);
+          const wishlistItem=randomUUID();
+          await client.query("INSERT INTO wishlist_business_items(id,business_user_id,space,title,price) VALUES($1,$2,'products','Original wishlist item','999 RUB')",[wishlistItem,seller]);
+          const grant=()=>client.query("INSERT INTO sphere_section_shares(owner_user_id,viewer_user_id,sphere,section) VALUES($1,$2,'wishlist','products')",[buyer,seller]);
+          await grant();
+          const request=async(path,body,userId=buyer)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api${path}`,{method:body?"POST":"GET",headers:{"x-test-user":userId,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,body:await response.json()};};
+          const terms={buyerId:buyer,priceRolls:40,durationHours:24,idempotencyKey:randomUUID()};
+          const path=`/wishlist-business/products/items/${wishlistItem}/recommend`;
+          const recommendation=await request(path,terms,seller);
+          assert.equal(recommendation.status,200,JSON.stringify(recommendation.body));
+          const paymentId=recommendation.body.personalOfferId;
+          assert(paymentId); assert.equal((await request(path,terms,seller)).body.personalOfferId,paymentId);
+          const listed=await request('/wishlist-business/products/offers');
+          assert.equal(listed.body.items[0].personalOffer.priceRolls,40);assert.equal(listed.body.items[0].personalOffer.id,paymentId);
+          assert.equal((await request('/wishlist-business/products/offers',null,other)).body.items.length,0);
+          await client.query("UPDATE wishlist_business_items SET title='Changed',price='10000 RUB' WHERE id=$1",[wishlistItem]);
+          assert.equal((await request('/wishlist-business/products/offers')).body.items[0].title,'Original wishlist item');
+          await client.query("DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'",[buyer,seller]);
+          const denied=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(denied.status,403);assert.equal(denied.body.code,'OFFER_ACCESS_REVOKED');
+          await grant();
+          const paid=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(paid.status,201,JSON.stringify(paid.body));
+          assert.equal((await request(`/personal-offers/${paymentId}/pay`,{})).status,200);
+          assert.equal((await client.query("SELECT balance::text FROM roll_wallets WHERE user_id=$1",[buyer])).rows[0].balance,'60');
+          assert.equal((await request('/wishlist-business/products/offers')).body.items[0].personalOffer.status,'paid');
+        } finally { await client.query("ROLLBACK TO SAVEPOINT wishlist_checkout"); }
       } finally { await new Promise(resolve => server.close(resolve)); }
     });
     await t.test("frozen terms, exact transfer, order, replay and guarded refund", async () => {

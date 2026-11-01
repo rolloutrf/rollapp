@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { createPersonalOffer } from "./personal-offers.js";
+import { RollsError } from "./rolls.js";
 import { WISHLIST_SPACE_IDS, canManageWishlistSpace } from "../shared/wishlist-business.js";
 
 const spacesSql = WISHLIST_SPACE_IDS.map(id => `'${id}'`).join(",");
@@ -45,7 +47,7 @@ const clean = row => ({ id: row.id, space: row.space, title: row.title, descript
 const fail = (res, status, error) => res.status(status).json({ error });
 
 export function registerWishlistBusinessRoutes(app, { requireAuth, query, transaction }) {
- const route = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(next);
+ const route = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(error=>error instanceof RollsError?res.status(error.status).json({error:error.message,code:error.code}):next(error));
  const scope = (req,res,next) => {
    if (!spaceSchema.safeParse(req.params.space).success) return fail(res,404,"Пространство не найдено");
    res.set("Cache-Control","private, no-store"); next();
@@ -92,21 +94,25 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
    res.json({buyers:result.rows});
  }));
  app.post(`${base}/items/:itemId/recommend`,requireAuth,scope,seller,route(async(req,res) => {
-   const parsed=z.object({buyerId:z.string().min(1).max(100)}).strict().safeParse(req.body);
-   if(!parsed.success) return fail(res,400,"Выберите покупателя");
+   const parsed=z.object({buyerId:z.string().min(1).max(100),priceRolls:z.number().int().min(1).max(1000000),durationHours:z.number().int().min(1).max(720),idempotencyKey:z.string().uuid()}).strict().safeParse(req.body);
+   if(!parsed.success) return fail(res,400,"Укажите покупателя, цену в роллах и срок действия");
    const result=await transaction(async client => {
      const item=await client.query(`SELECT i.id FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space WHERE i.id=$1 AND i.business_user_id=$2 AND i.space=$3 AND i.active AND p.published FOR SHARE OF i,p`,[req.params.itemId,req.user.id,req.params.space]);
      if(!item.rowCount) return {status:404,error:"Сначала опубликуйте страницу и айтем"};
      const granted=await client.query(`SELECT s.owner_user_id FROM sphere_section_shares s JOIN users u ON u.id=s.owner_user_id AND u.account_type='personal' WHERE s.owner_user_id=$1 AND s.viewer_user_id=$2 AND s.sphere='wishlist' AND s.section IN ($3,'wishlist') FOR SHARE OF s,u`,[parsed.data.buyerId,req.user.id,req.params.space]);
      if(!granted.rowCount) return {status:403,error:"Покупатель не открыл доступ к этому пространству"};
+     const payment=await createPersonalOffer(client,req.user.id,{itemId:req.params.itemId,itemSource:"wishlist",recipientId:parsed.data.buyerId,priceRolls:parsed.data.priceRolls,durationHours:parsed.data.durationHours,idempotencyKey:parsed.data.idempotencyKey});
      const saved=await client.query(`INSERT INTO wishlist_business_offers(id,item_id,buyer_user_id) VALUES($1,$2,$3) ON CONFLICT(item_id,buyer_user_id) DO NOTHING RETURNING id`,[randomUUID(),req.params.itemId,parsed.data.buyerId]);
-     return {sent:true,alreadySent:!saved.rowCount};
+     return {sent:true,alreadySent:payment.replayed,personalOfferId:payment.id};
    });
    if(result.error) return fail(res,result.status,result.error); res.json(result);
  }));
  app.get(`${base}/offers`,requireAuth,scope,route(async(req,res) => {
    const result=await query(`${itemSelect.replace("SELECT i.*", "SELECT i.*,o.id AS offer_id")} JOIN wishlist_business_offers o ON o.item_id=i.id WHERE o.buyer_user_id=$1 AND i.space=$2 AND NOT o.dismissed AND i.active AND p.published AND ${eligible} AND ${consent} ORDER BY o.created_at DESC,o.id LIMIT 200`,[req.user.id,req.params.space]);
-   res.json({items:result.rows.map(clean)});
+   const ids=result.rows.map(row=>row.id);
+   const invoices=ids.length?await query(`SELECT DISTINCT ON (wishlist_item_id) id,wishlist_item_id,item_title,price_rolls,expires_at,purchase_id,expires_at<=clock_timestamp() AS expired FROM business_personal_offers WHERE recipient_id=$1 AND wishlist_item_id=ANY($2::text[]) ORDER BY wishlist_item_id,created_at DESC,id DESC`,[req.user.id,ids]):{rows:[]};
+   const byItem=new Map(invoices.rows.map(row=>[row.wishlist_item_id,row]));
+   res.json({items:result.rows.map(row=>{const invoice=byItem.get(row.id);return {...clean(row),title:invoice?.item_title||row.title,personalOffer:invoice?{id:invoice.id,title:invoice.item_title,priceRolls:Number(invoice.price_rolls),expiresAt:invoice.expires_at,status:invoice.purchase_id?"paid":invoice.expired?"expired":"active",business:{id:row.business_user_id,name:row.business_name}}:null};})});
  }));
  app.delete(`${base}/offers/:offerId`,requireAuth,scope,route(async(req,res) => {
    await query(`UPDATE wishlist_business_offers o SET dismissed=TRUE FROM wishlist_business_items i WHERE o.id=$1 AND o.buyer_user_id=$2 AND i.id=o.item_id AND i.space=$3`,[req.params.offerId,req.user.id,req.params.space]);

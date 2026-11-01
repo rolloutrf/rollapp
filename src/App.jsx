@@ -2819,7 +2819,7 @@ function BusinessAccessPage() {
         {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
-      {category?.id !== "seller" && <BusinessPersonalOffers />}
+      {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
       <section className="business-access-page__section" aria-labelledby="business-people-title">
         <div className="business-access-page__section-heading">
           <div><h2 id="business-people-title">Пользователи</h2><p>В запросе всегда указано одно конкретное пространство.</p></div>

@@ -34,7 +34,7 @@ test("creating an offer freezes price/title and computes expiry once using datab
   const client = scripted([[/account_type='business'/, [{ id: "seller" }]], [/idempotency_key/, []], [/FROM business_marketplace_items/, [{ title: "Original title" }]], [/account_type='personal'/, [{ id: "buyer" }]], [/INSERT INTO business_personal_offers/, []]]);
   const data = input(); const result = await createPersonalOffer(client, "seller", data);
   assert.equal(result.replayed, false);
-  assert.deepEqual(client.calls.at(-1).params.slice(1), ["seller", "buyer", "item", "Original title", 50, 24, data.idempotencyKey]);
+  assert.deepEqual(client.calls.at(-1).params.slice(1), ["seller", "buyer", "item", "Original title", 50, 24, data.idempotencyKey, null]);
   assert.match(client.calls.at(-1).sql, /clock_timestamp/); client.done();
 });
 test("creation retries preserve the original expiry and reject different terms", async () => {
@@ -125,7 +125,7 @@ test("business item selection uses authenticated account_type and enforces selle
 
 test("own item creation accepts no client-supplied seller and retries do not duplicate", async () => {
   const { createPersonalOfferItem, personalOfferItemSchema } = await import("./personal-offers.js");
-  const data = { title: "Service", sphere: "education", itemType: "service", idempotencyKey: randomUUID() };
+  const data = { title: "Service", priceRolls: 70, sphere: "education", itemType: "service", idempotencyKey: randomUUID() };
   assert.equal(personalOfferItemSchema.safeParse({ ...data, businessId: "other" }).success, false);
   assert.equal(personalOfferItemSchema.safeParse({ ...data, title: " " }).success, false);
   const personal = scripted([[/account_type='business'/, []]]);
@@ -133,7 +133,7 @@ test("own item creation accepts no client-supplied seller and retries do not dup
   const first = scripted([[/account_type='business'/, [{ id: "seller" }]], [/SELECT \* FROM business_marketplace_items/, []], [/INSERT INTO business_marketplace_items/, []]]);
   const result = await createPersonalOfferItem(first, "seller", data);
   assert.equal(result.replayed, false); assert.equal(first.calls.at(-1).params[1], "seller"); first.done();
-  const row = { business_user_id: "seller", title: "Service", description: "", sphere: "education", item_type: "service" };
+  const row = { business_user_id: "seller", title: "Service", description: "", price_rolls: "70", sphere: "education", item_type: "service" };
   for (const seller of ["seller", "other"]) {
     const retry = scripted([[/account_type='business'/, [{ id: seller }]], [/SELECT \* FROM business_marketplace_items/, [row]]]);
     if (seller === "seller") assert.deepEqual(await createPersonalOfferItem(retry, seller, data), { id: result.id, replayed: true });

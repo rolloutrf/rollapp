@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ControlBar } from "@/components/control-bar";
+import { canBusinessAccessSection } from "../../shared/business-accounts.js";
+import { SPHERE_SECTIONS } from "../../shared/sphere-sharing.js";
 import { formatRolls } from "../../shared/rolls.js";
 
-const durations = [["1", "1 час"], ["24", "24 часа"], ["72", "3 дня"], ["168", "7 дней"], ["720", "30 дней"]];
-const itemSpheres = [["identity", "Личность"], ["career", "Карьера"], ["education", "Образование"], ["health", "Здоровье"], ["contacts", "Контакты"]];
+export const durations = [["1", "1 час"], ["24", "24 часа"], ["72", "3 дня"], ["168", "7 дней"], ["720", "30 дней"]];
+const itemSpheres = [["career", "Карьера"], ["education", "Образование"], ["health", "Здоровье"], ["contacts", "Контакты"]];
 
 export function PersonalOfferComposer({ item, client = api }) {
   const [open, setOpen] = useState(false);
@@ -63,10 +65,11 @@ export function PersonalOfferComposer({ item, client = api }) {
   </form>;
 }
 
-export function BusinessOfferItemForm({ onCreated, onCancel, client = api }) {
+export function BusinessOfferItemForm({ onCreated, onCancel, client = api, spheres = itemSpheres }) {
+  const [basePrice, setBasePrice] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [sphere, setSphere] = useState("education");
+  const [sphere, setSphere] = useState(spheres.some(([id])=>id==="education")?"education":spheres[0]?.[0]||"education");
   const [itemType, setItemType] = useState("product");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -76,7 +79,7 @@ export function BusinessOfferItemForm({ onCreated, onCancel, client = api }) {
     event.preventDefault();
     if (lock.current) return;
     lock.current = true; setBusy(true); setError("");
-    const terms = { title, description, sphere, itemType };
+    const terms = { title, description, sphere, itemType, priceRolls: Number(basePrice) };
     const signature = JSON.stringify(terms);
     if (pending.current?.signature !== signature) pending.current = { signature, payload: { ...terms, idempotencyKey: crypto.randomUUID() } };
     try { const result = await client.post("/personal-offers/items", pending.current.payload); onCreated(result.item.id); }
@@ -85,16 +88,17 @@ export function BusinessOfferItemForm({ onCreated, onCancel, client = api }) {
   };
   return <form className="flex min-w-0 flex-col gap-4" aria-label="Новый товар бизнеса" onSubmit={submit}>
     <Field><FieldLabel htmlFor="offer-item-title">Название</FieldLabel><Input id="offer-item-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={160} required disabled={busy} /></Field>
+    <Field><FieldLabel htmlFor="offer-item-base-price">Цена магазина в роллах</FieldLabel><Input id="offer-item-base-price" type="number" min="1" max="1000000" step="1" required value={basePrice} disabled={busy} onChange={e=>setBasePrice(e.target.value)} /></Field>
     <Field><FieldLabel htmlFor="offer-item-description">Описание</FieldLabel><Textarea id="offer-item-description" value={description} onChange={e => setDescription(e.target.value)} maxLength={1200} disabled={busy} /></Field>
     <Field><FieldLabel htmlFor="offer-item-type">Тип</FieldLabel><Select value={itemType} onValueChange={setItemType} disabled={busy}><SelectTrigger id="offer-item-type" className="w-full"><SelectValue>{() => itemType === "product" ? "Товар" : "Услуга"}</SelectValue></SelectTrigger><SelectContent><SelectItem value="product">Товар</SelectItem><SelectItem value="service">Услуга</SelectItem></SelectContent></Select></Field>
-    <Field><FieldLabel htmlFor="offer-item-sphere">Сфера</FieldLabel><Select value={sphere} onValueChange={setSphere} disabled={busy}><SelectTrigger id="offer-item-sphere" className="w-full"><SelectValue>{() => itemSpheres.find(([value]) => value === sphere)?.[1]}</SelectValue></SelectTrigger><SelectContent>{itemSpheres.map(([value,label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
-    <p>Товар появится в предложениях бизнеса. Персональную цену и срок вы укажете при создании оффера.</p>
+    <Field><FieldLabel htmlFor="offer-item-sphere">Сфера</FieldLabel><Select value={sphere} onValueChange={setSphere} disabled={busy}><SelectTrigger id="offer-item-sphere" className="w-full"><SelectValue>{() => itemSpheres.find(([value]) => value === sphere)?.[1]}</SelectValue></SelectTrigger><SelectContent>{spheres.map(([value,label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
+    <p>Товар появится в магазине бизнеса. Персональную цену и срок вы укажете при создании оффера.</p>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <ControlBar className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy} onClick={onCancel}>Отмена</Button><Button type="submit" disabled={busy}>{busy ? "Сохраняем…" : "Сохранить товар"}</Button></ControlBar>
   </form>;
 }
 
-export function BusinessPersonalOffers({ client = api }) {
+export function BusinessPersonalOffers({ client = api, user }) {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
@@ -107,6 +111,8 @@ export function BusinessPersonalOffers({ client = api }) {
     return () => { active = false; };
   }, [revision, client]);
   const item = items.find(value => value.id === selected);
+  const spheres = itemSpheres.filter(([id])=>!user||canBusinessAccessSection(user,id,SPHERE_SECTIONS[id]?.[0]));
+  if(!spheres.length)return null;
   return <section className="page-stack min-w-0" aria-labelledby="business-offers-title">
     <header className="typeset typeset-rollapp"><h2 id="business-offers-title">Рекомендовать товар</h2>
     <p>Выберите товар, получателя, персональную цену и срок. Созданные счета доступны в разделе «Роллы».</p></header>
@@ -114,7 +120,7 @@ export function BusinessPersonalOffers({ client = api }) {
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !items.length && <p>У вашего бизнеса пока нет активных товаров или услуг.</p>}
     {!creatingItem && <div><PageActionButton onClick={() => setCreatingItem(true)}>Добавить товар</PageActionButton></div>}
-    {creatingItem && <BusinessOfferItemForm client={client} onCancel={() => setCreatingItem(false)} onCreated={id => { setSelected(id); setCreatingItem(false); setRevision(value => value + 1); }} />}
+    {creatingItem && <BusinessOfferItemForm spheres={spheres} client={client} onCancel={() => setCreatingItem(false)} onCreated={id => { setSelected(id); setCreatingItem(false); setRevision(value => value + 1); }} />}
     {items.length > 0 && <Field><FieldLabel htmlFor="business-offer-item">Товар или услуга</FieldLabel><Select value={selected} onValueChange={setSelected}><SelectTrigger id="business-offer-item" className="w-full"><SelectValue placeholder="Выберите товар">{() => item?.title || "Выберите товар"}</SelectValue></SelectTrigger><SelectContent>{items.map(value => <SelectItem key={value.id} value={value.id}>{value.title}</SelectItem>)}</SelectContent></Select></Field>}
     {item && <PersonalOfferComposer key={item.id} item={item} client={client} />}
   </section>;
@@ -215,4 +221,13 @@ export function PersonalOffers({ user, onPaid, client = api }) {
     </ControlBar>}
     <AlertDialog open={Boolean(selected)} onOpenChange={open => { if (!open && !busy) setSelected(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Оплатить персональный счёт?</AlertDialogTitle><AlertDialogDescription>{selected && `${selected.title} · ${formatRolls(selected.priceRolls)}. Роллы будут переведены бизнесу ${selected.business.name}.`}</AlertDialogDescription></AlertDialogHeader>{paymentError && <Alert variant="destructive"><AlertDescription>{paymentError}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={event => { event.preventDefault(); pay(); }}>{busy ? "Оплачиваем…" : "Подтвердить оплату"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </section>;
+}
+
+export function OfferPaymentAction({ offer, onPaid }) {
+  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(""),[paid,setPaid]=useState(offer.status==="paid");
+  const lock=useRef(false);
+  const pay=async()=>{if(lock.current)return;lock.current=true;setBusy(true);setError("");try{await api.post(`/personal-offers/${offer.id}/pay`,{});setPaid(true);setOpen(false);onPaid?.();}catch(e){setError(e.message);}finally{lock.current=false;setBusy(false);}};
+  if(paid)return <span role="status">Оплачен</span>;
+  if(offer.status==="expired"||new Date(offer.expiresAt).getTime()<=Date.now())return <span>Срок истёк</span>;
+  return <><Button className="min-w-0 flex-1" onClick={()=>setOpen(true)}>Оплатить</Button><AlertDialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Оплатить персональный счёт?</AlertDialogTitle><AlertDialogDescription>{offer.title} · {formatRolls(offer.priceRolls)}. Роллы получит {offer.business.name}.</AlertDialogDescription></AlertDialogHeader>{error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={event=>{event.preventDefault();pay();}}>{busy?"Оплачиваем…":"Подтвердить оплату"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></>;
 }
