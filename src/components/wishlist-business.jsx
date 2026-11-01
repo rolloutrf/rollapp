@@ -110,5 +110,11 @@ export function WishlistBusinessListing({space,offers=false,business=""}) {
 }
 export function WishlistBusinessPage({user,manager=false}) {
  const location=useLocation();const space=wishlistSpace(location.search);
- return <div className="app-page page-stack rollapp-body"><ControlBar className="page-actions horizontal-action-scroller"><Link to={`/app/wishes?tab=${space}`} className={buttonVariants({variant:"outline",size:"icon"})} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true"/></Link></ControlBar><header className="typeset typeset-rollapp"><h1>{manager?"Моя страница":"Предложения"} · {labelFor(space)}</h1></header>{manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}</div>;
+ return <section className="app-page page-stack rollapp-body" aria-label={`${manager?"Страница продавца":"Предложения"}: ${labelFor(space)}`}>
+   {manager&&<>
+     <ControlBar className="page-actions horizontal-action-scroller"><Link to={`/app/wishes?tab=${space}`} className={buttonVariants({variant:"outline",size:"icon"})} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true"/></Link></ControlBar>
+     <header className="typeset typeset-rollapp"><h1>Моя страница · {labelFor(space)}</h1></header>
+   </>}
+   {manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}
+ </section>;
 }
