@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, FileText, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Spinner } from "@/components/ui/spinner";
 import { EditableTextBlock } from "@/components/editable-text-block";
 import { InlineTextField } from "@/components/inline-text-field";
 import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
 import { cn } from "@/lib/utils";
+import { NotesLibrary } from "@/components/notes-library";
 import "./planning-notes.css";
 
 function NoteError({ error, retry }) {
@@ -46,28 +45,16 @@ export function PlanningNotes({ client = api }) {
     next.delete("space"); next.delete("spaceKind");
     return next;
   });
-  const create = async () => {
+  const create = async (template) => {
     if (creating) return;
     const sourceRevision = navigation.current.revision;
     setCreating(true); setError("");
-    try { const { note } = await client.post("/planning/notes", { title: "Без названия", content: "" }); if (mounted.current && navigation.current.revision === sourceRevision) open(note.id); }
+    try { const { note } = await client.post("/planning/notes", { title: template.id === "blank" ? "Без названия" : template.title, content: template.content }); if (mounted.current && navigation.current.revision === sourceRevision) open(note.id); }
     catch (cause) { if (mounted.current && navigation.current.revision === sourceRevision) setError(cause.message); }
     finally { if (mounted.current) setCreating(false); }
   };
-  return <section className="app-page planning-notes page-stack typeset typeset-rollapp" aria-label="Заметки">
-    {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <>
-      <h1>Заметки</h1>
-      <header className="page-toolbar not-typeset rollapp-body">
-        <PageActionButton onClick={create} disabled={creating || loading}><Plus aria-hidden="true" />{creating ? "Создаём…" : "Создать заметку"}</PageActionButton>
-      </header>
-      <NoteError error={error} retry={() => setVersion(v => v + 1)} />
-      {loading ? <p role="status" className="flex items-center gap-2"><Spinner />Загружаем заметки…</p> : !error && (notes.length ?
-        <nav aria-label="Список заметок" className="planning-notes__list not-typeset rollapp-body">
-          {notes.map(note => <Link className="planning-notes__item" key={note.id} to={`?tab=notes&note=${encodeURIComponent(note.id)}`}>
-            <FileText aria-hidden="true" className="size-5 shrink-0" /><span className="min-w-0 flex-1 break-words">{note.title}</span>
-          </Link>)}
-        </nav> : <p className="text-muted-foreground">Пока нет заметок. Создайте первую, чтобы записать мысли, планы или идеи.</p>)}
-    </>}
+  return <section className={`app-page planning-notes page-stack ${noteId ? "typeset typeset-rollapp" : "rollapp-body planning-notes--library"}`} aria-label="Заметки">
+    {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <NotesLibrary notes={notes} loading={loading} error={error} creating={creating} onCreate={create} errorContent={<NoteError error={error} retry={() => setVersion(v => v + 1)} />} />}
   </section>;
 }
 

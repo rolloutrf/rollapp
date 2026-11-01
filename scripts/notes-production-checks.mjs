@@ -27,12 +27,12 @@ export async function runNotesProductionChecks({ origin, token }) {
         const page = await context.newPage();
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(`${baseUrl}/app/planning?tab=notes`);
-        await page.getByText("Пока нет заметок.", { exact: false }).waitFor();
+        await page.getByText("Здесь будут ваши документы", { exact: false }).waitFor();
         assert.equal(await page.locator(".app-layout--planning").count(), 0);
         await page.getByRole("button", { name: "Открыть планирование", exact: true }).click();
         await page.locator(".planning-fab__panel").getByRole("link", { name: "Заметки", exact: true }).click();
         const create = page.getByRole("button", { name: "Создать заметку", exact: true });
-        const actionStyle = await create.evaluate(node => { const style = getComputedStyle(node); return { left: style.paddingLeft, right: style.paddingRight, height: node.getBoundingClientRect().height }; });
+        const actionStyle = await page.getByRole("button", { name: "Галерея шаблонов", exact: true }).evaluate(node => { const style = getComputedStyle(node); return { left: style.paddingLeft, right: style.paddingRight, height: node.getBoundingClientRect().height }; });
         assert.equal(actionStyle.left, "24px");
         assert.equal(actionStyle.right, "24px");
         assert(actionStyle.height >= 48);
@@ -82,7 +82,7 @@ export async function runNotesProductionChecks({ origin, token }) {
         await page.screenshot({ path: `/tmp/rollapp-notes-production-${width}-${height}.png`, animations: "disabled" });
         await page.getByRole("button", { name: "Удалить заметку", exact: true }).click();
         await page.getByRole("button", { name: "Удалить", exact: true }).click();
-        await page.getByText("Пока нет заметок.", { exact: false }).waitFor();
+        await page.getByText("Здесь будут ваши документы", { exact: false }).waitFor();
         assert.deepEqual(errors, []);
         console.log(`PASS notes production UI ${width}×${height}: real app/authenticated HTTP/PostgreSQL, native edit/format/checklist, save/reload/reopen/delete`);
       } finally { await context.close(); }

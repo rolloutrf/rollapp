@@ -1,0 +1,98 @@
+{
+  "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirty": true,
+  "date": "2026-11-01",
+  "sourceSha256": {
+    "docs/planning-notes.md": "d7d787bf4426e7284e9655d63154a1aba64b63263a453ea3d148d84c5f1c9a54",
+    "scripts/fixtures/planning-notes.jsx": "d5962a21c02b6fc1204f49774dc1a20c6d3b2c6b78203f5ac327063a184e144e",
+    "scripts/planning-notes-smoke.mjs": "35685857778909e24c088e63d96279491eac122933bffee52b7732da8c30b0f5",
+    "server/notes.js": "813b1c64d453e93bb9b7d8a1eb7044e398cfe600d1ceeb5e370029491771d557",
+    "server/notes.test.js": "c18e5d76644f5946ea6c6c360deba3aca57890230c702e1903343ff8e581d66f",
+    "src/components/notes-library.jsx": "733a0c9d46e74dfb919b6ee7773b89112b5c52196a96bfa09772e279abc3aae1",
+    "src/components/planning-notes.css": "92b27ab82d287d23352d4cbef390dc19343e84e598f9d3b11bffebd0aef129f4",
+    "src/components/planning-notes.jsx": "e95f408dab36af73c8d507c57f120277c0ff29c8f5f3113b4c32bf9bb795ea17",
+    "docs/verification.md": "cef14ccd6c9b2a742af61e75af1a52a4579171dc2fa2b3dc8bc8246831117d77",
+    "package-lock.json": "429c5ea024935f0af6d7d214b16c7023f8a22e3282bde012a2c445dc8fc00819",
+    "package.json": "0a38e9436ac126e22a2c3c95ed5ab51c4b9bf4f6a9b9315fab98cc7ff88c91cf",
+    "scripts/check-comprehensive.mjs": "094f8d078aa073b602e5b4731b63e5adfbe197ddf041857a89478e3044b43bc0",
+    "server/database-startup.js": "0bdf074ef7e259b0636868db4745812140d6ae25fe0868e4e1f551f52d8e9c76",
+    "server/database-startup.test.js": "f264bd2af6053fbc05331d102dfe41ad2043bb762910309d853005023b7d9f44",
+    "server/image-usage.js": "e891b6c84ece0d7905e001cd8b00457797919380d5527c8511f931c3547c4ce6",
+    "server/image-usage.test.js": "ac7a382d4577145d405cb1f82cd991ecafeb478b3ce49ce2c82fad07955f70f6",
+    "server/index.js": "b2c8796dc12336a551ca0bebfeeb9b097d66629af86b386d17bd7a194a110c07",
+    "src/App.jsx": "da1f95a76e450027d01f0f37967498388f5f0c132e12bcb8cd148fbd3dcd9c23",
+    "src/components/planning-space-switcher.jsx": "7330e0b88cff9bd85c560a2f1f50d7039a820f3ad275b0d5236a4d1d6f47c3dc",
+    "src/components/planning-space.jsx": "dbe371101c38d93f9bf2c8f917cd2d8f3eb477ecac5101640875ffb27c57fa88"
+  },
+  "checks": {
+    "unit": {
+      "passed": 793,
+      "skipped": 1,
+      "failed": 0
+    },
+    "shadcn": "passed",
+    "build": "passed",
+    "notes": {
+      "passed": 8,
+      "failed": 0,
+      "fullMatrix": true
+    },
+    "navigation": {
+      "passed": 46,
+      "fullMatrix": true
+    },
+    "actionRails": {
+      "passed": 90,
+      "fullMatrix": true
+    },
+    "formActions": {
+      "passed": 101,
+      "fullMatrix": true
+    },
+    "comprehensive": "failed in calendar 768x900: toast intercepts Save",
+    "textEdit": {
+      "status": "incomplete; supplemental unchanged-editor sweep stopped",
+      "passed": 35,
+      "fullMatrix": false
+    },
+    "auditProduction": {
+      "total": 0
+    },
+    "auditAll": {
+      "total": 6,
+      "low": 2,
+      "moderate": 4,
+      "high": 0
+    },
+    "productionReadOnlyUI": "passed; existing session and existing notes; no intentional writes",
+    "keepalive": "running",
+    "diffCheck": "passed"
+  },
+  "pushPreparation": {
+    "base": "918285ed8be1cdcc8d0a71d42d56c156957e7d91",
+    "dirty": true,
+    "preservedCurrentMainApiAndLockfile": true,
+    "checks": {
+      "unit": {
+        "passed": 878,
+        "skipped": 1,
+        "failed": 0
+      },
+      "shadcn": "passed",
+      "build": "passed",
+      "notes": {
+        "passed": 8,
+        "fullMatrix": true
+      },
+      "diffCheck": "passed"
+    },
+    "sourceSha256": {
+      "src/components/notes-library.jsx": "9f76318fb3da38c3aeb503b480b3cde608e60ad8abaf9302cb934723dcae2ac9",
+      "src/components/planning-notes.jsx": "e95f408dab36af73c8d507c57f120277c0ff29c8f5f3113b4c32bf9bb795ea17",
+      "src/components/planning-notes.css": "4d2eeb73faee7ad9c4e77b07f11656a21f0ccbf0ef88537681b5b3277941f517",
+      "scripts/fixtures/planning-notes.jsx": "d5962a21c02b6fc1204f49774dc1a20c6d3b2c6b78203f5ac327063a184e144e",
+      "scripts/planning-notes-smoke.mjs": "35685857778909e24c088e63d96279491eac122933bffee52b7732da8c30b0f5",
+      "scripts/notes-production-checks.mjs": "335e32d998d9fcda0f3f90cc5bc057770c59cfd2ee9ddc711ba0cfa080ae52eb"
+    }
+  }
+}
