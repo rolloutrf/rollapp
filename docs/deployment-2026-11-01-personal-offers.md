@@ -15,10 +15,12 @@
 - `npm run test:ui` — PASS (37 primitives, 99 application sources).
 - `npm run build` — PASS; остаётся предупреждение о размере bundle.
 - `npm audit --omit=dev`: 0; полный audit: 8 dev-уязвимостей (2 low, 4 moderate, 2 high), тот же граф актуального main; зависимости не менялись.
-- UI offers: восемь viewport, включая 320/390 mobile, 768/820 transition, 1024/1440/1920 desktop и короткое окно. Полный результат и geometry controls фиксируются после завершения.
+- UI offers: восемь viewport, включая 320/390 mobile, 768/820 transition, 1024/1440/1920 desktop и короткое окно. PASS во всех восьми viewport. `npm run test:controls` также PASS, включая pixel/DPR assertions. Проверяемый код/fixture: `f32f76e11898125caac8901c93a6af3a541174bb`, чистое дерево до этой записи.
 
 Один предварительный UI запуск упал из-за отсутствовавшего нового fixture-ответа подарочных карт; исправлен fixture. Следующий запуск прервался ERR_ABORTED при смене URL после закрытия drawer; в smoke добавлено ожидание удаления formScreen из URL после закрытия мобильной формы, без ослабления assertions. Это целевая проверка, не полный аудит приложения.
 
 Исходный dev keepalive сохранён: rf.rollapp.development.92da37f66655, API 8287, frontend 5378, health ready. Release worktree не запускает второй dev service.
 
 Результат rollout и live review записываются после выкладки. Аутентифицированные реальные оплаты не выполняются ради проверки.
+
+Перед rollout подтверждена здоровая версия/rollback `322dac0e58236594e8b0868e52c7eb8afc44464b`, предыдущий workflow 41329088206 завершился success.
