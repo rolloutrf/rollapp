@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { PersonalOfferComposer } from "@/components/personal-offers";
 import { Spinner } from "@/components/ui/spinner";
 
 function initials(value = "") {
@@ -32,7 +33,7 @@ export function SphereBusinessControls({ sphereId }) {
   );
 }
 
-function MarketplaceItem({ item, busy, onBuy }) {
+function MarketplaceItem({ item, busy, onBuy, user }) {
   return (
     <Card className="business-marketplace-card overflow-hidden p-0">
       <div className="business-marketplace-card__media">
@@ -56,12 +57,13 @@ function MarketplaceItem({ item, busy, onBuy }) {
           <strong className="business-marketplace-card__price"><Coins aria-hidden="true" />{item.priceRolls.toLocaleString("ru-RU")} роллов</strong>
           <Button disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button>
         </div>
+        {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
       </div>
     </Card>
   );
 }
 
-export function BusinessMarketplacePage({ sphere }) {
+export function BusinessMarketplacePage({ sphere, user }) {
   const [state, setState] = useState({ loading: true, error: "", items: [] });
   const [selected, setSelected] = useState(null);
   const [busyId, setBusyId] = useState("");
@@ -107,7 +109,7 @@ export function BusinessMarketplacePage({ sphere }) {
         </Empty>
       ) : null}
       {state.items.length ? <section className="business-marketplace-grid" aria-label={title}>
-        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} busy={busyId === item.id} onBuy={setSelected} />)}
+        {state.items.map((item) => <MarketplaceItem key={item.id} item={item} busy={busyId === item.id} onBuy={setSelected} user={user} />)}
       </section> : null}
 
       <AlertDialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !busyId) setSelected(null); }}>

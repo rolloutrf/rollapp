@@ -408,6 +408,9 @@ export async function refundRollPurchase(client, userId, purchaseId) {
     [purchaseId, userId],
   );
   if (!purchase.rowCount) throw new RollsError("Заказ не найден", "ORDER_NOT_FOUND", 404);
+  if (purchase.rows[0].delivery?.personalOfferId) {
+    throw new RollsError("Для возврата персонального заказа обратитесь к продавцу", "SELLER_REFUND_REQUIRED", 409);
+  }
   if (purchase.rows[0].refunded_at) {
     const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
     return { order: orderFromRow(purchase.rows[0]), balance: Number(wallet.rows[0].balance), replayed: true };

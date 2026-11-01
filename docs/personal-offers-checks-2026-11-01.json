@@ -1,0 +1,51 @@
+{
+  "status": "cancelled_by_user",
+  "cancelledAt": "2026-11-01T15:57:12.519Z",
+  "controllerExitCode": 143,
+  "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "dirty": true,
+  "reconstructedFromLog": true,
+  "note": "Original JSON was empty when the controller received SIGTERM. A following stage starts only after the preceding stage exits 0; passed statuses are reconstructed from those logged transitions. This is not a comprehensive PASS.",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "passed"
+    },
+    {
+      "name": "test:navigation",
+      "status": "passed"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "passed"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "cancelled_by_user"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    }
+  ]
+}

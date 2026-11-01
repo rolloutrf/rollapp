@@ -697,3 +697,5 @@ chrome/позиция новой кнопки, поиск, диалог, стр�
 `node scripts/migrate-messenger.mjs` сначала проверяет production target read-only;
 после явного разрешения — та же команда с `--apply --database=<проверенная БД>`.
 Обычный запуск/release в verify-режиме не вызывает эту миграцию. См. `messenger.md`.
+
+Персональные офферы: `docs/personal-offers.md`, targeted `npm run test:offers` и rollback-only `npm run test:offers:production`.

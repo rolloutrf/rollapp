@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { MakiIcon } from "@/components/maki-icon";
 import { RollsTopup } from "@/components/rolls-topup";
+import { PersonalOffers } from "@/components/personal-offers";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/rolls.js";
@@ -180,8 +181,8 @@ export function RollsWallet({ user }) {
     finally { if (mounted.current) setLoadingMore(false); }
   };
 
-  return <div className="app-page rolls-page typeset typeset-rollapp">
-    <div className="not-typeset rollapp-body flex flex-col gap-6">
+  return <div className="app-page rolls-page rollapp-body">
+    <div className="rollapp-body flex flex-col gap-6">
       {loadError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
         <span>{loadError}</span><Button variant="outline" onClick={() => refresh()} disabled={loading}>Повторить</Button>
       </AlertDescription></Alert>}
@@ -238,6 +239,8 @@ export function RollsWallet({ user }) {
               <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
+
+          <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
 
           {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />

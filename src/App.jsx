@@ -45,6 +45,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
+import { BusinessPersonalOffers } from "@/components/personal-offers";
 import { BusinessMarketplacePage, SphereBusinessControls } from "@/components/business-marketplace-page";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
 import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
@@ -2818,6 +2819,7 @@ function BusinessAccessPage() {
         {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
+      {category?.id !== "seller" && <BusinessPersonalOffers />}
       <section className="business-access-page__section" aria-labelledby="business-people-title">
         <div className="business-access-page__section-heading">
           <div><h2 id="business-people-title">Пользователи</h2><p>В запросе всегда указано одно конкретное пространство.</p></div>
@@ -3287,11 +3289,12 @@ function ProtectedWishCatalog() {
 }
 
 function BusinessMarketplaceRoute() {
+  const { user } = useSession();
   const { sphereId = "" } = useParams();
   if (sphereId === "contacts") return <LegacyContactsRedirect />;
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
   if (!sphere || !businessMarketplacePath(sphereId)) return <Navigate to={APP_HOME} replace />;
-  return <BusinessMarketplacePage sphere={sphere} />;
+  return <BusinessMarketplacePage sphere={sphere} user={user} />;
 }
 
 function ProtectedApp() {

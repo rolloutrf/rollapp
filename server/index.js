@@ -25,6 +25,7 @@ import { addDefaultFriend } from "./default-friend.js";
 import { enrollWishRewards, ensureRollWallet, grantWishReward } from "./rolls.js";
 import { registerRollsRoutes } from "./rolls-routes.js";
 import { registerCdekRoutes } from "./cdek-routes.js";
+import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
@@ -1103,6 +1104,7 @@ registerTonContactCardRoutes(app, { requireAuth, rateLimit: contactCardRateLimit
 registerTonRollsRoutes(app, { requireAuth, query, transaction });
 registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
+registerPersonalOfferRoutes(app, { requireAuth, query, transaction });
 registerWishlistBusinessRoutes(app, { requireAuth, query, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
