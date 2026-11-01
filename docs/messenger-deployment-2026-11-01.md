@@ -33,3 +33,35 @@
 native button. Исправлены реальные композиции: общий form-surface и Button
 с сохранением полноразмерного клика по карточке. Guard не ослаблялся.
 Повторный локальный `npm run test:ui` — PASS (97 application sources).
+
+
+## Фактический результат
+
+Пользователь явно отменил полный набор проверок. Полный run41318114646
+отменён и дождался terminal cancelled до запуска следующего релиза, чтобы
+его deploy-step не мог позже конфликтовать с новой выкладкой.
+
+Штатный сокращённый `verification=ui-copy` запускает unit, UI contract,
+полную control-size матрицу и build. Он завершился **success**:
+https://github.com/rolloutrf/rollapp/actions/runs/41323746540
+Дополнительно после отмены полного набора отдельно повторён messenger UI:
+9/9 PASS, реальные API в fixture запрещены. Это не полный comprehensive PASS.
+
+Immutable runtime SHA: `918285ed8be1cdcc8d0a71d42d56c156957e7d91`.
+Публичный health подтвердил ok=true, service=rollapp и точное совпадение SHA.
+CI image build/push, metadata identity verification, public health/canonical
+redirects и Telegram configuration прошли. VM не перезагружалась.
+
+Read-only VM preflight подтвердил id/folder/runtime-SA и строгий SSH host key;
+свободно7815311360 байт перед выкладкой, старый image1531e98 работал.
+Никаких удалений Docker images, контейнеров, volumes или данных БД не было.
+
+Реальная authenticated production UI проверена в IAB: на Wishlist появилась
+кнопка сообщений48×48px на8px выше планирования48×48px. Переход открыл
+мессенджер и пустой список без API-ошибок; поиск нашёл зарегистрированного
+участника. Поиск очищен. Диалоги и сообщения для QA не создавались.
+Production вкладка оставлена на /app/messenger. Управляемый preview оставлен
+работающим на15277/18277 с production TLS/pool1/verify.
+
+Этот последующий отчёт не меняет runtime-код; в production остаётся указанный
+immutable SHA. Полные прогоны остаются остановленными/неуспешными, а не зелёными.

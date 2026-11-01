@@ -1,0 +1,133 @@
+{
+  "version": "918285ed8be1cdcc8d0a71d42d56c156957e7d91",
+  "previousVersion": "1531e984d25f0ae9e8b63d083a225ee9a433fcf2",
+  "workflow": "https://github.com/rolloutrf/rollapp/actions/runs/41323746540",
+  "conclusion": "success",
+  "verification": "ui-copy (unit, UI contract, controls, build); messenger 9 viewports separately",
+  "fullSuite": "cancelled at explicit user request; not claimed passed",
+  "productionHealth": {
+    "ok": true,
+    "service": "rollapp",
+    "version": "918285ed8be1cdcc8d0a71d42d56c156957e7d91"
+  },
+  "productionUI": {
+    "authenticated": true,
+    "launcherSize": [
+      48,
+      48
+    ],
+    "planningSize": [
+      48,
+      48
+    ],
+    "verticalGap": 8,
+    "emptyConversations": "passed",
+    "participantSearch": "passed",
+    "persistentTestMessages": 0
+  },
+  "jobs": [
+    {
+      "name": "deploy",
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Node.js",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install WebKit for native time field checks",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Test and build",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Preserve complete release verification",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify targeted snippet release",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify targeted identity report release",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify targeted health release",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify targeted page rail release",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify targeted UI copy release",
+          "conclusion": "success"
+        },
+        {
+          "name": "Record explicit deployment without tests",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Log in to Yandex Container Registry via OIDC",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and push immutable image",
+          "conclusion": "success"
+        },
+        {
+          "name": "Exchange GitHub OIDC token for Yandex IAM token",
+          "conclusion": "success"
+        },
+        {
+          "name": "Deploy image to production VM",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify production health",
+          "conclusion": "success"
+        },
+        {
+          "name": "Configure Telegram Mini App",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Log in to Yandex Container Registry via OIDC",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Node.js",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "audit",
+      "conclusion": "skipped",
+      "steps": []
+    }
+  ]
+}
