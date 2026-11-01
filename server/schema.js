@@ -10,6 +10,7 @@ import { externalCatalogBrandsSchema } from "./external-catalog-brands.js";
 import { rollsSchema } from "./rolls.js";
 import { businessMarketplaceSchema } from "./business-marketplace.js";
 import { personalOffersSchema } from "./personal-offers.js";
+import { giftCardsSchema } from "./gift-cards-schema.js";
 import { planningSchema } from "./planning.js";
 import { notesSchema } from "./notes.js";
 import { privateDataSchema } from "./private-data-schema.js";
@@ -38,6 +39,8 @@ const schema = `
 
   ${businessMarketplaceSchema}
   ${personalOffersSchema}
+
+  ${giftCardsSchema}
 
   ${planningSchema}
   ${notesSchema}

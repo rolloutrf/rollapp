@@ -1,3 +1,4 @@
+import { WalletGiftCards } from "@/components/gift-cards";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -246,17 +247,20 @@ export function RollsWallet({ user }) {
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>}
 
+          <WalletGiftCards user={user} onChanged={() => refresh({ quiet: true })} />
+
           <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
             {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col">
               {wallet.transactions.map((item) => {
                 const incoming = item.direction === "incoming";
                 const reward = item.kind === "wish_reward";
                 const grant = item.kind === "manual_grant";
+                const giftTopup = item.kind === "gift_topup";
                 const topup = item.kind === "stars_topup" || item.kind === "ton_topup";
                 const Icon = item.kind === "welcome" ? Gift : reward || grant ? Sparkles : incoming ? ArrowDownLeft : ArrowUpRight;
                 const title = item.kind === "welcome"
                   ? "Добро пожаловать в Rollapp"
-                  : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? (item.kind === "ton_topup" ? "Пополнение за TON" : "Пополнение через Telegram Stars") : `${incoming ? "От " : ""}${item.person.name}`;
+                  : giftTopup ? "Пополнение подарочной карты" : reward ? `За желание «${item.wishTitle}»` : grant ? "Начисление роллов" : topup ? (item.kind === "ton_topup" ? "Пополнение за TON" : "Пополнение через Telegram Stars") : `${incoming ? "От " : ""}${item.person.name}`;
                 return <li key={item.id} className="flex min-w-0 items-start gap-3 py-4" data-rolls-transaction={item.kind}>
                   <span className={`flex size-12 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-amber-400/10 text-amber-300" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" aria-hidden="true" /></span>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">

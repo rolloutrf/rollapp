@@ -8,7 +8,7 @@ on:
       verification:
         description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets, identity-reports, health, page-rails, ui-copy, none]
+        options: [full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, none]
         default: full
 
 permissions:
@@ -133,6 +133,10 @@ jobs:
       - name: Verify targeted UI copy release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'ui-copy'
         run: npm run check:release:ui-copy
+
+      - name: Verify targeted gift card release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'gift-cards'
+        run: npm run check:release:gift-cards
 
       - name: Record explicit deployment without tests
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'none'

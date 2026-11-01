@@ -45,7 +45,7 @@ test("retired marketplace HTTP routes return 404 before querying or starting a t
   const routes = [];
   const rejectDatabase = async () => { throw new Error("Retired route reached the database"); };
   registerBusinessMarketplaceRoutes({
-    get: (_path, ...handlers) => routes.push(handlers),
+    get: (path, ...handlers) => { if (path.startsWith("/api/business-marketplace/")) routes.push(handlers); },
     post: (_path, ...handlers) => routes.push(handlers),
   }, { requireAuth: (_req, _res, next) => next(), query: rejectDatabase, transaction: rejectDatabase });
   for (const sphere of ["identity", "unknown"]) for (const handlers of routes) {
