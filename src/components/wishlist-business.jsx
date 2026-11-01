@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
 import { MobileFormScreen, MobileFormFooter } from "@/components/mobile-form-pages";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -38,10 +38,10 @@ function Status({state,children}) {
 function Blank({title,text}) {return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>;}
 function ErrorMessage({message}) {return message ? <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>:null;}
 function BusinessItem({item,onOpen}) {
- return <Card className="overflow-hidden p-0"><button type="button" className="flex w-full min-w-0 flex-col gap-4 text-left" onClick={()=>onOpen(item)} aria-label={`Открыть «${item.title}»`}>
+ return <Card className="overflow-hidden p-0"><Button type="button" variant="ghost" className="h-auto w-full min-w-0 flex-col items-stretch gap-4 rounded-none p-0 text-left font-normal whitespace-normal" onClick={()=>onOpen(item)} aria-label={`Открыть «${item.title}»`}>
    <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-muted">{item.imageUrl?<img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy"/>:<ImageIcon aria-hidden="true"/>}</div>
    <div className="flex min-w-0 flex-col gap-2 p-4"><h3 className="break-words font-semibold">{item.title}</h3>{item.price&&<p>{item.price}</p>}<p className="text-muted-foreground">{item.brand || item.business.pageTitle || item.business.name}</p>{!item.active&&<p className="text-muted-foreground">Скрыт</p>}</div>
- </button></Card>;
+ </Button></Card>;
 }
 function ItemDetails({item,space,onClose,owner,onEdit,onDismiss}) {
  const isMobile=useIsMobile();

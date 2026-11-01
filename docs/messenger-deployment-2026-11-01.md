@@ -27,3 +27,9 @@
 Выкатка — штатный GitHub Actions, полный режим проверки. Старый сервис
 сохраняется до успешных проверок и immutable image build/push. Release не
 считается завершённым до public health с точным ожидаемым SHA и проверки UI.
+
+Первый CI `41317841617` остановился до публикации образа на UI contract guard:
+текущий main WishlistBusiness импортировал ui/drawer напрямую и использовал
+native button. Исправлены реальные композиции: общий form-surface и Button
+с сохранением полноразмерного клика по карточке. Guard не ослаблялся.
+Повторный локальный `npm run test:ui` — PASS (97 application sources).
