@@ -711,3 +711,7 @@ chrome/позиция новой кнопки, поиск, диалог, стр�
 Обычный запуск/release в verify-режиме не вызывает эту миграцию. См. `messenger.md`.
 
 Персональные офферы: `docs/personal-offers.md`, targeted `npm run test:offers` и rollback-only `npm run test:offers:production`.
+
+## Бюджет production-соединений
+
+2 ноября 2026 лимит `rollapp_app.conn_limit` существующего production-кластера увеличен с20 до40 после подтверждённого PostgreSQL53300 при29 постоянных preview-сервисах. Это общий лимит роли, не разрешение увеличивать отдельные пулы: сохранять production `PG_POOL_SIZE=2` и managed preview pool1. При новых preview проверять суммарный бюджет и configured cluster/role; не останавливать здоровые сервисы или менять схему ради освобождения соединения. Параметры доступа при этом обновлении не менялись. Доказательства: [deployment-2026-11-02-consolidated.md](deployment-2026-11-02-consolidated.md).
