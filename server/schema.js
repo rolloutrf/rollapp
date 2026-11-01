@@ -16,6 +16,8 @@ import { notesSchema } from "./notes.js";
 import { privateDataSchema } from "./private-data-schema.js";
 import { businessCategorySchema } from "./business-accounts.js";
 
+import { wishGroupFundraisingSchema } from "./wish-group-fundraising-schema.js";
+
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -555,6 +557,8 @@ const schema = `
 
   ALTER TABLE wish_group_members ADD COLUMN IF NOT EXISTS space TEXT NOT NULL DEFAULT 'products';
   ALTER TABLE wish_group_members DROP CONSTRAINT IF EXISTS wish_group_members_wishlist_id_wish_id_key;
+
+  ${wishGroupFundraisingSchema}
 
   CREATE TABLE IF NOT EXISTS reservations (
     id TEXT PRIMARY KEY,

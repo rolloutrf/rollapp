@@ -24,6 +24,7 @@ import { isMemoryDatabase, pool, query, transaction } from "./db.js";
 import { addDefaultFriend } from "./default-friend.js";
 import { enrollWishRewards, ensureRollWallet, grantWishReward } from "./rolls.js";
 import { registerRollsRoutes } from "./rolls-routes.js";
+import { registerWishGroupFundraisingRoutes } from "./wish-group-fundraising.js";
 import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
@@ -1099,6 +1100,7 @@ function requireTrustedSessionMutation(req, res, next) {
 app.use("/api", requireTrustedSessionMutation);
 
 registerRollsRoutes(app, { requireAuth, query, transaction });
+registerWishGroupFundraisingRoutes(app, { requireAuth, query, transaction, canViewWish });
 registerTonBalanceRoutes(app, { requireAuth });
 registerTonContactCardRoutes(app, { requireAuth, rateLimit: contactCardRateLimit });
 registerTonRollsRoutes(app, { requireAuth, query, transaction });
