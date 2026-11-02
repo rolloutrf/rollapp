@@ -6,6 +6,11 @@ import { ROLL_STAR_PACKAGES, ROLL_STAR_TERMS, ROLL_STAR_TERMS_VERSION } from "..
 import { registerStarInvoiceWorkerRoutes } from "./star-invoice-worker-routes.js";
 
 export function registerRollsRoutes(app, { requireAuth, query, transaction, starsConfig = getStarsConfig, createInvoice = createStarInvoice, env = process.env }) {
+  const features = () => ({
+    starsPurchases: starsConfig().enabled,
+    tonWallet: env.TON_WALLET_ENABLED === "true",
+    needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true",
+  });
   registerStarInvoiceWorkerRoutes(app, { query, starsConfig });
   registerGiftCardRoutes(app, { requireAuth, query, transaction });
   const handle = (handler) => async (req, res, next) => {
@@ -47,11 +52,8 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.get("/api/rolls", requireAuth, handle(async (req, res) => {
     const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1_000_000) return res.status(400).json({ error: "Некорректная страница истории" });
-    const wallet = await transaction((client) => readRollWallet(client, req.user.id, { offset }));
-    res.json({ ...wallet, features: {
-      starsPurchases: starsConfig().enabled,
-      tonWallet: env.TON_WALLET_ENABLED === "true",
-    } });
+    const wallet = await transaction((client) => readRollWallet(client, req.user.id, { offset, needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true" }));
+    res.json({ ...wallet, features: features() });
   }));
 
   app.get("/api/rolls/recipients", requireAuth, searchLimit, handle(async (req, res) => {
@@ -71,9 +73,9 @@ export function registerRollsRoutes(app, { requireAuth, query, transaction, star
   app.post("/api/rolls/transfers", requireAuth, transferLimit, handle(async (req, res) => {
     const result = await transaction(async (client) => {
       const transfer = await transferRolls(client, req.user.id, req.body);
-      return { transfer, ...await readRollWallet(client, req.user.id) };
+      return { transfer, ...await readRollWallet(client, req.user.id, { needRewards: env.ROLLAPP_NEED_REWARDS_ENABLED === "true" }) };
     });
-    res.status(result.transfer.replayed ? 200 : 201).json(result);
+    res.status(result.transfer.replayed ? 200 : 201).json({ ...result, features: features() });
   }));
 
   app.post("/api/rolls/purchases", requireAuth, transferLimit, handle(async (req, res) => {

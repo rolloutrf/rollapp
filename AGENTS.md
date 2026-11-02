@@ -46,6 +46,14 @@
   typography. Tiny media retain readable captions without descendant clipping.
   Verify native clipboard, protected questions, draft/retry, resize capture and
   full editor/comprehensive before integration; branch-only targets are not release.
+## Funded need rewards
+
+- Keep rewards under the hood. Do not add a separate rewards/needs screen, entry card or publication form; preserve the existing wish-creation interface. Wallet history may show actual reserve/reward/refund entries.
+- Follow `docs/need-rewards.md` for the business-funded rewards model. Rewards use existing rolls only: reserve business funds atomically, release them once as reward or refund, and keep wallet history synchronized. Never mint a reward for a publication, offer, view or review.
+- Publishing to businesses requires explicit consent; never derive a public need from private documents automatically. Verify ownership, business role, current state and server-side time independently of client data.
+- Apply `scripts/migrate-need-rewards.mjs` only as a separately authorized migration against the verified configured production target. Startup/release remain `verify`; enabling `ROLLAPP_NEED_REWARDS_ENABLED` requires its real READ ONLY schema check. Never resolve real disputes as part of a release or test.
+- Run `npm run test:need-rewards` and the rollback-only `npm run test:need-rewards:production` for changes to rewards, escrow or their wallet history. Do not initialize/migrate schema inside integration checks or commit test accounts/transfers.
+- Blockchain receipts use the separate OpenTimestamps outbox; send only salted digests, retain private participant-only receipt downloads, and never label calendar acceptance as Bitcoin confirmation. Match the real OTS operation chain to agreed block headers and six confirmations. Run `npm run test:reward-proofs`, keep Python dependencies pinned, and preserve roll settlement when external calendars fail. OTS messages can include nonce/prefix bytes and are not limited to 32-byte hashes. This is proof of file existence, not on-chain roll balances, service-quality proof or platform-issuer authentication.
 
 ## Database
 

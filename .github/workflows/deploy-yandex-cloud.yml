@@ -52,6 +52,12 @@ jobs:
       - name: Install video encoder
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      - name: Install pinned blockchain receipt codec
+        run: |
+          python3 -m venv "$RUNNER_TEMP/rollapp-ots"
+          "$RUNNER_TEMP/rollapp-ots/bin/pip" install -r server/requirements/opentimestamps.txt
+          echo "ROLLAPP_OTS_PYTHON=$RUNNER_TEMP/rollapp-ots/bin/python" >> "$GITHUB_ENV"
+
       - name: Install WebKit for native time field checks
         run: npx playwright-core install --with-deps webkit
       - name: Complete UI audit
@@ -101,6 +107,11 @@ jobs:
 
       - name: Install video encoder
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install pinned blockchain receipt codec
+        run: |
+          python3 -m venv "$RUNNER_TEMP/rollapp-ots"
+          "$RUNNER_TEMP/rollapp-ots/bin/pip" install -r server/requirements/opentimestamps.txt
+          echo "ROLLAPP_OTS_PYTHON=$RUNNER_TEMP/rollapp-ots/bin/python" >> "$GITHUB_ENV"
 
       - name: Test and build
         if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'

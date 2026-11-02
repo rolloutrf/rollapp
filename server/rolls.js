@@ -258,7 +258,7 @@ function transactionFromRow(row, userId) {
   };
 }
 
-export async function readRollWallet(client, userId, { offset = 0, limit = 30 } = {}) {
+export async function readRollWallet(client, userId, { offset = 0, limit = 30, needRewards = false } = {}) {
   // Locking also gives a consistent balance/history snapshot at READ COMMITTED.
   await ensureRollWallet(client, userId);
   const wallet = await client.query("SELECT balance FROM roll_wallets WHERE user_id=$1", [userId]);
@@ -291,6 +291,12 @@ export async function readRollWallet(client, userId, { offset = 0, limit = 30 } 
               rolls AS amount,nanotons::text AS note,NULL::text AS wish_title,paid_at AS created_at
        FROM roll_ton_orders WHERE user_id=$1 AND paid_at IS NOT NULL
        ${giftHistory}
+       ${needRewards ? `UNION ALL
+       SELECT e.id::text,'need_' || e.kind AS kind,
+              CASE WHEN e.kind='reserve' THEN e.user_id ELSE NULL END AS sender_id,
+              e.user_id AS recipient_id,e.amount,n.title AS note,NULL::text AS wish_title,e.created_at
+       FROM reward_need_entries e JOIN reward_need_offers o ON o.id=e.offer_id
+       JOIN reward_needs n ON n.id=o.need_id WHERE e.user_id=$1` : ""}
      )
      SELECT h.*,u.name AS person_name,u.username AS person_username,u.avatar_url AS person_avatar_url
      FROM history h

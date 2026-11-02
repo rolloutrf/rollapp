@@ -30,6 +30,8 @@ import { registerWishGroupFundraisingRoutes } from "./wish-group-fundraising.js"
 import { registerCdekRoutes } from "./cdek-routes.js";
 import { registerPersonalOfferRoutes } from "./personal-offers.js";
 import { registerBusinessMarketplaceRoutes } from "./business-marketplace.js";
+import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./need-rewards.js";
+import { checkRewardProofRuntime, startRewardProofWorker } from "./reward-proof-queue.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { registerNotesRoutes } from "./notes.js";
@@ -1111,6 +1113,7 @@ registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPersonalOfferRoutes(app, { requireAuth, query, transaction });
 registerWishlistBusinessRoutes(app, { requireAuth, query, transaction });
+registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
@@ -6529,10 +6532,13 @@ app.use((error, req, res, _next) => {
 const databaseInitialization = await initializeRuntimeDatabase({ environment: process.env, isMemoryDatabase, transaction, migrate: initializeDatabase });
 const runtimeSettings = await query("SELECT value_text FROM application_settings WHERE key=$1", ["telegram_payment_support_url"]);
 if (!process.env.TELEGRAM_PAYMENT_SUPPORT_URL && runtimeSettings.rowCount) process.env.TELEGRAM_PAYMENT_SUPPORT_URL = runtimeSettings.rows[0].value_text;
+await checkRewardProofRuntime();
 if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema verified without migrations or data cleanup.");
 
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
 const tonPaymentPoller = startTonPaymentPolling({ query, transaction });
+const rewardProofWorker = startRewardProofWorker({ transaction });
+const needRewardExpiryWorker = startNeedRewardExpiryWorker({ query, transaction });
 
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp server listening on ${port}`);
@@ -6541,6 +6547,8 @@ const server = app.listen(port, "0.0.0.0", () => {
 async function shutdown() {
   telegramPoller?.stop();
   tonPaymentPoller.stop();
+  rewardProofWorker.stop();
+  needRewardExpiryWorker.stop();
   server.close(async () => {
     if (backgroundTasks.size) {
       await Promise.race([

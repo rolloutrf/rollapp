@@ -1,0 +1,230 @@
+{
+  "recordedAt": "2026-11-01T22:41:30.963974+00:00",
+  "baseCommit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "branch": "codex/need-rewards-20261101",
+  "dirty": true,
+  "sourceHashes": {
+    ".dockerignore": "293dfdd875fb500da89237f0bbccc3e1ed979295a459a7febe7467e0258c5dc6",
+    ".env.example": "d4becbd31d25ab263d15cc52ac6c84950bc18dfba0d6bdb1b22abffc9dd97d15",
+    ".github/workflows/deploy-yandex-cloud.yml": "fcb4437e0f4839315ae997f4ab3de22cda61ef259bb1753f069cf9fce7492ae1",
+    ".gitignore": "0215d6dd3320dd4aec430a16bab15b6520e2e60d738dbd78b40eddf5e6581451",
+    "AGENTS.md": "a80a58793beaa7d1e67ea404e0ca3c426aa655be5f9cf56c0062f8ab0d180806",
+    "Dockerfile": "60ced873ff4486eaf84428e330d8f87f70833823e87d24dbfc003c8a7e85c368",
+    "README.md": "dbc918d951d003f1c7a9c5d437b1ce8b91d8c8f10783d6cb761d74bd7b803b54",
+    "deploy/docker-compose.template.yml": "d79974067b129bcb2158485fdc0580274633cabcfceb52ef73c1e9ae184d39c9",
+    "package-lock.json": "429c5ea024935f0af6d7d214b16c7023f8a22e3282bde012a2c445dc8fc00819",
+    "package.json": "9224b6ce4d83b1e57b7f7ed5523933f18a77e7e8ff1af7902233c67238a0a733",
+    "scripts/fixtures/need-rewards.jsx": "bbd7f03e995b3bfda4268e1731ca41e24e0f617b424c6fb3784cd3c885aebc70",
+    "scripts/migrate-need-rewards.mjs": "d15f84b1d8c2a9e65ed8502733b18f96ab001204c6af07e26d717d6802836aff",
+    "scripts/need-rewards-production-ui.mjs": "5f6f7de94b22dfe119b88b124480baef2ae33bb7b470b8c2f6468ce418c9aeec",
+    "scripts/need-rewards-smoke.mjs": "b5625596f23bea2477b82b303c1d28566834d9f681a1bcfa7d1e86cd27862125",
+    "scripts/resolve-need-reward-dispute.mjs": "8d76864cd8efc3d174e785111f8bbb90f3e6fa212ae621966b469b2a98c64dc1",
+    "scripts/reward-proof-codec-check.mjs": "119918cc7f24dd2cbec7de4d1e944966ec2ccda73b194254036659a155ba09b4",
+    "server/database-startup.js": "0eecbb0d8ea09dee20dba804d50f3e0d49dfd2a984c88c8b71fc8b17373651db",
+    "server/index.js": "d590c93c55898be51b55693d9d020ea7bb4d7b212fd149adcb8047e37c64f9c2",
+    "server/need-rewards-schema.js": "68bb8f40dcf6a2929de5d1a93abc0ce934c8552af65db0d33953e3d02aa15128",
+    "server/need-rewards.integration.test.js": "06138339fe13fa439b141baf953f16c0e9e059149e14a4b624b33dced11fe071",
+    "server/need-rewards.js": "6d71fe1a51f3c317f124837d4311b2cd440abaaafb67e15d8eb2978685a49c99",
+    "server/need-rewards.test.js": "56bf17f771a82786dd35fa142fb1dff5e6ce73e67e8b0a6db5a59e0695462823",
+    "server/requirements/opentimestamps.txt": "fc24270750025d6744469be7aa85c4efcd2fa2d5d009cebb86f22735c9287fed",
+    "server/reward-blockchain-proof.js": "1748a984f489e53ec15c85f45a4fc452d9a56aa529efe95804314f6e546ff05c",
+    "server/reward-blockchain-proof.test.js": "3a67aa41a04c3ed1dcb02ff6c464e92ddb735effb1f56b1711ad437f376d43b4",
+    "server/reward-proof-codec-test.py": "028b9e0a3fa6254f50705c9a91e3133323eaa16cc885e559fb13b6df3662ac35",
+    "server/reward-proof-codec.py": "594e4f1422e919c737fa23c149b069106a42cc1035c81fbe13bcc341c9f7031a",
+    "server/reward-proof-queue.js": "4eef68836b9a67deb7ca7f73f240a0bb66fe9124a89dd732bdf6b36b6bd3f915",
+    "server/rolls-routes.js": "6a3d0da22a26acef87f419942631e518414530b470121fbf60b2ab93d634bc82",
+    "server/rolls.js": "a97780653a2aac3c6348b90163e77de15b0b1cb48d96ec9795a83534830f6b0f",
+    "shared/need-rewards.js": "2314c0c873717e2908efcfa0aab51d25cfb4055e537264ea9edaf467bf389f80",
+    "src/App.jsx": "38214bae653f3188f3bda405b24b0f8bea2a4c2e435f6fd3aee9637167b05a0f",
+    "src/components/need-rewards.jsx": "39edeed784b48f8abdc89f2dbb6000775b37aa8b680904ad469148cc14440982",
+    "src/components/rolls-wallet.jsx": "58e68e5317f8ef3594d5188a9b3e35210b2b0ae414d938fe9dca199f0dd1dc07"
+  },
+  "unit": {
+    "passed": 801,
+    "failed": 0,
+    "skipped": 1
+  },
+  "needRewardsUI": {
+    "passed": 96,
+    "viewports": 8,
+    "apiRequestsAllowed": false
+  },
+  "needRewardsProduction": {
+    "passed": 14,
+    "transaction": "BEGIN/ROLLBACK",
+    "schemaInitialization": false,
+    "subtests": 13,
+    "realBrowserWorkflow": "passed; real handlers/PostgreSQL; temporary test-cookie identities; all writes rolled back",
+    "mockedResponses": false
+  },
+  "pythonCodec": {
+    "passed": 3
+  },
+  "build": "passed",
+  "productionMigration": "five feature tables and indexes applied with explicit user authorization; existing balances unchanged",
+  "productionRelease": "not deployed",
+  "blockchain": {
+    "implementation": "OpenTimestamps/Bitcoin receipt outbox; roll balances stay off-chain",
+    "referenceBlock": 358391,
+    "referenceVerified": true,
+    "canaryDigest": "e5c588469ae4599b015ff5b085fe4d3e284f21210ca28923f0c9b48adee15a8f",
+    "canaryStatus": "confirmed",
+    "canaryBobTransaction": "8b95624935d0b44822b265cb5638fc7754fd14a52c509d3053f35eafd745d02b",
+    "canaryBobBlock": 974180,
+    "canaryBlockHash": "000000000000000000008a163ee0232f0d0911abc212c6b1d7f672a3d89a7242",
+    "canaryBlockTime": 1793568628,
+    "canaryProofBytes": 2412,
+    "verification": "two-explorer-headers; >=6 confirmations; OTS operations and SHA256/header binding",
+    "canaryJson": "docs/evidence/need-rewards-canary-2026-11-02.json",
+    "canaryProof": "docs/evidence/need-rewards-canary-2026-11-02.json.ots"
+  },
+  "comprehensive": {
+    "status": "passed",
+    "startedAt": "2026-11-01T20:57:55.354Z",
+    "commit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+    "dirty": true,
+    "node": "v22.22.3",
+    "checks": [
+      {
+        "name": "check:release",
+        "status": "passed",
+        "startedAt": "2026-11-01T20:57:55.392Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:09:12.238Z",
+        "durationMs": 4276845
+      },
+      {
+        "name": "test:navigation",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:09:12.239Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:09:41.682Z",
+        "durationMs": 29443
+      },
+      {
+        "name": "test:action-rails",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:09:41.682Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:09:56.411Z",
+        "durationMs": 14729
+      },
+      {
+        "name": "test:identity-reports",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:09:56.412Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:10:55.223Z",
+        "durationMs": 58811
+      },
+      {
+        "name": "test:todo",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:10:55.223Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:11:56.551Z",
+        "durationMs": 61327
+      },
+      {
+        "name": "test:form-pages",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:11:56.551Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:13:07.688Z",
+        "durationMs": 71137
+      },
+      {
+        "name": "test:catalog-page",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:13:07.689Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:13:15.462Z",
+        "durationMs": 7773
+      },
+      {
+        "name": "test:wish-groups",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:13:15.462Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:13:27.789Z",
+        "durationMs": 12326
+      },
+      {
+        "name": "test:drawers",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:13:27.789Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:26:08.098Z",
+        "durationMs": 760309
+      },
+      {
+        "name": "test:contacts",
+        "status": "passed",
+        "startedAt": "2026-11-01T22:26:08.099Z",
+        "exitCode": 0,
+        "finishedAt": "2026-11-01T22:26:45.372Z",
+        "durationMs": 37273
+      }
+    ],
+    "finishedAt": "2026-11-01T22:26:45.372Z"
+  },
+  "audit": {
+    "info": 0,
+    "low": 2,
+    "moderate": 4,
+    "high": 0,
+    "critical": 0,
+    "total": 6
+  },
+  "productionAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "pythonAudit": {
+    "dependencies": [
+      {
+        "name": "opentimestamps",
+        "version": "0.4.5",
+        "vulns": []
+      },
+      {
+        "name": "python-bitcoinlib",
+        "version": "0.12.2",
+        "vulns": []
+      },
+      {
+        "name": "pycryptodomex",
+        "version": "3.24.1",
+        "vulns": []
+      }
+    ],
+    "fixes": []
+  },
+  "unverified": [
+    "Final existing-session CUA review unavailable with Mac locked; separate real-DB headless workflow passed",
+    "Physical devices/IME",
+    "Business pilot ROI/retention; external fulfillment and anti-collusion",
+    "Production VM rollout not requested or performed"
+  ],
+  "docker": {
+    "status": "passed",
+    "platform": "linux/amd64",
+    "execution": "Colima ARM-host emulation",
+    "image": "sha256:7c5ad508c9bee3bd58ce55b9cfc1794fc97a39a50e5d44579af58f74c5cd6e6e",
+    "network": "none in runtime checks",
+    "database": "unused in runtime checks",
+    "codecTests": 3,
+    "nodePythonBridge": "passed on real confirmed OTS proof; digest binding and two Bitcoin attestations",
+    "published": false,
+    "colimaRestored": "stopped"
+  },
+  "comprehensiveScope": "Full broad matrix completed while isolated feature evolved; final feature UI, production browser workflow, unit, codec, audit and build repeated separately. Not a single committed release run.",
+  "evidenceHashes": {
+    "docs/evidence/need-rewards-canary-2026-11-02.json": "e5c588469ae4599b015ff5b085fe4d3e284f21210ca28923f0c9b48adee15a8f",
+    "docs/evidence/need-rewards-canary-2026-11-02.json.ots": "88110ffaca7e9a5e8b28a9f335d7182a1b09aaffaa53408088f98178b4ce2e4d"
+  }
+}

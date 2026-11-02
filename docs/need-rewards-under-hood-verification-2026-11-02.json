@@ -1,0 +1,92 @@
+{
+  "recordedAt": "2026-11-02T05:46:28.778017+00:00",
+  "baseCommit": "f55cce47e5718bc411f39cfc9436930deb152f23",
+  "branch": "codex/need-rewards-20261101",
+  "dirty": true,
+  "scope": "Remove separate rewards UI; retain server API/escrow/proof workers and wallet ledger; original wish creation unchanged",
+  "sourceHashes": {
+    ".dockerignore": "293dfdd875fb500da89237f0bbccc3e1ed979295a459a7febe7467e0258c5dc6",
+    ".env.example": "d4becbd31d25ab263d15cc52ac6c84950bc18dfba0d6bdb1b22abffc9dd97d15",
+    ".github/workflows/deploy-yandex-cloud.yml": "fcb4437e0f4839315ae997f4ab3de22cda61ef259bb1753f069cf9fce7492ae1",
+    ".gitignore": "0215d6dd3320dd4aec430a16bab15b6520e2e60d738dbd78b40eddf5e6581451",
+    "AGENTS.md": "d8f8b513de436d8ebe2aa4e31b8a4398fc303f685a943b3781d7c56008bff7eb",
+    "Dockerfile": "60ced873ff4486eaf84428e330d8f87f70833823e87d24dbfc003c8a7e85c368",
+    "README.md": "e51acc68206ce4e42e8391ab4c16c0aa7388090ab4a1872993a8f697c4ca0b2b",
+    "deploy/docker-compose.template.yml": "d79974067b129bcb2158485fdc0580274633cabcfceb52ef73c1e9ae184d39c9",
+    "package-lock.json": "429c5ea024935f0af6d7d214b16c7023f8a22e3282bde012a2c445dc8fc00819",
+    "package.json": "8649dc48a89db0e5eba636a2dc38a9f1cf48e8ee0e12acb814728971ed4cc17d",
+    "scripts/migrate-need-rewards.mjs": "d15f84b1d8c2a9e65ed8502733b18f96ab001204c6af07e26d717d6802836aff",
+    "scripts/resolve-need-reward-dispute.mjs": "8d76864cd8efc3d174e785111f8bbb90f3e6fa212ae621966b469b2a98c64dc1",
+    "scripts/reward-proof-codec-check.mjs": "119918cc7f24dd2cbec7de4d1e944966ec2ccda73b194254036659a155ba09b4",
+    "server/database-startup.js": "0eecbb0d8ea09dee20dba804d50f3e0d49dfd2a984c88c8b71fc8b17373651db",
+    "server/index.js": "d590c93c55898be51b55693d9d020ea7bb4d7b212fd149adcb8047e37c64f9c2",
+    "server/need-rewards-schema.js": "68bb8f40dcf6a2929de5d1a93abc0ce934c8552af65db0d33953e3d02aa15128",
+    "server/need-rewards.integration.test.js": "f5805b76d6f4f40f7f52ae5bcb43b5e225745b3a09320954caea9b0c7c9e37be",
+    "server/need-rewards.js": "6d71fe1a51f3c317f124837d4311b2cd440abaaafb67e15d8eb2978685a49c99",
+    "server/need-rewards.test.js": "56bf17f771a82786dd35fa142fb1dff5e6ce73e67e8b0a6db5a59e0695462823",
+    "server/requirements/opentimestamps.txt": "fc24270750025d6744469be7aa85c4efcd2fa2d5d009cebb86f22735c9287fed",
+    "server/reward-blockchain-proof.js": "1748a984f489e53ec15c85f45a4fc452d9a56aa529efe95804314f6e546ff05c",
+    "server/reward-blockchain-proof.test.js": "3a67aa41a04c3ed1dcb02ff6c464e92ddb735effb1f56b1711ad437f376d43b4",
+    "server/reward-proof-codec-test.py": "028b9e0a3fa6254f50705c9a91e3133323eaa16cc885e559fb13b6df3662ac35",
+    "server/reward-proof-codec.py": "594e4f1422e919c737fa23c149b069106a42cc1035c81fbe13bcc341c9f7031a",
+    "server/reward-proof-queue.js": "4eef68836b9a67deb7ca7f73f240a0bb66fe9124a89dd732bdf6b36b6bd3f915",
+    "server/rolls-routes.js": "6a3d0da22a26acef87f419942631e518414530b470121fbf60b2ab93d634bc82",
+    "server/rolls.js": "a97780653a2aac3c6348b90163e77de15b0b1cb48d96ec9795a83534830f6b0f",
+    "shared/need-rewards.js": "2314c0c873717e2908efcfa0aab51d25cfb4055e537264ea9edaf467bf389f80",
+    "src/components/rolls-wallet.jsx": "095284f541d4d9c57c21b9b0c102b301a64fee60ca477ba19204a640279fae55"
+  },
+  "wishInterface": "src/App.jsx byte-identical to HEAD; no wish handler/form edits",
+  "checks": {
+    "needRewardsUnit": {
+      "passed": 12,
+      "failed": 0
+    },
+    "production": {
+      "passed": 13,
+      "subtests": 12,
+      "transaction": "BEGIN/ROLLBACK",
+      "ddl": false
+    },
+    "codec": {
+      "passed": 3
+    },
+    "navigation": {
+      "status": "passed",
+      "cases": 46
+    },
+    "shadcn": {
+      "status": "passed",
+      "primitives": 37,
+      "sources": 79
+    },
+    "build": "passed",
+    "unit": {
+      "total": 802,
+      "passed": 801,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "audit": {
+    "info": 0,
+    "low": 2,
+    "moderate": 4,
+    "high": 0,
+    "critical": 0,
+    "total": 6
+  },
+  "productionAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "deployment": "not performed; previous Docker image predates this UI removal",
+  "limitations": [
+    "Full comprehensive matrix not rerun: isolated UI deletion; final targeted navigation/unit/backend/codec/build checks only",
+    "No automatic business-funded reward on ordinary wish creation; existing explicit consent and funded-offer API requirements remain"
+  ],
+  "service": "keepalive ready, API 8106/frontend 5206, production TLS connection left running"
+}
