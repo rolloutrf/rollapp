@@ -57,9 +57,11 @@ read-only обработчик нового GET и production API: 320×844, 390
   покупатель, пусто, ошибка/повтор, личный профиль на восьми размерах. Проверены
   24px padding, переход в редактор products, ввод/отмена без API-записи.
   После добавления пути dashboard расширенная матрица 56/56 завершилась PASS.
-- `npm run check:comprehensive`: полный повтор запущен; итог и выпуск записываются
-  ниже после завершения. Предыдущие прогоны выявили запрет nativeButton=false
-  в App и гонку keyboard focus smoke; оба исправлены, проверки не сокращались.
+- `npm run check:comprehensive`: локальный повтор остановлен после полной проверки
+  controls и начала details при передаче проверки чистому CI. Предыдущие прогоны
+  выявили запрет nativeButton=false в App и гонку keyboard focus smoke; оба исправлены.
+  Полный CI впоследствии отменён по прямому указанию пользователя «Полный тест
+  делать не надо». Полного PASS для comprehensive нет.
 - `npm audit`: 8 tooling-зависимостей (2 low, 4 moderate, 2 high);
   `npm audit --omit=dev`: 0. `npm audit fix --ignore-scripts` не изменил lockfile.
   Не выполнялись force/downgrade/override: цепочки shadcn/deepmerge и TON/zod
@@ -72,7 +74,37 @@ read-only обработчик нового GET и production API: 320×844, 390
 
 ## Итог полного набора и выпуска
 
-Ожидается завершение обязательных проверок; публикация считается подтверждённой
-только после exact-SHA production health и повторного просмотра затронутого UI.
+Опубликован commit `2066aad3ee4cb9d14a1c0f08f841819af2920e27`.
+
+- CI полного набора: https://github.com/rolloutrf/rollapp/actions/runs/41898856524
+  — отменён по указанию пользователя до rollout. До отмены на точном итоговом
+  commit прошли unit (926 PASS, 1 SKIP, 0 FAIL), private-data/history, shadcn audit,
+  gift-cards, бизнес-регистрация и новая матрица бизнес-профиля 56/56, включая
+  dashboard 390×400. Полный набор не объявляется пройденным.
+- Выпуск без повторных тестов: https://github.com/rolloutrf/rollapp/actions/runs/41901093177
+  — SUCCESS. Это явное исключение пользователя для полного прогона; ранее
+  выполненные проверки сохранены. Docker build/push, обычный schema verify,
+  canonical redirects и exact-SHA health сохранены. VM вручную не перезапускалась,
+  образы/контейнеры/данные не удалялись. Предыдущая здоровая версия —
+  `87d8bb5e4ec6834b52a44d0b6f12d141c79f1bee`.
+- Публичный `/api/healthz` после выпуска: ok=true, service=rollapp, version точно
+  `2066aad3ee4cb9d14a1c0f08f841819af2920e27`.
+- Новый публичный GET после выпуска: HTTP 200, `{items:[],pages:[]}`.
+- В IAB подтверждена опубликованная витрина покупателя: статус бизнес-аккаунта,
+  корректное пустое состояние, без личных списков/желаний.
+- В существующей сессии владельца Safari проверен реальный путь `/app/wishes`
+  → `/fintehnika-rf/products` → «Управлять товарами» → «Добавить айтем» → «Отмена»
+  → возврат на витрину. Видны «Управлять товарами», «Клиенты», «Визитка»; название
+  страницы соответствует аккаунту. Ничего не сохранялось и не публиковалось.
+  Финальный снимок: `/tmp/rollapp-business-owner-published.jpg`.
+- Дополнительный `npm run test:action-rails` не прошёл существующий fixture
+  wishlist-real: WishesProfileControls читает useSession без SessionContext.
+  Проверено, что этот вызов уже присутствует в исходном production `87d8bb5`;
+  новая композиция бизнес-профиля им не пользуется и отдельно прошла 56 сценариев.
+  Первые text/overflow/collection/contacts-real при 320px прошли; полная матрица
+  action-rails не объявляется пройденной. Эту отдельную ошибку fixture не меняли.
+- На момент завершения появились чужие изменения `src/components/contact-card-dialog.jsx`
+  и `docs/contact-card-buttons-verification-2026-11-04.md`. Они сохранены и не входят
+  в выпущенный commit. Отчёт обновлён отдельно от кода релиза.
 Первый workflow для `6adfbb73addd3f6996eac1fbfef1bb8317d79aab` отменён во время
 подготовки инструментов, до rollout: дополнительно найден путь `/app/wishes`.
