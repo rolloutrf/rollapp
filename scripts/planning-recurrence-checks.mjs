@@ -44,7 +44,7 @@ export async function runRecurrenceChecks({ origin, token }) {
       await event.waitFor();
       assert.equal(await event.getAttribute("draggable"), "false");
       await event.click();
-      await page.getByRole("button", { name: "Изменить серию", exact: true }).click();
+      await page.getByLabel("Название", { exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "Дата задачи: 07.10.2026", exact: true }).count(), 1);
       await page.getByLabel("Название", { exact: true }).fill(`${title} изменено`);
       await mutation(() => page.getByRole("button", { name: "Сохранить", exact: true }).click(), "PATCH");

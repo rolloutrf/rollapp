@@ -36,8 +36,7 @@ export async function checkMacCalendar({ page, width, mutation }) {
   assert(Math.abs(grid.width - main.width) < 2);
   assert.equal(await timeline.locator(".schedule-day-heading").count(), 0);
   await event.locator(".schedule-event").click();
-  await page.locator(".schedule-preview").getByRole("button", { name: "Дублировать", exact: true }).click();
-  assert.equal(await page.getByLabel("Название", { exact: true }).inputValue(), `Обед ${width} — копия`);
+  assert.equal(await page.getByLabel("Название", { exact: true }).inputValue(), `Обед ${width}`);
   await page.getByRole("button", { name: "Закрыть задачу", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   if (width === 1440) {

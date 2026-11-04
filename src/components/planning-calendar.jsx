@@ -4,10 +4,9 @@ import { useDeviceCalendar } from "@/hooks/use-device-calendar";
 import { calendarTaskSchedules } from "../../shared/planning-calendar.js";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus, Copy, Pencil, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react";
 import { useCalendarGesture } from "@/hooks/use-calendar-gesture";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { relatedKindLabel } from "@/lib/planning-related-items";
 import { toast } from "sonner";
 import { MiniMonth } from "@/components/calendar-mini-month";
 import { Button } from "@/components/ui/button";
@@ -16,46 +15,38 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/compone
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { calendarDays, isPlanningDate, localDateKey } from "../../shared/planning.js";
 import { CALENDAR_VIEWS, calendarMove, timeMinutes, calendarWeek, dateFromKey, layoutCalendarEvents, minutesTime, shiftCalendarDate, sortCalendarTasks, taskTimeLabel } from "../../shared/planning-calendar.js";
-import { expandRecurringTasks, recurrenceLabel } from "../../shared/planning-recurrence.js";
+import { expandRecurringTasks } from "../../shared/planning-recurrence.js";
 import "./planning-calendar.css";
 
 const label = (key, options = { day: "numeric", month: "long" }) => new Intl.DateTimeFormat("ru-RU", options).format(dateFromKey(key));
 const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 const CalendarActions = createContext(null);
-function EventDetails({ task, onAction }) {
-  const { onEdit, onCreate, columns, sourceTasks } = useContext(CalendarActions);
-  const source = sourceTasks.find(item => item.id === (task.sourceId || task.id)) || task;
-  if (task.external) return <><p className="schedule-caption">Apple Calendar · {label(task.dueOn)} · {taskTimeLabel(task)}</p>{task.description && <p className="schedule-preview__description">{task.description}</p>}<p className="schedule-caption">Изменяйте это событие в календаре устройства. Изменения появятся после следующей синхронизации.</p></>;
-  return <>
-    <p className="schedule-caption">{task.dueOn ? label(task.dueOn, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Без даты"} · {taskTimeLabel(task)}</p>
-    <p className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}{task.completed ? " · Завершено" : ""}</p>
-    {task.recurrence && <p className="schedule-caption">{recurrenceLabel(task.recurrence)}. Изменения применяются ко всей серии.</p>}
-    {task.description && <p className="schedule-preview__description">{task.description}</p>}
-    {task.relatedItems?.length > 0 && <div className="flex flex-col gap-1" aria-label="Связанные объекты">{task.relatedItems.map((item) => <p key={`${item.kind}:${item.id}`} className="schedule-caption">{relatedKindLabel(item.kind)} · {item.title}</p>)}</div>}
-    <div className="flex flex-wrap gap-2"><Button onClick={() => { onAction?.(); onEdit(task); }}><Pencil />{task.recurrence ? "Изменить серию" : "Изменить"}</Button><Button variant="outline" onClick={() => { onAction?.(); const { id, sourceId, occurrenceDate, seriesDueOn, recurrenceCompletedDates, ...copy } = task; onCreate({ ...copy, startTime: source.startTime, unscheduled: !source.startTime, durationMinutes: source.durationMinutes, completed: false, title: `${task.title.slice(0, 190)} — копия` }); }}><Copy />Дублировать</Button></div>
-  </>;
-}
-function EventPreview({ task, children, className, onMove, ...props }) {
+function CalendarTaskButton({ task, children, className, onMove, ...props }) {
   const { onEdit, busy, startDrag, endDrag } = useContext(CalendarActions);
   const [open, setOpen] = useState(false);
   const interaction = {
     draggable: !task.external && !onMove && !busy && !task.recurrence,
     onPointerDown: onMove && !task.external ? (event) => onMove(event, task) : undefined,
-    onDoubleClick: task.external ? undefined : () => { setOpen(false); onEdit(task); },
-    onDragStart: (event) => { if (!startDrag(event, task)) return; setOpen(false); },
+    onDragStart: (event) => startDrag(event, task),
     onDragEnd: endDrag,
   };
-  return <Popover open={open} onOpenChange={setOpen}>
+  if (task.external) return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger render={<Button variant="ghost" className={className} {...props} />} {...interaction}>{children}</PopoverTrigger>
-    <PopoverContent className="rollapp-body schedule-preview" side="right" align="start"><PopoverTitle className="text-xl font-semibold">{task.title}</PopoverTitle><EventDetails task={task} onAction={() => setOpen(false)} /></PopoverContent>
+    <PopoverContent className="rollapp-body schedule-preview" side="right" align="start">
+      <PopoverTitle className="text-xl font-semibold">{task.title}</PopoverTitle>
+      <p className="schedule-caption">Apple Calendar · {label(task.dueOn)} · {taskTimeLabel(task)}</p>
+      {task.description && <p className="schedule-preview__description">{task.description}</p>}
+      <p className="schedule-caption">Изменяйте это событие в календаре устройства. Изменения появятся после следующей синхронизации.</p>
+    </PopoverContent>
   </Popover>;
+  return <Button variant="ghost" className={className} {...props} {...interaction} onClick={() => onEdit(task)}>{children}</Button>;
 }
 function EventButton({ task, compact = false, style, onResize, onMove }) {
   return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}>
-    <EventPreview task={task} onMove={onMove} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
+    <CalendarTaskButton task={task} onMove={onMove} className={`schedule-event ${compact ? "schedule-event--compact" : ""}`} data-completed={task.completed || undefined} aria-label={`${task.title}, ${taskTimeLabel(task)}`}>
       <span className="schedule-event__content">{compact && task.startTime && <span className="schedule-event__start">{task.startTime}</span>}<span className="schedule-event__title">{task.title}</span>{!compact && <span className="schedule-caption">{taskTimeLabel(task)}</span>}{task.relatedItems?.length > 0 && <span className="schedule-caption schedule-event__related">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</span>
-    </EventPreview>
+    </CalendarTaskButton>
     {onResize && !task.external && !task.recurrence && <Button variant="ghost" className="schedule-resize" aria-label={`Изменить длительность: ${task.title}`} onPointerDown={(event) => onResize(event, task)} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (["ArrowUp", "ArrowDown"].includes(event.key)) { event.preventDefault(); onResize(event, task, event.key === "ArrowUp" ? -15 : 15); } }}><span /></Button>}
   </div>;
 }
@@ -63,7 +54,7 @@ function EventButton({ task, compact = false, style, onResize, onMove }) {
 function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
   return <section className="planning-agenda schedule-agenda" aria-label={`Задачи на ${label(date)}`}>
     {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3><Button variant="ghost" size="icon" aria-label={`Добавить задачу на ${label(date)}`} onClick={() => onCreate({ dueOn: date })}><Plus /></Button></header>}
-    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><EventPreview task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</EventPreview><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
+    {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><CalendarTaskButton task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</CalendarTaskButton><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
   </section>;
 }
 
@@ -97,7 +88,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
   return <ScrollArea ref={scroll} className="schedule-timeline" aria-label="Расписание по времени">
     {tasks.some((task) => dates.includes(task.dueOn) && !task.startTime) && <section className="flex flex-col gap-2 p-4" aria-label="Задачи без свободного получасового слота">
       <p className="schedule-caption">Нет свободного получасового слота</p>
-      {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <EventPreview key={task.id} task={task}>{label(task.dueOn)} · {task.title}</EventPreview>)}
+      {tasks.filter((task) => dates.includes(task.dueOn) && !task.startTime).map((task) => <CalendarTaskButton key={task.id} task={task}>{label(task.dueOn)} · {task.title}</CalendarTaskButton>)}
     </section>}
     <div className={`schedule-timegrid ${dates.length > 1 ? "schedule-timegrid--week" : ""}`} style={{ "--days": dates.length }} onClickCapture={guardClick} onPointerDownCapture={resetClick}>
       <div className="schedule-timegrid__head">

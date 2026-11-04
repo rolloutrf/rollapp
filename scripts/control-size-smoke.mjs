@@ -16,6 +16,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-control-sizes"
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?controls-smoke")) return `${source}\nexport { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog };`;
     if (id.endsWith("/src/components/planning-space.jsx?controls-smoke")) return `${source}\nexport { TaskEditor };`;
+    if (id.endsWith("/src/lib/planning-related-items.js")) return source.replace("export async function loadRelatedItems() {", "export async function loadRelatedItems() { return { items: [], failedKinds: [] };");
     // Supply presentation state at the hook boundary. API requests are rejected
     // below; no database or API-response fixtures are substituted.
     if (id.endsWith("/src/hooks/use-planning-spaces.js")) return `export function usePlanningSpaces(kind) { return {spaces:[{id:'main',kind,title:kind==='calendar'?'Основной календарь с длинным названием':kind==='todo'?'Основной To Do-лист с длинным названием':'Рабочая доска с длинным названием'}],setSpaces(){},loading:false,error:'',reload(){}}; }`;
@@ -122,8 +123,11 @@ try {
           const event = page.locator('.schedule-agenda__task').first();
           assert((await event.innerText()).includes('Книга'), `${label}: calendar agenda hides the related item`);
           await event.click();
-          await page.getByText('Вишлист · Книга', { exact: true }).waitFor();
-          await page.keyboard.press('Escape');
+          await page.getByLabel('Название', { exact: true }).waitFor();
+          assert.equal(await page.locator('.schedule-preview').count(), 0, `${label}: calendar task must open the editor directly`);
+          await page.locator('[aria-label="Выбранные объекты"]').getByText('Книга', { exact: true }).waitFor();
+          await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть задачу', exact: true }).click();
+          await page.getByLabel('Название', { exact: true }).waitFor({ state: 'hidden' });
         }
         if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
         if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);

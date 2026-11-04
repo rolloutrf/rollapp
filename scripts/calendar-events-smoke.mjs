@@ -21,7 +21,7 @@ try{
   const writes=async count=>{await page.waitForFunction(n=>JSON.parse(document.querySelector('[data-state]').textContent).writes.length===n,count);await page.locator('.schedule[aria-busy="false"]').waitFor();};
   const close=async()=>{await page.getByRole('button',{name:width<768?'Назад':'Закрыть задачу',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor({state:'hidden'});};
   const event=id=>page.locator(`[data-calendar-event="${id}"] .schedule-event`);
-  const edit=async id=>{await event(id).click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:id.startsWith('series')?'Изменить серию':'Изменить',exact:true}).click();await page.getByLabel('Название',{exact:true}).waitFor();};
+  const edit=async id=>{await event(id).click();await page.getByLabel('Название',{exact:true}).waitFor();assert.equal(await page.locator('.schedule-preview').count(),0,'Click opened an intermediate preview');};
   for(const id of ['long','short','overlap','untimed','series@2026-10-02']){
    const title=await page.locator(`[data-calendar-event="${id}"] .schedule-event__title`).boundingBox();
    assert(title.width>10&&title.height>=16,`Invisible title: ${id}`);
@@ -38,13 +38,11 @@ try{
   await edit('series@2026-10-02');
   assert.equal(await page.getByRole('button',{name:'Дата задачи: 25.09.2026',exact:true}).count(),1,'Editing occurrence changed series origin');
   await close();
-  await event('long').click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:'Дублировать',exact:true}).click();
-  assert.equal(await page.getByLabel('Название',{exact:true}).inputValue(),'Встреча с командой — копия');
-  await close();assert.equal((await state()).writes.length,1,'Cancel wrote a duplicate');
-  await event('untimed').click();await page.locator('.schedule-preview[data-open]').getByRole('button',{name:'Дублировать',exact:true}).click();
-  assert.equal(await page.getByLabel('Начало',{exact:true}).inputValue(),'','Duplicate materialized an untimed display slot');
-  assert.equal(await page.getByLabel('Длительность, минут',{exact:true}).inputValue(),'60','Duplicate replaced stored duration with a projection');
-  await close();assert.equal((await state()).writes.length,1,'Cancel wrote an untimed duplicate');
+  await event('long').click({trial:true});
+  await event('long').press('Enter');
+  assert.equal(await page.getByLabel('Название',{exact:true}).inputValue(),'Встреча с командой');
+  await page.screenshot({path:`/tmp/rollapp-direct-task-${width}-${height}.png`});
+  await close();assert.equal((await state()).writes.length,1,'Cancel wrote the task');
   await edit('long');await page.getByLabel('Начало',{exact:true}).fill('23:30');
   await page.getByRole('button',{name:'Сохранить',exact:true}).click();
   await page.getByText('Задача должна заканчиваться в пределах выбранного дня',{exact:true}).waitFor();
@@ -144,9 +142,18 @@ try{
   }
   for(const [name,selector] of [['Неделя','.schedule-timegrid--week'],['Месяц','.schedule-month__grid'],['Год','.schedule-year']]){
    await page.getByRole('tab',{name,exact:true}).click();await page.locator(selector).waitFor();
+   if(name==='Неделя'){await edit('series@2026-10-02');await close();}
+   if(name==='Месяц'&&width<768){await page.locator('.schedule-agenda__task').filter({hasText:'Повторение'}).click();await page.getByLabel('Название',{exact:true}).waitFor();await close();}
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`Root overflow: ${name}`);
    await page.screenshot({path:`/tmp/rollapp-events-${name}-${width}-${height}.png`});
   }
+  await page.goto(`${fixtureOrigin}/__calendar-events?date=2026-10-02&view=list`);
+  await page.getByLabel('Задачи на 2 октября',{exact:true}).locator('.schedule-agenda__task').filter({hasText:'Повторение'}).press('Space');
+  await page.getByLabel('Название',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Название',{exact:true}).inputValue(),'Повторение');
+  assert.equal(await page.locator('.schedule-preview').count(),0);
+  await close();
+  assert.equal((await state()).writes.length,0,'Opening/cancelling list task wrote data');
   assert.deepEqual(errors,[]);
   console.log('PASS calendar-events',width,height);
   await page.close();

@@ -158,7 +158,7 @@ export async function runPlanningVisualChecks({ origin, token }) {
       await page.locator(".schedule-list-panel").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).waitFor();
       await page.screenshot({ path: `/tmp/rollapp-obsidian-calendar-${width}.png`, fullPage: true });
       await page.locator(".schedule-list-panel").getByRole("button", { name: new RegExp(`Встреча ${width}`) }).click();
-      await page.locator(".schedule-preview").getByRole("button", { name: "Изменить", exact: true }).click();
+      await page.getByLabel("Название", { exact: true }).waitFor();
       await page.getByRole("switch", { name: "Весь день", exact: true }).click();
       await page.getByLabel("Начало", { exact: true }).fill("09:30");
       await page.getByLabel("Длительность, минут", { exact: true }).fill("90");
