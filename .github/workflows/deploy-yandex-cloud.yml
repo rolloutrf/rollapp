@@ -106,8 +106,10 @@ jobs:
         run: npx playwright-core install --with-deps webkit
 
       - name: Install video encoder
+        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'none'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install pinned blockchain receipt codec
+        if: github.event_name != 'workflow_dispatch' || inputs.verification != 'none'
         run: |
           python3 -m venv "$RUNNER_TEMP/rollapp-ots"
           "$RUNNER_TEMP/rollapp-ots/bin/pip" install -r server/requirements/opentimestamps.txt

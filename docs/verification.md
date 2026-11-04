@@ -257,6 +257,11 @@ Cmd+Shift и Alt+Shift в Chromium с fixture-only navigator.platform; это н
 
 ## Выпуск и восстановление
 
+При явно выбранном `workflow_dispatch` с `verification=none` runner пропускает
+FFmpeg и Python codec для тестов вместе с полным набором проверок. Docker build
+сохраняет runtime-зависимости, существующую проверку схемы и exact-SHA health.
+
+
 Общий бюджет PostgreSQL: [database-connections.md](database-connections.md).
 Production pool — 2, один persistent preview — 1; учитывать общий лимит Odyssey 20.
 
