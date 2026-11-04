@@ -101,7 +101,9 @@
     "test:need-rewards": "node --test server/need-rewards.test.js server/reward-blockchain-proof.test.js",
     "test:need-rewards:production": "ROLLAPP_TEST_NEED_REWARDS=1 node --test server/need-rewards.integration.test.js",
     "db:migrate:need-rewards": "node scripts/migrate-need-rewards.mjs",
-    "test:reward-proofs": "node scripts/reward-proof-codec-check.mjs"
+    "test:reward-proofs": "node scripts/reward-proof-codec-check.mjs",
+    "test:profile": "node scripts/profile-settings-smoke.mjs",
+    "check:release:profile": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:profile && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -161,6 +161,7 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon, два нативных submit в одном кадре → одно сохранение после commit, canonical related references |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
 | `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
+| `npm run test:profile` | Вложенные настройки профиля: черновики, валидация скрытого поля, статусы провайдеров, переход к заказам и геометрия на 320–1920px и коротких экранах; входит в `check:comprehensive` |
 | `npm run test:contacts` | Бесконечная лента реального ContactsSpherePage: добавление страниц без перемонтирования, ошибка/повтор, конец списка, кадры прокрутки при избранном, отказ сохранения, фильтры и устаревшие ответы; 320–1920px и короткий desktop. Только явный UI transport, реальные API запрещены. |
 | `npm run test:wish-groups` | Карточки групп Wishlist: длинные названия, клавиатура, отмена переименования, owner/read-only; сборы роллов: цель/пауза/взносы, retry/reload, guards хранения, геометрия и scroll на восьми размерах |
 | `npm run test:fundraising:production` | Уже существующая production-схема, endpoints и переводы сборов в BEGIN → ROLLBACK; без DDL/инициализации, lock timeout 5s и statement timeout 15s |
@@ -723,3 +724,8 @@ chrome/позиция новой кнопки, поиск, диалог, стр�
 2 ноября 2026 лимит `rollapp_app.conn_limit` существующего production-кластера увеличен с20 до40 после подтверждённого PostgreSQL53300 при29 постоянных preview-сервисах. Это общий лимит роли, не разрешение увеличивать отдельные пулы: сохранять production `PG_POOL_SIZE=2` и managed preview pool1. При новых preview проверять суммарный бюджет и configured cluster/role; не останавливать здоровые сервисы или менять схему ради освобождения соединения. Параметры доступа при этом обновлении не менялись. Доказательства: [deployment-2026-11-02-consolidated.md](deployment-2026-11-02-consolidated.md).
 
 Календарные задачи Rollapp открывают общий TaskEditor сразу по клику и Enter/Space, без промежуточного Popover. Сохраняются исходная серия и отсутствие явного времени; отмена не пишет данные. Внешние события Apple Calendar сохраняют read-only preview и редактируются на устройстве.
+
+Точечный выпуск вложенных настроек профиля: `workflow_dispatch` с
+`verification=profile` выполняет unit/UI/control/profile/build без полного
+аудита. Этот режим применяется только при явном запросе пользователя не
+проводить полную диагностику; schema verify и exact-SHA health сохраняются.

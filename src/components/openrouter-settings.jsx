@@ -9,7 +9,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 
-export function OpenRouterSettings({ disabled = false, onBusyChange }) {
+export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = false }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [settingsError, setSettingsError] = useState("");
@@ -115,13 +115,13 @@ export function OpenRouterSettings({ disabled = false, onBusyChange }) {
   };
 
   return (
-    <section className="openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5 border-t pt-6" aria-labelledby="openrouter-settings-title">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="openrouter-settings-title" className="flex items-center gap-2 font-heading font-medium">
+    <section className={`openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5${embedded ? "" : " border-t pt-6"}`} aria-label={embedded ? "Настройки OpenRouter" : undefined} aria-labelledby={embedded ? undefined : "openrouter-settings-title"}>
+      {(!embedded || settings?.configured) && <div className="flex flex-wrap items-center justify-between gap-2">
+        {!embedded && <h2 id="openrouter-settings-title" className="flex items-center gap-2 font-heading font-medium">
           <LockKeyhole className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />OpenRouter
-        </h2>
+        </h2>}
         {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
-      </div>
+      </div>}
       {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
         : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
         : !settings.available ? <>

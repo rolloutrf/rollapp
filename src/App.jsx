@@ -14,6 +14,7 @@ import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
@@ -45,6 +46,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
@@ -6676,6 +6678,17 @@ function FriendsPage() {
   );
 }
 
+function ProfileSettingsSection({ value, title, icon: Icon, children }) {
+  return <AccordionItem value={value} className="min-w-0">
+    <AccordionTrigger className="min-h-12 items-center gap-2 py-3 text-lg leading-7 hover:no-underline">
+      <span className="flex min-w-0 items-center gap-2"><Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /><span>{title}</span></span>
+    </AccordionTrigger>
+    <AccordionContent keepMounted className="rollapp-body flex h-auto min-w-0 flex-col gap-4 pt-2 pb-4 [&_p:not(:last-child)]:mb-0">
+      {children}
+    </AccordionContent>
+  </AccordionItem>;
+}
+
 function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -6693,8 +6706,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
-  const [yandexEnabled, setYandexEnabled] = useState(false);
+  const [yandexEnabled, setYandexEnabled] = useState(null);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
+  const [openSections, setOpenSections] = useState(["personal"]);
   const contentRef = useRef(null);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
@@ -6702,6 +6716,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const yandexLinkNext = safeNextPath(`${location.pathname}${location.search}`);
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
   const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
+  const ordersLinkBlocked = yandexLinkBlocked || openRouterBusy;
   const cleanupUploadedImages = async (keepUrl = "") => {
     const keepId = uploadedImageIdFromUrl(keepUrl);
     const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
@@ -6794,79 +6809,100 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
       </DrawerHeader>
       <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
-        <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
-          <Card className="flex flex-row items-center gap-3 p-3">
-            <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <strong className="block text-sm font-medium">Фото профиля</strong>
-              <p className="text-sm text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
-              <ShadcnButton
-                type="button"
-                variant="outline"
-                className="mt-2"
-                disabled={imageUploading || loading || loggingOut}
-                aria-busy={imageUploading || undefined}
-                onClick={() => imageFileRef.current?.click()}
-              >
-                {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
-                {imageUploading ? "Загрузка…" : "Загрузить фото"}
-              </ShadcnButton>
-            </div>
-            <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
-          </Card>
-          {imageError && <FieldError>{imageError}</FieldError>}
-          <FieldGroup className="gap-4">
-            <div className="grid gap-4">
-              <Field>
-                <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
-                <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
-                <InputGroup className="min-w-0">
-                  <InputGroupAddon align="inline-start" className="shrink-0">
-                    <InputGroupText aria-hidden="true">роллапп.рф/</InputGroupText>
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    id="settings-profile-address"
-                    className="min-w-0"
-                    required
-                    pattern="[a-z0-9-]{3,32}"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    autoComplete="username"
-                    spellCheck={false}
-                    value={form.username}
-                    onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
-                  />
-                </InputGroup>
-                <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
-              <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
-            </Field>
-            <Field className="sm:max-w-[calc(50%-0.5rem)]">
-              <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
-              <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
-            </Field>
-          </FieldGroup>
-          {(yandexEnabled || user.hasYandex) && (
-            <Card className="grid gap-3 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <strong className="block text-sm font-medium">Yandex ID</strong>
-                  <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+        <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit} onInvalidCapture={() => flushSync(() => setOpenSections((current) => current.includes("personal") ? current : [...current, "personal"]))}>
+          <Accordion multiple value={openSections} onValueChange={setOpenSections} aria-label="Разделы профиля">
+            <ProfileSettingsSection value="personal" title="Персональная информация" icon={CircleUserRound}>
+              <Card className="flex flex-row items-center gap-3 p-3">
+                <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-sm font-medium">Фото профиля</strong>
+                  <p className="text-sm text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
+                  <ShadcnButton
+                    type="button"
+                    variant="outline"
+                    className="mt-2"
+                    disabled={imageUploading || loading || loggingOut}
+                    aria-busy={imageUploading || undefined}
+                    onClick={() => imageFileRef.current?.click()}
+                  >
+                    {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
+                    {imageUploading ? "Загрузка…" : "Загрузить фото"}
+                  </ShadcnButton>
                 </div>
-                {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
-              </div>
-              {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
-                ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
-                : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
-            </Card>
-          )}
-          <OpenRouterSettings key={user.id} disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
+                <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+              </Card>
+              {imageError && <FieldError>{imageError}</FieldError>}
+              <FieldGroup className="gap-4">
+                <div className="grid gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
+                    <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
+                    <InputGroup className="min-w-0">
+                      <InputGroupAddon align="inline-start" className="shrink-0">
+                        <InputGroupText aria-hidden="true">роллапп.рф/</InputGroupText>
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        id="settings-profile-address"
+                        className="min-w-0"
+                        required
+                        pattern="[a-z0-9-]{3,32}"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        autoComplete="username"
+                        spellCheck={false}
+                        value={form.username}
+                        onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+                      />
+                    </InputGroup>
+                    <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
+                  </Field>
+                </div>
+                <Field>
+                  <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
+                  <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
+                </Field>
+                <Field className="sm:max-w-[calc(50%-0.5rem)]">
+                  <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
+                  <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
+                </Field>
+              </FieldGroup>
+            </ProfileSettingsSection>
+            <ProfileSettingsSection value="openrouter" title="OpenRouter" icon={LockKeyhole}>
+              <OpenRouterSettings key={user.id} embedded disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
+            </ProfileSettingsSection>
+            <ProfileSettingsSection value="yandex" title="Yandex ID" icon={Fingerprint}>
+              <Card className="grid gap-3 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="block text-sm font-medium">Yandex ID</strong>
+                    <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+                  </div>
+                  {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
+                </div>
+                {!user.hasYandex && yandexEnabled === null && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner />Проверяем доступность Yandex ID…</p>}
+                {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
+                {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
+                  ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
+                  : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
+              </Card>
+            </ProfileSettingsSection>
+            <ProfileSettingsSection value="orders" title="Заказы" icon={PackageCheck}>
+              <p className="text-muted-foreground">История покупок, доставка и возврат товаров.</p>
+              <Link
+                to={APP_ORDERS_PATH}
+                className={cn(buttonVariants({ variant: "outline" }), "w-full rounded-full no-underline!", ordersLinkBlocked && "pointer-events-none opacity-50")}
+                aria-disabled={ordersLinkBlocked || undefined}
+                tabIndex={ordersLinkBlocked ? -1 : undefined}
+                onClick={(event) => { if (ordersLinkBlocked) event.preventDefault(); else close(); }}
+              >
+                Открыть заказы<ArrowRight className="size-5" aria-hidden="true" />
+              </Link>
+              {changed && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед переходом к заказам.</p>}
+            </ProfileSettingsSection>
+          </Accordion>
           <div className="border-t pt-4">
             <ShadcnButton
               type="button"
