@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
+import { publicSpacePath } from "../../shared/profile-links.js";
 import { formatRolls } from "../../shared/rolls.js";
 import { api } from "@/api";
 import { WISHLIST_SPACES, canManageWishlistSpace } from "../../shared/wishlist-business.js";
@@ -57,7 +58,7 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss}) {
  <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
  {item.imageUrl&&<img src={item.imageUrl} alt={item.title} className="max-h-96 w-full object-contain"/>}
  <p className="whitespace-pre-wrap">{item.description}</p>{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}
- <Link to={`/app/store?tab=${space}&business=${encodeURIComponent(item.business.username)}`} onClick={onClose}>Страница продавца · {item.business.name}</Link>
+ <Link to={publicSpacePath(item.business.username,space)} onClick={onClose}>Страница продавца · {item.business.name}</Link>
  {item.actionUrl&&<a href={item.actionUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({variant:"outline"})}>Открыть у продавца<ExternalLink aria-hidden="true"/></a>}
  {owner&&<Field><FieldLabel htmlFor="offer-buyer">Покупатель</FieldLabel>{loading?<p role="status">Загружаем покупателей…</p>:buyers.length?<Select value={buyerId||null} onValueChange={setBuyerId} disabled={busy}><SelectTrigger id="offer-buyer" className="w-full"><SelectValue placeholder="Выберите покупателя">{selected=>buyers.find(buyer=>buyer.id===selected)?.name}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{buyers.map(buyer=><SelectItem key={buyer.id} value={buyer.id}>{buyer.name} · @{buyer.username}</SelectItem>)}</SelectContent></Select>:<p>Покупатели ещё не открыли доступ к этому пространству.</p>}</Field>}
  {owner&&<><Field><FieldLabel htmlFor="wishlist-offer-price">Цена в роллах</FieldLabel><Input id="wishlist-offer-price" type="number" min="1" max="1000000" step="1" value={price} disabled={busy} onChange={e=>setPrice(e.target.value)} /></Field><Field><FieldLabel htmlFor="wishlist-offer-duration">Срок действия</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id="wishlist-offer-duration" className="w-full"><SelectValue>{()=>durations.find(([value])=>value===hours)?.[1]}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{durations.map(([value,label])=><SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field></>}
@@ -100,16 +101,16 @@ export function WishlistBusinessManager({user,space}) {
  {editor&&<ItemEditor key={editor.id||"new"} item={editor} space={space} onClose={()=>setEditor(null)} onSaved={state.reload}/>}
  </div>}</Status>;
 }
-export function WishlistBusinessListing({space,offers=false,business=""}) {
- const state=useBusinessData(`/wishlist-business/${space}/${offers?"offers":"store"}${business?`?business=${encodeURIComponent(business)}`:""}`);
+export function WishlistBusinessListing({space,offers=false,business="",publicProfile=false}) {
+ const state=useBusinessData(publicProfile ? `/wishlist-business/${space}/profiles/${encodeURIComponent(business)}` : `/wishlist-business/${space}/${offers?"offers":"store"}${business?`?business=${encodeURIComponent(business)}`:""}`);
  const [selected,setSelected]=useState(null);const [brand,setBrand]=useState("all");
  useEffect(()=>{setSelected(null);setBrand("all");},[space,business]);
  const brands=[...new Set((state.data?.items||[]).map(item=>item.brand).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
  const items=(state.data?.items||[]).filter(item=>brand==="all"||item.brand===brand);
  return <Status state={state}><div className="page-stack">
  {brands.length>0&&<Field><FieldLabel htmlFor={`seller-brands-${offers?"offers":"store"}`}>Бренд</FieldLabel><Select value={brand} onValueChange={setBrand}><SelectTrigger id={`seller-brands-${offers?"offers":"store"}`}><SelectValue>{selected=>selected==="all"?"Все бренды":selected}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}><SelectItem value="all">Все бренды</SelectItem>{brands.map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>}
- {!offers&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2><Link to={`/app/store?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link></h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
- {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":"Айтемов продавцов пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":"Продавцы ещё не опубликовали айтемы в этом пространстве."}/>}
+ {!offers&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2>{publicProfile ? page.title : <Link to={`/app/store?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link>}</h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
+ {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Айтемов продавцов пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Продавцы ещё не опубликовали айтемы в этом пространстве."}/>}
  {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload}/>}
  </div></Status>;
 }

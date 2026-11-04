@@ -6949,7 +6949,8 @@ function PublicProfile({ shared = false }) {
   const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user]);
   const selected = shared ? "all" : params.listId || (params.wishId ? location.state?.listId : null) || "all";
   const requestedSpace = params.space || new URLSearchParams(location.search).get("tab") || (params.wishId ? location.state?.collectionSpace : null);
-  const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
+  const defaultSpace = !shared && data?.profile?.accountType === "business" ? data.profile.sellerSpace : null;
+  const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : SPACE_IDS.includes(defaultSpace) ? defaultSpace : "products";
   const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
@@ -7137,6 +7138,9 @@ function PublicProfile({ shared = false }) {
       <div><dt>Подписчики</dt><dd>{data.followersCount}</dd></div>
     </dl> : null;
   const businessProfile = !shared && data.profile.accountType === "business";
+  const businessStorefront = businessProfile && !params.listId && !params.wishId;
+  const sellerProfile = businessStorefront && data.profile.businessCategory === "seller";
+  const sellerSpace = activeSpace;
   const identity = businessProfile
     ? <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" /></ShadcnButton> : <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />}
@@ -7168,8 +7172,11 @@ function PublicProfile({ shared = false }) {
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
       {identity}
       {relationshipBlock}
-      <div className={`page-actions wishes-page__hero-actions ${ownerCollection ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
-        {ownerCollection ? <>
+      <div className={`page-actions wishes-page__hero-actions ${ownerCollection ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={businessStorefront ? "Действия с бизнес-профилем" : data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
+        {businessStorefront && data.isOwner ? <>
+          {sellerProfile && <PageActionButton to={`/app/wishes/business?tab=${data.profile.sellerSpace || sellerSpace}`} >Управлять товарами</PageActionButton>}
+          <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
+        </> : ownerCollection ? <>
           {selectedList && <PageActionButton className="max-[560px]:flex-1" variant="outline" onClick={() => setListModal(selectedList)}>Настройки списка</PageActionButton>}
           <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</PageActionButton>
         </> : data.isOwner && shared
@@ -7185,9 +7192,12 @@ function PublicProfile({ shared = false }) {
       </div>
     </section>
 
-    {businessProfile && <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" />}
+    {businessStorefront && <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">
+      {sellerProfile && <WishlistBusinessListing key={`${data.profile.username}:${sellerSpace}`} space={sellerSpace} business={data.profile.username} publicProfile />}
+      <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" hideEmpty={sellerProfile} />
+    </section>}
 
-    {shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
+    {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">
           {showAllCollection && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}
           {!shared && navigationLists.map((list) => <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
@@ -7195,7 +7205,7 @@ function PublicProfile({ shared = false }) {
         {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
     </WishListNavigation>}
 
-    {wishes.length
+    {!businessStorefront && (wishes.length
       ? <><PublicWishGrid
         key={`${endpoint}:${activeSpace}:${selectedValue}`}
         wishes={wishes}
@@ -7220,7 +7230,7 @@ function PublicProfile({ shared = false }) {
           updateData((current) => ({ ...current, wishes: [...current.wishes].sort((a, b) => (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity)) }));
         }}
       />{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</>
-      : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />}
+      : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />)}
     {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
     {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
     {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}

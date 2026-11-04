@@ -15,15 +15,26 @@ const user = { id: "owner", name: "Владелец" };
 const friend = { id: "friend", name: "Получатель подарочной карты", username: "friend" };
 const params = new URLSearchParams(location.search);
 const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
+state.reads = [];
 window.giftHarness = state;
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
 api.get = async (path) => {
+  state.reads.push(path);
   if (params.has("error")) throw new Error("Не удалось загрузить карты");
-  if (path === "/me") return { user: params.has("guest") ? null : { ...user, username: "owner", accountType: "personal" } };
+  const seller = params.has("seller");
+  const owner = params.has("owner");
+  if (path === "/me") return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null } : { ...user, username: "owner", accountType: "personal" } };
   if (path === "/sphere-shares/incoming") return { shares: [] };
-  if (path === "/profile/studio") return { profile: { ...business, accountType: "business" }, lists: [], wishes: [], groups: [], isOwner:false, followersCount:0, followingCount:0 };
+  if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
+  if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
+  const sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
+  if (path === "/wishlist-business/products/profiles/studio") {
+    if (params.has("listing-error")) throw new Error("Товары временно недоступны");
+    return { items: sellerItems, pages: [] };
+  }
+  if (path === "/wishlist-business/products/page") return { items: sellerItems, page: {title: business.name, description: "", published: false} };
   if (path === "/rolls/gift-cards") {
     const cards = clone(state.cards);
     if (params.has("missing-card")) state.cards = state.cards.filter((card) => card.id !== "second-card");
@@ -57,5 +68,5 @@ function Fixture() {
     {!params.has("guest") && <WalletGiftCards user={user} />}
   </div></main></div>;
 }
-if (params.has("public")) history.replaceState({}, "", "/studio");
+if (params.has("public")) history.replaceState({}, "", "/studio/products");
 createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

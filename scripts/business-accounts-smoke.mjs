@@ -90,6 +90,9 @@ try {
     await picker.focus();
     await page.keyboard.press("ArrowDown");
     await page.getByRole("option").first().waitFor();
+    // Options mount before the primitive finishes its initial-focus lifecycle.
+    // Send navigation keys only once the native list item owns keyboard focus.
+    await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
     await page.keyboard.press("Home");
     await page.keyboard.press("Enter");
     await page.waitForFunction((id) => JSON.parse(document.querySelector("[data-state]").textContent).businessCategory === id, BUSINESS_CATEGORIES[0].id);

@@ -32,7 +32,7 @@
     "test:unit": "node scripts/run-unit-tests.mjs",
     "test:ui": "node scripts/check-shadcn.mjs",
     "test:lab-results": "node scripts/lab-results-smoke.mjs",
-    "test:business-accounts": "node scripts/business-accounts-smoke.mjs",
+    "test:business-accounts": "node scripts/business-accounts-smoke.mjs && node scripts/business-profile-smoke.mjs",
     "test:business:production": "ROLLAPP_TEST_BUSINESS_CATEGORIES=1 node --test server/business-categories.integration.test.js",
     "test:controls": "node scripts/control-size-smoke.mjs",
     "test:details": "node scripts/detail-actions-smoke.mjs",

@@ -54,6 +54,12 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  };
  const seller = (req,res,next) => canManageWishlistSpace(req.user,req.params.space) ? next() : fail(res,403,"Раздел недоступен для вашей категории бизнеса");
  const base = "/api/wishlist-business/:space";
+ app.get(`${base}/profiles/:username`,scope,route(async(req,res) => {
+   const username = req.params.username;
+   const result = await query(`${itemSelect} WHERE i.space=$1 AND i.active AND p.published AND ${eligible} AND u.username=$2 ORDER BY i.created_at DESC,i.id LIMIT 200`,[req.params.space,username]);
+   const pages = await query(`SELECT p.title,p.description,u.username,u.name FROM wishlist_business_pages p JOIN users u ON u.id=p.business_user_id WHERE p.space=$1 AND p.published AND u.account_type='business' AND u.business_category='seller' AND (u.seller_space IS NULL OR u.seller_space=p.space) AND u.username=$2`,[req.params.space,username]);
+   res.json({items:result.rows.map(clean),pages:pages.rows});
+ }));
  app.get(`${base}/store`,requireAuth,scope,route(async(req,res) => {
    const username = String(req.query.business || "").trim().slice(0,100);
    const result = await query(`${itemSelect} WHERE i.space=$1 AND i.active AND p.published AND ${eligible} AND ($2='' OR u.username=$2) ORDER BY i.created_at DESC,i.id LIMIT 200`,[req.params.space,username]);

@@ -75,7 +75,7 @@ function restoredPurchase(storageKey) {
   } catch { return null; }
 }
 
-export function BusinessMarketplacePage({ sphere, kind = "store", businessUsername, user }) {
+export function BusinessMarketplacePage({ sphere, kind = "store", businessUsername, user, hideEmpty = false }) {
   const storageKey = `rollapp:business-purchase:${user?.id || "guest"}:${businessUsername || sphere.id}:${kind}`;
   const [pending, setPending] = useState(() => restoredPurchase(storageKey));
   const [giftCards, setGiftCards] = useState([]);
@@ -133,12 +133,14 @@ export function BusinessMarketplacePage({ sphere, kind = "store", businessUserna
     }
   };
 
+  if (hideEmpty && !state.loading && !state.error && !state.items.length && !pending && !selected) return null;
+
   return (
     <div className={`${businessUsername ? "" : "app-page"} business-marketplace-page rollapp-body`}>
       {pending && !selected && <Alert><AlertDescription className="flex flex-col gap-3">Остался платёж с неизвестным результатом. Повторная проверка не спишет роллы ещё раз.<Button variant="outline" onClick={() => setSelected(pending.item)}>Проверить оплату</Button></AlertDescription></Alert>}
       {state.loading ? <div className="business-marketplace-page__status"><Spinner /><span>Загружаем предложения…</span></div> : null}
       {state.error ? <Alert variant="destructive"><AlertTitle>Не удалось загрузить раздел</AlertTitle><AlertDescription>{state.error}</AlertDescription></Alert> : null}
-      {!state.loading && !state.error && !state.items.length ? (
+      {!hideEmpty && !state.loading && !state.error && !state.items.length ? (
         <Empty className="business-marketplace-page__empty border">
           <EmptyHeader>
             <EmptyMedia variant="icon"><Package aria-hidden="true" /></EmptyMedia>
