@@ -17,6 +17,13 @@ ENV XDG_DATA_HOME=/data
 ENV XDG_CONFIG_HOME=/config
 WORKDIR /app
 
+COPY server/requirements/opentimestamps.txt /tmp/opentimestamps-requirements.txt
+RUN apk add --no-cache python3 \
+  && apk add --no-cache --virtual .ots-build gcc musl-dev python3-dev py3-pip \
+  && python3 -m venv /opt/rollapp-ots \
+  && /opt/rollapp-ots/bin/pip install --no-cache-dir -r /tmp/opentimestamps-requirements.txt \
+  && apk del .ots-build
+
 RUN apk add --no-cache caddy chromium ffmpeg su-exec tini xvfb-run \
   && addgroup -S -g 10001 retailer-renderer \
   && adduser -S -D -H -u 10001 -G retailer-renderer retailer-renderer \
@@ -28,6 +35,7 @@ RUN npm ci --omit=dev --ignore-scripts \
 
 COPY --from=build /app/dist ./dist
 COPY server ./server
+RUN PYTHONDONTWRITEBYTECODE=1 /opt/rollapp-ots/bin/python server/reward-proof-codec-test.py
 COPY shared ./shared
 COPY contracts ./contracts
 COPY certs ./certs

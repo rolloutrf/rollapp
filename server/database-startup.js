@@ -34,6 +34,13 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT id,group_id,owner_id,title,target,accepting,created_at FROM wish_group_fundraisers LIMIT 0");
     await client.query("SELECT transaction_id,fundraiser_id,sender_id,idempotency_key FROM wish_group_contributions LIMIT 0");
     await client.query("SELECT id,user_id,video_data,size_bytes,duration_seconds,created_at,expires_at FROM stories LIMIT 0");
+    if (environment.ROLLAPP_NEED_REWARDS_ENABLED === "true") {
+      await client.query("SELECT id,user_id,title,description,category,status,idempotency_key,created_at FROM reward_needs LIMIT 0");
+      await client.query("SELECT id,need_id,business_id,description,reward,status,idempotency_key,expires_at,claim_at,settled_at,dispute_reason,created_at FROM reward_need_offers LIMIT 0");
+      await client.query("SELECT id,offer_id,user_id,kind,amount,created_at FROM reward_need_entries LIMIT 0");
+      await client.query("SELECT id,offer_id,actor_id,action,note,created_at FROM reward_need_events LIMIT 0");
+      await client.query("SELECT offer_id,content,digest,status,proof,bitcoin_height,bitcoin_hash,verified_at,attempts,next_attempt_at,lease_token,last_error,created_at FROM reward_blockchain_receipts LIMIT 0");
+    }
   });
   return mode;
 }

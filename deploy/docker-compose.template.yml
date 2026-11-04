@@ -10,6 +10,10 @@ services:
       DEMO_MODE: "false"
       # Ordinary releases only verify the existing schema; migrations are explicit.
       ROLLAPP_DATABASE_INITIALIZATION: "verify"
+      # Additive need-rewards migration is applied separately before rollout.
+      ROLLAPP_NEED_REWARDS_ENABLED: "true"
+      ROLLAPP_REWARD_PROOFS_ENABLED: "true"
+      ROLLAPP_OTS_PYTHON: "/opt/rollapp-ots/bin/python"
       PORT: "8080"
       COOKIE_SECURE: "true"
       APP_VERSION: "__VERSION__"

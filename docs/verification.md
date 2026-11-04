@@ -64,6 +64,7 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 | Отступы, навигация, размер контролов | `src/spacing.css`, `ControlBar`, `PageActionButton` | `docs/spacing-system.md` |
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md` |
 | Порталы, safe area, клавиатура | `src/overlays.css`, `use-visual-viewport.js` | `docs/mobile-overlays.md` |
+| Серверная механика обеспеченных наград | `server/need-rewards.js`, `shared/need-rewards.js` | `docs/need-rewards.md` |
 | Мобильные формы и действия | `MobileFormPages`, `MobileFormFooter`, `ContentPageActions` | `docs/mobile-overlays.md` |
 | Бизнес-регистрация и категории доступа | `shared/business-accounts.js`, `RegistrationAccountFields`, `BusinessRequestScopeFields` | `docs/business-accounts.md` |
 
