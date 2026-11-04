@@ -17,7 +17,7 @@ await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
-    for (const mode of ["owner", "guest", "buyer", "empty", "listing-error", "personal"]) {
+    for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "listing-error", "personal"]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
@@ -25,6 +25,7 @@ try {
       const query = `public&offers&seller&${mode}${mode === "empty" || mode === "listing-error" ? "&guest" : ""}`;
       await page.goto(`${smokeOrigin(server)}/__business-profile?${query}`);
       await page.getByRole("heading", { level: 1 }).waitFor();
+      if (mode === "dashboard") assert.equal(new URL(page.url()).pathname, "/studio/products");
       await page.evaluate(() => document.fonts.ready);
       if (mode === "personal") {
         await page.getByText("Добавьте то, что действительно порадует.").or(page.getByText("Загляните чуть позже — новая мечта наверняка появится.")).waitFor();
@@ -45,7 +46,7 @@ try {
           await page.getByRole("button", { name: "Открыть «Товар мастерской»", exact: true }).waitFor();
         }
         const manage = page.getByRole("link", { name: "Управлять товарами", exact: true });
-        if (mode === "owner") {
+        if (mode === "owner" || mode === "dashboard") {
           assert.equal(await manage.getAttribute("href"), "/app/wishes/business?tab=products");
           const style = await manage.evaluate(node => { const css = getComputedStyle(node); return { height: node.getBoundingClientRect().height, left: css.paddingLeft, right: css.paddingRight }; });
           assert(style.height >= 48); assert.equal(style.left, "24px"); assert.equal(style.right, "24px");
@@ -53,7 +54,7 @@ try {
       }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${mode} ${width}: root overflow`);
       await page.screenshot({ path: `/tmp/rollapp-business-profile-${mode}-${width}-${height}.png`, fullPage: true });
-      if (mode === "owner") {
+      if (mode === "owner" || mode === "dashboard") {
         await page.getByRole("link", { name: "Управлять товарами", exact: true }).click();
         await page.getByRole("textbox", { name: "Название страницы", exact: true }).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("tab"), "products");

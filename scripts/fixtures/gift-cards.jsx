@@ -23,7 +23,7 @@ api.get = async (path) => {
   state.reads.push(path);
   if (params.has("error")) throw new Error("Не удалось загрузить карты");
   const seller = params.has("seller");
-  const owner = params.has("owner");
+  const owner = params.has("owner") || params.has("dashboard");
   if (path === "/me") return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null } : { ...user, username: "owner", accountType: "personal" } };
   if (path === "/sphere-shares/incoming") return { shares: [] };
   if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
@@ -68,5 +68,5 @@ function Fixture() {
     {!params.has("guest") && <WalletGiftCards user={user} />}
   </div></main></div>;
 }
-if (params.has("public")) history.replaceState({}, "", "/studio/products");
+if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
 createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);
