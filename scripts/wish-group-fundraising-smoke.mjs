@@ -55,6 +55,7 @@ try {
     await page.getByRole("progressbar").waitFor();
     assert.equal(await page.getByRole("progressbar").getAttribute("aria-valuemax"), "1000");
     await open("owner");
+    assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Приостановить", exact: true }).click();
     await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
     await page.getByRole("button", { name: "Возобновить", exact: true }).click();
@@ -85,7 +86,33 @@ try {
     for (const mode of ["guest", "closed", "completed"]) {
       await open(mode); await geometry();
       assert.equal(await page.getByRole("button", { name: "Внести роллы", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
     }
+    await open("completed-owner");
+    await geometry();
+    await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).click();
+    await page.getByText("1 000 роллов · тестовый баланс", { exact: true }).waitFor();
+    await page.getByLabel("Тестовый магазин", { exact: true }).fill("Тестовый магазин с длинным названием");
+    await page.getByLabel("Сумма тестовой покупки, роллы", { exact: true }).fill("1001");
+    assert(await page.getByRole("button", { name: "Эмулировать покупку", exact: true }).isDisabled());
+    await page.getByLabel("Сумма тестовой покупки, роллы", { exact: true }).fill("300");
+    await page.getByRole("button", { name: "Эмулировать покупку", exact: true }).click();
+    await geometry();
+    await page.getByRole("button", { name: "Отмена", exact: true }).click();
+    await page.getByRole("button", { name: "Эмулировать покупку", exact: true }).click();
+    await page.getByRole("button", { name: "Подтвердить покупку", exact: true }).click();
+    await page.getByRole("status").getByText("Тестовая покупка выполнена. Реальные средства не списаны.", { exact: true }).waitFor();
+    await page.reload();
+    await page.getByText("700 роллов · тестовый баланс", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.fundraisingCalls), []);
+    await geometry();
+    await page.screenshot({ path: `/tmp/rollapp-virtual-card-${width}.png`, fullPage: true });
+    await open("card-storage");
+    await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).click();
+    await page.getByRole("alert").waitFor();
+    assert.equal(await page.getByLabel("Тестовый магазин", { exact: true }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.fundraisingCalls), []);
     await open("lost");
     await page.getByLabel("Сумма взноса, роллы", { exact: true }).fill("100");
     await page.getByRole("button", { name: "Внести роллы", exact: true }).click();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Coins, HeartHandshake } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "@/api";
+import { FundraiserVirtualCard } from "@/components/fundraiser-virtual-card";
 import { Button } from "@/components/ui/button";
 import { ControlBar } from "@/components/control-bar";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -124,6 +125,7 @@ export function WishGroupFundraiser({ group, viewerId = "guest", shareToken = ""
           if (alive.current) setData(current => ({ ...current, ...result }));
         })}>{fund.accepting ? "Приостановить" : "Возобновить"}</Button>}
       </ControlBar>}
+      {data.isOwner && fund.status === "completed" && <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId} />}
       {!data.isOwner && data.signedIn && (fund.status === "active" || pending) && <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); if (validAmount || pending) { setConfirmationAmount(pending?.amount || numericAmount); setConfirming(true); } }}>
         <Field><FieldLabel htmlFor={`${id}-amount`}>Сумма взноса, роллы</FieldLabel>
           <Input id={`${id}-amount`} inputMode="numeric" value={pending ? String(pending.amount) : amount} disabled={busy || Boolean(pending)} onChange={event => setAmount(event.target.value)} aria-describedby={`${id}-balance`} />

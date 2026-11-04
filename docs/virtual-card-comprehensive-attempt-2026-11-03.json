@@ -1,0 +1,60 @@
+{
+  "status": "interrupted",
+  "startedAt": "2026-11-03T10:34:41.979Z",
+  "commit": "03377b2c7c8b64ef6d855227c95cc02a724de374",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "interrupted",
+      "startedAt": "2026-11-03T10:34:42.024Z"
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contact-notes",
+      "status": "not-run"
+    },
+    {
+      "name": "test:messenger",
+      "status": "not-run"
+    }
+  ],
+  "reason": "Scoped feature verification completed separately; full application audit not completed.",
+  "finishedAt": "2026-11-03T10:39:34.133139+00:00"
+}

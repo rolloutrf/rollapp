@@ -9,22 +9,22 @@ import "../../src/index.css";
 // Isolated component fixture; no database or HTTP API is used.
 const mode = new URLSearchParams(location.search).get("mode") || "owner";
 const group = { id: `fundraising-${mode}`, title: "Часы для путешествий", space: "products" };
-let fund = ["empty", "hidden"].includes(mode) ? null : { id: "fund", raised: 250, target: 1000, contributors: 2, accepting: mode !== "closed", status: mode === "closed" ? "closed" : "active" };
-if (mode === "completed") fund = { ...fund, raised: 1000, status: "completed" };
+let fund = ["empty", "hidden"].includes(mode) ? null : { id: `fund-${mode}`, raised: 250, target: 1000, contributors: 2, accepting: mode !== "closed", status: mode === "closed" ? "closed" : "active" };
+if (["completed", "completed-owner", "card-storage"].includes(mode)) fund = { ...fund, raised: 1000, status: "completed" };
 const saved = sessionStorage.getItem(`fixture:${mode}`);
 if (saved) fund = JSON.parse(saved);
 window.fundraisingCalls = [];
-if (mode === "storage") {
+if (["storage", "card-storage"].includes(mode)) {
   const original = Storage.prototype.setItem;
   Storage.prototype.setItem = function (key, value) {
-    if (key.startsWith("rollapp:group-contribution:")) throw new DOMException("Storage unavailable");
+    if (key.startsWith("rollapp:group-contribution:") || (mode === "card-storage" && key.startsWith("rollapp:virtual-card-sandbox:"))) throw new DOMException("Storage unavailable");
     return original.call(this, key, value);
   };
 }
 const request = {
   async get() {
     if (mode === "error") throw new Error("Не удалось загрузить сбор");
-    return { fundraiser: fund, isOwner: ["owner", "empty"].includes(mode), signedIn: mode !== "guest", balance: 500 };
+    return { fundraiser: fund, isOwner: ["owner", "empty", "completed-owner", "card-storage"].includes(mode), signedIn: mode !== "guest", balance: 500 };
   },
   async post(path, input) {
     window.fundraisingCalls.push({ path, input });
