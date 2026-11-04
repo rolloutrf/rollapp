@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, Copy, Download, Share2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, Share2, Signature } from "lucide-react";
 import { publicContactCard, contactCardDownload } from "../../shared/contact-card.js";
 import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
@@ -80,8 +80,8 @@ export function ContactCardDialog({ profile, onClose, canSign = false }) {
         <ControlBar className="flex flex-col gap-2" aria-label="Обмен визиткой">
           <Button type="button" variant="outline" onClick={() => run(async () => { await navigator.clipboard.writeText(card.url); setMessage("Ссылка на профиль скопирована"); })}><Copy aria-hidden="true" />Скопировать ссылку</Button>
           <Button type="button" variant="outline" disabled={sharing} onClick={share}><Share2 aria-hidden="true" />Поделиться</Button>
-          <Button type="button" variant="ghost" onClick={() => run(() => downloadCard(card, "json"))}>Скачать JSON</Button>
-          {canSign && !signingOpen && <Button type="button" variant="outline" onClick={() => { setPrevious(null); setSigningOpen(true); }}>Подпись TON Testnet</Button>}
+          <Button type="button" variant="outline" onClick={() => run(() => downloadCard(card, "json"))}><Download aria-hidden="true" />Скачать JSON</Button>
+          {canSign && !signingOpen && <Button type="button" variant="outline" onClick={() => { setPrevious(null); setSigningOpen(true); }}><Signature aria-hidden="true" />Подпись TON Testnet</Button>}
         </ControlBar>
         {canSign && signingOpen && <Suspense fallback={<p role="status">Загружаем подключение TON…</p>}><TonCardSigner key={`${card.username}:${card.name}`} profile={card} previous={previous} /></Suspense>}
         <SignedCardVerifier key={`${card.username}:${card.name}`} profile={card} onUpdate={canSign ? (bundle) => { setPrevious(bundle); setSigningOpen(true); } : undefined} />
