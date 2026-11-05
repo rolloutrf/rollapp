@@ -16,6 +16,7 @@ const friend = { id: "friend", name: "Получатель подарочной 
 const params = new URLSearchParams(location.search);
 const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
 state.reads = [];
+state.sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
 window.giftHarness = state;
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
@@ -29,12 +30,12 @@ api.get = async (path) => {
   if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
   if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
-  const sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
   if (path === "/wishlist-business/products/profiles/studio") {
     if (params.has("listing-error")) throw new Error("Товары временно недоступны");
-    return { items: sellerItems, pages: [] };
+    return { items: state.sellerItems, pages: [] };
   }
-  if (path === "/wishlist-business/products/page") return { items: sellerItems, page: {title: business.name, description: "", published: false} };
+  if (path === "/wishlist-business/products/page") return { items: state.sellerItems, page: {title: business.name, description: "", published: params.has("owner")} };
+  if (path === "/wishlist-business/products/buyers") return { buyers: [] };
   if (path === "/rolls/gift-cards") {
     const cards = clone(state.cards);
     if (params.has("missing-card")) state.cards = state.cards.filter((card) => card.id !== "second-card");
@@ -44,8 +45,31 @@ api.get = async (path) => {
   if (path.startsWith("/rolls/recipients?q=")) return { people: [friend] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
+api.uploadImage = async (file) => {
+  state.calls.push({ path: "/uploads/images", name: file.name, size: file.size });
+  if (!state.photoFailed) {
+    state.photoFailed = true;
+    throw new Error("Фото временно недоступно");
+  }
+  return { imageUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=" };
+};
+api.patch = async (path, payload) => {
+  state.calls.push({ path, payload: clone(payload) });
+  const item = state.sellerItems.find((item) => path === `/wishlist-business/products/items/${item.id}`);
+  if (!item) throw new Error(`Unexpected fixture mutation: ${path}`);
+  Object.assign(item, payload);
+  return { id: item.id, item: clone(item) };
+};
 api.post = async (path, payload) => {
   state.calls.push({ path, payload: clone(payload) });
+  if (path === "/wishlist-business/products/items") {
+    const { requestId, ...fields } = payload;
+    const existing = state.sellerItems.find((item) => item.id === requestId);
+    if (existing) return { id: requestId, item: clone(existing), replayed: true };
+    state.sellerItems.unshift({ ...fields, id: requestId, space: "products", business });
+    await new Promise((resolve) => { state.completeItemSave = resolve; });
+    throw new Error("Ответ сервера потерян");
+  }
   if (state.requests.has(payload.idempotencyKey)) return clone(state.requests.get(payload.idempotencyKey));
   let card = state.cards[0];
   if (path.includes("/purchases")) { state.cards.find((entry) => entry.id === payload.giftCardId).balance -= 20; }

@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
-import { MobileFormScreen, MobileFormFooter } from "@/components/mobile-form-pages";
+import { WishlistBusinessItemEditor } from "@/components/wishlist-business-item-editor";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export function wishlistSpace(search) { return WISHLIST_SPACES.find(item => item.id === new URLSearchParams(search).get("tab"))?.id || "products"; }
@@ -40,20 +40,30 @@ function Status({state,children}) {
 }
 function Blank({title,text}) {return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>;}
 function ErrorMessage({message}) {return message ? <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>:null;}
-function BusinessItem({item,onOpen}) {
- return <Card className="overflow-hidden p-0"><Button type="button" variant="ghost" className="h-auto w-full min-w-0 flex-col items-stretch gap-4 rounded-none p-0 text-left font-normal whitespace-normal" onClick={()=>onOpen(item)} aria-label={`Открыть «${item.title}»`}>
-   <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-muted">{item.imageUrl?<img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy"/>:<ImageIcon aria-hidden="true"/>}</div>
-   <div className="flex min-w-0 flex-col gap-2 p-4"><h3 className="break-words font-semibold">{item.title}</h3>{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}<p className="text-muted-foreground">{item.brand || item.business.pageTitle || item.business.name}</p>{!item.active&&<p className="text-muted-foreground">Скрыт</p>}</div>
- </Button></Card>;
+function BusinessItem({ item, onOpen }) {
+ const content = <>
+   <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-muted">{item.imageUrl ? <img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy" /> : <ImageIcon aria-hidden="true" />}</div>
+   <div className="flex min-w-0 flex-col gap-2 p-4">
+     <h3 className="break-words font-semibold">{item.title || "Название"}</h3>
+     {(item.personalOffer || item.price) && <p className="break-words">{item.personalOffer ? formatRolls(item.personalOffer.priceRolls) : item.price}</p>}
+     <p className="break-words text-muted-foreground">{item.brand || item.business.pageTitle || item.business.name}</p>
+     {!item.active && onOpen && <p className="text-muted-foreground">Скрыт</p>}
+   </div>
+ </>;
+ return <Card className="overflow-hidden p-0">{onOpen ? (
+   <Button type="button" variant="ghost" className="h-auto w-full min-w-0 flex-col items-stretch gap-4 rounded-none p-0 text-left font-normal whitespace-normal" onClick={() => onOpen(item)} aria-label={`Открыть «${item.title}»`}>
+     {content}
+   </Button>
+ ) : content}</Card>;
 }
-function ItemDetails({item,space,onClose,owner,onEdit,onDismiss}) {
+function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose}) {
  const isMobile=useIsMobile();
  const [price,setPrice]=useState(""),[hours,setHours]=useState("24");const pending=useRef(null),sendLock=useRef(false);
  const [buyers,setBuyers]=useState([]);const [buyerId,setBuyerId]=useState("");const [error,setError]=useState("");const [loading,setLoading]=useState(owner);const [busy,setBusy]=useState(false);
  useEffect(()=>{if(!owner)return;let current=true;api.get(`/wishlist-business/${space}/buyers`).then(data=>{if(current)setBuyers(data.buyers);}).catch(e=>{if(current)setError(e.message);}).finally(()=>{if(current)setLoading(false);});return()=>{current=false;};},[owner,space]);
  const send=async()=>{if(sendLock.current)return;sendLock.current=true;setBusy(true);setError("");const terms={buyerId,priceRolls:Number(price),durationHours:Number(hours)};const signature=JSON.stringify(terms);if(pending.current?.signature!==signature)pending.current={signature,payload:{...terms,idempotencyKey:crypto.randomUUID()}};try{const result=await api.post(`/wishlist-business/${space}/items/${item.id}/recommend`,pending.current.payload);toast.success(result.alreadySent?"Этот счёт уже создан":"Персональный счёт создан");onClose();}catch(e){setError(e.message);}finally{sendLock.current=false;setBusy(false);}};
  const dismiss=async()=>{setBusy(true);try{await api.delete(`/wishlist-business/${space}/offers/${item.offerId}`);onDismiss();onClose();}catch(e){setError(e.message);}finally{setBusy(false);}};
- return <Drawer open swipeDirection={isMobile?"down":"right"} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
+ return <Drawer open={open} onAfterClose={onAfterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
  <DrawerHeader><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
  <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
  {item.imageUrl&&<img src={item.imageUrl} alt={item.title} className="max-h-96 w-full object-contain"/>}
@@ -64,29 +74,22 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss}) {
  {owner&&<><Field><FieldLabel htmlFor="wishlist-offer-price">Цена в роллах</FieldLabel><Input id="wishlist-offer-price" type="number" min="1" max="1000000" step="1" value={price} disabled={busy} onChange={e=>setPrice(e.target.value)} /></Field><Field><FieldLabel htmlFor="wishlist-offer-duration">Срок действия</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id="wishlist-offer-duration" className="w-full"><SelectValue>{()=>durations.find(([value])=>value===hours)?.[1]}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{durations.map(([value,label])=><SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field></>}
  {item.personalOffer&&<p>Действует до <time dateTime={item.personalOffer.expiresAt}>{new Date(item.personalOffer.expiresAt).toLocaleString("ru-RU")}</time></p>}
  <ErrorMessage message={error}/></div>
- <DrawerFooter><ControlBar className="flex gap-2"><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Закрыть" disabled={busy} onClick={onClose}>{isMobile?<X aria-hidden="true"/>:"Закрыть"}</Button>{owner&&<><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Редактировать айтем" disabled={busy} onClick={()=>onEdit(item)}>{isMobile?<Pencil aria-hidden="true"/>:"Редактировать"}</Button><Button disabled={!buyerId||busy||!item.active||!Number.isInteger(Number(price))||Number(price)<1||Number(price)>1000000} onClick={send}><Send aria-hidden="true"/>Предложить</Button></>}{!owner&&item.personalOffer&&<OfferPaymentAction offer={item.personalOffer} onPaid={()=>{onDismiss();onClose();}}/>}{item.offerId&&<Button variant="destructive" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Отклонить предложение" disabled={busy} onClick={dismiss}>{isMobile?<Trash2 aria-hidden="true"/>:"Отклонить"}</Button>}</ControlBar></DrawerFooter>
+ <DrawerFooter><ControlBar className="flex gap-2"><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Закрыть" disabled={busy} onClick={onClose}>{isMobile?<X aria-hidden="true"/>:"Закрыть"}</Button>{owner&&<><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={()=>onEdit(item)}>{isMobile?<Pencil aria-hidden="true"/>:"Редактировать"}</Button><Button disabled={!buyerId||busy||!item.active||!Number.isInteger(Number(price))||Number(price)<1||Number(price)>1000000} onClick={send}><Send aria-hidden="true"/>Предложить</Button></>}{!owner&&item.personalOffer&&<OfferPaymentAction offer={item.personalOffer} onPaid={()=>{onDismiss();onClose();}}/>}{item.offerId&&<Button variant="destructive" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Отклонить предложение" disabled={busy} onClick={dismiss}>{isMobile?<Trash2 aria-hidden="true"/>:"Отклонить"}</Button>}</ControlBar></DrawerFooter>
  </DrawerContent></Drawer>;
-}
-const emptyItem={title:"",description:"",brand:"",imageUrl:"",actionUrl:"",price:"",active:true};
-function ItemEditor({item,space,onClose,onSaved}) {
- const isMobile=useIsMobile();const [form,setForm]=useState(()=>({...emptyItem,...Object.fromEntries(Object.keys(emptyItem).map(key=>[key,item?.[key]??emptyItem[key]]))}));
- const [busy,setBusy]=useState(false);const [uploading,setUploading]=useState(false);const [error,setError]=useState("");
- const set=(key,value)=>setForm(current=>({...current,[key]:value}));
- const upload=async file=>{if(!file)return;setUploading(true);setError("");try{const result=await api.uploadImage(file);set("imageUrl",result.imageUrl);}catch(e){setError(e.message);}finally{setUploading(false);}};
- const save=async event=>{event.preventDefault();if(busy||uploading)return;setBusy(true);setError("");try{await (item?.id?api.patch(`/wishlist-business/${space}/items/${item.id}`,form):api.post(`/wishlist-business/${space}/items`,form));onSaved();onClose();}catch(e){setError(e.message);}finally{setBusy(false);}};
- const content=<form onSubmit={save} className="form-surface flex min-h-0 flex-1 flex-col gap-6"><div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
- <h2>{item?.id?"Редактировать айтем":"Новый айтем"} · {labelFor(space)}</h2>
- {[["title","Название",160],["brand","Бренд",100],["price","Цена с валютой",80],["actionUrl","Ссылка на айтем",2000]].map(([key,label,max])=><Field key={key}><FieldLabel htmlFor={`item-${key}`}>{label}</FieldLabel><Input id={`item-${key}`} type={key==="actionUrl"?"url":"text"} required={key==="title"} maxLength={max} value={form[key]} disabled={busy} onChange={e=>set(key,e.target.value)}/></Field>)}
- <Field><FieldLabel htmlFor="item-description">Описание</FieldLabel><Textarea id="item-description" maxLength={4000} value={form.description} disabled={busy} onChange={e=>set("description",e.target.value)}/></Field>
- <Field><FieldLabel htmlFor="item-image">Изображение</FieldLabel><Input id="item-image" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy||uploading} onChange={e=>upload(e.target.files?.[0])}/>{uploading&&<p role="status">Загружаем изображение…</p>}{form.imageUrl&&<img src={form.imageUrl} alt="Изображение айтема" className="max-h-60 object-contain"/>}</Field>
- <label className="flex items-center gap-2"><Checkbox checked={form.active} onCheckedChange={value=>set("active",Boolean(value))} disabled={busy}/>Показывать айтем</label><ErrorMessage message={error}/>
- </div><MobileFormFooter><Button type="button" variant="outline" onClick={onClose} disabled={busy||uploading}>Отмена</Button><Button type="submit" disabled={busy||uploading}>{busy?"Сохраняем…":"Сохранить"}</Button></MobileFormFooter></form>;
- if(isMobile)return <MobileFormScreen onOpenChange={open=>{if(!open&&!busy&&!uploading)onClose();}}>{content}</MobileFormScreen>;
- return <Drawer open swipeDirection="right" onOpenChange={open=>{if(!open&&!busy&&!uploading)onClose();}}><DrawerContent className="rollapp-body app-drawer--form"><DrawerHeader><DrawerTitle>{item?.id?"Редактирование":"Добавление айтема"}</DrawerTitle></DrawerHeader>{content}</DrawerContent></Drawer>;
 }
 export function WishlistBusinessManager({user,space}) {
  const state=useBusinessData(`/wishlist-business/${space}/page`);const [page,setPage]=useState(null);const [editor,setEditor]=useState(null);const [selected,setSelected]=useState(null);const [busy,setBusy]=useState(false);const [error,setError]=useState("");
- useEffect(()=>{setPage(state.data?.page||null);},[state.data]);
+ const [items, setItems] = useState([]);
+ const [pendingEdit, setPendingEdit] = useState(null);
+ const isProduct = space === "products";
+ useEffect(() => {
+   if (!state.data) return;
+   setPage(state.data.page);
+   setItems(state.data.items ?? []);
+ }, [state.data]);
+ const saveItem = (saved) => setItems((current) => current.some((item) => item.id === saved.id)
+   ? current.map((item) => item.id === saved.id ? saved : item)
+   : [saved, ...current]);
  if(!canManageWishlistSpace(user,space))return <Blank title="Выберите раздел продавца" text="Управление страницей доступно продавцу в его разделе Вишлиста."/>;
  const save=async event=>{event.preventDefault();setBusy(true);setError("");try{await api.post(`/wishlist-business/${space}/page`,page);toast.success("Страница сохранена");state.reload();}catch(e){setError(e.message);}finally{setBusy(false);}};
  return <Status state={state}>{page&&<div className="page-stack"><form onSubmit={save} className="flex flex-col gap-6">
@@ -94,11 +97,36 @@ export function WishlistBusinessManager({user,space}) {
  <Field><FieldLabel htmlFor="seller-page-description">Описание</FieldLabel><Textarea id="seller-page-description" maxLength={4000} value={page.description} disabled={busy} onChange={e=>setPage({...page,description:e.target.value})}/></Field>
  <label className="flex items-center gap-2"><Checkbox checked={page.published} disabled={busy} onCheckedChange={published=>setPage({...page,published:Boolean(published)})}/>Опубликовать страницу в каталоге и магазине</label>
  <ErrorMessage message={error}/><ControlBar className="flex gap-2"><Button type="submit" disabled={busy}>{busy?"Сохраняем…":"Сохранить страницу"}</Button></ControlBar></form>
- <div className="page-actions page-toolbar horizontal-action-scroller"><PageActionButton onClick={()=>setEditor({})}><Plus aria-hidden="true"/>Добавить айтем</PageActionButton></div>
- <div className="wish-grid catalog-wish-grid">{(state.data?.items || []).map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>
- {!state.data?.items?.length&&<Blank title="Добавьте первый айтем" text="Загрузите изображение, укажите бренд и описание. После публикации айтем можно предложить покупателю."/>}
- {selected&&<ItemDetails key={selected.id} item={selected} space={space} owner onClose={()=>setSelected(null)} onEdit={item=>{setSelected(null);setEditor(item);}}/>}
- {editor&&<ItemEditor key={editor.id||"new"} item={editor} space={space} onClose={()=>setEditor(null)} onSaved={state.reload}/>}
+ <div className="page-actions page-toolbar horizontal-action-scroller"><PageActionButton type="button" disabled={busy} onClick={() => setEditor({})}><Plus aria-hidden="true" />{isProduct ? "Добавить товар" : "Добавить позицию"}</PageActionButton></div>
+ {items.length ? (
+   <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={item} onOpen={setSelected} />)}</div>
+ ) : (
+   <Blank title={isProduct ? "Добавьте первый товар" : "Добавьте первую позицию"} text="Загрузите фото, укажите название и цену. Покупатели увидят карточку после публикации витрины." />
+ )}
+ {selected && (
+   <ItemDetails
+     key={selected.id} item={selected} space={space} owner
+     open={!pendingEdit} onClose={() => setSelected(null)} onEdit={setPendingEdit}
+     onAfterClose={() => {
+       if (!pendingEdit) return;
+       setSelected(null);
+       setEditor(pendingEdit);
+       setPendingEdit(null);
+     }}
+   />
+ )}
+ {editor && (
+   <WishlistBusinessItemEditor
+     key={editor.id || "new"} item={editor} space={space} spaceLabel={labelFor(space)}
+     published={state.data.page.published}
+     onClose={() => setEditor(null)} onSaved={saveItem}
+     renderPreview={(draft) => (
+       <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр карточки">
+         <BusinessItem item={{ ...draft, title: draft.title.trim(), business: { name: state.data.page.title } }} />
+       </div>
+     )}
+   />
+ )}
  </div>}</Status>;
 }
 export function WishlistBusinessListing({space,offers=false,business="",publicProfile=false}) {

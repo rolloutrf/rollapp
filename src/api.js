@@ -44,14 +44,15 @@ async function request(path, options = {}) {
 
 export const api = {
   get: (path) => request(path),
-  post: (path, body) => request(path, { method: "POST", body: JSON.stringify(body) }),
-  patch: (path, body) => request(path, { method: "PATCH", body: JSON.stringify(body) }),
+  post: (path, body, { signal } = {}) => request(path, { method: "POST", body: JSON.stringify(body), signal }),
+  patch: (path, body, { signal } = {}) => request(path, { method: "PATCH", body: JSON.stringify(body), signal }),
   delete: (path) => request(path, { method: "DELETE" }),
   uploadStory: (file) => request("/stories", { method: "POST", headers: { "Content-Type": file.type.split(";")[0] }, body: file }),
-  uploadImage: (file) => request("/uploads/images", {
+  uploadImage: (file, { signal } = {}) => request("/uploads/images", {
     method: "POST",
     headers: { "Content-Type": file.type },
     body: file,
+    signal,
   }),
   resolveContactAvatar: (links) => request("/contacts/avatar/resolve", {
     method: "POST",

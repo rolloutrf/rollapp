@@ -40,6 +40,7 @@ const itemSchema = z.object({
  brand: z.string().trim().max(100).default(""), imageUrl: z.union([z.literal(""), z.string().regex(/^\/api\/media\/[0-9a-f-]{36}$/i)]).default(""),
  actionUrl: webUrl.default(""), price: z.string().trim().max(80).default(""), active: z.boolean().default(true),
 }).strict();
+const createItemSchema = itemSchema.extend({ requestId: z.uuid().optional() });
 const consent = `EXISTS (SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.buyer_user_id AND s.viewer_user_id=i.business_user_id AND s.sphere='wishlist' AND s.section IN (i.space,'wishlist'))`;
 const eligible = `u.account_type='business' AND u.business_category='seller' AND (u.seller_space IS NULL OR u.seller_space=i.space)`;
 const itemSelect = `SELECT i.*,u.name AS business_name,u.username AS business_username,p.title AS page_title FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space JOIN users u ON u.id=i.business_user_id`;
@@ -77,21 +78,38 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
    await query(`INSERT INTO wishlist_business_pages(business_user_id,space,title,description,published) VALUES($1,$2,$3,$4,$5) ON CONFLICT(business_user_id,space) DO UPDATE SET title=$3,description=$4,published=$5,updated_at=CURRENT_TIMESTAMP`,[req.user.id,req.params.space,title,description,published]);
    res.json({saved:true});
  }));
- const saveItem = route(async(req,res) => {
-   const parsed=itemSchema.safeParse(req.body); if(!parsed.success) return fail(res,400,"Проверьте поля айтема");
-   const input=parsed.data; const id=req.params.itemId || randomUUID();
-   const result=await transaction(async client => {
-     if(input.imageUrl) {
-       const owned=await client.query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2",[input.imageUrl.split("/").at(-1),req.user.id]);
-       if(!owned.rowCount) return false;
+ const saveItem = route(async (req, res) => {
+   const editing = Boolean(req.params.itemId);
+   const parsed = (editing ? itemSchema : createItemSchema).safeParse(req.body);
+   if (!parsed.success) return fail(res, 400, "Проверьте поля карточки");
+   const input = parsed.data;
+   const id = req.params.itemId || input.requestId || randomUUID();
+   const itemKey = [id, req.user.id, req.params.space];
+   const result = await transaction(async (client) => {
+     const readItem = async () => (await client.query(
+       `${itemSelect} WHERE i.id=$1 AND i.business_user_id=$2 AND i.space=$3`, itemKey,
+     )).rows[0];
+     if (input.requestId) {
+       const existing = await readItem();
+       if (existing) return { item: clean(existing), replayed: true };
      }
-     const params=[id,req.user.id,req.params.space,input.title,input.description,input.brand,input.imageUrl,input.actionUrl,input.price,input.active];
-     if(req.params.itemId) return (await client.query(`UPDATE wishlist_business_items SET title=$4,description=$5,brand=$6,image_url=$7,action_url=$8,price=$9,active=$10,updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND business_user_id=$2 AND space=$3 RETURNING id`,params)).rowCount>0;
-     await client.query(`INSERT INTO wishlist_business_pages(business_user_id,space,title) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[req.user.id,req.params.space,req.user.name]);
-     await client.query(`INSERT INTO wishlist_business_items(id,business_user_id,space,title,description,brand,image_url,action_url,price,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,params); return true;
+     if (input.imageUrl) {
+       const owned = await client.query("SELECT 1 FROM wish_images WHERE id=$1 AND user_id=$2", [input.imageUrl.split("/").at(-1), req.user.id]);
+       if (!owned.rowCount) return null;
+     }
+     const params = [...itemKey, input.title, input.description, input.brand, input.imageUrl, input.actionUrl, input.price, input.active];
+     if (editing) {
+       const updated = await client.query(`UPDATE wishlist_business_items SET title=$4,description=$5,brand=$6,image_url=$7,action_url=$8,price=$9,active=$10,updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND business_user_id=$2 AND space=$3 RETURNING id`, params);
+       if (!updated.rowCount) return null;
+       return { item: clean(await readItem()), replayed: false };
+     }
+     await client.query(`INSERT INTO wishlist_business_pages(business_user_id,space,title) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, [req.user.id, req.params.space, req.user.name]);
+     const inserted = await client.query(`INSERT INTO wishlist_business_items(id,business_user_id,space,title,description,brand,image_url,action_url,price,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO NOTHING RETURNING id`, params);
+     const saved = await readItem();
+     return saved ? { item: clean(saved), replayed: !inserted.rowCount } : null;
    });
-   if(!result) return fail(res,404,"Айтем или ваше изображение не найдены");
-   res.status(req.params.itemId?200:201).json({id});
+   if (!result) return fail(res, 404, "Карточка или ваше фото не найдены");
+   res.status(editing || result.replayed ? 200 : 201).json({ id, ...result });
  });
  app.post(`${base}/items`,requireAuth,scope,seller,saveItem);
  app.patch(`${base}/items/:itemId`,requireAuth,scope,seller,saveItem);

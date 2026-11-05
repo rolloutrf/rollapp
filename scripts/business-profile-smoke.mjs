@@ -58,13 +58,136 @@ try {
         await page.getByRole("link", { name: "Управлять товарами", exact: true }).click();
         await page.getByRole("textbox", { name: "Название страницы", exact: true }).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("tab"), "products");
-        await page.getByRole("button", { name: "Добавить айтем", exact: true }).click();
-        await page.getByLabel("Название", { exact: true }).waitFor();
-        await page.getByLabel("Название", { exact: true }).fill("Несохранённый товар");
-        await page.getByRole("button", { name: "Отмена", exact: true }).click();
-        await page.getByRole("textbox", { name: "Название страницы", exact: true }).waitFor();
+        const add = page.getByRole("button", { name: "Добавить товар", exact: true });
+        const editor = page.locator("[data-wishlist-item-editor]");
+        const title = editor.getByRole("textbox", { name: "Название", exact: true });
+        const footer = editor.locator("[data-native-form-actions], .app-form-actions");
+        const back = footer.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true });
+        const submit = footer.locator("button[type=submit]");
+        await add.click();
+        await title.waitFor();
+        assert.equal(await editor.getByRole("heading", { name: "Добавить товар", exact: true }).count(), 1);
+        assert.equal(await editor.getByRole("button", { name: /Добавить фото/ }).count(), 1);
+        assert.equal(await submit.textContent(), mode === "owner" ? "Опубликовать" : "Добавить");
+        for (const button of [back, submit]) {
+          const geometry = await button.evaluate((element) => {
+            const css = getComputedStyle(element);
+            return [element.offsetHeight, css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomLeftRadius, css.borderBottomRightRadius];
+          });
+          assert.deepEqual(geometry, [48, "24px", "24px", "24px", "24px"]);
+        }
+        const body = editor.locator(".app-drawer-body");
+        assert(await body.evaluate((node) => node.scrollWidth <= node.clientWidth + 1), "Editor content must fit inside its scroll rail");
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Editor must not cause page overflow");
+        if (mode === "owner") {
+          await page.screenshot({ path: `/tmp/rollapp-item-editor-${width}-${height}.png` });
+          await submit.click();
+          await editor.getByText("Введите название.", { exact: true }).waitFor();
+          assert(await title.evaluate((node) => node === document.activeElement));
+          await title.fill("Несохранённый товар");
+          if (width < 768) await page.goBack();
+          else await back.click();
+          const discard = page.getByRole("alertdialog", { name: "Выйти без сохранения?" });
+          await discard.getByRole("button", { name: "Продолжить редактирование" }).click();
+          assert.equal(await title.inputValue(), "Несохранённый товар");
+          await back.click();
+          await discard.getByRole("button", { name: "Выйти", exact: true }).click();
+          await editor.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Invalid submit and cancel must not write");
+        } else {
+          await back.click();
+          await editor.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          const pageTitle = page.getByRole("textbox", { name: "Название страницы", exact: true });
+          await pageTitle.fill("Несохранённое название витрины");
+          await add.click();
+          await title.fill("Кофемашина Dedica");
+          const description = editor.getByRole("textbox", { name: "Описание", exact: true });
+          await description.fill("Готовит эспрессо.");
+          await editor.getByText("17 / 4000", { exact: true }).waitFor();
+          await editor.getByRole("textbox", { name: "Цена с валютой" }).fill("12 900 ₽");
+          const link = editor.getByRole("textbox", { name: "Ссылка на товар", exact: true });
+          await link.fill("javascript:alert(1)");
+          await submit.click();
+          await editor.getByText("Введите ссылку, которая начинается с https:// или http://.").waitFor();
+          await link.fill("https://example.com/coffee");
+          const picker = editor.locator("input[type=file]");
+          const [chooser] = await Promise.all([
+            page.waitForEvent("filechooser"),
+            editor.getByRole("button", { name: /Добавить фото/ }).click(),
+          ]);
+          await chooser.setFiles({ name: "cover.txt", mimeType: "text/plain", buffer: Buffer.from("cover") });
+          await editor.getByText("Выберите фото в формате JPG, PNG или WebP.").waitFor();
+          const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
+          await picker.setInputFiles({ ...cover, buffer: Buffer.from("broken image") });
+          await editor.getByText("Фото не открывается", { exact: true }).waitFor();
+          assert(await submit.isDisabled());
+          await picker.setInputFiles(cover);
+          const coverImage = editor.getByRole("img", { name: "Предпросмотр обложки" });
+          await coverImage.waitFor();
+          await coverImage.evaluate((node) => node.decode());
+          await editor.getByRole("button", { name: "Убрать фото" }).click();
+          await editor.getByRole("button", { name: /Добавить фото/ }).waitFor();
+          if (width >= 768) {
+            const transfer = await page.evaluateHandle(({ name, bytes }) => {
+              const data = new DataTransfer();
+              data.items.add(new File([new Uint8Array(bytes)], name, { type: "image/png" }));
+              return data;
+            }, { name: cover.name, bytes: [...cover.buffer] });
+            const zone = editor.locator("[data-dragging]");
+            await zone.dispatchEvent("dragover", { dataTransfer: transfer });
+            await editor.locator('[data-dragging="true"]').waitFor();
+            await zone.dispatchEvent("drop", { dataTransfer: transfer });
+            await transfer.dispose();
+          } else {
+            await picker.setInputFiles(cover);
+          }
+          await coverImage.waitFor();
+          await coverImage.evaluate((node) => node.decode());
+          await editor.getByRole("switch", { name: "Показывать на витрине" }).click();
+          assert.equal(await submit.textContent(), "Сохранить скрытым");
+          await editor.getByRole("button", { name: "Предпросмотр", exact: true }).click();
+          const preview = editor.locator('[aria-label="Предпросмотр карточки"]');
+          await preview.getByRole("heading", { name: "Кофемашина Dedica" }).waitFor();
+          await preview.getByText("12 900 ₽", { exact: true }).waitFor();
+          assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Previews must remain local");
+          await submit.click();
+          await editor.getByText(/Фото временно недоступно/).waitFor();
+          assert.equal(await title.inputValue(), "Кофемашина Dedica");
+          await submit.click();
+          await page.waitForFunction(() => typeof giftHarness.completeItemSave === "function");
+          assert(await submit.isDisabled());
+          assert.equal(await submit.evaluate((node) => getComputedStyle(node).opacity), "1");
+          await page.evaluate(() => document.querySelector("[data-wishlist-item-editor] form").requestSubmit());
+          await page.evaluate(() => giftHarness.completeItemSave());
+          await editor.getByText(/Ответ сервера потерян/).waitFor();
+          await editor.getByRole("img", { name: "Предпросмотр обложки" }).waitFor();
+          await submit.click();
+          await editor.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          assert.equal(await pageTitle.inputValue(), "Несохранённое название витрины");
+          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).waitFor();
+          const calls = await page.evaluate(() => giftHarness.calls);
+          assert.deepEqual(calls.map((call) => call.path), ["/uploads/images", "/uploads/images", "/wishlist-business/products/items", "/wishlist-business/products/items"]);
+          assert.deepEqual(calls[2].payload, calls[3].payload);
+          assert.equal(calls[2].payload.active, false);
+          assert.match(calls[2].payload.requestId, /^[0-9a-f-]{36}$/);
+          assert.equal(await page.evaluate(() => giftHarness.sellerItems.filter((item) => item.title === "Кофемашина Dedica").length), 1);
+          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).click();
+          await page.getByRole("button", { name: "Редактировать товар", exact: true }).click();
+          await editor.getByRole("heading", { name: "Редактировать товар", exact: true }).waitFor();
+          assert.equal(await title.inputValue(), "Кофемашина Dedica");
+          await title.fill("Кофемашина Dedica EC685");
+          await submit.click();
+          await editor.waitFor({ state: "hidden" });
+          await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica EC685»", exact: true }).waitFor();
+          assert.equal(await page.evaluate(() => giftHarness.calls.at(-1).payload.title), "Кофемашина Dedica EC685");
+        }
+      } else {
+        assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Read-only profile must not write");
       }
-      assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Read/cancel must not save or purchase");
       assert.deepEqual(errors, []);
       await page.close();
       console.log(`PASS business profile ${mode} ${width}x${height}`);
