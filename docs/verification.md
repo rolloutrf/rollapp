@@ -705,13 +705,14 @@ DDL в UI deployment. Отчёт текущего выпуска: [wishlist-busi
 ## Мессенджер
 
 `npm run test:messenger` включён в `check:comprehensive`: реальный AppShell,
-chrome/позиция новой кнопки, desktop Popover без навигации, последовательные
-список/чат, close/Escape/outside/focus и прямые desktop-ссылки, поиск, диалог,
+chrome/позиция кнопки, правая и нижняя Drawer без навигации, список и чат,
+close/Escape/outside/focus, прямые ссылки, поиск, открытие 53-й подписки,
+ошибка/повтор подписок и отсутствие дублей с существующими диалогами,
 страницы истории, безопасный
 повтор отправки, черновик при переходе, literal text, control geometry/overflow
 на девяти viewport. Это изолированный UI transport с запретом реальных API,
 не замена production PostgreSQL. `server/messenger.test.js` входит в `npm test`
-и проверяет auth/membership, public-only search, validation/read cursors,
+и проверяет auth/membership, public-only search и подписки, validation/read cursors,
 повторную отправку и видимую ошибку отсутствующей схемы.
 
 Три таблицы мессенджера устанавливает только отдельная авторизованная операция:

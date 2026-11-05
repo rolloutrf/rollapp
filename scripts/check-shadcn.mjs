@@ -871,7 +871,10 @@ for (const file of sourceFiles) {
   assert(!source.includes("@radix-ui/"), `Base Nova source must not import Radix: ${relativeFile}`);
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
-    if (source.includes('@/components/ui/drawer')) assert.equal(relativeFile, 'src/components/form-surface.jsx', `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+    if (source.includes("@/components/ui/drawer")) {
+      // Messaging is a modal directory/chat on phones, independent of native form pages.
+      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+    }
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }
   if (file.startsWith(`${uiDir}${path.sep}`)) continue;

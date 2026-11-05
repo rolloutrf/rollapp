@@ -36,6 +36,9 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   Otherwise it can retain padding calculated from the pre-keyboard rectangle.
 - Non-snap drawers use intrinsic height, capped by the available viewport.
   A measured fixed height would retain the keyboard's smaller height after close.
+  The messenger directory/chat uses the available viewport height directly, with
+  the standard top clearance for the mobile bottom drawer. Its directory or
+  history scrolls between the header and the chat composer.
 - Use one `app-drawer-body` with `min-h-0 flex-1 overflow-y-auto`, or the shared
   `ScrollArea`, between the header and footer. Preserve `min-h-0` throughout the
   flex chain. Fields must not shrink to fit instead of scrolling.

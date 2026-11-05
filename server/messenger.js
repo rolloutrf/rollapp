@@ -36,6 +36,13 @@ export function registerMessengerRoutes(app, { requireAuth, query, transaction, 
       ORDER BY lower(username) LIMIT 30`, [req.user.id, `%${escaped}%`]);
     res.json({ users: result.rows.map(publicUser) });
   }));
+  app.get(`${base}/subscriptions`, asyncRoute(async (req, res) => {
+    const result = await query(`SELECT u.id,u.name,u.username,u.avatar_url
+      FROM follows f JOIN users u ON u.id=f.following_id
+      WHERE f.follower_id=$1
+      ORDER BY f.created_at DESC,u.id`, [req.user.id]);
+    res.json({ users: result.rows.map(publicUser) });
+  }));
   app.get(`${base}/conversations`, asyncRoute(async (req, res) => {
     const result = await query(`SELECT c.id,c.updated_at,u.id AS peer_id,u.name,u.username,u.avatar_url,
       m.body,m.created_at,m.sender_id,m.seq,

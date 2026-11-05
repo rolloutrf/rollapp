@@ -20,24 +20,38 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected production API request');return route.abort();});
   await page.goto(`${smokeOrigin(server)}/app/wishes`,{waitUntil:'networkidle'});
-  const launcher=await page.getByRole(width<768?'link':'button',{name:'Открыть сообщения',exact:true}).boundingBox();
+  const launcher=await page.getByRole('button',{name:'Открыть сообщения',exact:true}).boundingBox();
   const planning=await page.getByRole('button',{name:'Открыть планирование',exact:true}).boundingBox();
   assert.equal(planning.y-(launcher.y+launcher.height),8,'Messenger must sit exactly 8px above planning');
   assert.equal(launcher.x,planning.x);assert.equal(launcher.width,48);assert.equal(launcher.height,48);
-  await page.getByRole(width<768?'link':'button',{name:'Открыть сообщения',exact:true}).click();
+  await page.getByRole('button',{name:'Открыть сообщения',exact:true}).click();
+  const drawer=page.getByRole('dialog',{name:'Сообщения',exact:true});
+  await drawer.waitFor();
   await page.getByRole('searchbox',{name:'Найти участника'}).waitFor();
-  if(width===1440) await page.screenshot({path:`/tmp/rollapp-messenger-directory-${width}-${height}.png`});
+  const subscriptions=drawer.getByRole('region',{name:'Подписки',exact:true});
+  await subscriptions.getByRole('button',{name:/^Контакт 53 /}).waitFor();
+
+  assert.equal(await subscriptions.locator('.messenger-person').count(),53,'All followed contacts without a conversation should be shown');
+  assert.equal(await drawer.getByRole('button',{name:/Александра/}).count(),1,'Existing conversations must not duplicate followed contacts');
+  await drawer.evaluate(async node => {
+    await Promise.allSettled(node.getAnimations().map(animation => animation.finished));
+  });
+  const bounds=await drawer.boundingBox();
+  if(width<768) assert.equal(bounds.width,width);
+  else assert.equal(bounds.width,576);
+  assert(bounds.x>=0 && bounds.x+bounds.width<=width+1 && bounds.y>=-1 && bounds.y+bounds.height<=height+1,'Drawer escaped viewport');
+  if(width===1440 || width===390) await page.screenshot({path:`/tmp/rollapp-messenger-directory-${width}-${height}.png`});
+  await subscriptions.getByRole('button',{name:/^Контакт 53 /}).click();
+  await drawer.getByText('Здесь начинается ваш разговор.',{exact:true}).waitFor();
+  await drawer.getByRole('button',{name:'Все диалоги',exact:true}).click();
+  await subscriptions.getByRole('button',{name:/^Контакт 52 /}).waitFor();
+  assert.equal(await subscriptions.getByRole('button',{name:/^Контакт 53 /}).count(),0,'A newly opened chat should leave the subscriptions section');
   await page.getByRole('searchbox',{name:'Найти участника'}).fill('none');
   await page.getByText('Участники не найдены',{exact:true}).waitFor();
   await page.getByRole('searchbox').fill('Александра');
   await page.getByRole('button',{name:/Александра/}).click();
-  if(width<768) await page.waitForURL(`**/app/messenger/${cid}`);
-  else {
-    assert.equal(new URL(page.url()).pathname,'/app/wishes','Popup navigated away from source');
-    const box=await page.locator('.messenger-popup').boundingBox();
-    assert(box.width<=448 && box.height<=576 && box.x>=0 && box.y>=0 && box.y+box.height<=height,'Popup is not compact/in bounds');
-    assert.equal(await page.locator('.messenger-directory').isVisible(),false,'Chat must replace directory');
-  }
+  assert.equal(new URL(page.url()).pathname,'/app/wishes','Drawer navigated away from source');
+  assert.equal(await page.locator('.messenger-directory').isVisible(),false,'Chat must replace directory');
   await page.locator('.messenger-message').last().waitFor();
   await page.evaluate(()=>document.fonts.ready);
   assert.equal(await page.locator('.messenger-message').count(),50);
@@ -57,8 +71,8 @@ try{
   await page.waitForFunction(()=>document.querySelectorAll('.messenger-message').length===76);
   await page.getByText('Сообщение 1\nВторая строка',{exact:true}).waitFor();
   await text.fill('Черновик');
-  await page.getByRole(width<768?'link':'button',{name:'Все диалоги',exact:true}).click();
-  await page.getByRole(width<768?'link':'button',{name:/Александра/}).click();
+  await page.getByRole('button',{name:'Все диалоги',exact:true}).click();
+  await page.getByRole('button',{name:/Александра/}).click();
   assert.equal(await text.inputValue(),'Черновик','Navigation lost draft');
   await text.fill('<script>alert(1)</script>\nВторая строка');
   await page.waitForFunction(()=>!document.querySelector('button[type="submit"]').disabled);
@@ -69,8 +83,8 @@ try{
   await text.fill('Отправка при переходе');
   await page.evaluate(()=>{window.messengerTest.sendDelay=700;});
   await page.getByRole('button',{name:'Отправить сообщение',exact:true}).click();
-  await page.getByRole(width<768?'link':'button',{name:'Все диалоги',exact:true}).click();
-  await page.getByRole(width<768?'link':'button',{name:/Александра/}).click();
+  await page.getByRole('button',{name:'Все диалоги',exact:true}).click();
+  await page.getByRole('button',{name:/Александра/}).click();
   await page.waitForFunction(()=>window.messengerTest.delivered.some(item=>item.body==='Отправка при переходе'));
   await page.evaluate(()=>{window.messengerTest.sendDelay=100;});
   await page.getByRole('button',{name:'Отправить сообщение',exact:true}).click();
@@ -83,40 +97,45 @@ try{
   });
   assert.equal(geometry.overflow,false);assert.equal(geometry.w,48);assert.equal(geometry.h,48);assert.equal(geometry.r,'24px');assert.equal(geometry.icon,20);assert.equal(geometry.font,'18px');assert.equal(geometry.line,'28px');assert(geometry.bottom<=height && geometry.top>=0);
   await page.screenshot({path:`/tmp/rollapp-messenger-${width}-${height}.png`});
-  await page.getByRole(width<768?'link':'button',{name:'Все диалоги',exact:true}).click();
+  await page.getByRole('button',{name:'Все диалоги',exact:true}).click();
   await page.evaluate(()=>{window.messengerTest.failHistory=true;});
-  await page.getByRole(width<768?'link':'button',{name:/Александра/}).click();
+  await page.getByRole('button',{name:/Александра/}).click();
   await page.getByRole('alert').filter({hasText:'История недоступна'}).waitFor();
   await page.evaluate(()=>{window.messengerTest.failHistory=false;});
   await page.getByRole('button',{name:'Повторить',exact:true}).click();
   await page.locator('.messenger-message').last().waitFor();
   assert.equal(await page.getByRole('alert').count(),0);
   if(width===390 && height===400){
-    await page.evaluate(()=>{document.documentElement.style.setProperty('--app-visual-height','260px');document.documentElement.style.setProperty('--app-visual-top','50px');});
+    await page.evaluate(()=>{document.documentElement.style.setProperty('--app-visual-height','260px');document.documentElement.style.setProperty('--app-visual-top','50px');document.documentElement.style.setProperty('--app-visual-bottom','90px');document.documentElement.setAttribute('data-overlay-keyboard','');});
     const compact=await page.getByRole('button',{name:'Отправить сообщение',exact:true}).boundingBox();
     assert(compact.y>=50 && compact.y+compact.height<=310,'Composer escaped panned viewport');
-    await page.evaluate(()=>{document.documentElement.style.removeProperty('--app-visual-height');document.documentElement.style.removeProperty('--app-visual-top');});
+    await page.evaluate(()=>{document.documentElement.style.removeProperty('--app-visual-height');document.documentElement.style.removeProperty('--app-visual-top');document.documentElement.style.removeProperty('--app-visual-bottom');document.documentElement.removeAttribute('data-overlay-keyboard');});
   }
-  if(width>=768){
+  {
     await page.getByRole('button',{name:'Закрыть сообщения',exact:true}).click();
-    await page.locator('.messenger-popup').waitFor({state:'hidden'});
+    await drawer.waitFor({state:'hidden'});
     const trigger=page.getByRole('button',{name:'Открыть сообщения',exact:true});
+    await page.evaluate(()=>{window.messengerTest.failSubscriptions=true;});
     await trigger.click();
     await page.getByRole('searchbox').waitFor();
+    await drawer.getByRole('alert').filter({hasText:'Подписки недоступны'}).waitFor();
+    await page.evaluate(()=>{window.messengerTest.failSubscriptions=false;});
+    await drawer.getByRole('button',{name:'Повторить',exact:true}).click();
+    await subscriptions.getByRole('button',{name:/^Контакт 52 /}).waitFor();
     assert.equal(await page.locator('.messenger-directory').isVisible(),true);
     await page.keyboard.press('Escape');
-    await page.locator('.messenger-popup').waitFor({state:'hidden'});
+    await drawer.waitFor({state:'hidden'});
     assert(await trigger.evaluate(node=>node===document.activeElement),'Escape did not restore trigger focus');
     await trigger.click();
-    await page.mouse.click(8,height-8);
-    await page.locator('.messenger-popup').waitFor({state:'hidden'});
+    await page.mouse.click(8,8);
+    await drawer.waitFor({state:'hidden'});
     assert.equal(new URL(page.url()).pathname,'/app/wishes');
   }
   assert.equal(navigations,1,'Fixture document reloaded during the interaction');
-  if(width===1440 && height===844){
+  if((width===1440 || width===390) && height===844){
     await page.goto(`${smokeOrigin(server)}/app/messenger/${cid}`,{waitUntil:'networkidle'});
-    await page.locator('.messenger-popup .messenger-message').last().waitFor();
-    assert.equal(new URL(page.url()).pathname,'/app/wishes','Desktop deep link must open popup on source page');
+    await drawer.locator('.messenger-message').last().waitFor();
+    assert.equal(new URL(page.url()).pathname,'/app/wishes','Deep link must open drawer on source page');
   }
   assert.deepEqual(errors,[]);console.log(`PASS messenger ${width}x${height}: search, chat, history, retry/idempotency, draft, plain text, error/retry, controls, overflow`);await page.close();
  }

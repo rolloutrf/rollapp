@@ -1,4 +1,4 @@
-import { Messenger } from "@/components/messenger";
+import { MessengerDrawer } from "@/components/messenger";
 import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -699,23 +699,27 @@ function PlanningFab() {
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  useEffect(() => { setOpen(false); setMessagesOpen(Boolean(location.state?.messengerOpen)); }, [location.pathname, location.search, location.key]);
+  const [initialConversationId, setInitialConversationId] = useState(null);
+  useEffect(() => {
+    setOpen(false);
+    setMessagesOpen(Boolean(location.state?.messengerOpen));
+    setInitialConversationId(location.state?.messengerConversationId || null);
+  }, [location]);
+  const setMessengerDrawerOpen = (value) => {
+    setMessagesOpen(value);
+    if (value) setOpen(false);
+    else setInitialConversationId(null);
+  };
   if (!user || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
   const requestedTab = new URLSearchParams(location.search).get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      {isMobile ? <Link data-control-icon to="/app/messenger" className={cn(buttonVariants({ variant: "outline", size: "icon" }), "messenger-fab rounded-full")} aria-label="Открыть сообщения" title="Сообщения"><MessageCircle aria-hidden="true" /></Link> : <Popover open={messagesOpen} onOpenChange={value => { setMessagesOpen(value); if (value) setOpen(false); }}>
-        <PopoverTrigger render={<ShadcnButton data-control-icon variant="outline" size="icon" className="messenger-fab rounded-full" />} aria-label="Открыть сообщения" title="Сообщения"><MessageCircle aria-hidden="true" /></PopoverTrigger>
-        <PopoverContent className="messenger-popup !gap-0 !p-0 !rounded-3xl" side="top" align="end" sideOffset={12}>
-          <PopoverTitle className="sr-only">Мессенджер</PopoverTitle>
-          <Messenger key={user.id} user={user} embedded initialConversationId={location.state?.messengerConversationId || null} onClose={() => setMessagesOpen(false)} />
-        </PopoverContent>
-      </Popover>}
+      <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
-    <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessagesOpen(false); }}>
+    <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessengerDrawerOpen(false); }}>
       <PopoverTrigger
         render={<ShadcnButton data-control-icon className="planning-fab rounded-full" size="icon" type="button" />}
         aria-label="Открыть планирование"
@@ -3300,9 +3304,7 @@ function BusinessMarketplaceRoute() {
 }
 
 function MessengerRoute({ user }) {
-  const mobile = useIsMobile();
   const { conversationId } = useParams();
-  if (mobile) return <Messenger key={user.id} user={user} />;
   const destination = user.accountType === "business"
     ? publicSpacePath(user.username, user.sellerSpace || "products")
     : APP_HOME;

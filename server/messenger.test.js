@@ -25,7 +25,7 @@ test('messages validate text, UUID, whitespace and length', () => {
 });
 test('anonymous users cannot probe messenger or schema', async () => {
   await withApi({ user:null, query:() => { throw Error('Must not access database'); } }, async request => {
-    for (const path of ['/participants?search=alice','/conversations',`/conversations/${id}/messages`]) assert.equal((await request(path)).status,401);
+    for (const path of ['/participants?search=alice','/subscriptions','/conversations',`/conversations/${id}/messages`]) assert.equal((await request(path)).status,401);
   });
 });
 test('missing schema returns actionable 503 without initializing anything', async () => {
@@ -56,6 +56,24 @@ test('participant search returns only public fields and escapes wildcard input',
     const payload = await (await request('/participants?search=%25_')).json();
     assert.deepEqual(payload.users,[{id:'bob',name:'Боб',username:'bob',avatarUrl:''}]);
     assert.deepEqual(searchParams,['alice','%\\%\\_%']);
+  });
+});
+test('subscriptions are scoped to the signed-in follower and return all public contacts', async () => {
+  const rows = Array.from({length: 53}, (_, index) => ({
+    id: `person-${index}`, name: `Контакт ${index}`, username: `contact${index}`, avatar_url: '', email: 'private',
+  }));
+  await withApi({ query: async (sql, params) => {
+    if (!sql.includes('FROM follows')) return { rows: [] };
+    assert.match(sql, /ON u.id=f.following_id/);
+    assert.match(sql, /WHERE f.follower_id=\$1/);
+    assert.doesNotMatch(sql, /LIMIT/i);
+    assert.deepEqual(params, ['alice']);
+    return { rows };
+  } }, async request => {
+    const response = await request('/subscriptions?userId=bob');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual((await response.json()).users, rows.map(({ id, name, username }) => ({ id, name, username, avatarUrl: '' })));
   });
 });
 test('retrying an ambiguous send returns the stored message without another insert', async () => {

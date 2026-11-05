@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MessageCircle, Search, Send, X } from 'lucide-react';
 import { api } from '../api.js';
-import { cn } from '@/lib/utils';
 import { ControlBar } from './control-bar';
-import { Button, buttonVariants } from './ui/button';
+import { Button } from './ui/button';
+import { Drawer, DrawerClose, DrawerContent, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import './messenger.css';
@@ -12,7 +12,7 @@ import './messenger.css';
 const base = '/messenger';
 const time = value => new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-export function MessengerAvatar({ user }) {
+function MessengerAvatar({ user }) {
   const [failed, setFailed] = useState(false);
   return <span className="messenger-avatar" aria-hidden="true">{user?.avatarUrl && !failed
     ? <img src={user.avatarUrl} alt="" onError={() => setFailed(true)} />
@@ -21,12 +21,37 @@ export function MessengerAvatar({ user }) {
 function ErrorNotice({ error, retry }) {
   return <div className="messenger-error" role="alert"><p>{error}</p>{retry && <Button variant="outline" onClick={retry}>Повторить</Button>}</div>;
 }
-export function Messenger({ user, transport = api, embedded = false, onClose, initialConversationId = null }) {
-  const { conversationId: routeId } = useParams();
-  const [selectedId, setSelectedId] = useState(initialConversationId);
-  const conversationId = embedded ? selectedId : routeId;
-  const navigate = useNavigate();
+export function MessengerDrawer({ user, open, onOpenChange, initialConversationId }) {
+  const isMobile = useIsMobile();
+  return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}>
+    <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className="messenger-fab" />} aria-label="Открыть сообщения" title="Сообщения">
+      <MessageCircle aria-hidden="true" />
+    </DrawerTrigger>
+    <DrawerContent className="messenger-drawer app-drawer--form rollapp-body">
+      <DrawerTitle className="sr-only">Сообщения</DrawerTitle>
+      <Messenger key={user.id} user={user} initialConversationId={initialConversationId} />
+    </DrawerContent>
+  </Drawer>;
+}
+
+function CloseMessages() {
+  return <DrawerClose render={<Button data-control-icon variant="outline" size="icon" className="ml-auto" />} aria-label="Закрыть сообщения"><X aria-hidden="true" /></DrawerClose>;
+}
+
+function ParticipantEntry({ peer, disabled, onSelect }) {
+  return <Button variant="ghost" className="messenger-person" disabled={disabled} onClick={() => onSelect(peer)}>
+    <MessengerAvatar user={peer} />
+    <span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span>
+  </Button>;
+}
+
+function Messenger({ user, transport = api, initialConversationId = null }) {
+  const [conversationId, setSelectedId] = useState(initialConversationId);
   const [conversations, setConversations] = useState([]);
+  const [subscriptions, setSubscriptions] = useState(null);
+  const [subscriptionsError, setSubscriptionsError] = useState('');
+  const [openError, setOpenError] = useState('');
+  const [subscriptionsReload, setSubscriptionsReload] = useState(0);
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
   const [error, setError] = useState('');
@@ -64,57 +89,74 @@ export function Messenger({ user, transport = api, embedded = false, onClose, in
     }, 300);
     return () => { alive = false; clearTimeout(timer); };
   }, [query, transport, reload]);
-  const select = id => embedded ? setSelectedId(id) : navigate(`/app/messenger/${id}`);
+  useEffect(() => {
+    let alive = true;
+    setSubscriptionsError('');
+    transport.get(`${base}/subscriptions`).then(data => {
+      if (alive) setSubscriptions(data.users);
+    }).catch(err => {
+      if (alive) setSubscriptionsError(err.message);
+    });
+    return () => { alive = false; };
+  }, [transport, subscriptionsReload]);
+
   async function start(peer) {
     if (opening) return;
-    setOpening(true); setSearchError('');
+    setOpenError('');
+    const existing = conversations.find(item => item.peer.id === peer.id);
+    if (existing) {
+      setQuery('');
+      setSelectedId(existing.id);
+      return;
+    }
+    setOpening(true);
     try {
       const { conversation } = await transport.post(`${base}/conversations`, { participantId: peer.id });
       if (!mounted.current) return;
       setConversations(items => items.some(item => item.id === conversation.id) ? items : [conversation, ...items]);
-      setQuery(''); select(conversation.id);
-    } catch (err) { if (mounted.current) setSearchError(err.message); }
+      setQuery(''); setSelectedId(conversation.id); refresh();
+    } catch (err) { if (mounted.current) setOpenError(err.message); }
     finally { if (mounted.current) setOpening(false); }
   }
-  return <section className={cn("messenger-page rollapp-body", embedded ? "messenger-embedded" : "app-page")} data-conversation-open={Boolean(conversationId) || undefined}>
-    <div className="messenger-layout">
-      <section className="messenger-directory" aria-label="Диалоги">
+  const peersWithConversations = new Set(conversations.map(item => item.peer.id));
+  const contacts = subscriptions?.filter(peer => !peersWithConversations.has(peer.id)) ?? [];
+  return <div className="messenger-layout">
+    {conversationId
+      ? <Conversation key={`${user.id}:${conversationId}`} id={conversationId} user={user} peer={conversations.find(item => item.id === conversationId)?.peer} transport={transport} drafts={drafts.current} onChanged={refresh} onBack={() => setSelectedId(null)} />
+      : <section className="messenger-directory" aria-label="Диалоги и подписки">
         <ControlBar as="header" className="messenger-heading">
-          {!embedded && <Link data-control-icon to="/app/wishes" className={cn(buttonVariants({ variant: 'outline', size: 'icon' }))} aria-label="Назад в приложение"><ArrowLeft /></Link>}
-          <h1 className="text-2xl font-semibold">Сообщения</h1>
-          {onClose && <Button data-control-icon variant="outline" size="icon" className="ml-auto" aria-label="Закрыть сообщения" onClick={onClose}><X /></Button>}
+          <h2 className="text-2xl font-semibold">Сообщения</h2>
+          <CloseMessages />
         </ControlBar>
-        <div className="messenger-search"><Search aria-hidden="true" /><Input type="search" aria-label="Найти участника" placeholder="Имя или username" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} /></div>
+        <div className="messenger-search"><Search aria-hidden="true" /><Input type="search" aria-label="Найти участника" placeholder="Имя или username" value={query} maxLength={100} onChange={event => { setQuery(event.target.value); setOpenError(''); }} /></div>
         <div className="messenger-directory-scroll">
+          {openError && <ErrorNotice error={openError} />}
           {query ? <>
             <p className="messenger-note">{query.trim().length < 2 ? 'Введите хотя бы два символа' : searching ? 'Ищем участников…' : 'Участники сервиса'}</p>
             {searchError && <ErrorNotice error={searchError} retry={refresh} />}
             {!searching && query.trim().length >= 2 && !searchError && !users.length && <p className="messenger-note">Участники не найдены</p>}
-            {users.map(peer => <Button variant="ghost" className="messenger-person" key={peer.id} disabled={opening} onClick={() => start(peer)}><MessengerAvatar user={peer} /><span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span></Button>)}
+            {users.map(peer => <ParticipantEntry key={peer.id} peer={peer} disabled={opening} onSelect={start} />)}
           </> : <>
             {error && <ErrorNotice error={error} retry={refresh} />}
             {loading && <p className="messenger-note" role="status">Загружаем диалоги…</p>}
-            {!loading && !error && !conversations.length && <div className="messenger-empty"><MessageCircle aria-hidden="true" /><h2 className="text-xl font-medium">Начните разговор</h2><p>Найдите участника по имени или username и напишите ему.</p></div>}
-            {conversations.map(item => <ConversationEntry embedded={embedded} onSelect={select} item={item} key={item.id} active={item.id === conversationId}>
+            {conversations.map(item => <Button variant="ghost" className="messenger-person" key={item.id} disabled={opening} onClick={() => { setOpenError(''); setSelectedId(item.id); }}>
               <MessengerAvatar user={item.peer} /><span className="messenger-person-copy"><strong>{item.peer.name}</strong><span>{item.lastMessage?.body || 'Пока нет сообщений'}</span></span>
               {item.unread > 0 && <span className="messenger-unread" aria-label={`${item.unread} непрочитанных`}>{item.unread > 99 ? '99+' : item.unread}</span>}
-            </ConversationEntry>)}
+            </Button>)}
+            {subscriptionsError && <ErrorNotice error={subscriptionsError} retry={() => setSubscriptionsReload(value => value + 1)} />}
+            {!subscriptions && !subscriptionsError && <p className="messenger-note" role="status">Загружаем подписки…</p>}
+            {!loading && contacts.length > 0 && <section aria-labelledby="messenger-subscriptions">
+              <h3 id="messenger-subscriptions" className="messenger-section-label text-xs font-semibold uppercase">Подписки</h3>
+              {contacts.map(peer => <ParticipantEntry key={peer.id} peer={peer} disabled={opening} onSelect={start} />)}
+            </section>}
+            {!loading && !error && !subscriptionsError && subscriptions?.length === 0 && !conversations.length && <div className="messenger-empty"><MessageCircle aria-hidden="true" /><h3 className="text-xl font-medium">Начните разговор</h3><p>Найдите участника по имени или username и напишите ему.</p></div>}
           </>}
         </div>
-      </section>
-      {conversationId ? <Conversation key={`${user.id}:${conversationId}`} id={conversationId} user={user} peer={conversations.find(item => item.id === conversationId)?.peer} transport={transport} drafts={drafts.current} onChanged={refresh} onBack={embedded ? () => setSelectedId(null) : undefined} onClose={onClose} />
-        : null}
-    </div>
-  </section>;
+      </section>}
+  </div>;
 }
 
-function ConversationEntry({ embedded, onSelect, item, active, children }) {
-  return embedded
-    ? <Button variant="ghost" className="messenger-person" aria-current={active ? 'page' : undefined} onClick={() => onSelect(item.id)}>{children}</Button>
-    : <Link className="messenger-person" to={`/app/messenger/${item.id}`} aria-current={active ? 'page' : undefined}>{children}</Link>;
-}
-
-function Conversation({ id, user, peer: initialPeer, transport, drafts, onChanged, onBack, onClose }) {
+function Conversation({ id, user, peer: initialPeer, transport, drafts, onChanged, onBack }) {
   const [peer, setPeer] = useState(initialPeer);
   const [messages, setMessages] = useState([]);
   const [hasMore, setHasMore] = useState(false);
@@ -201,9 +243,9 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
   }
   return <section className="messenger-conversation" aria-label={peer ? `Переписка с ${peer.name}` : 'Переписка'}>
     <ControlBar as="header" className="messenger-heading">
-      {onBack ? <Button data-control-icon variant="outline" size="icon" onClick={onBack} aria-label="Все диалоги"><ArrowLeft /></Button> : <Link data-control-icon to="/app/messenger" className={cn(buttonVariants({ variant: 'outline', size: 'icon' }))} aria-label="Все диалоги"><ArrowLeft /></Link>}
+      <Button data-control-icon variant="outline" size="icon" onClick={onBack} aria-label="Все диалоги"><ArrowLeft aria-hidden="true" /></Button>
       {peer && <><MessengerAvatar user={peer} /><span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span></>}
-      {onClose && <Button data-control-icon variant="outline" size="icon" aria-label="Закрыть сообщения" onClick={onClose}><X /></Button>}
+      <CloseMessages />
     </ControlBar>
     <div className="messenger-history" ref={list} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={() => {
       const node = list.current; bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; void acknowledge();
