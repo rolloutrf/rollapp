@@ -73,8 +73,8 @@ import {
 import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
-import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
-import { WishGroupFundraiser } from "@/components/wish-group-fundraiser";
+import { GroupDialog } from "@/components/group-dialog";
+import { WishGroupHeader } from "@/components/wish-group-fundraiser";
 import { LabResults } from "@/components/lab-results";
 import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
@@ -3861,7 +3861,7 @@ function WishGroupTile({
   </>;
 }
 
-function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisband, busy: itemBusy, children, ...props }) {
+function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisband, viewerId, busy: itemBusy, children, ...props }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [saving, setSaving] = useState(false);
@@ -3885,7 +3885,9 @@ function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisban
     if (removed) setDisbandOpen(false);
   };
   return <GroupDialog {...props} className="wish-group-open" busy={busy || editing} aria-label={`Группа «${group.title}»`}>
-    <GroupDialogHeader
+    <WishGroupHeader
+      group={group}
+      viewerId={viewerId}
       busy={busy || editing}
       title={editing ? <Input
         autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы"
@@ -5559,6 +5561,7 @@ function WishesPage({ onAdd, version }) {
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
+  viewerId={user.id}
   count={openedGroupWishes.length}
   moveTargets={groupMoveTargets}
   onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)}
@@ -5568,7 +5571,7 @@ function WishesPage({ onAdd, version }) {
   busy={Boolean(removingGroupId)}
   suspended={Boolean(selectedWish || editingWish || listModal)}
   onClose={() => setOpenedGroupId(null)}
->{openedGroup.space === "products" && <WishGroupFundraiser key={`${user.id}:${openedGroup.id}`} group={openedGroup} viewerId={user.id} />}<div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
+><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
@@ -7224,6 +7227,7 @@ function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, i
     onSave: onReorder,
     onError: (error) => toast(error.message || "Не удалось сохранить порядок желаний", "error"),
   });
+  const openedGroupWishes = openedGroup ? orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)) : [];
   const renderWish = (wish) => <WishCard
     key={wish.id}
     {...cardProps}
@@ -7240,9 +7244,13 @@ function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, i
         : renderWish(item.wish))}
     </div>
     {openedGroup && <GroupDialog onClose={() => setOpenedGroupId(null)} suspended={detailsOpen} className="wish-group-open" aria-label={`Группа «${openedGroup.title}»`}>
-      <GroupDialogHeader title={openedGroup.title} description={`${orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).length} желаний`} />
-      {openedGroup.space === "products" && <WishGroupFundraiser key={`${viewerId || "guest"}:${openedGroup.id}`} group={openedGroup} viewerId={viewerId} shareToken={cardProps.shareToken} />}
-      <div className="wish-grid">{orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).map(renderWish)}</div>
+      <WishGroupHeader
+        group={openedGroup}
+        viewerId={viewerId}
+        shareToken={cardProps.shareToken}
+        description={`${openedGroupWishes.length} ${wishCountNoun(openedGroupWishes.length)}`}
+      />
+      <div className="wish-grid">{openedGroupWishes.map(renderWish)}</div>
     </GroupDialog>}
   </>;
 }

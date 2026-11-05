@@ -873,8 +873,8 @@ for (const file of sourceFiles) {
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
     if (source.includes("@/components/ui/drawer")) {
-      // Messaging is a modal directory/chat on phones, independent of native form pages.
-      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+      // Messaging and group fundraising keep modal panels on phones.
+      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
     }
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }

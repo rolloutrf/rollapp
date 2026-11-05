@@ -1,19 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import { GroupDialog, GroupDialogHeader } from "../../src/components/group-dialog";
-import { WishGroupFundraiser } from "../../src/components/wish-group-fundraiser";
+import { GroupDialog } from "../../src/components/group-dialog";
+import { WishGroupHeader } from "../../src/components/wish-group-fundraiser";
+import { useVisualViewport } from "../../src/hooks/use-visual-viewport";
 import "../../src/styles.css";
 import "../../src/index.css";
 
 // Isolated component fixture; no database or HTTP API is used.
 const mode = new URLSearchParams(location.search).get("mode") || "owner";
-const group = { id: `fundraising-${mode}`, title: "Часы для путешествий", space: "products" };
+const group = { id: `fundraising-${mode}`, title: "Часы для путешествий", space: mode === "non-product" ? "places" : "products" };
 let fund = ["empty", "hidden"].includes(mode) ? null : { id: `fund-${mode}`, raised: 250, target: 1000, contributors: 2, accepting: mode !== "closed", status: mode === "closed" ? "closed" : "active" };
 if (["completed", "completed-owner", "card-storage"].includes(mode)) fund = { ...fund, raised: 1000, status: "completed" };
 const saved = sessionStorage.getItem(`fixture:${mode}`);
 if (saved) fund = JSON.parse(saved);
 window.fundraisingCalls = [];
+window.fundraisingReads = [];
 if (["storage", "card-storage"].includes(mode)) {
   const original = Storage.prototype.setItem;
   Storage.prototype.setItem = function (key, value) {
@@ -22,8 +24,10 @@ if (["storage", "card-storage"].includes(mode)) {
   };
 }
 const request = {
-  async get() {
-    if (mode === "error") throw new Error("Не удалось загрузить сбор");
+  async get(path) {
+    window.fundraisingReads.push(path);
+    if (mode === "loading") await new Promise(resolve => { window.releaseFundraisingRead = resolve; });
+    if (mode === "error" && window.fundraisingReads.length === 1) throw new Error("Не удалось загрузить сбор");
     return { fundraiser: fund, isOwner: ["owner", "empty", "completed-owner", "card-storage"].includes(mode), signedIn: mode !== "guest", balance: 500 };
   },
   async post(path, input) {
@@ -42,12 +46,24 @@ const request = {
   },
   async patch(path, input) {
     window.fundraisingCalls.push({ path, input });
+    if (window.holdFundraisingPatch) await new Promise(resolve => { window.releaseFundraisingPatch = resolve; });
     fund = { ...fund, ...input, status: fund.raised >= input.target ? "completed" : input.accepting ? "active" : "closed" };
     return { fundraiser: fund };
   },
 };
-createRoot(document.getElementById("root")).render(<MemoryRouter><GroupDialog onClose={() => {}} className="wish-group-open" aria-label="Группа часов">
-  <GroupDialogHeader title={group.title} description="6 желаний" />
-  <WishGroupFundraiser group={group} viewerId="fixture-user" request={request} />
-  <div className="wish-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
-</GroupDialog></MemoryRouter>);
+function Fixture() {
+  useVisualViewport();
+  const [groupOpen, setGroupOpen] = useState(true);
+  return groupOpen && <GroupDialog onClose={() => setGroupOpen(false)} className="wish-group-open" aria-label="Группа часов">
+    <WishGroupHeader
+      group={group}
+      viewerId="fixture-user"
+      shareToken="fixture token"
+      request={request}
+      description="6 желаний"
+    />
+    <div className="wish-grid">{Array.from({ length: 6 }, (_, i) => <div key={i} className="flex min-w-0 flex-col gap-2"><div className="aspect-square rounded-2xl bg-muted" /><span>Часы {i + 1}</span></div>)}</div>
+  </GroupDialog>;
+}
+
+createRoot(document.getElementById("root")).render(<MemoryRouter><Fixture /></MemoryRouter>);

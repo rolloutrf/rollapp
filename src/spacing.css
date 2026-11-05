@@ -60,6 +60,7 @@
     .planning-fab-controls,
     .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
+    .wish-group-open > .app-group-dialog__header,
     [data-slot="drawer-header"], [data-slot="drawer-footer"],
     [data-slot="sheet-header"], [data-slot="sheet-footer"]
   ) {
@@ -410,7 +411,7 @@
     gap: var(--layout-page-gap);
   }
 
-  .wish-group-open > :is(.app-group-dialog__header, .wish-group-fundraiser, .wish-grid) {
+  .wish-group-open > :is(.app-group-dialog__header, .wish-grid) {
     flex: none;
   }
 
