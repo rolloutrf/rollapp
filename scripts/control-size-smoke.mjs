@@ -61,6 +61,25 @@ async function geometry(page, label) {
   }
   assert(result.tabs.every(height => Math.abs(height - 48) < 0.1), `${label}: calendar tab rail differs from the controls`);
 }
+async function transparentChrome(page, label) {
+  const rails = page.locator([
+    ".global-app-chrome", ".mobile-app-navigation", ".planning-fab-controls",
+    ".daily-todo__header", ".daily-todo__footer", ".daily-todo__composer-input",
+    ".mobile-form-page__header", "[data-native-form-actions]",
+  ].join(", "));
+  const painted = await rails.evaluateAll(nodes => nodes.flatMap(node =>
+    [null, "::before", "::after"].flatMap(pseudo => {
+      const css = getComputedStyle(node, pseudo);
+      if (pseudo && ["none", "normal"].includes(css.content)) return [];
+      if (css.backgroundColor === "rgba(0, 0, 0, 0)" &&
+          css.backgroundImage === "none" && css.backdropFilter === "none" &&
+          css.boxShadow === "none") return [];
+      return [{ rail: node.className, pseudo, background: css.backgroundColor,
+        image: css.backgroundImage, blur: css.backdropFilter, shadow: css.boxShadow }];
+    })
+  ));
+  assert.deepEqual(painted, [], `${label}: shared chrome must be transparent`);
+}
 async function paintedHeight(button, label) {
   const box = await button.boundingBox();
   assert.equal(box.height, 48, `${label}: accent control box differs from 48px`);
@@ -99,6 +118,10 @@ try {
         await page.evaluate(() => document.fonts.ready);
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
+        await transparentChrome(page, label);
+        await page.evaluate(() => document.documentElement.classList.remove("dark"));
+        await transparentChrome(page, `${label} light`);
+        await page.evaluate(() => document.documentElement.classList.add("dark"));
         if (!route.includes("/planning")) {
           const pair = page.locator('[aria-label="Единый стиль кнопок"] button');
           const styles = await pair.evaluateAll(buttons => buttons.map(button => {
@@ -139,6 +162,7 @@ try {
         });
         if (!["view=month", "view=year", "view=list"].some((view) => route.includes(view))) assert(scrolled, `${label}: scrolling check did not move a scroll owner`);
         await geometry(page, `${label} scrolled`);
+        await transparentChrome(page, `${label} scrolled`);
         if (route.includes("view=day") || route.includes("/career") || route.includes("tab=todo")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : route.includes("tab=todo") ? "todo" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
           await page.getByRole("button", { name: "Новая задача в календаре", exact: true }).click();
@@ -147,6 +171,7 @@ try {
           assert.equal((await back.boundingBox()).height, 48, "Native form Back differs from navigation");
           await page.evaluate(() => { Object.defineProperty(visualViewport, "height", { configurable: true, value: 280 }); visualViewport.dispatchEvent(new Event("resize")); });
           await page.waitForFunction(() => document.documentElement.hasAttribute("data-overlay-keyboard"));
+          await transparentChrome(page, `${label} keyboard`);
           const keyboardBack = await back.boundingBox();
           assert.equal(keyboardBack.height, 48); assert(keyboardBack.y + keyboardBack.height <= 280, "Back is below the keyboard");
           await page.evaluate(() => { delete visualViewport.height; visualViewport.dispatchEvent(new Event("resize")); });

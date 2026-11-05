@@ -84,9 +84,15 @@ try {
       const before=await order(page,'wishes');
       await start(page,'wishes',id);
       const target=page.locator('.wishes-page > .wish-grid [data-group-id="g0"]');
-      await target.scrollIntoViewIfNeeded(); const box=await target.boundingBox();
+      await target.evaluate(element => element.scrollIntoView({ block: "center", behavior: "instant" }));
+      const box=await target.boundingBox();
       assert.deepEqual(await order(page,'wishes'),before,'Revealing the target must not reorder unrelated cards before the intended hover');
-      await page.mouse.move(box.x+3,box.y+8); await page.waitForTimeout(380);
+      // Use the card's left edge, but keep the pointer out of the viewport's
+      // vertical auto-scroll bands while the reorder intent is confirmed.
+      const point={ x:box.x+3, y:box.y+box.height/2 };
+      assert(point.y>=88 && point.y<=page.viewportSize().height-88,'Target edge must be outside the auto-scroll bands');
+      assert(await target.evaluate((element, {x,y}) => element.contains(document.elementFromPoint(x,y)), point),'Reorder pointer must hit the group tile');
+      await page.mouse.move(point.x,point.y); await page.waitForTimeout(380);
       const expected=before.filter(key=>key!==id),index=expected.indexOf('g0');
       expected.splice(index+(before.indexOf(id)<before.indexOf('g0')?1:0),0,id);
       assert.deepEqual(await order(page,'wishes'),expected,`${width}: item and whole group must reorder at the edge (${id})`);

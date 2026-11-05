@@ -53,13 +53,28 @@
     .education-card > [data-card-drag-handle] { display: inline-flex; }
   }
 
-  /* Application headers float without a shared surface, in every theme. */
+  /* Shared chrome must stay clear even when a local variant adds paint. */
+  :is(
+    .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
+    .mobile-app-navigation, .mobile-content-page__nav, [data-content-page-actions],
+    .planning-fab-controls,
+    .daily-todo__header, .daily-todo__footer, .daily-todo__composer-input,
+    .mobile-form-page__header, [data-native-form-actions],
+    [data-slot="drawer-header"], [data-slot="drawer-footer"],
+    [data-slot="sheet-header"], [data-slot="sheet-footer"]
+  ) {
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    &::before, &::after {
+      content: none !important;
+    }
+  }
+
   :is(.global-app-chrome, .public-profile > .profile-header) {
-    background: transparent;
     border: 0;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
   }
 
   /* One navigation size everywhere. These dimensions intentionally outrank
@@ -188,17 +203,9 @@
   }
 
   .global-app-chrome {
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     top: calc(var(--layout-chrome-top) + var(--layout-safe-top));
     max-width: var(--layout-page-width);
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
-    /* Page chrome stays clear at rest and while scrolling; controls own their surfaces. */
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
   }
 
   @media (min-width: 768px) {
