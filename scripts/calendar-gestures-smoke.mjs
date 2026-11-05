@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
+import { smokeBaseUiDependencies } from './smoke-dependencies.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 
 const server = await createServer({
-  cacheDir: 'node_modules/.vite-calendar-gestures',
+  cacheDir: process.env.CALENDAR_GESTURE_CACHE_DIR || 'node_modules/.vite-calendar-gestures',
+  optimizeDeps: {
+    entries: ['scripts/fixtures/calendar-events.jsx'],
+    include: [...smokeBaseUiDependencies, "date-fns/locale", "react-day-picker", "next-themes", "sonner"],
+  },
   server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null },
   plugins: [{ name: 'calendar-gestures',
     transform(source, id) { if (id.includes('planning-space.jsx?calendar-events-export')) return `${source}\nexport { TaskEditor };`; },
@@ -25,6 +30,7 @@ try {
     for (const height of [900, 400]) {
       const page = await browser.newPage({ viewport: { width, height }, reducedMotion: 'reduce', deviceScaleFactor: width === 390 ? 3 : 1 });
       const errors = [];
+      page.setDefaultNavigationTimeout(90000);
       page.setDefaultTimeout(12000);
       page.on('pageerror', error => errors.push(error.message));
       await page.route('**/api/**', route => { errors.push('Unexpected API'); return route.abort(); });

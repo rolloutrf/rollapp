@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
 import { chromium } from "playwright-core";
 import { createServer } from "vite";
+import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 
 let executablePath;
 for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].filter(Boolean)) {
@@ -11,7 +12,12 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
 }
 assert(executablePath, "Install Chrome or set CHROME_PATH");
 const port = smokePort(process.env.FORM_ACTION_PORT);
-const server = await createServer({ cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
+const server = await createServer({
+  optimizeDeps: {
+    entries: ["scripts/fixtures/form-actions.jsx", "scripts/fixtures/mobile-form-flow.jsx"],
+    include: [...smokeBaseUiDependencies, "date-fns/locale", "react-day-picker", "lucide-react", "qrcode", "sonner", "next-themes", "zod"],
+  },
+  cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
     if (id.endsWith("/src/App.jsx?form-actions")) return `${source}\nexport { ContactEditForm, ToastContext, WishModal };`;
@@ -68,6 +74,7 @@ try {
     for (const height of width === 390 ? [844, 400] : [844]) {
       for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,medication-group,conference,coaching-edit,principle,identity-test").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
+        page.setDefaultNavigationTimeout(90000);
         page.setDefaultTimeout(10000);
         page.on("pageerror", error => errors.push(error.message));
         // Wish list metadata is a read effect: reject it without replacement.
@@ -289,7 +296,7 @@ try {
   await page.close();
 } catch (error) {
   for (const context of browser.contexts()) for (const page of context.pages()) {
-    await page.screenshot({ path: "/tmp/rollapp-form-actions-failure.png" });
+    await page.screenshot({ path: "/tmp/rollapp-form-actions-failure.png", timeout: 5000 }).catch(() => {});
     console.error("FAIL STATE", page.url());
   }
   throw error;
