@@ -17,13 +17,19 @@ api.get = async (path) => {
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
-for (const method of ["post", "patch", "delete", "uploadImage"]) api[method] = async () => { throw new Error("Mutations forbidden in profile fixture"); };
+for (const method of ["post", "delete", "uploadImage"]) api[method] = async () => { throw new Error("Mutations forbidden in profile fixture"); };
+api.patch = async (path, data) => {
+  if (mode !== "save" || path !== "/me" || JSON.stringify(data) !== '{"name":"Сохранённое имя"}') throw new Error("Unexpected fixture save");
+  return { user: { ...data } };
+};
 function Fixture() {
   useVisualViewport();
   const [open, setOpen] = useState(true);
-  const user = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" };
+  const [savedName, setSavedName] = useState("");
+  const [user] = useState(() => ({ id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" }));
   return <SessionContext.Provider value={{ user, setSession: () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
-    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onSaved={() => { throw new Error("Save forbidden"); }} />}
+    {savedName && <output>{savedName}</output>}
+    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
   </MobileFormPages></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);

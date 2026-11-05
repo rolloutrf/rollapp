@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { Badge } from "@/components/ui/badge";
@@ -9,16 +9,14 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 
-export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = false }) {
+export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onBusyChange }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [settingsError, setSettingsError] = useState("");
   const [models, setModels] = useState([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [keyVisible, setKeyVisible] = useState(false);
-  const [modelId, setModelId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const mounted = useRef(false);
@@ -35,7 +33,6 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
       const next = await api.get("/me/openrouter");
       if (!mounted.current || requestId !== settingsRequest.current) return;
       setSettings(next);
-      setModelId(next.model);
     } catch (loadError) {
       if (mounted.current && requestId === settingsRequest.current) setSettingsError(loadError.message);
     } finally {
@@ -68,6 +65,8 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
     };
   }, [loadSettings, loadModels]);
 
+  const { apiKey } = draft;
+  const modelId = draft.modelId ?? settings?.model ?? "";
   const availableModel = models.find((model) => model.id === modelId);
   // Keep the persisted choice visible even if the model catalogue is offline.
   const selectedModel = availableModel || (modelId ? { id: modelId, name: modelId, unavailable: true } : null);
@@ -85,8 +84,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
       const next = await request();
       if (!mounted.current) return;
       setSettings(next);
-      setModelId(next.model);
-      setApiKey("");
+      onDraftChange({ apiKey: "", modelId: null });
       setKeyVisible(false);
       toast.success(message);
     } catch (saveError) {
@@ -115,13 +113,8 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
   };
 
   return (
-    <section className={`openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5${embedded ? "" : " border-t pt-6"}`} aria-label={embedded ? "Настройки OpenRouter" : undefined} aria-labelledby={embedded ? undefined : "openrouter-settings-title"}>
-      {(!embedded || settings?.configured) && <div className="flex flex-wrap items-center justify-between gap-2">
-        {!embedded && <h2 id="openrouter-settings-title" className="flex items-center gap-2 font-heading font-medium">
-          <LockKeyhole className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />OpenRouter
-        </h2>}
-        {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
-      </div>}
+    <div className="openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5">
+      {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
       {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
         : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
         : !settings.available ? <>
@@ -144,7 +137,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
                   placeholder="sk-or-v1-…"
                   value={apiKey}
                   disabled={controlsDisabled || !settings.available}
-                  onChange={(event) => { setApiKey(event.target.value); setError(""); }}
+                  onChange={(event) => { onDraftChange({ ...draft, apiKey: event.target.value }); setError(""); }}
                   onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); save(); } }}
                 />
                 <InputGroupAddon align="inline-end">
@@ -160,7 +153,7 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
               <Combobox
                 items={modelOptions}
                 value={selectedModel || null}
-                onValueChange={(model) => { if (model) { setModelId(model.id); setError(""); } }}
+                onValueChange={(model) => { if (model) { onDraftChange({ ...draft, modelId: model.id }); setError(""); } }}
                 itemToStringLabel={(model) => model.name}
                 itemToStringValue={(model) => model.id}
                 isItemEqualToValue={(a, b) => a.id === b.id}
@@ -184,10 +177,10 @@ export function OpenRouterSettings({ disabled = false, onBusyChange, embedded = 
               <Button type="button" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled || !settings.available || !availableModel || !changed} aria-busy={busy || undefined} onClick={save}>
                 {busy && <Spinner />}{settings.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter"}
               </Button>
-              {settings.configured && <Button type="button" variant="ghost" className="self-start text-destructive hover:text-destructive" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
+              {settings.configured && <Button type="button" variant="destructive" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
             </div>
             {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
           </>}
-    </section>
+    </div>
   );
 }

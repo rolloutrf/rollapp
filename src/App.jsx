@@ -14,10 +14,9 @@ import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
+  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
@@ -46,7 +45,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
@@ -3131,7 +3129,7 @@ function PersistentProfileHero({ user }) {
   const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && (user?.accountType === "personal" || canAccessPrivateSpheres(user));
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
-      <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
+      <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
           <ShadcnButton
             type="button"
@@ -3179,9 +3177,9 @@ function PersistentProfileHero({ user }) {
             </div>
           )}
         </div>
-        <span className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{editable ? <ShadcnButton type="button" variant="link" className="profile-name-button" aria-label={`Редактировать профиль ${profile.name}`} onClick={openProfileEditor}>{profile.name}</ShadcnButton> : profile.name}</h1>
-        </span>
+        <div className="wishes-page__hero-copy">
+          <h1 id="persistent-profile-name">{profile.name}</h1>
+        </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
@@ -5993,6 +5991,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
   }));
   const submit = async (event) => {
     event.preventDefault();
+    if (loading || deleting || deleteOpen) return;
     setLoading(true);
     try {
       const result = editing ? await api.patch(`/lists/${list.id}`, form) : await api.post("/lists", form);
@@ -6005,7 +6004,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
     }
   };
   const remove = async () => {
-    if (!editing || deleting) return;
+    if (!editing || loading || deleting || listsCount <= 1) return;
     setDeleting(true);
     try {
       const result = await api.delete(`/lists/${list.id}`);
@@ -6049,11 +6048,31 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
               </div>
               <Switch id={secretListId} type="button" aria-describedby={secretListDescriptionId} checked={form.privacy === "private"} disabled={loading} onCheckedChange={(checked) => setForm((current) => ({ ...current, privacy: checked ? "private" : "public" }))} />
             </Field>
-            {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
           </FieldGroup>
           </div>
           <DrawerFooter>
-            <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
+            <ShadcnButton
+              type="submit"
+              aria-label={editing ? "Сохранить изменения" : undefined}
+              disabled={loading || deleting}
+              aria-busy={loading || undefined}
+            >
+              {loading && <Spinner data-icon="inline-start" />}
+              {editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : "Создать список"}
+            </ShadcnButton>
+            {editing && <ShadcnButton
+              data-control-icon=""
+              type="button"
+              variant="destructive"
+              size="icon"
+              aria-label="Удалить список"
+              title="Удалить список"
+              disabled={loading || deleting || listsCount <= 1}
+              aria-busy={deleting || undefined}
+              onClick={() => setDeleteOpen(true)}
+            >
+              {deleting ? <Spinner /> : <Trash2 aria-hidden="true" />}
+            </ShadcnButton>}
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -6792,20 +6811,10 @@ function FriendsPage() {
   );
 }
 
-function ProfileSettingsSection({ value, title, icon: Icon, children }) {
-  return <AccordionItem value={value} className="min-w-0">
-    <AccordionTrigger className="min-h-12 items-center gap-2 py-3 text-lg leading-7 hover:no-underline">
-      <span className="flex min-w-0 items-center gap-2"><Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /><span>{title}</span></span>
-    </AccordionTrigger>
-    <AccordionContent keepMounted className="rollapp-body flex h-auto min-w-0 flex-col gap-4 pt-2 pb-4 [&_p:not(:last-child)]:mb-0">
-      {children}
-    </AccordionContent>
-  </AccordionItem>;
-}
-
 function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const logout = useLogout();
   const initialForm = useMemo(() => ({
@@ -6822,15 +6831,36 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(null);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
-  const [openSections, setOpenSections] = useState(["personal"]);
-  const contentRef = useRef(null);
+  const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
+  const [section, setSection] = useState(null);
+  const [rootOpen, setRootOpen] = useState(true);
+  const pendingExit = useRef(null);
+  const sectionTrigger = useRef(null);
+  const sectionHeading = useRef(null);
+  const scrollArea = useRef(null);
+  const sections = [
+    { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
+    { id: "yandex", title: "Yandex ID", icon: Fingerprint },
+    { id: "orders", title: "Заказы", icon: PackageCheck },
+  ];
+  const sectionTitle = sections.find(({ id }) => id === section)?.title;
+  const busy = loading || imageUploading || loggingOut || openRouterBusy;
+  useLayoutEffect(() => {
+    if (isMobile) return;
+    if (section) {
+      scrollArea.current?.querySelector('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0, behavior: "instant" });
+      sectionHeading.current?.focus({ preventScroll: true });
+    } else sectionTrigger.current?.focus({ preventScroll: true });
+  }, [isMobile, section]);
   const imageFileRef = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const changed = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
-  const yandexLinkNext = safeNextPath(`${location.pathname}${location.search}`);
+  const sourceParams = new URLSearchParams(location.search);
+  sourceParams.delete("formScreen");
+  const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
   const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
-  const ordersLinkBlocked = yandexLinkBlocked || openRouterBusy;
   const cleanupUploadedImages = async (keepUrl = "") => {
     const keepId = uploadedImageIdFromUrl(keepUrl);
     const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
@@ -6878,10 +6908,23 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       if (imageFileRef.current) imageFileRef.current.value = "";
     }
   };
+  const backToSections = () => {
+    if (!busy) setSection(null);
+  };
   const close = () => {
-    if (loading || imageUploading || loggingOut || openRouterBusy) return;
+    if (busy) return;
     cleanupUploadedImages();
     onClose();
+  };
+  const exitSettings = (afterClose) => {
+    if (!isMobile) {
+      afterClose(onSaved);
+      return;
+    }
+    // Unwind the native form entries before changing the profile or route.
+    pendingExit.current = afterClose;
+    if (section) setSection(null);
+    else setRootOpen(false);
   };
   const submit = async (event) => {
     event.preventDefault();
@@ -6898,160 +6941,210 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
       await cleanupUploadedImages(result.user?.avatarUrl || "");
       toast("Профиль обновлён");
-      await onSaved(result.user);
+      exitSettings((saveProfile) => saveProfile(result.user));
     } catch (error) {
       toast(error.message, "error");
     } finally {
       setLoading(false);
     }
   };
-  return <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) close(); }}>
-    <DrawerContent
-      ref={contentRef}
-      className="profile-settings-dialog rollapp-body app-drawer--form"
-      initialFocus={() => canAutofocusForm() ? contentRef.current?.querySelector("#settings-profile-name") || true : true}
-      finalFocus={finalFocus}
-    >
-      <DrawerClose
-        render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10 size-12" size="icon-sm" />}
+  const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
+    <nav aria-label="Разделы профиля">
+      <ul className="divide-y">
+        {sections.map(({ id, title, icon: Icon }) => <li key={id}>
+          <ShadcnButton
+            type="button"
+            variant="ghost"
+            className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal"
+            disabled={busy || (id === "orders" && changed)}
+            onClick={(event) => {
+              if (id === "orders") exitSettings(() => {
+                onClose();
+                navigate(APP_ORDERS_PATH);
+              });
+              else {
+                sectionTrigger.current = event.currentTarget;
+                setSection(id);
+              }
+            }}
+          >
+            <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{title}</span>
+            <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </ShadcnButton>
+        </li>)}
+      </ul>
+    </nav>
+    {changed && <p className="text-sm text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
+  </div>;
+  const sectionBody = section === "personal" ? <>
+    <section aria-labelledby="settings-profile-photo" className="grid gap-2 px-4 pt-4">
+      <div className="flex items-center gap-3">
+        <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h2 id="settings-profile-photo" className="text-sm font-medium">Фото профиля</h2>
+          <p className="text-sm text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
+          <ShadcnButton
+            type="button"
+            variant="outline"
+            className="mt-2"
+            disabled={imageUploading || loading || loggingOut}
+            aria-busy={imageUploading || undefined}
+            onClick={() => imageFileRef.current?.click()}
+          >
+            {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
+            {imageUploading ? "Загрузка…" : "Загрузить фото"}
+          </ShadcnButton>
+        </div>
+        <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+      </div>
+      {imageError && <FieldError>{imageError}</FieldError>}
+    </section>
+    <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
+      <FieldGroup className="gap-4">
+        <div className="grid gap-4">
+          <Field>
+            <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
+            <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
+            <InputGroup className="min-w-0">
+              <InputGroupAddon align="inline-start" className="shrink-0">
+                <InputGroupText className="text-rollapp-body!" aria-hidden="true">роллапп.рф/</InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                id="settings-profile-address"
+                className="min-w-0"
+                required
+                pattern="[a-z0-9-]{3,32}"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                spellCheck={false}
+                value={form.username}
+                onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+              />
+            </InputGroup>
+            <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
+          <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
+        </Field>
+        <Field className="sm:max-w-[calc(50%-0.5rem)]">
+          <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
+          <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
+        </Field>
+      </FieldGroup>
+    </form>
+  </> : section === "openrouter" ? <div className="px-4 pt-4">
+    <OpenRouterSettings
+      key={user.id}
+      draft={openRouterDraft}
+      onDraftChange={setOpenRouterDraft}
+      disabled={loading || imageUploading || loggingOut}
+      onBusyChange={setOpenRouterBusy}
+    />
+  </div> : section === "yandex" ? <div className="px-4 pt-4">
+    <Card className="grid gap-3 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+        </div>
+        {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
+      </div>
+      {!user.hasYandex && yandexEnabled === null && <p className="text-sm text-muted-foreground" role="status">Проверяем доступность Yandex ID…</p>}
+      {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
+      {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
+        ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
+        : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
+    </Card>
+  </div> : null;
+  const personalFooter = section === "personal" && (
+    <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
+      <ShadcnButton
+        type="submit"
+        form="profile-editor-form"
+        disabled={!changed || busy}
+        aria-busy={loading || undefined}
       >
-        <X />
-        <span className="sr-only">Закрыть</span>
-      </DrawerClose>
-      <DrawerHeader className="mx-auto h-14 w-full max-w-full p-0">
-        <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>
-        <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
-      </DrawerHeader>
-      <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
-        <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit} onInvalidCapture={() => flushSync(() => setOpenSections((current) => current.includes("personal") ? current : [...current, "personal"]))}>
-          <Accordion multiple value={openSections} onValueChange={setOpenSections} aria-label="Разделы профиля">
-            <ProfileSettingsSection value="personal" title="Персональная информация" icon={CircleUserRound}>
-              <Card className="flex flex-row items-center gap-3 p-3">
-                <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <strong className="block text-sm font-medium">Фото профиля</strong>
-                  <p className="text-sm text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
-                  <ShadcnButton
-                    type="button"
-                    variant="outline"
-                    className="mt-2"
-                    disabled={imageUploading || loading || loggingOut}
-                    aria-busy={imageUploading || undefined}
-                    onClick={() => imageFileRef.current?.click()}
-                  >
-                    {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
-                    {imageUploading ? "Загрузка…" : "Загрузить фото"}
-                  </ShadcnButton>
-                </div>
-                <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
-              </Card>
-              {imageError && <FieldError>{imageError}</FieldError>}
-              <FieldGroup className="gap-4">
-                <div className="grid gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
-                    <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
-                    <InputGroup className="min-w-0">
-                      <InputGroupAddon align="inline-start" className="shrink-0">
-                        <InputGroupText aria-hidden="true">роллапп.рф/</InputGroupText>
-                      </InputGroupAddon>
-                      <InputGroupInput
-                        id="settings-profile-address"
-                        className="min-w-0"
-                        required
-                        pattern="[a-z0-9-]{3,32}"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        autoComplete="username"
-                        spellCheck={false}
-                        value={form.username}
-                        onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
-                      />
-                    </InputGroup>
-                    <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
-                  </Field>
-                </div>
-                <Field>
-                  <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
-                  <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
-                </Field>
-                <Field className="sm:max-w-[calc(50%-0.5rem)]">
-                  <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
-                  <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
-                </Field>
-              </FieldGroup>
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="openrouter" title="OpenRouter" icon={LockKeyhole}>
-              <OpenRouterSettings key={user.id} embedded disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="yandex" title="Yandex ID" icon={Fingerprint}>
-              <Card className="grid gap-3 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <strong className="block text-sm font-medium">Yandex ID</strong>
-                    <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
-                  </div>
-                  {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
-                </div>
-                {!user.hasYandex && yandexEnabled === null && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner />Проверяем доступность Yandex ID…</p>}
-                {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
-                {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
-                  ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
-                  : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
-              </Card>
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="orders" title="Заказы" icon={PackageCheck}>
-              <p className="text-muted-foreground">История покупок, доставка и возврат товаров.</p>
-              <Link
-                to={APP_ORDERS_PATH}
-                className={cn(buttonVariants({ variant: "outline" }), "w-full rounded-full no-underline!", ordersLinkBlocked && "pointer-events-none opacity-50")}
-                aria-disabled={ordersLinkBlocked || undefined}
-                tabIndex={ordersLinkBlocked ? -1 : undefined}
-                onClick={(event) => { if (ordersLinkBlocked) event.preventDefault(); else close(); }}
-              >
-                Открыть заказы<ArrowRight className="size-5" aria-hidden="true" />
-              </Link>
-              {changed && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед переходом к заказам.</p>}
-            </ProfileSettingsSection>
-          </Accordion>
-          <div className="border-t pt-4">
-            <ShadcnButton
-              type="button"
-              variant="destructive"
-              className="h-12 w-full gap-2 px-4"
-              disabled={loading || imageUploading || loggingOut || openRouterBusy}
-              aria-busy={loggingOut || undefined}
-              onClick={async () => {
-                if (loggingOut) return;
-                setLoggingOut(true);
-                await cleanupUploadedImages();
-                const loggedOut = await logout();
-                if (!loggedOut) setLoggingOut(false);
-              }}
-            >
-              {loggingOut ? <Spinner /> : <LogOut className="size-5" aria-hidden="true" />}
-              <span>Выйти из аккаунта</span>
-            </ShadcnButton>
-          </div>
-        </form>
-      </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
-        <ShadcnButton
-          type="submit"
-          form="profile-editor-form"
-          className="h-12 w-full"
-          disabled={!changed || imageUploading || loggingOut || loading || openRouterBusy}
-          aria-busy={loading || undefined}
+        {loading && <Spinner />}
+        Сохранить
+      </ShadcnButton>
+      <ShadcnButton
+        data-control-icon=""
+        type="button"
+        variant="destructive"
+        size="icon"
+        aria-label="Выйти из аккаунта"
+        title="Выйти из аккаунта"
+        disabled={busy}
+        aria-busy={loggingOut || undefined}
+        onClick={async () => {
+          if (busy) return;
+          setLoggingOut(true);
+          await cleanupUploadedImages();
+          const loggedOut = await logout();
+          if (!loggedOut) setLoggingOut(false);
+        }}
+      >
+        {loggingOut ? <Spinner /> : <LogOut aria-hidden="true" />}
+      </ShadcnButton>
+    </DrawerFooter>
+  );
+  const desktopSection = !isMobile && section;
+  return <>
+    <Drawer open={rootOpen} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => {
+      if (!open) {
+        if (desktopSection) backToSections();
+        else close();
+      }
+    }} onAfterClose={() => {
+      const exit = pendingExit.current;
+      pendingExit.current = null;
+      exit?.(onSaved);
+    }}>
+      <DrawerContent className="profile-settings-dialog rollapp-body app-drawer--form" finalFocus={finalFocus}>
+        {!desktopSection && <DrawerClose
+          render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10 size-12" size="icon-sm" />}
         >
-          {loading && <Spinner />}
-          Сохранить
-        </ShadcnButton>
-      </DrawerFooter>
-    </DrawerContent>
-  </Drawer>;
+          <X />
+          <span className="sr-only">Закрыть</span>
+        </DrawerClose>}
+        {desktopSection ? <DrawerHeader className="mx-auto w-full max-w-full flex-row items-center gap-2 p-4">
+          <ControlBar>
+            <ShadcnButton data-control-icon="" type="button" variant="outline" size="icon" aria-label="Назад" disabled={busy} onClick={backToSections}>
+              <ArrowLeft aria-hidden="true" />
+            </ShadcnButton>
+          </ControlBar>
+          <DrawerTitle ref={sectionHeading} tabIndex={-1}>{sectionTitle}</DrawerTitle>
+        </DrawerHeader> : <DrawerHeader className={cn("mx-auto w-full max-w-full", !isMobile && "h-14 p-0")}>
+          {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
+          <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
+        </DrawerHeader>}
+        <ScrollArea ref={scrollArea} className="mx-auto min-h-0 w-full max-w-full flex-1">
+          <div hidden={Boolean(desktopSection)}>{menu}</div>
+          {desktopSection && sectionBody}
+        </ScrollArea>
+        {isMobile ? <DrawerFooter /> : desktopSection && personalFooter}
+      </DrawerContent>
+    </Drawer>
+    {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
+      if (pendingExit.current) setRootOpen(false);
+      else requestAnimationFrame(() => {
+        const trigger = sectionTrigger.current;
+        if (trigger && !trigger.closest("[hidden]")) trigger.focus({ preventScroll: true });
+      });
+    }}>
+      <DrawerContent className="rollapp-body app-drawer--form">
+        <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
+        {sectionBody}
+        {personalFooter || <DrawerFooter />}
+      </DrawerContent>
+    </Drawer>}
+  </>;
 }
 
 function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, initialGroupId = null, visibleLimit, ownerCollection, onReorder, onOpen, viewerId, ...cardProps }) {

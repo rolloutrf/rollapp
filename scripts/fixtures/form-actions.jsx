@@ -1,7 +1,7 @@
 import React, { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ContactEditForm, ToastContext, WishModal } from "@/App.jsx?form-actions";
+import { ContactEditForm, ListModal, ToastContext, WishModal } from "@/App.jsx?form-actions";
 import { TaskEditor } from "@/components/planning-space.jsx?drawer-smoke-export=TaskEditor";
 import { MarkdownEditorDrawer } from "@/components/career-content.jsx?drawer-smoke-export=MarkdownEditorDrawer";
 import { MedicationGroupDrawer } from "@/components/medications.jsx?drawer-smoke-export=MedicationGroupDrawer";
@@ -30,6 +30,7 @@ function Fixture() {
   if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
+  if (name === "wish-list-edit") return <ListModal list={{ id: "unsaved-list", title: "Несохранённый список" }} listsCount={2} onClose={close} />;
   if (name === "wish") return <WishModal onClose={close} />;
   if (name === "wish-edit") return <WishModal wish={{ id: "unsaved-wish", title: "Несохранённое желание", url: "https://example.com", listIds: [] }} onClose={close} />;
   // The real editor owns its ScrollArea and separate footer.
