@@ -733,7 +733,7 @@ assert(/const refreshLoadedCatalog = async \(requestId\)/.test(wishCatalogPageSo
 assert(/limit=\$\{CATALOG_PAGE_SIZE\}&offset=\$\{offset\}/.test(wishCatalogPageSource), "Catalog refresh must preserve every already-loaded page within the API limit");
 assert(/catalogLoadMoreOperationRef\.current \|\| pendingWishlistIdsRef\.current\.size > 0/.test(wishCatalogPageSource), "Catalog pagination and Wishlist mutations must not overwrite one another");
 assert(/wishlistDisabled=\{pendingWishlistIds\.size > 0 \|\| catalog\.loadingMore\}/.test(wishCatalogPageSource), "Catalog Hearts must visibly disable while another catalog operation is active");
-assert(/disabled=\{catalog\.loadingMore \|\| pendingWishlistIds\.size > 0\}/.test(wishCatalogPageSource), "Catalog pagination must visibly disable while a Wishlist mutation is active");
+assert(/disabled=\{loadingMore \|\| pendingWishlistIds\.size > 0\} onClick=\{loadMore\}/.test(wishCatalogPageSource), "Manual catalog pagination must visibly disable while a Wishlist mutation is active");
 assert(!/pendingLike|toggleCatalogLike|catalog\/items\/like|onLike/.test(wishCatalogPageSource), "Catalog UI must not keep an independent Like mutation");
 const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalog-wish-card__actions"), legacyStyles.indexOf(".catalog-wish-card__body"));
 assert(!/\.is-liked\b/.test(catalogCardActionStyles), "Catalog Wishlist action must not keep a separate Like state");

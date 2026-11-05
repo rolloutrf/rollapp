@@ -4180,10 +4180,14 @@ function WishCatalogPage() {
   const requestIdRef = useRef(0);
   const pendingWishlistIdsRef = useRef(new Map());
   const catalogLoadMoreOperationRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const lastCatalogOpenerRef = useRef(null);
-  const [catalog, setCatalog] = useState({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+  const [catalog, setCatalog] = useState({ filter: null, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
   const [pendingWishlistIds, setPendingWishlistIds] = useState(new Set());
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState(null);
+  const { nextOffset, loadingMore } = catalog;
+  const hasMore = catalog.filter === catalogFilter && !catalog.loading && nextOffset < catalog.total;
+  const canAutoLoad = typeof IntersectionObserver !== "undefined";
   const selectedCatalogItem = selectedCatalogItemId
     ? catalog.items.find((item) => item.id === selectedCatalogItemId) || null
     : null;
@@ -4205,16 +4209,16 @@ function WishCatalogPage() {
     lastCatalogOpenerRef.current = null;
     setPendingWishlistIds(new Set());
     setSelectedCatalogItemId(null);
-    setCatalog({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+    setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
     api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         const items = result.items || [];
-        setCatalog({ items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
+        setCatalog({ filter: catalogFilter, items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
       })
       .catch((error) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog({ items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
+        setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
       });
     return () => { requestIdRef.current += 1; };
   }, [catalogFilter]);
@@ -4237,34 +4241,50 @@ function WishCatalogPage() {
     setSelectedCatalogItemId(null);
   };
 
-  const loadMore = async () => {
-    if (catalog.loadingMore
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore
       || catalogLoadMoreOperationRef.current
-      || pendingWishlistIdsRef.current.size > 0
-      || catalog.nextOffset >= catalog.total) return;
+      || pendingWishlistIdsRef.current.size > 0) return;
     const requestId = requestIdRef.current;
-    const offset = catalog.nextOffset;
     const operation = Symbol("catalog-load-more");
     catalogLoadMoreOperationRef.current = operation;
     setCatalog((current) => ({ ...current, loadingMore: true, error: null }));
     try {
-      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
+      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${nextOffset}`);
       if (requestId !== requestIdRef.current) return;
       const incoming = result.items || [];
-      setCatalog((current) => ({
-        ...current,
-        items: [...current.items, ...incoming.filter((item) => !current.items.some((existing) => existing.id === item.id))],
-        total: Number(result.total) || current.total,
-        nextOffset: offset + incoming.length,
-        loadingMore: false,
-      }));
+      const total = Number(result.total) || 0;
+      setCatalog((current) => {
+        const existingIds = new Set(current.items.map((item) => item.id));
+        return {
+          ...current,
+          items: [...current.items, ...incoming.filter((item) => !existingIds.has(item.id))],
+          total: incoming.length ? total : Math.min(total, nextOffset),
+          nextOffset: nextOffset + incoming.length,
+          loadingMore: false,
+        };
+      });
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       setCatalog((current) => ({ ...current, loadingMore: false, error }));
     } finally {
       if (catalogLoadMoreOperationRef.current === operation) catalogLoadMoreOperationRef.current = null;
     }
-  };
+  }, [catalogFilter, hasMore, loadingMore, nextOffset]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore || !canAutoLoad || loadingMore || catalog.error || pendingWishlistIds.size || selectedCatalogItemId) return;
+    let active = true;
+    const observer = new IntersectionObserver((entries) => {
+      if (active && entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, { rootMargin: "0px 0px 500px" });
+    observer.observe(node);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [canAutoLoad, hasMore, loadingMore, catalog.error, pendingWishlistIds.size, selectedCatalogItemId, loadMore]);
 
   const refreshLoadedCatalog = async (requestId) => {
     const targetCount = Math.max(CATALOG_PAGE_SIZE, catalog.nextOffset || catalog.items.length);
@@ -4367,6 +4387,7 @@ function WishCatalogPage() {
     }
   };
 
+  const showManualLoad = !canAutoLoad || Boolean(catalog.error);
   return (
     <>
       <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
@@ -4386,12 +4407,19 @@ function WishCatalogPage() {
                 />
               ))}
             </div>
-            {catalog.nextOffset < catalog.total && (
-              <div className="wish-catalog-page__more">
-                <ShadcnButton type="button" variant="outline" disabled={catalog.loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
-                  {catalog.loadingMore && <Spinner data-icon="inline-start" />}
-                  Показать ещё
-                </ShadcnButton>
+            {hasMore && (
+              <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
+                {showManualLoad ? (
+                  <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
+                    {loadingMore && <Spinner data-icon="inline-start" />}
+                    {catalog.error ? "Повторить" : "Показать ещё"}
+                  </ShadcnButton>
+                ) : loadingMore && (
+                  <div role="status">
+                    <Spinner aria-hidden="true" />
+                    <span className="sr-only">Загружаем карточки каталога</span>
+                  </div>
+                )}
               </div>
             )}
           </>
