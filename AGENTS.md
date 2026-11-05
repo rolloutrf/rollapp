@@ -22,7 +22,8 @@
   may cover the shared surface. Keep the rule centralized in `src/spacing.css`.
   Individual controls retain their semantic surfaces, including opaque disabled
   actions. Verify computed paint and pseudo-elements before and after scrolling
-  in the browser smoke matrix.
+  in the browser smoke matrix. On desktop, reserve the To Do header inset
+  inside the scrollport so content scrolls visibly behind the header.
 
 - Empty inline-block hints decorate only the current collapsed text caret's
   textblock, including nested lists/cells/columns/captions. Retire old hints on

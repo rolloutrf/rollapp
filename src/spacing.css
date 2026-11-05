@@ -209,8 +209,15 @@
   }
 
   @media (min-width: 768px) {
-    .app-layout.app-layout--planning > .app-main {
+    .app-layout.app-layout--planning > .app-main:not(:has(.daily-todo__scroll)) {
       padding-block-start: var(--app-chrome-overlay-height);
+    }
+
+    /* Reserve room at rest inside the To Do scrollport. Content must be
+       able to pass behind the transparent header as it scrolls. */
+    .app-layout--planning .daily-todo__scroll {
+      padding-block-start: var(--app-chrome-overlay-height);
+      scroll-padding-block-start: var(--app-chrome-overlay-height);
     }
   }
 

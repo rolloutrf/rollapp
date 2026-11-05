@@ -1,5 +1,5 @@
 .daily-todo { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
-.daily-todo__scroll { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; gap: var(--layout-page-gap); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; padding-block: var(--layout-page-gap); padding-block-start: var(--layout-safe-top); }
+.daily-todo__scroll { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; gap: var(--layout-page-gap); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; padding-block-end: var(--layout-page-gap); }
 .daily-todo__footer { flex-shrink: 0; padding-block: var(--layout-item-gap) calc(28px + env(safe-area-inset-bottom)); }
 .daily-todo__footer .daily-todo__content { gap: var(--layout-inline-gap); }
 .daily-todo__toolbar { display: grid; min-width: 0; grid-template-columns: var(--layout-control-size) minmax(0, 1fr) var(--layout-control-size) var(--layout-control-size); align-items: center; gap: var(--layout-inline-gap); }
