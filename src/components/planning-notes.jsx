@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -11,6 +11,11 @@ import { InlineTextField } from "@/components/inline-text-field";
 import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
 import { cn } from "@/lib/utils";
 import { NotesLibrary } from "@/components/notes-library";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { usePlanningAssistantDraft } from "@/lib/planning-assistant";
 import "./planning-notes.css";
 
 function NoteError({ error, retry }) {
@@ -27,6 +32,7 @@ export function PlanningNotes({ client = api }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [assistantDraft, clearAssistantDraft] = usePlanningAssistantDraft("draft_note");
   const [version, setVersion] = useState(0);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -55,7 +61,51 @@ export function PlanningNotes({ client = api }) {
   };
   return <section className={`app-page planning-notes page-stack ${noteId ? "typeset typeset-rollapp" : "rollapp-body planning-notes--library"}`} aria-label="Заметки">
     {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <NotesLibrary notes={notes} loading={loading} error={error} creating={creating} onCreate={create} errorContent={<NoteError error={error} retry={() => setVersion(v => v + 1)} />} />}
+    {!noteId && assistantDraft && <AssistantNoteForm draft={assistantDraft} client={client} onClose={clearAssistantDraft} onCreated={open} />}
   </section>;
+}
+
+function AssistantNoteForm({ draft, client, onClose, onCreated }) {
+  const [open, setOpen] = useState(true);
+  const [title, setTitle] = useState(draft.title);
+  const [content, setContent] = useState(draft.content);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const createdId = useRef(null);
+  const saving = useRef(false);
+  async function save(event) {
+    event.preventDefault();
+    if (saving.current || createdId.current || !title.trim() || !content.trim()) return;
+    saving.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      // Import the proposed text without turning model-generated media or HTML into authored nodes.
+      const { note } = await client.post("/planning/notes", { title, content: content.replace(/[\\[\]<>]/g, "\\$&") });
+      createdId.current = note.id;
+      setOpen(false);
+    } catch (cause) { setError(cause.message); }
+    finally { saving.current = false; setBusy(false); }
+  }
+  return <Drawer open={open} onOpenChange={value => { if (!value && !busy) setOpen(false); }} onAfterClose={() => {
+    onClose();
+    if (createdId.current) onCreated(createdId.current);
+  }}>
+    <DrawerContent className="rollapp-body app-drawer--form">
+      <DrawerClose render={<Button variant="outline" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть заметку"><X aria-hidden="true" /></DrawerClose>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={save}>
+        <DrawerHeader className="pr-16 text-left!"><DrawerTitle>Новая заметка</DrawerTitle><DrawerDescription>Проверьте черновик ассистента перед сохранением.</DrawerDescription></DrawerHeader>
+        <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <NoteError error={error} />
+          <FieldGroup>
+            <Field><FieldLabel htmlFor="assistant-note-title">Название</FieldLabel><Input id="assistant-note-title" required maxLength={200} value={title} onChange={event => setTitle(event.target.value)} /></Field>
+            <Field><FieldLabel htmlFor="assistant-note-content">Текст заметки</FieldLabel><Textarea id="assistant-note-content" required maxLength={5000} rows={6} value={content} onChange={event => setContent(event.target.value)} /></Field>
+          </FieldGroup>
+        </div>
+        <DrawerFooter><Button type="submit" disabled={busy || !title.trim() || !content.trim()}>Сохранить</Button></DrawerFooter>
+      </form>
+    </DrawerContent>
+  </Drawer>;
 }
 
 function NoteLoader({ noteId, client }) {

@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, ChevronDown, Columns3, FileText, Link2, ListTo
 import { toast } from "sonner";
 import { TaskContactPicker } from "@/components/task-contact-picker";
 import { planningApi } from "@/lib/planning-api";
+import { usePlanningAssistantDraft } from "@/lib/planning-assistant";
 import { loadRelatedContacts, loadRelatedItems, RELATED_KINDS, relatedKindLabel } from "@/lib/planning-related-items";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
@@ -207,6 +208,7 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const [editor, setEditor] = useState(null);
+  const [assistantDraft, clearAssistantDraft] = usePlanningAssistantDraft(activeTab === "todo" ? "draft_task" : activeTab === "calendar" ? "draft_event" : null);
   useEffect(() => {
     let current = true;
     setLoading(true);
@@ -228,6 +230,11 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     setTasks((current) => current.filter((task) => task.id !== id));
     toast.success("Задача удалена");
   };
+  const assistantColumn = columns.find((column) => !column.complete) || columns[0];
+  const task = editor || (assistantDraft && !loading && !error && assistantColumn ? {
+    ...EMPTY_TASK, ...assistantDraft, unscheduled: !assistantDraft.startTime,
+    columnId: assistantColumn.id, completed: false,
+  } : null);
   return <section className={`app-page planning-space typeset typeset-rollapp planning-space--${activeTab}`}>
     <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : activeTab === "todo" ? "To Do на каждый день" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
@@ -239,6 +246,6 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
         <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
     </div>
-    {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={save} onDelete={remove} />}
+    {task && <TaskEditor task={task} columns={columns} onClose={() => { setEditor(null); clearAssistantDraft(); }} onSave={save} onDelete={remove} />}
   </section>;
 }

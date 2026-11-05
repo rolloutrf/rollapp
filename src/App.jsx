@@ -1,4 +1,4 @@
-import { MessengerDrawer } from "@/components/messenger";
+import { MessengerDrawer, useMessengerAssistant } from "@/components/messenger";
 import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -689,8 +689,13 @@ function AppBrand({ showSwitcher = true }) {
 
 function PlanningFab() {
   const { user } = useSession();
+  return user ? <PlanningControls key={user.id} user={user} /> : null;
+}
+
+function PlanningControls({ user }) {
   const location = useLocation();
   const isMobile = useIsMobile();
+  const assistant = useMessengerAssistant();
   const returnPath = useRef(APP_HOME);
   useEffect(() => {
     if (location.pathname !== PLANNING_SERVICE.path) {
@@ -710,13 +715,13 @@ function PlanningFab() {
     if (value) setOpen(false);
     else setInitialConversationId(null);
   };
-  if (!user || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
+  if (location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
   const requestedTab = new URLSearchParams(location.search).get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
+      <MessengerDrawer user={user} assistant={assistant} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessengerDrawerOpen(false); }}>
