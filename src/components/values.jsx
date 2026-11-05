@@ -143,12 +143,12 @@ export function Values() {
 
   return (
     <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
-      <header className="flex flex-wrap items-center justify-end gap-2">
-        {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
+      {!readOnly && <header className="flex flex-wrap items-center justify-end gap-2">
+        <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
           {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
           {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
-        </Button>}
-      </header>
+        </Button>
+      </header>}
 
       <CareerContentError error={valuesContent.error} onRetry={valuesContent.retry} />
       {saveError && (

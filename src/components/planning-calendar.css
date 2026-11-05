@@ -52,7 +52,8 @@
 .schedule-month__event-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-event-wrap { position: relative; min-width: 0; }
 .schedule-event { display: flex; width: 100%; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; overflow: hidden; white-space: normal; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--accent); color: var(--accent-foreground); cursor: grab; }
-.schedule-event:active { cursor: grabbing; }
+/* Keep the pointer and the drag preview on the same calendar grid coordinates. */
+.schedule-event:active { cursor: grabbing; translate: none; }
 .schedule-event[data-calendar-dragging] { opacity: .35; }
 .schedule-event { -webkit-user-drag: none; }
 .schedule-event-wrap[style] > .schedule-event { overflow: clip; }
