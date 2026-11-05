@@ -16,6 +16,11 @@ import './messenger.css';
 
 const base = '/messenger';
 const assistantId = Symbol('messenger-assistant');
+const assistantStarters = [
+  ['Открыть календарь', 'Открой календарь Rollapp.'],
+  ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
+  ['Составить план', 'Помоги составить план на неделю.'],
+];
 const time = value => new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 function MessengerAvatar({ user }) {
@@ -259,10 +264,13 @@ function AssistantActions({ actions }) {
 function AssistantConversation({ chat, onBack }) {
   const back = useRef(null);
   const history = useRef(null);
+  const input = useRef(null);
   const atBottom = useRef(true);
   useLayoutEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
   useLayoutEffect(() => {
-    if (atBottom.current) history.current.scrollTop = history.current.scrollHeight;
+    if (atBottom.current && (chat.messages.length || chat.sending || chat.error)) {
+      history.current.scrollTop = history.current.scrollHeight;
+    }
   }, [chat.messages, chat.sending, chat.error]);
   return <section className="messenger-conversation messenger-assistant-conversation" aria-label={ASSISTANT_NAME}>
     <ControlBar as="header" className="messenger-heading">
@@ -276,12 +284,18 @@ function AssistantConversation({ chat, onBack }) {
       atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
     }}>
       <p className="messenger-note">Помогу найти раздел, составить план или подготовить задачу, событие и заметку. Сообщения этого чата обрабатывает OpenRouter.</p>
+      {!chat.messages.length && !chat.draft && <div role="group" aria-label="Примеры запросов" className="flex shrink-0 flex-wrap justify-center gap-2">
+        {assistantStarters.map(([label, prompt]) => <Button key={label} type="button" variant="outline" className="min-h-12 rounded-full px-6" onClick={() => {
+          chat.setDraft(prompt);
+          input.current?.focus();
+        }}>{label}</Button>)}
+      </div>}
       {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
         aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} /></article>)}
       {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
       {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
     </div>
-    <MessageComposer draft={chat.draft} onDraftChange={chat.setDraft} sending={chat.sending} onSubmit={chat.submit}>
+    <MessageComposer inputRef={input} draft={chat.draft} onDraftChange={chat.setDraft} sending={chat.sending} onSubmit={chat.submit}>
       <label className="messenger-planning-option">
         <Checkbox aria-labelledby="messenger-planning-label" aria-describedby="messenger-planning-description"
           checked={chat.includePlanning} onCheckedChange={chat.setIncludePlanning} disabled={chat.sending} />
@@ -399,12 +413,12 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
   </section>;
 }
 
-function MessageComposer({ draft, sending, sendError, disabled, onSubmit, onDraftChange, children }) {
+function MessageComposer({ inputRef, draft, sending, sendError, disabled, onSubmit, onDraftChange, children }) {
   return <form className="messenger-composer" onSubmit={onSubmit} aria-label="Новое сообщение">
       {children}
       {sendError && <div className="messenger-send-error" role="alert">{sendError} Текст сохранён — попробуйте отправить снова.</div>}
       <label htmlFor="messenger-text" className="sr-only">Сообщение</label>
-      <Textarea id="messenger-text" placeholder="Напишите сообщение…" rows={1} maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending} onChange={event => onDraftChange(event.target.value)} onKeyDown={event => {
+      <Textarea ref={inputRef} id="messenger-text" placeholder="Напишите сообщение…" rows={1} maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending} onChange={event => onDraftChange(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.form.requestSubmit(); }
       }} />
       <ControlBar><Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || disabled || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>

@@ -183,6 +183,11 @@ async function checkAssistant(page, drawer, width, height) {
   assert(await back.evaluate(node=>node===document.activeElement),'Keyboard focus did not move to the assistant chat');
   assert.equal(await planning.getAttribute('aria-checked'),'false');
   assert.equal(await send.isDisabled(),true);
+  await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
+  assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
+  assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
+  assert.equal(await planning.getAttribute('aria-checked'),'false');
+  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
   await text.fill('Что у меня в планах?');
   await page.evaluate(()=>{window.messengerTest.failAssistant=true;});
   await send.click();
