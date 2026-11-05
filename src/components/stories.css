@@ -23,7 +23,6 @@
 @media (max-width: 767px) { .story-body { overflow: visible; } }
 
 /* The profile name remains a semantic heading while also opening settings. */
-.profile-name-button { font: inherit; letter-spacing: inherit; color: inherit; height: auto; padding: 0; white-space: normal; text-align: inherit; }
 
 .story-video[hidden] { display: none; }
 .story-video--placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--layout-item-gap); padding: var(--layout-page-gap); text-align: center; color: var(--muted-foreground); background: var(--muted); }

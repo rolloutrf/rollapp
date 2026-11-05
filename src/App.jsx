@@ -3031,7 +3031,7 @@ function PersistentProfileHero({ user }) {
   const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && (user?.accountType === "personal" || canAccessPrivateSpheres(user));
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
-      <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
+      <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
           <ShadcnButton
             type="button"
@@ -3079,9 +3079,9 @@ function PersistentProfileHero({ user }) {
             </div>
           )}
         </div>
-        <span className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{editable ? <ShadcnButton type="button" variant="link" className="profile-name-button" aria-label={`Редактировать профиль ${profile.name}`} onClick={openProfileEditor}>{profile.name}</ShadcnButton> : profile.name}</h1>
-        </span>
+        <div className="wishes-page__hero-copy">
+          <h1 id="persistent-profile-name">{profile.name}</h1>
+        </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
