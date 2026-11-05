@@ -116,6 +116,8 @@ import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-orig
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/sphere-sharing.js";
 import { businessCategoryForSection, canBusinessAccessSection } from "../shared/business-accounts.js";
 import { createRegistrationSchema } from "./business-accounts.js";
+import { readBusinessAccessSnapshot } from "./business-access.js";
+import { wishlistProfileGrant, wishlistWishVisibility } from "./wishlist-profile-access.js";
 import { getSmsConfig, sendSms } from "./sms.js";
 import {
   getTelegramAuthConfig,
@@ -1026,6 +1028,20 @@ function shareUser(row) {
     businessCategory: row.business_category ?? null,
     sellerSpace: row.seller_space ?? null,
   };
+}
+
+function incomingSphereShare(row) {
+  return {
+    ...canonicalSphereSection(row.sphere, row.section),
+    createdAt: row.created_at,
+    owner: shareUser(row),
+  };
+}
+
+async function lockBusinessAccess(client, viewerId) {
+  if (!isMemoryDatabase) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`sphere-access:${viewerId}`]);
+  }
 }
 
 async function sphereShareOwner(viewer, requestedOwner, sphere, section) {
@@ -2227,11 +2243,7 @@ app.get("/api/sphere-shares/incoming", requireAuth, requireBusinessAccount, asyn
   );
   res.set("Cache-Control", "private, no-store");
   return res.json({
-    shares: result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section)).map((row) => ({
-      ...canonicalSphereSection(row.sphere, row.section),
-      createdAt: row.created_at,
-      owner: shareUser(row),
-    })),
+    shares: result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section)).map(incomingSphereShare),
   });
 }));
 
@@ -2253,18 +2265,25 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
         [access.owner.id, sphere, section],
       ),
       query(
-        `SELECT r.id,r.message,r.created_at,u.id AS requester_id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space
+        `SELECT r.id,r.sphere,r.section,r.message,r.created_at,u.id AS requester_id,u.username,u.name,u.avatar_url,u.account_type,u.business_category,u.seller_space
          FROM sphere_access_requests r
          JOIN users u ON u.id=r.requester_user_id
-         WHERE r.owner_user_id=$1 AND r.sphere=$2 AND r.section=$3 AND r.status='pending'
+         WHERE r.owner_user_id=$1 AND r.sphere=$2 AND r.status='pending'
+           AND (r.section=$3 OR ($2='wishlist' AND $3='wishlist'))
            AND u.account_type='business'
+           AND NOT EXISTS (
+             SELECT 1 FROM sphere_section_shares s
+             WHERE s.owner_user_id=r.owner_user_id AND s.viewer_user_id=r.requester_user_id AND s.sphere=r.sphere
+               AND (s.section=r.section OR (s.sphere='wishlist' AND s.section='wishlist'))
+           )
          ORDER BY r.created_at,u.name`,
         [access.owner.id, sphere, section],
       ),
     ]);
     people = peopleResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map(shareUser);
-    requests = requestResult.rows.filter((row) => canBusinessAccessSection(row, sphere, section)).map((row) => ({
+    requests = requestResult.rows.filter((row) => canBusinessAccessSection(row, row.sphere, row.section)).map((row) => ({
       id: row.id,
+      ...canonicalSphereSection(row.sphere, row.section),
       message: row.message,
       createdAt: row.created_at,
       requester: shareUser({ ...row, id: row.requester_id }),
@@ -2314,26 +2333,20 @@ app.get("/api/business-access/users", requireAuth, requireBusinessAccount, async
 }));
 
 app.get("/api/business-access/requests", requireAuth, requireBusinessAccount, asyncRoute(async (req, res) => {
-  const result = await query(
-    `SELECT r.id,r.sphere,r.section,r.message,r.status,r.created_at,r.updated_at,r.responded_at,
-            u.id AS owner_id,u.username,u.name,u.avatar_url,u.account_type
-     FROM sphere_access_requests r
-     JOIN users u ON u.id=r.owner_user_id
-     WHERE r.requester_user_id=$1
-     ORDER BY CASE r.status WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,r.updated_at DESC`,
-    [req.user.id],
-  );
+  const result = await readBusinessAccessSnapshot(query, req.user.id);
+  const rows = result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section));
   res.set("Cache-Control", "private, no-store");
   return res.json({
-    requests: result.rows.filter((row) => canBusinessAccessSection(req.user, row.sphere, row.section)).map((row) => ({
-      id: row.id,
+    shares: rows.filter((row) => row.request_id === null).map(incomingSphereShare),
+    requests: rows.filter((row) => row.request_id !== null).map((row) => ({
+      id: row.request_id,
       ...canonicalSphereSection(row.sphere, row.section),
       message: row.message,
       status: row.status,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       respondedAt: row.responded_at,
-      owner: shareUser({ ...row, id: row.owner_id }),
+      owner: shareUser(row),
     })),
   });
 }));
@@ -2363,41 +2376,48 @@ app.post("/api/business-access/requests", requireAuth, requireBusinessAccount, a
     [ownerId, sphere],
   );
   if (!owner.rowCount) return res.status(404).json({ error: "Пользователь с доступными сферами не найден" });
-  const existingShare = await query(
-    `SELECT 1 FROM sphere_section_shares
-     WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
-    [ownerId, req.user.id, sphere, section],
-  );
-  if (existingShare.rowCount) return res.status(409).json({ error: "Доступ к этому пространству уже открыт" });
-  const pendingCount = await query(
-    "SELECT COUNT(*)::int AS count FROM sphere_access_requests WHERE requester_user_id=$1 AND status='pending'",
-    [req.user.id],
-  );
-  if (Number(pendingCount.rows[0]?.count || 0) >= 50) {
-    return res.status(429).json({ error: "Сначала дождитесь ответа на уже отправленные запросы" });
-  }
-  const id = randomUUID();
-  const result = await query(
-    `INSERT INTO sphere_access_requests
-       (id,requester_user_id,owner_user_id,sphere,section,message,status,created_at,updated_at,responded_at)
-     VALUES ($1,$2,$3,$4,$5,$6,'pending',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
-     ON CONFLICT (requester_user_id,owner_user_id,sphere,section) DO UPDATE SET
-       message=EXCLUDED.message,
-       status='pending',
-       updated_at=CURRENT_TIMESTAMP,
-       responded_at=NULL
-     RETURNING id,status,created_at,updated_at`,
-    [id, req.user.id, ownerId, sphere, section, message],
-  );
+  const result = await transaction(async (client) => {
+    await lockBusinessAccess(client, req.user.id);
+    const existingShare = await client.query(
+      `SELECT 1 FROM sphere_section_shares
+       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3
+         AND (section=$4 OR (sphere='wishlist' AND section='wishlist'))`,
+      [ownerId, req.user.id, sphere, section],
+    );
+    if (existingShare.rowCount) return { status: 409, error: "Доступ к этому разделу уже открыт" };
+    const pending = await client.query(
+      "SELECT owner_user_id,sphere,section FROM sphere_access_requests WHERE requester_user_id=$1 AND status='pending'",
+      [req.user.id],
+    );
+    if (pending.rows.some((row) => row.owner_user_id === ownerId && row.sphere === sphere && row.section === section)) {
+      return { status: 409, error: "Запрос к этому разделу уже отправлен" };
+    }
+    if (pending.rowCount >= 50) return { status: 429, error: "Сначала дождитесь ответа на уже отправленные запросы" };
+    const { rows } = await client.query(
+      `INSERT INTO sphere_access_requests
+         (id,requester_user_id,owner_user_id,sphere,section,message,status,created_at,updated_at,responded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
+       ON CONFLICT (requester_user_id,owner_user_id,sphere,section) DO UPDATE SET
+         message=EXCLUDED.message,
+         status='pending',
+         updated_at=CURRENT_TIMESTAMP,
+         responded_at=NULL
+       WHERE sphere_access_requests.status<>'pending'
+       RETURNING id,status,created_at,updated_at`,
+      [randomUUID(), req.user.id, ownerId, sphere, section, message],
+    );
+    return rows[0] || { status: 409, error: "Запрос к этому разделу уже отправлен" };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
   res.set("Cache-Control", "private, no-store");
   return res.status(201).json({
     request: {
-      id: result.rows[0].id,
+      id: result.id,
       ...canonicalSphereSection(sphere, section),
       message,
-      status: result.rows[0].status,
-      createdAt: result.rows[0].created_at,
-      updatedAt: result.rows[0].updated_at,
+      status: result.status,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
       owner: shareUser(owner.rows[0]),
     },
   });
@@ -2420,6 +2440,12 @@ app.post("/api/sphere-access-requests/:requestId/respond", requireAuth, asyncRou
   const parsed = z.object({ decision: z.enum(["approved", "declined"]) }).strict().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Выберите, открыть или отклонить доступ" });
   const response = await transaction(async (client) => {
+    const ownerRequest = await client.query(
+      "SELECT requester_user_id FROM sphere_access_requests WHERE id=$1 AND owner_user_id=$2",
+      [req.params.requestId, req.user.id],
+    );
+    if (!ownerRequest.rowCount) return { status: 404, error: "Запрос не найден" };
+    await lockBusinessAccess(client, ownerRequest.rows[0].requester_user_id);
     const request = await client.query(
       `SELECT id,requester_user_id,sphere,section,status
        FROM sphere_access_requests
@@ -2490,20 +2516,30 @@ app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async 
   if (granted && !canBusinessAccessSection(viewer.rows[0], sphere, section)) {
     return res.status(403).json({ error: "Это пространство недоступно для категории бизнеса", code: "BUSINESS_CATEGORY_SCOPE" });
   }
-  if (granted) {
-    await query(
-      `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
-       VALUES ($1,$2,$3,$4)
-       ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
-      [req.user.id, viewerId, sphere, section],
-    );
-  } else {
-    await query(
-      `DELETE FROM sphere_section_shares
-       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
-      [req.user.id, viewerId, sphere, section],
-    );
-  }
+  await transaction(async (client) => {
+    await lockBusinessAccess(client, viewerId);
+    const scope = [req.user.id, viewerId, sphere, section];
+    if (granted) {
+      await client.query(
+        `INSERT INTO sphere_section_shares (owner_user_id,viewer_user_id,sphere,section)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (owner_user_id,viewer_user_id,sphere,section) DO NOTHING`,
+        scope,
+      );
+      await client.query(
+        `UPDATE sphere_access_requests
+         SET status='approved',updated_at=CURRENT_TIMESTAMP,responded_at=CURRENT_TIMESTAMP
+         WHERE owner_user_id=$1 AND requester_user_id=$2 AND sphere=$3 AND section=$4 AND status='pending'`,
+        scope,
+      );
+    } else {
+      await client.query(
+        `DELETE FROM sphere_section_shares
+         WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere=$3 AND section=$4`,
+        scope,
+      );
+    }
+  });
   res.set("Cache-Control", "private, no-store");
   return res.json({ granted });
 }));
@@ -2565,15 +2601,10 @@ async function getLists(userId) {
   return result.rows.map(mapList);
 }
 
-async function getWishes(userId, viewerId = null, includePrivate = false) {
+async function getWishes(userId, viewerId = null, includePrivate = false, grantedSpaces = []) {
   const params = [userId];
-  const privacyClause = includePrivate ? "" : `
-    AND w.privacy <> 'private'
-    AND w.id NOT IN (
-      SELECT secret_ww.wish_id FROM wishlist_wishes secret_ww
-      JOIN wishlists secret_list ON secret_list.id=secret_ww.wishlist_id
-      WHERE secret_list.privacy='private'
-    )`;
+  if (!includePrivate && grantedSpaces.length) params.push(grantedSpaces);
+  const privacyClause = wishlistWishVisibility({ includePrivate, grantedSpaces });
   const result = await query(
     `SELECT w.* FROM wishes w WHERE w.user_id=$1 ${privacyClause}
      ORDER BY w.sort_order ASC, w.created_at DESC`,
@@ -4095,27 +4126,28 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const owner = found.rows[0];
   const isOwner = req.user?.id === owner.id;
-  const wishlistGrants = !isOwner && req.user?.account_type === "business"
-    ? await query("SELECT section FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'", [owner.id,req.user.id])
+  const wishlistGrant = !isOwner && req.user?.account_type === "business"
+    ? await query(
+      `SELECT section FROM sphere_section_shares
+       WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'`,
+      [owner.id, req.user.id],
+    )
     : { rows: [] };
-  const grantedSpaces = new Set(wishlistGrants.rows.filter(row => canBusinessAccessSection(req.user,"wishlist",row.section)).map(row => row.section));
-  if (grantedSpaces.has("wishlist") && req.user?.seller_space) { grantedSpaces.delete("wishlist"); grantedSpaces.add(req.user.seller_space); }
-  const hasWishlistAccess = grantedSpaces.size > 0;
-  const canViewFullWishlist = isOwner || (grantedSpaces.has("wishlist") && !req.user?.seller_space);
+  const eligibleGrants = wishlistGrant.rows.filter((row) => canBusinessAccessSection(req.user, "wishlist", row.section));
+  const { full, spaces } = wishlistProfileGrant(eligibleGrants);
+  const fixedSellerSpace = req.user?.seller_space;
+  const grantedSpaces = full && fixedSellerSpace ? [fixedSellerSpace] : spaces;
+  const hasWishlistAccess = full || grantedSpaces.length > 0;
+  const canViewFullWishlist = isOwner || (full && !fixedSellerSpace);
   const follows = req.user ? await query("SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, owner.id]) : { rowCount: 0 };
   const follower = Boolean(follows.rowCount);
   const allLists = await getLists(owner.id);
-  const publiclyVisibleLists = allLists.filter(list => list.privacy === "public" || (list.privacy === "followers" && follower));
-  const publicListIds = new Set(publiclyVisibleLists.map(list => list.id));
-  const publicWishes = canViewFullWishlist ? [] : await getWishes(owner.id,req.user?.id,false);
-  const publicWishIds = new Set(publicWishes.filter(wish => wish.listIds.length === 0 || wish.listIds.some(id => publicListIds.has(id))).map(wish => wish.id));
-  const wishes = (await getWishes(owner.id, req.user?.id, canViewFullWishlist || hasWishlistAccess))
-    .filter(wish => isOwner || wish.status === "active")
-    .filter(wish => canViewFullWishlist || grantedSpaces.has(wish.space || "products") || publicWishIds.has(wish.id));
-  const grantedListIds = new Set(wishes.filter(wish => grantedSpaces.has(wish.space || "products")).flatMap(wish => wish.listIds));
-  const lists = allLists.filter(list => canViewFullWishlist || grantedSpaces.has(list.space || "products") || publicListIds.has(list.id) || grantedListIds.has(list.id));
-  const allowedIds = new Set(lists.map(list => list.id));
-  for (const wish of wishes) if (!isOwner) wish.listIds = wish.listIds.filter(id => allowedIds.has(id));
+  const lists = allLists.filter((list) => canViewFullWishlist || grantedSpaces.includes(list.space) || list.privacy === "public" || (list.privacy === "followers" && follower));
+  const allowedIds = new Set(lists.map((list) => list.id));
+  const wishes = (await getWishes(owner.id, req.user?.id, canViewFullWishlist, grantedSpaces))
+    .filter((wish) => isOwner || wish.status === "active")
+    .filter((wish) => canViewFullWishlist || wish.listIds.length === 0 || wish.listIds.some((id) => allowedIds.has(id)))
+    .map((wish) => isOwner ? wish : { ...wish, listIds: wish.listIds.filter((id) => allowedIds.has(id)) });
   const stats = await Promise.all([
     query("SELECT COUNT(*) AS count FROM follows WHERE following_id=$1", [owner.id]),
     query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [owner.id]),

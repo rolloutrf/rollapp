@@ -27,35 +27,36 @@ export function sphereScopeFromLocation(pathname, search, tabsBySphere = {}) {
 }
 
 export function SphereSharingProvider({ children, currentUser, scope, search }) {
-  const requestedOwner = new URLSearchParams(search).get("owner")?.trim().toLowerCase() || "";
+  const requestedOwner = scope?.sphere === "wishlist" ? "" : new URLSearchParams(search).get("owner")?.trim().toLowerCase() || "";
+  const scopeKey = scope ? JSON.stringify([currentUser?.id, scope.sphere, scope.section, requestedOwner]) : "";
   const [version, setVersion] = useState(0);
-  const [state, setState] = useState({ loading: Boolean(scope), error: null, context: null });
+  const [result, setResult] = useState(null);
+  const state = result?.key === scopeKey ? result : null;
 
   useEffect(() => {
-    if (!scope) {
-      setState({ loading: false, error: null, context: null });
+    if (!scopeKey) {
+      setResult(null);
       return undefined;
     }
     let current = true;
     const query = new URLSearchParams({ sphere: scope.sphere, section: scope.section });
     if (requestedOwner) query.set("owner", requestedOwner);
-    setState((value) => ({ ...value, loading: true, error: null }));
     api.get(`/sphere-shares/context?${query.toString()}`).then((context) => {
-      if (current) setState({ loading: false, error: null, context });
+      if (current) setResult({ key: scopeKey, version, error: null, context });
     }).catch((error) => {
-      if (current) setState({ loading: false, error, context: null });
+      if (current) setResult({ key: scopeKey, version, error, context: null });
     });
     return () => { current = false; };
-  }, [requestedOwner, scope?.section, scope?.sphere, version]);
+  }, [requestedOwner, scope?.section, scope?.sphere, scopeKey, version]);
 
   const value = useMemo(() => {
-    const context = state.context;
+    const context = state?.context;
     const owner = context?.owner || (!requestedOwner ? currentUser : null);
     const isOwner = context?.isOwner ?? !requestedOwner;
     return {
       active: Boolean(scope),
-      loading: state.loading,
-      error: state.error,
+      loading: Boolean(scope && state?.version !== version),
+      error: state?.error || null,
       owner,
       people: context?.people || [],
       requests: context?.requests || [],
@@ -65,7 +66,7 @@ export function SphereSharingProvider({ children, currentUser, scope, search }) 
       section: scope?.section || "",
       reload: async () => setVersion((value) => value + 1),
     };
-  }, [currentUser, requestedOwner, scope, state.context, state.error, state.loading]);
+  }, [currentUser, requestedOwner, scope, state, version]);
 
   return <SphereSharingContext.Provider value={value}>{children}</SphereSharingContext.Provider>;
 }

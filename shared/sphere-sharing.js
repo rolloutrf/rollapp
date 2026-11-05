@@ -1,3 +1,4 @@
+import { PROFILE_SPACES, publicSpacePath } from "./profile-links.js";
 import { WISHLIST_SPACE_IDS, WISHLIST_SPACES } from "./wishlist-business.js";
 export const SPHERE_SECTIONS = {
   wishlist: [...WISHLIST_SPACE_IDS, "wishlist"],
@@ -39,7 +40,7 @@ export const SPHERE_SECTION_LABELS = {
 };
 
 export function isSphereSection(sphere, section) {
-  return Boolean(SPHERE_SECTIONS[sphere]?.includes(section));
+  return Object.hasOwn(SPHERE_SECTIONS, sphere) && SPHERE_SECTIONS[sphere].includes(section);
 }
 
 export function canonicalSphereSection(sphere, section) {
@@ -54,6 +55,9 @@ export function sphereSectionStorageScope(sphere, section) {
 
 export function sphereSectionPath({ ownerUsername = "", sphere, section }) {
   ({ sphere, section } = canonicalSphereSection(sphere, section));
+  if (sphere === "wishlist" && ownerUsername && PROFILE_SPACES.includes(section)) {
+    return publicSpacePath(ownerUsername, section);
+  }
   const pathname = sphere === "wishlist"
     ? ownerUsername ? `/u/${encodeURIComponent(ownerUsername)}` : "/app/wishes"
     : `/app/spheres/${encodeURIComponent(sphere)}`;

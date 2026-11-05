@@ -671,7 +671,7 @@ function SphereSwitcher({ docked = false }) {
                 >
                   <Avatar user={share.owner} size="sm" />
                   <span className="sphere-switcher__shared-copy">
-                    <span>{SPHERE_SECTION_LABELS[share.section] || share.section}</span>
+                    <span>{share.sphere === "wishlist" && share.section !== "wishlist" ? `Вишлист · ${businessSectionLabel(share.section)}` : businessSectionLabel(share.section)}</span>
                     <small>{share.owner.name}</small>
                   </span>
                 </Link>
@@ -2661,7 +2661,7 @@ function SphereAccessRequestBanner() {
   const access = useSphereSharing();
   const toast = useToast();
   const [savingId, setSavingId] = useState("");
-  if (!access.active || !access.isOwner || access.requests.length === 0) return null;
+  if (!access.active || access.loading || !access.isOwner || access.requests.length === 0) return null;
 
   const respond = async (request, decision) => {
     if (savingId) return;
@@ -2682,7 +2682,7 @@ function SphereAccessRequestBanner() {
   return (
     <section className="sphere-access-requests rollapp-body" aria-label="Запросы доступа к пространству">
       {access.requests.map((request) => (
-        <Card key={request.id} className="sphere-access-request">
+        <Card key={request.id} className="sphere-access-request grid">
           <div className="sphere-access-request__person">
             <Avatar user={request.requester} size="sm" className="!size-11" />
             <span>
@@ -2691,7 +2691,9 @@ function SphereAccessRequestBanner() {
             </span>
           </div>
           <div className="sphere-access-request__copy">
-            <strong>Запрашивает доступ к «{SPHERE_SECTION_LABELS[access.section] || access.section}»</strong>
+            <strong>Запрашивает доступ к «{request.sphere === "wishlist" && request.section !== "wishlist"
+              ? `Вишлист · ${businessSectionLabel(request.section)}`
+              : businessSectionLabel(request.section)}»</strong>
             {request.message && <p>{request.message}</p>}
           </div>
           <div className="sphere-access-request__actions">
@@ -2709,13 +2711,23 @@ function SphereAccessRequestBanner() {
 
 const BUSINESS_REQUEST_STATUS = {
   pending: { label: "Ожидает ответа", variant: "secondary" },
-  approved: { label: "Доступ открыт", variant: "default" },
+  approved: { label: "Доступ закрыт", variant: "outline" },
   declined: { label: "Отклонён", variant: "destructive" },
   cancelled: { label: "Отменён", variant: "outline" },
 };
 
+const businessScopeKey = (ownerId, sphere, section) => JSON.stringify([ownerId, sphere, section]);
+const businessSphereLabel = (sphere) => SERVICE_SWITCHER_ITEMS.find((item) => item.id === sphere)?.label || sphere;
+const businessSectionLabel = (section) => SPHERE_SECTION_LABELS[section] || section;
+const businessSharePath = ({ owner, sphere, section }) => sphereSectionPath({ ownerUsername: owner.username, sphere, section });
+
 function BusinessAccessPage() {
   const { user } = useSession();
+  if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
+  return <BusinessAccessContent key={user.id} user={user} />;
+}
+
+function BusinessAccessContent({ user }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const category = businessCategoryFor(user);
@@ -2724,10 +2736,10 @@ function BusinessAccessPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
-  const [grantedSections, setGrantedSections] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [peopleError, setPeopleError] = useState("");
+  const [accessData, setAccessData] = useState({ shares: [], requests: [], loading: true, error: "" });
+  const accessLoad = useRef(0);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [sphere, setSphere] = useState(initialSphere);
   const [section, setSection] = useState(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
@@ -2735,18 +2747,15 @@ function BusinessAccessPage() {
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
 
-  const loadRequests = useCallback(async () => {
-    if (user?.accountType !== "business") return;
-    setLoadingRequests(true);
+  const loadAccess = useCallback(async () => {
+    const load = ++accessLoad.current;
     try {
-      const result = await api.get("/business-access/requests");
-      setRequests(result.requests || []);
+      const { shares = [], requests = [] } = await api.get("/business-access/requests");
+      if (load === accessLoad.current) setAccessData({ shares, requests, loading: false, error: "" });
     } catch (error) {
-      toast(error.message, "error");
-    } finally {
-      setLoadingRequests(false);
+      if (load === accessLoad.current) setAccessData({ shares: [], requests: [], loading: false, error: error.message });
     }
-  }, [toast, user?.accountType]);
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 180);
@@ -2754,43 +2763,63 @@ function BusinessAccessPage() {
   }, [search]);
 
   useEffect(() => {
-    if (user?.accountType !== "business") return undefined;
     let current = true;
     const query = new URLSearchParams();
     if (debouncedSearch) query.set("search", debouncedSearch);
     setLoadingPeople(true);
-    Promise.all([
-      api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`),
-      api.get("/sphere-shares/incoming"),
-    ]).then(([result, { shares }]) => {
-      if (!current) return;
-      setPeople(result.people || []);
-      setGrantedSections(shares || []);
+    setPeopleError("");
+    api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`).then((result) => {
+      if (current) setPeople(result.people || []);
     }).catch((error) => {
-      if (current) toast(error.message, "error");
+      if (current) setPeopleError(error.message);
     }).finally(() => {
       if (current) setLoadingPeople(false);
     });
     return () => { current = false; };
-  }, [debouncedSearch, toast, user?.accountType, user?.id]);
+  }, [debouncedSearch]);
 
-  useEffect(() => { void loadRequests(); }, [loadRequests]);
+  useEffect(() => {
+    void loadAccess();
+    window.addEventListener("focus", loadAccess);
+    return () => {
+      ++accessLoad.current;
+      window.removeEventListener("focus", loadAccess);
+    };
+  }, [loadAccess]);
 
-  if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
+  const { requests, loading, error } = accessData;
+  const fixedSellerSpace = category?.id === "seller" ? user.sellerSpace : null;
+  const contactShares = accessData.shares.map((share) => fixedSellerSpace && share.sphere === "wishlist" && share.section === "wishlist"
+    ? { ...share, section: fixedSellerSpace }
+    : share);
+  const shares = [...new Map(contactShares.map((share) => [businessScopeKey(share.owner.id, share.sphere, share.section), share])).values()];
+  const sharesByScope = new Map(shares.map((share) => [businessScopeKey(share.owner.id, share.sphere, share.section), share]));
+  const activeShareFor = (ownerId, scopeSphere, scopeSection) => sharesByScope.get(businessScopeKey(ownerId, scopeSphere, scopeSection))
+    || (scopeSphere === "wishlist" && sharesByScope.get(businessScopeKey(ownerId, "wishlist", "wishlist")));
+  const outstanding = requests.filter((request) => !activeShareFor(request.owner.id, request.sphere, request.section));
+  const pendingByScope = new Map(outstanding.filter((request) => request.status === "pending")
+    .map((request) => [businessScopeKey(request.owner.id, request.sphere, request.section), request]));
+  const selectedScope = businessScopeKey(selectedPerson?.id, sphere, section);
+  const selectedShare = activeShareFor(selectedPerson?.id, sphere, section);
+  const selectedRequest = pendingByScope.get(selectedScope);
+  const accessReady = !loading && !error;
 
   const selectSphere = (nextSphere) => {
     setSphere(nextSphere);
     setSection(SPHERE_SECTIONS[nextSphere][0]);
   };
   const openRequest = (person) => {
+    const existing = shares.find((share) => share.owner.id === person.id)
+      || outstanding.find((request) => request.owner.id === person.id && request.status === "pending");
     setSelectedPerson(person);
-    setSphere(initialSphere);
-    setSection(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
+    setSphere(existing?.sphere || initialSphere);
+    setSection(existing?.section || user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
     setMessage("");
+    void loadAccess();
   };
   const sendRequest = async (event) => {
     event.preventDefault();
-    if (!selectedPerson || saving) return;
+    if (!selectedPerson || saving || !accessReady || selectedShare || selectedRequest) return;
     setSaving(true);
     try {
       await api.post("/business-access/requests", {
@@ -2800,10 +2829,11 @@ function BusinessAccessPage() {
         message,
       });
       setSelectedPerson(null);
-      await loadRequests();
+      await loadAccess();
       toast("Запрос отправлен владельцу пространства", "success");
     } catch (error) {
       toast(error.message, "error");
+      if (error.status === 409) await loadAccess();
     } finally {
       setSaving(false);
     }
@@ -2813,14 +2843,23 @@ function BusinessAccessPage() {
     setCancellingId(request.id);
     try {
       await api.delete(`/business-access/requests/${request.id}`);
-      await loadRequests();
+      await loadAccess();
       toast("Запрос отменён", "success");
     } catch (error) {
       toast(error.message, "error");
+      if (error.status === 404) await loadAccess();
     } finally {
       setCancellingId("");
     }
   };
+  const accessStatus = loading ? (
+    <div className="business-access-page__status" role="status"><Spinner /><span>Загружаем доступы и запросы…</span></div>
+  ) : error ? (
+    <Alert variant="destructive">
+      <AlertTitle>Не удалось загрузить доступы и запросы</AlertTitle>
+      <AlertDescription>{error}<ShadcnButton type="button" variant="outline" onClick={loadAccess}>Повторить</ShadcnButton></AlertDescription>
+    </Alert>
+  ) : null;
 
   return (
     <div className="app-page business-access-page rollapp-body">
@@ -2828,83 +2867,132 @@ function BusinessAccessPage() {
         <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
-        <p>Откройте доступный раздел или запросите доступ у его владельца.</p>
+        <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
         {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
-      <section className="business-access-page__section" aria-labelledby="business-people-title">
-        <div className="business-access-page__section-heading">
-          <div><h2 id="business-people-title">Пользователи</h2><p>В запросе всегда указано одно конкретное пространство.</p></div>
-          <InputGroup className="business-access-page__search">
-            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </InputGroup>
-        </div>
-        {loadingPeople ? <div className="business-access-page__status"><Spinner /><span>Загружаем пользователей…</span></div> : people.length ? (
-          <div className="business-access-page__people">
-            {people.map((person) => (
-              <Card key={person.id} className="business-access-person">
-                <Avatar user={person} size="md" />
-                <span><strong>{person.name}</strong><small>@{person.username}</small></span>
-                <BusinessClientAccessActions
-                  account={user}
-                  person={person}
-                  sections={grantedSections.filter((share) => share.owner.id === person.id)}
-                  onRequest={() => openRequest(person)}
-                />
+
+      <section className="business-access-page__section" aria-labelledby="business-shares-title">
+        <div className="business-access-page__section-heading"><h2 id="business-shares-title">Открытые разделы</h2></div>
+        {accessStatus || (shares.length ? (
+          <div className="business-access-page__requests">
+            {shares.map((share) => (
+              <Card key={businessScopeKey(share.owner.id, share.sphere, share.section)} className="business-access-request grid">
+                <BusinessAccessOwner owner={share.owner} />
+                <BusinessAccessScope scope={share} />
+                <div className="business-access-request__action">
+                  <Link to={businessSharePath(share)} className={buttonVariants({ variant: "outline" })} aria-label={`Открыть «${businessSectionLabel(share.section)}» — ${share.owner.name}`}>Открыть</Link>
+                </div>
               </Card>
             ))}
           </div>
-        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
+        ) : <div className="business-access-page__status">У вас пока нет открытых разделов</div>)}
       </section>
 
       <section className="business-access-page__section" aria-labelledby="business-requests-title">
-        <div className="business-access-page__section-heading"><div><h2 id="business-requests-title">Мои запросы</h2><p>Одобренные пространства появятся в переключателе сфер.</p></div></div>
-        {loadingRequests ? <div className="business-access-page__status"><Spinner /><span>Загружаем запросы…</span></div> : requests.length ? (
+        <div className="business-access-page__section-heading"><h2 id="business-requests-title">Мои запросы</h2></div>
+        {accessReady && (outstanding.length ? (
           <div className="business-access-page__requests">
-            {requests.map((request) => {
-              const status = BUSINESS_REQUEST_STATUS[request.status] || BUSINESS_REQUEST_STATUS.pending;
+            {outstanding.map((request) => {
+              const status = BUSINESS_REQUEST_STATUS[request.status];
               return (
-                <Card key={request.id} className="business-access-request">
-                  <div className="business-access-request__owner"><Avatar user={request.owner} size="sm" className="!size-11" /><span><strong>{request.owner.name}</strong><small>@{request.owner.username}</small></span></div>
-                  <div className="business-access-request__scope"><strong>{request.sphere === "wishlist" ? "Вишлист" : SPHERE_SERVICES.find((item) => item.id === request.sphere)?.label || request.sphere}</strong><span>{SPHERE_SECTION_LABELS[request.section] || request.section}</span></div>
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                <Card key={request.id} className="business-access-request grid">
+                  <BusinessAccessOwner owner={request.owner} />
+                  <BusinessAccessScope scope={request} />
                   <div className="business-access-request__action">
-                    {request.status === "approved" ? (
-                      <Link to={sphereSectionPath({ ownerUsername: request.owner.username, sphere: request.sphere, section: request.section })} className={buttonVariants({ variant: "outline" })}>Открыть</Link>
-                    ) : request.status === "pending" ? (
+                    {status && <Badge variant={status.variant}>{status.label}</Badge>}
+                    {request.status === "pending" && (
                       <ShadcnButton type="button" variant="ghost" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}Отменить</ShadcnButton>
-                    ) : null}
+                    )}
                   </div>
                 </Card>
               );
             })}
           </div>
-        ) : <div className="business-access-page__status"><Send aria-hidden="true" /><span>Вы ещё не отправляли запросы</span></div>}
+        ) : <div className="business-access-page__status">Здесь появятся запросы, по которым сейчас нет доступа</div>)}
+      </section>
+
+      <section className="business-access-page__section" aria-labelledby="business-people-title">
+        <div className="business-access-page__section-heading">
+          <h2 id="business-people-title">Пользователи</h2>
+          <InputGroup className="business-access-page__search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </InputGroup>
+        </div>
+        {loadingPeople ? <div className="business-access-page__status" role="status"><Spinner /><span>Загружаем пользователей…</span></div> : peopleError ? (
+          <Alert variant="destructive"><AlertTitle>Не удалось загрузить пользователей</AlertTitle><AlertDescription>{peopleError}</AlertDescription></Alert>
+        ) : people.length ? (
+          <ul className="business-access-page__people" aria-label="Пользователи">
+            {people.map((person) => {
+              const sections = shares.filter((share) => share.owner.id === person.id);
+              const hasPending = outstanding.some((request) => request.owner.id === person.id && request.status === "pending");
+              return (
+                <li key={person.id} className="business-access-person">
+                  <BusinessAccessOwner owner={person} />
+                  <div className="business-access-request__action">
+                    {hasPending && <Badge variant="outline">Есть запрос</Badge>}
+                    <BusinessClientAccessActions account={user} person={person} sections={sections} onRequest={() => openRequest(person)} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
       </section>
 
       <Drawer open={Boolean(selectedPerson)} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => !open && !saving && setSelectedPerson(null)}>
         <DrawerContent className="rollapp-body app-drawer--form">
           <DrawerClose render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />} aria-label="Закрыть запрос доступа"><X aria-hidden="true" /></DrawerClose>
           <DrawerHeader className="pr-16 text-left!">
-            <DrawerTitle>Запросить доступ</DrawerTitle>
-            <DrawerDescription>{selectedPerson ? `${selectedPerson.name} увидит запрос и сам решит, открыть ли пространство.` : ""}</DrawerDescription>
+            <DrawerTitle>Разделы и доступ</DrawerTitle>
+            <DrawerDescription>Выберите раздел, чтобы открыть его или запросить доступ у владельца.</DrawerDescription>
           </DrawerHeader>
           <form className="business-access-form" onSubmit={sendRequest}>
             <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
             <FieldGroup className="gap-4">
               <BusinessRequestScopeFields account={user} sphere={sphere} section={section} onSphereChange={selectSphere} onSectionChange={setSection} disabled={saving} />
-              <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
+              {accessStatus || (selectedShare ? (
+                <p role="status">Доступ открыт для чтения.</p>
+              ) : selectedRequest ? (
+                <p role="status">Запрос отправлен. Ожидаем ответа владельца.</p>
+              ) : (
+                <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} disabled={saving} onChange={(event) => setMessage(event.target.value)} /></Field>
+              ))}
             </FieldGroup>
             </div>
-            <DrawerFooter><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+            {accessReady && !selectedRequest && <DrawerFooter>{selectedShare ? (
+              <Link
+                to={businessSharePath({ owner: selectedShare.owner, sphere, section })}
+                replace={isMobile}
+                onClick={() => setSelectedPerson(null)}
+                data-slot="button"
+                className={buttonVariants({ className: "flex-1" })}
+              >Открыть</Link>
+            ) : (
+              <ShadcnButton type="submit" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton>
+            )}</DrawerFooter>}
           </form>
         </DrawerContent>
       </Drawer>
     </div>
   );
+}
+
+function BusinessAccessOwner({ owner }) {
+  return <div className="business-access-request__owner">
+    <Avatar user={owner} size="sm" className="!size-11" />
+    <span><strong>{owner.name}</strong><small>@{owner.username}</small></span>
+  </div>;
+}
+
+function BusinessAccessScope({ scope }) {
+  return <div className="business-access-request__scope">
+    <strong>{businessSectionLabel(scope.section)}</strong>
+    {scope.section !== scope.sphere && <span>{businessSphereLabel(scope.sphere)}</span>}
+  </div>;
 }
 
 function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", onAccessChanged = null }) {
