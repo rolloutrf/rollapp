@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
-import { Spinner } from "@/components/ui/spinner";
 import { DrawerFooter } from "@/components/form-surface";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 
 export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onBusyChange }) {
   const [settings, setSettings] = useState(null);
@@ -74,6 +75,11 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
   const modelOptions = selectedModel && !availableModel ? [selectedModel, ...models] : models;
   const changed = Boolean(apiKey.trim()) || Boolean(settings?.configured && modelId !== settings.model);
   const controlsDisabled = disabled || busy || loading;
+  const showSave = !loading && !settingsError && settings?.available;
+  const showDisconnect = !loading && !settingsError && settings?.configured;
+  const saveLabel = settings?.configured ? "Сохранить изменения" : "Подключить OpenRouter";
+
+  const disconnect = () => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён");
 
   const mutate = async (request, message) => {
     if (busyRef.current || disabled) return;
@@ -113,78 +119,103 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
     );
   };
 
-  const saveLabel = settings?.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter";
-  const disconnectLabel = settings?.available ? "Отключить личный ключ" : "Отключить ключ";
-
   return <>
-    <div className="openrouter-settings app-drawer-body not-typeset rollapp-body flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-      {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
-      {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
-        : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
-        : !settings.available ? <>
-          <p className="text-destructive" role="status">Настройки OpenRouter временно недоступны: на сервере не настроено защищённое хранилище ключей.</p>
-          {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}</p>}
-          {error && <p className="text-destructive" role="alert">{error}</p>}
-        </> : <>
-            <p className="text-muted-foreground">Выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
-            <Field>
-              <FieldLabel htmlFor="settings-openrouter-key">{settings.configured ? "Новый API-ключ" : "API-ключ"}</FieldLabel>
-              {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}. Оставьте поле пустым, чтобы изменить только модель.</p>}
-              <InputGroup>
-                <InputGroupInput
-                  id="settings-openrouter-key"
-                  type={keyVisible ? "text" : "password"}
-                  autoComplete="new-password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  placeholder="sk-or-v1-…"
-                  value={apiKey}
-                  disabled={controlsDisabled || !settings.available}
-                  onChange={(event) => { onDraftChange({ ...draft, apiKey: event.target.value }); setError(""); }}
-                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); save(); } }}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton size="icon-sm" disabled={controlsDisabled} aria-label={keyVisible ? "Скрыть API-ключ" : "Показать API-ключ"} onClick={() => setKeyVisible((value) => !value)}>
-                    {keyVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-              <FieldDescription><a className="underline underline-offset-4" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">Создать ключ</a> · После сохранения ключ целиком не показывается.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="settings-openrouter-model">Модель</FieldLabel>
-              <Combobox
-                items={modelOptions}
-                value={selectedModel || null}
-                onValueChange={(model) => { if (model) { onDraftChange({ ...draft, modelId: model.id }); setError(""); } }}
-                itemToStringLabel={(model) => model.name}
-                itemToStringValue={(model) => model.id}
-                isItemEqualToValue={(a, b) => a.id === b.id}
-                disabled={controlsDisabled || modelsLoading || !models.length}
-              >
-                <div ref={modelAnchor} className="min-w-0">
-                  <ComboboxInput id="settings-openrouter-model" className="w-full min-w-0" placeholder={modelsLoading ? "Загружаем модели…" : "Название модели или провайдер"} />
-                </div>
-                <ComboboxContent anchor={modelAnchor} className="not-typeset rollapp-body min-w-0 w-(--anchor-width)">
-                  <ComboboxEmpty>Модель не найдена</ComboboxEmpty>
-                  <ComboboxList>{(model) => <ComboboxItem key={model.id} value={model} disabled={model.unavailable} className="min-h-12 px-3 py-2 pr-8 text-base">
-                    <div className="flex min-w-0 flex-col gap-1"><span className="whitespace-normal">{model.name}</span><span className="text-xs text-muted-foreground wrap-anywhere">{model.id}</span></div>
-                  </ComboboxItem>}</ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-              {!modelsLoading && !modelsError && modelId && !availableModel && <p className="text-xs text-muted-foreground">Модель {modelId} сейчас недоступна. Сохранённый выбор не изменён. Выберите другую модель.</p>}
-              {modelsError && <div className="flex flex-wrap items-center gap-2 text-destructive" role="status"><span>{modelsError}</span><Button type="button" variant="ghost" className="h-auto min-h-12 whitespace-normal text-destructive hover:text-destructive" onClick={loadModels}>Повторить загрузку</Button></div>}
-            </Field>
+    <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
+      <form
+        id="settings-openrouter-form"
+        className="openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5 px-4 py-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          save();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && event.target.id === "settings-openrouter-model") event.preventDefault();
+        }}
+      >
+        {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
+        {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
+          : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
+          : !settings.available ? <>
+            <p className="text-destructive" role="status">Настройки OpenRouter временно недоступны: на сервере не настроено защищённое хранилище ключей.</p>
+            {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}</p>}
             {error && <p className="text-destructive" role="alert">{error}</p>}
-            {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
-          </>}
-    </div>
-    <DrawerFooter>
-      {!loading && !settingsError && settings?.available && <Button type="button" disabled={controlsDisabled || !availableModel || !changed} aria-label={saveLabel} aria-busy={busy || undefined} onClick={save}>
-        {busy && <Spinner />}{settings.configured ? "Сохранить" : "Подключить"}
+          </> : <>
+              <p className="text-muted-foreground">Выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
+              <Field>
+                <FieldLabel htmlFor="settings-openrouter-key">{settings.configured ? "Новый API-ключ" : "API-ключ"}</FieldLabel>
+                {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}. Оставьте поле пустым, чтобы изменить только модель.</p>}
+                <InputGroup>
+                  <InputGroupInput
+                    id="settings-openrouter-key"
+                    type={keyVisible ? "text" : "password"}
+                    autoComplete="new-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="sk-or-v1-…"
+                    value={apiKey}
+                    disabled={controlsDisabled || !settings.available}
+                    onChange={(event) => { onDraftChange({ ...draft, apiKey: event.target.value }); setError(""); }}
+                  />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton size="icon-sm" disabled={controlsDisabled} aria-label={keyVisible ? "Скрыть API-ключ" : "Показать API-ключ"} onClick={() => setKeyVisible((value) => !value)}>
+                      {keyVisible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+                <FieldDescription><a className="underline underline-offset-4" href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">Создать ключ</a> · После сохранения ключ целиком не показывается.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="settings-openrouter-model">Модель</FieldLabel>
+                <Combobox
+                  items={modelOptions}
+                  value={selectedModel || null}
+                  onValueChange={(model) => { if (model) { onDraftChange({ ...draft, modelId: model.id }); setError(""); } }}
+                  itemToStringLabel={(model) => model.name}
+                  itemToStringValue={(model) => model.id}
+                  isItemEqualToValue={(a, b) => a.id === b.id}
+                  disabled={controlsDisabled || modelsLoading || !models.length}
+                >
+                  <div ref={modelAnchor} className="min-w-0">
+                    <ComboboxInput id="settings-openrouter-model" className="w-full min-w-0" placeholder={modelsLoading ? "Загружаем модели…" : "Название модели или провайдер"} />
+                  </div>
+                  <ComboboxContent anchor={modelAnchor} className="not-typeset rollapp-body min-w-0 w-(--anchor-width)">
+                    <ComboboxEmpty>Модель не найдена</ComboboxEmpty>
+                    <ComboboxList>{(model) => <ComboboxItem key={model.id} value={model} disabled={model.unavailable} className="min-h-12 px-3 py-2 pr-8 text-base">
+                      <div className="flex min-w-0 flex-col gap-1"><span className="whitespace-normal">{model.name}</span><span className="text-xs text-muted-foreground wrap-anywhere">{model.id}</span></div>
+                    </ComboboxItem>}</ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+                {!modelsLoading && !modelsError && modelId && !availableModel && <p className="text-xs text-muted-foreground">Модель {modelId} сейчас недоступна. Сохранённый выбор не изменён. Выберите другую модель.</p>}
+                {modelsError && <div className="flex flex-wrap items-center gap-2 text-destructive" role="status"><span>{modelsError}</span><Button type="button" variant="ghost" className="h-auto min-h-12 whitespace-normal text-destructive hover:text-destructive" onClick={loadModels}>Повторить загрузку</Button></div>}
+              </Field>
+              {error && <p className="text-destructive" role="alert">{error}</p>}
+              {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
+            </>}
+      </form>
+    </ScrollArea>
+    <DrawerFooter className={!showSave && !showDisconnect ? "md:hidden" : undefined}>
+      {showSave && <Button
+        type="submit"
+        form="settings-openrouter-form"
+        disabled={controlsDisabled || !availableModel || !changed}
+        aria-busy={busy || undefined}
+        aria-label={saveLabel}
+      >
+        {busy && <Spinner data-icon="inline-start" />}
+        <span className="hidden sm:inline">{saveLabel}</span>
+        <span className="sm:hidden">{settings.configured ? "Сохранить" : "Подключить"}</span>
       </Button>}
-      {!loading && !settingsError && settings?.configured && <Button type="button" data-control-icon variant="destructive" size="icon" aria-label={disconnectLabel} title={disconnectLabel} disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>
+      {showDisconnect && <Button
+        data-control-icon=""
+        type="button"
+        variant="destructive"
+        size="icon"
+        aria-label="Отключить личный ключ"
+        title="Отключить личный ключ"
+        disabled={controlsDisabled}
+        onClick={disconnect}
+      >
         <Trash2 aria-hidden="true" />
       </Button>}
     </DrawerFooter>

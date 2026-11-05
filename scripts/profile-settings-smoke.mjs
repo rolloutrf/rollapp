@@ -28,18 +28,55 @@ try {
     page.setDefaultNavigationTimeout(90000);
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+    const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2i8AAAAASUVORK5CYII=", "base64");
+    await page.route("**/api/media/01234567-89ab-4cde-8fab-0123456789ab", route => route.fulfill({ contentType: "image/png", body: pixel }));
     await page.goto(`${origin}/__profile-settings`);
     const button = (name) => page.getByRole("button", { name, exact: true });
     const menu = page.getByRole("navigation", { name: "Разделы профиля" });
     const personal = button("Персональная информация");
     const back = button("Назад");
     const name = page.getByRole("textbox", { name: "Имя", exact: true });
+    const photo = page.getByRole("form", { name: "Фото профиля", exact: true });
+    const upload = button("Загрузить фото");
+    const savePhoto = button("Сохранить фото");
     const mobile = width < 768;
     await menu.waitFor();
     assert.equal(await menu.getByRole("button").count(), 4);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
+    const photoBox = await photo.boundingBox();
+    const personalBox = await personal.boundingBox();
+    const uploadBox = await upload.boundingBox();
+    assert(photoBox.y + photoBox.height <= personalBox.y && photoBox.x === personalBox.x);
+    assert(uploadBox.height >= 48 && uploadBox.x + uploadBox.width <= photoBox.x + photoBox.width);
+    assert.equal(await savePhoto.count(), 0);
     await page.screenshot({ path: `/tmp/rollapp-profile-menu-${width}x${height}.png` });
-    await personal.focus();
+    if (mobile) {
+      await page.evaluate(() => window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: "instant" }));
+      assert((await button("Заказы").boundingBox()).y + (await button("Заказы").boundingBox()).height <= (await back.boundingBox()).y);
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    }
+    if (width === 1440 && height === 900) {
+      const rowColors = (row) => row.evaluate(async (el) => {
+        el.getBoundingClientRect();
+        await Promise.allSettled(el.getAnimations().map(animation => animation.finished));
+        const { backgroundColor, color } = getComputedStyle(el);
+        return [backgroundColor, color];
+      });
+      for (const dark of [false, true]) {
+        await page.evaluate(dark => document.documentElement.classList.toggle("dark", dark), dark);
+        for (const row of await menu.getByRole("button").all()) {
+          await page.mouse.move(0, 0);
+          const rest = await rowColors(row);
+          await row.hover();
+          assert.deepEqual(await rowColors(row), rest, `Profile row hover changed colors in ${dark ? "dark" : "light"} theme`);
+        }
+      }
+      await upload.focus();
+      await page.keyboard.press("Tab");
+      assert(await personal.evaluate(el => el.matches(":focus-visible") && getComputedStyle(el).boxShadow !== "none"));
+    } else {
+      await personal.focus();
+    }
     await page.keyboard.press("Enter");
     await name.fill("Черновик имени");
     const addressTypography = await page.locator("#settings-profile-address").evaluate(input => {
@@ -51,6 +88,7 @@ try {
     });
     assert.deepEqual(addressTypography, [["18px", "28px"], ["18px", "28px"]]);
     await menu.waitFor({ state: "hidden" });
+    assert.equal(await photo.count(), 0);
     assert.equal(await button("Сохранить").isEnabled(), true);
     const logout = button("Выйти из аккаунта");
     const saveBox = await button("Сохранить").boundingBox();
@@ -93,8 +131,9 @@ try {
     await button("OpenRouter").click();
     const apiKey = page.locator("#settings-openrouter-key");
     await apiKey.fill("fixture-draft");
-    const saveOpenRouter = button("Сохранить настройки OpenRouter");
+    const saveOpenRouter = button("Сохранить изменения");
     const disconnectOpenRouter = button("Отключить личный ключ");
+    const openRouterForm = page.locator("#settings-openrouter-form");
     const saveOpenRouterBox = await saveOpenRouter.boundingBox();
     const disconnectOpenRouterBox = await disconnectOpenRouter.boundingBox();
     assert.equal(saveOpenRouterBox.height, 48);
@@ -102,12 +141,59 @@ try {
     assert.equal(disconnectOpenRouterBox.width, 48);
     assert.equal(disconnectOpenRouterBox.y, saveOpenRouterBox.y);
     assert.equal(disconnectOpenRouterBox.x - saveOpenRouterBox.x - saveOpenRouterBox.width, 8);
-    assert(await disconnectOpenRouter.evaluate(button => button.closest("[data-control-bar]") && !button.closest(".app-drawer-body")));
-    const openRouterBody = page.locator(".openrouter-settings");
-    await openRouterBody.evaluate(body => {
-      if (body.closest(".mobile-form-page")) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
-      else body.scrollTop = body.scrollHeight;
+    const openRouterFooter = page.locator("[data-control-bar]").filter({ has: disconnectOpenRouter });
+    const openRouterActions = await openRouterFooter.evaluate(footer => {
+      const save = footer.querySelector("button[form]");
+      const disconnect = footer.querySelector('button[aria-label="Отключить личный ключ"]');
+      const radii = (button) => {
+        const style = getComputedStyle(button);
+        return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius];
+      };
+      const glyph = disconnect.querySelector("svg").getBoundingClientRect();
+      const warning = document.createElement("span");
+      warning.style.color = "var(--destructive)";
+      disconnect.append(warning);
+      const warningColor = getComputedStyle(warning).color;
+      warning.remove();
+      const footerStyle = getComputedStyle(footer);
+      return {
+        radii: [radii(save), radii(disconnect)],
+        glyph: [glyph.width, glyph.height],
+        form: save.form?.id,
+        saveFits: save.scrollWidth <= save.clientWidth,
+        outsideScrollArea: !footer.closest('[data-slot="scroll-area"]'),
+        transparent: footerStyle.backgroundColor === "rgba(0, 0, 0, 0)" && footerStyle.backgroundImage === "none" && footerStyle.boxShadow === "none",
+        warning: getComputedStyle(disconnect).color === warningColor,
+      };
     });
+    assert.deepEqual(openRouterActions, {
+      radii: [Array(4).fill("24px"), Array(4).fill("24px")],
+      glyph: [20, 20],
+      form: "settings-openrouter-form",
+      saveFits: true,
+      outsideScrollArea: true,
+      transparent: true,
+      warning: true,
+    });
+    if (mobile) {
+      const backBox = await back.boundingBox();
+      assert.equal(backBox.y, saveOpenRouterBox.y);
+      assert.equal(saveOpenRouterBox.x - backBox.x - backBox.width, 8);
+      await page.evaluate(() => window.scrollTo({ top: document.scrollingElement.scrollHeight, behavior: "instant" }));
+      assert.deepEqual(await saveOpenRouter.boundingBox(), saveOpenRouterBox);
+      const formBox = await openRouterForm.boundingBox();
+      assert(formBox.y + formBox.height <= saveOpenRouterBox.y);
+    } else {
+      const formBox = await openRouterForm.boundingBox();
+      assert.equal(saveOpenRouterBox.x, formBox.x + 16);
+      assert.equal(disconnectOpenRouterBox.x + disconnectOpenRouterBox.width, formBox.x + formBox.width - 16);
+      const scrolled = await openRouterForm.evaluate(form => {
+        const viewport = form.closest('[data-slot="scroll-area-viewport"]');
+        viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
+        return viewport.scrollTop;
+      });
+      if (height < 500) assert(scrolled > 0);
+    }
     assert.deepEqual(await disconnectOpenRouter.boundingBox(), disconnectOpenRouterBox, "OpenRouter actions moved with the fields");
     await page.screenshot({ path: `/tmp/rollapp-openrouter-actions-${width}x${height}.png` });
     await menu.waitFor({ state: "hidden" });
@@ -153,8 +239,51 @@ try {
     await button("Сохранить").click();
     await page.getByRole("status").filter({ hasText: "Сохранённое имя" }).waitFor();
     assert.equal(new URL(page.url()).searchParams.has("formScreen"), false);
+    await page.goto(`${origin}/__profile-settings?state=avatar`);
+    await personal.click();
+    await name.fill("");
+    await back.click();
+    const fileInput = page.getByLabel("Загрузить фото профиля", { exact: true });
+    await fileInput.setInputFiles({ name: "photo.txt", mimeType: "text/plain", buffer: Buffer.from("invalid") });
+    await photo.getByText("Подойдёт изображение JPG, PNG или WEBP.").waitFor();
+    assert.equal(await savePhoto.count(), 0);
+    const chooserPromise = page.waitForEvent("filechooser");
+    await upload.click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({ name: "avatar.png", mimeType: "image/png", buffer: pixel });
+    await photo.locator("img").waitFor();
+    assert.equal(await button("Заказы").isDisabled(), true);
+    const saveGeometry = await savePhoto.evaluate(el => {
+      const css = getComputedStyle(el);
+      return [el.getBoundingClientRect().height, css.borderTopLeftRadius, el.form?.id, Boolean(el.closest("[data-control-bar]"))];
+    });
+    assert.deepEqual(saveGeometry, [48, "24px", "profile-photo-form", true]);
+    await savePhoto.click();
+    await page.locator("output").filter({ hasText: "Фото сохранено" }).waitFor({ state: "attached" });
+    await savePhoto.waitFor({ state: "hidden" });
+    await menu.waitFor();
+    assert.equal(await photo.locator("img").isVisible(), true);
+    await personal.click();
+    assert.equal(await name.inputValue(), "");
+    if (width === 320 || (width === 1440 && height === 900)) {
+      await page.goto(`${origin}/__profile-settings?state=openrouter`);
+      await button("OpenRouter").click();
+      await saveOpenRouter.waitFor();
+      assert.equal(await saveOpenRouter.isDisabled(), true);
+      await apiKey.fill("sk-or-v1-fixture_test_key");
+      await page.getByRole("combobox", { name: "Модель", exact: true }).press("Enter");
+      assert.equal(await apiKey.inputValue(), "sk-or-v1-fixture_test_key");
+      await apiKey.press("Enter");
+      await page.getByText(/Сохранён ключ …fixture-saved\./).waitFor();
+      assert.equal(await apiKey.inputValue(), "");
+      assert.equal(await saveOpenRouter.isDisabled(), true);
+      await disconnectOpenRouter.click();
+      await button("Подключить OpenRouter").waitFor();
+      assert.equal(await disconnectOpenRouter.count(), 0);
+      assert.equal(await page.getByRole("alert").count(), 0);
+    }
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: menu, Back, drafts, validation and orders`);
+    console.log(`PASS profile sections ${width}x${height}: root photo, upload and save, Back, drafts, validation and orders`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

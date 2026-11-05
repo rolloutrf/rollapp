@@ -9,16 +9,40 @@ import "../../src/styles.css";
 import "../../src/index.css";
 
 const mode = new URLSearchParams(location.search).get("state");
+let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
-  if (path === "/me/openrouter") return { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
+  if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
-for (const method of ["post", "delete", "uploadImage"]) api[method] = async () => { throw new Error("Mutations forbidden in profile fixture"); };
+const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
+const avatarUrl = `/api/media/${avatarId}`;
+api.post = async (path, data) => {
+  if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture"
+      && data.apiKey === "sk-or-v1-fixture_test_key" && data.model === "fixture-model") {
+    openRouter = { ...openRouter, keyHint: "…fixture-saved" };
+    return openRouter;
+  }
+  throw new Error("Unexpected fixture POST");
+};
+api.delete = async (path) => {
+  if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture-saved") {
+    openRouter = { available: true, configured: false };
+    return openRouter;
+  }
+  throw new Error("Unexpected fixture DELETE");
+};
+api.uploadImage = async (file) => {
+  if (mode !== "avatar" || file.type !== "image/png") throw new Error("Unexpected fixture upload");
+  return { id: avatarId, imageUrl: avatarUrl };
+};
 api.patch = async (path, data) => {
+  if (mode === "avatar" && path === "/me" && JSON.stringify(data) === JSON.stringify({ avatarUrl })) {
+    return { user: { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: true, avatarUrl } };
+  }
   if (mode !== "save" || path !== "/me" || JSON.stringify(data) !== '{"name":"Сохранённое имя"}') throw new Error("Unexpected fixture save");
   return { user: { ...data } };
 };
@@ -26,10 +50,11 @@ function Fixture() {
   useVisualViewport();
   const [open, setOpen] = useState(true);
   const [savedName, setSavedName] = useState("");
-  const [user] = useState(() => ({ id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" }));
+  const [user, setUser] = useState(() => ({ id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" }));
   return <SessionContext.Provider value={{ user, setSession: () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
     {savedName && <output>{savedName}</output>}
-    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
+    {user.avatarUrl && <output>Фото сохранено</output>}
+    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onAvatarSaved={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
   </MobileFormPages></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);
