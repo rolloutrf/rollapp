@@ -128,7 +128,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
       </section>}
       </div>}
       {!dayTasks.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
+      {!mobile && controls}
     </div>
-    {!mobile && controls}
   </div>;
 }

@@ -23,7 +23,9 @@
   Individual controls retain their semantic surfaces, including opaque disabled
   actions. Verify computed paint and pseudo-elements before and after scrolling
   in the browser smoke matrix. On desktop, reserve the To Do header inset
-  inside the scrollport so content scrolls visibly behind the header.
+  inside the scrollport so content scrolls visibly behind the header. Keep
+  the desktop To Do composer sticky inside that same scrollport so tasks
+  pass behind it and the final task can scroll fully above it.
 
 - Empty inline-block hints decorate only the current collapsed text caret's
   textblock, including nested lists/cells/columns/captions. Retire old hints on

@@ -226,6 +226,27 @@ try{
     assert.equal(await selected.locator('[data-slot="list-tile-count"]').textContent(),'17');
     if(!empty&&[768,820,1024,1440,1920].includes(width)&&height===844)await page.screenshot({path:`/tmp/rollapp-date-tiles-${width}.png`});
     const m=await measure();assert(Math.abs(m.center-width/2)<1,'Desktop selected date lost its center');assert.notEqual(m.position,'fixed','Desktop ribbon became fixed');
+    if(!empty){
+     const geometry=await page.locator('.daily-todo__scroll').evaluate(scroller=>{
+      const footer=scroller.querySelector('.daily-todo__footer');
+      const items=scroller.querySelectorAll('.daily-todo__item');
+      const finalItem=items[items.length-1];
+      const start=footer.getBoundingClientRect();
+      const passesBehind=[...items].some(item=>{
+       const row=item.getBoundingClientRect();
+       return row.top>=start.top&&row.bottom<=start.bottom;
+      });
+      const endGap=scroller.getBoundingClientRect().bottom-start.bottom;
+      scroller.scrollTop=scroller.scrollHeight;
+      const end=footer.getBoundingClientRect();
+      const finalBottom=finalItem.getBoundingClientRect().bottom;
+      scroller.scrollTop=0;
+      return {passesBehind,endGap,finalBottom,footerTop:end.top,shift:end.top-start.top};
+     });
+     assert(geometry.passesBehind,'Rows must extend into the transparent footer area');
+     assert(Math.abs(geometry.endGap)<1&&Math.abs(geometry.shift)<1,'Composer must stay anchored to the scrollport bottom');
+     assert(geometry.finalBottom<=geometry.footerTop,'Last task must be reachable above the composer');
+    }
     await selected.press('ArrowRight');await page.waitForURL(url=>url.searchParams.get('date')==='2026-10-18');
     const composer=page.locator('.daily-todo__composer'),field=composer.getByRole('textbox',{name:'Новая задача на этот день',exact:true}),send=composer.getByRole('button',{name:'Добавить задачу',exact:true}),attach=composer.getByRole('button',{name:'Добавить связанные объекты',exact:true});
     assert(await send.isDisabled(),'Empty composer can submit');
