@@ -2,7 +2,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, Route, Routes, useNavigate } from "react-router-dom";
-import { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext } from "@/App.jsx?detail-actions-smoke";
+import { CatalogWishDetailsContent, CatalogWishDetailsDrawer, WishDetailsModal, SessionContext, ToastContext } from "@/App.jsx?detail-actions-smoke";
 import { ContentPage } from "@/components/content-page";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import "../../src/styles.css";
@@ -14,10 +14,13 @@ function Detail() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const kind = params.get("kind");
+  const drawer = params.has("drawer");
   const item = { id: "fixture", title: "Длинное название желания для проверки меню", space: kind === "product" ? "products" : "places", status: params.get("fulfilled") ? "fulfilled" : "active", description: Array(40).fill("Описание карточки с обычной прокруткой документа.").join(" "), listIds: [], owners: [], price: 100, currency: "RUB", reservationCount: params.has("reserved") ? 1 : 0, reservedByMe: params.has("mine"), addedByMe: params.has("added") };
   return <SessionContext.Provider value={{ user: { id: "owner", username: "owner" } }}><ToastContext.Provider value={() => {}}>
-    {kind === "catalog" ? <ContentPage title="Каталог" onBack={() => navigate(-1)} className="catalog-item-page"><CatalogWishDetailsContent screen item={item} wishlistDisabled={params.has("pending")} wishlistPending={params.has("pending")} onToggleWishlist={() => {}} /></ContentPage>
-      : <WishDetailsModal screen wish={item} lists={lists} owner={kind !== "guest"} profile={{ username: "owner" }} onClose={() => navigate(-1)} onEdit={() => {}} />}
+    {kind === "catalog" ? drawer
+      ? <CatalogWishDetailsDrawer item={item} onClose={() => navigate(-1)} />
+      : <ContentPage title="Каталог" onBack={() => navigate(-1)} className="catalog-item-page"><CatalogWishDetailsContent screen item={item} wishlistDisabled={params.has("pending")} wishlistPending={params.has("pending")} onToggleWishlist={() => {}} /></ContentPage>
+      : <WishDetailsModal screen={!drawer} wish={item} lists={lists} owner={kind !== "guest"} profile={{ username: "owner" }} onClose={() => navigate(-1)} onEdit={() => {}} />}
   </ToastContext.Provider></SessionContext.Provider>;
 }
 

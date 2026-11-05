@@ -773,18 +773,18 @@ for (const component of ["Drawer", "DrawerContent", "DrawerHeader"]) {
   assert(new RegExp(`<${component}\\b`).test(primaryWishDetailsDialog), `WishDetailsModal must compose the official shadcn ${component} directly`);
 }
 assert(/const Title = screen \? "h1" : DrawerTitle/.test(primaryWishDetailsDialog) && /const Description = screen \? "p" : DrawerDescription/.test(primaryWishDetailsDialog), "Wish details must use semantic page titles on mobile and Drawer semantics on desktop");
-assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
-assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
-const wishActionsTag = primaryWishDetailsDialog.match(/<ContentPageActions\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
+assert(/const ActionBar = screen \? ContentPageActions : DrawerFooter/.test(primaryWishDetailsDialog), "WishDetailsModal must use page actions on routes and the shared footer in drawers");
+assert(/\{detailsContent\}\s*\{renderActions\(\)\}\s*<\/DrawerContent>/.test(primaryWishDetailsDialog), "WishDetailsModal drawer actions must stay outside the scrolling body");
+const wishActionsTag = primaryWishDetailsDialog.match(/<ActionBar\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
 for (const className of ["flex", "w-full", "max-w-(--layout-compact-width)", "flex-nowrap", "gap-2"]) {
   assert(wishActionsTag.includes(className), `WishDetailsModal action group is missing ${className}`);
 }
 assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с желанием"/.test(wishActionsTag), "WishDetailsModal action group must keep its accessible group name");
 assert(!/(?:border-t|bg-muted\/50|p-4|rounded-b-xl|-mx-4|-mb-4)/.test(wishActionsTag), "WishDetailsModal action group must not restore footer chrome");
 assert(
-  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}")
-    && primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
-  "WishDetailsModal actions must follow the buy action and precede the guest notice",
+  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}")
+    && primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
+  "WishDetailsModal page actions must follow the buy action and precede the guest notice",
 );
 assert(!/<Modal\b/.test(primaryWishDetailsDialog), "WishDetailsModal must not wrap its primary detail view in the legacy Modal adapter");
 assert(/<DrawerClose\b/.test(primaryWishDetailsDialog), "WishDetailsModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");

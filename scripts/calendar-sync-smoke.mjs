@@ -75,7 +75,13 @@ try {
       return { overflow: document.documentElement.scrollWidth > innerWidth, footer: { top: box.top, bottom: box.bottom }, action: { text: action.textContent, color: getComputedStyle(action).color, background: getComputedStyle(action).backgroundColor, height: action.getBoundingClientRect().height, radii: ["borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius"].map(key => parseFloat(getComputedStyle(action)[key])) } };
     });
     assert(!geometry.overflow); assert.equal(geometry.action.height, 48); assert(geometry.action.radii.every(radius => radius >= 24));
-    assert.equal(geometry.action.text, "Открыть приложение"); assert.notEqual(geometry.action.color, geometry.action.background);
+    assert.equal(geometry.action.text, width < 768 ? "Открыть" : "Открыть приложение"); assert.notEqual(geometry.action.color, geometry.action.background);
+    const disconnect = page.getByRole("button", { name: "Отключить устройство", exact: true });
+    const [openBox, disconnectBox] = await Promise.all([openLink.boundingBox(), disconnect.boundingBox()]);
+    assert.equal(disconnectBox.width, 48);
+    assert.equal(disconnectBox.height, 48);
+    assert.equal(disconnectBox.y, openBox.y);
+    assert.equal(disconnectBox.x - openBox.x - openBox.width, 8);
     assert(geometry.footer.top >= 0 && geometry.footer.bottom <= height + 1);
     await close(); await sync.click(); await link.waitFor();
     assert.equal((await state()).writes.length, 1, "Opening the sheet recreated the connection");

@@ -362,27 +362,15 @@ export function EducationListDrawer({
                   />
                 </Field>
               </FieldGroup>
-              {editing && (
-                <div className="mt-auto flex items-center justify-between gap-4 border-t pt-4">
-                  <div className="min-w-0">
-                    <strong className="block text-sm font-medium">Удалить список</strong>
-                    <span className="text-sm text-muted-foreground">Все записи останутся в разделе без списка.</span>
-                  </div>
-                  <Button type="button" variant="destructive" disabled={deleting} onClick={() => setDeleteOpen(true)}>
-                    <Trash2 data-icon="inline-start" aria-hidden="true" />
-                    Удалить
-                  </Button>
-                </div>
-              )}
             </div>
             <DrawerFooter>
-              <Button className="min-h-12 px-4 text-base" type="submit" disabled={saving || deleting}>
+              <Button className="min-h-12 px-4 text-base" type="submit" aria-label={editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : undefined} disabled={saving || deleting}>
                 {saving && <Spinner aria-hidden="true" />}
                 {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Создать список"}
               </Button>
-              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || deleting} />}>
-                Отмена
-              </DrawerClose>
+              {editing
+                ? <Button data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить список" title="Удалить список" disabled={saving || deleting} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></Button>
+                : <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={saving || deleting} />}>Отмена</DrawerClose>}
             </DrawerFooter>
           </form>
         </DrawerContent>

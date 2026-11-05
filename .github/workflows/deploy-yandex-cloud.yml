@@ -8,7 +8,7 @@ on:
       verification:
         description: "Release verification (targeted UI only when explicitly requested)"
         type: choice
-        options: [full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, none]
+        options: [full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, none]
         default: full
 
 permissions:
@@ -160,6 +160,13 @@ jobs:
       - name: Verify targeted profile release
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'profile'
         run: npm run check:release:profile
+
+      - name: Verify targeted drawer release
+        if: github.event_name == 'workflow_dispatch' && inputs.verification == 'drawers'
+        run: |
+          node --test scripts/deploy-vm-metadata.test.js server/database-startup.test.js
+          npm run test:ui
+          npm run test:controls
 
       - name: Record explicit deployment without tests
         if: github.event_name == 'workflow_dispatch' && inputs.verification == 'none'

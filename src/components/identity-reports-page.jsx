@@ -66,9 +66,11 @@ export function IdentityTestForm({ test, open, onOpenChange, onSaved, onDeleted,
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           {error && <Alert variant="destructive"><AlertTitle>{test ? "Не удалось изменить тест" : "Не удалось сохранить тест"}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           <Field><FieldLabel htmlFor={id}>Название теста</FieldLabel><Input id={id} required disabled={working} maxLength={80} placeholder="Например, Big Five или MBTI" value={title} onChange={event => setTitle(event.target.value)} /></Field>
-          {test && <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4"><div className="min-w-0 flex-1"><strong className="block text-sm font-medium">Удалить тест</strong><span className="text-sm text-muted-foreground">Все PDF и результаты этого теста будут удалены.</span></div><Button type="button" variant="destructive" disabled={working} onClick={() => setDeleteOpen(true)}><Trash2 data-icon="inline-start" aria-hidden="true" />Удалить</Button></div>}
         </div>
-        <DrawerFooter><Button type="submit" disabled={working || !title.trim()} aria-busy={busy || undefined}>{busy ? "Сохраняем" : test ? "Сохранить изменения" : "Добавить тест"}</Button></DrawerFooter>
+        <DrawerFooter>
+          <Button type="submit" aria-label={test ? "Сохранить изменения" : undefined} disabled={working || !title.trim()} aria-busy={busy || undefined}>{busy ? "Сохраняем" : test ? (mobile ? "Сохранить" : "Сохранить изменения") : "Добавить тест"}</Button>
+          {test && <Button data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить тест" title="Удалить тест" disabled={working} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></Button>}
+        </DrawerFooter>
       </form>
     </DrawerContent>
   </Drawer>

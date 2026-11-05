@@ -389,8 +389,6 @@
     pointer-events: auto;
   }
 
-  .app-fullscreen-dialog .wish-editor-screen__footer .wish-editor__submit { box-shadow: none; }
-
   /* Dialog content must remain reachable on narrow or short viewports,
      including mobile landscape. */
   :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]):not(.education-group-overlay, .app-fullscreen-dialog) {
@@ -422,11 +420,11 @@
     border: 1px solid var(--input);
   }
   [data-control-bar] :is([class~="group/button"][class~="bg-background"], [data-slot="select-trigger"], [data-control-icon]:not([class~="bg-primary"])),
-  [data-native-form-actions] [class~="group/button"]:not([type="submit"]) {
+  [data-native-form-actions] [class~="group/button"]:not([class~="bg-primary"]) {
     background-color: var(--card);
   }
   [data-control-bar] :is([class~="group/button"][class~="bg-background"], [data-slot="select-trigger"], [data-control-icon]:not([class~="bg-primary"])):is(:hover, [aria-expanded="true"]),
-  [data-native-form-actions] [class~="group/button"]:not([type="submit"]):hover {
+  [data-native-form-actions] [class~="group/button"]:not([class~="bg-primary"]):hover {
     background-color: var(--muted);
   }
   [data-control-bar] [class~="group/button"][class~="bg-primary"]:hover:not(:disabled) {

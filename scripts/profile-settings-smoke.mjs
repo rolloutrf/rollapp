@@ -97,14 +97,18 @@ try {
     const disconnectOpenRouter = button("Отключить личный ключ");
     const saveOpenRouterBox = await saveOpenRouter.boundingBox();
     const disconnectOpenRouterBox = await disconnectOpenRouter.boundingBox();
-    const openRouterBox = await page.locator(".openrouter-settings").boundingBox();
-    assert.equal(saveOpenRouterBox.x, openRouterBox.x);
-    assert.equal(disconnectOpenRouterBox.x, openRouterBox.x);
-    assert.equal(saveOpenRouterBox.width, openRouterBox.width);
-    assert.equal(disconnectOpenRouterBox.width, openRouterBox.width);
-    assert(saveOpenRouterBox.height >= 48 && disconnectOpenRouterBox.height >= 48);
-    assert.equal(disconnectOpenRouterBox.y - saveOpenRouterBox.y - saveOpenRouterBox.height, 8);
-    await disconnectOpenRouter.scrollIntoViewIfNeeded();
+    assert.equal(saveOpenRouterBox.height, 48);
+    assert.equal(disconnectOpenRouterBox.height, 48);
+    assert.equal(disconnectOpenRouterBox.width, 48);
+    assert.equal(disconnectOpenRouterBox.y, saveOpenRouterBox.y);
+    assert.equal(disconnectOpenRouterBox.x - saveOpenRouterBox.x - saveOpenRouterBox.width, 8);
+    assert(await disconnectOpenRouter.evaluate(button => button.closest("[data-control-bar]") && !button.closest(".app-drawer-body")));
+    const openRouterBody = page.locator(".openrouter-settings");
+    await openRouterBody.evaluate(body => {
+      if (body.closest(".mobile-form-page")) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+      else body.scrollTop = body.scrollHeight;
+    });
+    assert.deepEqual(await disconnectOpenRouter.boundingBox(), disconnectOpenRouterBox, "OpenRouter actions moved with the fields");
     await page.screenshot({ path: `/tmp/rollapp-openrouter-actions-${width}x${height}.png` });
     await menu.waitFor({ state: "hidden" });
     await back.click();

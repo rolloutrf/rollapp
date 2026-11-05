@@ -70,6 +70,11 @@ grows first; secondary actions follow it, with wrapping when needed. Desktop
 footers use the same 16px inset and separator, outside the body scroller. Footer
 containers are transparent at every viewport: no background, gradient, backdrop
 blur or painted pseudo-element. Only individual controls have opaque surfaces.
+When an editor offers deletion, place the icon-only destructive button directly
+after the primary action in the footer and keep the full accessible label and
+existing confirmation. Native forms include Back in the same fixed row. The
+desktop catalog and Wishlist drawers use this footer for their main actions,
+while their standalone routes retain the shared ContentPage action layout.
 Disabled actions remain opaque; destructive colors survive hover and
 disabled states. Icon-only close actions also compose `ControlBar`. None of
 these rules change the upstream Drawer/Button primitives.

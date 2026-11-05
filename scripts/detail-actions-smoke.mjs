@@ -12,7 +12,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
 assert(executablePath, "Install Chrome or set CHROME_PATH");
 const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
-  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, WishDetailsModal, SessionContext, ToastContext };`; },
+  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, CatalogWishDetailsDrawer, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/__detail-actions")) return next();
     res.setHeader("Content-Type", "text/html");
@@ -97,6 +97,35 @@ try {
         await page.getByRole("button", { name: catalog ? "Назад: Каталог" : "Назад: Желание" }).click();
         await page.getByRole("link", { name: "Открыть карточку" }).waitFor();
         console.log(`PASS ${width}x${height} ${variant}: detail actions, scroll, Back`);
+      }
+      if (width >= 768) {
+        for (const kind of ["catalog", "owner", "guest"]) {
+          await page.goto(`${origin}/__detail-actions?kind=${kind}&drawer=1`);
+          await page.getByRole("link", { name: "Открыть карточку" }).click();
+          const drawer = page.locator('[data-slot="drawer-popup"]');
+          const footer = drawer.locator('.app-form-actions[data-slot="wish-actions"]');
+          const body = drawer.locator(".app-drawer-body");
+          await footer.waitFor();
+          await page.waitForFunction(() => document.querySelector('[data-slot="drawer-popup"]')?.getAnimations().every(animation => animation.playState !== "running"));
+          const before = await footer.boundingBox();
+          assert(await body.evaluate(element => { element.scrollTop = element.scrollHeight; return element.scrollTop > 0; }));
+          assert.deepEqual(await footer.boundingBox(), before, "Drawer actions moved with the content");
+          const bodyBox = await body.boundingBox();
+          assert(bodyBox.y + bodyBox.height <= before.y + 1, "Drawer footer overlaps the content");
+          assert(before.y + before.height <= height + 1, "Drawer footer is outside the visible viewport");
+          if (kind === "owner") {
+            const primary = await footer.getByRole("button", { name: "Отметить исполненным" }).boundingBox();
+            const trash = footer.getByRole("button", { name: "Удалить желание" });
+            const deleteBox = await trash.boundingBox();
+            assert.equal(deleteBox.width, 48);
+            assert.equal(deleteBox.height, 48);
+            assert.equal(deleteBox.y, primary.y);
+            assert.equal(deleteBox.x - primary.x - primary.width, 8);
+            await trash.click();
+            await page.getByRole("alertdialog").getByRole("button", { name: "Отмена" }).click();
+          }
+        }
+        console.log(`PASS ${width}x${height}: desktop drawer footers, independent scroll and compact delete`);
       }
       assert.deepEqual(errors, []); await page.close();
     }

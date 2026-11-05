@@ -194,24 +194,23 @@ export function MarkdownEditorDrawer({
                 Поддерживаются заголовки с символом #, списки с дефисом, жирный текст **в звёздочках** и ссылки [название](https://…).
               </FieldDescription>
             </Field>
-            {onDelete && <EditorDeleteAction
-              label={deleteLabel}
-              title={deleteTitle}
-              description={deleteDescription}
-              disabled={saving}
-              onBusyChange={setDeleting}
-              onDelete={onDelete}
-              onDeleted={() => onOpenChange(false)}
-            />}
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
+            <Button className="min-h-12 text-base" type="submit" aria-label="Сохранить изменения" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-              {saving ? "Сохраняем" : "Сохранить изменения"}
+              {saving ? "Сохраняем" : isMobile ? "Сохранить" : "Сохранить изменения"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
-              Отмена
-            </DrawerClose>
+            {onDelete
+              ? <EditorDeleteAction
+                  label={deleteLabel}
+                  title={deleteTitle}
+                  description={deleteDescription}
+                  disabled={saving}
+                  onBusyChange={setDeleting}
+                  onDelete={onDelete}
+                  onDeleted={() => onOpenChange(false)}
+                />
+              : <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
           </DrawerFooter>
         </form>
       </DrawerContent>

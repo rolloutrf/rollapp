@@ -123,7 +123,7 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
 test("targeted snippet releases require an explicit manual choice and retain control geometry checks", async () => {
   const workflow = await readFile(new URL("../.github/workflows/deploy-yandex-cloud.yml", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  assert.match(workflow, /options: \[full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, none\]\s+default: full/);
+  assert.match(workflow, /options: \[full, snippets, identity-reports, health, page-rails, ui-copy, gift-cards, profile, drawers, none\]\s+default: full/);
   assert.match(workflow, /name: Verify targeted health release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'health'\s+run: npm run check:release:health/);
   assert(workflow.indexOf('run: npm run check:release:health') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:health', 'build']) assert(packageJson.scripts['check:release:health'].split(' && ').includes(`npm run ${command}`));
@@ -139,6 +139,8 @@ test("targeted snippet releases require an explicit manual choice and retain con
   assert.match(workflow, /name: Verify targeted profile release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'profile'\s+run: npm run check:release:profile/);
   assert(workflow.indexOf('run: npm run check:release:profile') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   for (const command of ['test:unit', 'test:ui', 'test:controls', 'test:profile', 'build']) assert(packageJson.scripts['check:release:profile'].split(' && ').includes(`npm run ${command}`));
+  assert.match(workflow, /name: Verify targeted drawer release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'drawers'\s+run: \|\s+node --test scripts\/deploy-vm-metadata\.test\.js server\/database-startup\.test\.js\s+npm run test:ui\s+npm run test:controls/);
+  assert(workflow.indexOf('name: Verify targeted drawer release') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
   assert.match(workflow, /name: Install WebKit for native time field checks\s+if: github.event_name != 'workflow_dispatch' \|\| inputs.verification == 'full'/);
   assert(workflow.includes("if: github.event_name != 'workflow_dispatch' || inputs.verification == 'full'"));
   assert.match(workflow, /name: Verify targeted snippet release\s+if: github.event_name == 'workflow_dispatch' && inputs.verification == 'snippets'\s+run: npm run check:release:snippets/);

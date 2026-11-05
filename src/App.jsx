@@ -2270,9 +2270,9 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
         </div>
       </ScrollArea>
-      <MobileFormFooter as={ControlBar} className="contact-detail__edit-actions">
+      <MobileFormFooter className="contact-detail__edit-actions">
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
-        {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" className="contact-detail__delete" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
+        {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
       </MobileFormFooter>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
@@ -4042,7 +4042,32 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
     ? `Убрать «${item.title}» из вишлиста`
     : `Добавить «${item.title}» в вишлист`;
 
-  return (
+  const ActionBar = screen ? ContentPageActions : DrawerFooter;
+  const actions = (
+          <ActionBar
+            data-slot="wish-actions"
+            className={screen ? "mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2" : undefined}
+            role="group"
+            aria-label="Действия с позицией каталога"
+          >
+            <ShadcnButton
+              type="button"
+              className="h-12 min-w-0 flex-1"
+              disabled={wishlistDisabled}
+              aria-label={wishlistLabel}
+              aria-pressed={Boolean(item.addedByMe)}
+              aria-busy={wishlistPending || undefined}
+              onClick={() => onToggleWishlist(item)}
+            >
+              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
+              {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
+                ? item.addedByMe ? "Удаляем…" : "Добавляем…"
+                : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
+            </ShadcnButton>
+          </ActionBar>
+  );
+
+  return <>
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
@@ -4085,29 +4110,11 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
             </a>
           )}
 
-          <ContentPageActions
-            data-slot="wish-actions"
-            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
-            role="group"
-            aria-label="Действия с позицией каталога"
-          >
-            <ShadcnButton
-              type="button"
-              className="h-12 min-w-0 flex-1"
-              disabled={wishlistDisabled}
-              aria-label={wishlistLabel}
-              aria-pressed={Boolean(item.addedByMe)}
-              aria-busy={wishlistPending || undefined}
-              onClick={() => onToggleWishlist(item)}
-            >
-              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
-              {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
-                ? item.addedByMe ? "Удаляем…" : "Добавляем…"
-                : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
-            </ShadcnButton>
-          </ContentPageActions>
+          {screen && actions}
+
         </div>
-  );
+    {!screen && actions}
+  </>;
 }
 
 function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onClose, returnFocusRef }) {
@@ -5820,19 +5827,21 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
   const reservationLabel = wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать";
   const reservationText = mobilePage ? (wish.reservedByMe ? "Ваша бронь" : reservationUnavailable ? "Занято" : "Забронировать") : reservationLabel;
   const fulfillmentLabel = wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным";
-  const fulfillmentText = mobilePage ? (wish.status === "fulfilled" ? "В активные" : "Исполнить") : fulfillmentLabel;
+  const fulfillmentText = !screen || mobilePage ? (wish.status === "fulfilled" ? "В активные" : "Исполнить") : fulfillmentLabel;
+  const ActionBar = screen ? ContentPageActions : DrawerFooter;
   const renderActions = (primaryAction) => (
-          <ContentPageActions
+          <ActionBar
             data-slot="wish-actions"
-            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
+            className={screen ? "mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2" : undefined}
             role="group"
             aria-label="Действия с желанием"
           >
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
             {!owner && !mobilePage && <ShadcnButton data-control-icon className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
-            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={mobilePage ? "default" : "outline"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
+            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={screen && !mobilePage ? "outline" : "default"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
             </>}
+            {!screen && owner && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить желание" title="Удалить желание" aria-haspopup="dialog" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
               setMenuOpen(open);
               if (open) setListsOpen(false);
@@ -5890,11 +5899,11 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                   {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
                   {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
                   {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
-                  {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
+                  {screen && owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-          </ContentPageActions>
+          </ActionBar>
   );
   const detailsContent = (
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
@@ -5956,7 +5965,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
           {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
-          {!marketplacePrimary && renderActions()}
+          {screen && !marketplacePrimary && renderActions()}
 
           {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
@@ -5966,6 +5975,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
       <DrawerContent className="wish-details-dialog app-drawer--compact">
         <DrawerClose render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}><X /><span className="sr-only">Закрыть</span></DrawerClose>
         {detailsContent}
+        {renderActions()}
       </DrawerContent>
     </Drawer>}
       {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
@@ -6611,11 +6621,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             </div>
           </div>
 
-          <MobileFormFooter className="wish-editor-screen__footer border-t sm:flex-row">
-            <ShadcnButton className="wish-editor__submit h-12 px-4" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
+          <MobileFormFooter className="wish-editor-screen__footer">
+            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
-            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon className="wish-editor__delete static" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
+            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
           </MobileFormFooter>
         </form>
     </>;
@@ -7039,7 +7049,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
         </Field>
       </FieldGroup>
     </form>
-  </> : section === "openrouter" ? <div className="px-4 pt-4">
+  </> : section === "openrouter" ? (
     <OpenRouterSettings
       key={user.id}
       draft={openRouterDraft}
@@ -7047,7 +7057,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       disabled={loading || imageUploading || loggingOut}
       onBusyChange={setOpenRouterBusy}
     />
-  </div> : section === "yandex" ? <div className="px-4 pt-4">
+  ) : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7057,13 +7067,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       </div>
       {!user.hasYandex && yandexEnabled === null && <p className="text-sm text-muted-foreground" role="status">Проверяем доступность Yandex ID…</p>}
       {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
-      {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
-        ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
-        : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
+      {!user.hasYandex && yandexEnabled && yandexLinkBlocked && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>}
     </Card>
   </div> : null;
   const personalFooter = section === "personal" && (
-    <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
+    <DrawerFooter className="mx-auto w-full max-w-full">
       <ShadcnButton
         type="submit"
         form="profile-editor-form"
@@ -7092,6 +7100,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       >
         {loggingOut ? <Spinner /> : <LogOut aria-hidden="true" />}
       </ShadcnButton>
+    </DrawerFooter>
+  );
+  const yandexFooter = section === "yandex" && !user.hasYandex && yandexEnabled && !yandexLinkBlocked && (
+    <DrawerFooter>
+      <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
@@ -7124,11 +7137,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
           {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
           <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
         </DrawerHeader>}
-        <ScrollArea ref={scrollArea} className="mx-auto min-h-0 w-full max-w-full flex-1">
+        <ScrollArea hidden={desktopSection === "openrouter"} ref={scrollArea} className="mx-auto min-h-0 w-full max-w-full flex-1">
           <div hidden={Boolean(desktopSection)}>{menu}</div>
-          {desktopSection && sectionBody}
+          {desktopSection && desktopSection !== "openrouter" && sectionBody}
         </ScrollArea>
-        {isMobile ? <DrawerFooter /> : desktopSection && personalFooter}
+        {desktopSection === "openrouter" && sectionBody}
+        {isMobile ? <DrawerFooter /> : desktopSection && (personalFooter || yandexFooter)}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
@@ -7141,7 +7155,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       <DrawerContent className="rollapp-body app-drawer--form">
         <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
         {sectionBody}
-        {personalFooter || <DrawerFooter />}
+        {section !== "openrouter" && (personalFooter || yandexFooter || <DrawerFooter />)}
       </DrawerContent>
     </Drawer>}
   </>;

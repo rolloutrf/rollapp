@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, 
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
+import { DrawerFooter } from "@/components/form-surface";
 
 export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onBusyChange }) {
   const [settings, setSettings] = useState(null);
@@ -112,14 +113,17 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
     );
   };
 
-  return (
-    <div className="openrouter-settings not-typeset rollapp-body flex min-w-0 flex-col gap-5">
+  const saveLabel = settings?.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter";
+  const disconnectLabel = settings?.available ? "Отключить личный ключ" : "Отключить ключ";
+
+  return <>
+    <div className="openrouter-settings app-drawer-body not-typeset rollapp-body flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
       {settings?.configured && <Badge variant="secondary">Ключ сохранён</Badge>}
       {loading ? <div className="flex min-h-12 items-center gap-2" role="status"><Spinner />Загружаем настройки…</div>
         : settingsError ? <div className="flex flex-wrap items-center gap-2 text-destructive" role="alert"><span>Не удалось загрузить настройки: {settingsError}</span><Button type="button" variant="ghost" onClick={loadSettings}>Повторить</Button></div>
         : !settings.available ? <>
           <p className="text-destructive" role="status">Настройки OpenRouter временно недоступны: на сервере не настроено защищённое хранилище ключей.</p>
-          {settings.configured && <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-muted-foreground">Сохранён ключ {settings.keyHint}</span><Button type="button" variant="ghost" className="text-destructive hover:text-destructive" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить ключ</Button></div>}
+          {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}</p>}
           {error && <p className="text-destructive" role="alert">{error}</p>}
         </> : <>
             <p className="text-muted-foreground">Выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
@@ -173,14 +177,16 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
               {modelsError && <div className="flex flex-wrap items-center gap-2 text-destructive" role="status"><span>{modelsError}</span><Button type="button" variant="ghost" className="h-auto min-h-12 whitespace-normal text-destructive hover:text-destructive" onClick={loadModels}>Повторить загрузку</Button></div>}
             </Field>
             {error && <p className="text-destructive" role="alert">{error}</p>}
-            <div className="flex flex-col gap-2">
-              <Button type="button" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled || !settings.available || !availableModel || !changed} aria-busy={busy || undefined} onClick={save}>
-                {busy && <Spinner />}{settings.configured ? "Сохранить настройки OpenRouter" : "Подключить OpenRouter"}
-              </Button>
-              {settings.configured && <Button type="button" variant="destructive" className="h-auto min-h-12 w-full whitespace-normal py-3" disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>Отключить личный ключ</Button>}
-            </div>
             {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
           </>}
     </div>
-  );
+    <DrawerFooter>
+      {!loading && !settingsError && settings?.available && <Button type="button" disabled={controlsDisabled || !availableModel || !changed} aria-label={saveLabel} aria-busy={busy || undefined} onClick={save}>
+        {busy && <Spinner />}{settings.configured ? "Сохранить" : "Подключить"}
+      </Button>}
+      {!loading && !settingsError && settings?.configured && <Button type="button" data-control-icon variant="destructive" size="icon" aria-label={disconnectLabel} title={disconnectLabel} disabled={controlsDisabled} onClick={() => mutate(() => api.delete("/me/openrouter"), "Личный ключ OpenRouter отключён")}>
+        <Trash2 aria-hidden="true" />
+      </Button>}
+    </DrawerFooter>
+  </>;
 }
