@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api";
 import { FundraiserVirtualCard } from "@/components/fundraiser-virtual-card";
 import { Button } from "@/components/ui/button";
+import { PageActionButton } from "@/components/page-action-button";
 import { ControlBar } from "@/components/control-bar";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -119,11 +120,11 @@ export function WishGroupFundraiser({ group, viewerId = "guest", shareToken = ""
       <p className="text-xs text-muted-foreground">Участников: {fund.contributors}. {remaining > 0 ? `Осталось ${formatRolls(remaining)}.` : "Спасибо за поддержку!"}</p>
       <p className="text-xs text-muted-foreground">Взносы сразу поступают в кошелёк владельца группы. Это внутренняя валюта Rollapp.</p>
       {data.isOwner && !editing && <ControlBar className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={busy} onClick={() => { setTarget(String(fund.target)); setEditing(true); }}>Изменить цель</Button>
-        {fund.status !== "completed" && <Button variant="outline" disabled={busy} onClick={() => mutate(async () => {
+        <PageActionButton variant="outline" disabled={busy} onClick={() => { setTarget(String(fund.target)); setEditing(true); }}>Изменить цель</PageActionButton>
+        {fund.status !== "completed" && <PageActionButton variant="outline" disabled={busy} onClick={() => mutate(async () => {
           const result = await request.patch(endpoint, { target: fund.target, accepting: !fund.accepting });
           if (alive.current) setData(current => ({ ...current, ...result }));
-        })}>{fund.accepting ? "Приостановить" : "Возобновить"}</Button>}
+        })}>{fund.accepting ? "Приостановить" : "Возобновить"}</PageActionButton>}
       </ControlBar>}
       {data.isOwner && fund.status === "completed" && <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId} />}
       {!data.isOwner && data.signedIn && (fund.status === "active" || pending) && <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); if (validAmount || pending) { setConfirmationAmount(pending?.amount || numericAmount); setConfirming(true); } }}>

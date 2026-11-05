@@ -68,6 +68,10 @@ async function checkFormActions(page, surface, name) {
   const footer = surface.locator('.app-form-actions, [data-native-form-actions]').first();
   assert.equal(await footer.count(), 1, `${name}: shared form actions missing`);
   assert(await footer.evaluate(el => el.hasAttribute('data-control-bar')), `${name}: footer bypasses ControlBar`);
+  const footerPaint = await footer.evaluate(el => { const s=getComputedStyle(el); return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter}; });
+  assert(['transparent','rgba(0, 0, 0, 0)'].includes(footerPaint.background), `${name}: footer must be transparent`);
+  assert.equal(footerPaint.image, 'none', `${name}: footer gradient`);
+  assert.equal(footerPaint.blur, 'none', `${name}: footer backdrop`);
   const buttons = await footer.locator('button').evaluateAll(elements => elements.map(el => {
     const r = el.getBoundingClientRect(), s = getComputedStyle(el);
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;

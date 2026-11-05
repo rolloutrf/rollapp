@@ -64,8 +64,10 @@ Product `DrawerFooter` composes the installed primitive with `ControlBar` and
 through `MobileFormFooter` on desktop. All use 48px pill buttons, 48px circular
 icon actions, 20px glyphs, 18px/28px text and an 8px gap. The primary action
 grows first; secondary actions follow it, with wrapping when needed. Desktop
-footers use the same 16px inset, separator and popover surface, outside the body
-scroller. Disabled actions remain opaque; destructive colors survive hover and
+footers use the same 16px inset and separator, outside the body scroller. Footer
+containers are transparent at every viewport: no background, gradient, backdrop
+blur or painted pseudo-element. Only individual controls have opaque surfaces.
+Disabled actions remain opaque; destructive colors survive hover and
 disabled states. Icon-only close actions also compose `ControlBar`. None of
 these rules change the upstream Drawer/Button primitives.
 

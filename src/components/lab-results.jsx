@@ -1,7 +1,7 @@
 import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
+  AlertTriangle, Check, CheckCircle2, FileUp, Plus, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -273,16 +273,30 @@ export function LabResults() {
       <section className="min-w-0 max-w-none" data-report-navigation>
         {selectedReport ? (
           <Tabs className="min-w-0" value={selectedReport.id} onValueChange={setSelectedReportId}>
-            <TabsList className="list-tabs mb-0 h-auto! min-w-0 w-full flex-nowrap gap-1 bg-transparent p-0" data-tab-scroller aria-label="Дата исследования">
-              {reports.map((report, index) => (
-                <TabsTrigger data-report-tile key={report.id} value={report.id}>
-                  <span data-slot="list-tile-label">{report.dateLabel}</span>
-                  <span data-slot="list-tile-meta" title={index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}>
-                    {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="list-tabs" data-tab-scroller>
+              <TabsList className="contents" aria-label="Дата исследования">
+                {reports.map((report, index) => (
+                  <TabsTrigger data-report-tile key={report.id} value={report.id}>
+                    <span data-slot="list-tile-label">{report.dateLabel}</span>
+                    <span data-slot="list-tile-meta" title={index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}>
+                      {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {!readOnly && <Button
+                variant="ghost"
+                size="icon"
+                className="list-tabs__add"
+                type="button"
+                aria-label="Добавить анализ"
+                title="Добавить анализ"
+                disabled={uploadState.loading || deleteState.busy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus aria-hidden="true" />
+              </Button>}
+            </div>
             {reports.map((report) => (
               <TabsContent className="min-w-0" key={report.id} value={report.id}>
                 <LabReportPanel report={report} />

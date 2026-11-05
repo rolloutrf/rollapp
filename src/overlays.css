@@ -94,7 +94,7 @@
     padding: var(--layout-item-gap);
     padding-bottom: max(var(--layout-item-gap), env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
-    background: var(--popover);
+    background: transparent;
   }
   .app-form-actions > [class~="group/button"] {
     flex: 0 1 auto;

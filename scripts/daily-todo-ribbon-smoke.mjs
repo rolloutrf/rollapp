@@ -85,6 +85,14 @@ try{
     for(const number of [29,30])assert.equal(await page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
+   for (const selector of ['.daily-todo__footer', '.daily-todo__composer-input']) {
+    const surface = page.locator(selector);
+    if (!await surface.count()) continue;
+    const paint = await surface.evaluate(el => { const s=getComputedStyle(el); return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter}; });
+    assert(['transparent','rgba(0, 0, 0, 0)'].includes(paint.background), `${width}x${height} ${selector}: footer background`);
+    assert.equal(paint.image,'none', `${selector}: footer gradient`);
+    assert.equal(paint.blur,'none', `${selector}: footer backdrop`);
+   }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width>=768){
     const edges=await page.locator('.daily-todo__ribbon').evaluate(el=>{

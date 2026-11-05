@@ -58,6 +58,15 @@ try {
     assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
     await page.getByRole("button", { name: "Приостановить", exact: true }).click();
     await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
+    for (const name of ["Изменить цель", "Возобновить"]) {
+      const padding = await page.getByRole("button", { name, exact: true }).evaluate(node => {
+        const style = getComputedStyle(node);
+        return [style.paddingLeft, style.paddingRight];
+      });
+      assert.deepEqual(padding, ["24px", "24px"], `${width} ${name}: shared action padding`);
+    }
+    await geometry();
+    await page.screenshot({ path: `/tmp/rollapp-fundraising-owner-${width}.png`, fullPage: true });
     await page.getByRole("button", { name: "Возобновить", exact: true }).click();
     await page.getByRole("button", { name: "Изменить цель", exact: true }).click();
     await page.getByLabel("Цель сбора, роллы", { exact: true }).fill("200");

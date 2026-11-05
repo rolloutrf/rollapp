@@ -1023,9 +1023,9 @@ input.phone-otp__code {
     position: sticky;
     z-index: 5;
     bottom: calc(-20px - env(safe-area-inset-bottom));
-    background: color-mix(in oklch, var(--card) 96%, transparent);
-    box-shadow: 0 -14px 34px color-mix(in oklch, var(--background) 28%, transparent);
-    backdrop-filter: blur(14px);
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
   }
   .modal-actions .button { min-width: 0; flex: 1; padding: 0 12px; }
 
@@ -3427,7 +3427,7 @@ html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer
   justify-content: flex-end;
   pointer-events: auto;
   border-color: var(--border);
-  background: var(--popover);
+  background: transparent;
 }
 html .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
   min-width: 10rem;
@@ -4473,7 +4473,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   color: var(--foreground);
   background: transparent;
   font: inherit;
-  cursor: pointer;
+  cursor: default;
 }
 .app-layout--dark .wishes-page__identity--readonly { cursor: default; }
 
@@ -6961,7 +6961,7 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
   align-items: center;
   gap: var(--layout-inline-gap);
   padding: var(--layout-item-gap) var(--layout-page-inset);
-  background: var(--popover);
+  background: transparent;
 }
 .contact-detail__edit-actions > [type="submit"] { flex: 1; min-width: 0; }
 .contact-detail__edit-actions .contact-detail__delete { color: var(--destructive); }
@@ -9663,7 +9663,7 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
   gap: 18px;
   border: 1px solid color-mix(in oklch, var(--cv-accent) 24%, var(--border));
   border-radius: 24px;
-  background: linear-gradient(110deg, color-mix(in oklch, var(--cv-accent) 10%, var(--card)), color-mix(in oklch, var(--card) 84%, transparent));
+  background: transparent;
 }
 .cv-resume__footer svg { width: 28px; height: 28px; flex: 0 0 auto; color: var(--cv-accent); }
 .sphere-tabs__content .cv-resume__footer p { margin: 0; color: var(--foreground); font-size: clamp(20px, 3vw, 27px); line-height: 1.25; font-weight: 670; letter-spacing: -.025em; text-wrap: balance; }

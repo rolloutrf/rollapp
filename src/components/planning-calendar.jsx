@@ -40,7 +40,7 @@ function CalendarTaskButton({ task, children, className, onMove, ...props }) {
       <p className="schedule-caption">Изменяйте это событие в календаре устройства. Изменения появятся после следующей синхронизации.</p>
     </PopoverContent>
   </Popover>;
-  return <Button variant="ghost" className={className} {...props} {...interaction} onClick={() => onEdit(task)}>{children}</Button>;
+  return <Button variant="ghost" className={className} {...props} {...interaction} onClick={() => { if (!busy) onEdit(task); }}>{children}</Button>;
 }
 function EventButton({ task, compact = false, style, onResize, onMove }) {
   return <div className="schedule-event-wrap" style={style} data-calendar-event={task.id} data-compact={compact || undefined}>

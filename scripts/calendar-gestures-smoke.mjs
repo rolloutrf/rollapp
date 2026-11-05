@@ -82,7 +82,7 @@ try {
       await page.mouse.up(); await writes(1);
       assert.equal((await state()).tasks.find(t => t.id === 'long').startTime, '09:15');
       assert.equal((await state()).tasks.find(t => t.id === 'long').durationMinutes, 135);
-      assert.equal(await page.locator('.schedule-preview[data-open]').count(), 0, 'Drop opened popover');
+      assert.equal(await page.getByLabel('Название', { exact: true }).count(), 0, 'Drop opened editor');
       await page.getByRole('button', { name: 'Отменить', exact: true }).last().click(); await writes(2);
       assert.equal((await state()).tasks.find(t => t.id === 'long').startTime, '09:00');
       // Moving across the card while staying in the same slot is a no-op.
@@ -101,12 +101,12 @@ try {
         await page.mouse.up();
         assert.equal((await state()).writes.length, 2, `${cancellation} wrote a schedule`);
         await page.waitForFunction(() => !document.querySelector('.schedule-drag-preview, [data-calendar-preview]'));
-        assert.equal(await page.locator('.schedule-preview[data-open]').count(), 0, `${cancellation} opened an event`);
+        assert.equal(await page.getByLabel('Название', { exact: true }).count(), 0, `${cancellation} opened an event`);
       }
       await event('series@2026-10-02').click();
-      await page.locator('.schedule-preview[data-open]').waitFor();
-      await page.keyboard.press('Escape');
-      await page.locator('.schedule-preview[data-open]').waitFor({ state: 'hidden' });
+      await page.getByLabel('Название', { exact: true }).waitFor();
+      await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть задачу', exact: true }).click();
+      await page.getByLabel('Название', { exact: true }).waitFor({ state: 'hidden' });
       assert.equal((await state()).writes.length, 2, 'Opening a recurring event wrote data');
       // Resize delta is independent of the point inside the bottom handle.
       const handle = page.getByRole('button', { name: 'Изменить длительность: Встреча с командой', exact: true });
@@ -152,6 +152,7 @@ try {
       point = await start(event('long'), 100);
       await page.mouse.move(point.x, point.y + 24, { steps: 3 }); await page.mouse.up();
       assert.equal(await page.locator('.schedule-drag-preview').count(), 0, 'Busy calendar began a second drag');
+      assert.equal(await page.getByLabel('Название', { exact: true }).count(), 0, 'Busy drag opened editor');
       await page.locator('[data-release]').dispatchEvent('click'); await writes(1);
       assert.equal((await state()).tasks.find(t => t.id === 'long').startTime, '09:15');
       if (width < 768) {
@@ -164,7 +165,7 @@ try {
         await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await page.waitForFunction(before => document.querySelector('.schedule-timeline [data-slot="scroll-area-viewport"]').scrollTop > before + 20, beforeTouch);
         assert.equal((await state()).writes.length, 0, 'Touch scrolling moved a calendar event');
-        assert.equal(await page.locator('.schedule-preview[data-open]').count(), 0, 'Touch scrolling opened event details');
+        assert.equal(await page.getByLabel('Название', { exact: true }).count(), 0, 'Touch scrolling opened event details');
         await touch.detach();
       }
       await load('week');

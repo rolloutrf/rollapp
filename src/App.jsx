@@ -2402,12 +2402,11 @@ function LegacyContactsRedirect() {
   return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
 }
 
-function ContactsProfileControls({ onAdd, onCard }) {
+function ContactsProfileControls({ onAdd }) {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
         <PageActionButton className="shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
-        {onCard && <PageActionButton variant="outline" className="shrink-0 whitespace-nowrap" onClick={onCard}><ContactRound aria-hidden="true" />Моя визитка</PageActionButton>}
         <SphereBusinessControls sphereId="career" />
       </div>
     </section>
@@ -2417,9 +2416,6 @@ function ContactsProfileControls({ onAdd, onCard }) {
 function ContactsSpherePage() {
   const toast = useToast();
   const access = useSphereSharing();
-  const session = useSession();
-  const cardProfile = access.owner || session?.user;
-  const [cardOpen, setCardOpen] = useState(false);
   const globalShareRef = useGlobalShareHandler();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -2502,8 +2498,7 @@ function ContactsSpherePage() {
 
   return (
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
-      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} onCard={cardProfile?.username ? () => setCardOpen(true) : undefined} />}
-      {cardOpen && !access.readOnly && cardProfile?.username && <ContactCardDialog key={cardProfile.username} profile={cardProfile} canSign={access.isOwner} onClose={() => setCardOpen(false)} />}
+      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">
@@ -7200,22 +7195,19 @@ function PublicProfile({ shared = false }) {
       <BusinessGiftAction business={data.profile} user={user} />
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span></span>
     </div>
-    : data.isOwner
-    ? <ShadcnButton
+    : <div className="wishes-page__identity friend-profile-page__identity">
+    {data.isOwner ? <ShadcnButton
       type="button"
       variant="ghost"
-      className="wishes-page__identity h-auto min-h-0 p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
+      className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
       aria-label={`Редактировать профиль ${data.profile.name}`}
       title="Редактировать профиль"
       onClick={openProfileEditor}
     >
       <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
-      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
-    </ShadcnButton>
-    : <div className="wishes-page__identity friend-profile-page__identity">
-      <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
-      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
-    </div>;
+    </ShadcnButton> : <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />}
+    <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
+  </div>;
   if (isMobile && selectedWish && !editingWish) {
     return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ListChecks, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,6 @@ export function Values() {
   const savedContent = normalizeValues(valuesContent.content);
   const dirty = !sameContent(draft, savedContent);
   const selected = useMemo(() => new Set(draft.selected), [draft.selected]);
-  const selectedCount = draft.selected.length;
 
   const toggle = (id, checked) => {
     setDraft((current) => ({
@@ -145,10 +144,6 @@ export function Values() {
   return (
     <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
       <header className="flex flex-wrap items-center justify-end gap-2">
-        <span className="inline-flex min-h-8 items-center gap-2 text-base leading-6 font-normal text-muted-foreground sm:text-lg" role="status">
-          <ListChecks className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-          <span>Выбрано: {selectedCount}</span>
-        </span>
         {!readOnly && <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
           {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
           {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
@@ -254,7 +249,7 @@ export function Values() {
           </a>.
         </p>
         {!readOnly && <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" type="button" disabled={selectedCount === 0 || editingDisabled} onClick={reset}>
+          <Button variant="ghost" type="button" disabled={selected.size === 0 || editingDisabled} onClick={reset}>
             <RotateCcw data-icon="inline-start" aria-hidden="true" />
             Снять выбор
           </Button>

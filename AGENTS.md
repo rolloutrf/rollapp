@@ -97,6 +97,10 @@
 
 ## Responsive layout and visual consistency
 
+- Profile-name headings are plain text, never links or buttons and never inside an interactive profile wrapper. Keep profile editing on the avatar or an explicitly labelled control; do not underline the name or give its container a pointer cursor.
+
+- Never give footer containers a separate background, gradient, backdrop blur or painted pseudo-element, on desktop or mobile. This includes To Do/composer footers, navigation/action rows, drawer footers and native form footers. Keep the container transparent; only individual controls retain their semantic, opaque surfaces (including disabled/destructive states). The global header follows the same transparent-container rule. Do not reintroduce a footer background to hide scrolling content; preserve scroll clearance instead.
+
 - Treat `src/spacing.css` as the source of truth for page gaps, insets, and chrome spacing; `src/containers.css` for width roles; and `src/overlays.css` with `src/hooks/use-visual-viewport.js` for portalled surfaces. Keep `docs/spacing-system.md`, `docs/container-system.md`, and `docs/mobile-overlays.md` synchronized when those contracts change.
 - Use the existing `app-page`, `page-stack`, `page-toolbar`, and container-width roles before adding local dimensions. A width role is a maximum, never a fixed page width. Apply the page inset once: 16px through 640px, 24px from 641–1180px, and 32px above 1180px. The app shell adds its own 16px inset above 820px; account for it instead of duplicating it.
 - Align ordinary page content and the global header to `--layout-page-width` and `--layout-page-inset`. Page-level horizontal collection/action rails always reach the viewport edges on mobile and desktop; their gutters belong inside the scroll owner, never an inset clipping ancestor. Planning boards retain their own full-bleed scroll owner.
