@@ -85,13 +85,29 @@ try{
     for(const number of [29,30])assert.equal(await page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
-   for (const selector of ['.daily-todo__footer', '.daily-todo__composer-input']) {
-    const surface = page.locator(selector);
-    if (!await surface.count()) continue;
-    const paint = await surface.evaluate(el => { const s=getComputedStyle(el); return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter}; });
-    assert(['transparent','rgba(0, 0, 0, 0)'].includes(paint.background), `${width}x${height} ${selector}: footer background`);
-    assert.equal(paint.image,'none', `${selector}: footer gradient`);
-    assert.equal(paint.blur,'none', `${selector}: footer backdrop`);
+   assert.equal(await page.locator('.daily-todo__footer').evaluate(el=>getComputedStyle(el).backdropFilter),'none','Footer must not blur scrolling content');
+   if(width>=768){
+    const alphas=await page.locator('.daily-todo__composer-input').evaluate(group=>{
+     const root=document.documentElement;
+     const wasDark=root.classList.contains('dark');
+     const canvas=document.createElement('canvas');
+     canvas.width=canvas.height=1;
+     const context=canvas.getContext('2d');
+     try {
+      return [false,true].map(dark=>{
+       root.classList.toggle('dark',dark);
+       const style=getComputedStyle(group);
+       context.clearRect(0,0,1,1);
+       context.fillStyle=style.backgroundColor;
+       context.globalAlpha=Number(style.opacity);
+       context.fillRect(0,0,1,1);
+       return context.getImageData(0,0,1,1).data[3];
+      });
+     } finally {
+      root.classList.toggle('dark',wasDark);
+     }
+    });
+    assert.deepEqual(alphas,[255,255],`${width}x${height}: input group must cover tasks in both themes`);
    }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width>=768){

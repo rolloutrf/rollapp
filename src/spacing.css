@@ -58,7 +58,7 @@
     .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
     .mobile-app-navigation, .mobile-content-page__nav, [data-content-page-actions],
     .planning-fab-controls,
-    .daily-todo__header, .daily-todo__footer, .daily-todo__composer-input,
+    .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
     [data-slot="drawer-header"], [data-slot="drawer-footer"],
     [data-slot="sheet-header"], [data-slot="sheet-footer"]

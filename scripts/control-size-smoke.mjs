@@ -64,7 +64,7 @@ async function geometry(page, label) {
 async function transparentChrome(page, label) {
   const rails = page.locator([
     ".global-app-chrome", ".mobile-app-navigation", ".planning-fab-controls",
-    ".daily-todo__header", ".daily-todo__footer", ".daily-todo__composer-input",
+    ".daily-todo__header", ".daily-todo__footer",
     ".mobile-form-page__header", "[data-native-form-actions]",
   ].join(", "));
   const painted = await rails.evaluateAll(nodes => nodes.flatMap(node =>

@@ -17,7 +17,7 @@
 
 - Keep every application and public-profile header, footer and navigation rail
   fully transparent in every theme, viewport and state. This includes planning
-  chrome, the To Do composer, mobile form actions and drawer/sheet headers and
+  chrome, the To Do footer container, mobile form actions and drawer/sheet headers and
   footers. No fill, gradient, backdrop blur, shadow or painted pseudo-element
   may cover the shared surface. Keep the rule centralized in `src/spacing.css`.
   Individual controls retain their semantic surfaces, including opaque disabled
@@ -25,7 +25,8 @@
   in the browser smoke matrix. On desktop, reserve the To Do header inset
   inside the scrollport so content scrolls visibly behind the header. Keep
   the desktop To Do composer sticky inside that same scrollport so tasks
-  pass behind it and the final task can scroll fully above it.
+  pass behind it and the final task can scroll fully above it. Its input
+  group uses an opaque card surface so task text cannot show through.
 
 - Empty inline-block hints decorate only the current collapsed text caret's
   textblock, including nested lists/cells/columns/captions. Retire old hints on
@@ -211,7 +212,7 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 - Personal authored documents must live in the configured production database and be loaded through authenticated content/report APIs. Never bundle personal Markdown, answers, CV, development plans or review archives as shared client defaults. Missing records use empty documents; retain visible connection errors. Import only for the explicit owner, preserve existing/concurrently authored records, and never initialize schema during a content import.
 - Follow `docs/private-data-storage.md`: contacts, clinical results, personal photos/PDFs and original archives belong to owner-scoped PostgreSQL records. Keep shared catalogs free of individual results and use generated synthetic report fixtures. Preserve contact source order, tombstones and existing edits on import. `test:private-data` is part of release verification; production import/owner/byte checks use rollback-only `test:private-data:production`. Ordinary startup only verifies the new storage schema; it never imports records or silently selects a memory database.
 
-- Keep the global application header and page navigation/footer rails transparent on every viewport and in every state, including scrolling, hover, focus, open menus and loading. Never add a shared background, gradient, backdrop blur, shadow or painted pseudo-element behind these rails. The daily To Do footer and its composer input also stay transparent. Individual buttons, selectors, menus and form/drawer surfaces retain their semantic backgrounds; disabled controls inside `ControlBar` remain opaque. Keep this rule in `src/spacing.css` and `docs/spacing-system.md`; verify header/footer transparency before and after scrolling alongside `test:navigation`, `test:controls` and `test:todo`.
+- Keep the global application header and page navigation/footer rails transparent on every viewport and in every state, including scrolling, hover, focus, open menus and loading. Never add a shared background, gradient, backdrop blur, shadow or painted pseudo-element behind these rails. The daily To Do footer stays transparent and its composer input stays opaque. Individual buttons, selectors, menus and form/drawer surfaces retain their semantic backgrounds; disabled controls inside `ControlBar` remain opaque. Keep this rule in `src/spacing.css` and `docs/spacing-system.md`; verify header/footer transparency before and after scrolling alongside `test:navigation`, `test:controls` and `test:todo`.
 
 - When changing Wishlist grouping or reordering, verify both in the same stateful session: reorder, reorder back, then group without resetting the page. Include the minimal two-tile grid (one single-item group and one loose wish), both directions, stationary edge release and drops into real grid gaps. A previewed pointer reorder released inside its source grid commits even when no card is under the pointer; outside/Escape/capture/access cancellation and failed-save rollback still restore the original order.
 
