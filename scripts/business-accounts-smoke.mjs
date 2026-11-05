@@ -115,6 +115,20 @@ try {
       assert.deepEqual(JSON.parse(await page.locator("[data-submitted]").textContent()), { sphere: category.sphere, section: eligibleSections.at(-1) });
       await geometry(page, `${label} request ${category.id}`);
     }
+    await page.goto(`${origin}/__business-accounts?clients=1`);
+    const grantedCard = page.locator(".business-access-person").filter({ hasText: "@shared-client" });
+    const openProducts = grantedCard.getByRole("link", { name: "Товары", exact: true });
+    await openProducts.waitFor();
+    assert.equal(await openProducts.count(), 1);
+    assert.equal(await openProducts.getAttribute("href"), "/u/shared-client?tab=products");
+    assert.equal(await grantedCard.getByRole("button", { name: /Запросить/ }).count(), 0);
+    await page.getByRole("button", { name: "Запросить доступ" }).click();
+    assert.equal(JSON.parse(await page.locator("[data-submitted]").textContent()), "new-client");
+    await geometry(page, `${label} client access`);
+    for (const card of await page.locator(".business-access-person").all()) {
+      assert(await card.evaluate(element => element.scrollWidth <= element.clientWidth + 1), `${label}: client card overflow`);
+    }
+    await page.screenshot({ path: `${output}/${label}-client-access.png`, animations: "disabled" });
     assert.deepEqual(errors, [], `${label}: runtime errors or API requests`);
     await page.close();
     console.log(`PASS ${label}: registration, required/reset category, keyboard, five scoped request forms, scroll reachability; no API requests`);

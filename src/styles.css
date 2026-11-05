@@ -4649,6 +4649,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .business-access-person > span > strong,
 .business-access-person > span > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .business-access-person > span > small { color: var(--muted-foreground); font-size: .8125rem; line-height: 1rem; }
+.business-access-person__grants { grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0; }
+.business-access-person__grants > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .business-access-page__status {
   min-height: 132px;
   display: flex;

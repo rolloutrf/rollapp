@@ -54,6 +54,7 @@ import { BusinessPersonalOffers } from "@/components/personal-offers";
 import { BusinessMarketplacePage, SphereBusinessControls } from "@/components/business-marketplace-page";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
 import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
+import { BusinessClientAccessActions } from "@/components/business-client-access-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -2723,6 +2724,7 @@ function BusinessAccessPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
+  const [grantedSections, setGrantedSections] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -2757,15 +2759,20 @@ function BusinessAccessPage() {
     const query = new URLSearchParams();
     if (debouncedSearch) query.set("search", debouncedSearch);
     setLoadingPeople(true);
-    api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`).then((result) => {
-      if (current) setPeople(result.people || []);
+    Promise.all([
+      api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`),
+      api.get("/sphere-shares/incoming"),
+    ]).then(([result, { shares }]) => {
+      if (!current) return;
+      setPeople(result.people || []);
+      setGrantedSections(shares || []);
     }).catch((error) => {
       if (current) toast(error.message, "error");
     }).finally(() => {
       if (current) setLoadingPeople(false);
     });
     return () => { current = false; };
-  }, [debouncedSearch, toast, user?.accountType]);
+  }, [debouncedSearch, toast, user?.accountType, user?.id]);
 
   useEffect(() => { void loadRequests(); }, [loadRequests]);
 
@@ -2821,7 +2828,7 @@ function BusinessAccessPage() {
         <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
-        <p>Найдите пользователя и запросите конкретный раздел. Доступ откроется после его подтверждения.</p>
+        <p>Откройте доступный раздел или запросите доступ у его владельца.</p>
         {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
@@ -2840,7 +2847,12 @@ function BusinessAccessPage() {
               <Card key={person.id} className="business-access-person">
                 <Avatar user={person} size="md" />
                 <span><strong>{person.name}</strong><small>@{person.username}</small></span>
-                <ShadcnButton type="button" variant="outline" onClick={() => openRequest(person)}>Запросить доступ</ShadcnButton>
+                <BusinessClientAccessActions
+                  account={user}
+                  person={person}
+                  sections={grantedSections.filter((share) => share.owner.id === person.id)}
+                  onRequest={() => openRequest(person)}
+                />
               </Card>
             ))}
           </div>

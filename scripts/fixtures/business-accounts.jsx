@@ -1,4 +1,8 @@
 import React, { useState } from "react";
+import { MemoryRouter } from "react-router-dom";
+import { BusinessClientAccessActions } from "@/components/business-client-access-actions";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import { createRoot } from "react-dom/client";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
 import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
@@ -18,6 +22,27 @@ function Fixture() {
   const [section, setSection] = useState(SPHERE_SECTIONS[sphere][0]);
   const [submitted, setSubmitted] = useState(null);
   const request = query.has("request");
+  if (query.has("clients")) {
+    const seller = { ...account, businessCategory: "seller", sellerSpace: "products" };
+    return <MemoryRouter><main className="app-page business-access-page rollapp-body">
+      <div className="business-access-page__people">
+        <Card className="business-access-person">
+          <Avatar className="avatar avatar--md !size-12"><AvatarFallback>К</AvatarFallback></Avatar>
+          <span><strong>Клиент с доступом</strong><small>@shared-client</small></span>
+          <BusinessClientAccessActions account={seller} person={{ name: "Клиент с доступом", username: "shared-client" }} sections={[
+            { sphere: "wishlist", section: "products" },
+            { sphere: "wishlist", section: "wishlist" },
+          ]} />
+        </Card>
+        <Card className="business-access-person">
+          <Avatar className="avatar avatar--md !size-12"><AvatarFallback>К</AvatarFallback></Avatar>
+          <span><strong>Клиент без доступа</strong><small>@new-client</small></span>
+          <BusinessClientAccessActions account={seller} person={{ name: "Клиент без доступа", username: "new-client" }} sections={[]} onRequest={() => setSubmitted("new-client")} />
+        </Card>
+      </div>
+      <output hidden data-submitted>{JSON.stringify(submitted)}</output>
+    </main></MemoryRouter>;
+  }
   return <div className="auth-page rollapp-body"><div className="auth-panel">
     <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setSubmitted(request ? { sphere, section } : value); }}>
       <div><span className="eyebrow">{request ? "Бизнес-аккаунт" : "Новый аккаунт"}</span><h1>{request ? "Запросить доступ" : "Создать свой Rollapp"}</h1></div>
