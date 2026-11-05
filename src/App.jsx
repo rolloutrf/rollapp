@@ -3302,7 +3302,11 @@ function BusinessMarketplaceRoute() {
 function MessengerRoute({ user }) {
   const mobile = useIsMobile();
   const { conversationId } = useParams();
-  return mobile ? <Messenger key={user.id} user={user} /> : <Navigate to="/app/wishes" replace state={{ messengerOpen: true, messengerConversationId: conversationId || null }} />;
+  if (mobile) return <Messenger key={user.id} user={user} />;
+  const destination = user.accountType === "business"
+    ? publicSpacePath(user.username, user.sellerSpace || "products")
+    : APP_HOME;
+  return <Navigate to={destination} replace state={{ messengerOpen: true, messengerConversationId: conversationId || null }} />;
 }
 
 function ProtectedApp() {
@@ -3310,7 +3314,7 @@ function ProtectedApp() {
   const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  if (user.accountType === "business" && location.pathname === APP_HOME && !location.state?.messengerOpen) {
+  if (user.accountType === "business" && location.pathname === APP_HOME) {
     const requestedSpace = new URLSearchParams(location.search).get("tab");
     return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
   }
