@@ -32,11 +32,6 @@ try {
       if (keyboard) await trigger.press("Enter");
       else await trigger.click();
       await drawer.waitFor();
-      await drawer.evaluate(async node => {
-        // The popup can be attached a frame before the browser starts its transition.
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        await Promise.allSettled(node.getAnimations().map(animation => animation.finished));
-      });
       assert.equal(await drawer.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
     };
     const open = async mode => {
@@ -51,6 +46,19 @@ try {
     };
     const geometry = async () => {
       await page.getByRole("dialog", { name: "Сбор роллов" }).waitFor();
+      const popup = await drawer.elementHandle();
+      try {
+        // An open popup can still carry the closed transform at the start of its transition.
+        await page.waitForFunction(node => {
+          const transform = getComputedStyle(node).transform;
+          const matrix = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
+          return !node.hasAttribute("data-starting-style") && !node.hasAttribute("data-ending-style")
+            && Math.abs(matrix.m41) < 0.1 && Math.abs(matrix.m42) < 0.1
+            && node.getAnimations().every(animation => !animation.pending && animation.playState !== "running");
+        }, popup, { timeout: 5_000 });
+      } finally {
+        await popup.dispose();
+      }
       const result = await drawer.evaluate(node => {
         const body = node.querySelector(".app-drawer-body");
         const header = node.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
