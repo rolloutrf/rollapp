@@ -136,6 +136,7 @@ try{
   await page.waitForURL('**/app/friends/search?tab=food');
   for (const route of ['/app/friends/search?tab=food', '/app/friends', '/app/friends/subscriptions', '/app/friends/followers']) {
    if (route !== '/app/friends/search?tab=food') await page.goto(origin + route);
+   if (route !== '/app/friends') await page.locator('.friends-directory').waitFor();
    const sphere = page.getByRole('button', { name: 'Открыть переключатель сфер', exact: true });
    await sphere.waitFor();
    assert.equal(await page.locator('.global-service-select,.mobile-app-navigation__section').count(), 0, `${width} ${route}: unexpected service selector`);
