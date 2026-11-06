@@ -82,6 +82,7 @@ import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
+import { ProfileInvites } from "@/components/profile-invites";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -862,7 +863,7 @@ function GlobalAppChrome() {
         <ShadcnButton data-control-icon className="global-app-chrome__share rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </ControlBar>
-    {isMobile && <ControlBar as="nav" className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
+    {isMobile && location.pathname !== "/register" && <ControlBar as="nav" className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
       <SphereSwitcher docked />
       {sectionSelector && <div className="mobile-app-navigation__section">{sectionSelector}</div>}
     </ControlBar>}
@@ -1022,15 +1023,17 @@ function Button({ children, className = "", variant = "primary", icon: Icon, loa
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
 }
 
-function YandexIdButton({ href, className = "", accessibleName = "Войти с помощью Яндекс ID" }) {
+function YandexIdButton({ href, onClick, disabled, className = "", accessibleName = "Войти с помощью Яндекс ID", label = "Войти с Яндекс ID" }) {
+  const Component = onClick ? "button" : "a";
+  const action = onClick ? { type: "button", onClick, disabled } : { href };
   return (
-    <a className={`yandex-id-button ${className}`} href={href} aria-label={accessibleName}>
+    <Component className={`yandex-id-button ${className}`} aria-label={accessibleName} {...action}>
       <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
         <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
       </svg>
-      <span>Войти с Яндекс ID</span>
-    </a>
+      <span>{label}</span>
+    </Component>
   );
 }
 
@@ -1499,7 +1502,47 @@ function YandexBackupResult({ backup, retryHref, userId }) {
   );
 }
 
-function AuthPage({ mode }) {
+function RegisterPage() {
+  const { hash, search } = useLocation();
+  const invite = new URLSearchParams(hash.slice(1)).get("invite") || "";
+  const [check, setCheck] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const result = check?.invite === invite && check?.attempt === attempt ? check : null;
+  const nextPath = safeNextPath(new URLSearchParams(search).get("next"));
+
+  useEffect(() => {
+    if (!invite) return;
+    let active = true;
+    api.post("/auth/invite/validate", { invite })
+      .then(() => { if (active) setCheck({ invite, attempt, valid: true }); })
+      .catch((error) => { if (active) setCheck({ invite, attempt, error }); });
+    return () => { active = false; };
+  }, [invite, attempt]);
+
+  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} />;
+  const invalid = result?.error?.code === "INVITE_INVALID";
+  const checking = Boolean(invite && !result);
+  return (
+    <div className="auth-page rollapp-body">
+      <div className="auth-panel">
+        <div className="auth-form">
+          <div>
+            <span className="eyebrow">Rollapp</span>
+            <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : "Регистрация по приглашению"}</h1>
+            <p>
+              {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp."}
+            </p>
+          </div>
+          {checking && <div className="auth-config-loading" role="status"><Spinner /><span>Проверяем ссылку…</span></div>}
+          {result?.error && !invalid && <PageActionButton type="button" variant="outline" onClick={() => setAttempt((current) => current + 1)}>Проверить снова</PageActionButton>}
+          <PageActionButton to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</PageActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthPage({ mode, invite }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refresh } = useSession();
@@ -1527,7 +1570,7 @@ function AuthPage({ mode }) {
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
-  const shouldLinkYandex = Boolean(yandexError?.linkRequired);
+  const shouldLinkYandex = mode === "login" && Boolean(yandexError?.linkRequired);
   const yandexStartHref = yandexAuthStartPath(nextPath);
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
@@ -1647,7 +1690,9 @@ function AuthPage({ mode }) {
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
-      const result = await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
+      const result = mode === "register"
+        ? await api.post("/auth/register", { ...form, invite })
+        : await api.post("/auth/login", form);
       const destination = mode === "register"
         && result.user?.accountType === "business"
         && !authQuery.get("next")
@@ -1662,6 +1707,17 @@ function AuthPage({ mode }) {
         destination,
       );
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
+  };
+
+  const registerWithYandex = async () => {
+    setLoading(true);
+    try {
+      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: nextPath });
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      toast(error.message, "error");
+      setLoading(false);
+    }
   };
 
   const switchAuthMethod = () => {
@@ -1698,7 +1754,7 @@ function AuthPage({ mode }) {
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
     : mode === "register"
-      ? "Это бесплатно и займёт меньше минуты."
+      ? "У вас есть приглашение. Выберите способ регистрации."
       : "Продолжите собирать и исполнять желания.";
 
   return (
@@ -1734,7 +1790,12 @@ function AuthPage({ mode }) {
                   <AlertDescription>{yandexError.description}</AlertDescription>
                 </Alert>
               )}
-              {showYandexButton && <><YandexIdButton href={yandexStartHref} /><div className="or" aria-hidden="true"><span>или</span></div></>}
+              {showYandexButton && <>
+                {mode === "register"
+                  ? <YandexIdButton onClick={registerWithYandex} disabled={loading} label="Создать с Яндекс ID" accessibleName="Зарегистрироваться с Яндекс ID" />
+                  : <YandexIdButton href={yandexStartHref} />}
+                <div className="or" aria-hidden="true"><span>или</span></div>
+              </>}
           {connectingCurrentUser
             ? telegramAuth.status === "unlinked"
               ? <>
@@ -1762,7 +1823,7 @@ function AuthPage({ mode }) {
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
             </ShadcnButton>
           )}
-          {!connectingCurrentUser && <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p>}
+          {!connectingCurrentUser && <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : "Регистрация по приглашению."}</p>}
             </>}
         </form>
       </div>
@@ -6974,6 +7035,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const scrollArea = useRef(null);
   const sections = [
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "invites", title: "Инвайты", icon: UserPlus },
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
     { id: "orders", title: "Заказы", icon: PackageCheck },
@@ -7203,7 +7265,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         </FieldGroup>
       </section>
     </form>
-  ) : section === "yandex" ? <div className="px-4 pt-4">
+  ) : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7698,7 +7760,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
-            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />

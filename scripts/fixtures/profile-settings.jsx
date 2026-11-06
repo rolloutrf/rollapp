@@ -28,6 +28,11 @@ api.get = async (path) => {
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
 const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
+  if (path === "/me/invites") {
+    window.inviteRequests = (window.inviteRequests || 0) + 1;
+    if (window.inviteRequests === 1) throw new Error("Ссылка временно недоступна");
+    return { url: `/register#invite=fixture-${window.inviteRequests}` };
+  }
   if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture"
       && data.apiKey === "sk-or-v1-fixture_test_key" && data.model === "fixture-model") {
     openRouter = { ...openRouter, keyHint: "…fixture-saved" };

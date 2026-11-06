@@ -41,7 +41,7 @@ try {
     const savePhoto = button("Сохранить фото");
     const mobile = width < 768;
     await menu.waitFor();
-    assert.equal(await menu.getByRole("button").count(), 4);
+    assert.equal(await menu.getByRole("button").count(), 5);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
     const personalBox = await personal.boundingBox();
@@ -133,6 +133,36 @@ try {
     await menu.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Персональная информация", undefined, { polling: 50 });
     assert.equal(await button("Заказы").isDisabled(), true);
+    const invites = button("Инвайты");
+    await invites.click();
+    await page.getByRole("heading", { name: "Инвайты", exact: true }).waitFor();
+    const createInvite = button("Создать ссылку");
+    await createInvite.click();
+    await page.getByRole("alert").filter({ hasText: "Ссылка временно недоступна" }).waitFor();
+    await createInvite.click();
+    const inviteLink = page.getByRole("textbox", { name: "Ссылка для приглашения" });
+    await inviteLink.waitFor();
+    assert.equal(await inviteLink.inputValue(), `${origin}/register#invite=fixture-2`);
+    assert.equal(await inviteLink.getAttribute("readonly"), "");
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.clipboard, "writeText", {
+        configurable: true, value: async (value) => { window.copiedInvite = value; },
+      });
+    });
+    const copyInvite = button("Скопировать ссылку");
+    await copyInvite.click();
+    await page.waitForFunction((url) => window.copiedInvite === url, `${origin}/register#invite=fixture-2`);
+    await page.getByRole("status").filter({ hasText: "Ссылка скопирована." }).waitFor();
+    assert.deepEqual(await copyInvite.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return [element.getBoundingClientRect().height, style.paddingLeft, style.paddingRight];
+    }), [48, "24px", "24px"]);
+    await button("Создать ещё ссылку").click();
+    await page.waitForFunction((url) => document.querySelector("input[readonly]")?.value === url, `${origin}/register#invite=fixture-3`);
+    await page.screenshot({ path: `/tmp/rollapp-profile-invites-${width}x${height}.png` });
+    await back.click();
+    await menu.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Инвайты", undefined, { polling: 50 });
     await button("OpenRouter").click();
     const apiKey = page.locator("#settings-openrouter-key");
     await apiKey.fill("fixture-draft");
