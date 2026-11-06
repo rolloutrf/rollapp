@@ -36,7 +36,7 @@ try {
     await openPersonal();
     const save = page.getByRole('button', { name: 'Сохранить', exact: true });
     const wishlist = page.getByRole('region', { name: 'Внешние вишлисты' });
-    const inputs = ['OhMyWishes', 'Ozon', 'WB'].map(name => wishlist.getByRole('textbox', { name, exact: true }));
+    const inputs = ['OhMyWishes', 'Ozon', 'WB', 'Яндекс Маркет'].map(name => wishlist.getByRole('textbox', { name, exact: true }));
     assert(await save.isDisabled());
     assert(await save.evaluate(button => button.form?.id === 'profile-editor-form'));
     await inputs[1].fill('https://ozon.ru.example/t/test');
@@ -49,6 +49,7 @@ try {
       'https://ohmywishes.com/users/example/lists/example',
       'https://ozon.ru/t/example?share=1',
       'https://www.wildberries.ru/wishlist/example',
+      'https://market.yandex.ru/cc/example?share=1',
     ];
     for (const [index, input] of inputs.entries()) {
       await input.fill(urls[index]);
@@ -119,7 +120,7 @@ try {
     await wishlist.waitFor({ state: 'detached' });
     await nav.waitFor();
     await nav.getByRole('link', { name: /Ozon/ }).waitFor({ state: 'detached' });
-    assert.equal(await nav.getByRole('link').count(), 2);
+    assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     assert.deepEqual(await page.evaluate(() => window.profilePatches.at(-1)), { wishlistLinks: { ozon: null } });
     await openPersonal();
     await inputs[0].clear();
@@ -127,7 +128,7 @@ try {
     await wishlist.waitFor({ state: 'detached' });
     await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть', exact: true }).click();
     await nav.waitFor();
-    assert.equal(await nav.getByRole('link').count(), 2);
+    assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     if (width === 320 || width === 1440) {
       await openPersonal();
       const address = page.getByRole('textbox', { name: 'Адрес профиля' });
@@ -135,12 +136,12 @@ try {
       await address.press('Enter');
       await page.waitForURL(origin + '/fixture-renamed');
       await nav.waitFor();
-      assert.equal(await nav.getByRole('link').count(), 2);
+      assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     await page.goto(origin + '/fixture?guest');
     await nav.waitFor();
-    assert.equal(await nav.getByRole('link').count(), 3);
+    assert.equal(await nav.getByRole('link').count(), urls.length);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     assert.deepEqual(errors, []);
@@ -150,15 +151,15 @@ try {
       await nav.waitFor();
       assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls);
       await openPersonal();
-      assert.equal(await inputs[2].inputValue(), urls[2]);
-      await inputs[2].clear();
+      assert.equal(await inputs[3].inputValue(), urls[3]);
+      await inputs[3].clear();
       await save.click();
       await wishlist.waitFor({ state: 'detached' });
       await open.waitFor();
       await nav.waitFor();
-      await nav.getByRole('link', { name: /WB/ }).waitFor({ state: 'detached' });
-      assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls.slice(0, 2));
-      assert.deepEqual(await page.evaluate(() => window.profilePatches), [{ wishlistLinks: { wb: null } }]);
+      await nav.getByRole('link', { name: /Яндекс Маркет/ }).waitFor({ state: 'detached' });
+      assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls.slice(0, -1));
+      assert.deepEqual(await page.evaluate(() => window.profilePatches), [{ wishlistLinks: { 'yandex-market': null } }]);
       assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
       assert.deepEqual(errors, []);
     }

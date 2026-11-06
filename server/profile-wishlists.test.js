@@ -7,6 +7,7 @@ const links = {
   ohmywishes: "https://ohmywishes.com/users/example/lists/example",
   ozon: "https://ozon.ru/t/example?share=1",
   wb: "https://www.wildberries.ru/wishlist/example",
+  "yandex-market": "https://market.yandex.ru/cc/example?share=1",
 };
 
 test("profile links preserve the share URL and only update the named services", () => {
@@ -16,8 +17,13 @@ test("profile links preserve the share URL and only update the named services", 
   assert.deepEqual(mergeProfileWishlistLinks(links, updated), {
     ohmywishes: links.ohmywishes,
     wb: updated.wb,
+    "yandex-market": links["yandex-market"],
   });
   assert.deepEqual(mergeProfileWishlistLinks(links, {}), links);
+  const { "yandex-market": yandexMarket, ...others } = links;
+  const disconnected = profileWishlistLinksPatchSchema.parse({ "yandex-market": null });
+  assert.deepEqual(mergeProfileWishlistLinks(links, disconnected), others);
+  assert.deepEqual(mergeProfileWishlistLinks(others, { "yandex-market": yandexMarket }), links);
 });
 
 test("write and public read reject invalid, mismatched and impersonating URLs", () => {
@@ -28,6 +34,10 @@ test("write and public read reject invalid, mismatched and impersonating URLs", 
   ]) {
     assert.equal(profileWishlistLinksPatchSchema.safeParse({ ozon: url }).success, false, url);
     assert.deepEqual(externalWishlistLinks({ ozon: url }), {});
+  }
+  for (const url of ["https://market.yandex.ru.example/cc/test", "https://yandex.ru/maps/", links.ozon]) {
+    assert.equal(profileWishlistLinksPatchSchema.safeParse({ "yandex-market": url }).success, false, url);
+    assert.deepEqual(externalWishlistLinks({ "yandex-market": url }), {});
   }
   assert.equal(profileWishlistLinksPatchSchema.safeParse({ unknown: links.wb }).success, false);
   assert.deepEqual(externalWishlistLinks(null), {});

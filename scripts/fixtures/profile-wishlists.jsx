@@ -10,6 +10,7 @@ const sharedLinks = {
   ohmywishes: "https://ohmywishes.com/users/example/lists/example",
   ozon: "https://ozon.ru/t/example?share=1",
   wb: "https://www.wildberries.ru/wishlist/example",
+  "yandex-market": "https://market.yandex.ru/cc/example?share=1",
 };
 const guest = new URLSearchParams(location.search).has("guest");
 let profile = { id: "fixture", name: "Профиль", username: "fixture", wishlistLinks: guest || location.pathname === "/app/wishes" ? sharedLinks : {} };
