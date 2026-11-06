@@ -83,7 +83,7 @@ import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
-import { BrandCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
+import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
 import { PerformanceReview } from "@/components/performance-review";
 import { Principles, Theses } from "@/components/theses";
@@ -820,7 +820,7 @@ function GlobalAppChrome() {
   if ((isMobile && location.pathname.startsWith("/app/messenger")) || (isMobile && location.pathname === PLANNING_SERVICE.path) || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const sectionSelector = location.pathname === PLANNING_SERVICE.path && user
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
-    : brandCatalog && user ? <BrandCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
+    : brandCatalog && user ? <BusinessCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
           <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
@@ -3321,7 +3321,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           <Newspaper aria-hidden="true" />
         </Link>
         <Link
-          to={brandCatalogPath("", selectedSpace)}
+          to={brandCatalogPath(selectedSpace)}
           className={buttonVariants({ variant: "outline", size: "icon", className: "!size-12 shrink-0 !rounded-full" })}
           aria-label="Открыть каталог брендов"
           title="Каталог брендов"
@@ -4233,21 +4233,32 @@ function CatalogItemPage() {
 function WishCatalogPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const search = new URLSearchParams(location.search);
+  const source = isBrandCatalogSearch(location.search) ? "brands" : "community";
+  const selectedBrand = source === "brands" ? search.get("brand") || "" : "";
+  const selectedSpace = wishlistSpace(location.search);
   useEffect(() => {
     const search = new URLSearchParams(location.search);
     if (!isBrandCatalogSearch(location.search) || search.get("source") === "brands") return;
     search.set("source", "brands");
     navigate({ pathname: location.pathname, search: `?${search}` }, { replace: true });
   }, [location.pathname, location.search, navigate]);
+
+  if (source === "brands" && !selectedBrand) return <>
+    <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
+    <div className="app-page wish-catalog-page page-stack"><BusinessCatalogList /></div>
+  </>;
+  return <CatalogItemFeed source={source} selectedSpace={selectedSpace} selectedBrand={selectedBrand} />;
+}
+
+function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { user } = useSession();
   const toast = useToast();
-  const source = isBrandCatalogSearch(location.search) ? "brands" : "community";
-  const selectedBrand = source === "brands" ? new URLSearchParams(location.search).get("brand") || "" : "";
-  const requestedSpace = new URLSearchParams(location.search).get("tab");
-  const selectedSpace = SPACE_IDS.includes(requestedSpace) ? requestedSpace : "products";
   const catalogFilter = source === "brands"
-    ? `source=brands&space=${encodeURIComponent(selectedSpace)}${selectedBrand ? `&brand=${encodeURIComponent(selectedBrand)}` : ""}`
+    ? `source=brands&space=${encodeURIComponent(selectedSpace)}&brand=${encodeURIComponent(selectedBrand)}`
     : `source=community&space=${encodeURIComponent(selectedSpace)}`;
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
@@ -4465,7 +4476,6 @@ function WishCatalogPage() {
     <>
       <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
       <div className="app-page wish-catalog-page page-stack">
-        {source === "brands" && !selectedBrand && <WishlistBusinessListing space={selectedSpace} />}
         {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
           <>
             <div className="wish-grid catalog-wish-grid">
@@ -4497,7 +4507,7 @@ function WishCatalogPage() {
             )}
           </>
         ) : (
-          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? (selectedBrand ? "У этого бренда пока нет товаров" : "Рекомендаций пока нет") : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? (selectedBrand ? "Выберите другой бренд в меню сверху." : "Здесь появятся предложения этого пространства.") : "Здесь появятся публичные желания участников."} />
+          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Выберите бизнес-аккаунт в меню." : "Здесь появятся публичные желания участников."} />
         )}
         {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
         {selectedCatalogItem && (
@@ -7700,6 +7710,13 @@ function LegacyProfileRedirect() {
   return <Navigate to={target} replace />;
 }
 
+function CatalogBusinessDirectoryScope({ children }) {
+  const { pathname, search } = useLocation();
+  const { user } = useSession();
+  const space = user && pathname === APP_WISH_CATALOG_PATH && isBrandCatalogSearch(search) ? wishlistSpace(search) : null;
+  return <BusinessCatalogProvider space={space}>{children}</BusinessCatalogProvider>;
+}
+
 export default function App() {
   useVisualViewport();
   const { pathname, search } = useLocation();
@@ -7710,6 +7727,7 @@ export default function App() {
         <MobileFormPages>
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
+          <CatalogBusinessDirectoryScope>
           {!linkingResult && <GlobalAppChrome />}
           {!linkingResult && <PlanningFab />}
           <Routes>
@@ -7736,6 +7754,7 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </CatalogBusinessDirectoryScope>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>
         </MobileFormPages>

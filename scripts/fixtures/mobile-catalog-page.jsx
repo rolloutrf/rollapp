@@ -3,9 +3,10 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { ContentPage } from '../../src/components/content-page';
-import { CatalogWishDetailsContent, SessionContext, WishCatalogPage } from '../../src/App.jsx?mobile-page-test-export';
+import { AppShell, CatalogBusinessDirectoryScope, CatalogWishDetailsContent, CollectionNavigationProvider, GlobalAppChrome, SessionContext, WishCatalogPage } from '../../src/App.jsx?mobile-page-test-export';
 import { api } from '../../src/api.js';
 import { buttonVariants } from '../../src/components/ui/button';
+import { APP_WISH_CATALOG_PATH } from '../../src/lib/app-routing.js';
 import '../../src/styles.css';
 import '../../src/index.css';
 const base = '/__mobile-page-smoke';
@@ -16,8 +17,17 @@ function Detail() {
 }
 
 const feed = window.catalogFeedTest = { requests: [], holdNext: false, release: null, failNext: false, emptyNext: false };
+const directory = window.businessDirectoryTest = { requests: [] };
 api.get = async (path) => {
   const url = new URL(path, location.origin);
+  if (url.pathname.startsWith('/wishlist-business/')) {
+    directory.requests.push(path);
+    if (path === '/wishlist-business/products/accounts') {
+      return { accounts: [{ username: 'seller-fixture', name: 'Аккаунт продавца', avatarUrl: '', storefrontTitle: null }] };
+    }
+    if (path === '/wishlist-business/events/accounts') return { accounts: [] };
+    if (path === '/wishlist-business/food/accounts') throw new Error('Временная ошибка списка продавцов');
+  }
   if (url.pathname !== '/catalog') throw new Error(`Unexpected fixture request: ${url.pathname}`);
   const query = url.searchParams;
   const offset = Number(query.get('offset'));
@@ -58,4 +68,15 @@ function Feed() {
   </SessionContext.Provider>;
 }
 
-createRoot(document.getElementById('root')).render(<BrowserRouter><Routes><Route path={base} element={<Link className={buttonVariants()} to={`${base}/item/fixture`}>Открыть карточку</Link>} /><Route path={`${base}/item/:id`} element={<Detail />} /><Route path={`${base}/feed`} element={<Feed />} /></Routes></BrowserRouter>);
+function Directory() {
+  return <SessionContext.Provider value={{ user: { id: 'viewer' } }}>
+    <CollectionNavigationProvider>
+      <CatalogBusinessDirectoryScope>
+        <GlobalAppChrome />
+        <AppShell><WishCatalogPage /></AppShell>
+      </CatalogBusinessDirectoryScope>
+    </CollectionNavigationProvider>
+  </SessionContext.Provider>;
+}
+
+createRoot(document.getElementById('root')).render(<BrowserRouter><Routes><Route path={base} element={<Link className={buttonVariants()} to={`${base}/item/fixture`}>Открыть карточку</Link>} /><Route path={`${base}/item/:id`} element={<Detail />} /><Route path={`${base}/feed`} element={<Feed />} /><Route path={APP_WISH_CATALOG_PATH} element={<Directory />} /><Route path="/seller-fixture/products" element={<h1>Профиль продавца</h1>} /></Routes></BrowserRouter>);

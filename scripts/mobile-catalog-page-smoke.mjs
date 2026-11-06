@@ -5,14 +5,15 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:"node_modules/.vite-mobile-page-smoke",server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
   name:'mobile-page-fixture',enforce:'pre',
-  transform(source,id){if(id.includes('/src/App.jsx?mobile-page-test-export'))return `${source}\nexport { CatalogWishDetailsContent, SessionContext, WishCatalogPage };`;},
-  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__mobile-page-smoke'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-catalog-page.jsx"></script></body></html>'));});}
+  transform(source,id){if(id.includes('/src/App.jsx?mobile-page-test-export'))return `${source}\nexport { AppShell, CatalogBusinessDirectoryScope, CatalogWishDetailsContent, CollectionNavigationProvider, GlobalAppChrome, SessionContext, WishCatalogPage };`;},
+  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/__mobile-page-smoke')&&!req.url.startsWith('/app/wishes/catalog'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-catalog-page.jsx"></script></body></html>'));});}
 }]});
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 
 const feedUrl = `${origin}/__mobile-page-smoke/feed`;
+const directoryUrl = `${origin}/app/wishes/catalog?source=brands`;
 const scrollNearFeedEnd = (page) => page.locator('.catalog-wish-grid').evaluate((grid) => {
   const top = scrollY + grid.getBoundingClientRect().bottom - innerHeight - 200;
   scrollTo({ top, behavior: 'instant' });
@@ -60,6 +61,38 @@ async function checkCatalogFeed(page, width) {
   if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-catalog-feed-${width}.png` });
 }
 
+async function checkBusinessDirectory(page, width) {
+  await page.goto(`${directoryUrl}&tab=products`);
+  const list = page.getByRole('list', { name: 'Бизнес-аккаунты' });
+  const seller = list.getByRole('link', { name: /Аккаунт продавца/ });
+  await seller.waitFor();
+  assert.equal(await seller.getAttribute('href'), '/seller-fixture/products');
+  assert.deepEqual(await page.evaluate(() => [businessDirectoryTest.requests, catalogFeedTest.requests]), [
+    ['/wishlist-business/products/accounts'], [],
+  ]);
+  assert.equal(await cardCount(page), 0);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  const selector = page.getByRole('combobox', { name: 'Бизнес-аккаунты' });
+  assert.equal((await selector.boundingBox()).height, 48);
+  await selector.click();
+  const option = page.getByRole('option', { name: 'Аккаунт продавца' });
+  await option.waitFor();
+  assert.equal(await page.getByRole('option', { name: 'Рекомендации' }).count(), 0);
+  if ((width === 390 && page.viewportSize().height > 400) || width === 1440) await page.screenshot({ path: `/tmp/rollapp-business-directory-${width}.png` });
+  await option.click();
+  await page.getByRole('heading', { name: 'Профиль продавца' }).waitFor();
+  await page.goBack();
+  await seller.click();
+  await page.getByRole('heading', { name: 'Профиль продавца' }).waitFor();
+
+  await page.goto(`${directoryUrl}&tab=events`);
+  await page.getByText('В этом разделе пока нет бизнес-аккаунтов').waitFor();
+  assert.deepEqual(await page.evaluate(() => catalogFeedTest.requests), []);
+  await page.goto(`${directoryUrl}&tab=food`);
+  await page.getByRole('alert').getByText('Не удалось загрузить бизнес-аккаунты').waitFor();
+  assert.deepEqual(await page.evaluate(() => catalogFeedTest.requests), []);
+}
+
 try{
  for(const width of [320,390,768,820,1024,1440,1920]){
   const page=await browser.newPage({viewport:{width,height:width===820?450:844}});
@@ -84,8 +117,9 @@ try{
   await page.getByRole('button',{name:'Назад: Каталог'}).click();
   await page.getByRole('link',{name:'Открыть карточку'}).waitFor();
   await checkCatalogFeed(page, width);
+  await checkBusinessDirectory(page, width);
   assert.deepEqual(errors,[]);
-  console.log(`PASS ${width}: detail route, reload and Back; catalog scroll, append, retry and end`);
+  console.log(`PASS ${width}: catalog detail, feed and business directory, including profile links and empty/error states`);
   await page.close();
  }
 
@@ -114,6 +148,7 @@ try{
  await page.waitForFunction(() => catalogFeedTest.requests.length === 2 && !document.querySelector('.wish-catalog-page__more'));
  assert.equal(await cardCount(page), 48);
  assert.deepEqual(await requestOffsets(page), [0, 48], 'An empty page must not request the same offset again');
+ await checkBusinessDirectory(page, 390);
  assert.deepEqual(unexpected, []);
  await page.close();
 
@@ -129,5 +164,5 @@ try{
  assert.deepEqual(await requestOffsets(fallback), [0, 48]);
  assert.deepEqual(unexpected, []);
  await fallback.close();
- console.log('PASS 390×400: catalog filter switch, empty page and manual fallback');
+ console.log('PASS 390×400: catalog filter switch, empty page, manual fallback and business directory');
 }finally{await browser.close();await server.close();}

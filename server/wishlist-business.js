@@ -55,6 +55,18 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  };
  const seller = (req,res,next) => canManageWishlistSpace(req.user,req.params.space) ? next() : fail(res,403,"Раздел недоступен для вашей категории бизнеса");
  const base = "/api/wishlist-business/:space";
+ app.get(`${base}/accounts`, requireAuth, scope, route(async (req, res) => {
+   const { rows } = await query(
+     `SELECT u.username, u.name, u.avatar_url AS "avatarUrl", p.title AS "storefrontTitle"
+      FROM users u
+      LEFT JOIN wishlist_business_pages p ON p.business_user_id=u.id AND p.space=$1 AND p.published
+      WHERE u.account_type='business' AND u.business_category='seller'
+        AND (u.seller_space=$1 OR (u.seller_space IS NULL AND p.business_user_id IS NOT NULL))
+      ORDER BY lower(COALESCE(p.title,u.name)), u.username`,
+     [req.params.space],
+   );
+   res.json({ accounts: rows });
+ }));
  app.get(`${base}/profiles/:username`,scope,route(async(req,res) => {
    const username = req.params.username;
    const result = await query(`${itemSelect} WHERE i.space=$1 AND i.active AND p.published AND ${eligible} AND u.username=$2 ORDER BY i.created_at DESC,i.id LIMIT 200`,[req.params.space,username]);
