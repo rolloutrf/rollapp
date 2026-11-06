@@ -546,7 +546,7 @@ assert(/\[data-slot="switch"\]\s*>\s*\[data-slot="switch-thumb"\]\s*\{[^}]*width
 assert(/\[data-slot="checkbox"\]\s*\{[^}]*width:\s*1\.5rem;[^}]*height:\s*1\.5rem;/s.test(largePolicy), "App Checkboxes must keep the 24px Large geometry");
 assert(/\[data-slot="checkbox-indicator"\]\s*>\s*svg\s*\{[^}]*width:\s*1\.25rem;[^}]*height:\s*1\.25rem;/s.test(largePolicy), "App Checkbox indicators must keep the 20px Large geometry");
 assert(/\[data-slot="radio-group-item"\][\s\S]*?width:\s*1\.5rem;[\s\S]*?height:\s*1\.5rem;/.test(largePolicy), "App Radio controls must keep the 24px Large geometry");
-assert((app.match(/className="sr-only !size-px"\s+type="file"/g) || []).length === 3, "Hidden file inputs must stay outside the visible Large-control geometry contract");
+assert((app.match(/(?:className="sr-only !size-px"|\bhidden)\s+type="file"/g) || []).length === 3, "Hidden file inputs must stay outside the visible Large-control geometry contract");
 for (const className of ["data-[variant=destructive]:text-destructive", "data-[variant=destructive]:focus:bg-destructive/10", "dark:data-[variant=destructive]:focus:bg-destructive/20", "data-[variant=destructive]:*:[svg]:text-destructive"]) {
   assert(dropdownSource.includes(className), `DropdownMenuItem must keep the official ${className} destructive state`);
 }

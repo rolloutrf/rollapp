@@ -21,7 +21,7 @@ import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
-  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
+  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -6953,7 +6953,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     username: user.username,
     bio: user.bio || "",
     birthday: user.birthday ? String(user.birthday).slice(0, 10) : "",
-    avatarUrl: user.avatarUrl || "",
   }), [user]);
   const [form, setForm] = useState(initialForm);
   const [initialWishlistLinks] = useState(() => user.wishlistLinks || {});
@@ -6989,34 +6988,13 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     } else sectionTrigger.current?.focus();
   }, [isMobile, section]);
   const imageFileRef = useRef(null);
-  const photoHeading = useRef(null);
-  const uploadedImageIdsRef = useRef(new Set());
-  const avatarChanged = form.avatarUrl !== initialForm.avatarUrl;
   const changedWishlists = EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => (wishlistLinks[id]?.trim() || "") !== (initialWishlistLinks[id] || ""));
-  const personalChanged = changedWishlists.length > 0 || Object.keys(initialForm).some((key) => key !== "avatarUrl" && form[key] !== initialForm[key]);
-  const changed = avatarChanged || personalChanged;
+  const changed = changedWishlists.length > 0 || Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
   const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
-  const cleanupUploadedImages = async (keepUrl = "") => {
-    const keepId = uploadedImageIdFromUrl(keepUrl);
-    const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
-    ids.forEach((id) => uploadedImageIdsRef.current.delete(id));
-    await Promise.allSettled(ids.map((id) => api.delete(`/uploads/images/${encodeURIComponent(id)}`)));
-  };
-  useEffect(() => () => {
-    const ids = [...uploadedImageIdsRef.current];
-    uploadedImageIdsRef.current.clear();
-    ids.forEach((id) => {
-      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include",
-        keepalive: true,
-      }).catch(() => {});
-    });
-  }, []);
   useEffect(() => {
     let active = true;
     api.get("/auth/yandex/config")
@@ -7041,12 +7019,19 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     }
     setImageUploading(true);
     setImageError("");
+    let uploadId;
     try {
-      const result = await api.uploadImage(file);
-      uploadedImageIdsRef.current.add(result.id);
-      setForm((current) => ({ ...current, avatarUrl: result.imageUrl }));
+      const upload = await api.uploadImage(file);
+      uploadId = upload.id;
+      const result = await api.patch("/me", { avatarUrl: upload.imageUrl });
+      onAvatarSaved(result.user);
+      toast("Фото профиля обновлено");
     } catch (error) {
-      setImageError(error.message || "Не удалось загрузить фотографию.");
+      // A lost response can hide a successful save. Only clean up a rejected upload reference.
+      if (uploadId && (error.status === 400 || error.status === 409)) {
+        await api.delete(`/uploads/images/${encodeURIComponent(uploadId)}`).catch(() => {});
+      }
+      setImageError(error.message || "Не удалось обновить фотографию.");
     } finally {
       setImageUploading(false);
     }
@@ -7056,7 +7041,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   };
   const close = () => {
     if (busy) return;
-    cleanupUploadedImages();
     onClose();
   };
   const exitSettings = (afterClose) => {
@@ -7069,23 +7053,22 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     if (section) setSection(null);
     else setRootOpen(false);
   };
-  const submit = async (event, avatarOnly = false) => {
+  const submit = async (event) => {
     event.preventDefault();
-    if (busy || (avatarOnly ? !avatarChanged : !changed)) return;
-    const invalidWishlist = !avatarOnly && changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
+    if (busy || !changed) return;
+    const invalidWishlist = changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
       && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
     if (invalidWishlist) {
       setValidateWishlistLinks(true);
       event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
       return;
     }
-    const submitter = event.nativeEvent.submitter;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
-      if ((avatarOnly && key !== "avatarUrl") || form[key] === initialForm[key]) return;
+      if (form[key] === initialForm[key]) return;
       payload[key] = key === "birthday" ? form[key] || null : form[key];
     });
-    if (!avatarOnly && changedWishlists.length) {
+    if (changedWishlists.length) {
       payload.wishlistLinks = Object.fromEntries(changedWishlists.map((provider) => [
         provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
       ]));
@@ -7093,18 +7076,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     setLoading(true);
     try {
       const result = await api.patch("/me", payload);
-      const savedUploadId = uploadedImageIdFromUrl(result.user?.avatarUrl);
-      if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
-      await cleanupUploadedImages(result.user?.avatarUrl || "");
-      if (avatarOnly) {
-        if (document.activeElement === submitter) photoHeading.current?.focus({ preventScroll: true });
-        setForm((current) => ({ ...current, avatarUrl: result.user.avatarUrl || "" }));
-        onAvatarSaved(result.user);
-        toast("Фото профиля обновлено");
-      } else {
-        toast("Профиль обновлён");
-        exitSettings((saveProfile) => saveProfile(result.user));
-      }
+      toast("Профиль обновлён");
+      exitSettings((saveProfile) => saveProfile(result.user));
     } catch (error) {
       toast(error.message, "error");
     } finally {
@@ -7112,29 +7085,22 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     }
   };
   const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
-    <form id="profile-photo-form" aria-labelledby="settings-profile-photo" className="grid gap-2" onSubmit={(event) => submit(event, true)}>
-      <div className="flex items-center gap-3">
-        <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-          <div>
-            <h2 id="settings-profile-photo" ref={photoHeading} tabIndex={-1} className="font-medium">Фото профиля</h2>
-            <p className="text-xs text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
-          </div>
-          <ShadcnButton
-            type="button"
-            variant="outline"
-            disabled={busy}
-            aria-busy={imageUploading || undefined}
-            onClick={() => imageFileRef.current?.click()}
-          >
-            {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
-            {imageUploading ? "Загрузка…" : "Загрузить фото"}
-          </ShadcnButton>
-        </div>
-        <Input ref={imageFileRef} className="sr-only !size-px" type="file" tabIndex={-1} aria-hidden="true" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
-      </div>
+    <div className="flex flex-col gap-2" role="group" aria-label="Фото профиля">
+      <ShadcnButton
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-36 self-center cursor-pointer rounded-full border-0 p-0 hover:bg-transparent dark:hover:bg-transparent"
+        aria-label="Изменить фото профиля"
+        aria-busy={imageUploading || undefined}
+        disabled={busy}
+        onClick={() => imageFileRef.current?.click()}
+      >
+        <Avatar user={user} size="xl" className="!size-full" aria-hidden="true" />
+      </ShadcnButton>
+      <Input ref={imageFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
       {imageError && <FieldError>{imageError}</FieldError>}
-    </form>
+    </div>
     <nav aria-label="Разделы профиля">
       <ul className="divide-y">
         {sections.map(({ id, title, icon: Icon }) => <li key={id}>
@@ -7161,7 +7127,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         </li>)}
       </ul>
     </nav>
-    {personalChanged && <p className="text-xs text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
+    {changed && <p className="text-xs text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
   </div>;
   const sectionBody = section === "personal" ? (
     <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
@@ -7288,7 +7254,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         onClick={async () => {
           if (busy) return;
           setLoggingOut(true);
-          await cleanupUploadedImages();
           const loggedOut = await logout();
           if (!loggedOut) setLoggingOut(false);
         }}
@@ -7302,14 +7267,6 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       {user.hasYandex
         ? <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Создать резервную копию на Яндекс Диске">Сделать копию</a>
         : <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>}
-    </DrawerFooter>
-  );
-  const menuFooter = (isMobile || avatarChanged) && (
-    <DrawerFooter>
-      {avatarChanged && <ShadcnButton type="submit" form="profile-photo-form" disabled={busy} aria-busy={loading || undefined}>
-        {loading && <Spinner />}
-        Сохранить фото
-      </ShadcnButton>}
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
@@ -7346,7 +7303,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <div hidden={Boolean(desktopSection)}>{menu}</div>
           {desktopSection && sectionBody}
         </ScrollArea>
-        {desktopSection ? openRouterSection || personalFooter || yandexFooter : menuFooter}
+        {desktopSection ? openRouterSection || personalFooter || yandexFooter : isMobile && <DrawerFooter />}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {

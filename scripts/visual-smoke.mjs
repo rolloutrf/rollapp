@@ -2241,7 +2241,7 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
   const username = dialog.getByLabel("Адрес профиля", { exact: true });
   const bio = dialog.locator("textarea").first();
   const birthday = dialog.getByLabel("День рождения", { exact: true });
-  const avatarUpload = dialog.getByLabel("Загрузить фото профиля", { exact: true });
+  const avatarUpload = dialog.locator('input[type="file"]');
   for (const [fieldLabel, field] of [
     ["name", name],
     ["username", username],

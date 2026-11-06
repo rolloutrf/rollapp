@@ -36,8 +36,8 @@ try {
     const personal = button("Персональная информация");
     const back = button("Назад");
     const name = page.getByRole("textbox", { name: "Имя", exact: true });
-    const photo = page.getByRole("form", { name: "Фото профиля", exact: true });
-    const upload = button("Загрузить фото");
+    const photo = page.getByRole("group", { name: "Фото профиля", exact: true });
+    const upload = photo.getByRole("button", { name: "Изменить фото профиля", exact: true });
     const savePhoto = button("Сохранить фото");
     const mobile = width < 768;
     await menu.waitFor();
@@ -47,7 +47,12 @@ try {
     const personalBox = await personal.boundingBox();
     const uploadBox = await upload.boundingBox();
     assert(photoBox.y + photoBox.height <= personalBox.y && photoBox.x === personalBox.x);
-    assert(uploadBox.height >= 48 && uploadBox.x + uploadBox.width <= photoBox.x + photoBox.width);
+    assert.deepEqual([uploadBox.width, uploadBox.height], [144, 144]);
+    assert(Math.abs(uploadBox.x + uploadBox.width / 2 - (photoBox.x + photoBox.width / 2)) <= 1);
+    assert.equal(await photo.getByRole("button").count(), 1);
+    assert.equal(await photo.locator("p, h2").count(), 0);
+    assert.equal(await photo.locator('input[type="file"]').isVisible(), false);
+    assert.equal(await button("Загрузить фото").count(), 0);
     assert.equal(await savePhoto.count(), 0);
     await page.screenshot({ path: `/tmp/rollapp-profile-menu-${width}x${height}.png` });
     if (mobile) {
@@ -264,26 +269,28 @@ try {
     await personal.click();
     await name.fill("");
     await back.click();
-    const fileInput = page.getByLabel("Загрузить фото профиля", { exact: true });
+    const fileInput = photo.locator('input[type="file"]');
     await fileInput.setInputFiles({ name: "photo.txt", mimeType: "text/plain", buffer: Buffer.from("invalid") });
     await photo.getByText("Подойдёт изображение JPG, PNG или WEBP.").waitFor();
-    assert.equal(await savePhoto.count(), 0);
+    const avatarFile = { name: "avatar.png", mimeType: "image/png", buffer: pixel };
+    if (width === 320) {
+      await page.evaluate(() => { window.rejectAvatarSave = true; });
+      await fileInput.setInputFiles(avatarFile);
+      await photo.getByText("Fixture rejected photo").waitFor();
+      await page.waitForFunction(() => window.rejectedAvatarReleased === true);
+      assert.equal(await photo.locator("img").count(), 0);
+      await page.evaluate(() => { window.rejectAvatarSave = false; });
+    }
     const chooserPromise = page.waitForEvent("filechooser");
-    await upload.click();
+    if (width === 1440) await upload.press("Space");
+    else await upload.locator('[data-slot="avatar"]').click();
     const chooser = await chooserPromise;
-    await chooser.setFiles({ name: "avatar.png", mimeType: "image/png", buffer: pixel });
-    await photo.locator("img").waitFor();
-    assert.equal(await button("Заказы").isDisabled(), true);
-    const saveGeometry = await savePhoto.evaluate(el => {
-      const css = getComputedStyle(el);
-      return [el.getBoundingClientRect().height, css.borderTopLeftRadius, el.form?.id, Boolean(el.closest("[data-control-bar]"))];
-    });
-    assert.deepEqual(saveGeometry, [48, "24px", "profile-photo-form", true]);
-    await savePhoto.click();
+    await chooser.setFiles(avatarFile);
     await page.locator("output").filter({ hasText: "Фото сохранено" }).waitFor({ state: "attached" });
-    await savePhoto.waitFor({ state: "hidden" });
+    assert.equal(await savePhoto.count(), 0);
     await menu.waitFor();
-    assert.equal(await photo.locator("img").isVisible(), true);
+    await photo.locator("img").waitFor();
+    assert.equal(await photo.getByRole("alert").count(), 0);
     await personal.click();
     assert.equal(await name.inputValue(), "");
     if (width === 320 || (width === 1440 && height === 900)) {
