@@ -31,9 +31,11 @@ try {
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);
-    const cardButton = page.getByRole('button', { name: 'Моя визитка', exact: true });
-    assert.equal(await cardButton.evaluate((button) => getComputedStyle(button).paddingLeft), '24px');
-    assert.equal(await cardButton.evaluate((button) => getComputedStyle(button).paddingRight), '24px');
+    const cardButton = page.getByRole('button', { name: 'Показать QR-код профиля Тестовый Пользователь', exact: true });
+    assert.deepEqual(await cardButton.evaluate(button => {
+      const { width, height } = button.getBoundingClientRect();
+      return [width, height];
+    }), [48, 48]);
     const requestsBeforeCard = await page.evaluate(() => window.feedTest.requests.length);
     await cardButton.click();
     const dialog = page.getByRole('dialog', { name: 'Цифровая визитка' });
@@ -88,7 +90,7 @@ try {
     await dialog.waitFor({ state: 'detached' });
     assert(await cardButton.evaluate((element) => document.activeElement === element), 'Card did not restore opener focus');
     assert.equal(await page.evaluate(() => window.feedTest.requests.length), requestsBeforeCard, 'Card changed feed');
-    await page.getByRole('button', { name: 'Показать QR-код профиля Тестовый Пользователь', exact: true }).click();
+    await cardButton.press('Enter');
     await dialog.getByRole('img').waitFor();
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
@@ -143,6 +145,10 @@ try {
     await page.getByText('Контакты не найдены', {exact:true}).waitFor();
     await page.goto(`${origin}/__contacts-feed/public/synthetic-user`, { waitUntil: 'domcontentloaded' });
     const visitorCard = page.getByRole('button', { name: 'Визитка', exact: true });
+    assert.deepEqual(await visitorCard.evaluate(button => {
+      const style = getComputedStyle(button);
+      return [style.paddingLeft, style.paddingRight];
+    }), ['24px', '24px']);
     await visitorCard.click();
     await dialog.getByRole('img', { name: 'QR-код профиля Тестовый Пользователь' }).waitFor();
     await dialog.getByRole('button', { name: 'Закрыть визитку', exact: true }).click();
