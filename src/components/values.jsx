@@ -161,9 +161,9 @@ export function Values() {
       {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-values-title">
           <h3 className="m-0 text-xl font-semibold" id="custom-values-title">Мои ценности</h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul role="list" className="flex flex-col gap-3">
             {draft.custom.map((value) => (
-              <div key={value.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(value.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
+              <li key={value.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(value.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox
                   className="mt-1 size-5"
                   checked={selected.has(value.id)}
@@ -178,9 +178,9 @@ export function Values() {
                 {!readOnly && <Button className="shrink-0" variant="destructive" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(value.id)} aria-label={`Удалить ценность «${value.label}»`}>
                   <Trash2 aria-hidden="true" />
                 </Button>}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
@@ -190,18 +190,19 @@ export function Values() {
             <h3 className="m-0 text-xl font-semibold" id={`values-${group.id}`}>{group.label}</h3>
             <Badge variant="outline">{group.values.length}</Badge>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul role="list" className="flex flex-col gap-3">
             {group.values.map((value) => (
-              <ValueOption
-                key={value.id}
-                checked={selected.has(value.id)}
-                description={value.description}
-                disabled={editingDisabled}
-                label={value.label}
-                onCheckedChange={(checked) => toggle(value.id, checked)}
-              />
+              <li key={value.id}>
+                <ValueOption
+                  checked={selected.has(value.id)}
+                  description={value.description}
+                  disabled={editingDisabled}
+                  label={value.label}
+                  onCheckedChange={(checked) => toggle(value.id, checked)}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       ))}
 

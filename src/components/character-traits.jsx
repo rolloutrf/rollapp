@@ -212,24 +212,28 @@ export function CharacterTraits() {
       {draft.custom.length > 0 && (
         <section className="flex flex-col gap-3" aria-labelledby="custom-traits-title">
           <h3 className="m-0 text-xl font-semibold" id="custom-traits-title">Мои черты</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <ul role="list" className="flex flex-col gap-3">
             {draft.custom.map((trait) => (
-              <div key={trait.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(trait.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
+              <li key={trait.id} className={`flex min-h-24 min-w-0 items-start gap-3 rounded-xl border p-4 ${selected.has(trait.id) ? "border-foreground bg-accent" : "border-border bg-card"}`}>
                 <Checkbox className="mt-1 size-5" checked={selected.has(trait.id)} disabled={editingDisabled} onCheckedChange={(checked) => toggle(trait.id, checked)} aria-label={trait.label} />
                 <Button variant="ghost" type="button" className="h-auto min-h-12 min-w-0 flex-1 items-start justify-start whitespace-normal px-0 py-0 text-left" disabled={saving || characterContent.loading || Boolean(characterContent.error)} aria-label={`Открыть детали черты «${trait.label}»`} onClick={() => setDetails({ trait, source: characterContent.content, owner: owner?.id })}><strong className="min-w-0 break-words font-semibold">{trait.label}</strong></Button>
                 {!readOnly && <Button className="shrink-0" variant="destructive" size="icon-sm" type="button" disabled={editingDisabled} onClick={() => removeCustom(trait.id)} aria-label={`Удалить черту «${trait.label}»`}><Trash2 aria-hidden="true" /></Button>}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
       {PERSONAL_CHARACTER_TRAIT_GROUPS.map((group) => (
         <section className="flex flex-col gap-3" key={group.id} aria-labelledby={`traits-${group.id}`}>
           <div className="flex items-center gap-3"><h3 className="m-0 text-xl font-semibold" id={`traits-${group.id}`}>{group.label}</h3><Badge variant="outline">{group.traits.length}</Badge></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {group.traits.map((trait) => <CharacterTraitOption key={trait.id} checked={selected.has(trait.id)} description={trait.description} disabled={editingDisabled} label={trait.label} onCheckedChange={(checked) => toggle(trait.id, checked)} />)}
-          </div>
+          <ul role="list" className="flex flex-col gap-3">
+            {group.traits.map((trait) => (
+              <li key={trait.id}>
+                <CharacterTraitOption checked={selected.has(trait.id)} description={trait.description} disabled={editingDisabled} label={trait.label} onCheckedChange={(checked) => toggle(trait.id, checked)} />
+              </li>
+            ))}
+          </ul>
         </section>
       ))}
 

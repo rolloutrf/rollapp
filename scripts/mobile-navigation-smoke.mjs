@@ -4,13 +4,60 @@ import {createServer} from 'vite';
 import {chromium} from 'playwright-core';
 import {browserLaunchOptions} from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-navigation-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
- name:'navigation-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?navigation-smoke'))return source+'\nexport {GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';},
+ name:'navigation-fixture',enforce:'pre',
+ transform(source,id){
+  if(!id.endsWith('/src/App.jsx?navigation-smoke'))return;
+  // Exercise the real FriendsPage with empty presentation data and no API.
+  const fixture=source.replace(/api\.get\(`\/people\?scope=[^\n]+\)/,'Promise.resolve({ people: [] })');
+  assert.notEqual(fixture,source,'Friends loader was not isolated');
+  return fixture+'\nexport {FriendsPage,GlobalAppChrome,PlanningFab,SessionContext,ToastContext,CollectionNavigationContext};';
+ },
  configureServer(vite){vite.middlewares.use(async(req,res,next)=>{if(!req.url.startsWith('/app/'))return next();res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/mobile-navigation.jsx"></script></body></html>'));});}
 }]});
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser=await chromium.launch(browserLaunchOptions());
 async function settle(popup){await popup.evaluate(async element=>{await Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{})));});}
+async function checkFriendsToggle(page, width) {
+ const group = page.getByRole('group', { name: 'Разделы друзей' });
+ const find = group.getByRole('button', { name: 'Найти друзей', exact: true });
+ const followers = group.getByRole('button', { name: 'Подписчики', exact: true });
+ const subscriptions = group.getByRole('button', { name: 'Подписки', exact: true });
+ const pressed = group.locator('[aria-pressed="true"]');
+ await find.waitFor();
+ assert.equal(await group.getByRole('button').count(), 3);
+ assert.equal(await pressed.innerText(), 'Найти друзей');
+ await page.evaluate(() => document.fonts.ready);
+ const rail = await group.boundingBox();
+ const search = await page.locator('.friends-search').boundingBox();
+ assert(Math.abs(rail.x - search.x) < 1 && Math.abs(rail.width - search.width) < 1);
+ const fits = await group.getByRole('button').evaluateAll(items => items.every(item =>
+  item.getBoundingClientRect().height === 48 && item.scrollWidth <= item.clientWidth + 1));
+ assert(fits, `${width}: Friends toggle labels or 48px controls do not fit`);
+ if (width === 390 || width === 1440) {
+  await page.mouse.move(0, 0);
+  await settle(group);
+  await page.screenshot({ path: `/tmp/rollapp-friends-toggle-group-${width}.png` });
+ }
+ await find.click();
+ assert.equal(await pressed.innerText(), 'Найти друзей');
+ await find.press('ArrowLeft');
+ assert(await followers.evaluate(item => item === document.activeElement));
+ await followers.press('Space');
+ await page.waitForURL('**/app/friends/followers');
+ await page.getByRole('searchbox', { name: 'Поиск по подписчикам' }).waitFor();
+ assert.equal(await pressed.innerText(), 'Подписчики');
+ await subscriptions.click();
+ await page.waitForURL('**/app/friends/subscriptions');
+ await page.getByRole('searchbox', { name: 'Поиск по подпискам' }).waitFor();
+ assert.equal(await pressed.innerText(), 'Подписки');
+ await page.goBack();
+ await page.getByRole('searchbox', { name: 'Поиск по подписчикам' }).waitFor();
+ assert.equal(await pressed.innerText(), 'Подписчики');
+ await page.goBack();
+ await page.getByRole('searchbox', { name: 'Имя или @профиль' }).waitFor();
+ assert.equal(await pressed.innerText(), 'Найти друзей');
+}
 try{
  // JS navigation must follow CSS even if the browser reports a different
  // innerWidth. Exercise the initial render and both breakpoint transitions.
@@ -82,6 +129,27 @@ try{
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${route}: horizontal overflow`);
    console.log(`PASS ${width} ${route}: ${width<768?'bottom navigation, menus, scroll tail':'desktop header'}`);
   }
+  const wishesRoute = '/app/wishes?tab=food';
+  await page.goto(origin + wishesRoute);
+  await page.locator('.global-service-select').waitFor();
+  await page.locator('[data-friends-entry]').click();
+  await page.waitForURL('**/app/friends/search?tab=food');
+  for (const route of ['/app/friends/search?tab=food', '/app/friends', '/app/friends/subscriptions', '/app/friends/followers']) {
+   if (route !== '/app/friends/search?tab=food') await page.goto(origin + route);
+   const sphere = page.getByRole('button', { name: 'Открыть переключатель сфер', exact: true });
+   await sphere.waitFor();
+   assert.equal(await page.locator('.global-service-select,.mobile-app-navigation__section').count(), 0, `${width} ${route}: unexpected service selector`);
+   assert.equal(await page.getByRole('button', { name: 'Поделиться', exact: true }).count(), 1);
+   assert.equal(await page.getByRole('link', { name: 'Открыть Роллы', exact: true }).count(), 1);
+   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+   if (route === '/app/friends/search?tab=food') {
+    await checkFriendsToggle(page, width);
+    await page.goBack();
+    await page.waitForURL(`**${wishesRoute}`);
+    await page.locator('.global-service-select').waitFor();
+   }
+  }
+  console.log(`PASS ${width} friends: full-width toggle, mouse and keyboard selection, shell actions, browser Back`);
   if(width<768){
    await page.goto(`${origin}/app/spheres/career?tab=about`);
    await page.locator('.mobile-app-navigation').waitFor();

@@ -565,13 +565,17 @@ const SPHERE_SERVICES = SERVICE_SWITCHER_ITEMS.filter((item) => item.id !== "wis
 const ROLLS_SERVICE = { id: "rolls", label: "Роллы", path: "/app/rolls", icon: Coins, color: "#f3c64e" };
 const PLANNING_SERVICE = { id: "planning", label: "Планирование", path: "/app/planning", icon: Columns3 };
 
+function isFriendsDirectoryPath(pathname) {
+  return pathname === "/app/friends" || pathname.startsWith("/app/friends/");
+}
+
 function activeServiceFromPath(pathname) {
   if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
   if (pathname.startsWith("/app/wishes") || pathname === APP_STORE_PATH) return "wishlist";
   if (pathname.startsWith("/s/")) return "wishlist";
-  if (pathname.startsWith("/app/friends")) return "wishlist";
+  if (isFriendsDirectoryPath(pathname)) return "wishlist";
   if (pathname.startsWith("/app/spheres/contacts")) return "career";
   const sphereId = pathname.match(/^\/app\/spheres\/([^/]+)/)?.[1];
   if (SPHERE_SERVICES.some((sphere) => sphere.id === sphereId)) return sphereId;
@@ -791,7 +795,7 @@ function GlobalAppChrome() {
   const publicRoute = publicProfileRoute(location.pathname);
   const requestedTab = publicRoute?.space || collectionSpace || new URLSearchParams(location.search).get("tab");
   const serviceOptions = service?.id === "planning" ? [] : service?.tabs || [];
-  const options = location.pathname.startsWith("/s/") ? [] : sharedOwner
+  const options = location.pathname.startsWith("/s/") || isFriendsDirectoryPath(location.pathname) ? [] : sharedOwner
     ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
     : serviceOptions;
   const normalizedTab = service?.id === "identity" && ["gallup", "hogan"].includes(requestedTab) ? "identity-reports" : requestedTab;
@@ -1800,7 +1804,7 @@ function FriendsTopbar({ user }) {
 function AppShell({ children, friendsContext = false, collectionChrome = false }) {
   const { user } = useSession();
   const location = useLocation();
-  const friendsRoute = friendsContext || location.pathname.startsWith("/app/friends");
+  const friendsRoute = friendsContext || isFriendsDirectoryPath(location.pathname);
   const wishesRoute = location.pathname.startsWith("/app/wishes");
   const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
   const storeRoute = location.pathname === APP_STORE_PATH;
@@ -6823,6 +6827,7 @@ const friendSections = {
 
 function FriendsPage() {
   const { section: requestedSection } = useParams();
+  const navigate = useNavigate();
   const section = friendSections[requestedSection] ? requestedSection : null;
   const config = section ? friendSections[section] : null;
   const [search, setSearch] = useState("");
@@ -6858,21 +6863,22 @@ function FriendsPage() {
     <div className="app-page friends-page typeset typeset-rollapp">
       <div className="friends-layout not-typeset">
         <section className="friends-directory page-stack" aria-label={config.label}>
-          <nav className="friends-section-nav" aria-label="Разделы друзей">
+          <ToggleGroup
+            className="friends-section-nav w-full flex-wrap gap-1 rounded-xl border bg-card p-1"
+            aria-label="Разделы друзей"
+            value={[section]}
+            onValueChange={([nextSection]) => {
+              if (nextSection && nextSection !== section) navigate(`/app/friends/${nextSection}`);
+            }}
+          >
             {Object.entries(friendSections).map(([key, item]) => {
               const Icon = item.icon;
-              const active = key === section;
-              return <Link
-                key={key}
-                to={`/app/friends/${key}`}
-                aria-current={active ? "page" : undefined}
-                className={buttonVariants({ variant: active ? "secondary" : "ghost", className: "h-12 gap-2 px-4 text-base" })}
-              >
+              return <ToggleGroupItem key={key} value={key} className="h-12 grow gap-2 px-3 hover:bg-muted/50 aria-pressed:hover:bg-muted">
                 <Icon aria-hidden="true" />
                 {item.label}
-              </Link>;
+              </ToggleGroupItem>;
             })}
-          </nav>
+          </ToggleGroup>
           <InputGroup className="friends-search">
             <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
             <InputGroupInput

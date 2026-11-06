@@ -2604,21 +2604,19 @@ async function waitForFriendSet(page, usernames) {
 }
 
 async function expectFriendsNavigation(page, activeTab, label) {
-  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
+  const navigation = page.getByRole("group", { name: "Разделы друзей" });
   await navigation.waitFor({ state: "visible" });
   assert(
     await page.locator('.wishes-page__friend-links, nav[aria-label="Связи профиля"]').count() === 0,
     `${label} duplicates the wishes-page friend shortcuts inside the Friends section`,
   );
-  const links = navigation.getByRole("link");
-  assert(await links.count() === 3, `${label} should expose three friend-section links`);
+  const toggles = navigation.getByRole("button");
+  assert(await toggles.count() === 3, `${label} should expose three friend-section toggles`);
   for (const tab of Object.keys(friendsRoutes)) {
-    const tabControl = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
-    assert(await tabControl.evaluate((element) => element.tagName === "A"), `${label} ${friendsLabels[tab]} is not a native link`);
-    assert(await tabControl.evaluate((element) => element.classList.contains("group/button")), `${label} ${friendsLabels[tab]} is not styled with buttonVariants`);
-    assert(new URL(await tabControl.getAttribute("href"), baseUrl).pathname === friendsRoutes[tab], `${label} ${friendsLabels[tab]} points to the wrong route`);
+    const tabControl = navigation.getByRole("button", { name: friendsLabels[tab], exact: true });
+    assert(await tabControl.getAttribute("data-slot") === "toggle-group-item", `${label} ${friendsLabels[tab]} is not a toggle group item`);
     assert(
-      await tabControl.getAttribute("aria-current") === (tab === activeTab ? "page" : null),
+      await tabControl.getAttribute("aria-pressed") === String(tab === activeTab),
       `${label} exposes the wrong current state for ${friendsLabels[tab]}`,
     );
   }
@@ -2626,10 +2624,10 @@ async function expectFriendsNavigation(page, activeTab, label) {
 }
 
 async function openFriendsTab(page, tab, label) {
-  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
-  const link = navigation.getByRole("link", { name: friendsLabels[tab], exact: true });
+  const navigation = page.getByRole("group", { name: "Разделы друзей" });
+  const toggle = navigation.getByRole("button", { name: friendsLabels[tab], exact: true });
   const dataResponsePromise = page.waitForResponse((response) => isPeopleSectionResponse(response, tab));
-  await link.click();
+  await toggle.click();
   await page.waitForURL((url) => url.pathname === friendsRoutes[tab]);
   await page.locator(".friends-page").waitFor({ state: "visible" });
   await page.getByRole("heading", { name: friendsLabels[tab], exact: true }).waitFor({ state: "visible" });
@@ -2640,7 +2638,7 @@ async function openFriendsTab(page, tab, label) {
 }
 
 async function expectFriendsLayout(page, label, { mobile }) {
-  const navigation = page.getByRole("navigation", { name: "Разделы друзей" });
+  const navigation = page.getByRole("group", { name: "Разделы друзей" });
   const firstRow = page.locator(".friend-row").first();
   const search = page.locator(".friends-search");
   await navigation.waitFor({ state: "visible" });
@@ -2661,7 +2659,7 @@ async function expectFriendsLayout(page, label, { mobile }) {
     const identityRect = identityNode?.getBoundingClientRect();
     const nameRect = nameNode?.getBoundingClientRect();
     const profileStyle = profileNode ? getComputedStyle(profileNode) : null;
-    const linkRects = [...(navigationNode?.querySelectorAll(":scope > a") || [])].map((control) => {
+    const toggleRects = [...(navigationNode?.querySelectorAll('[data-slot="toggle-group-item"]') || [])].map((control) => {
       const rect = control.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     });
@@ -2674,12 +2672,12 @@ async function expectFriendsLayout(page, label, { mobile }) {
       identity: identityRect && { left: identityRect.left, top: identityRect.top, right: identityRect.right, bottom: identityRect.bottom, width: identityRect.width, height: identityRect.height },
       name: nameRect && { left: nameRect.left, right: nameRect.right, width: nameRect.width },
       profileGap: profileStyle ? Number.parseFloat(profileStyle.columnGap) : null,
-      linkRects,
+      toggleRects,
     };
   }, ".friends-section-nav");
   assert(geometry.navigation && geometry.row, `${label} is missing its friend navigation or list geometry`);
   assert(geometry.profile && geometry.avatar && geometry.identity && geometry.name, `${label} is missing its friend profile geometry`);
-  assert(geometry.linkRects.length === 3, `${label} is missing friend-section navigation targets`);
+  assert(geometry.toggleRects.length === 3, `${label} is missing friend-section navigation targets`);
   assert(geometry.row.right <= geometry.viewportWidth + 1, `${label} friend rows extend beyond the viewport`);
   assert(geometry.navigation.bottom <= geometry.row.top + 1, `${label} friend navigation should sit above the list`);
   assert(Math.abs(geometry.avatar.width - 48) <= 1 && Math.abs(geometry.avatar.height - 48) <= 1, `${label} friend avatar is not 48px (${JSON.stringify(geometry.avatar)})`);
@@ -2720,14 +2718,14 @@ async function expectFriendsLayout(page, label, { mobile }) {
   assert(searchSurface.shadow === "none" || shadowLengths.every((length) => length === 0), `${label} search Input has a second shadow (${searchSurface.shadow})`);
   if (mobile) {
     assert(geometry.navigation.width <= geometry.viewportWidth + 1, `${label} mobile friend navigation overflows the viewport`);
-    assert(geometry.linkRects.every((rect) => rect.height >= 47), `${label} mobile friend navigation has controls below the 48px Large size`);
+    assert(geometry.toggleRects.every((rect) => rect.height >= 47), `${label} mobile friend navigation has controls below the 48px Large size`);
     const pageHeight = await page.evaluate(() => ({ viewport: window.innerHeight, document: document.documentElement.scrollHeight }));
     assert(pageHeight.document <= pageHeight.viewport + 1, `${label} adds empty mobile scrolling (${pageHeight.document}px document inside ${pageHeight.viewport}px viewport)`);
   } else {
     assert(geometry.navigation.left >= geometry.row.left - 1, `${label} desktop friend navigation is not aligned with the directory`);
     assert(
-      geometry.linkRects.every((rect) => rect.height >= 47),
-      `${label} desktop friend navigation has undersized targets (${JSON.stringify(geometry.linkRects)})`,
+      geometry.toggleRects.every((rect) => rect.height >= 47),
+      `${label} desktop friend navigation has undersized targets (${JSON.stringify(geometry.toggleRects)})`,
     );
     const topbar = page.locator(".friends-topbar");
     await topbar.waitFor({ state: "visible" });
