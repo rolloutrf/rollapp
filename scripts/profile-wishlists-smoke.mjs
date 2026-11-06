@@ -29,16 +29,40 @@ try {
     await page.route('**/api/**', route => { errors.push('Unexpected network API request'); return route.abort(); });
     await page.goto(origin + '/fixture');
     const open = page.getByRole('button', { name: 'Редактировать профиль Профиль', exact: true });
-    const openPersonal = async () => {
+    const wishlistEntry = page.getByRole('button', { name: 'Внешние вишлисты', exact: true });
+    const personalEntry = page.getByRole('button', { name: 'Персональная информация', exact: true });
+    const openWishlists = async () => {
       await open.click();
-      await page.getByRole('button', { name: 'Персональная информация', exact: true }).click();
+      await wishlistEntry.click();
     };
-    await openPersonal();
+    if (width === 320) {
+      await open.click();
+      await personalEntry.click();
+      assert.equal(await page.getByRole('textbox', { name: 'Яндекс Маркет' }).count(), 0);
+      await page.getByRole('textbox', { name: 'Имя', exact: true }).fill('Черновик имени');
+      await page.getByRole('button', { name: 'Назад', exact: true }).click();
+      await wishlistEntry.click();
+    } else await openWishlists();
     const save = page.getByRole('button', { name: 'Сохранить', exact: true });
     const wishlist = page.getByRole('region', { name: 'Внешние вишлисты' });
+    const backToMenu = async () => {
+      await page.getByRole('button', { name: 'Назад', exact: true }).click();
+      await wishlistEntry.waitFor();
+    };
+    const closeSettings = async () => {
+      await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть', exact: true }).click();
+      await open.waitFor();
+    };
+    const saveWishlists = async () => {
+      await save.click();
+      await page.waitForFunction(() => {
+        const button = document.querySelector('button[form="profile-wishlists-form"]');
+        return button?.disabled && button.getAttribute('aria-busy') !== 'true';
+      });
+    };
     const inputs = ['OhMyWishes', 'Ozon', 'WB', 'Яндекс Маркет'].map(name => wishlist.getByRole('textbox', { name, exact: true }));
     assert(await save.isDisabled());
-    assert(await save.evaluate(button => button.form?.id === 'profile-editor-form'));
+    assert(await save.evaluate(button => button.form?.id === 'profile-wishlists-form'));
     await inputs[1].fill('https://ozon.ru.example/t/test');
     await save.click();
     await wishlist.getByRole('alert').waitFor();
@@ -97,11 +121,31 @@ try {
     await save.click();
     await page.getByText('Сохранение недоступно', { exact: true }).waitFor();
     assert.equal(await inputs[1].inputValue(), urls[1]);
-    await page.evaluate(() => { window.rejectProfileSave = false; });
-    await save.click();
-    await open.waitFor();
+    await page.evaluate(() => { window.rejectProfileSave = false; window.rejectMarketImport = true; });
+    await saveWishlists();
+    assert.deepEqual(await page.evaluate(() => window.wishlistImports), ['ohmywishes', 'yandex-market']);
+    await page.getByRole('status').getByText('Добавлено в «Товары»: 1.').waitFor();
+    await page.getByRole('status').getByText('Не удалось прочитать список Маркета').waitFor();
+    if (width === 320 || width === 1440) {
+      await page.getByRole('button', { name: 'Импортировать позиции · OhMyWishes' }).click();
+      await page.getByRole('status').getByText('Новых позиций среди прочитанных нет.').waitFor();
+      await page.evaluate(() => { window.rejectMarketImport = false; });
+      await page.getByRole('button', { name: 'Импортировать позиции · Яндекс Маркет' }).click();
+      await page.getByRole('status').getByText('Добавлено в «Товары»: 1. Сервис отдал только первую страницу списка.', { exact: true }).waitFor();
+      await page.screenshot({ path: `/tmp/rollapp-profile-wishlist-import-${width}.png` });
+    }
+    await backToMenu();
+    if (width === 320) {
+      await personalEntry.click();
+      assert.equal(await page.getByRole('textbox', { name: 'Имя', exact: true }).inputValue(), 'Черновик имени');
+      assert.deepEqual(Object.keys(await page.evaluate(() => window.profilePatches.at(-1))), ['wishlistLinks']);
+      await backToMenu();
+    }
+    await closeSettings();
     const nav = page.getByRole('navigation', { name: 'Внешние вишлисты' });
     await nav.waitFor();
+    await page.getByText('Айтем из ohmywishes', { exact: true }).waitFor();
+    if (width === 320 || width === 1440) await page.getByText('Айтем из yandex-market', { exact: true }).waitFor();
     const links = await nav.getByRole('link').all();
     assert.equal(links.length, urls.length);
     for (const [index, link] of links.entries()) {
@@ -113,24 +157,28 @@ try {
       assert.equal(await link.evaluate(el => getComputedStyle(el).fontSize), '18px');
       assert(await link.evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius) >= 24));
     }
-    await openPersonal();
+    await openWishlists();
     assert.equal(await inputs[1].inputValue(), urls[1]);
     await inputs[1].clear();
-    await save.click();
-    await wishlist.waitFor({ state: 'detached' });
+    await saveWishlists();
+    await backToMenu();
+    await closeSettings();
     await nav.waitFor();
     await nav.getByRole('link', { name: /Ozon/ }).waitFor({ state: 'detached' });
     assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     assert.deepEqual(await page.evaluate(() => window.profilePatches.at(-1)), { wishlistLinks: { ozon: null } });
-    await openPersonal();
+    await openWishlists();
     await inputs[0].clear();
-    await page.getByRole('button', { name: 'Назад', exact: true }).click();
-    await wishlist.waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть', exact: true }).click();
+    await backToMenu();
+    await wishlistEntry.click();
+    assert.equal(await inputs[0].inputValue(), '');
+    await backToMenu();
+    await closeSettings();
     await nav.waitFor();
     assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     if (width === 320 || width === 1440) {
-      await openPersonal();
+      await open.click();
+      await personalEntry.click();
       const address = page.getByRole('textbox', { name: 'Адрес профиля' });
       await address.fill('fixture-renamed');
       await address.press('Enter');
@@ -150,12 +198,12 @@ try {
       await page.goto(origin + '/app/wishes?tab=products');
       await nav.waitFor();
       assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls);
-      await openPersonal();
+      await openWishlists();
       assert.equal(await inputs[3].inputValue(), urls[3]);
       await inputs[3].clear();
-      await save.click();
-      await wishlist.waitFor({ state: 'detached' });
-      await open.waitFor();
+      await saveWishlists();
+      await backToMenu();
+      await closeSettings();
       await nav.waitFor();
       await nav.getByRole('link', { name: /Яндекс Маркет/ }).waitFor({ state: 'detached' });
       assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls.slice(0, -1));

@@ -41,12 +41,20 @@ try {
     const savePhoto = button("Сохранить фото");
     const mobile = width < 768;
     await menu.waitFor();
-    assert.equal(await menu.getByRole("button").count(), 4);
+    assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
+      "Персональная информация", "Внешние вишлисты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
+    ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
+    const avatarBox = await photo.locator(".avatar").boundingBox();
+    const displayName = photo.getByText("Имя профиля", { exact: true });
+    const nameBox = await displayName.boundingBox();
     const personalBox = await personal.boundingBox();
     const uploadBox = await upload.boundingBox();
     assert(photoBox.y + photoBox.height <= personalBox.y && photoBox.x === personalBox.x);
+    assert(nameBox.y >= avatarBox.y + avatarBox.height && nameBox.y + nameBox.height <= uploadBox.y);
+    assert(Math.abs(nameBox.x + nameBox.width / 2 - (avatarBox.x + avatarBox.width / 2)) < 1);
+    assert.equal(await displayName.evaluate(node => getComputedStyle(node).textAlign), "center");
     assert(uploadBox.height >= 48 && uploadBox.x + uploadBox.width <= photoBox.x + photoBox.width);
     assert.equal(await savePhoto.count(), 0);
     await page.screenshot({ path: `/tmp/rollapp-profile-menu-${width}x${height}.png` });
@@ -128,6 +136,7 @@ try {
     await menu.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Персональная информация", undefined, { polling: 50 });
     assert.equal(await button("Заказы").isDisabled(), true);
+    assert.equal(await button("Финансы").isDisabled(), true);
     await button("OpenRouter").click();
     const apiKey = page.locator("#settings-openrouter-key");
     await apiKey.fill("fixture-draft");
@@ -225,8 +234,10 @@ try {
     }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.equal(await button("Выйти из аккаунта").count(), 0);
-    await button("Заказы").click();
-    await page.waitForURL(url => url.pathname === "/app/orders" && !url.searchParams.has("formScreen"));
+    const financeExit = width === 320 || width === 1440;
+    const destination = financeExit ? "/app/rolls" : "/app/orders";
+    await button(financeExit ? "Финансы" : "Заказы").click();
+    await page.waitForURL(url => url.pathname === destination && !url.searchParams.has("formScreen"));
     await menu.waitFor({ state: "hidden" });
     await page.goBack();
     await page.waitForURL(url => url.pathname === "/__profile-settings" && !url.searchParams.has("formScreen"));
