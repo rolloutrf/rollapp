@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ProfileSettingsModal, SessionContext, ToastContext } from "/src/App.jsx?profile-settings-fixture";
+import App, { ProfileSettingsModal, SessionContext, ToastContext } from "/src/App.jsx?profile-settings-fixture";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { api } from "@/api";
@@ -9,10 +9,18 @@ import "../../src/styles.css";
 import "../../src/index.css";
 
 const mode = new URLSearchParams(location.search).get("state");
+const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" };
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
+let backupStarted;
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
-  if (path === "/auth/yandex/config") return { enabled: false };
+  if (path === "/me" && mode === "backup-result") return { user: fixtureUser };
+  if (path === "/auth/phone/config" && mode === "backup-result") return { enabled: false };
+  if (path === "/me/yandex-backup/f589bf34-5586-4456-aea6-83223dbbd052" && mode === "backup-result") {
+    backupStarted ??= Date.now();
+    return { status: Date.now() - backupStarted < 1_000 ? "pending" : new URLSearchParams(location.search).get("result") };
+  }
+  if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: mode !== "error" };
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
@@ -50,11 +58,13 @@ function Fixture() {
   useVisualViewport();
   const [open, setOpen] = useState(true);
   const [savedName, setSavedName] = useState("");
-  const [user, setUser] = useState(() => ({ id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" }));
+  const [user, setUser] = useState(fixtureUser);
   return <SessionContext.Provider value={{ user, setSession: () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
     {savedName && <output>{savedName}</output>}
     {user.avatarUrl && <output>Фото сохранено</output>}
     {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onAvatarSaved={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
   </MobileFormPages></ToastContext.Provider></SessionContext.Provider>;
 }
-createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);
+createRoot(document.getElementById("root")).render(
+  <BrowserRouter>{mode === "backup-result" ? <React.StrictMode><App /></React.StrictMode> : <Fixture />}</BrowserRouter>,
+);

@@ -11,7 +11,7 @@ const server = await createServer({
   plugins: [{ name: "profile-settings-fixture", transform(source, id) {
     if (id.endsWith("/src/App.jsx?profile-settings-fixture")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext };`;
   }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
-    if (!req.url.startsWith("/__profile-settings")) return next();
+    if (!req.url.startsWith("/__profile-settings") && !req.url.startsWith("/login?state=backup-result")) return next();
     res.setHeader("Content-Type", "text/html");
     res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/profile-settings.jsx"></script></body></html>'));
   }); } }],
@@ -204,6 +204,9 @@ try {
     await back.click();
     await button("Yandex ID").click();
     await page.getByText("Подключён", { exact: true }).waitFor();
+    const copy = page.getByRole("link", { name: "Создать резервную копию на Яндекс Диске", exact: true });
+    await page.getByText("Сохраните или отмените изменения профиля перед копированием.", { exact: true }).waitFor();
+    assert.equal(await copy.count(), 0, "A profile draft must not be discarded by the OAuth redirect");
     await back.click();
     await personal.click();
     assert.equal(await name.inputValue(), "Черновик имени");
@@ -233,6 +236,24 @@ try {
     await back.click();
     await button("Yandex ID").click();
     await page.getByText("Подключение Yandex ID сейчас недоступно.", { exact: true }).waitFor();
+    await page.goto(`${origin}/__profile-settings?state=backup`);
+    await button("Yandex ID").click();
+    await copy.waitFor();
+    const backupHref = new URL(await copy.getAttribute("href"), origin);
+    assert.equal(backupHref.pathname, "/api/auth/yandex/start");
+    assert.equal(backupHref.searchParams.get("link"), "1");
+    assert.equal(backupHref.searchParams.get("next"), "/__profile-settings?state=backup");
+    const copyGeometry = await copy.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        height: rect.height,
+        onScreen: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+        fits: element.scrollWidth <= element.clientWidth,
+        footer: Boolean(element.closest("[data-control-bar]")),
+      };
+    });
+    assert.deepEqual(copyGeometry, { height: 48, onScreen: true, fits: true, footer: true });
+    if (height === 400 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-yandex-settings-${width}x${height}.png` });
     await page.goto(`${origin}/__profile-settings?state=save`);
     await personal.click();
     await name.fill("Сохранённое имя");
@@ -282,8 +303,24 @@ try {
       assert.equal(await disconnectOpenRouter.count(), 0);
       assert.equal(await page.getByRole("alert").count(), 0);
     }
+    const result = mobile ? "permission" : "complete";
+    await page.goto(`${origin}/login?state=backup-result&auth_success=YANDEX_LINKED&backup=f589bf34-5586-4456-aea6-83223dbbd052&result=${result}`);
+    await page.getByRole("status").filter({ hasText: "Готовим резервную копию." }).waitFor();
+    const nextAction = page.getByRole("link", { name: mobile ? "Повторить копирование" : "Открыть папку ROLLAPP", exact: true });
+    await nextAction.waitFor();
+    assert.equal(await page.locator(".mobile-app-navigation, .planning-fab-controls").count(), 0);
+    const returnLink = page.getByRole("link", { name: "Вернуться в Rollapp", exact: true });
+    for (const link of [nextAction, returnLink]) {
+      await link.scrollIntoViewIfNeeded();
+      assert(await link.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      }), "Authentication result actions must remain reachable in a short viewport");
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (height === 400) await page.screenshot({ path: `/tmp/rollapp-yandex-result-${width}x${height}.png` });
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: root photo, upload and save, Back, drafts, validation and orders`);
+    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, orders and Yandex backup result (${result})`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

@@ -8,7 +8,9 @@ import { writeAccountBackup } from "./account-backup.js";
 const api = "https://cloud-api.yandex.net/v1/disk/";
 const folder = "disk:/ROLLAPP";
 const statusLifetime = 60 * 60 * 1000;
-const serverDiskReserve = 5 * 1024 ** 3;
+// This is temporary storage; keep the runtime from filling the filesystem
+// even if a deployment has already reduced its free space.
+const serverDiskReserve = 1024 ** 3;
 
 class DiskError extends Error {
   constructor(status) {

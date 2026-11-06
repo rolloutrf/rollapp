@@ -7170,10 +7170,10 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
       {!user.hasYandex && yandexEnabled && yandexLinkBlocked && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>}
       {yandexDiskBackupEnabled && (
-        <p>Если вы разрешите доступ к Диску, Rollapp сохранит копию данных и загруженных файлов в папку ROLLAPP.</p>
+        <p className="rollapp-body">Если вы разрешите доступ к Диску, Rollapp сохранит копию данных и загруженных файлов в папку ROLLAPP.</p>
       )}
       {user.hasYandex && yandexDiskBackupEnabled && yandexLinkBlocked && (
-        <p className="text-muted-foreground">Сохраните или отмените изменения профиля перед копированием.</p>
+        <p className="rollapp-body">Сохраните или отмените изменения профиля перед копированием.</p>
       )}
     </Card>
   </div> : null;
@@ -7643,14 +7643,16 @@ function LegacyProfileRedirect() {
 
 export default function App() {
   useVisualViewport();
+  const { pathname, search } = useLocation();
+  const linkingResult = pathname === "/login" && new URLSearchParams(search).get("auth_success") === "YANDEX_LINKED";
   return (
     <ToastProvider>
       <SessionProvider>
         <MobileFormPages>
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
-          <GlobalAppChrome />
-          <PlanningFab />
+          {!linkingResult && <GlobalAppChrome />}
+          {!linkingResult && <PlanningFab />}
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage mode="login" />} />

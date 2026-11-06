@@ -123,6 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run check:comprehensive 2>&1 | tee "${RUNNER_TEMP}/rollapp-comprehensive.log"
+          npm run test:profile 2>&1 | tee -a "${RUNNER_TEMP}/rollapp-comprehensive.log"
 
       - name: Preserve complete release verification
         if: always()
@@ -211,6 +212,8 @@ jobs:
         run: node scripts/deploy-vm-metadata.mjs
 
       - name: Verify production health
+        env:
+          YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
         run: |
           set -euo pipefail
 
@@ -251,6 +254,10 @@ jobs:
           fi
 
           echo "Rollapp is healthy at ${PUBLIC_URL} on ${GITHUB_SHA}"
+          if [ "$YANDEX_DISK_BACKUP_ENABLED" = "true" ]; then
+            curl -fsS --max-time 10 "${PUBLIC_URL}/api/auth/yandex/config" |
+              jq -e '.enabled == true and .diskBackupEnabled == true' >/dev/null
+          fi
           health="$(read_health)"
           if ! jq -e '.capabilities.marketplaceAi == true' <<<"$health" >/dev/null 2>&1; then
             echo "::warning::Marketplace AI search is not configured; production will use direct catalogues only"
