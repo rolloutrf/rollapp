@@ -62,6 +62,7 @@ export function getYandexAuthConfig(env = process.env) {
 
   return {
     enabled: Boolean(clientId && clientSecret && redirectUri),
+    diskBackupEnabled: env.YANDEX_DISK_BACKUP_ENABLED === "true",
     clientId,
     clientSecret,
     redirectUri,
@@ -98,7 +99,11 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
   authorizationUrl.searchParams.set("client_id", config.clientId);
   authorizationUrl.searchParams.set("redirect_uri", config.redirectUri);
   authorizationUrl.searchParams.set("scope", "login:info login:email");
-  authorizationUrl.searchParams.set("optional_scope", "login:avatar");
+  const requestsBackup = Boolean(linkUserId && config.diskBackupEnabled);
+  authorizationUrl.searchParams.set("optional_scope", requestsBackup
+    ? "login:avatar cloud_api:disk.read cloud_api:disk.write"
+    : "login:avatar");
+  if (requestsBackup) authorizationUrl.searchParams.set("force_confirm", "yes");
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("code_challenge", challenge);
   authorizationUrl.searchParams.set("code_challenge_method", "S256");
@@ -112,7 +117,7 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
       stateHash: createHash("sha256").update(state).digest("hex"),
       verifier,
       nextPath: safeOauthReturnPath(nextPath),
-      purpose: linkUserId ? "link" : "login",
+      purpose: requestsBackup ? "link-backup" : linkUserId ? "link" : "login",
       userId: linkUserId || null,
     },
   };

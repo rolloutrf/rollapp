@@ -1449,6 +1449,47 @@ function ResetPasswordPage() {
   );
 }
 
+function YandexBackupResult({ backup, retryHref, userId }) {
+  const [status, setStatus] = useState(backup === "busy" ? "busy" : "pending");
+  useEffect(() => {
+    if (backup === "busy") return undefined;
+    let active = true;
+    let timer;
+    const poll = async () => {
+      try {
+        const result = await api.get(`/me/yandex-backup/${encodeURIComponent(backup)}`);
+        if (!active) return;
+        setStatus(result.status);
+        if (result.status === "pending") timer = setTimeout(poll, 2_500);
+      } catch {
+        if (active) setStatus("unknown");
+      }
+    };
+    void poll();
+    return () => { active = false; clearTimeout(timer); };
+  }, [backup, userId]);
+
+  const message = {
+    pending: "Готовим резервную копию. Можно вернуться в Rollapp: загрузка продолжится.",
+    complete: "Резервная копия сохранена в папке ROLLAPP в корне Яндекс Диска.",
+    permission: "Разрешите доступ к Яндекс Диску при повторной попытке.",
+    space: "На Яндекс Диске не хватает места для резервной копии.",
+    folder: "Папка ROLLAPP должна быть личной. Закройте общий доступ или переименуйте существующий объект.",
+    busy: "Сейчас выполняются другие копии. Повторите попытку через несколько минут.",
+    failed: "Не удалось сохранить резервную копию. Попробуйте ещё раз.",
+    unknown: "Не удалось проверить статус. Посмотрите папку ROLLAPP на Яндекс Диске.",
+  }[status];
+  return (
+    <div className="grid gap-2">
+      <p role="status">{message}</p>
+      {status === "complete" && <a className="underline" href="https://disk.yandex.ru/client/disk/ROLLAPP">Открыть папку ROLLAPP</a>}
+      {status !== "pending" && status !== "complete" && (
+        <a className="underline" href={retryHref}>Повторить копирование</a>
+      )}
+    </div>
+  );
+}
+
 function AuthPage({ mode }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1475,6 +1516,8 @@ function AuthPage({ mode }) {
   const nextPath = safeNextPath(authQuery.get("next"));
   const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"));
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
+  const backup = authQuery.get("backup");
+  const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
   const shouldLinkYandex = Boolean(yandexError?.linkRequired);
   const yandexStartHref = yandexAuthStartPath(nextPath);
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
@@ -1567,7 +1610,7 @@ function AuthPage({ mode }) {
     return () => { active = false; };
   }, [mode]);
 
-  if (user && !telegramAuth.initData) {
+  if (user && (!telegramAuth.initData || yandexLinked)) {
     if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
     return (
       <div className="auth-page rollapp-body">
@@ -1584,6 +1627,7 @@ function AuthPage({ mode }) {
                 <AlertDescription>{yandexError.description}</AlertDescription>
               </Alert>
             )}
+            {yandexBackup && <YandexBackupResult key={`${user.id}:${yandexBackup}`} backup={yandexBackup} retryHref={yandexLinkHref} userId={user.id} />}
             <Link className={buttonVariants({ variant: "outline", className: "h-12 w-full" })} to={nextPath}>Вернуться в Rollapp</Link>
           </div>
         </div>
@@ -6888,6 +6932,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(null);
+  const [yandexDiskBackupEnabled, setYandexDiskBackupEnabled] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
   const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
   const [section, setSection] = useState(null);
@@ -6942,7 +6987,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   useEffect(() => {
     let active = true;
     api.get("/auth/yandex/config")
-      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
+      .then((config) => {
+        if (!active) return;
+        setYandexEnabled(Boolean(config.enabled));
+        setYandexDiskBackupEnabled(Boolean(config.diskBackupEnabled));
+      })
       .catch(() => { if (active) setYandexEnabled(false); });
     return () => { active = false; };
   }, []);
@@ -7120,6 +7169,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       {!user.hasYandex && yandexEnabled === null && <p className="text-sm text-muted-foreground" role="status">Проверяем доступность Yandex ID…</p>}
       {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
       {!user.hasYandex && yandexEnabled && yandexLinkBlocked && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>}
+      {yandexDiskBackupEnabled && (
+        <p>Если вы разрешите доступ к Диску, Rollapp сохранит копию данных и загруженных файлов в папку ROLLAPP.</p>
+      )}
+      {user.hasYandex && yandexDiskBackupEnabled && yandexLinkBlocked && (
+        <p className="text-muted-foreground">Сохраните или отмените изменения профиля перед копированием.</p>
+      )}
     </Card>
   </div> : null;
   const openRouterSection = section === "openrouter" && (
@@ -7163,9 +7218,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       </ShadcnButton>
     </DrawerFooter>
   );
-  const yandexFooter = section === "yandex" && !user.hasYandex && yandexEnabled && !yandexLinkBlocked && (
+  const yandexFooter = section === "yandex" && yandexEnabled && !yandexLinkBlocked && (!user.hasYandex || yandexDiskBackupEnabled) && (
     <DrawerFooter>
-      <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>
+      {user.hasYandex
+        ? <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Создать резервную копию на Яндекс Диске">Сделать копию</a>
+        : <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>}
     </DrawerFooter>
   );
   const menuFooter = (isMobile || avatarChanged) && (

@@ -1,4 +1,5 @@
 import { isReservedProfileUsername } from "./profile-paths.js";
+import { verifyAccountBackupSchema } from "./account-backup.js";
 
 // Development reconnects to an existing production database. A reconnect must
 // never run the normal schema/data migration and reservation cleanup routine.
@@ -41,6 +42,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
       await client.query("SELECT id,offer_id,actor_id,action,note,created_at FROM reward_need_events LIMIT 0");
       await client.query("SELECT offer_id,content,digest,status,proof,bitcoin_height,bitcoin_hash,verified_at,attempts,next_attempt_at,lease_token,last_error,created_at FROM reward_blockchain_receipts LIMIT 0");
     }
+    if (environment.YANDEX_DISK_BACKUP_ENABLED === "true") await verifyAccountBackupSchema(client);
   });
   return mode;
 }

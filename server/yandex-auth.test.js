@@ -74,6 +74,20 @@ test("OAuth return paths reject external, protocol-relative and backslash redire
   assert.equal(safeOauthReturnPath("/\\evil.example/path"), "/app/wishes");
 });
 
+test("only an explicit account link asks for optional Disk consent", () => {
+  const enabled = { ...config, diskBackupEnabled: true };
+  const link = createYandexAuthorization(enabled, { linkUserId: "account" });
+  const linkParams = new URL(link.authorizationUrl).searchParams;
+  assert.equal(link.attempt.purpose, "link-backup");
+  assert.equal(linkParams.get("scope"), "login:info login:email");
+  assert.deepEqual(linkParams.get("optional_scope").split(" "), ["login:avatar", "cloud_api:disk.read", "cloud_api:disk.write"]);
+  assert.equal(linkParams.get("force_confirm"), "yes");
+
+  const login = createYandexAuthorization(enabled);
+  assert.equal(login.attempt.purpose, "login");
+  assert.equal(new URL(login.authorizationUrl).searchParams.get("optional_scope"), "login:avatar");
+});
+
 test("token exchange sends Basic client auth and PKCE without leaking redirect URI", async () => {
   let request;
   const accessToken = await exchangeYandexCode(config, {

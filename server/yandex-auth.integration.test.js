@@ -144,7 +144,7 @@ test("Yandex ID creates, repeats and explicitly links Rollapp accounts with one-
   await waitForServer(child);
 
   const configResponse = await fetch(`${baseUrl}/auth/yandex/config`);
-  assert.deepEqual(await configResponse.json(), { enabled: true });
+  assert.deepEqual(await configResponse.json(), { enabled: true, diskBackupEnabled: false });
 
   const first = await startFlow({ next: "/app/friends/subscriptions?from=yandex" });
   assert.equal(first.response.status, 302);

@@ -8,6 +8,7 @@ import { registerHealthTrackerRoutes } from "./health-trackers.js";
 import { registerStoryRoutes } from "./stories.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { registerPrivateFiles } from "./private-files.js";
+import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import "dotenv/config";
@@ -528,6 +529,9 @@ const previewBackfillJobs = new Map();
 const previewBackfillCooldownMs = 15 * 60 * 1000;
 const mutationLocks = new Map();
 const backgroundTasks = new Set();
+const yandexBackupJobs = createYandexBackupJobs({
+  upload: (options) => uploadYandexBackup({ ...options, transaction }),
+});
 const imageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function detectImageMimeType(buffer) {
@@ -1189,10 +1193,11 @@ function clearYandexOauthCookie(res, state) {
   if (name) res.clearCookie(name, yandexOauthCookieOptions());
 }
 
-function yandexLoginRedirect(nextPath, errorCode, successCode) {
+function yandexLoginRedirect(nextPath, errorCode, successCode, backup) {
   const params = new URLSearchParams({ next: safeOauthReturnPath(nextPath) });
   if (errorCode) params.set("auth_error", errorCode);
   if (successCode) params.set("auth_success", successCode);
+  if (backup) params.set("backup", backup);
   return `/login?${params.toString()}`;
 }
 
@@ -1848,7 +1853,15 @@ app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
 
 app.get("/api/auth/yandex/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ enabled: getYandexAuthConfig().enabled });
+  const config = getYandexAuthConfig();
+  res.json({ enabled: config.enabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase });
+});
+
+app.get("/api/me/yandex-backup/:id", requireAuth, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const status = yandexBackupJobs.get(req.params.id, req.user.id);
+  if (!status) return res.status(404).json({ error: "Статус резервной копии недоступен" });
+  return res.json(status);
 });
 
 app.get("/api/auth/yandex/start", authRateLimit, asyncRoute(async (req, res) => {
@@ -1863,7 +1876,7 @@ app.get("/api/auth/yandex/start", authRateLimit, asyncRoute(async (req, res) => 
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
   }
   await cleanupExpiredAuthData();
-  const authorization = createYandexAuthorization(config, {
+  const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: config.diskBackupEnabled && !isMemoryDatabase }, {
     nextPath,
     linkUserId: wantsLink ? req.user.id : null,
   });
@@ -1920,7 +1933,9 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   try {
     const accessToken = await exchangeYandexCode(config, { code, verifier: attempt.code_verifier });
     const yandexUser = await fetchYandexProfile(config, accessToken);
-    const result = await resolveYandexLogin(yandexUser, attempt, req.user);
+    const wantsBackup = attempt.purpose === "link-backup";
+    const purpose = wantsBackup ? "link" : attempt.purpose;
+    const result = await resolveYandexLogin(yandexUser, { ...attempt, purpose }, req.user);
     if (result.kind === "link-required") {
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_REQUIRED"));
     }
@@ -1931,8 +1946,14 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_LOGIN_REQUIRED"));
     }
     setSessionCookie(res, result.session);
-    if (attempt.purpose === "link") {
-      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "", "YANDEX_LINKED"));
+    if (purpose === "link") {
+      let backup;
+      if (wantsBackup && config.diskBackupEnabled && !isMemoryDatabase) {
+        const job = yandexBackupJobs.start({ userId: result.user.id, accessToken });
+        if (job.task) trackBackgroundTask(job.task);
+        backup = job.id || "busy";
+      }
+      return res.redirect(303, yandexLoginRedirect(attempt.next_path, "", "YANDEX_LINKED", backup));
     }
     return res.redirect(303, safeOauthReturnPath(attempt.next_path));
   } catch (error) {

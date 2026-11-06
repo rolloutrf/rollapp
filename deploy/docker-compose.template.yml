@@ -46,6 +46,7 @@ services:
       PASSWORD_RESET_COOLDOWN_SECONDS: "60"
       PASSWORD_RESET_DAILY_LIMIT: "5"
       YANDEX_OAUTH_CLIENT_ID: ""
+      YANDEX_DISK_BACKUP_ENABLED: "__YANDEX_DISK_BACKUP_ENABLED__"
       YANDEX_OAUTH_REDIRECT_URI: "https://xn--80avakiab.xn--p1ai/api/auth/yandex/callback"
       YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID: "e6q1ocbtnd3klpe5pqg1"
       YC_YANDEX_OAUTH_CLIENT_ID_KEY: "client_id"

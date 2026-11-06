@@ -202,8 +202,9 @@ continues to use `OPENROUTER_MODEL`. No paid completion is made when saving sett
 
 Yandex ID uses the server-side Authorization Code flow with PKCE S256. The
 browser receives only a short-lived, HTTP-only state cookie; authorization
-attempts are consumed once from PostgreSQL, and Yandex access/refresh tokens are
-discarded after the profile request. Existing Rollapp accounts are never merged
+attempts are consumed once from PostgreSQL. Refresh tokens are never stored;
+access tokens are discarded after profile lookup or the current Disk backup.
+Existing Rollapp accounts are never merged
 silently by email because Yandex userinfo does not expose an `email_verified`
 flag. Instead, the user signs in locally once and explicitly completes linking.
 
@@ -222,6 +223,37 @@ derived from `PUBLIC_APP_URL` unless `YANDEX_OAUTH_REDIRECT_URI` is set. In
 production, store `client_id` and `client_secret` in Yandex Lockbox and set
 `YC_YANDEX_OAUTH_LOCKBOX_SECRET_ID`. The runtime reads those values without
 putting the client secret in the compose file.
+
+### Backups to Yandex Disk
+
+When a signed-in user links Yandex ID and grants Disk access, Rollapp saves a
+snapshot to `ROLLAPP` in the root of that Yandex Disk. The profile settings also
+offer **Сделать копию** to people who linked Yandex earlier and to anyone
+who wants a fresh copy. Each run creates a separate dated `.json.gz` file. Normal
+sign-in does not request Disk access or start a backup.
+
+The versioned JSON contains the account's saved content, including documents,
+wishlists and their groups, planning and notes, contacts, education, health,
+profile, conversations the account participates in and account activity.
+Uploaded images, PDFs, account files and active stories include the original
+bytes in base64 next to their record IDs. External media remain URLs; shared
+catalogues, expired stories, the operational Git history bundle and
+authentication secrets are excluded. This is a snapshot at the time of linking
+or manual copying; there is no scheduled sync or automatic import.
+
+To enable it, add `cloud_api:disk.read` and `cloud_api:disk.write` to the Yandex
+OAuth app's allowed permissions, then set `YANDEX_DISK_BACKUP_ENABLED=true` in the
+runtime environment (for the production workflow, use the GitHub repository
+variable of the same name). Root-folder write access creates and uploads the
+snapshot; read access verifies that the destination is a private directory.
+Users can decline these optional permissions and still link Yandex ID. See
+[OAuth consent](https://yandex.ru/dev/id/doc/ru/codes/code-url) and the
+[Disk REST API](https://yandex.ru/dev/disk/rest/).
+
+The startup verifier validates the existing backup tables without migrations.
+For rollout, verify the production connection read-only and test a copy with a
+consenting account. A running backup and its status are local to the API process;
+if a release interrupts it, the user can start it again from profile settings.
 
 ### Password recovery
 
