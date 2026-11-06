@@ -32,7 +32,11 @@ try {
       if (keyboard) await trigger.press("Enter");
       else await trigger.click();
       await drawer.waitFor();
-      await drawer.evaluate(node => Promise.allSettled(node.getAnimations().map(animation => animation.finished)));
+      await drawer.evaluate(async node => {
+        // The popup can be attached a frame before the browser starts its transition.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await Promise.allSettled(node.getAnimations().map(animation => animation.finished));
+      });
       assert.equal(await drawer.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
     };
     const open = async mode => {
@@ -56,6 +60,13 @@ try {
         return {
           fits: bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.top >= -1 && bounds.bottom <= innerHeight + 1,
           root: document.documentElement.scrollWidth <= innerWidth,
+          dimensions: {
+            bounds: bounds.toJSON(), viewport: [innerWidth, innerHeight],
+            rootScrollWidth: document.documentElement.scrollWidth,
+            transform: getComputedStyle(node).transform,
+            opening: node.hasAttribute('data-starting-style'),
+            closing: node.hasAttribute('data-ending-style'),
+          },
           outsideGroup: !group.contains(node) && !group.querySelector(".wish-group-fundraiser"),
           gap: group.querySelector(".wish-grid").offsetTop - group.querySelector(".app-group-dialog__header").offsetHeight,
           overflow: [...body.querySelectorAll("*")].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < bounds.left - 1 || r.right > bounds.right + 1); }).map(element => element.tagName),
@@ -63,7 +74,7 @@ try {
           scrollBody: getComputedStyle(body).overflowY === "auto" && bodyBounds.top >= header.bottom - 1,
         };
       });
-      assert(result.fits && result.root, `${width} section overflow`);
+      assert(result.fits && result.root, `${width} section overflow: ${JSON.stringify(result.dimensions)}`);
       assert(result.outsideGroup && result.scrollBody, `${width} drawer must own a separate scroller`);
       assert.deepEqual(result.overflow, [], `${width} descendant overflow`);
       assert.deepEqual(result.body, ["18px", "28px"]);
