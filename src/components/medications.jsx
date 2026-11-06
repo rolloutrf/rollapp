@@ -777,16 +777,19 @@ function medicationCountLabel(count) {
   return "препаратов";
 }
 
-function MedicationGroupTabs({ groups, medications, value, onValueChange, onCreate }) {
+function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onValueChange, onCreate }) {
   const { readOnly } = useSphereSharing();
-  const countForGroup = (groupId) => medications.filter((medication) => (medication.groupId || UNGROUPED_ID) === groupId).length;
-  const tiles = [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups];
+  const tiles = ungroupedCount > 0 ? [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups] : groups;
+  if (readOnly && !tiles.length) return null;
+
   return (
     <nav className="list-tabs mb-0 w-full" aria-label="Группы препаратов">
       <div className="list-tabs__track">
         <ToggleGroup className="contents" value={[value]} onValueChange={(values) => values[0] && onValueChange(values[0])} aria-label="Группы препаратов">
           {tiles.map((group) => {
-            const count = countForGroup(group.id);
+            const count = group.id === UNGROUPED_ID
+              ? ungroupedCount
+              : medications.filter((medication) => medication.groupId === group.id).length;
             return (
               <ToggleGroupItem data-list-tile="" key={group.id} value={group.id} aria-label={`${group.title}, ${count} ${medicationCountLabel(count)}`}>
                 <ListTileContent title={group.title} count={count} />
@@ -830,7 +833,7 @@ export function Medications() {
   const { readOnly } = useSphereSharing();
   const [drawerState, setDrawerState] = useState(null);
   const [groupDrawerState, setGroupDrawerState] = useState(null);
-  const [selectedGroupId, setSelectedGroupId] = useState(UNGROUPED_ID);
+  const [preferredGroupId, setSelectedGroupId] = useState(UNGROUPED_ID);
   const [moveState, setMoveState] = useState({ itemId: "", error: "", announcement: "" });
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, medications: [], groups: [], error: null });
@@ -846,10 +849,17 @@ export function Medications() {
     return () => { current = false; };
   }, [requestVersion]);
 
+  const { groups, medications } = requestState;
+  const ungroupedCount = medications.filter((medication) => !medication.groupId).length;
+  const preferredGroup = groups.find((group) => group.id === preferredGroupId);
+  const selectedGroup = preferredGroup || (ungroupedCount === 0
+    ? groups.find((group) => medications.some((medication) => medication.groupId === group.id)) || groups[0]
+    : null);
+  const selectedGroupId = selectedGroup?.id ?? UNGROUPED_ID;
+
   useEffect(() => {
-    if (selectedGroupId === UNGROUPED_ID) return;
-    if (!requestState.groups.some((group) => group.id === selectedGroupId)) setSelectedGroupId(UNGROUPED_ID);
-  }, [requestState.groups, selectedGroupId]);
+    if (!requestState.loading && !requestState.error) setSelectedGroupId(selectedGroupId);
+  }, [requestState.loading, requestState.error, selectedGroupId]);
 
   const saveMedication = (medication) => {
     setRequestState((state) => {
@@ -902,7 +912,6 @@ export function Medications() {
     }
   };
 
-  const selectedGroup = requestState.groups.find((group) => group.id === selectedGroupId) || null;
   const visibleMedications = requestState.medications.filter((medication) => (
     selectedGroupId === UNGROUPED_ID ? !medication.groupId : medication.groupId === selectedGroupId
   ));
@@ -966,6 +975,7 @@ export function Medications() {
         <MedicationGroupTabs
           groups={requestState.groups}
           medications={requestState.medications}
+          ungroupedCount={ungroupedCount}
           value={selectedGroupId}
           onValueChange={setSelectedGroupId}
           onCreate={() => setGroupDrawerState({ group: null, moveItem: null })}
