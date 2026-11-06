@@ -26,6 +26,11 @@ try {
       window.cardTest = { copied: '', failCopy: false, shareMode: 'success', shares: [] };
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { async writeText(value) { if (window.cardTest.failCopy) throw Error('Denied'); window.cardTest.copied = value; } } });
       Object.defineProperty(navigator, 'share', { configurable: true, value: async (value) => { window.cardTest.shares.push(value); if (window.cardTest.shareMode === 'cancel') throw new DOMException('Cancelled', 'AbortError'); } });
+      const encodeCanvas = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (...args) {
+        if (window.cardTest.failQr) throw new Error('QR encoding failed');
+        return encodeCanvas.apply(this, args);
+      };
     });
     await page.route('**/api/**', (route) => { errors.push('Unexpected API request'); return route.abort(); });
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
@@ -47,7 +52,24 @@ try {
     assert(await qrImage.evaluate((image) => { const r = image.getBoundingClientRect(), body = image.closest('[data-contact-card-body]').getBoundingClientRect(); return r.top >= body.top - 1 && r.bottom <= body.bottom + 1; }), 'The complete QR must fit inside the scrollable body');
     const bounds = await dialog.boundingBox();
     assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1, 'Card outside viewport');
-    assert(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth), 'Card horizontal overflow');
+    assert.equal(await dialog.getAttribute('data-swipe-direction'), 'right');
+    assert(Math.abs(bounds.x + bounds.width - width) <= 1 && bounds.y <= 1 && Math.abs(bounds.height - height) <= 1, 'Card must be flush with the right edge and span the viewport height');
+    const body = dialog.locator('[data-contact-card-body]');
+    assert(await body.evaluate((element) => element.scrollWidth <= element.clientWidth), 'Card body horizontal overflow');
+    const closeButton = dialog.getByRole('button', { name: 'Закрыть визитку', exact: true });
+    const vcardButton = dialog.getByRole('button', { name: 'Скачать vCard', exact: true });
+    const closeBounds = await closeButton.boundingBox();
+    assert.equal(Math.round(closeBounds.width), 48);
+    const vcardBounds = await vcardButton.boundingBox();
+    const bodyBounds = await body.boundingBox();
+    assert(closeBounds.y + closeBounds.height <= bodyBounds.y && vcardBounds.y >= bodyBounds.y + bodyBounds.height, 'Actions overlap the scrolling body');
+    const scrollTop = await body.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      return element.scrollTop;
+    });
+    if (height === 400) assert(scrollTop > 0, 'Card body must scroll in a short viewport');
+    assert.deepEqual(await closeButton.boundingBox(), closeBounds, 'Close moved with the body');
+    assert.deepEqual(await vcardButton.boundingBox(), vcardBounds, 'vCard moved with the body');
     for (const button of await dialog.locator('[data-control-bar] button').all()) {
       assert.equal(Math.round((await button.boundingBox()).height), 48);
       assert.deepEqual(await button.evaluate((element) => { const css = getComputedStyle(element); return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomLeftRadius, css.borderBottomRightRadius]; }), ['24px','24px','24px','24px']);
@@ -86,11 +108,19 @@ try {
     await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
     assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/synthetic-user`, 'Share fallback did not copy the profile');
     await page.screenshot({ path: `/tmp/rollapp-contact-card-${width}-${height}.png` });
-    await dialog.getByRole('button', { name: 'Закрыть визитку', exact: true }).click();
+    await closeButton.click();
     await dialog.waitFor({ state: 'detached' });
     assert(await cardButton.evaluate((element) => document.activeElement === element), 'Card did not restore opener focus');
     assert.equal(await page.evaluate(() => window.feedTest.requests.length), requestsBeforeCard, 'Card changed feed');
+    if (height === 400) await page.evaluate(() => { window.cardTest.failQr = true; });
     await cardButton.press('Enter');
+    if (height === 400) {
+      const retryQr = dialog.getByRole('button', { name: 'Повторить QR-код', exact: true });
+      await retryQr.waitFor();
+      assert(await retryQr.evaluate((button) => button.checkVisibility() && button.offsetWidth <= button.parentElement.clientWidth && button.closest('[aria-busy]') === null), 'QR retry must fit in the body without clipping');
+      await page.evaluate(() => { window.cardTest.failQr = false; });
+      await retryQr.click();
+    }
     await dialog.getByRole('img').waitFor();
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
@@ -161,7 +191,7 @@ try {
     await dialog.getByRole('img').waitFor();
     await dialog.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
     await page.screenshot({ path: `/tmp/rollapp-contact-card-light-${width}-${height}.png` });
-    await page.keyboard.press('Escape');
+    await page.mouse.click(8, height / 2);
     await dialog.waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}×${height}: append, retry, end, favorite scroll/DOM, failure, filters, stale request, overflow; guest public card, light/dark`);

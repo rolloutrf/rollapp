@@ -75,7 +75,8 @@ try {
     assert(await button.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Clipped control label');
     assert.deepEqual(await button.evaluate(el=>{const s=getComputedStyle(el);return[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius];}),['24px','24px','24px','24px']);
   }
-  assert(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth),'Dialog horizontal overflow');
+  assert(await dialog.locator('[data-contact-card-body]').evaluate(el=>el.scrollWidth<=el.clientWidth),'Card body horizontal overflow');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Drawer caused page horizontal overflow');
   const bounds=await dialog.boundingBox();assert(bounds.x>=0&&bounds.y>=0&&bounds.x+bounds.width<=width+1&&bounds.y+bounds.height<=height+1);
   await send.scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/rollapp-ton-card-${width}-${height}.png`});
   await dialog.getByLabel('Файл подписанной визитки').setInputFiles({name:'previous.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(bundle))});

@@ -319,7 +319,6 @@ assert.match(snippetMediaSource, /import \{ Badge \} from "@\/components\/ui\/ba
 assert.match(snippetMediaSource, /<Badge\b/, "CollectionSnippetBadge must compose the official Badge");
 const snippetLinkSource = await read("src/components/collection-snippet-link.jsx");
 assert.match(snippetLinkSource, /cn\(buttonVariants\(/, "Snippet links must merge official button variants through cn");
-assert.match(coursesSource, /<CollectionSnippetLink\b/, "Courses must use the shared wrapping snippet link");
 assert.match(coachingSessionsSource, /<CollectionSnippetLink\b/, "Coaching must use the shared wrapping snippet link");
 assert.match(JSON.parse(packageText).scripts["check:release"], /npm run test:snippets/, "The complete snippets matrix must remain a release gate");
 
@@ -870,8 +869,8 @@ for (const file of sourceFiles) {
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
     if (source.includes("@/components/ui/drawer")) {
-      // Messaging and group fundraising keep modal panels on phones.
-      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+      // Messaging, group fundraising and digital contact cards keep modal panels on phones.
+      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx", "src/components/contact-card-dialog.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
     }
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }

@@ -6,7 +6,6 @@ import {
   ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
 } from "lucide-react";
 import { api } from "@/api";
-import { CollectionSnippetLink } from "@/components/collection-snippet-link";
 import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -17,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { GroupDialogHeader } from "@/components/group-dialog";
 import { EducationGroupDialog, educationGroupReturnFocus } from "@/components/education-item-groups";
 import {
-  Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle,
+  Card, CardAction, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import {
   Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
@@ -192,11 +191,6 @@ function CourseCard({
             />
           </CardAction>
         </CardHeader>
-        {course.url && (
-          <CardFooter className="justify-end">
-            <CollectionSnippetLink href={course.url} label={`Открыть курс «${course.title}»`}>Открыть курс</CollectionSnippetLink>
-          </CardFooter>
-        )}
       </Card>
     </div>
   );

@@ -65,6 +65,12 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   own nested contribution confirmation.
   Closing it restores focus to the icon and preserves the group's scroll position.
   See [the fundraising contract](wish-group-fundraising.md).
+- Digital contact cards use a right-side Drawer at every viewport width. The
+  header and circular Close control stay above the single scrolling card body,
+  with the vCard download in the shared action footer below. The card is
+  available from the profile's QR control and the public «Визитка» action.
+  `npm run test:contacts` verifies layout, dismissal and exports, and
+  `npm run test:contact-cards` covers signing and verification in the same drawer.
 
 ## Verification
 

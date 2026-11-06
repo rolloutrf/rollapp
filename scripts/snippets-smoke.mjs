@@ -64,6 +64,7 @@ try{
    activeCase={kind,width,height,touch,readOnly,phase:'cards'};
    await page.goto(`${origin}/__snippets?kind=${kind}${readOnly?'&readonly':''}`);
    await page.locator('[data-audit-card]').first().waitFor();await page.evaluate(()=>document.fonts.ready);
+   if(kind==='courses')assert.equal(await page.locator('[data-audit-card] [data-slot="card-footer"]').count(),0,'Course snippets must end at the metadata, even with a saved URL');
    for(const dark of [true,false]){
     await setTheme(page,dark);
     activeCase.dark=dark;
