@@ -4,6 +4,8 @@ import { addCalendarDays } from '../shared/planning-calendar.js';
 import { expandRecurringTasks } from '../shared/planning-recurrence.js';
 import { openRouterFetch } from './openrouter-fetch.js';
 import { createRateLimit } from './rate-limit.js';
+import { fetchYandexAi, YandexAiError } from './yandex-ai.js';
+import { hasAiCredential } from './ai-provider.js';
 
 const assistantInput = z.object({
   messages: z.array(z.object({
@@ -82,7 +84,7 @@ function replyActions(calls, canDiscoverSpheres) {
   return actions;
 }
 
-export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential, fetchImpl = openRouterFetch, now = () => new Date() }) {
+export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential, fetchImpl = openRouterFetch, yandexRequest = fetchYandexAi, now = () => new Date() }) {
   const limit = createRateLimit({ windowMs: 60_000, max: 8, key: req => req.user.id });
 
   app.post('/api/messenger/assistant/reply', requireAuth, (_req, res, next) => {
@@ -92,8 +94,9 @@ export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, 
     const parsed = assistantInput.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Проверьте текст сообщения и попробуйте снова.' });
 
-    const { apiKey, model } = await resolveCredential(req.user.id);
-    if (!apiKey) return res.status(503).json({ error: 'Подключите OpenRouter в настройках профиля, чтобы написать ассистенту.' });
+    const credential = await resolveCredential(req.user.id);
+    const { apiKey, model, provider } = credential;
+    if (!hasAiCredential(credential)) return res.status(503).json({ error: 'Подключите OpenRouter в настройках профиля, чтобы написать ассистенту.' });
     const { includePlanning, messages, timeZone } = parsed.data;
     const today = localDay(timeZone, now());
     const planning = includePlanning ? await readAssistantPlanningContext(query, req.user.id, today) : null;
@@ -104,29 +107,36 @@ export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, 
     const cancel = () => connection.abort();
     res.once('close', cancel);
     try {
-      const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'system', content: [
-            instructions, `Сегодня ${today}, все даты и время местные. Доступные разделы: ${allowed.join(', ')}.`,
-            ...(planning ? [`Невыполненные записи планирования (ограниченный снимок): ${JSON.stringify(planning)}`] : []),
-          ].join('\n') }, ...messages],
-          tools,
-          max_completion_tokens: 1200,
-          provider: { data_collection: 'deny' },
-        }),
-        signal: AbortSignal.any([connection.signal, AbortSignal.timeout(45_000)]),
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        if (response.status === 402) return res.status(503).json({ error: 'На балансе OpenRouter недостаточно средств.' });
-        if (response.status === 401 || response.status === 403) return res.status(503).json({ error: 'OpenRouter не разрешил запрос. Проверьте подключение в настройках профиля.' });
-        if (response.status === 404 || response.status === 422) return res.status(503).json({ error: 'Модель OpenRouter недоступна для ассистента. Проверьте выбранную модель в настройках профиля.' });
-        return res.status(502).json({ error: 'Ассистент временно недоступен.' });
+      const chatMessages = [{ role: 'system', content: [
+        instructions, `Сегодня ${today}, все даты и время местные. Доступные разделы: ${allowed.join(', ')}.`,
+        ...(planning ? [`Невыполненные записи планирования (ограниченный снимок): ${JSON.stringify(planning)}`] : []),
+      ].join('\n') }, ...messages];
+      const signal = AbortSignal.any([connection.signal, AbortSignal.timeout(45_000)]);
+      let payload;
+      if (provider === 'yandex') {
+        payload = await yandexRequest('chat/completions', { messages: chatMessages, tools, max_tokens: 1200 }, { signal });
+      } else {
+        const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: chatMessages,
+            tools,
+            max_completion_tokens: 1200,
+            provider: { data_collection: 'deny' },
+          }),
+          signal,
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          if (response.status === 402) return res.status(503).json({ error: 'На балансе OpenRouter недостаточно средств.' });
+          if (response.status === 401 || response.status === 403) return res.status(503).json({ error: 'OpenRouter не разрешил запрос. Проверьте подключение в настройках профиля.' });
+          if (response.status === 404 || response.status === 422) return res.status(503).json({ error: 'Модель OpenRouter недоступна для ассистента. Проверьте выбранную модель в настройках профиля.' });
+          return res.status(502).json({ error: 'Ассистент временно недоступен.' });
+        }
+        payload = await response.json();
       }
-      const payload = await response.json();
       const message = payload?.choices?.[0]?.message;
       const content = typeof message?.content === 'string' ? message.content.trim().slice(0, ASSISTANT_MESSAGE_LIMIT) : '';
       const actions = replyActions(message?.tool_calls, req.user.can_discover_spheres);
@@ -134,7 +144,8 @@ export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, 
         return res.status(502).json({ error: 'Ассистент не вернул ответ.' });
       }
       return res.json({ reply: content || 'Подготовил для вас:', actions });
-    } catch {
+    } catch (error) {
+      if (!connection.signal.aborted && error instanceof YandexAiError) return res.status(error.status).json({ error: error.message, code: error.code });
       if (!connection.signal.aborted) return res.status(502).json({ error: 'Не удалось получить ответ ассистента.' });
     } finally {
       res.off('close', cancel);

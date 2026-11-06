@@ -1,3 +1,5 @@
+import { sharedAiConfigured } from "./ai-provider.js";
+import { yandexAiConfig } from "./yandex-ai.js";
 import { z } from "zod";
 import { DEFAULT_MODEL } from "./openrouter-marketplace-offers.js";
 import { encryptUserCredential, userCredentialHint, userCredentialsConfigured, UserCredentialsError } from "./user-credentials.js";
@@ -30,7 +32,8 @@ export function registerOpenRouterRoutes(app, {
       keyHint: credential?.secret_hint || "",
       model: credential?.model || process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
       defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
-      serverFallbackConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+      serverFallbackConfigured: sharedAiConfigured(),
+      serverFallbackProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
     };
   }
 

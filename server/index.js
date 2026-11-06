@@ -51,11 +51,12 @@ import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata
 import { courseLogoHandler } from "./course-logo-resolver.js";
 import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
-import { DEFAULT_MODEL, fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
+import { fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
 import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers } from "./marketplace-resolvers.js";
 import { userCredentialsConfigured } from "./user-credentials.js";
-import { resolveOpenRouterCredential } from "./openrouter-credential.js";
-import { resolveOpenRouterModel } from "./openrouter-settings.js";
+import { resolveAiCredential, hasAiCredential, sharedAiConfigured } from "./ai-provider.js";
+import { fetchYandexMarketplaceOffers } from "./yandex-marketplace-offers.js";
+import { YandexAiError, yandexAiConfig } from "./yandex-ai.js";
 import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
@@ -2009,7 +2010,8 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
     version: process.env.APP_VERSION || "development",
     capabilities: {
       marketplaceDirect: true,
-      marketplaceAi: Boolean(process.env.OPENROUTER_API_KEY),
+      marketplaceAi: sharedAiConfigured(),
+      defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
     },
   });
@@ -2228,8 +2230,7 @@ const openRouterCredentialRow = (userId) => readOpenRouterCredential(query, user
 
 async function resolveOpenRouterApiKey(userId) {
   const credential = await openRouterCredentialRow(userId);
-  const resolved = resolveOpenRouterCredential(credential, { userId });
-  return { ...resolved, model: resolveOpenRouterModel(credential, { source: resolved.source, defaultModel: process.env.OPENROUTER_MODEL || DEFAULT_MODEL }) };
+  return resolveAiCredential(credential, { userId });
 }
 
 registerOpenRouterRoutes(app, { query, requireAuth, authRateLimit, asyncRoute });
@@ -3604,7 +3605,7 @@ app.get("/api/wishes/:id/marketplace-offers", requireAuth, asyncRoute(async (req
     ),
     openRouterCredentialRow(req.user.id),
   ]);
-  const aiConfigured = Boolean(process.env.OPENROUTER_API_KEY || (credential && userCredentialsConfigured()));
+  const aiConfigured = Boolean(sharedAiConfigured() || (credential && userCredentialsConfigured()));
   res.set("Cache-Control", "private, no-store");
   return res.json({
     configured: true,
@@ -3645,7 +3646,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
 
   const controller = new AbortController();
   const searchStartedAt = Date.now();
-  const timeout = setTimeout(() => controller.abort(new Error("OpenRouter request timed out")), 90_000);
+  const timeout = setTimeout(() => controller.abort(new Error("AI search timed out")), 90_000);
   const keepAlive = setInterval(() => writeMarketplaceOfferEvent(res, "ping", { at: Date.now() }), 12_000);
   res.once("close", () => {
     if (!res.writableEnded) controller.abort();
@@ -3660,14 +3661,15 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     });
     if (openRouterCredential.warning) {
       writeMarketplaceOfferEvent(res, "warning", {
-        warning: openRouterCredential.apiKey
-          ? "Личный ключ нейропоиска недоступен; используется серверный ключ."
+        warning: hasAiCredential(openRouterCredential)
+          ? "Личный ключ нейропоиска недоступен; используется базовая модель Rollapp."
           : "Личный ключ нейропоиска недоступен; поиск продолжен в прямых каталогах магазинов.",
         code: openRouterCredential.warning.code,
       });
     }
-    const openRouterTask = openRouterCredential.apiKey
-      ? fetchOpenRouterMarketplaceOffers(owned.rows[0], {
+    const fetchAiOffers = openRouterCredential.provider === "yandex" ? fetchYandexMarketplaceOffers : fetchOpenRouterMarketplaceOffers;
+    const openRouterTask = hasAiCredential(openRouterCredential)
+      ? fetchAiOffers(owned.rows[0], {
         apiKey: openRouterCredential.apiKey,
         model: openRouterCredential.model,
         signal: controller.signal,
@@ -3706,14 +3708,14 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
         code: "marketplace_offers_not_found",
       });
     }
-    if (!openRouterCredential.apiKey && !openRouterCredential.warning) {
+    if (!hasAiCredential(openRouterCredential) && !openRouterCredential.warning) {
       writeMarketplaceOfferEvent(res, "warning", {
         warning: "Нейропоиск не настроен; показаны предложения из прямых каталогов магазинов.",
         code: "openrouter_not_configured",
       });
     } else if (openRouterSearch.status === "rejected") {
       const aiError = openRouterSearch.reason;
-      const knownAiError = aiError instanceof OpenRouterOffersError;
+      const knownAiError = aiError instanceof OpenRouterOffersError || aiError instanceof YandexAiError;
       console.warn("Marketplace AI search failed", {
         code: knownAiError ? aiError.code : "openrouter_request_failed",
         durationMs: Date.now() - searchStartedAt,
@@ -3771,7 +3773,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       durationMs: Date.now() - searchStartedAt,
     });
   } catch (error) {
-    const known = error instanceof OpenRouterOffersError;
+    const known = error instanceof OpenRouterOffersError || error instanceof YandexAiError;
     const aborted = controller.signal.aborted;
     console.warn("Marketplace offer refresh failed", {
       code: aborted ? "marketplace_offers_timeout" : known ? error.code : "marketplace_offers_failed",

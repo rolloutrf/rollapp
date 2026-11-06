@@ -283,7 +283,7 @@ function AssistantConversation({ chat, onBack }) {
       const node = event.currentTarget;
       atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
     }}>
-      <p className="messenger-note">Помогу найти раздел, составить план или подготовить задачу, событие и заметку. Сообщения этого чата обрабатывает OpenRouter.</p>
+      <p className="messenger-note">Помогу найти раздел, составить план или подготовить задачу, событие и заметку. Сообщения обрабатывает базовая модель Rollapp в Yandex Cloud или ваша подключённая модель OpenRouter.</p>
       {!chat.messages.length && !chat.draft && <div role="group" aria-label="Примеры запросов" className="flex shrink-0 flex-wrap justify-center gap-2">
         {assistantStarters.map(([label, prompt]) => <Button key={label} type="button" variant="outline" className="min-h-12 rounded-full px-6" onClick={() => {
           chat.setDraft(prompt);
@@ -299,7 +299,7 @@ function AssistantConversation({ chat, onBack }) {
       <label className="messenger-planning-option">
         <Checkbox aria-labelledby="messenger-planning-label" aria-describedby="messenger-planning-description"
           checked={chat.includePlanning} onCheckedChange={chat.setIncludePlanning} disabled={chat.sending} />
-        <span><span id="messenger-planning-label">Учесть моё планирование</span><small id="messenger-planning-description">Передать OpenRouter задачи и события на 7 дней</small></span>
+        <span><span id="messenger-planning-label">Учесть моё планирование</span><small id="messenger-planning-description">Передать выбранной модели задачи и события на 7 дней</small></span>
       </label>
     </MessageComposer>
   </section>;

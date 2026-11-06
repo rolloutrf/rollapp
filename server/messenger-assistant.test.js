@@ -7,6 +7,33 @@ const ask = content => ({ messages: [{ role: 'user', content }] });
 const tool = (name, args) => ({ type: 'function', function: { name, arguments: JSON.stringify(args) } });
 const completion = message => Response.json({ choices: [{ message }] });
 
+test('assistant without a personal key uses Yandex and keeps function suggestions guarded', async () => {
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex', model: 'gpt://folder/aliceai-llm-flash' }),
+    yandexRequest: async (path, body, { signal }) => {
+      assert.equal(path, 'chat/completions');
+      assert.equal(body.max_tokens, 1200);
+      assert.ok(signal instanceof AbortSignal);
+      assert.doesNotMatch(body.messages[0].content, /ограниченный снимок/);
+      return { choices: [{ message: { content: 'Открыть календарь:', tool_calls: [tool('open_section', { section: 'calendar' }), tool('open_section', { section: 'health' })] } }] };
+    },
+  }, async request => {
+    const response = await request(ask('Открой календарь'));
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).actions, [{ type: 'open_section', value: { section: 'calendar' } }]);
+  });
+});
+
+test('personal provider failures never silently spend the shared Yandex balance', async () => {
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'openrouter', apiKey: 'personal-key', model: 'personal/model' }),
+    fetchImpl: async () => new Response('', { status: 402 }),
+    yandexRequest: async () => { throw Error('Must not call Yandex'); },
+  }, async request => {
+    assert.equal((await request(ask('Привет'))).status, 503);
+  });
+});
+
 async function withAssistant(options, run) {
   const app = express();
   app.use(express.json());

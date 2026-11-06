@@ -140,7 +140,7 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
             {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}</p>}
             {error && <p className="text-destructive" role="alert">{error}</p>}
           </> : <>
-              <p className="text-muted-foreground">Выберите модель для поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
+              <p className="text-muted-foreground">Выберите модель для ассистента и поиска предложений. Запросы оплачиваются с вашего баланса OpenRouter.</p>
               <Field>
                 <FieldLabel htmlFor="settings-openrouter-key">{settings.configured ? "Новый API-ключ" : "API-ключ"}</FieldLabel>
                 {settings.configured && <p className="text-muted-foreground">Сохранён ключ {settings.keyHint}. Оставьте поле пустым, чтобы изменить только модель.</p>}
@@ -190,7 +190,7 @@ export function OpenRouterSettings({ draft, onDraftChange, disabled = false, onB
                 {modelsError && <div className="flex flex-wrap items-center gap-2 text-destructive" role="status"><span>{modelsError}</span><Button type="button" variant="ghost" className="h-auto min-h-12 whitespace-normal text-destructive hover:text-destructive" onClick={loadModels}>Повторить загрузку</Button></div>}
               </Field>
               {error && <p className="text-destructive" role="alert">{error}</p>}
-              {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, поиск использует настройки Rollapp.</p>}
+              {!settings.configured && settings.serverFallbackConfigured && <p className="text-xs text-muted-foreground">Пока личный ключ не подключён, ассистент и поиск используют базовую модель Rollapp.</p>}
             </>}
       </form>
     </ScrollArea>

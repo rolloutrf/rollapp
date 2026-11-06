@@ -63,6 +63,9 @@ services:
       YC_TELEGRAM_LOCKBOX_SECRET_ID: "e6qqi6inhrnvg67mkhhs"
       YC_TELEGRAM_BOT_TOKEN_KEY: "bot_token"
       YC_TELEGRAM_WEBHOOK_SECRET_KEY: "webhook_secret"
+      # Managed default; personal OpenRouter credentials take priority.
+      YANDEX_AI_MODEL: "aliceai-llm-flash"
+      YANDEX_AI_AUTH: "metadata"
       OPENROUTER_MODEL: "mistralai/mistral-small-2603"
       YC_OPENROUTER_LOCKBOX_SECRET_ID: "e6qkgbgcvu4727knndhq"
       YC_OPENROUTER_API_KEY_KEY: "api_key"
