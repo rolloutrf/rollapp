@@ -23,14 +23,15 @@ let apiRequests = 0;
 try {
  for (const [width, height] of [[320,900],[390,900],[768,900],[820,900],[1024,900],[1440,900],[1920,900],[390,400],[1024,400]]) {
   for (const tracker of ["sleep", "nutrition"]) {
-   const page = await browser.newPage({ viewport: { width, height } });
+   const page = await browser.newPage({ viewport: { width, height }, timezoneId: "Europe/Moscow" });
+   await page.clock.setFixedTime(new Date("2026-11-06T12:00:00+03:00"));
    const errors = []; page.on("pageerror", error => errors.push(error.message));
    await page.route("**/api/**", route => { apiRequests++; return route.abort(); });
    await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=${tracker}`);
    const article = page.getByRole("article", { name: `Трекер: ${tracker === "sleep" ? "Сон" : "Питание"}` });
    await article.waitFor(); await page.evaluate(() => document.fonts.ready);
    if (tracker === 'sleep') {
-    await checkSleepHistory(page, article, width, height);
+    await checkSleepCalendar(page, article, width, height);
     assert.deepEqual(errors, []);
     await page.close();
     continue;
@@ -52,10 +53,10 @@ try {
  await morning.locator('[data-sleep-day="2026-10-20"]').waitFor();
  await morning.clock.fastForward(2100);
  await morning.locator('[data-sleep-day="2026-10-21"]').waitFor();
- assert.equal(await morning.locator('[data-sleep-day="2026-10-20"]').count(), 0, 'Unsaved placeholders are not manufactured history');
+ assert.equal(await morning.locator('[data-sleep-day="2026-10-20"]').count(), 0, 'Only the selected day is shown after midnight');
  assert.equal(await morning.getByRole('dialog').count(), 0);
  await morning.close();
- console.log(`PASS sleep midnight (${startupDelay}ms startup delay): a new daily tile appears automatically without API writes`);
+ console.log(`PASS sleep midnight (${startupDelay}ms startup delay): selection follows today automatically without API writes`);
  }
  assert.equal(apiRequests, 0, "UI presentation fixtures must not call API");
 } finally { await browser.close(); await server.close(); }
@@ -71,53 +72,119 @@ async function assertGeometry(page, label) {
 // another form or navigate away until the owning tracker URL has returned.
 function waitForTrackerReturn(page) { return page.waitForURL(url => !url.searchParams.has("formScreen")); }
 
-async function checkSleepHistory(page, article, width, height) {
- await assertGeometry(page, `${width} sleep history`);
- assert.equal(await article.getByRole('button', { name: /Предыдущий день|Следующий день|День трекера|Добавить/ }).count(), 0);
- assert.equal(await article.locator('[data-sleep-day]').count(), 2);
- const tiles = article.locator('[data-sleep-day]');
- const today = await tiles.first().getAttribute('data-sleep-day');
- const yesterday = await tiles.nth(1).getAttribute('data-sleep-day');
- assert(today > yesterday, 'History is newest first');
+async function checkSleepCalendar(page, article, width, height) {
+ const mobile = width < 768;
+ const day = article.locator('[data-sleep-day]');
+ const activeTile = article.locator('[data-list-tile][aria-pressed="true"]');
+ const dateButton = article.getByRole('button', { name: /^День сна:/ });
+ const closeForm = page.getByRole('button', { name: mobile ? 'Назад' : 'Закрыть запись', exact: true });
+ const save = page.getByRole('button', { name: 'Сохранить', exact: true });
+ const notes = page.getByLabel('Заметки', { exact: true });
+ const previous = () => mobile ? article.getByRole('button', { name: 'Предыдущий день', exact: true }).click() : activeTile.press('ArrowLeft');
+ const next = () => mobile ? article.getByRole('button', { name: 'Следующий день', exact: true }).click() : activeTile.press('ArrowRight');
+ const currentDate = () => day.getAttribute('data-sleep-day');
+ const today = await currentDate();
+ const readUrlDate = () => new URL(page.url()).searchParams.get('date');
+ await article.getByText('7 ч 45 мин', { exact: true }).waitFor();
+ assert.equal(await article.getByText('Прошлая ночь', { exact: true }).count(), 0);
+ await assertGeometry(page, `${width} sleep calendar`);
+ if (mobile) {
+  assert.equal(await article.locator('.daily-todo__ribbon').count(), 0);
+  const toolbar = article.getByRole('group', { name: 'День сна', exact: true });
+  await toolbar.getByRole('button', { name: 'Записать сон', exact: true }).waitFor();
+  assert.equal(await toolbar.getByRole('button').count(), 4);
+ } else {
+  const tile = await activeTile.boundingBox();
+  const ribbon = await article.locator('.daily-todo__ribbon').boundingBox();
+  assert.equal(tile.width, 130); assert.equal(tile.height, 100);
+  assert(Math.abs(tile.x + tile.width / 2 - ribbon.x - ribbon.width / 2) < 1, 'Selected tile is centered');
+  if (width <= 820) {
+   assert(Math.abs(ribbon.x) < 1 && Math.abs(ribbon.width - width) < 1, 'Ribbon reaches both screen edges');
+  }
+  assert.match(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+  const add = article.getByRole('button', { name: 'Записать сон', exact: true });
+  const button = await add.evaluate(node => { const css = getComputedStyle(node); return [css.paddingLeft, css.paddingRight, node.offsetHeight]; });
+  assert.deepEqual(button, ['24px', '24px', 48]);
+ }
+ await page.screenshot({ path: `${output}/sleep-calendar-${width}x${height}.png`, fullPage: true });
+ await previous();
  await article.getByText('Прошлая ночь', { exact: true }).waitFor();
- await page.screenshot({ path: `${output}/sleep-history-${width}x${height}.png`, fullPage: true });
- await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).click();
+ const yesterday = await currentDate();
+ assert(yesterday < today);
+ assert.equal(readUrlDate(), yesterday);
+ assert.equal(await article.getByText('Спокойный сон', { exact: true }).count(), 0);
+ await page.reload();
+ await article.getByText('Прошлая ночь', { exact: true }).waitFor();
+ assert.equal(await currentDate(), yesterday, 'A selected past day survives reload');
+ await article.getByRole('button', { name: 'Открыть запись сна: 14:00 — 14:45', exact: true }).click();
+ assert.equal(await notes.inputValue(), 'Дневной сон');
  assert.equal(await page.getByRole('button', { name: /^Дата пробуждения:/ }).count(), 0);
- await page.getByLabel('Заметки', { exact: true }).fill('Обновлённый сон');
- await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+ await notes.fill('Обновлённый сон');
+ await save.click();
  await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
- assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Обновлённый сон');
- await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+ assert.equal(await notes.inputValue(), 'Обновлённый сон');
+ await save.click();
+ await waitForTrackerReturn(page);
  await article.getByText('Обновлённый сон', { exact: true }).waitFor();
- await waitForTrackerReturn(page);
  await article.getByText('Прошлая ночь', { exact: true }).waitFor();
- assert.equal(await article.getByRole('button', { name: /^(Редактировать|Удалить):/ }).count(), 0, 'Sleep cards have no inline edit/delete actions');
- await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).click();
- assert.equal(await page.getByLabel('Заметки', { exact: true }).inputValue(), 'Обновлённый сон');
- await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
- await page.getByLabel('Заметки', { exact: true }).waitFor({ state: 'hidden' });
- await waitForTrackerReturn(page);
- await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&empty=1`);
- await article.waitFor();
- await page.getByRole('button', { name: `Записать сон: ${today}`, exact: true }).waitFor();
- await page.getByRole('button', { name: `Записать сон: ${today}`, exact: true }).click();
- await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
- await page.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
- await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
- await page.getByRole('button', { name: `Открыть запись сна: ${today}`, exact: true }).waitFor();
- await waitForTrackerReturn(page);
- await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&readonly=1`);
- await article.waitFor();
- assert.equal(await article.getByRole('button').count(), 0, 'Read-only history is not interactive');
- await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&empty=1`);
- await article.waitFor();
- assert.equal(await article.locator('[data-sleep-day]').count(), 1);
- await page.getByRole('button', { name: /^Записать сон:/ }).click();
- await page.getByLabel('Заметки', { exact: true }).fill('Не сохранено');
- await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть запись', exact: true }).click();
+ assert.equal(readUrlDate(), yesterday);
+ await previous();
  await article.getByText('Как вы спали?', { exact: true }).waitFor();
+ const emptyDay = await currentDate();
+ assert(emptyDay < yesterday);
+ if (mobile) {
+  await dateButton.click();
+  await page.getByRole('heading', { name: 'День сна', exact: true }).waitFor();
+  await page.goBack();
+  await waitForTrackerReturn(page);
+  assert.equal(readUrlDate(), emptyDay, 'Back cancels the date picker');
+  await article.getByRole('group', { name: 'День сна', exact: true }).getByRole('button', { name: 'Записать сон', exact: true }).click();
+ } else {
+  assert.doesNotMatch(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+  await article.getByRole('button', { name: `Записать сон: ${emptyDay}`, exact: true }).click();
+ }
+ await notes.fill('Не сохранено');
+ if (mobile) await page.goBack(); else await closeForm.click();
+ await notes.waitFor({ state: 'hidden' });
  await waitForTrackerReturn(page);
- console.log(`PASS sleep history ${width}x${height}: daily tiles, descending history, whole-card open, no calendar/add, retry, card edit, no inline actions, create/cancel, read-only`);
+ assert.equal(readUrlDate(), emptyDay, 'Cancelling the entry preserves its selected day');
+ await article.getByRole('button', { name: `Записать сон: ${emptyDay}`, exact: true }).click();
+ assert.equal(await notes.inputValue(), '');
+ await notes.fill('Запись за выбранный день');
+ await save.click();
+ await waitForTrackerReturn(page);
+ await article.getByText('Запись за выбранный день', { exact: true }).waitFor();
+ assert.equal(readUrlDate(), emptyDay);
+ if (!mobile) assert.match(await activeTile.getAttribute('aria-label'), /Есть запись сна/);
+ await next();
+ await article.getByText('Обновлённый сон', { exact: true }).waitFor();
+ assert.equal(await article.getByText('Запись за выбранный день', { exact: true }).count(), 0);
+ if (mobile) {
+  await dateButton.click();
+  const calendar = page.getByRole('region', { name: 'День сна', exact: true });
+  const [year, month, date] = emptyDay.split('-');
+  await calendar.locator(`button[data-day="${date}.${month}.${year}"]`).click();
+  await waitForTrackerReturn(page);
+  await article.getByText('Запись за выбранный день', { exact: true }).waitFor();
+  assert.equal(readUrlDate(), emptyDay);
+ } else {
+  await activeTile.press('Home');
+  await article.getByText('Спокойный сон', { exact: true }).waitFor();
+  assert.equal(readUrlDate(), null, 'Home restores today');
+ }
+ await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=sleep&readonly=1&date=${yesterday}`);
+ await article.getByText('Прошлая ночь', { exact: true }).waitFor();
+ assert.equal(await article.getByRole('button', { name: /^(Записать сон|Открыть запись сна)/ }).count(), 0);
+ await previous();
+ await article.getByText('Нет записей о сне', { exact: true }).waitFor();
+ if (mobile) {
+  const readonlyRow = article.getByRole('group', { name: 'День сна', exact: true });
+  const row = await readonlyRow.boundingBox();
+  const nextDay = await readonlyRow.getByRole('button', { name: 'Следующий день', exact: true }).boundingBox();
+  assert(Math.abs(nextDay.x + nextDay.width - row.x - row.width) < 1, 'Read-only navigation uses the full width without an empty add slot');
+ }
+ await assertGeometry(page, `${width} read-only sleep`);
+ console.log(`PASS sleep calendar ${width}x${height}: shared navigation, date URL and reload, multi-entry edit/retry, historical creation, cancel/Back, read-only and geometry`);
 }
 
 async function checkNutritionTodo(page, article, width, height) {

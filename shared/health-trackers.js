@@ -21,14 +21,3 @@ export const trackerSchemas = {
 export function nutritionTotals(entries) {
   return Object.fromEntries(["calories", "protein", "fat", "carbs"].map(key => [key, entries.some(entry => entry[key] != null) ? Math.round(entries.reduce((sum, entry) => sum + (entry[key] ?? 0), 0) * 10) / 10 : null]));
 }
-
-// Today's unsaved tile is presentation only. Historic records always come from PostgreSQL.
-export function sleepHistoryDays(entries, today) {
-  const grouped = new Map([[today, []]]);
-  for (const entry of entries) {
-    if (!grouped.has(entry.date)) grouped.set(entry.date, []);
-    grouped.get(entry.date).push(entry);
-  }
-  return [today, ...[...grouped.keys()].filter(date => date !== today).sort().reverse()]
-    .map(date => ({ date, entries: grouped.get(date).sort((a, b) => a.wakeTime.localeCompare(b.wakeTime)) }));
-}

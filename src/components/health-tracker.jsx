@@ -1,3 +1,5 @@
+import { HealthDayNavigation } from "@/components/health-day-navigation";
+import { PageActionButton } from "@/components/page-action-button";
 import { NutritionTodo } from "@/components/nutrition-todo";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSearchParams } from "react-router-dom";
@@ -17,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import { isPlanningDate, localDateKey } from "../../shared/planning.js";
-import { durationLabel, MEAL_TYPES, sleepMinutes, sleepHistoryDays, SLEEP_QUALITY, trackerSchemas } from "../../shared/health-trackers.js";
+import { durationLabel, MEAL_TYPES, sleepMinutes, SLEEP_QUALITY, trackerSchemas } from "../../shared/health-trackers.js";
 
 const formatDate = value => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", weekday: "long" }).format(new Date(`${value}T12:00:00`));
 const emptyEntry = (tracker, date) => tracker === "sleep"
@@ -43,24 +45,38 @@ function useToday() {
   return today;
 }
 
-function SleepHistory({ entries, today, canEdit, onEdit }) {
-  return <ul className="not-typeset grid min-w-0 list-none gap-4 p-0" aria-label="История сна">
-    {sleepHistoryDays(entries, today).map(day => <li key={day.date} className="min-w-0" data-sleep-day={day.date}>
-      <Card className="relative min-w-0">
-        {canEdit && <Button type="button" variant="ghost" className="absolute inset-0 z-10 h-full w-full rounded-xl bg-transparent p-0 text-left hover:bg-transparent active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring" aria-label={`${day.entries.length ? "Открыть запись сна" : "Записать сон"}: ${day.date}`} onClick={() => onEdit(day.entries[0] || null, day.date)} />}
-        <CardHeader><CardTitle className="text-rollapp-body leading-7">{day.date === today ? "Сегодня · " : ""}{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", weekday: "long" }).format(new Date(`${day.date}T12:00:00`))}</CardTitle></CardHeader>
-        <CardContent className="rollapp-body flex min-w-0 flex-col gap-3">
-          {!day.entries.length ? <><strong>Как вы спали?</strong><span className="text-muted-foreground">{canEdit ? "Нажмите, чтобы записать сон" : "Сон пока не записан"}</span></> : <>
-            <strong>{durationLabel(day.entries.reduce((sum, entry) => sum + sleepMinutes(entry.bedtime, entry.wakeTime), 0))}</strong>
-            {day.entries.map(entry => <div key={entry.id} className="flex min-w-0 flex-col gap-3">
-              <p>{entry.bedtime} — {entry.wakeTime} · {SLEEP_QUALITY[entry.quality]}</p>
-              {entry.notes && <p className="whitespace-pre-wrap wrap-anywhere">{entry.notes}</p>}
-            </div>)}
-          </>}
-        </CardContent>
-      </Card>
-    </li>)}
-  </ul>;
+function SleepDay({ entries, selected, today, onDateChange, canEdit, onEdit }) {
+  const dayEntries = entries.filter(entry => entry.date === selected).sort((a, b) => a.wakeTime.localeCompare(b.wakeTime));
+  const recordedDays = new Set(entries.map(entry => entry.date));
+  const create = () => onEdit(null, selected);
+  return <div className="not-typeset page-stack">
+    <HealthDayNavigation selected={selected} today={today} onDateChange={onDateChange} label="День сна" addLabel="Записать сон" onAdd={canEdit ? create : undefined} dayStatus={date => recordedDays.has(date) ? "Есть запись сна" : undefined} />
+    <section className="health-tracker__body page-stack" aria-label="Сон за выбранный день" data-sleep-day={selected}>
+      {dayEntries.length > 0 ? <>
+        <ul className="grid min-w-0 list-none gap-4 p-0" aria-label="Записи сна">
+          {dayEntries.map(entry => <li key={entry.id} className="min-w-0">
+            <Card className="relative min-w-0">
+              {canEdit && <SleepCardAction label={`Открыть запись сна: ${entry.bedtime} — ${entry.wakeTime}`} onClick={() => onEdit(entry, selected)} />}
+              <CardHeader><CardTitle className="text-rollapp-body leading-7">{durationLabel(sleepMinutes(entry.bedtime, entry.wakeTime))}</CardTitle></CardHeader>
+              <CardContent className="rollapp-body flex min-w-0 flex-col gap-3">
+                <p>{entry.bedtime} — {entry.wakeTime} · {SLEEP_QUALITY[entry.quality]}</p>
+                {entry.notes && <p className="whitespace-pre-wrap wrap-anywhere">{entry.notes}</p>}
+              </CardContent>
+            </Card>
+          </li>)}
+        </ul>
+        {canEdit && <PageActionButton className="hidden self-center md:inline-flex" onClick={create}>Записать сон</PageActionButton>}
+      </> : <Card className="relative min-w-0">
+        {canEdit && <SleepCardAction label={`Записать сон: ${selected}`} onClick={create} />}
+        <CardHeader><CardTitle className="text-rollapp-body leading-7">{canEdit ? "Как вы спали?" : "Нет записей о сне"}</CardTitle></CardHeader>
+        {canEdit && <CardContent className="rollapp-body text-muted-foreground">Нажмите, чтобы записать сон</CardContent>}
+      </Card>}
+    </section>
+  </div>;
+}
+
+function SleepCardAction({ label, onClick }) {
+  return <Button type="button" variant="ghost" className="absolute inset-0 z-10 h-full w-full rounded-xl bg-transparent p-0 text-left hover:bg-transparent active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring" aria-label={label} onClick={onClick} />;
 }
 
 function EntryForm({ tracker, entry, date, onClose, onSave, canEdit }) {
@@ -162,9 +178,9 @@ export function HealthTracker({ tracker, initialEntries, onSaveEntry, onDeleteEn
     } catch (cause) { setDeleteError(cause.message); }
     finally { deleteLock.current = false; setDeleteBusy(false); }
   }
-  return <article className={`health-tracker rollapp-body text-pretty page-stack mx-auto w-full ${sleep ? "max-w-(--layout-form-width)" : "max-w-(--layout-collection-width)"}`} aria-label={`Трекер: ${title}`}>
+  return <article className="health-tracker rollapp-body text-pretty page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={`Трекер: ${title}`}>
     <h1 className="sr-only">{title}</h1>
-    {loading ? <p role="status" className="not-typeset flex items-center gap-2"><Spinner />Загружаем записи…</p> : error ? <Alert className="not-typeset" variant="destructive"><AlertTitle>Не удалось загрузить трекер</AlertTitle><AlertDescription>{error}<Button variant="outline" onClick={() => setVersion(value => value + 1)}>Повторить</Button></AlertDescription></Alert> : sleep ? <SleepHistory entries={entries} today={today} canEdit={canEdit} onEdit={(entry, entryDate) => setEditor({ entry, date: entryDate })} /> : <NutritionTodo entries={entries} selected={date} today={today} onDateChange={setDate} canEdit={canEdit} onCreate={(selectedDate, draft = null) => setEditor({ entry: draft, date: selectedDate })} onEdit={entry => setEditor({ entry, date: entry.date })} onSave={save} onDelete={entry => { setDeleting(entry); setDeleteError(""); }} />}
+    {loading ? <p role="status" className="not-typeset flex items-center gap-2"><Spinner />Загружаем записи…</p> : error ? <Alert className="not-typeset" variant="destructive"><AlertTitle>Не удалось загрузить трекер</AlertTitle><AlertDescription>{error}<Button variant="outline" onClick={() => setVersion(value => value + 1)}>Повторить</Button></AlertDescription></Alert> : sleep ? <SleepDay entries={entries} selected={date} today={today} onDateChange={setDate} canEdit={canEdit} onEdit={(entry, entryDate) => setEditor({ entry, date: entryDate })} /> : <NutritionTodo entries={entries} selected={date} today={today} onDateChange={setDate} canEdit={canEdit} onCreate={(selectedDate, draft = null) => setEditor({ entry: draft, date: selectedDate })} onEdit={entry => setEditor({ entry, date: entry.date })} onSave={save} onDelete={entry => { setDeleting(entry); setDeleteError(""); }} />}
     {editor && canEdit && <EntryForm tracker={tracker} entry={editor.entry} date={editor.date || date} onClose={() => setEditor(null)} onSave={save} canEdit={canEdit} />}
     <AlertDialog open={Boolean(deleting)} onOpenChange={open => { if (!open && !deleteLock.current) setDeleting(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Удалить запись?</AlertDialogTitle><AlertDialogDescription>Запись будет удалена из трекера без возможности восстановления.</AlertDialogDescription></AlertDialogHeader>{deleteError && <Alert variant="destructive"><AlertDescription>{deleteError}</AlertDescription></Alert>}<AlertDialogFooter><AlertDialogCancel disabled={deleteBusy}>Отмена</AlertDialogCancel><AlertDialogAction variant="destructive" disabled={deleteBusy} onClick={remove}>{deleteBusy ? "Удаляем" : "Удалить"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </article>;

@@ -227,3 +227,5 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 
 - Profile settings show the avatar and upload control above the top-level section list. Saving from this screen updates only the avatar and preserves personal and OpenRouter drafts. Personal information, OpenRouter and Yandex ID open in separate views. Use native form history on mobile and preserve drafts across Back. Orders use `/app/orders` and block navigation while profile changes or operations are pending. Follow `docs/mobile-overlays.md` and run `npm run test:profile`.
+
+- Sleep and nutrition share `HealthDayNavigation`: `PlanningDayRibbon` from 768px and a 48px previous/date/next/add row below it. Sleep shows records for the selected wake date, marks recorded days in the ribbon, and keeps read-only date navigation. Run `npm run test:health` when changing these views.

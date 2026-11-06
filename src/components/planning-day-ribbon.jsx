@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ListTileContent } from "@/components/list-tile-content";
 import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
@@ -6,7 +7,7 @@ const dateLabel = key => new Intl.DateTimeFormat("ru-RU", { weekday: "long", day
 const weekdayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "short" });
 const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long" });
 
-export function PlanningDayRibbon({ selected, today, onChange }) {
+export function PlanningDayRibbon({ selected, today, onChange, dayStatus }) {
   const ribbon = useRef(null);
   const focusSelection = useRef(false);
   const dates = Array.from({ length: 63 }, (_, index) => addCalendarDays(selected, index - 31));
@@ -38,9 +39,13 @@ export function PlanningDayRibbon({ selected, today, onChange }) {
   return <header className="daily-todo__header">
     <h2 className="sr-only" aria-live="polite">{dateLabel(selected)}</h2>
     <div ref={ribbon} className="daily-todo__ribbon horizontal-tile-scroller" role="group" aria-label="Выбрать день. Стрелки — соседний день, Home — сегодня." onKeyDown={navigate}>
-      {dates.map((date) => <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
-        <ListTileContent title={`${weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, ${monthLabel.format(dateFromKey(date))}`} count={dateFromKey(date).getDate()} />
-      </Button>)}
+      {dates.map((date) => {
+        const status = dayStatus?.(date);
+        return <Button key={date} variant="ghost" data-list-tile="" className="daily-todo__day" aria-label={status ? `${dateLabel(date)} · ${status}` : dateLabel(date)} aria-pressed={date === selected} aria-current={date === today ? "date" : undefined} tabIndex={date === selected ? 0 : -1} onClick={() => onChange(date)}>
+          <ListTileContent title={`${weekdayLabel.format(dateFromKey(date)).replace(/^./u, (letter) => letter.toUpperCase())}, ${monthLabel.format(dateFromKey(date))}`} count={dateFromKey(date).getDate()} />
+          {status && <Check aria-hidden="true" className="absolute inset-e-3 bottom-6" />}
+        </Button>;
+      })}
     </div>
   </header>;
 }

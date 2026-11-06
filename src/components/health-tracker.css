@@ -7,7 +7,10 @@
   }
 }
 @layer components {
-  .nutrition-todo__body { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }
+  .health-tracker__body { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }
   .nutrition-todo__meta { color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
-  .nutrition-todo__toolbar--readonly { grid-template-columns: var(--layout-control-size) minmax(0, 1fr) var(--layout-control-size); }
+}
+
+.daily-todo__toolbar.health-day-navigation--readonly {
+  grid-template-columns: var(--layout-control-size) minmax(0, 1fr) var(--layout-control-size);
 }

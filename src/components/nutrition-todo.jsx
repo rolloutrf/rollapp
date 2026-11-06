@@ -1,19 +1,15 @@
 import { useRef, useState } from "react";
-import { ArrowUp, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, Plus, Trash2 } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
-import { PlanningDayRibbon } from "@/components/planning-day-ribbon";
-import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { HealthDayNavigation } from "@/components/health-day-navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { addCalendarDays, dateFromKey } from "../../shared/planning-calendar.js";
 import { MEAL_TYPES } from "../../shared/health-trackers.js";
-import "./planning-daily-todo.css";
 
 const number = value => value == null ? "—" : new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value);
 const completed = entry => entry.completed !== false;
-const compactDate = date => new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", weekday: "short" }).format(dateFromKey(date));
 export const nutritionEntryPayload = entry => ({ date: entry.date, time: entry.time, mealType: entry.mealType, title: entry.title, completed: completed(entry), calories: entry.calories ?? null, protein: entry.protein ?? null, fat: entry.fat ?? null, carbs: entry.carbs ?? null, notes: entry.notes || "" });
 
 function MealRow({ entry, canEdit, onSave, onEdit, onDelete }) {
@@ -64,13 +60,8 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
   const create = () => onCreate(selected, title.trim() ? { date: selected, title: title.trim(), time: "12:00", mealType: "lunch", completed: false, notes: "" } : null);
   const rows = items => <ul className="daily-todo__list">{items.map(entry => <MealRow key={entry.id} entry={entry} canEdit={canEdit} onSave={onSave} onEdit={onEdit} onDelete={onDelete} />)}</ul>;
   return <div className="nutrition-todo not-typeset page-stack">
-    {mobile ? <ControlBar className={`daily-todo__toolbar${canEdit ? "" : " nutrition-todo__toolbar--readonly"}`} aria-label="День и добавление приёма пищи">
-      <Button data-control-icon variant="outline" size="icon" aria-label="Предыдущий день" onClick={() => onDateChange(addCalendarDays(selected, -1))}><ChevronLeft /></Button>
-      <PlanningDatePicker value={selected} onChange={onDateChange} label="День питания" className="min-w-0 w-full"><span className="truncate">{compactDate(selected)}</span></PlanningDatePicker>
-      <Button data-control-icon variant="outline" size="icon" aria-label="Следующий день" onClick={() => onDateChange(addCalendarDays(selected, 1))}><ChevronRight /></Button>
-      {canEdit && <Button data-control-icon variant="outline" size="icon" aria-label="Добавить приём пищи" onClick={create}><Plus /></Button>}
-    </ControlBar> : <PlanningDayRibbon selected={selected} today={today} onChange={onDateChange} />}
-    <div className="nutrition-todo__body page-stack">
+    <HealthDayNavigation selected={selected} today={today} onDateChange={onDateChange} label="День питания" addLabel="Добавить приём пищи" onAdd={canEdit ? create : undefined} />
+    <div className="health-tracker__body page-stack">
       {planned.length > 0 && <section aria-label="Запланировано" className="page-stack">{rows(planned)}</section>}
       {done.length > 0 && <section aria-label="Съедено" className="page-stack">{rows(done)}</section>}
       {dayEntries.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет записей о питании</p>}

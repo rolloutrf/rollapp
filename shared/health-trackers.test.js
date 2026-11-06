@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { durationLabel, nutritionTotals, sleepMinutes, sleepHistoryDays, trackerSchemas } from "./health-trackers.js";
+import { durationLabel, nutritionTotals, sleepMinutes, trackerSchemas } from "./health-trackers.js";
 import { isSphereSection, sphereSectionPath } from "./sphere-sharing.js";
 
 test("sleep crosses midnight and validates dates, time and quality", () => {
@@ -26,14 +26,4 @@ test("each tracker has its own shared access scope and URL", () => {
     assert(!isSphereSection("career", tracker));
     assert.equal(sphereSectionPath({ sphere: "health", section: tracker }), `/app/spheres/health?tab=${tracker}`);
   }
-});
-
-test("sleep history puts today's automatic tile first and retains every historic period", () => {
-  const entries = [{ id: 'old', date: '2026-10-19', wakeTime: '08:00' }, { id: 'earlier', date: '2026-10-19', wakeTime: '06:00' }, { id: 'older', date: '2026-10-18', wakeTime: '07:00' }];
-  const days = sleepHistoryDays(entries, '2026-10-20');
-  assert.deepEqual(days.map(day => day.date), ['2026-10-20', '2026-10-19', '2026-10-18']);
-  assert.deepEqual(days[0].entries, []);
-  assert.deepEqual(days[1].entries.map(entry => entry.id), ['earlier', 'old']);
-  assert.equal(entries[0].id, 'old');
-  assert.deepEqual(sleepHistoryDays([], '2026-10-21'), [{ date: '2026-10-21', entries: [] }]);
 });
