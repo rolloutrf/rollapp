@@ -552,6 +552,14 @@ function Avatar({ user, size = "md", className = "", ...props }) {
   );
 }
 
+function ProfilePortrait({ user }) {
+  return (
+    <span className="profile-portrait">
+      <Avatar user={user} size="xl" className="wishes-page__hero-avatar" />
+    </span>
+  );
+}
+
 const SERVICE_SWITCHER_ITEMS = [
   { id: "identity", label: "Идентичность", path: "/app/spheres/identity", icon: Fingerprint, color: "#5967f2" },
   { id: "health", label: "Здоровье", path: "/app/spheres/health", icon: HeartPulse, color: "#43bd83" },
@@ -822,7 +830,7 @@ function GlobalAppChrome() {
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
     : brandCatalog && user ? <BusinessCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
-          <SelectTrigger className="space-select global-service-select rounded-full" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
+          <SelectTrigger className="space-select global-service-select rounded-full" data-service-section-trigger aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
               const option = options.find((item) => item.id === selected) || current;
               return <span className="space-select__label">{option.label}</span>;
@@ -3229,10 +3237,10 @@ function PersistentProfileHero({ user }) {
             <QrCode aria-hidden="true" />
           </ShadcnButton>
           {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
-            <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
+            <ProfilePortrait user={profile} />
           </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
-            <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />
-          </ShadcnButton> : <Avatar user={profile} size="xl" className="wishes-page__hero-avatar" />}
+            <ProfilePortrait user={profile} />
+          </ShadcnButton> : <ProfilePortrait user={profile} />}
           {wishlistAccessControl && (
             <ShadcnButton
               type="button"
@@ -7604,7 +7612,7 @@ function PublicProfile({ shared = false }) {
   const sellerSpace = activeSpace;
   const identity = businessProfile
     ? <div className="wishes-page__identity friend-profile-page__identity">
-      {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" /></ShadcnButton> : <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />}
+      {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><ProfilePortrait user={data.profile} /></ShadcnButton> : <ProfilePortrait user={data.profile} />}
       <BusinessGiftAction business={data.profile} user={user} />
       <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span></span>
     </div>
@@ -7617,8 +7625,8 @@ function PublicProfile({ shared = false }) {
       title="Редактировать профиль"
       onClick={openProfileEditor}
     >
-      <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />
-    </ShadcnButton> : <Avatar user={data.profile} size="xl" className="wishes-page__hero-avatar" />}
+      <ProfilePortrait user={data.profile} />
+    </ShadcnButton> : <ProfilePortrait user={data.profile} />}
     <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
   </div>;
   if (isMobile && selectedWish && !editingWish) {

@@ -427,6 +427,12 @@
   [data-native-form-actions] [class~="group/button"]:not([class~="bg-primary"]):hover {
     background-color: var(--muted);
   }
+  .global-app-chrome[data-control-bar] [data-service-section-trigger][aria-expanded="false"] {
+    background-color: transparent;
+    &:not(:focus-visible) {
+      border-color: transparent;
+    }
+  }
   [data-control-bar] [class~="group/button"][class~="bg-primary"]:hover:not(:disabled) {
     background-color: color-mix(in oklch, var(--primary) 80%, var(--background));
   }
