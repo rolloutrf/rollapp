@@ -26,6 +26,7 @@ Base Nova на Base UI, Tailwind v4, Lucide, neutral CSS variables. Конфиг
 | Плитка списка/дня, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
 | Создание/настройки коллекций | `EducationSectionHeader`, `WishListNavigation`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:ui` |
 | Формы и их действия | `form-surface`, `MobileFormPages`, `MobileFormFooter` | `docs/mobile-overlays.md`; `test:form-pages`, `test:form-actions`, `test:drawers` |
+| Название товара с внешними подсказками | `ProductTitleInput`, shadcn `Combobox` | `docs/product-suggestions.md`; `test:product-suggestions`, `test:business-accounts`, формы |
 | Действия страниц деталей | `ContentPageActions` | `test:details` |
 | Safe area, клавиатура, порталы | `src/overlays.css`, `use-visual-viewport.js` | `docs/mobile-overlays.md`; формы и короткие экраны |
 | Выбор даты во всех формах, включая день рождения и события | `PlanningDatePicker` | `test:dates`: min/max, disabled, очистка, вложенный черновик; затронутые календарь/To Do/формы |

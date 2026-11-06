@@ -61,6 +61,8 @@ api.patch = async (path, payload) => {
   return { id: item.id, item: clone(item) };
 };
 api.post = async (path, payload) => {
+  // Read-only suggestions do not belong to the authored mutation history.
+  if (path === "/catalog/product-suggestions") return { items: [], source: "Wikidata" };
   state.calls.push({ path, payload: clone(payload) });
   if (path === "/wishlist-business/products/items") {
     const { requestId, ...fields } = payload;

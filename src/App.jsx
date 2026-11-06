@@ -1,3 +1,4 @@
+import { ProductTitleInput } from "@/components/product-title-input";
 import { MessengerDrawer } from "@/components/messenger";
 import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishlistSpace } from "../shared/wishlist-business.js";
@@ -6358,7 +6359,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             <div className="wish-editor__scroll flex h-auto w-full flex-col gap-4 overflow-visible p-0 [scrollbar-gutter:auto]">
               <Field className="wish-editor__field">
                 <FieldLabel htmlFor={fieldId("title")}>Название</FieldLabel>
-                <Input id={fieldId("title")} autoFocus={editing && canAutofocusForm()} required value={form.title} placeholder="Название желания" onChange={(event) => updateMetadataField("title", event.target.value)} />
+                <ProductTitleInput id={fieldId("title")} enabled={effectiveSpace === "products"} disabled={loading || deleting} autoFocus={editing && canAutofocusForm()} required value={form.title} placeholder="Название желания" onValueChange={(value) => updateMetadataField("title", value)} />
               </Field>
 
               {isTransport && <div className="grid gap-4">

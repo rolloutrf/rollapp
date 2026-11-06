@@ -60,7 +60,7 @@ try {
         assert.equal(new URL(page.url()).searchParams.get("tab"), "products");
         const add = page.getByRole("button", { name: "Добавить товар", exact: true });
         const editor = page.locator("[data-wishlist-item-editor]");
-        const title = editor.getByRole("textbox", { name: "Название", exact: true });
+        const title = editor.getByRole("combobox", { name: "Название", exact: true });
         const footer = editor.locator("[data-native-form-actions], .app-form-actions");
         const back = footer.getByRole("button", { name: width < 768 ? "Назад" : "Отмена", exact: true });
         const submit = footer.locator("button[type=submit]");
@@ -85,6 +85,7 @@ try {
           await editor.getByText("Введите название.", { exact: true }).waitFor();
           assert(await title.evaluate((node) => node === document.activeElement));
           await title.fill("Несохранённый товар");
+          await title.press("Tab");
           if (width < 768) await page.goBack();
           else await back.click();
           const discard = page.getByRole("alertdialog", { name: "Выйти без сохранения?" });
@@ -103,6 +104,7 @@ try {
           await pageTitle.fill("Несохранённое название витрины");
           await add.click();
           await title.fill("Кофемашина Dedica");
+          await title.press("Tab");
           const description = editor.getByRole("textbox", { name: "Описание", exact: true });
           await description.fill("Готовит эспрессо.");
           await editor.getByText("17 / 4000", { exact: true }).waitFor();
@@ -179,6 +181,7 @@ try {
           await editor.getByRole("heading", { name: "Редактировать товар", exact: true }).waitFor();
           assert.equal(await title.inputValue(), "Кофемашина Dedica");
           await title.fill("Кофемашина Dedica EC685");
+          await title.press("Tab");
           await submit.click();
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));

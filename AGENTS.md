@@ -134,6 +134,8 @@
 
 ## Verification and durable instructions
 
+- Product-name suggestions in wishes and sale listings share `ProductTitleInput` and the authenticated read-only product-suggestions route. Preserve free-text entry, IME/cancellation/stale-response guards, rate limits and explicit Wikidata coverage. Selecting a suggestion changes only the title; never publish/save other fields or download the database automatically. Follow `docs/product-suggestions.md` and run `npm run test:product-suggestions` with affected real-form checks.
+
 - Follow `docs/verification.md` for the current check matrix, commands, read-only live review, release and recovery procedure. Keep this runbook and the source-specific UI documents synchronized with changes; dated audit reports are evidence, not replacement contracts.
 - Record the tested commit and dirty state, commands, results, fixed findings and unverified cases in a dated report. Preserve unrelated workspace edits and inspect the final diff. Never report a build alone as comprehensive UI verification or a partial viewport filter as a complete matrix.
 - Review dependencies with both `npm audit` and `npm audit --omit=dev`. Keep tooling such as the shadcn CLI in devDependencies, update compatible fixes with the lockfile, and rerun affected checks; do not force incompatible downgrades merely to clear an audit warning.

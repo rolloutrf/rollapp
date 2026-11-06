@@ -1,3 +1,4 @@
+import { ProductTitleInput } from "@/components/product-title-input";
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Eye, EyeOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -276,10 +277,10 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
                 <h2 id={`${prefix}-details`} className="font-heading text-xl font-semibold">Основная информация</h2>
                 <Field data-invalid={Boolean(fieldErrors.title)}>
                   <FieldLabel htmlFor={`${prefix}-title`}>Название</FieldLabel>
-                  <Input
-                    ref={titleRef} id={`${prefix}-title`} required maxLength={160}
+                  <ProductTitleInput
+                    enabled={isProduct} ref={titleRef} id={`${prefix}-title`} required maxLength={160}
                     placeholder={isProduct ? "Кофемашина Dedica" : "Короткое название"}
-                    value={form.title} onChange={(event) => set("title", event.target.value)} disabled={Boolean(phase)}
+                    value={form.title} onValueChange={(value) => set("title", value)} disabled={Boolean(phase)}
                     aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? `${prefix}-title-error` : undefined}
                   />
                   {fieldErrors.title && <FieldError id={`${prefix}-title-error`}>{fieldErrors.title}</FieldError>}

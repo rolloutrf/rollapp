@@ -1,0 +1,66 @@
+{
+  "status": "failed",
+  "startedAt": "2026-11-06T07:21:11.591Z",
+  "commit": "ab5cb067a1c4539305534cdfd6ec3137ab9811cb",
+  "dirty": true,
+  "node": "v22.22.3",
+  "checks": [
+    {
+      "name": "check:release",
+      "status": "failed",
+      "startedAt": "2026-11-06T07:21:11.752Z",
+      "exitCode": 1,
+      "finishedAt": "2026-11-06T07:55:24.291Z",
+      "durationMs": 2052538
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contact-notes",
+      "status": "not-run"
+    },
+    {
+      "name": "test:messenger",
+      "status": "not-run"
+    },
+    {
+      "name": "test:profile",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-11-06T07:55:24.292Z"
+}

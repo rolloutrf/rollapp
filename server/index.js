@@ -1,4 +1,5 @@
 import { registerMessengerRoutes } from "./messenger.js";
+import { registerProductSuggestionRoutes } from "./product-suggestions.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
@@ -1113,6 +1114,7 @@ registerCdekRoutes(app, { requireAuth, query });
 registerBusinessMarketplaceRoutes(app, { requireAuth, query, transaction });
 registerPersonalOfferRoutes(app, { requireAuth, query, transaction });
 registerWishlistBusinessRoutes(app, { requireAuth, query, transaction });
+registerProductSuggestionRoutes(app, { requireAuth });
 registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });

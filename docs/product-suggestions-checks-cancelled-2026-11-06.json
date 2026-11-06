@@ -1,0 +1,109 @@
+{
+  "status": "cancelled",
+  "startedAt": "2026-11-06T07:56:47.322Z",
+  "commit": "ab5cb067a1c4539305534cdfd6ec3137ab9811cb",
+  "dirty": true,
+  "node": "v22.22.3",
+  "precedingAttempt": "/tmp/rollapp-product-suggestions-final-comprehensive.json",
+  "reason": "User explicitly requested deployment without tests on 2026-11-06; owned runner and descendants stopped.",
+  "checks": [
+    {
+      "name": "test:text-edit",
+      "status": "cancelled",
+      "startedAt": "2026-11-06T07:56:47.341Z"
+    },
+    {
+      "name": "test:notes",
+      "status": "not-run"
+    },
+    {
+      "name": "test:kanban",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drag-drop",
+      "status": "not-run"
+    },
+    {
+      "name": "test:snippet-badges",
+      "status": "not-run"
+    },
+    {
+      "name": "test:health",
+      "status": "not-run"
+    },
+    {
+      "name": "test:medication-photos",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contact-cards",
+      "status": "not-run"
+    },
+    {
+      "name": "test:stories",
+      "status": "not-run"
+    },
+    {
+      "name": "test:need-rewards",
+      "status": "not-run"
+    },
+    {
+      "name": "test:reward-proofs",
+      "status": "not-run"
+    },
+    {
+      "name": "build",
+      "status": "not-run"
+    },
+    {
+      "name": "test:navigation",
+      "status": "not-run"
+    },
+    {
+      "name": "test:action-rails",
+      "status": "not-run"
+    },
+    {
+      "name": "test:identity-reports",
+      "status": "not-run"
+    },
+    {
+      "name": "test:todo",
+      "status": "not-run"
+    },
+    {
+      "name": "test:form-pages",
+      "status": "not-run"
+    },
+    {
+      "name": "test:catalog-page",
+      "status": "not-run"
+    },
+    {
+      "name": "test:wish-groups",
+      "status": "not-run"
+    },
+    {
+      "name": "test:drawers",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contacts",
+      "status": "not-run"
+    },
+    {
+      "name": "test:contact-notes",
+      "status": "not-run"
+    },
+    {
+      "name": "test:messenger",
+      "status": "not-run"
+    },
+    {
+      "name": "test:profile",
+      "status": "not-run"
+    }
+  ],
+  "finishedAt": "2026-11-06T08:03:25.010137+00:00"
+}
