@@ -3,9 +3,57 @@ import test from 'node:test';
 import { createYandexAiTokenLoader, fetchYandexAi, YandexAiError } from './yandex-ai.js';
 import { resolveAiCredential, sharedAiConfigured, hasAiCredential } from './ai-provider.js';
 import { encryptUserCredential } from './user-credentials.js';
-import { fetchYandexMarketplaceOffers } from './yandex-marketplace-offers.js';
+import { fetchMarketplaceAiOffers, fetchYandexMarketplaceOffers } from './yandex-marketplace-offers.js';
+import { fetchOpenRouterMarketplaceOffers } from './openrouter-marketplace-offers.js';
 
 const env = { YC_FOLDER_ID: 'folder', YANDEX_AI_MODEL: 'aliceai-llm-flash', USER_CREDENTIALS_SECRET: 'stable-test-secret-with-at-least-32-characters' };
+
+test('marketplace search retries OpenRouter payment failures on Yandex with the same scope', async () => {
+  const wish = { title: 'Headphones' };
+  const credential = { provider: 'openrouter', apiKey: 'personal-key', model: 'personal/model' };
+  const marketplaceIds = ['ozon', 'dns'];
+  const signal = new AbortController().signal;
+  const answer = { offers: [], model: 'aliceai-llm-flash' };
+  for (const response of [
+    new Response(null, { status: 402 }),
+    Response.json({ error: { code: 402 } }),
+  ]) {
+    const calls = [];
+    const result = await fetchMarketplaceAiOffers(wish, credential, {
+      marketplaceIds, signal, env,
+      fetchOpenRouter: (input, options) => fetchOpenRouterMarketplaceOffers(input, {
+        ...options, fetchImpl: async (_url, request) => {
+          calls.push('openrouter');
+          assert.equal(request.headers.Authorization, 'Bearer personal-key');
+          assert.equal(request.signal, signal);
+          return response;
+        },
+      }),
+      fetchYandex: async (input, options) => {
+        calls.push('yandex');
+        assert.equal(input, wish);
+        assert.deepEqual(options, { marketplaceIds, signal });
+        return answer;
+      },
+    });
+    assert.deepEqual(calls, ['openrouter', 'yandex']);
+    assert.equal(result, answer);
+  }
+
+  for (const [status, config, requestSignal, expected] of [
+    [429, env, signal, 'openrouter_request_failed'],
+    [402, {}, signal, 'openrouter_credits_missing'],
+    [402, env, AbortSignal.abort(), 'openrouter_credits_missing'],
+  ]) {
+    await assert.rejects(fetchMarketplaceAiOffers(wish, credential, {
+      marketplaceIds, signal: requestSignal, env: config,
+      fetchOpenRouter: (input, options) => fetchOpenRouterMarketplaceOffers(input, {
+        ...options, fetchImpl: async () => Response.json({ error: { message: 'Quota exceeded' } }, { status }),
+      }),
+      fetchYandex: async () => assert.fail('Fallback must be configured, payment-related and still requested'),
+    }), { code: expected });
+  }
+});
 
 test('personal OpenRouter wins; absent/deleted credentials use Yandex ahead of the legacy server key', () => {
   const configured = { ...env, OPENROUTER_API_KEY: 'shared-key' };

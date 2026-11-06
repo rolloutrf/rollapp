@@ -53,11 +53,11 @@ import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata
 import { courseLogoHandler } from "./course-logo-resolver.js";
 import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
-import { fetchOpenRouterMarketplaceOffers, OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
+import { OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
 import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers } from "./marketplace-resolvers.js";
 import { userCredentialsConfigured } from "./user-credentials.js";
 import { resolveAiCredential, hasAiCredential, sharedAiConfigured } from "./ai-provider.js";
-import { fetchYandexMarketplaceOffers } from "./yandex-marketplace-offers.js";
+import { fetchMarketplaceAiOffers } from "./yandex-marketplace-offers.js";
 import { YandexAiError, yandexAiConfig } from "./yandex-ai.js";
 import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
@@ -3690,13 +3690,9 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
         code: openRouterCredential.warning.code,
       });
     }
-    const fetchAiOffers = openRouterCredential.provider === "yandex" ? fetchYandexMarketplaceOffers : fetchOpenRouterMarketplaceOffers;
-    const openRouterTask = hasAiCredential(openRouterCredential)
-      ? fetchAiOffers(owned.rows[0], {
-        apiKey: openRouterCredential.apiKey,
-        model: openRouterCredential.model,
+    const aiTask = hasAiCredential(openRouterCredential)
+      ? fetchMarketplaceAiOffers(owned.rows[0], openRouterCredential, {
         signal: controller.signal,
-        allowEmpty: true,
         marketplaceIds: vehicleSearch
           ? ["auto-ru", "avito-auto", "drom"]
           : foodSearch
@@ -3709,11 +3705,11 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
         model: "",
         usage: null,
       });
-    const [openRouterSearch, marketplaceSearch] = await Promise.allSettled([
-      openRouterTask,
+    const [aiSearch, marketplaceSearch] = await Promise.allSettled([
+      aiTask,
       fetchMarketplaceResolvedOffers(owned.rows[0], { signal: controller.signal }),
     ]);
-    const result = openRouterSearch.status === "fulfilled" ? openRouterSearch.value : {
+    const result = aiSearch.status === "fulfilled" ? aiSearch.value : {
       offers: [],
       summary: "",
       model: "",
@@ -3725,7 +3721,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       filterDirectOffersForWish(owned.rows[0], result.offers),
     );
     if (!hasLiveMarketplaceOffer(result.offers)) {
-      if (openRouterSearch.status === "rejected") throw openRouterSearch.reason;
+      if (aiSearch.status === "rejected") throw aiSearch.reason;
       throw new OpenRouterOffersError(vehicleSearch ? "Не удалось найти новые прямые объявления автомобиля" : "Не удалось найти новые прямые карточки товара", {
         status: 422,
         code: "marketplace_offers_not_found",
@@ -3736,8 +3732,8 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
         warning: "Нейропоиск не настроен; показаны предложения из прямых каталогов магазинов.",
         code: "openrouter_not_configured",
       });
-    } else if (openRouterSearch.status === "rejected") {
-      const aiError = openRouterSearch.reason;
+    } else if (aiSearch.status === "rejected") {
+      const aiError = aiSearch.reason;
       const knownAiError = aiError instanceof OpenRouterOffersError || aiError instanceof YandexAiError;
       console.warn("Marketplace AI search failed", {
         code: knownAiError ? aiError.code : "openrouter_request_failed",

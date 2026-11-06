@@ -416,11 +416,12 @@ export async function fetchOpenRouterMarketplaceOffers(wish, {
     throw new OpenRouterOffersError("Не удалось связаться с OpenRouter", { cause });
   }
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
+  const paymentRequired = response.status === 402 || payload?.error?.code === 402;
+  if (!response.ok || paymentRequired) {
     const upstreamMessage = String(payload?.error?.message || "").toLowerCase();
     const authFailed = response.status === 401;
     const providerRestricted = response.status === 403 && /terms of service|prohibited|restricted/.test(upstreamMessage);
-    const creditsMissing = /credit|balance|quota/.test(upstreamMessage);
+    const creditsMissing = paymentRequired || (response.status !== 429 && /credit|balance/.test(upstreamMessage));
     throw new OpenRouterOffersError(
       authFailed
         ? "OpenRouter отклонил API-ключ"

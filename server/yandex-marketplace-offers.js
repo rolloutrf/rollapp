@@ -1,5 +1,5 @@
-import { buildOpenRouterMarketplaceRequest, normalizeOpenRouterOffers } from './openrouter-marketplace-offers.js';
-import { fetchYandexAi, YandexAiError } from './yandex-ai.js';
+import { buildOpenRouterMarketplaceRequest, fetchOpenRouterMarketplaceOffers, normalizeOpenRouterOffers } from './openrouter-marketplace-offers.js';
+import { fetchYandexAi, yandexAiConfig, YandexAiError } from './yandex-ai.js';
 
 export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signal, request = fetchYandexAi, now = () => new Date() } = {}) {
   const { body } = buildOpenRouterMarketplaceRequest(wish, { marketplaceIds });
@@ -35,4 +35,20 @@ export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signa
   }
   if (!output.some(item => item.type === 'web_search_call' && item.status === 'completed')) result.offers = [];
   return { ...result, model: payload.model, usage: payload.usage || null };
+}
+
+export async function fetchMarketplaceAiOffers(wish, credential, {
+  marketplaceIds, signal, env = process.env,
+  fetchOpenRouter = fetchOpenRouterMarketplaceOffers, fetchYandex = fetchYandexMarketplaceOffers,
+} = {}) {
+  const search = { marketplaceIds, signal };
+  if (credential.provider === 'yandex') return fetchYandex(wish, search);
+  try {
+    return await fetchOpenRouter(wish, {
+      ...search, apiKey: credential.apiKey, model: credential.model, allowEmpty: true,
+    });
+  } catch (error) {
+    if (error?.code !== 'openrouter_credits_missing' || signal?.aborted || !yandexAiConfig(env).enabled) throw error;
+    return fetchYandex(wish, search);
+  }
 }

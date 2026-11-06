@@ -100,3 +100,17 @@ provider health и проверка доступного живого UI; нас
 Проверены точные списки product/grocery/vehicle и отказ oversized scope.
 `node --test server/yandex-ai.test.js server/openrouter-marketplace-offers.test.js
 server/messenger-assistant.test.js`: 30 passed, 0 failed. UI/схема БД не менялись.
+
+## Повтор поиска при исчерпании баланса OpenRouter
+
+Проверен `5b11efa` с локальным изменением маршрута поиска предложений.
+Отказ оплаты HTTP 402 или код 402 в ответе запускает один поиск через
+настроенный Yandex AI. Сохраняются исходный товар, площадки и сигнал отмены.
+Ключ OpenRouter остаётся в настройках и используется при следующем поиске.
+HTTP 429 сохраняет собственную ошибку. Интерфейс и схема БД не менялись.
+
+`node --test server/yandex-ai.test.js server/openrouter-marketplace-offers.test.js`
+выполнил 25 тестов. `npm test` выполнил 950 тестов успешно, один сценарий
+пропущен. Боевой health подтвердил настроенный Yandex AI. Автоматический
+повтор проверен в тесте транспорта. Боевой поиск на обновлённом SHA ещё
+предстоит проверить.
