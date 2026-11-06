@@ -96,3 +96,20 @@ test('marketplace accepts only direct cited cards after a completed search and r
   }
   await assert.rejects(fetchYandexMarketplaceOffers({}, { ...options, request: makeRequest({ text: 'broken' }) }), { code: 'yandex_ai_invalid_response' });
 });
+
+test('Yandex domain limit preserves every requested product, grocery and vehicle marketplace', async () => {
+  for (const [marketplaceIds, expected] of [
+    [undefined, ['ozon.ru', 'wildberries.ru', 'market.yandex.ru', 'megamarket.ru', 'dns-shop.ru']],
+    [['samokat', 'lavka', 'lenta', 'vkusvill'], ['samokat.ru', 'lavka.yandex.ru', 'lenta.com', 'vkusvill.ru']],
+    [['auto-ru', 'avito-auto', 'drom'], ['auto.ru', 'avito.ru', 'drom.ru']],
+  ]) {
+    await fetchYandexMarketplaceOffers({}, { marketplaceIds, request: async (_path, body) => {
+      assert.deepEqual(body.tools[0].filters.allowed_domains, expected);
+      return { output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '{"offers":[]}' }] }] };
+    } });
+  }
+  await assert.rejects(fetchYandexMarketplaceOffers({}, {
+    marketplaceIds: ['ozon', 'wildberries', 'yandex-market', 'megamarket', 'dns', 'samokat'],
+    request: async () => { throw Error('Oversized search must not silently omit a marketplace'); },
+  }), { code: 'yandex_ai_search_scope_invalid' });
+});

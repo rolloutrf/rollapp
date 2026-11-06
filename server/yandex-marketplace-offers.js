@@ -3,7 +3,11 @@ import { fetchYandexAi, YandexAiError } from './yandex-ai.js';
 
 export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signal, request = fetchYandexAi, now = () => new Date() } = {}) {
   const { body } = buildOpenRouterMarketplaceRequest(wish, { marketplaceIds });
-  const domains = [...new Set(body.tools[0].parameters.allowed_domains)].slice(0, 5);
+  const requestedDomains = [...new Set(body.tools[0].parameters.allowed_domains)];
+  // A parent domain already covers its subdomains. Keep all marketplaces
+  // instead of letting Wildberries' extra hostname displace DNS at the limit.
+  const domains = requestedDomains.filter(domain => !requestedDomains.some(parent => domain.endsWith(`.${parent}`)));
+  if (domains.length > 5) throw new YandexAiError('Для одного поиска выбрано слишком много площадок.', { status: 400, code: 'yandex_ai_search_scope_invalid' });
   const input = body.messages.map(message => ({ ...message }));
   // Structured output suppressed web search in live trials. Ask for JSON in the
   // prompt, validate locally, and retain only URLs grounded in search citations.
