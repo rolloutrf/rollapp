@@ -87,7 +87,7 @@ test("refused Disk access and shared or public folders do not read account data"
   }
 });
 
-test("jobs stay owned, coalesce duplicate requests, and limit concurrency", async () => {
+test("jobs stay owned, coalesce duplicates, and leave a database connection for app requests", async () => {
   const releases = new Map();
   const jobs = createYandexBackupJobs({
     upload: ({ userId }) => new Promise((resolve) => releases.set(userId, resolve)),
@@ -95,12 +95,14 @@ test("jobs stay owned, coalesce duplicate requests, and limit concurrency", asyn
   const first = jobs.start({ userId: "first", accessToken: token });
   const second = jobs.start({ userId: "second", accessToken: token });
   assert.deepEqual(jobs.start({ userId: "first", accessToken: token }), { id: first.id });
-  assert.deepEqual(jobs.start({ userId: "third", accessToken: token }), { busy: true });
   assert.equal(jobs.get(first.id, "second"), null);
   assert.deepEqual(jobs.get(first.id, "first"), { status: "pending" });
   await Promise.resolve();
+  assert.equal(releases.has("second"), false);
   releases.get("first")("first.json.gz");
+  await first.task;
   releases.get("second")("second.json.gz");
-  await Promise.all([first.task, second.task]);
+  await second.task;
   assert.deepEqual(jobs.get(first.id, "first"), { status: "complete", filename: "first.json.gz" });
+  assert.deepEqual(jobs.get(second.id, "second"), { status: "complete", filename: "second.json.gz" });
 });

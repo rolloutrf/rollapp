@@ -304,8 +304,12 @@ try {
       assert.equal(await page.getByRole("alert").count(), 0);
     }
     const result = mobile ? "permission" : "complete";
+    await page.clock.install();
     await page.goto(`${origin}/login?state=backup-result&auth_success=YANDEX_LINKED&backup=f589bf34-5586-4456-aea6-83223dbbd052&result=${result}`);
     await page.getByRole("status").filter({ hasText: "Готовим резервную копию." }).waitFor();
+    await page.waitForFunction(() => window.backupStatusRequested === true);
+    await page.evaluate(() => { window.backupReady = true; });
+    await page.clock.runFor(2_500);
     const nextAction = page.getByRole("link", { name: mobile ? "Повторить копирование" : "Открыть папку ROLLAPP", exact: true });
     await nextAction.waitFor();
     assert.equal(await page.locator(".mobile-app-navigation, .planning-fab-controls").count(), 0);

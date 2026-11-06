@@ -11,14 +11,13 @@ import "../../src/index.css";
 const mode = new URLSearchParams(location.search).get("state");
 const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" };
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
-let backupStarted;
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
   if (path === "/me" && mode === "backup-result") return { user: fixtureUser };
   if (path === "/auth/phone/config" && mode === "backup-result") return { enabled: false };
   if (path === "/me/yandex-backup/f589bf34-5586-4456-aea6-83223dbbd052" && mode === "backup-result") {
-    backupStarted ??= Date.now();
-    return { status: Date.now() - backupStarted < 1_000 ? "pending" : new URLSearchParams(location.search).get("result") };
+    window.backupStatusRequested = true;
+    return { status: window.backupReady ? new URLSearchParams(location.search).get("result") : "pending" };
   }
   if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: mode !== "error" };
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");

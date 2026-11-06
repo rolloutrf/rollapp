@@ -131,7 +131,10 @@ export async function uploadYandexBackup({
 
 export function createYandexBackupJobs({ upload, log = console.error }) {
   const jobs = new Map();
-  let running = 0;
+  let pending = 0;
+  // Only one backup may hold a snapshot at a time. The production pool
+  // has two connections and ordinary app requests still need one.
+  let previous = Promise.resolve();
   return {
     start({ userId, accessToken }) {
       const current = Date.now();
@@ -139,23 +142,24 @@ export function createYandexBackupJobs({ upload, log = console.error }) {
         if (job.expiresAt <= current) jobs.delete(id);
         else if (job.userId === userId && job.status === "pending") return { id };
       }
-      if (running >= 2) return { busy: true };
+      if (pending >= 8) return { busy: true };
       if (jobs.size >= 256) jobs.delete(jobs.keys().find((id) => jobs.get(id).status !== "pending"));
 
       const id = randomUUID();
       const job = { userId, status: "pending", expiresAt: Infinity };
       jobs.set(id, job);
-      running += 1;
-      const task = Promise.resolve().then(() => upload({ userId, accessToken })).then(
+      pending += 1;
+      const task = previous.then(() => upload({ userId, accessToken })).then(
         (filename) => { Object.assign(job, { status: "complete", filename }); },
         (error) => {
           job.status = error instanceof DiskError ? error.status : "failed";
           log(`[yandex-disk-backup] ${job.status}`);
         },
       ).finally(() => {
-        running -= 1;
+        pending -= 1;
         job.expiresAt = Date.now() + statusLifetime;
       });
+      previous = task;
       return { id, task };
     },
     get(id, userId) {
