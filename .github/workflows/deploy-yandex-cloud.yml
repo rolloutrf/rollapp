@@ -34,7 +34,7 @@ jobs:
   audit:
     if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && inputs.verification != 'none'
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     permissions:
       contents: read
     steps:
@@ -82,9 +82,9 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    # The last complete release took 117 minutes before adding snippet coverage.
+    # The last complete release took 155 minutes; coverage has grown since then.
     # Preserve every assertion and allow headroom for the full browser matrices.
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout
