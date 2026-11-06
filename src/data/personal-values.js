@@ -1,3 +1,5 @@
+// Adapted from the University of New Mexico's Personal Values Card Sort:
+// https://motivationalinterviewing.org/personal-values-card-sort
 export const PERSONAL_VALUE_GROUPS = [
   {
     id: "self",

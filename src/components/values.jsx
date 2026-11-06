@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -136,11 +136,6 @@ export function Values() {
     }
   };
 
-  const reset = () => {
-    setDraft((current) => ({ ...current, selected: [] }));
-    setSaveError("");
-  };
-
   return (
     <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
       {!readOnly && <header className="flex flex-wrap items-center justify-end gap-2">
@@ -235,30 +230,6 @@ export function Values() {
           </Button>
         </form>
       </section>}
-
-      <footer className="flex flex-col items-start justify-between gap-4 border-t pt-6 sm:flex-row sm:items-center">
-        <p className="m-0 max-w-(--layout-text-width) text-sm text-muted-foreground">
-          Перечень адаптирован из открытой методики{" "}
-          <a
-            className="underline underline-offset-4 hover:text-foreground"
-            href="https://motivationalinterviewing.org/personal-values-card-sort"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Personal Values Card Sort Университета Нью-Мексико
-          </a>.
-        </p>
-        {!readOnly && <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" type="button" disabled={selected.size === 0 || editingDisabled} onClick={reset}>
-            <RotateCcw data-icon="inline-start" aria-hidden="true" />
-            Снять выбор
-          </Button>
-          <Button className="min-h-12 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
-            {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {valuesContent.loading ? "Загружаем" : saving ? "Сохраняем" : dirty || valuesContent.error ? "Сохранить выбор" : "Сохранено"}
-          </Button>
-        </div>}
-      </footer>
     </div>
   );
 }
