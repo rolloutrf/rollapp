@@ -1,10 +1,10 @@
-import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle, Check, CheckCircle2, FileUp, Plus, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
+import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,6 +18,9 @@ import {
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -115,13 +118,13 @@ export function LabReportPanel({ report }) {
 export function LabResults() {
   const { readOnly } = useSphereSharing();
   const fileInputRef = useRef(null);
+  const settingsButtonRef = useRef(null);
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, data: null, error: null });
   const [selectedReportId, setSelectedReportId] = useState("");
   const [uploadState, setUploadState] = useState({ loading: false, error: "", success: "" });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteState, setDeleteState] = useState({ busy: false, error: "" });
-  const [isDraggingPdf, setIsDraggingPdf] = useState(false);
   useEffect(() => {
     let current = true;
     setRequestState((state) => ({ ...state, loading: true, error: null }));
@@ -136,7 +139,7 @@ export function LabResults() {
   }, [requestVersion]);
 
   async function uploadPdf(file) {
-    if (!file || deleteState.busy) return;
+    if (!file || readOnly || uploadState.loading || deleteState.busy) return;
     if (!(file.type === "application/pdf" || file.name.toLocaleLowerCase("ru-RU").endsWith(".pdf"))) {
       setUploadState({ loading: false, error: "Выберите файл в формате PDF.", success: "" });
       return;
@@ -168,14 +171,6 @@ export function LabResults() {
   function handleFileChange(event) {
     const [file] = event.target.files || [];
     event.target.value = "";
-    void uploadPdf(file);
-  }
-
-  function handlePdfDrop(event) {
-    event.preventDefault();
-    setIsDraggingPdf(false);
-    if (uploadState.loading || deleteState.busy) return;
-    const [file] = event.dataTransfer.files || [];
     void uploadPdf(file);
   }
 
@@ -251,24 +246,55 @@ export function LabResults() {
 
   const reports = requestState.data?.reports || [];
   const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0] || null;
+  const uploadButtonProps = {
+    type: "button",
+    disabled: uploadState.loading || deleteState.busy,
+    "aria-busy": uploadState.loading || undefined,
+    "aria-describedby": "lab-pdf-help",
+    onClick: () => fileInputRef.current?.click(),
+  };
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
       {!readOnly && (
         <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          {selectedReport && <PageActionButton
-              className="shrink-0"
-              variant="destructive"
-              type="button"
-              disabled={deleteState.busy || uploadState.loading}
-              aria-label={`Удалить анализ от ${selectedReport.dateLabel}`}
-              title="Удалить анализ"
-              onClick={() => requestDeleteReport(selectedReport)}
-            >
-              Удалить
-            </PageActionButton>}
+          {selectedReport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                ref={settingsButtonRef}
+                render={<PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" />}
+                disabled={deleteState.busy || uploadState.loading}
+              >
+                Настройки списка
+              </DropdownMenuTrigger>
+              <DropdownMenuContent sideOffset={8}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  className="app-destructive-menu-item px-3"
+                  aria-haspopup="dialog"
+                  onClick={() => requestDeleteReport(selectedReport)}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Удалить анализ
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <SphereBusinessControls sphereId="health" />
         </div>
+      )}
+      {!readOnly && (
+        <>
+          <Input
+            ref={fileInputRef}
+            type="file"
+            hidden
+            accept="application/pdf,.pdf"
+            onChange={handleFileChange}
+            disabled={uploadState.loading || deleteState.busy}
+          />
+          <span className="sr-only" id="lab-pdf-help">PDF до 12 МБ с выделяемым текстом.</span>
+        </>
       )}
       <section className="min-w-0 max-w-none" data-report-navigation>
         {selectedReport ? (
@@ -284,18 +310,18 @@ export function LabResults() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {!readOnly && <Button
-                variant="ghost"
-                size="icon"
-                className="list-tabs__add"
-                type="button"
-                aria-label="Добавить анализ"
-                title="Добавить анализ"
-                disabled={uploadState.loading || deleteState.busy}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Plus aria-hidden="true" />
-              </Button>}
+              {!readOnly && (
+                <Button
+                  {...uploadButtonProps}
+                  variant="ghost"
+                  size="icon"
+                  className="list-tabs__add"
+                  aria-label={uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
+                  title={uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
+                >
+                  {uploadState.loading ? <Spinner aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                </Button>
+              )}
             </div>
             {reports.map((report) => (
               <TabsContent className="min-w-0" key={report.id} value={report.id}>
@@ -311,67 +337,30 @@ export function LabResults() {
                 <div className="font-medium">Анализов пока нет</div>
                 <div className="text-sm text-muted-foreground">{readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."}</div>
               </div>
+              {!readOnly && (
+                <PageActionButton {...uploadButtonProps}>
+                  {uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
+                </PageActionButton>
+              )}
             </CardContent>
           </Card>
         )}
       </section>
 
-      <section className="flex max-w-none flex-col gap-5">
-        {!readOnly && <><Input
-          ref={fileInputRef}
-          className="sr-only"
-          type="file"
-          accept="application/pdf,.pdf"
-          aria-label="Загрузить PDF с результатами анализов"
-          aria-describedby="lab-pdf-help"
-          onChange={handleFileChange}
-          disabled={uploadState.loading || deleteState.busy}
-        />
-        <Button
-          className="h-auto min-h-40 w-full flex-col gap-2 border-dashed px-6 py-8 whitespace-normal data-[dragging=true]:border-primary data-[dragging=true]:bg-muted"
-          variant="outline"
-          type="button"
-          data-dragging={isDraggingPdf || undefined}
-          aria-describedby="lab-pdf-help"
-          onClick={() => fileInputRef.current?.click()}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            if (!uploadState.loading && !deleteState.busy) setIsDraggingPdf(true);
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "copy";
-          }}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setIsDraggingPdf(false);
-          }}
-          onDrop={handlePdfDrop}
-          disabled={uploadState.loading || deleteState.busy}
-        >
-          {uploadState.loading ? <Spinner className="size-6" aria-hidden="true" /> : <FileUp className="size-7" aria-hidden="true" />}
-          <span className="text-base font-medium">
-            {uploadState.loading ? "Разбираем PDF" : isDraggingPdf ? "Отпустите PDF здесь" : "Перетащите PDF сюда"}
-          </span>
-          <span className="text-sm font-normal text-muted-foreground" id="lab-pdf-help">
-            {uploadState.loading ? "Это может занять немного времени" : "или нажмите, чтобы выбрать файл до 12 МБ с выделяемым текстом"}
-          </span>
-        </Button></>}
-
-        {!readOnly && uploadState.error && (
-          <Alert variant="destructive" aria-live="assertive">
-            <AlertTriangle aria-hidden="true" />
-            <AlertTitle>Не удалось добавить PDF</AlertTitle>
-            <AlertDescription>{uploadState.error}</AlertDescription>
-          </Alert>
-        )}
-        {!readOnly && uploadState.success && (
-          <Alert aria-live="polite">
-            <CheckCircle2 aria-hidden="true" />
-            <AlertTitle>Анализ добавлен</AlertTitle>
-            <AlertDescription>{uploadState.success}</AlertDescription>
-          </Alert>
-        )}
-      </section>
+      {!readOnly && uploadState.error && (
+        <Alert variant="destructive" aria-live="assertive">
+          <AlertTriangle aria-hidden="true" />
+          <AlertTitle>Не удалось добавить PDF</AlertTitle>
+          <AlertDescription>{uploadState.error}</AlertDescription>
+        </Alert>
+      )}
+      {!readOnly && uploadState.success && (
+        <Alert aria-live="polite">
+          <CheckCircle2 aria-hidden="true" />
+          <AlertTitle>Анализ добавлен</AlertTitle>
+          <AlertDescription>{uploadState.success}</AlertDescription>
+        </Alert>
+      )}
 
       {deleteTarget && !readOnly && (
         <AlertDialog
@@ -383,7 +372,7 @@ export function LabResults() {
             }
           }}
         >
-          <AlertDialogContent>
+          <AlertDialogContent finalFocus={settingsButtonRef}>
             <AlertDialogHeader>
               <AlertDialogTitle>Удалить анализ от {deleteTarget.dateLabel}?</AlertDialogTitle>
               <AlertDialogDescription>
