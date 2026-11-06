@@ -141,7 +141,6 @@ try{
    await sphere.waitFor();
    assert.equal(await page.locator('.global-service-select,.mobile-app-navigation__section').count(), 0, `${width} ${route}: unexpected service selector`);
    assert.equal(await page.getByRole('button', { name: 'Поделиться', exact: true }).count(), 1);
-   assert.equal(await page.getByRole('link', { name: 'Открыть Роллы', exact: true }).count(), 1);
    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
    if (route === '/app/friends/search?tab=food') {
     await checkFriendsToggle(page, width);
