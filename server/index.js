@@ -11,6 +11,8 @@ import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
+import { mergeProfileWishlistLinks, profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
+import { externalWishlistLinks } from "../shared/external-wishlists.js";
 import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
@@ -712,6 +714,7 @@ function cleanUser(row) {
     bio: row.bio,
     birthday: row.birthday,
     avatarUrl: row.avatar_url,
+    wishlistLinks: externalWishlistLinks(row.wishlist_links),
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
     hasYandex: Boolean(row.has_yandex),
@@ -2577,6 +2580,7 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     bio: z.string().trim().max(300).optional(),
     birthday: birthdaySchema.nullable().optional(),
     avatarUrl: avatarUrlSchema.optional(),
+    wishlistLinks: profileWishlistLinksPatchSchema.optional(),
   }).strict().safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Не удалось сохранить: проверьте формат полей" });
   if (parsed.data.username && isReservedProfileUsername(parsed.data.username)) {
@@ -2596,10 +2600,12 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
       await preserveProfileUsername(client, req.user.id, previous.username);
       await preserveProfileUsername(client, req.user.id, username);
       return client.query(
-        `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5 WHERE id=$6 RETURNING *`,
+        `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5,
+          wishlist_links=COALESCE($7::jsonb,wishlist_links) WHERE id=$6 RETURNING *`,
         [parsed.data.name ?? previous.name, username, parsed.data.bio ?? previous.bio,
           parsed.data.birthday === undefined ? previous.birthday : parsed.data.birthday,
-          parsed.data.avatarUrl ?? previous.avatar_url, req.user.id],
+          parsed.data.avatarUrl ?? previous.avatar_url, req.user.id,
+          parsed.data.wishlistLinks ? JSON.stringify(mergeProfileWishlistLinks(previous.wishlist_links, parsed.data.wishlistLinks)) : null],
       );
     });
     res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
@@ -4180,7 +4186,7 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
     wishCount: wishes.filter((wish) => wish.status === "active" && wish.listIds.includes(list.id)).length,
   }));
   res.json({
-    profile: { ...shareUser(owner), bio: owner.bio, birthday: owner.birthday }, lists: visibleLists, wishes,
+    profile: { ...shareUser(owner), bio: owner.bio, birthday: owner.birthday, wishlistLinks: externalWishlistLinks(owner.wishlist_links) }, lists: visibleLists, wishes,
     groups: await getVisibleWishGroups(owner.id, visibleLists, wishes),
     isOwner, isFollowing: follower, hasWishlistAccess,
     followersCount: Number(stats[0].rows[0].count), followingCount: Number(stats[1].rows[0].count),

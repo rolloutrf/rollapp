@@ -103,6 +103,7 @@
     "db:migrate:need-rewards": "node scripts/migrate-need-rewards.mjs",
     "test:reward-proofs": "node scripts/reward-proof-codec-check.mjs",
     "test:profile": "node scripts/profile-settings-smoke.mjs",
+    "test:profile-wishlists": "node scripts/profile-wishlists-smoke.mjs",
     "check:release:profile": "npm run test:unit && npm run test:ui && npm run test:controls && npm run test:profile && npm run build",
     "test:product-suggestions": "node scripts/product-suggestions-smoke.mjs"
   },

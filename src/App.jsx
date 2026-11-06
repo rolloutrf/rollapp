@@ -14,6 +14,7 @@ import { ContactCardButton, ContactCardDialog } from "@/components/contact-card-
 import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
+import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, externalWishlistUrl } from "../shared/external-wishlists.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -3176,6 +3177,33 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
   );
 }
 
+function ExternalWishlistLinks({ links }) {
+  const connected = EXTERNAL_WISHLIST_PROVIDERS.flatMap((provider) => {
+    const url = externalWishlistUrl(provider, links?.[provider.id]);
+    return url ? [{ ...provider, url }] : [];
+  });
+  if (!connected.length) return null;
+  return (
+    <nav className="grid max-w-full gap-2" aria-label="Внешние вишлисты">
+      <span className="text-xs text-muted-foreground" aria-hidden="true">Внешние вишлисты</span>
+      <div className="flex flex-wrap justify-center gap-2">
+        {connected.map(({ id, label, url }) => (
+          <a
+            key={id}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Открыть вишлист ${label} (в новой вкладке)`}
+            className={cn(buttonVariants({ variant: "outline" }), "rounded-full gap-2 px-4")}
+          >
+            {label}<ExternalLink aria-hidden="true" />
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
@@ -3240,6 +3268,7 @@ function PersistentProfileHero({ user }) {
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
+      {location.pathname.startsWith("/app/wishes") && <ExternalWishlistLinks links={profile.wishlistLinks} />}
       {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
@@ -6909,6 +6938,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     avatarUrl: user.avatarUrl || "",
   }), [user]);
   const [form, setForm] = useState(initialForm);
+  const [initialWishlistLinks] = useState(() => user.wishlistLinks || {});
+  const [wishlistLinks, setWishlistLinks] = useState(initialWishlistLinks);
+  const [validateWishlistLinks, setValidateWishlistLinks] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -6942,7 +6974,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const photoHeading = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
   const avatarChanged = form.avatarUrl !== initialForm.avatarUrl;
-  const personalChanged = Object.keys(initialForm).some((key) => key !== "avatarUrl" && form[key] !== initialForm[key]);
+  const changedWishlists = EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => (wishlistLinks[id]?.trim() || "") !== (initialWishlistLinks[id] || ""));
+  const personalChanged = changedWishlists.length > 0 || Object.keys(initialForm).some((key) => key !== "avatarUrl" && form[key] !== initialForm[key]);
   const changed = avatarChanged || personalChanged;
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
@@ -7021,12 +7054,24 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const submit = async (event, avatarOnly = false) => {
     event.preventDefault();
     if (busy || (avatarOnly ? !avatarChanged : !changed)) return;
+    const invalidWishlist = !avatarOnly && changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
+      && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
+    if (invalidWishlist) {
+      setValidateWishlistLinks(true);
+      event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
+      return;
+    }
     const submitter = event.nativeEvent.submitter;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
       if ((avatarOnly && key !== "avatarUrl") || form[key] === initialForm[key]) return;
       payload[key] = key === "birthday" ? form[key] || null : form[key];
     });
+    if (!avatarOnly && changedWishlists.length) {
+      payload.wishlistLinks = Object.fromEntries(changedWishlists.map((provider) => [
+        provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
+      ]));
+    }
     setLoading(true);
     try {
       const result = await api.patch("/me", payload);
@@ -7139,6 +7184,40 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
         </Field>
       </FieldGroup>
+      <section className="grid min-w-0 gap-3 border-t pt-4" aria-labelledby="settings-wishlist-title" aria-describedby="settings-wishlist-help">
+        <h2 id="settings-wishlist-title" className="font-heading text-xl font-semibold">Внешние вишлисты</h2>
+        <p id="settings-wishlist-help" className="text-xs text-muted-foreground">
+          Скопируйте ссылку через «Поделиться» в нужном сервисе. После сохранения она появится в вашем публичном профиле. Чтобы отключить вишлист, очистите поле.
+        </p>
+        <FieldGroup className="gap-3">
+          {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
+            const id = `settings-wishlist-${provider.id}`;
+            const value = wishlistLinks[provider.id] || "";
+            const invalid = validateWishlistLinks && Boolean(value.trim()) && !externalWishlistUrl(provider, value);
+            return (
+              <Field key={provider.id} data-invalid={invalid || undefined}>
+                <FieldLabel htmlFor={id}>{provider.label}</FieldLabel>
+                <Input
+                  id={id}
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={EXTERNAL_WISHLIST_URL_MAX_LENGTH}
+                  placeholder="https://"
+                  value={value}
+                  disabled={busy}
+                  aria-invalid={invalid || undefined}
+                  aria-describedby={invalid ? `${id}-error` : undefined}
+                  onChange={(event) => setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value })}
+                />
+                {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
+              </Field>
+            );
+          })}
+        </FieldGroup>
+      </section>
     </form>
   ) : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
@@ -7559,6 +7638,7 @@ function PublicProfile({ shared = false }) {
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
         <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
       </div>
+      {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
     {businessStorefront && <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">

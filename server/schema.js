@@ -12,6 +12,7 @@ import { businessMarketplaceSchema } from "./business-marketplace.js";
 import { personalOffersSchema } from "./personal-offers.js";
 import { giftCardsSchema } from "./gift-cards-schema.js";
 import { planningSchema } from "./planning.js";
+import { profileWishlistLinksColumn } from "./profile-wishlists.js";
 import { notesSchema } from "./notes.js";
 import { privateDataSchema } from "./private-data-schema.js";
 import { businessCategorySchema } from "./business-accounts.js";
@@ -51,6 +52,7 @@ const schema = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'personal';
+  ${profileWishlistLinksColumn};
   ${businessCategorySchema};
   ${wishlistBusinessSchema}
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash_unique
