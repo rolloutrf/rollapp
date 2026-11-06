@@ -26,13 +26,6 @@ try {
     await page.goto(`${origin}/__identity-reports?section=${section}`);
     await page.locator('.identity-pdf-content h3').first().waitFor();
     await page.evaluate(() => document.fonts.ready);
-    assert.equal(await page.getByRole('button',{name:'Удалить все',exact:true}).count(),0,'Bulk-delete page action must stay absent');
-    assert.equal(await page.getByRole('button',{name:`Загрузить PDF для ${section}`,exact:true}).and(page.locator('button')).count(),0,'There is no upload action above the report');
-    const upload = page.getByLabel(`Загрузить PDF для ${section}`, {exact:true}).and(page.locator('input[type=file]'));
-    assert(await upload.isVisible(), 'The report has a visible file field');
-    assert.equal(await page.getByRole('region',{name:'Исходные PDF',exact:true}).count(),0);
-    assert.equal(await page.getByRole('button',{name:/^Удалить PDF /}).count(),0);
-    assert.equal(await page.locator('a[href="https://example.test/report.pdf"]').count(),0);
     if (!review) {
     assert.equal(await page.locator('.identity-pdf-content h3').first().textContent(), 'СИЛЬНЫЕ СТОРОНЫ');
     assert.equal(await page.locator('.identity-pdf-content p').first().textContent(), 'Этот абзац извлечён из PDF. Переносы строк исходной страницы объединены, а слова сохранены.');

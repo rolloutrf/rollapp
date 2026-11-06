@@ -21,23 +21,34 @@ try {
     await page.goto(`${smokeOrigin(server)}/__identity-tests`);
     assert.equal(await page.getByRole('button', { name: /^(Добавить тест|Загрузить|Удалить все)$/ }).count(), 0, 'Retired page action buttons must stay absent');
     assert.equal(await page.locator('a[href*="/identity/business/"]').count(), 0, 'Identity reports have no marketplace action');
-    assert.equal(await page.locator('.identity-report-manager__actions').count(), 0, 'Built-in reports have no action rail above the tiles');
+    const settings = page.getByRole('button', { name: 'Настроить список', exact: true });
+    await settings.waitFor();
     const add = page.getByRole('button', { name: 'Новый тест', exact: true });
     assert.equal(await add.count(), 1);
     assert.equal(await add.evaluate(el => el.closest('[role="tablist"]') === null && !!el.closest('[data-tab-scroller]')), true, 'Add belongs to the tile rail, outside tab semantics');
-    const initialInput = page.getByLabel('Загрузить PDF для Gallup', { exact: true }).and(page.locator('input[type=file]'));
-    assert(await initialInput.isVisible(), 'Upload must be a visible file field');
-    assert.equal(await page.getByRole('button', { name: 'Загрузить PDF для Gallup', exact: true }).and(page.locator('button')).count(), 0);
-    assert.equal(await initialInput.getAttribute('multiple'), '');
-    const fieldGap = await initialInput.evaluate(input => {
-      const navigation = document.querySelector('[data-report-navigation]');
-      return input.closest('[data-slot="field"]').getBoundingClientRect().top - navigation.getBoundingClientRect().bottom;
+    const settingsGeometry = await settings.evaluate(button => {
+      const style = getComputedStyle(button);
+      const nav = document.querySelector('[data-report-navigation]');
+      return [button.offsetHeight, style.paddingInlineStart, style.paddingInlineEnd,
+        nav.getBoundingClientRect().top - button.parentElement.getBoundingClientRect().bottom];
     });
-    assert.equal(fieldGap, 24, 'The upload field follows the tiles with the shared gap');
+    assert.deepEqual(settingsGeometry, [48, '24px', '24px', 24]);
+    assert.equal(await page.locator('input[type=file]').count(), 0, 'The page does not expose the PDF field before settings open');
     if ((width === 390 || width === 1440) && height === 844) {
       await page.evaluate(() => document.fonts.ready);
-      await page.screenshot({ path: `/tmp/rollapp-identity-upload-field-${width}.png` });
+      await page.screenshot({ path: `/tmp/rollapp-identity-list-settings-${width}.png` });
     }
+    const closeSettings = page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть настройки теста', exact: true });
+    await settings.click();
+    const initialInput = page.getByLabel('Загрузить PDF для Gallup', { exact: true }).and(page.locator('input[type=file]'));
+    await initialInput.waitFor();
+    assert.equal(await initialInput.getAttribute('multiple'), '');
+    assert.equal(await page.getByLabel('Название теста').count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Удалить тест', exact: true }).count(), 0);
+    await closeSettings.click();
+    await initialInput.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => !location.search.includes('formScreen'));
+    assert.deepEqual(await page.evaluate(() => window.__identityCalls), []);
     await add.click();
     await page.getByLabel('Название теста').fill('Ошибка');
     await page.locator('form').getByRole('button', { name: 'Добавить тест', exact: true }).click();
@@ -64,7 +75,7 @@ try {
     await page.getByLabel('Название теста').waitFor({ state: 'hidden' });
     await page.waitForFunction(() => !location.search.includes('formScreen'));
     assert.equal(await page.evaluate(() => window.__identityCalls.length), beforeCancel);
-    await page.getByRole('button', { name: 'Настройки теста', exact: true }).click();
+    await settings.click();
     const renamedTitle = 'W'.repeat(80);
     await page.getByLabel('Название теста').fill(renamedTitle);
     await page.getByRole('button', { name: 'Сохранить изменения', exact: true }).click();
@@ -73,6 +84,7 @@ try {
     const emptyBounds = await page.locator('[data-slot="empty-title"]').evaluate(el => ({ left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, viewport: innerWidth }));
     assert.ok(emptyBounds.left >= -1 && emptyBounds.right <= emptyBounds.viewport + 1, `long empty title escapes ${width}: ${JSON.stringify(emptyBounds)}`);
     const filename = `${'Результат'.repeat(12)}.pdf`;
+    await settings.click();
     const uploadField = page.getByLabel(`Загрузить PDF для ${renamedTitle}`, { exact: true }).and(page.locator('input[type=file]'));
     assert(await uploadField.isVisible());
     assert.equal(await page.getByRole('button', { name: `Загрузить PDF для ${renamedTitle}`, exact: true }).and(page.locator('button')).count(), 0);
@@ -89,15 +101,19 @@ try {
     await uploadField.setInputFiles([{ name: filename, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-fixture') }, { name: 'Второй отчёт.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-fixture') }]);
     await page.waitForFunction(() => typeof window.__identityReleaseUpload === 'function');
     assert(await uploadField.isDisabled(), 'File field must stay disabled during upload');
-    assert(await page.getByRole('button', { name: 'Новый тест', exact: true }).isDisabled(), 'Add must respect the report upload owner');
+    assert(await page.getByRole('button', { name: 'Новый тест', exact: true, includeHidden: true }).isDisabled(), 'Add must respect the report upload owner');
+    assert(await page.getByRole('button', { name: 'Сохранить изменения', exact: true }).isDisabled());
     await page.evaluate(() => window.__identityReleaseUpload());
     await page.waitForFunction(() => document.querySelectorAll('.identity-generated-document').length === 2);
-    assert.equal(await page.getByRole('heading', { name: 'Результаты теста' }).count(), 2);
     assert.equal(await uploadField.inputValue(), '', 'Native field must reset after selection');
+    await closeSettings.click();
+    await uploadField.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => !location.search.includes('formScreen'));
+    assert.equal(await page.getByRole('heading', { name: 'Результаты теста' }).count(), 2);
     assert.equal(await page.evaluate(() => window.__identityCalls.filter(call => call[0] === 'upload').at(-1)[1]), 'custom-fixture-5', 'PDF must belong to the selected test');
     assert.equal(await page.getByRole('region', { name: 'Исходные PDF', exact: true }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /^Удалить PDF / }).count(), 0);
-    await page.getByRole('button', { name: 'Настройки теста', exact: true }).click();
+    await settings.click();
     await page.getByLabel('Название теста').fill('Несохранённое название');
     await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     const dialogBounds = await page.getByRole('alertdialog').evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth, left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, viewport: innerWidth, top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom, height: innerHeight }));
@@ -117,7 +133,7 @@ try {
     await page.getByRole('tab', { name: renamedTitle, exact: true }).click();
     await page.getByRole('heading', { name: 'Второй отчёт.pdf', exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Результаты теста', exact: true }).count(), 2);
-    await page.getByRole('button', { name: 'Настройки теста', exact: true }).click();
+    await settings.click();
     await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.evaluate(() => { window.__identityFailNextDelete = true; });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Удалить тест', exact: true }).click();
@@ -135,16 +151,20 @@ try {
     await page.waitForFunction(() => !location.search.includes('formScreen'));
     await page.getByLabel('Название теста').waitFor({ state: 'hidden' });
     assert.equal(await page.getByRole('tab', { name: renamedTitle, exact: true }).count(), 0);
-    assert.equal(await page.getByRole('button', { name: 'Настройки теста', exact: true }).count(), 0, 'Built-in tests have no catalog settings');
+    assert(await settings.isVisible(), 'Built-in tests keep their PDF settings');
     await page.goto(`${smokeOrigin(server)}/__identity-tests?limit`);
     await page.getByRole('region', { name: 'Содержание загруженных PDF', exact: true }).waitFor();
+    await settings.click();
     const limitInput = page.getByLabel('Загрузить PDF для Gallup', { exact: true }).and(page.locator('input[type=file]'));
     assert(await limitInput.isDisabled(), 'Eight PDF limit disables the native picker');
     assert(await limitInput.isVisible(), 'Eight PDF limit keeps the field visible');
+    await closeSettings.click();
+    await limitInput.waitFor({ state: 'hidden' });
     assert(await page.getByRole('button', { name: 'Новый тест', exact: true }).isEnabled());
     await page.goto(`${smokeOrigin(server)}/__identity-tests?readonly`);
     await page.getByRole('tab', { name: 'Gallup', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Новый тест', exact: true }).count(), 0);
+    assert.equal(await settings.count(), 0);
     assert.equal(await page.locator('input[type=file]').count(), 0);
     assert.deepEqual(await page.evaluate(() => window.__identityCalls), []);
     assert.deepEqual(errors, []);

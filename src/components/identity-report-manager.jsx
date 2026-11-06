@@ -8,8 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
@@ -43,8 +41,10 @@ export function IdentityReportOverview({ titleId, eyebrow, title, description, d
 }
 
 export function useIdentityReport(section, client = api) {
+  const { readOnly, loading: sharingLoading } = useSphereSharing();
   const [state, setState] = useState({ mode: "loading", report: null, files: [], updatedAt: null });
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -57,21 +57,14 @@ export function useIdentityReport(section, client = api) {
   }, [section, client]);
 
   useEffect(() => { load(); }, [load]);
-  return { state, setState, error, load };
-}
-
-export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, client = api }) {
-  const { readOnly } = useSphereSharing();
-  const uploadId = useId();
-  const [busy, setBusy] = useState(false);
-  const canUpload = !readOnly && (state.files?.length || 0) < 8;
-  const uploadDisabled = busy || !canUpload || state.mode === "loading" || state.mode === "error";
+  const fileCount = state.files?.length || 0;
+  const uploadDisabled = uploading || readOnly || sharingLoading || fileCount >= 8 || state.mode === "loading" || state.mode === "error";
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])];
     event.target.value = "";
     if (uploadDisabled || !files.length) return;
-    if (files.length + (state.files?.length || 0) > 8) {
+    if (files.length + fileCount > 8) {
       toast.error("Для одного отчёта можно загрузить не больше 8 PDF");
       return;
     }
@@ -84,7 +77,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       toast.error(invalid.size > MAX_PDF_BYTES ? "PDF должен быть не больше 12 МБ" : "Выберите PDF-файлы");
       return;
     }
-    setBusy(true);
+    setUploading(true);
     let latest = null;
     try {
       for (const file of files) latest = await client.uploadIdentityReportPdf(section, file);
@@ -94,40 +87,11 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       await load();
       toast.error(uploadError.message);
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   };
 
-  return (
-    <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {!readOnly && onEditTest && (
-        <div className="identity-report-manager__actions horizontal-action-scroller">
-          <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>
-            Настройки теста
-          </PageActionButton>
-        </div>
-      )}
-      {typeof navigation === "function" ? navigation({ busy }) : navigation}
-      {!readOnly && (
-        <Field className="mx-auto w-full min-w-0 max-w-(--layout-text-width)">
-          <FieldLabel className="min-w-0 wrap-anywhere" htmlFor={uploadId}>Загрузить PDF для {label}</FieldLabel>
-          <Input
-            id={uploadId}
-            type="file"
-            accept="application/pdf,.pdf"
-            multiple
-            disabled={uploadDisabled}
-            onChange={upload}
-            aria-describedby={`${uploadId}-help`}
-          />
-          <FieldDescription id={`${uploadId}-help`}>
-            {busy ? <span className="inline-flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем PDF…</span>
-              : "До 8 файлов, каждый не больше 12 МБ."}
-          </FieldDescription>
-        </Field>
-      )}
-    </section>
-  );
+  return { state, error, load, uploading, uploadDisabled, upload };
 }
 
 export function IdentityReportEmpty({ label }) {
