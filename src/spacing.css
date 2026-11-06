@@ -209,6 +209,10 @@
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
   }
 
+  .app-layout--planning-notes > .app-main {
+    padding-block-start: var(--layout-screen-top);
+  }
+
   @media (min-width: 768px) {
     .app-layout.app-layout--planning > .app-main:not(:has(.daily-todo__scroll)) {
       padding-block-start: var(--app-chrome-overlay-height);
@@ -219,6 +223,10 @@
     .app-layout--planning .daily-todo__scroll {
       padding-block-start: var(--app-chrome-overlay-height);
       scroll-padding-block-start: var(--app-chrome-overlay-height);
+    }
+
+    .app-layout--planning-notes > .app-main {
+      padding-block-start: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
     }
   }
 

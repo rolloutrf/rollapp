@@ -27,15 +27,13 @@ export async function runNotesProductionChecks({ origin, token }) {
         const page = await context.newPage();
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(`${baseUrl}/app/planning?tab=notes`);
-        await page.getByText("Здесь будут ваши документы", { exact: false }).waitFor();
+        const grid = page.locator(".notes-grid");
+        const create = grid.getByRole("button", { name: "Создать заметку", exact: true });
+        await create.waitFor();
         assert.equal(await page.locator(".app-layout--planning").count(), 0);
         await page.getByRole("button", { name: "Открыть планирование", exact: true }).click();
         await page.locator(".planning-fab__panel").getByRole("link", { name: "Заметки", exact: true }).click();
-        const create = page.getByRole("button", { name: "Создать заметку", exact: true });
-        const actionStyle = await page.getByRole("button", { name: "Галерея шаблонов", exact: true }).evaluate(node => { const style = getComputedStyle(node); return { left: style.paddingLeft, right: style.paddingRight, height: node.getBoundingClientRect().height }; });
-        assert.equal(actionStyle.left, "24px");
-        assert.equal(actionStyle.right, "24px");
-        assert(actionStyle.height >= 48);
+        assert.equal(await grid.getByRole("button").count(), 1);
         await create.click();
         const title = page.getByRole("textbox", { name: "Название заметки", exact: true });
         const editor = page.getByRole("textbox", { name: "Текст заметки", exact: true });
@@ -73,7 +71,7 @@ export async function runNotesProductionChecks({ origin, token }) {
         assert.equal(await editor.locator("strong").innerText(), "Важная мысль");
         assert.equal(await editor.locator('[data-type="taskItem"]').count(), 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-        await page.getByRole("link", { name: "К списку заметок", exact: true }).first().click();
+        await page.locator(".planning-fab-controls").getByRole("link", { name: "Назад к заметкам", exact: true }).click();
         await page.getByRole("link", { name, exact: true }).click();
         await editor.waitFor();
         await page.getByRole("button", { name: "Удалить заметку", exact: true }).click();
@@ -82,7 +80,9 @@ export async function runNotesProductionChecks({ origin, token }) {
         await page.screenshot({ path: `/tmp/rollapp-notes-production-${width}-${height}.png`, animations: "disabled" });
         await page.getByRole("button", { name: "Удалить заметку", exact: true }).click();
         await page.getByRole("button", { name: "Удалить", exact: true }).click();
-        await page.getByText("Здесь будут ваши документы", { exact: false }).waitFor();
+        await create.waitFor();
+        await grid.locator("[data-slot=skeleton]").first().waitFor({ state: "hidden" });
+        assert.equal(await grid.getByRole("link").count(), 0);
         assert.deepEqual(errors, []);
         console.log(`PASS notes production UI ${width}×${height}: real app/authenticated HTTP/PostgreSQL, native edit/format/checklist, save/reload/reopen/delete`);
       } finally { await context.close(); }

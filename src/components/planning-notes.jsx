@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Trash2, X } from "lucide-react";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { EditableTextBlock } from "@/components/editable-text-block";
 import { InlineTextField } from "@/components/inline-text-field";
 import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
-import { cn } from "@/lib/utils";
 import { NotesLibrary } from "@/components/notes-library";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -51,11 +50,14 @@ export function PlanningNotes({ client = api }) {
     next.delete("space"); next.delete("spaceKind");
     return next;
   });
-  const create = async (template) => {
+  const create = async () => {
     if (creating) return;
     const sourceRevision = navigation.current.revision;
     setCreating(true); setError("");
-    try { const { note } = await client.post("/planning/notes", { title: template.id === "blank" ? "Без названия" : template.title, content: template.content }); if (mounted.current && navigation.current.revision === sourceRevision) open(note.id); }
+    try {
+      const { note } = await client.post("/planning/notes", { title: "Без названия", content: "" });
+      if (mounted.current && navigation.current.revision === sourceRevision) open(note.id);
+    }
     catch (cause) { if (mounted.current && navigation.current.revision === sourceRevision) setError(cause.message); }
     finally { if (mounted.current) setCreating(false); }
   };
@@ -121,7 +123,6 @@ function NoteLoader({ noteId, client }) {
   }, [client, noteId, version]);
   if (note) return <NoteEditor note={note} client={client} />;
   return <>
-    <ControlBar><Link data-control-icon aria-label="К списку заметок" to="?tab=notes" className={cn(buttonVariants({ variant: "outline", size: "icon" }), "rounded-full")}><ArrowLeft aria-hidden="true" /></Link></ControlBar>
     <NoteError error={error} retry={() => setVersion(v => v + 1)} />
     {!error && <p role="status">Загружаем заметку…</p>}
   </>;
@@ -150,13 +151,12 @@ function NoteEditor({ note, client }) {
     finally { if (mounted.current) { setBusy(false); setConfirmDelete(false); } }
   };
   return <>
-    <ControlBar className="not-typeset page-toolbar rollapp-body">
-      <Link data-control-icon aria-label="К списку заметок" to="?tab=notes" aria-disabled={busy || undefined} onClick={event => { if (busy) event.preventDefault(); }} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "rounded-full")}><ArrowLeft aria-hidden="true" /></Link>
-      <Button data-control-icon variant="destructive" size="icon" aria-label="Удалить заметку" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>
-    </ControlBar>
     <NoteError error={error} />
-    <article className="typeset typeset-rollapp typeset-document planning-notes__document">
-      <h1><InlineTextField value={autosave.draft.title} onChange={title => autosave.change(current => ({ ...current, title: title.slice(0, 200) }))} onBlur={autosave.flush} label="Название заметки" singleLine placeholder="Без названия" disabled={busy} /></h1>
+    <article className="typeset typeset-rollapp typeset-document planning-notes__document page-stack">
+      <ControlBar as="header" className="page-toolbar flex-nowrap">
+        <h1 className="min-w-0"><InlineTextField value={autosave.draft.title} onChange={title => autosave.change(current => ({ ...current, title: title.slice(0, 200) }))} onBlur={autosave.flush} label="Название заметки" singleLine placeholder="Без названия" disabled={busy} /></h1>
+        <Button className="not-typeset" data-control-icon variant="destructive" size="icon" aria-label="Удалить заметку" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>
+      </ControlBar>
       <EditableTextBlock value={autosave.draft.content} onChange={content => autosave.change(current => ({ ...current, content }))} onBlur={autosave.flush} label="Текст заметки" placeholder="Напишите что-нибудь или введите / для выбора блока…" disabled={busy} />
     </article>
     <InlineSaveStatus autosave={autosave} />

@@ -47,7 +47,7 @@ download API. Реальный перенос выполняется отдел�
 verify startup проверяет их через LIMIT0, не создаёт и не изменяет записи.
 
 Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
-новую поверхность на восьми размерах и входит в `check:release`. До первого
+единую сетку и редактор на восьми размерах и входит в `check:release`. До первого
 запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
 проверка — `node scripts/migrate-planning-notes.mjs`, применение после разрешения —
 та же команда с `--apply`. Обычный verify startup таблицу не создаёт.

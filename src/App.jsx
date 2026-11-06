@@ -717,12 +717,21 @@ function PlanningControls({ user }) {
   };
   if (location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
-  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const search = new URLSearchParams(location.search);
+  const requestedTab = search.get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
+  const backToNotes = inPlanning && currentTab === "notes" && Boolean(search.get("note"));
+  const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
       <MessengerDrawer user={user} assistant={assistant} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
-      {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
+      {inPlanning && <Link
+        data-control-icon
+        to={backToNotes ? `${PLANNING_SERVICE.path}?tab=notes` : returnPath.current}
+        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")}
+        aria-label={backLabel}
+        title={backLabel}
+      ><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessengerDrawerOpen(false); }}>
       <PopoverTrigger
@@ -1758,13 +1767,14 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const planningRoute = location.pathname === "/app/planning";
   const messengerRoute = location.pathname.startsWith("/app/messenger");
   const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
+  const planningLayout = notesRoute ? "app-layout--planning-notes" : planningRoute ? "app-layout--planning" : "";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS)
     || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      <div className={`app-layout app-layout--dark ${planningRoute && !notesRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
+      <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-          {!collectionChrome && (!planningRoute || notesRoute) && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
