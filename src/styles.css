@@ -4362,15 +4362,15 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .profile-portrait::before {
   background:
-    radial-gradient(ellipse at 68% 39%, #f12695 0%, transparent 48%),
-    radial-gradient(ellipse at 39% 65%, #812dde 0%, transparent 48%);
+    radial-gradient(ellipse at 68% 39%, hsl(var(--profile-portrait-hue) 92% 60%) 0%, transparent 48%),
+    radial-gradient(ellipse at 39% 65%, hsl(var(--profile-portrait-hue) 80% 44%) 0%, transparent 48%);
   opacity: .72;
   animation: profile-portrait-wave 9s ease-in-out infinite alternate;
 }
 .profile-portrait::after {
   background:
-    radial-gradient(ellipse at 36% 33%, #ffe23d 0%, transparent 41%),
-    radial-gradient(ellipse at 67% 63%, #ff7138 0%, transparent 39%);
+    radial-gradient(ellipse at 36% 33%, hsl(var(--profile-portrait-hue) 96% 69%) 0%, transparent 41%),
+    radial-gradient(ellipse at 67% 63%, hsl(var(--profile-portrait-hue) 88% 53%) 0%, transparent 39%);
   opacity: .84;
   animation: profile-portrait-wave 7s ease-in-out -3s infinite alternate-reverse;
 }
