@@ -36,6 +36,10 @@ api.post = async (path, data) => {
   throw new Error("Unexpected fixture POST");
 };
 api.delete = async (path) => {
+  if (mode === "avatar" && window.rejectAvatarSave && path === `/uploads/images/${avatarId}`) {
+    window.rejectedAvatarReleased = true;
+    return { ok: true };
+  }
   if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture-saved") {
     openRouter = { available: true, configured: false };
     return openRouter;
@@ -48,6 +52,7 @@ api.uploadImage = async (file) => {
 };
 api.patch = async (path, data) => {
   if (mode === "avatar" && path === "/me" && JSON.stringify(data) === JSON.stringify({ avatarUrl })) {
+    if (window.rejectAvatarSave) throw Object.assign(new Error("Fixture rejected photo"), { status: 400 });
     return { user: { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: true, avatarUrl } };
   }
   if (mode !== "save" || path !== "/me" || JSON.stringify(data) !== '{"name":"Сохранённое имя"}') throw new Error("Unexpected fixture save");
