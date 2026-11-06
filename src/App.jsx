@@ -1761,17 +1761,14 @@ function AuthPage({ mode }) {
   );
 }
 
-function AppFriendsLink({ active = false }) {
+function AppFriendsLink() {
   return (
-    <Link
-      to="/app/friends/subscriptions"
-      aria-current={active ? "page" : undefined}
-      className={buttonVariants({ variant: active ? "secondary" : "ghost", className: "app-friends-link app-main__friends h-12 gap-2 rounded-xl px-4 active:translate-y-0" })}
-      aria-label="Открыть раздел Друзья"
-    >
-      <Users aria-hidden="true" />
-      <span>Друзья</span>
-    </Link>
+    <nav className="wishes-page__friend-links" aria-label="Связи профиля">
+      <Link to="/app/friends" className="wishes-page__friend-link">
+        <Users aria-hidden="true" />
+        Друзья
+      </Link>
+    </nav>
   );
 }
 
@@ -3282,22 +3279,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
   const { user } = useSession();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
-      <nav className="wishes-page__friend-links" aria-label="Связи профиля">
-        <Link
-          to="/app/friends/subscriptions"
-          className="wishes-page__friend-link"
-        >
-          <Users aria-hidden="true" />
-          Подписки
-        </Link>
-        <Link
-          to="/app/friends/followers"
-          className="wishes-page__friend-link"
-        >
-          <CircleUserRound aria-hidden="true" />
-          Подписчики
-        </Link>
-      </nav>
+      <AppFriendsLink />
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
         {selectedList && <PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" onClick={() => onEditList(selectedList)}>Настройки списка</PageActionButton>}
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
@@ -7522,10 +7504,7 @@ function PublicProfile({ shared = false }) {
 
   const profileVisitor = !data.isOwner;
   const relationshipBlock = data.isOwner
-    ? <nav className="wishes-page__friend-links" aria-label="Связи профиля">
-      <Link to="/app/friends/subscriptions" className="wishes-page__friend-link"><Users aria-hidden="true" />Подписки</Link>
-      <Link to="/app/friends/followers" className="wishes-page__friend-link"><CircleUserRound aria-hidden="true" />Подписчики</Link>
-    </nav>
+    ? <AppFriendsLink />
     : !shared ? <dl className="wishes-page__friend-links friend-profile-page__stats" aria-label="Связи профиля">
       <div><dt>Подписки</dt><dd>{data.followingCount}</dd></div>
       <div><dt>Подписчики</dt><dd>{data.followersCount}</dd></div>

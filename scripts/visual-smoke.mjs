@@ -481,16 +481,12 @@ async function expectWishesProfileComposition(page, label) {
   assert(Math.max(...centers) - Math.min(...centers) <= 2, `${label} profile elements are not centered on one axis (${centers.join(", ")})`);
   assert(contract.avatar.bottom <= contract.heading.top + 1 && contract.heading.bottom <= contract.friendLinks.top + 1 && contract.friendLinks.bottom <= contract.actions.top + 1, `${label} profile elements are not ordered avatar, name, friend links, actions`);
   assert(
-    sameMembers(contract.friendLinkItems.map(({ name }) => name), ["Подписки", "Подписчики"]),
-    `${label} should expose the subscriptions and followers links directly below the name`,
+    contract.friendLinkItems.length === 1 && contract.friendLinkItems[0].name === "Друзья",
+    `${label} should expose a single Friends link directly below the name`,
   );
-  const expectedFriendPaths = {
-    "Подписки": friendsRoutes.subscriptions,
-    "Подписчики": friendsRoutes.followers,
-  };
   for (const link of contract.friendLinkItems) {
     assert(link.tag === "A" && link.role === null && link.slot === undefined, `${label} ${link.name} still uses button semantics`);
-    assert(new URL(link.href, baseUrl).pathname === expectedFriendPaths[link.name], `${label} ${link.name} points to the wrong route`);
+    assert(new URL(link.href, baseUrl).pathname === "/app/friends", `${label} ${link.name} points to the wrong route`);
     assert(link.current === null, `${label} ${link.name} is incorrectly marked current on the wishes page`);
     assert(link.iconCount === 1 && link.iconHidden, `${label} ${link.name} is missing its decorative relationship icon`);
     assert(
@@ -1302,32 +1298,21 @@ async function expectMainUserSettingsNavigation(page, label, { mobile = false } 
   await waitForFocused(page, profileButton, `${label} profile button after editor close`);
 }
 
-async function expectWishesFriendShortcutsNavigation(page, label) {
+async function expectWishesFriendsNavigation(page, label) {
   const originalPathname = new URL(page.url()).pathname;
   assert(originalPathname === "/app/wishes", `${label} must start on the wishes page`);
-  const destinations = [
-    { name: "Подписки", tab: "subscriptions", keyboard: true },
-    { name: "Подписчики", tab: "followers", keyboard: false },
-  ];
-  for (const destination of destinations) {
-    const navigation = page.getByRole("navigation", { name: "Связи профиля" });
-    await navigation.waitFor({ state: "visible" });
-    const link = navigation.getByRole("link", { name: destination.name, exact: true });
-    if (destination.keyboard) {
-      await page.locator(".wishes-page__identity").focus();
-      await page.keyboard.press("Tab");
-      assert(await link.evaluate((element) => document.activeElement === element), `${label} ${destination.name} cannot receive focus`);
-      assert(await link.evaluate((element) => element.matches(":focus-visible")), `${label} ${destination.name} has no visible keyboard-focus state`);
-      await page.keyboard.press("Enter");
-    } else {
-      await link.click();
-    }
-    await page.waitForURL((url) => url.pathname === friendsRoutes[destination.tab]);
-    await page.locator(".friends-page").waitFor({ state: "visible" });
-    await page.getByRole("heading", { name: friendsLabels[destination.tab], exact: true }).waitFor({ state: "visible" });
-    await expectFriendsNavigation(page, destination.tab, `${label} ${destination.name} destination`);
-    await waitForAppRoute(page, originalPathname);
-  }
+  const navigation = page.getByRole("navigation", { name: "Связи профиля" });
+  await navigation.waitFor({ state: "visible" });
+  const link = navigation.getByRole("link", { name: "Друзья", exact: true });
+  await page.locator(".wishes-page__identity").focus();
+  await page.keyboard.press("Tab");
+  assert(await link.evaluate((element) => document.activeElement === element), `${label} Friends link cannot receive focus`);
+  assert(await link.evaluate((element) => element.matches(":focus-visible")), `${label} Friends link has no visible keyboard-focus state`);
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.pathname === friendsRoutes.subscriptions);
+  await page.locator(".friends-page").waitFor({ state: "visible" });
+  await expectFriendsNavigation(page, "subscriptions", `${label} Friends destination`);
+  await waitForAppRoute(page, originalPathname);
 }
 
 async function expectStableDesktopChromeAcrossRoutes(page, label, viewport) {
@@ -3155,7 +3140,8 @@ async function expectUnifiedPublicCollection(page, label, {
     assert(await identity.evaluate((element) => element.tagName === "BUTTON"), `${label} owner identity is not the profile-editor action`);
     assert(/^Редактировать профиль\s+/.test(await identity.getAttribute("aria-label") || ""), `${label} owner identity has the wrong accessible name`);
     const relationshipLinks = hero.locator(".wishes-page__friend-links a");
-    assert(await relationshipLinks.count() === 2, `${label} owner profile is missing its relationship links`);
+    assert(await relationshipLinks.count() === 1, `${label} owner profile must expose a single Friends link`);
+    assert(await relationshipLinks.innerText() === "Друзья" && await relationshipLinks.getAttribute("href") === "/app/friends", `${label} owner profile is missing its Friends destination`);
     const relationshipIconContract = await relationshipLinks.evaluateAll((links) => links.map((link) => {
       const icon = link.querySelector(":scope > svg");
       const rect = icon?.getBoundingClientRect();
@@ -5336,7 +5322,7 @@ try {
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-app.png", fullPage: true });
   await expectMainUserSettingsNavigation(dashboard, "Desktop main-content user settings");
   await expectProfileEditorForm(dashboard, "Desktop in-place profile editor");
-  await expectWishesFriendShortcutsNavigation(dashboard, "Desktop wishes profile friend shortcuts");
+  await expectWishesFriendsNavigation(dashboard, "Desktop wishes profile Friends link");
 
   await waitForAppRoute(dashboard, "/app/wishes");
   const desktopCard = dashboard.locator(".wish-card").first();
