@@ -43,6 +43,9 @@ import { registerPlanningRoutes } from "./planning.js";
 import { registerNotesRoutes } from "./notes.js";
 import { registerCalendarDeviceRoutes } from "./calendar-device.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
+import { sendAccountInviteEmail } from "./email.js";
+import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./invites.js";
+import { startMemberTonAnchor } from "./member-ton-anchor.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
 import { getOhMyWishesRecommendationsPage, resolveOhMyWishesItem } from "./ohmywishes-brands.js";
@@ -64,7 +67,6 @@ import { fetchMarketplaceAiOffers } from "./yandex-marketplace-offers.js";
 import { YandexAiError, yandexAiConfig } from "./yandex-ai.js";
 import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
-import { createRegistrationInvite, findRegistrationInvite, readRegistrationInvite } from "./registration-invites.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
 import { loadContactAvatar, resolveContactSocialAvatar } from "./contact-avatars.js";
 import { contactAvatarPath, contactFromOverride, listContacts } from "./contacts.js";
@@ -150,6 +152,7 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
+let memberAnchor = { kick() {} };
 const sessionCookie = "rw_session";
 const yandexOauthCookiePrefix = "rw_yandex_oauth_";
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
@@ -716,6 +719,8 @@ function cleanUser(row) {
     accountType: row.account_type || "personal",
     businessCategory: row.business_category ?? null,
     sellerSpace: row.seller_space ?? null,
+    memberNumber: formatMemberNumber(row.member_number),
+    canInvite: Boolean(row.can_invite),
     bio: row.bio,
     birthday: row.birthday,
     avatarUrl: row.avatar_url,
@@ -1036,6 +1041,7 @@ function requireBusinessAccount(req, res, next) {
 function shareUser(row) {
   return {
     id: row.id,
+    memberNumber: formatMemberNumber(row.member_number),
     username: row.username,
     name: row.name,
     avatarUrl: row.avatar_url,
@@ -1209,11 +1215,8 @@ function yandexLoginRedirect(nextPath, errorCode, successCode, backup) {
   return `/login?${params.toString()}`;
 }
 
-const registrationInviteSecret = process.env.ROLLAPP_INVITE_SECRET || process.env.USER_CREDENTIALS_SECRET || "";
-const inviteSecret = registrationInviteSecret.length >= 32 ? registrationInviteSecret : "";
 const inviteRequired = { error: "Регистрация доступна только по приглашению", code: "INVITE_REQUIRED" };
 const invalidInvite = { error: "Приглашение недействительно, истекло или уже использовано", code: "INVITE_INVALID" };
-const invitesUnavailable = { error: "Приглашения временно недоступны", code: "INVITES_UNAVAILABLE" };
 
 async function uniqueUsername(name, client = { query }) {
   const base = slugify(name);
@@ -1557,7 +1560,7 @@ async function insertYandexUser(client, yandexUser, userId, unusablePasswordHash
   throw new YandexAuthError("Не удалось создать профиль Rollapp", "YANDEX_ACCOUNT_CONFLICT", 409);
 }
 
-async function resolveYandexLogin(yandexUser, attempt, currentUser, inviteToken) {
+async function resolveYandexLogin(yandexUser, attempt, currentUser) {
   if (attempt.purpose === "link" && (!currentUser || currentUser.id !== attempt.user_id)) {
     return { kind: "link-session-missing" };
   }
@@ -1591,14 +1594,23 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, inviteToken)
     const existingEmail = await client.query("SELECT id FROM users WHERE email=$1 FOR UPDATE", [yandexUser.email]);
     if (existingEmail.rowCount) return { kind: "link-required" };
 
-    if (!inviteToken) return { kind: "invite-required" };
+    await lockMembership(client, isMemoryDatabase);
+    if (!attempt.invite_token_hash) return { kind: "invite-required" };
+    const invite = await client.query(
+      `SELECT id FROM account_invites WHERE token_hash=$1 AND recipient_email=$2
+       AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE`,
+      [attempt.invite_token_hash, yandexUser.email],
+    );
+    if (!invite.rowCount) return { kind: "invite-invalid" };
+    const count = await client.query("SELECT COUNT(*) AS count FROM users");
+    if (!membershipHasCapacity(count.rows[0].count)) return { kind: "limit-reached" };
+
     await lockProfileUsernames(client, isMemoryDatabase);
-    const invite = await findRegistrationInvite(client.query.bind(client), inviteToken, inviteSecret);
-    if (!invite) return { kind: "invite-invalid" };
-    const userId = invite.accountId;
+    const userId = randomUUID();
     const unusablePasswordHash = `oauth-only:${randomBytes(32).toString("base64url")}`;
     const created = await insertYandexUser(client, yandexUser, userId, unusablePasswordHash);
     if (created.kind === "link-required") return created;
+    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=CURRENT_TIMESTAMP WHERE id=$2", [userId, invite.rows[0].id]);
     await client.query(
       `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -1888,12 +1900,13 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     return res.status(503).json({ error: "Вход через Яндекс ID не настроен", code: "YANDEX_AUTH_UNAVAILABLE" });
   }
   const signingUp = req.method === "POST";
-  const inviteToken = signingUp ? req.body?.invite : "";
+  const inviteToken = signingUp && typeof req.body?.invite === "string" && /^[A-Za-z0-9_-]{43}$/.test(req.body.invite) ? req.body.invite : "";
   const nextPath = safeOauthReturnPath(signingUp ? req.body?.next : req.query.next);
   const wantsLink = !signingUp && req.query.link === "1";
   if (signingUp) {
     if (!inviteToken) return res.status(403).json(inviteRequired);
-    if (!await findRegistrationInvite(query, inviteToken, inviteSecret)) return res.status(403).json(invalidInvite);
+    const invite = await query("SELECT 1 FROM account_invites WHERE token_hash=$1 AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP", [inviteTokenHash(inviteToken)]);
+    if (!invite.rowCount) return res.status(403).json(invalidInvite);
   }
   if (wantsLink && !req.user) {
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
@@ -1905,8 +1918,8 @@ const startYandexLogin = asyncRoute(async (req, res) => {
   });
   await query(
     `INSERT INTO yandex_oauth_attempts
-      (state_hash,code_verifier,next_path,purpose,user_id,expires_at)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
+      (state_hash,code_verifier,next_path,purpose,user_id,expires_at,invite_token_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
     [
       authorization.attempt.stateHash,
       authorization.attempt.verifier,
@@ -1914,6 +1927,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
       signingUp ? "invite" : authorization.attempt.purpose,
       authorization.attempt.userId,
       authorization.expiresAt,
+      inviteToken ? inviteTokenHash(inviteToken) : null,
     ],
   );
   res.cookie(
@@ -1946,7 +1960,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const consumed = await query(
     `DELETE FROM yandex_oauth_attempts
      WHERE state_hash=$1 AND expires_at>$2
-     RETURNING code_verifier,next_path,purpose,user_id`,
+     RETURNING code_verifier,next_path,purpose,user_id,invite_token_hash`,
     [stateHash, new Date()],
   );
   const attempt = consumed.rows[0];
@@ -1954,7 +1968,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const inviteToken = attempt.purpose === "invite" ? cookieInvite : "";
 
   const authErrorRedirect = (code) => {
-    if (!readRegistrationInvite(inviteToken, inviteSecret)) return yandexLoginRedirect(attempt.next_path, code);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(attempt.next_path, code);
     const params = new URLSearchParams({ next: attempt.next_path, auth_error: code });
     return `/register?${params}#invite=${inviteToken}`;
   };
@@ -1968,7 +1982,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     const yandexUser = await fetchYandexProfile(config, accessToken);
     const wantsBackup = attempt.purpose === "link-backup";
     const purpose = wantsBackup ? "link" : attempt.purpose;
-    const result = await resolveYandexLogin(yandexUser, { ...attempt, purpose }, req.user, inviteToken);
+    const result = await resolveYandexLogin(yandexUser, { ...attempt, purpose }, req.user);
     if (result.kind === "invite-required") {
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "INVITE_REQUIRED"));
     }
@@ -1977,6 +1991,9 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     }
     if (result.kind === "link-required") {
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_LINK_REQUIRED"));
+    }
+    if (result.kind === "limit-reached") {
+      return res.redirect(303, authErrorRedirect("YANDEX_LIMIT_REACHED"));
     }
     if (result.kind === "identity-conflict") {
       return res.redirect(303, yandexLoginRedirect(attempt.next_path, "YANDEX_IDENTITY_CONFLICT"));
@@ -2185,37 +2202,40 @@ app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (re
   return res.json({ ok: true });
 }));
 
-app.post("/api/me/invites", requireAuth, inviteRateLimit, (req, res) => {
-  res.set("Cache-Control", "no-store");
-  if (!inviteSecret) return res.status(503).json(invitesUnavailable);
-  const { token, expiresAt } = createRegistrationInvite(req.user.id, inviteSecret);
-  const origin = isProduction ? getPasswordResetOrigin() : "";
-  const path = `/register#invite=${token}`;
-  return res.status(201).json({ url: origin ? new URL(path, origin).href : path, expiresAt });
-});
-
 app.post("/api/auth/invite/validate", inviteValidationRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "no-store");
-  if (!inviteSecret) return res.status(503).json(invitesUnavailable);
-  const invite = await findRegistrationInvite(query, req.body?.invite, inviteSecret);
-  if (!invite) return res.status(403).json(invalidInvite);
-  return res.json({ valid: true });
+  const token = typeof req.body?.invite === "string" ? req.body.invite : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(403).json(invalidInvite);
+  const invite = await query(
+    `SELECT recipient_email,expires_at FROM account_invites WHERE token_hash=$1
+     AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP`,
+    [inviteTokenHash(token)],
+  );
+  if (!invite.rowCount) return res.status(403).json(invalidInvite);
+  return res.json({ valid: true, email: invite.rows[0].recipient_email, expiresAt: invite.rows[0].expires_at });
 }));
 
 app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
-  const inviteToken = req.body?.invite;
-  if (!inviteToken) return res.status(403).json(inviteRequired);
-  if (!inviteSecret) return res.status(503).json(invitesUnavailable);
-  if (!readRegistrationInvite(inviteToken, inviteSecret)) return res.status(403).json(invalidInvite);
+  const inviteToken = typeof req.body?.invite === "string" ? req.body.invite : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return res.status(403).json(inviteRequired);
   const parsed = createRegistrationSchema(credentialsSchema).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.some((issue) => issue.path[0] === "businessCategory" || issue.path[0] === "sellerSpace") ? "Выберите категорию для бизнес-аккаунта" : "Проверьте тип аккаунта, имя, email и пароль — минимум 8 символов" });
   const { name, email, password, accountType, businessCategory = null, sellerSpace = null } = parsed.data;
   const passwordHash = await hashPassword(password);
   const result = await transaction(async (client) => {
+    await lockMembership(client, isMemoryDatabase);
+    const invite = await client.query(
+      `SELECT id FROM account_invites WHERE token_hash=$1 AND recipient_email=$2
+       AND delivery_status='sent' AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE`,
+      [inviteTokenHash(inviteToken), email],
+    );
+    if (!invite.rowCount) return { kind: "invalid-invite" };
+    const count = await client.query("SELECT COUNT(*) AS count FROM users");
+    if (!membershipHasCapacity(count.rows[0].count)) return { kind: "limit-reached" };
+    const exists = await client.query("SELECT 1 FROM users WHERE email=$1", [email]);
+    if (exists.rowCount) return { kind: "existing-email" };
     await lockProfileUsernames(client, isMemoryDatabase);
-    const invite = await findRegistrationInvite(client.query.bind(client), inviteToken, inviteSecret);
-    if (!invite) return { kind: "invalid-invite" };
-    const userId = invite.accountId;
+    const userId = randomUUID();
     const username = await uniqueUsername(name, client);
     const created = await client.query(
       `INSERT INTO users (id,email,username,name,password_hash,account_type,business_category,seller_space)
@@ -2223,6 +2243,7 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
       [userId, email, username, name, passwordHash, accountType, businessCategory, sellerSpace],
     );
     if (!created.rowCount) return { kind: "existing-email" };
+    await client.query("UPDATE account_invites SET consumed_by=$1,consumed_at=CURRENT_TIMESTAMP WHERE id=$2", [userId, invite.rows[0].id]);
     await client.query(
       `INSERT INTO wishlists (id,user_id,title,description,privacy,color,share_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -2235,9 +2256,98 @@ app.post("/api/auth/register", authRateLimit, asyncRoute(async (req, res) => {
     return { kind: "success", user: created.rows[0], session };
   });
   if (result.kind === "invalid-invite") return res.status(403).json(invalidInvite);
+  if (result.kind === "limit-reached") return res.status(409).json({ error: "Лимит 30 000 аккаунтов достигнут" });
   if (result.kind === "existing-email") return res.status(409).json({ error: "Аккаунт с таким email уже есть" });
   setSessionCookie(res, result.session);
   res.status(201).json({ user: await cleanAuthenticatedUser(result.user) });
+}));
+
+app.get("/api/me/invites", requireAuth, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const result = await query(
+    `SELECT id,recipient_email,created_at,expires_at,delivery_status,consumed_at
+     FROM account_invites WHERE created_by=$1 ORDER BY created_at DESC LIMIT 100`,
+    [req.user.id],
+  );
+  res.set("Cache-Control", "no-store").json({ invites: result.rows.map(row => ({
+    id: row.id, email: row.recipient_email, createdAt: row.created_at,
+    expiresAt: row.expires_at, status: row.consumed_at ? "accepted" : new Date(row.expires_at).getTime() <= Date.now() ? "expired" : row.delivery_status,
+  })) });
+}));
+
+app.post("/api/me/invites", requireAuth, inviteRateLimit, asyncRoute(async (req, res) => {
+  if (!req.user.can_invite) return res.status(403).json({ error: "Нет права отправлять приглашения" });
+  const parsed = z.object({ email: z.string().trim().email().max(160).transform(value => value.toLowerCase()) }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Укажите корректный email" });
+  const origin = getPasswordResetOrigin();
+  if (!origin || !getEmailConfig().enabled) return res.status(503).json({ error: "Отправка почты не настроена" });
+  const invite = createInvite({ email: parsed.data.email, creatorId: req.user.id });
+  const created = await transaction(async client => {
+    await lockMembership(client, isMemoryDatabase);
+    const count = await client.query("SELECT COUNT(*) AS count FROM users");
+    if (!membershipHasCapacity(count.rows[0].count)) return { error: "Лимит 30 000 аккаунтов достигнут", status: 409 };
+    if ((await client.query("SELECT 1 FROM users WHERE email=$1", [invite.email])).rowCount) return { error: "Аккаунт с таким email уже есть", status: 409 };
+    const recent = await client.query(
+      `SELECT 1 FROM account_invites WHERE created_by=$1 AND recipient_email=$2
+       AND consumed_by IS NULL AND expires_at>CURRENT_TIMESTAMP AND delivery_status IN ('pending','sent') LIMIT 1`,
+      [req.user.id, invite.email],
+    );
+    if (recent.rowCount) return { error: "Для этого email уже есть активный инвайт", status: 409 };
+    await client.query(
+      `INSERT INTO account_invites (id,token_hash,recipient_email,created_by,created_at,expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [invite.id, invite.tokenHash, invite.email, invite.creatorId, invite.createdAt, invite.expiresAt],
+    );
+    return { ok: true };
+  });
+  if (created.error) return res.status(created.status).json({ error: created.error });
+  const inviteUrl = new URL("/register", origin);
+  inviteUrl.hash = new URLSearchParams({ invite: invite.token }).toString();
+  try {
+    await sendAccountInviteEmail({ to: invite.email, inviteUrl: inviteUrl.toString(), requestId: invite.id });
+    await query("UPDATE account_invites SET delivery_status='sent' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
+  } catch (error) {
+    await query("UPDATE account_invites SET delivery_status='failed' WHERE id=$1 AND delivery_status='pending'", [invite.id]);
+    console.error(`[account-invite] Delivery failed: ${error.message}`);
+    return res.status(502).json({ error: "Не удалось отправить приглашение" });
+  }
+  res.status(201).json({ id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
+}));
+
+app.post("/api/me/member-number/draw", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+  const drawn = await transaction(async client => {
+    await lockMembership(client, isMemoryDatabase);
+    const member = await client.query("SELECT member_number FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    if (!member.rowCount) return null;
+    let number = member.rows[0].member_number;
+    if (number == null) {
+      const occupied = await client.query("SELECT member_number FROM users WHERE member_number IS NOT NULL");
+      number = drawAvailableNumber(new Set(occupied.rows.map(row => Number(row.member_number))));
+      if (number == null) return { full: true };
+      await client.query("UPDATE users SET member_number=$1 WHERE id=$2", [number, req.user.id]);
+    }
+    const nonce = randomBytes(32).toString("hex");
+    const receiptHash = createHash("sha256").update(`rollapp-member-v1:${req.user.id}:${number}:${nonce}`).digest("hex");
+    await client.query("INSERT INTO membership_receipts (user_id,member_number,nonce,receipt_hash) VALUES ($1,$2,$3,$4) ON CONFLICT (user_id) DO NOTHING", [req.user.id, number, nonce, receiptHash]);
+    const saved = await client.query("SELECT member_number,nonce,receipt_hash,chain,chain_transaction,chain_status FROM membership_receipts WHERE user_id=$1", [req.user.id]);
+    if (Number(saved.rows[0]?.member_number) !== Number(number)) throw new Error("Номер участника и квитанция не совпадают");
+    return { number: formatMemberNumber(number), nonce: saved.rows[0]?.nonce || null, receiptHash: saved.rows[0]?.receipt_hash || null,
+      chain: saved.rows[0]?.chain || null, chainTransaction: saved.rows[0]?.chain_transaction || null,
+      chainStatus: saved.rows[0]?.chain_status || "pending" };
+  });
+  if (!drawn) return res.status(404).json({ error: "Аккаунт не найден" });
+  if (drawn.full) return res.status(409).json({ error: "Свободных номеров больше нет" });
+  memberAnchor.kick();
+  res.set("Cache-Control", "no-store").json(drawn);
+}));
+
+app.get("/api/me/member-number", requireAuth, asyncRoute(async (req, res) => {
+  const found = await query("SELECT member_number,nonce,receipt_hash,chain,chain_transaction,chain_status FROM membership_receipts WHERE user_id=$1", [req.user.id]);
+  const row = found.rows[0];
+  res.set("Cache-Control", "no-store").json(row ? {
+    number: formatMemberNumber(row.member_number), nonce: row.nonce, receiptHash: row.receipt_hash,
+    chain: row.chain, chainTransaction: row.chain_transaction, chainStatus: row.chain_status,
+  } : { number: null });
 }));
 
 app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
@@ -4281,7 +4391,7 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
   res.vary("Cookie");
   const found = await query(
-    `SELECT l.*,u.username,u.name,u.bio,u.avatar_url,u.birthday FROM wishlists l JOIN users u ON u.id=l.user_id WHERE l.share_token=$1`,
+    `SELECT l.*,u.username,u.name,u.bio,u.avatar_url,u.birthday,u.member_number FROM wishlists l JOIN users u ON u.id=l.user_id WHERE l.share_token=$1`,
     [req.params.token],
   );
   if (!found.rowCount) return res.status(404).json({ error: "Список не найден" });
@@ -4304,7 +4414,7 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
     .filter((wish) => wish.listIds.includes(row.id))
     .filter((wish) => isOwner || wish.status === "active")
     .map((wish) => ({ ...wish, listIds: isOwner ? wish.listIds : [row.id], shareToken: req.params.token }));
-  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, groups: await getVisibleWishGroups(row.user_id, [list], wishes), isOwner, isFollowing: Boolean(follows.rowCount) });
+  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, memberNumber: formatMemberNumber(row.member_number), bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, groups: await getVisibleWishGroups(row.user_id, [list], wishes), isOwner, isFollowing: Boolean(follows.rowCount) });
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
@@ -6679,6 +6789,7 @@ const runtimeSettings = await query("SELECT value_text FROM application_settings
 if (!process.env.TELEGRAM_PAYMENT_SUPPORT_URL && runtimeSettings.rowCount) process.env.TELEGRAM_PAYMENT_SUPPORT_URL = runtimeSettings.rows[0].value_text;
 await checkRewardProofRuntime();
 if (databaseInitialization === "verify") console.log("Existing PostgreSQL schema verified without migrations or data cleanup.");
+if (!isMemoryDatabase) memberAnchor = await startMemberTonAnchor({ pool });
 
 const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { handleUpdate: handleStarsUpdate });
 const tonPaymentPoller = startTonPaymentPolling({ query, transaction });
@@ -6690,6 +6801,7 @@ const server = app.listen(port, "0.0.0.0", () => {
 });
 
 async function shutdown() {
+  memberAnchor.stop?.();
   telegramPoller?.stop();
   tonPaymentPoller.stop();
   rewardProofWorker.stop();

@@ -33,6 +33,7 @@ import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-page
 import { ControlBar } from "@/components/control-bar";
 import { BusinessGiftAction } from "@/components/gift-cards";
 import { RollsWallet } from "@/components/rolls-wallet";
+import { MemberNumberPage } from "@/components/member-number-page";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
 import { PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
@@ -1529,12 +1530,12 @@ function RegisterPage() {
     if (!invite) return;
     let active = true;
     api.post("/auth/invite/validate", { invite })
-      .then(() => { if (active) setCheck({ invite, attempt, valid: true }); })
+      .then((details) => { if (active) setCheck({ invite, attempt, valid: true, email: details.email }); })
       .catch((error) => { if (active) setCheck({ invite, attempt, error }); });
     return () => { active = false; };
   }, [invite, attempt]);
 
-  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} />;
+  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} inviteEmail={result.email} />;
   const invalid = result?.error?.code === "INVITE_INVALID";
   const checking = Boolean(invite && !result);
   return (
@@ -1545,7 +1546,7 @@ function RegisterPage() {
             <span className="eyebrow">Rollapp</span>
             <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : "Регистрация по приглашению"}</h1>
             <p>
-              {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp."}
+              {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите приглашение у владельца Rollapp."}
             </p>
           </div>
           {checking && <div className="auth-config-loading" role="status"><Spinner /><span>Проверяем ссылку…</span></div>}
@@ -1557,12 +1558,12 @@ function RegisterPage() {
   );
 }
 
-function AuthPage({ mode, invite }) {
+function AuthPage({ mode, invite, inviteEmail = "" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refresh } = useSession();
   const toast = useToast();
-  const [form, setForm] = useState({ name: "", email: "", password: "", accountType: "personal", businessCategory: null });
+  const [form, setForm] = useState({ name: "", email: inviteEmail, password: "", accountType: "personal", businessCategory: null });
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
@@ -1708,11 +1709,7 @@ function AuthPage({ mode, invite }) {
       const result = mode === "register"
         ? await api.post("/auth/register", { ...form, invite })
         : await api.post("/auth/login", form);
-      const destination = mode === "register"
-        && result.user?.accountType === "business"
-        && !authQuery.get("next")
-        ? "/app/business/access"
-        : nextPath;
+      const destination = mode === "register" ? "/app/member-number" : nextPath;
       await finishAuthentication(
         mode === "register"
           ? result.user?.accountType === "business"
@@ -1727,7 +1724,7 @@ function AuthPage({ mode, invite }) {
   const registerWithYandex = async () => {
     setLoading(true);
     try {
-      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: nextPath });
+      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: "/app/member-number" });
       window.location.assign(authorizationUrl);
     } catch (error) {
       toast(error.message, "error");
@@ -1769,7 +1766,7 @@ function AuthPage({ mode, invite }) {
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
     : mode === "register"
-      ? "У вас есть приглашение. Выберите способ регистрации."
+      ? "Регистрация доступна по приглашению. Ссылка действует 10 дней."
       : "Продолжите собирать и исполнять желания.";
 
   return (
@@ -1826,7 +1823,7 @@ function AuthPage({ mode, invite }) {
               <FieldGroup className="gap-4">
                 {mode === "register" && <RegistrationAccountFields id={authId} value={form} onChange={setForm} disabled={loading} />}
                 {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
-                <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
+                <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} readOnly={mode === "register"} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} />{mode === "register" && <FieldDescription>Приглашение подходит только для этого email.</FieldDescription>}</Field>
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
               {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
@@ -3349,6 +3346,7 @@ function PersistentProfileHero({ user }) {
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
+          {profile.memberNumber && <span className="eyebrow">ID #{profile.memberNumber}</span>}
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
@@ -3567,14 +3565,14 @@ function MessengerRoute({ user }) {
 
 function ProtectedApp() {
   const location = useLocation();
-  const { user, loading } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
+  const { user, loading, refresh } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
   if (user.accountType === "business" && location.pathname === APP_HOME) {
     const requestedSpace = new URLSearchParams(location.search).get("tab");
     return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
   }
-  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -7056,7 +7054,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const sections = [
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
     { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
-    { id: "invites", title: "Инвайты", icon: UserPlus },
+    ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
     { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon, path: ROLLS_SERVICE.path },
@@ -7298,6 +7296,13 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
           <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
         </Field>
       </FieldGroup>
+      <Card className="grid gap-2 p-4">
+        <h3>Номер участника</h3>
+        <p>{user.memberNumber ? `Ваш номер — #${user.memberNumber}` : "Ваш номер ещё не выбран."}</p>
+        {!user.memberNumber && (yandexLinkBlocked
+          ? <p>Сохраните или отмените изменения профиля перед выбором номера.</p>
+          : <ShadcnButton type="button" variant="outline" className="min-h-(--layout-control-size) rounded-full" onClick={() => exitSettings(() => { onClose(); navigate("/app/member-number"); })}>Крутить барабан</ShadcnButton>)}
+      </Card>
     </form>
   ) : section === "wishlists" ? (
     <form id="profile-wishlists-form" onSubmit={submitWishlists}>
@@ -7714,7 +7719,7 @@ function PublicProfile({ shared = false }) {
     ? <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><ProfilePortrait user={data.profile} /></ShadcnButton> : <ProfilePortrait user={data.profile} />}
       <BusinessGiftAction business={data.profile} user={user} />
-      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span></span>
+      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span>{data.profile.memberNumber && <span className="eyebrow">ID #{data.profile.memberNumber}</span>}</span>
     </div>
     : <div className="wishes-page__identity friend-profile-page__identity">
     {data.isOwner ? <ShadcnButton
@@ -7727,7 +7732,7 @@ function PublicProfile({ shared = false }) {
     >
       <ProfilePortrait user={data.profile} />
     </ShadcnButton> : <ProfilePortrait user={data.profile} />}
-    <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1></span>
+    <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1>{data.profile.memberNumber && <span className="eyebrow">ID #{data.profile.memberNumber}</span>}</span>
   </div>;
   if (isMobile && selectedWish && !editingWish) {
     return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;

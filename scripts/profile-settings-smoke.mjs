@@ -144,29 +144,23 @@ try {
     const invites = button("Инвайты");
     await invites.click();
     await page.getByRole("heading", { name: "Инвайты", exact: true }).waitFor();
-    const createInvite = button("Создать ссылку");
-    await createInvite.click();
-    await page.getByRole("alert").filter({ hasText: "Ссылка временно недоступна" }).waitFor();
-    await createInvite.click();
-    const inviteLink = page.getByRole("textbox", { name: "Ссылка для приглашения" });
-    await inviteLink.waitFor();
-    assert.equal(await inviteLink.inputValue(), `${origin}/register#invite=fixture-2`);
-    assert.equal(await inviteLink.getAttribute("readonly"), "");
-    await page.evaluate(() => {
-      Object.defineProperty(navigator.clipboard, "writeText", {
-        configurable: true, value: async (value) => { window.copiedInvite = value; },
-      });
-    });
-    const copyInvite = button("Скопировать ссылку");
-    await copyInvite.click();
-    await page.waitForFunction((url) => window.copiedInvite === url, `${origin}/register#invite=fixture-2`);
-    await page.getByRole("status").filter({ hasText: "Ссылка скопирована." }).waitFor();
-    assert.deepEqual(await copyInvite.evaluate((element) => {
+    const inviteEmail = page.getByRole("textbox", { name: "Email получателя" });
+    const sendInvite = button("Отправить приглашение");
+    await inviteEmail.fill("alice@example.com");
+    await sendInvite.click();
+    await page.getByRole("alert").filter({ hasText: "Отправка временно недоступна" }).waitFor();
+    await sendInvite.click();
+    await page.getByText("alice@example.com", { exact: true }).waitFor();
+    assert.equal(await inviteEmail.inputValue(), "");
+    const inviteAction = await sendInvite.evaluate((element) => {
       const style = getComputedStyle(element);
-      return [element.getBoundingClientRect().height, style.paddingLeft, style.paddingRight];
-    }), [48, "24px", "24px"]);
-    await button("Создать ещё ссылку").click();
-    await page.waitForFunction((url) => document.querySelector("input[readonly]")?.value === url, `${origin}/register#invite=fixture-3`);
+      return [element.getBoundingClientRect().height, parseFloat(style.borderTopLeftRadius)];
+    });
+    assert.equal(inviteAction[0], 48);
+    assert(inviteAction[1] >= 24);
+    await inviteEmail.fill("bob@example.com");
+    await sendInvite.click();
+    await page.getByText("bob@example.com", { exact: true }).waitFor();
     await page.screenshot({ path: `/tmp/rollapp-profile-invites-${width}x${height}.png` });
     await back.click();
     await menu.waitFor();

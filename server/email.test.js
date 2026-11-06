@@ -7,6 +7,7 @@ import {
   EmailDeliveryError,
   getEmailConfig,
   resetEmailTokenCacheForTests,
+  sendAccountInviteEmail,
   sendPasswordResetEmail,
 } from "./email.js";
 
@@ -74,6 +75,16 @@ test("email provider modes cannot expose development delivery in production", ()
     enabled: false,
     testMode: false,
   });
+});
+
+test("account invitations use the configured email provider and reject unsafe URLs", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "rollapp-invite-email-test-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const outboxPath = path.join(directory, "outbox.jsonl");
+  const env = { EMAIL_PROVIDER: "test", NODE_ENV: "test", EMAIL_TEST_OUTBOX_PATH: outboxPath };
+  await sendAccountInviteEmail({ to: "person@example.com", inviteUrl: "https://rollapp.example/register?invite=opaque", requestId: "invite-1" }, { env });
+  assert.equal(JSON.parse((await readFile(outboxPath, "utf8")).trim()).type, "account-invite");
+  await assert.rejects(sendAccountInviteEmail({ to: "person@example.com", inviteUrl: "javascript:alert(1)", requestId: "invite-2" }, { env }), EmailDeliveryError);
 });
 
 test("test provider writes one JSON line to the explicit outbox", async (t) => {

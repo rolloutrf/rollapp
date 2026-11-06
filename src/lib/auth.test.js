@@ -19,6 +19,10 @@ test("Yandex start paths preserve an encoded local destination", () => {
     yandexAuthStartPath("//evil.example/steal", { link: true }),
     "/api/auth/yandex/start?link=1&next=%2Fapp%2Fwishes",
   );
+  assert.equal(
+    yandexAuthStartPath("/app/member-number", { invite: "opaque" }),
+    "/api/auth/yandex/start?invite=opaque&next=%2Fapp%2Fmember-number",
+  );
 });
 
 test("Yandex callback errors map to safe local copy", () => {

@@ -9,8 +9,9 @@ import "../../src/styles.css";
 import "../../src/index.css";
 
 const mode = new URLSearchParams(location.search).get("state");
-const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error" };
+const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null };
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
+let invites = [];
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
   if (path === "/me" && mode === "backup-result") return { user: fixtureUser };
@@ -23,6 +24,7 @@ api.get = async (path) => {
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
+  if (path === "/me/invites") return { invites };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
@@ -30,8 +32,9 @@ const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
   if (path === "/me/invites") {
     window.inviteRequests = (window.inviteRequests || 0) + 1;
-    if (window.inviteRequests === 1) throw new Error("Ссылка временно недоступна");
-    return { url: `/register#invite=fixture-${window.inviteRequests}` };
+    if (window.inviteRequests === 1) throw new Error("Отправка временно недоступна");
+    invites = [{ id: String(window.inviteRequests), email: data.email, status: "sent", expiresAt: "2026-11-17T00:00:00.000Z" }, ...invites];
+    return { id: String(window.inviteRequests), email: data.email, expiresAt: invites[0].expiresAt };
   }
   if (mode === "openrouter" && path === "/me/openrouter" && openRouter.keyHint === "…fixture"
       && data.apiKey === "sk-or-v1-fixture_test_key" && data.model === "fixture-model") {

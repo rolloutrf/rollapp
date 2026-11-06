@@ -18,6 +18,7 @@ import { privateDataSchema } from "./private-data-schema.js";
 import { businessCategorySchema } from "./business-accounts.js";
 
 import { wishGroupFundraisingSchema } from "./wish-group-fundraising-schema.js";
+import { inviteSchema } from "./invites.js";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS users (
@@ -47,6 +48,8 @@ const schema = `
 
   ${planningSchema}
   ${notesSchema}
+
+  ${inviteSchema}
 
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_hash TEXT;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_last4 TEXT;
@@ -114,6 +117,7 @@ const schema = `
 
   CREATE INDEX IF NOT EXISTS idx_yandex_oauth_attempts_expires
     ON yandex_oauth_attempts(expires_at);
+  ALTER TABLE yandex_oauth_attempts ADD COLUMN IF NOT EXISTS invite_token_hash TEXT;
 
   CREATE TABLE IF NOT EXISTS default_follow_targets (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

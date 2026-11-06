@@ -67,6 +67,7 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 | Текст и семантические роли | `src/typeset.css`, токены `src/index.css` | `docs/typography.md` |
 | Отступы, навигация, размер контролов | `src/spacing.css`, `ControlBar`, `PageActionButton` | `docs/spacing-system.md` |
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md` |
+| Лимит аккаунтов, инвайты и номера TON | `server/invites.js`, `server/member-ton-anchor.js` | `docs/account-invitations.md` |
 | Порталы, safe area, клавиатура | `src/overlays.css`, `use-visual-viewport.js` | `docs/mobile-overlays.md` |
 | Серверная механика обеспеченных наград | `server/need-rewards.js`, `shared/need-rewards.js` | `docs/need-rewards.md` |
 | Мобильные формы и действия | `MobileFormPages`, `MobileFormFooter`, `ContentPageActions` | `docs/mobile-overlays.md` |
@@ -160,6 +161,7 @@ read-only без сохранения и отправки пользовател
 | `npm run check:release:gift-cards` | Ручной `verification=gift-cards` только по явному запросу без полного аудита: unit, shadcn, обязательный `test:controls`, `test:gifts`, build. Default release остаётся полным |
 | Ручной `verification=drawers` | Целевой выпуск штор по явному запросу без полного аудита. После локальных smoke-проверок затронутых форм и реальной read-only проверки схемы CI запускает guard шаблона и старта БД, shadcn, полный `test:controls`, Docker build и сверку production SHA. |
 | `npm run test:gifts:production` | Цикл карты и покупки на настроенном production PostgreSQL внутри BEGIN → ROLLBACK. Схему не создаёт; запускать после отдельно разрешённой миграции `scripts/gift-cards-schema.mjs`, предварительно сверив базу и роль |
+| `npm run test:member-invites` | Регистрация и карточки номера/приглашений: 320–1920 px и короткий экран, API-запросы отклоняются |
 | `npm run test:text-edit` | Полная матрица inline-документов: ввод без рамок, selection toolbar, блоки/группы, символы, стили/цвета, save/reload, очереди/draft/retry и доступ. Включает native clipboard и буквальные Markdown/HTML/whitespace в строчном коде, отдельный Undo и сохранение соседей; единый редактор четырёх ответов со сквозными диапазонами, фиксированными вопросами и общей историей. Block-colour матрица включает slash/palette, группы/ячейки/диапазоны через ответы, пустой блок/Enter/type, exact reload/public read, HTML clipboard, draft/retry, общий browser preference и его отказ, read-only/viewport. Slash-матрица проверяет команды в существующем тексте, middle-of-line/Shift+Enter, dismissal/clipboard/history guards, атомарные duplicate/delete/type, cell/four-answer scope и panning. Табличная матрица включает команды, merge/split, native resize, spans/ширины/вложенные блоки, public read, draft/retry и отзыв доступа во время drag. Контракт: `docs/inline-editing.md` |
 | `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, трекеры сна/питания, production build; этот же набор обязателен в CI |
 | `npm run check:comprehensive` | Release-набор плюс все расширенные UI-проверки ниже; без запросов к API/БД |
@@ -215,19 +217,19 @@ network diagnostics. Наблюдатели не меняют ожидания, 
 
 ## Регистрация по инвайту
 
-В настройках профиля `npm run test:profile` проверяет создание ссылки, ошибку и
-повтор, копирование, возврат фокуса через Back и размеры кнопок. Без ссылки и по
+В настройках профиля `npm run test:profile` проверяет отправку инвайта на email,
+ошибку и повтор, возврат фокуса через Back и размеры кнопок. Без ссылки и по
 недействительной ссылке `/register` не показывает форму. Гостевая попытка создать
 ссылку возвращает 401, регистрация без инвайта возвращает `INVITE_REQUIRED`, а
 подделка, истечение и повторное использование дают `INVITE_INVALID`. Первый вход
 через Yandex ID требует инвайта. Вход с привязанным Yandex ID работает как прежде.
 
 Проверять успешную регистрацию с синтетическими аккаунтами внутри откатываемой
-транзакции. Ссылка подписана на семь дней и резервирует UUID нового аккаунта.
-Первичный ключ `users.id` и блокировка регистрации исключают создание двух
-аккаунтов по одному инвайту. Миграция не требуется. Если появится физическое
-удаление аккаунтов, сохранить защиту от повторного использования до истечения
-ссылки.
+транзакции. Инвайт привязан к email, хранится по хешу токена и действует максимум
+10 дней. Транзакция под общей блокировкой проверяет предел 30 000 аккаунтов,
+расходует инвайт один раз и создаёт пользователя. Схему и право `@koloskof`
+добавляет только отдельная явно разрешённая миграция; см.
+[account-invitations.md](account-invitations.md).
 
 ## Матрица UI и критерии приёмки
 

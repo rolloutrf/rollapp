@@ -12,9 +12,10 @@ export function safeNextPath(value, fallback = "/app/wishes") {
   }
 }
 
-export function yandexAuthStartPath(nextPath, { link = false } = {}) {
+export function yandexAuthStartPath(nextPath, { link = false, invite = "" } = {}) {
   const params = new URLSearchParams();
   if (link) params.set("link", "1");
+  if (invite) params.set("invite", invite);
   params.set("next", safeNextPath(nextPath));
   return `/api/auth/yandex/start?${params.toString()}`;
 }
@@ -45,6 +46,16 @@ const yandexAuthErrors = {
     description: "Войдите по email или номеру телефона — после этого мы безопасно привяжем Yandex ID.",
     variant: "default",
     linkRequired: true,
+  },
+  YANDEX_INVITE_REQUIRED: {
+    title: "Для нового аккаунта нужно приглашение",
+    description: "Откройте действительную ссылку из письма и используйте в Yandex ID тот же email.",
+    variant: "default",
+  },
+  YANDEX_LIMIT_REACHED: {
+    title: "Все места заняты",
+    description: "Лимит Rollapp — 30 000 аккаунтов.",
+    variant: "default",
   },
   YANDEX_LINK_LOGIN_REQUIRED: {
     title: "Сначала войдите в Rollapp",

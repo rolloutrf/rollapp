@@ -18,6 +18,10 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT account_type,business_category,seller_space FROM users LIMIT 0");
     await client.query("SELECT user_id,contact_ids,description,expected_result,actual_result,due_on,start_time FROM planning_tasks LIMIT 0");
     await client.query("SELECT token_hash,user_id,expires_at FROM sessions LIMIT 0");
+    await client.query("SELECT member_number,can_invite FROM users LIMIT 0");
+    await client.query("SELECT token_hash,recipient_email,expires_at,delivery_status,consumed_by FROM account_invites LIMIT 0");
+    await client.query("SELECT invite_token_hash FROM yandex_oauth_attempts LIMIT 0");
+    await client.query("SELECT receipt_hash,chain_status,chain_boc,chain_seqno,chain_valid_until FROM membership_receipts LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM identity_content LIMIT 0");
     await client.query("SELECT user_id,section,content_json,updated_at FROM career_content LIMIT 0");
     await client.query("SELECT wishlist_links FROM users LIMIT 0");

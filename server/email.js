@@ -126,14 +126,13 @@ function providerMessageId(payload, fallback) {
     || fallback;
 }
 
-async function sendViaYandex(payload, { env, fetchImpl }) {
+async function sendViaYandex(payload, { env, fetchImpl, message = passwordResetMessage(payload.resetUrl) }) {
   const from = String(env.EMAIL_FROM || "").trim();
   if (!from || /[\r\n]/.test(from)) {
     throw new EmailDeliveryError("EMAIL_FROM must contain a valid sender address");
   }
 
   const iamToken = await loadVmIamToken(fetchImpl, env);
-  const message = passwordResetMessage(payload.resetUrl);
   let response;
   try {
     response = await fetchImpl(env.YC_POSTBOX_ENDPOINT || YANDEX_POSTBOX_URL, {
@@ -194,6 +193,27 @@ export async function sendPasswordResetEmail(input, options = {}) {
     return sendViaYandex(payload, { env, fetchImpl });
   }
   throw new EmailDeliveryError("Email delivery is disabled");
+}
+
+export async function sendAccountInviteEmail({ to, inviteUrl, requestId }, options = {}) {
+  const env = options.env || process.env;
+  const config = getEmailConfig(env);
+  const url = new URL(inviteUrl);
+  if (!new Set(["http:", "https:"]).has(url.protocol) || !to || /[\r\n]/.test(to)) {
+    throw new EmailDeliveryError("Invalid account invitation");
+  }
+  const message = {
+    subject: "Приглашение в Rollapp",
+    text: `Вас пригласили в Rollapp. Зарегистрируйтесь в течение 10 дней: ${url.toString()}`,
+    html: `<p>Вас пригласили в Rollapp.</p><p><a href="${escapeHtml(url.toString())}">Принять приглашение</a></p><p>Ссылка действует 10 дней.</p>`,
+  };
+  if (config.provider === "test") {
+    const outboxPath = String(env.EMAIL_TEST_OUTBOX_PATH || "").trim();
+    if (outboxPath) await appendFile(outboxPath, `${JSON.stringify({ type: "account-invite", to, inviteUrl: url.toString(), requestId })}\n`, "utf8");
+    return { providerMessageId: `test-${requestId}` };
+  }
+  if (config.provider !== "yandex") throw new EmailDeliveryError("Email delivery is disabled");
+  return sendViaYandex({ to, requestId }, { env, fetchImpl: options.fetchImpl || fetch, message });
 }
 
 export function resetEmailTokenCacheForTests() {

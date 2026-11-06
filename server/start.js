@@ -102,6 +102,15 @@ async function loadUserCredentialsLockboxSecret() {
   console.log("Runtime user credential encryption secret loaded from Yandex Lockbox");
 }
 
+async function loadMembershipTonLockboxSecret() {
+  const secretId = process.env.YC_TON_MEMBERSHIP_LOCKBOX_SECRET_ID;
+  if (!secretId || process.env.TON_MEMBERSHIP_ENABLED !== "true") return;
+  process.env.TON_MEMBERSHIP_MNEMONIC = await loadLockboxValue(
+    secretId, process.env.YC_TON_MEMBERSHIP_MNEMONIC_KEY || "mnemonic",
+  );
+  console.log("Runtime TON membership wallet loaded from Yandex Lockbox");
+}
+
 await loadDatabaseLockboxSecret();
 await loadAutoDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
@@ -110,6 +119,7 @@ await loadYandexOauthSecrets();
 await loadOpenRouterLockboxSecret();
 await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();
+await loadMembershipTonLockboxSecret();
 
 if (process.env.PUBLIC_HOST && fs.existsSync("/usr/sbin/caddy")) {
   const caddy = spawn("/usr/sbin/caddy", ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"], { stdio: "inherit" });
