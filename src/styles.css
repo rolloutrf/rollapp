@@ -4337,6 +4337,51 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   outline: 2px solid var(--ring);
   outline-offset: 5px;
 }
+.wishes-page__hero:has(.profile-portrait) {
+  isolation: isolate;
+}
+.profile-portrait {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.profile-portrait > .wishes-page__hero-avatar:has(> [data-slot="avatar-image"]) {
+  border: 0;
+}
+.profile-portrait > .wishes-page__hero-avatar:has(> [data-slot="avatar-image"])::after {
+  display: none;
+}
+.profile-portrait:has([data-slot="avatar-image"])::before,
+.profile-portrait:has([data-slot="avatar-image"])::after {
+  content: "";
+  position: absolute;
+  inset: -55%;
+  z-index: -1;
+  pointer-events: none;
+  mask-image: radial-gradient(closest-side, #000 54%, transparent);
+}
+.profile-portrait::before {
+  background:
+    radial-gradient(ellipse at 68% 39%, #f12695 0%, transparent 48%),
+    radial-gradient(ellipse at 39% 65%, #812dde 0%, transparent 48%);
+  opacity: .72;
+  animation: profile-portrait-wave 9s ease-in-out infinite alternate;
+}
+.profile-portrait::after {
+  background:
+    radial-gradient(ellipse at 36% 33%, #ffe23d 0%, transparent 41%),
+    radial-gradient(ellipse at 67% 63%, #ff7138 0%, transparent 39%);
+  opacity: .84;
+  animation: profile-portrait-wave 7s ease-in-out -3s infinite alternate-reverse;
+}
+@keyframes profile-portrait-wave {
+  from { transform: translate(-4%, 3%) rotate(-20deg) scale(.93); }
+  to { transform: translate(5%, -4%) rotate(32deg) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-portrait::before,
+  .profile-portrait::after { animation: none; }
+}
 .app-layout--dark .sphere-share-avatars__people {
   position: absolute;
   left: calc(100% + 14px);
