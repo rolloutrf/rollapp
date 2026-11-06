@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { WishesPage, SessionContext, ToastContext, PublicWishGrid } from '../../src/App.jsx?drag-drop-test-export';
+import { WishesPage, ProfileEditorProvider, SessionContext, ToastContext, PublicWishGrid } from '../../src/App.jsx?drag-drop-test-export';
 import { api } from '../../src/api.js';
 import { CardDragHandle } from '../../src/components/card-drag-handle';
 import { WorkoutCard } from '../../src/components/workouts.jsx?collection-badges-export';
@@ -86,7 +86,7 @@ function Calendar() {
 }
 const root = createRoot(document.getElementById('root'));
 let generation = 0;
-function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : `/app/wishes?tab=${fixtureSpace()}`]}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'badges' ? <CollectionBadges /> : mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <WishesPage version={0} onAdd={() => {}} />}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
+function render() { root.render(<MemoryRouter key={generation} initialEntries={[mode === 'calendar' ? '/?date=2026-10-19&view=day' : `/app/wishes?tab=${fixtureSpace()}`]}><SessionContext.Provider value={{ user: { id: 'owner', username: 'owner' } }}><ToastContext.Provider value={message => window.dragTest.errors.push(message)}><div className="app-layout app-layout--dark"><main className="app-main app-main--wishes">{mode === 'badges' ? <CollectionBadges /> : mode === 'public' ? <PublicCollection /> : mode === 'collection' ? <Collection /> : mode === 'calendar' ? <Calendar /> : <ProfileEditorProvider><WishesPage version={0} onAdd={() => {}} /></ProfileEditorProvider>}</main></div><Toaster /></ToastContext.Provider></SessionContext.Provider></MemoryRouter>); }
 window.dragTest.remount = () => { generation++; flushSync(render); };
 window.dragTest.reset = (query = location.search) => {
   history.replaceState(null, '', `/__drag-drop${query}`);

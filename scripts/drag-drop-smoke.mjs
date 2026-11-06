@@ -7,7 +7,7 @@ import { instrumentSmokeBrowser, smokeBrowserDiagnostics } from './smoke-browser
 const port = smokePort(5195);
 const server = await createServer({ cacheDir: 'node_modules/.vite-drag-drop', server: { host: '127.0.0.1', port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'drag-drop-fixture', enforce: 'pre',
-  transform(source, id) { if (id.includes('/src/components/workouts.jsx?collection-badges-export')) return `${source}\nexport { WorkoutCard };`; if (id.includes('/src/App.jsx?drag-drop-test-export')) return `${source}\nexport { WishesPage, SessionContext, ToastContext, PublicWishGrid };`; },
+  transform(source, id) { if (id.includes('/src/components/workouts.jsx?collection-badges-export')) return `${source}\nexport { WorkoutCard };`; if (id.includes('/src/App.jsx?drag-drop-test-export')) return `${source}\nexport { WishesPage, ProfileEditorProvider, SessionContext, ToastContext, PublicWishGrid };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => { if (!req.url.startsWith('/__drag-drop')) return next(); res.setHeader('Content-Type', 'text/html'); res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/drag-drop.jsx"></script></body></html>')); }); },
 }] });
 await server.listen();
