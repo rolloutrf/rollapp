@@ -1,8 +1,8 @@
 export const EXTERNAL_WISHLIST_PROVIDERS = [
-  { id: "ohmywishes", label: "OhMyWishes", domains: ["ohmywishes.com", "ohmywishes.ru"] },
+  { id: "ohmywishes", label: "OhMyWishes", domains: ["ohmywishes.com", "ohmywishes.ru"], importsItems: true },
   { id: "ozon", label: "Ozon", domains: ["ozon.ru"] },
   { id: "wb", label: "WB", domains: ["wildberries.ru", "wb.ru"] },
-  { id: "yandex-market", label: "Яндекс Маркет", domains: ["market.yandex.ru"] },
+  { id: "yandex-market", label: "Яндекс Маркет", domains: ["market.yandex.ru"], importsItems: true },
 ];
 
 export const EXTERNAL_WISHLIST_URL_MAX_LENGTH = 2048;

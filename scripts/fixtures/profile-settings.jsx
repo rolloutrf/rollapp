@@ -71,7 +71,7 @@ function Fixture() {
   return <SessionContext.Provider value={{ user, setSession: () => {} }}><ToastContext.Provider value={() => {}}><MobileFormPages>
     {savedName && <output>{savedName}</output>}
     {user.avatarUrl && <output>Фото сохранено</output>}
-    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onAvatarSaved={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
+    {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)} onProfileUpdated={setUser} onSaved={(saved) => { setSavedName(saved.name); setOpen(false); }} />}
   </MobileFormPages></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(

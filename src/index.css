@@ -859,14 +859,14 @@
   }
 
   /* Floating controls need solid individual surfaces over scrolling content. */
-  .global-app-chrome :is(.global-app-chrome__rolls, .global-app-chrome__share),
+  .global-app-chrome .global-app-chrome__share,
   .global-app-chrome .planning-fab-space .space-select,
   .planning-fab-controls .planning-fab--back,
   .planning-fab-controls .planning-fab-space .space-select {
     background-color: var(--card);
   }
 
-  .global-app-chrome :is(.global-app-chrome__rolls, .global-app-chrome__share):hover,
+  .global-app-chrome .global-app-chrome__share:hover,
   .planning-fab-controls .planning-fab--back:hover,
   .planning-fab-controls .planning-fab-space .space-select:hover,
   .planning-fab-controls .planning-fab-space .space-select[aria-expanded="true"],

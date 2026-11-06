@@ -5047,8 +5047,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   justify-self: end;
   gap: 8px;
 }
-.global-app-chrome__share,
-.global-app-chrome__rolls {
+.global-app-chrome__share {
   width: 48px;
   height: 48px;
   min-height: 48px;

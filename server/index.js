@@ -12,7 +12,8 @@ import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import { mergeProfileWishlistLinks, profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
-import { externalWishlistLinks } from "../shared/external-wishlists.js";
+import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistLinks } from "../shared/external-wishlists.js";
+import { externalWishlistReaders, insertExternalWishlistItems, WishlistImportError } from "./external-wishlist-import.js";
 import "dotenv/config";
 import compression from "compression";
 import cookieParser from "cookie-parser";
@@ -509,6 +510,7 @@ const passwordResetRequestRateLimit = createRateLimit({
 });
 const metadataRateLimit = createRateLimit({ windowMs: 5 * 60 * 1000, max: 40 });
 const previewBackfillRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 6 });
+const wishlistImportRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 6, key: (req) => req.user.id });
 const imageUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const contactAvatarResolveRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
 const labPdfUploadRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
@@ -2670,6 +2672,29 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "Такое имя профиля уже занято" });
+    throw error;
+  }
+}));
+
+app.post("/api/me/wishlist-import/:provider", requireAuth, wishlistImportRateLimit, asyncRoute(async (req, res) => {
+  const provider = EXTERNAL_WISHLIST_PROVIDERS.find(({ id }) => id === req.params.provider);
+  const read = externalWishlistReaders.get(provider?.id);
+  if (!read) return res.status(404).json({ error: "Импорт из этого сервиса пока недоступен." });
+  const url = externalWishlistLinks(req.user.wishlist_links)[provider.id];
+  if (!url) return res.status(400).json({ error: `Сначала сохраните ссылку на ${provider.label} в настройках профиля.` });
+  try {
+    const { items, partial } = await read(url);
+    const added = await transaction(async (client) => {
+      const current = await client.query("SELECT wishlist_links FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+      if (externalWishlistLinks(current.rows[0]?.wishlist_links)[provider.id] !== url) {
+        throw new WishlistImportError(409, "Ссылка изменилась во время импорта. Попробуйте снова.");
+      }
+      return insertExternalWishlistItems(client, req.user.id, items);
+    });
+    res.set("Cache-Control", "private, no-store");
+    return res.json({ added, skipped: items.length - added, partial });
+  } catch (error) {
+    if (error instanceof WishlistImportError) return res.status(error.status).json({ error: error.message });
     throw error;
   }
 }));

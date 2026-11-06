@@ -485,6 +485,7 @@ function ProfileEditorProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [wishlistImportVersion, setWishlistImportVersion] = useState(0);
   const returnFocusRef = useRef(null);
   const openProfileEditor = useCallback((event) => {
     const trigger = event?.currentTarget;
@@ -492,7 +493,7 @@ function ProfileEditorProvider({ children }) {
     setOpen(true);
   }, []);
   const closeProfileEditor = useCallback(() => setOpen(false), []);
-  const value = useMemo(() => ({ openProfileEditor }), [openProfileEditor]);
+  const value = useMemo(() => ({ openProfileEditor, wishlistImportVersion }), [openProfileEditor, wishlistImportVersion]);
   return (
     <ProfileEditorContext.Provider value={value}>
       {children}
@@ -500,7 +501,8 @@ function ProfileEditorProvider({ children }) {
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
-        onAvatarSaved={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
+        onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
+        onWishlistsImported={() => setWishlistImportVersion((version) => version + 1)}
         onSaved={async (savedUser) => {
           const target = renamedProfileLocation(location, user.username, savedUser.username);
           setSession({ user: savedUser, loading: false, error: null });
@@ -849,17 +851,6 @@ function GlobalAppChrome() {
       <AppBrand showSwitcher={!isMobile} />
       {!isMobile && sectionSelector}
       {service && <div className="global-app-chrome__actions">
-        {user && <Link
-          to="/app/rolls"
-          aria-label="Открыть Роллы"
-          title="Роллы"
-          data-control-icon
-          className={cn(buttonVariants({
-            variant: location.pathname.startsWith("/app/rolls") ? "secondary" : "outline",
-            size: "icon",
-            className: "global-app-chrome__rolls rounded-full",
-          }))}
-        ><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>}
         <ShadcnButton data-control-icon className="global-app-chrome__share rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </ControlBar>
@@ -4637,10 +4628,11 @@ function GiftSuggestionsPanel({ items = [], onOpenWish }) {
 
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
+  const { wishlistImportVersion } = useProfileEditor();
   const location = useLocation();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version, wishlistImportVersion]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -7003,7 +6995,7 @@ function FriendsPage() {
   );
 }
 
-function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocus }) {
+function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -7016,9 +7008,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     birthday: user.birthday ? String(user.birthday).slice(0, 10) : "",
   }), [user]);
   const [form, setForm] = useState(initialForm);
-  const [initialWishlistLinks] = useState(() => user.wishlistLinks || {});
+  const [initialWishlistLinks, setInitialWishlistLinks] = useState(() => user.wishlistLinks || {});
   const [wishlistLinks, setWishlistLinks] = useState(initialWishlistLinks);
   const [validateWishlistLinks, setValidateWishlistLinks] = useState(false);
+  const [importingWishlist, setImportingWishlist] = useState(false);
+  const [wishlistImportStatus, setWishlistImportStatus] = useState({});
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -7035,13 +7029,15 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const scrollArea = useRef(null);
   const sections = [
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
     { id: "invites", title: "Инвайты", icon: UserPlus },
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
-    { id: "orders", title: "Заказы", icon: PackageCheck },
+    { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon, path: ROLLS_SERVICE.path },
+    { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || imageUploading || loggingOut || openRouterBusy;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7051,7 +7047,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   }, [isMobile, section]);
   const imageFileRef = useRef(null);
   const changedWishlists = EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => (wishlistLinks[id]?.trim() || "") !== (initialWishlistLinks[id] || ""));
-  const changed = changedWishlists.length > 0 || Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const profileChanged = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const changed = profileChanged || changedWishlists.length > 0;
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
@@ -7086,7 +7083,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       const upload = await api.uploadImage(file);
       uploadId = upload.id;
       const result = await api.patch("/me", { avatarUrl: upload.imageUrl });
-      onAvatarSaved(result.user);
+      onProfileUpdated(result.user);
       toast("Фото профиля обновлено");
     } catch (error) {
       // A lost response can hide a successful save. Only clean up a rejected upload reference.
@@ -7117,24 +7114,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (busy || !changed) return;
-    const invalidWishlist = changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
-      && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
-    if (invalidWishlist) {
-      setValidateWishlistLinks(true);
-      event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
-      return;
-    }
+    if (busy || !profileChanged) return;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
       if (form[key] === initialForm[key]) return;
       payload[key] = key === "birthday" ? form[key] || null : form[key];
     });
-    if (changedWishlists.length) {
-      payload.wishlistLinks = Object.fromEntries(changedWishlists.map((provider) => [
-        provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
-      ]));
-    }
     setLoading(true);
     try {
       const result = await api.patch("/me", payload);
@@ -7146,6 +7131,62 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       setLoading(false);
     }
   };
+  const importWishlists = async (providers) => {
+    setImportingWishlist(true);
+    const results = await Promise.all(providers.map(async ({ id }) => {
+      const setStatus = (message) => setWishlistImportStatus((current) => ({ ...current, [id]: message }));
+      setStatus("Загружаем список…");
+      try {
+        const { added, skipped, partial } = await api.post(`/me/wishlist-import/${id}`);
+        const message = added ? `Добавлено в «Товары»: ${added}.` : skipped ? "Новых позиций среди прочитанных нет." : "Список пуст.";
+        setStatus(partial ? `${message} Сервис отдал только первую страницу списка.` : message);
+        return added;
+      } catch (error) {
+        setStatus(error.message);
+        return 0;
+      }
+    }));
+    if (results.some(Boolean)) onWishlistsImported?.();
+    setImportingWishlist(false);
+  };
+  const submitWishlists = async (event) => {
+    event.preventDefault();
+    if (busy || !changedWishlists.length) return;
+    const invalidWishlist = changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
+      && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
+    if (invalidWishlist) {
+      setValidateWishlistLinks(true);
+      event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
+      return;
+    }
+    const links = Object.fromEntries(changedWishlists.map((provider) => [
+      provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
+    ]));
+    setLoading(true);
+    try {
+      const { user: savedUser } = await api.patch("/me", { wishlistLinks: links });
+      const savedLinks = savedUser.wishlistLinks || {};
+      setInitialWishlistLinks(savedLinks);
+      setWishlistLinks(savedLinks);
+      setValidateWishlistLinks(false);
+      onProfileUpdated(savedUser);
+      toast("Внешние вишлисты сохранены");
+      const imports = changedWishlists.filter(({ id, importsItems }) => importsItems && links[id] && savedLinks[id]);
+      if (imports.length) await importWishlists(imports);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const wishlistsFooter = section === "wishlists" && (
+    <DrawerFooter className="mx-auto w-full max-w-full">
+      <ShadcnButton type="submit" form="profile-wishlists-form" disabled={!changedWishlists.length || busy} aria-busy={loading || undefined}>
+        {loading && <Spinner />}
+        Сохранить
+      </ShadcnButton>
+    </DrawerFooter>
+  );
   const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
     <div className="flex flex-col gap-2" role="group" aria-label="Фото профиля">
       <ShadcnButton
@@ -7160,21 +7201,22 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       >
         <Avatar user={user} size="xl" className="!size-full" aria-hidden="true" />
       </ShadcnButton>
+      <p className="w-full text-center font-semibold wrap-anywhere">{user.name}</p>
       <Input ref={imageFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
       {imageError && <FieldError>{imageError}</FieldError>}
     </div>
     <nav aria-label="Разделы профиля">
       <ul className="divide-y">
-        {sections.map(({ id, title, icon: Icon }) => <li key={id}>
+        {sections.map(({ id, title, icon: Icon, path }) => <li key={id}>
           <ShadcnButton
             type="button"
             variant="ghost"
             className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
-            disabled={busy || (id === "orders" && changed)}
+            disabled={busy || (Boolean(path) && changed)}
             onClick={(event) => {
-              if (id === "orders") exitSettings(() => {
+              if (path) exitSettings(() => {
                 onClose();
-                navigate(APP_ORDERS_PATH);
+                navigate(path);
               });
               else {
                 sectionTrigger.current = event.currentTarget;
@@ -7189,7 +7231,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         </li>)}
       </ul>
     </nav>
-    {changed && <p className="text-xs text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
+    {changed && <p className="text-xs text-muted-foreground">Сохраните изменения перед переходом в другой раздел приложения.</p>}
   </div>;
   const sectionBody = section === "personal" ? (
     <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
@@ -7230,10 +7272,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
         </Field>
       </FieldGroup>
-      <section className="grid min-w-0 gap-3 border-t pt-4" aria-labelledby="settings-wishlist-title" aria-describedby="settings-wishlist-help">
-        <h2 id="settings-wishlist-title" className="font-heading text-xl font-semibold">Внешние вишлисты</h2>
+    </form>
+  ) : section === "wishlists" ? (
+    <form id="profile-wishlists-form" onSubmit={submitWishlists}>
+      <section className="grid min-w-0 gap-4 px-4 pt-4 pb-1" aria-label={sectionTitle} aria-describedby="settings-wishlist-help">
         <p id="settings-wishlist-help" className="text-xs text-muted-foreground">
-          Скопируйте ссылку через «Поделиться» в нужном сервисе. После сохранения она появится в вашем публичном профиле. Чтобы отключить вишлист, очистите поле.
+          Скопируйте ссылку через «Поделиться». Ссылки видны в публичном профиле. После сохранения позиции из OhMyWishes и Яндекс Маркета добавятся в «Товары» как приватные айтемы.
         </p>
         <FieldGroup className="gap-3">
           {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
@@ -7256,14 +7300,25 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
                   disabled={busy}
                   aria-invalid={invalid || undefined}
                   aria-describedby={invalid ? `${id}-error` : undefined}
-                  onChange={(event) => setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value })}
+                  onChange={(event) => {
+                    setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
+                    if (provider.importsItems) setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
+                  }}
                 />
                 {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
+                {provider.importsItems && initialWishlistLinks[provider.id] && <div className="flex flex-col items-start gap-2">
+                  <ShadcnButton type="button" variant="outline" aria-label={`Импортировать позиции · ${provider.label}`} disabled={busy || value.trim() !== initialWishlistLinks[provider.id]} onClick={() => importWishlists([provider])}>
+                    Импортировать позиции
+                  </ShadcnButton>
+                  <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>
+                </div>}
+                {!provider.importsItems && initialWishlistLinks[provider.id] && <p className="text-xs text-muted-foreground">Доступна ссылка на список. Импорт позиций пока недоступен.</p>}
               </Field>
             );
           })}
         </FieldGroup>
       </section>
+      {isMobile && wishlistsFooter}
     </form>
   ) : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
@@ -7298,7 +7353,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       <ShadcnButton
         type="submit"
         form="profile-editor-form"
-        disabled={!changed || busy}
+        disabled={!profileChanged || busy}
         aria-busy={loading || undefined}
       >
         {loading && <Spinner />}
@@ -7365,7 +7420,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <div hidden={Boolean(desktopSection)}>{menu}</div>
           {desktopSection && sectionBody}
         </ScrollArea>
-        {desktopSection ? openRouterSection || personalFooter || yandexFooter : isMobile && <DrawerFooter />}
+        {desktopSection ? openRouterSection || personalFooter || wishlistsFooter || yandexFooter : isMobile && <DrawerFooter />}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
@@ -7379,7 +7434,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
         {openRouterSection || <>
           {sectionBody}
-          {personalFooter || yandexFooter || <DrawerFooter />}
+          {section !== "wishlists" && (personalFooter || yandexFooter || <DrawerFooter />)}
         </>}
       </DrawerContent>
     </Drawer>}
@@ -7432,12 +7487,12 @@ function PublicProfile({ shared = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading } = useSession();
-  const { openProfileEditor } = useProfileEditor();
+  const { openProfileEditor, wishlistImportVersion } = useProfileEditor();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
-  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user]);
+  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user, wishlistImportVersion]);
   const selected = shared ? "all" : params.listId || (params.wishId ? location.state?.listId : null) || "all";
   const requestedSpace = params.space || new URLSearchParams(location.search).get("tab") || (params.wishId ? location.state?.collectionSpace : null);
   const defaultSpace = !shared && data?.profile?.accountType === "business" ? data.profile.sellerSpace : null;
