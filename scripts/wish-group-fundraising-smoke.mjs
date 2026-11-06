@@ -56,6 +56,12 @@ try {
         const header = node.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
         const bounds = node.getBoundingClientRect();
         const bodyBounds = body.getBoundingClientRect();
+        const footer = node.querySelector('[data-slot="drawer-footer"]');
+        const footerBounds = footer?.getBoundingClientRect();
+        const oldScroll = body.scrollTop;
+        body.scrollTop = body.scrollHeight;
+        const footerAfterScroll = footer?.getBoundingClientRect();
+        body.scrollTop = oldScroll;
         const group = document.querySelector(".app-group-dialog");
         return {
           fits: bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.top >= -1 && bounds.bottom <= innerHeight + 1,
@@ -71,15 +77,22 @@ try {
           gap: group.querySelector(".wish-grid").offsetTop - group.querySelector(".app-group-dialog__header").offsetHeight,
           overflow: [...body.querySelectorAll("*")].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < bounds.left - 1 || r.right > bounds.right + 1); }).map(element => element.tagName),
           body: [getComputedStyle(body).fontSize, getComputedStyle(body).lineHeight],
+          bodyActions: body.querySelectorAll("button, a[href]").length,
           scrollBody: getComputedStyle(body).overflowY === "auto" && bodyBounds.top >= header.bottom - 1,
+          footerAtBottom: !footer || (footer.hasAttribute("data-control-bar") && !body.contains(footer)
+            && Math.abs(footerBounds.bottom - bounds.bottom) <= 1
+            && Math.abs(footerBounds.top - bodyBounds.bottom) <= 1
+            && Math.abs(footerAfterScroll.top - footerBounds.top) <= 1),
         };
       });
       assert(result.fits && result.root, `${width} section overflow: ${JSON.stringify(result.dimensions)}`);
       assert(result.outsideGroup && result.scrollBody, `${width} drawer must own a separate scroller`);
+      assert(result.footerAtBottom, `${width} footer must stay flush with the bottom of the drawer`);
+      assert.equal(result.bodyActions, 0, `${width} actions belong in the footer`);
       assert.deepEqual(result.overflow, [], `${width} descendant overflow`);
       assert.deepEqual(result.body, ["18px", "28px"]);
       assert(Math.abs(result.gap - 24) < 1, `${width} group header/grid gap ${result.gap}`);
-      const controls = await page.locator(".wish-group-fundraiser button:visible").evaluateAll(nodes => nodes.map(node => {
+      const controls = await drawer.locator('[data-slot="drawer-footer"] [data-slot="button"]:visible').evaluateAll(nodes => nodes.map(node => {
         const css = getComputedStyle(node); return { height: node.getBoundingClientRect().height, radius: parseFloat(css.borderTopLeftRadius) };
       }));
       for (const control of controls) { assert(control.height >= 48); assert(control.radius >= 24); }
@@ -89,24 +102,65 @@ try {
         return [width, height, getComputedStyle(button).borderRadius, glyph.width, glyph.height];
       }), [48, 48, "24px", 20, 20]);
     };
+    const verifyCompactKeyboard = async () => {
+      await page.evaluate(() => {
+        Object.defineProperties(visualViewport, { height: { configurable: true, value: 220 }, offsetTop: { configurable: true, value: 96 } });
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+      await page.waitForFunction(() => {
+        const active = document.activeElement;
+        if (!active?.matches("input")) return false;
+        const popup = active.closest('[data-slot="drawer-popup"]');
+        const bounds = popup.getBoundingClientRect();
+        const field = active.getBoundingClientRect();
+        const header = popup.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
+        const footer = popup.querySelector('[data-slot="drawer-footer"]').getBoundingClientRect();
+        return bounds.top >= 96 && bounds.bottom <= 317 && field.top >= header.bottom && field.bottom <= footer.top && Math.abs(bounds.bottom - footer.bottom) <= 1;
+      }, undefined, { timeout: 4000 }).catch(async error => {
+        const dimensions = await drawer.evaluate(node => Object.fromEntries(
+          ["[data-slot=drawer-header]", ".app-drawer-body", "input", "[data-slot=drawer-footer]"].map(selector => {
+            const { top, bottom } = node.querySelector(selector).getBoundingClientRect();
+            return [selector, [top, bottom]];
+          }),
+        ));
+        throw new Error(`Focused field must fit between header and footer: ${JSON.stringify(dimensions)}`, { cause: error });
+      });
+      await page.evaluate(() => {
+        delete visualViewport.height;
+        delete visualViewport.offsetTop;
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+    };
     if (width === 390) {
+      await page.addInitScript(() => {
+        if (new URLSearchParams(location.search).get("mode") !== "loading") return;
+        sessionStorage.setItem("rollapp:group-contribution:fixture-user:fundraising-loading", JSON.stringify({ amount: 100, idempotencyKey: crypto.randomUUID() }));
+      });
       await open("loading");
       assert.equal(await summary.textContent(), "Загрузка сбора…");
       await drawer.getByText("Загрузка сбора…", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("alertdialog").count(), 0);
       await page.evaluate(() => window.releaseFundraisingRead());
       await summary.filter({ hasText: /^Собрано 250 роллов$/ }).waitFor();
+      await page.getByRole("alertdialog", { name: "Проверить взнос?" }).getByRole("button", { name: "Назад" }).click();
       await drawer.getByRole("progressbar").waitFor();
+      assert.deepEqual(await page.evaluate(() => window.fundraisingCalls), []);
     }
     await open("empty");
     await page.keyboard.press("Escape");
     await drawer.waitFor({ state: "detached" });
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Открыть сбор группы «Часы для путешествий»");
     await summary.filter({ hasText: /^Собрано 0 роллов$/ }).waitFor();
-    await trigger.click();
-    await page.getByRole("button", { name: "Организовать сбор" }).click();
+    await openDrawer();
+    const footer = drawer.locator('[data-slot="drawer-footer"]');
+    await footer.getByRole("button", { name: "Организовать сбор" }).waitFor();
+    await geometry();
+    if ([320, 1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-fundraising-empty-footer-${width}.png` });
+    await footer.getByRole("button", { name: "Организовать сбор" }).click();
     await page.getByLabel("Цель сбора, роллы", { exact: true }).fill("1000");
     await geometry();
-    await page.getByRole("button", { name: "Открыть сбор", exact: true }).click();
+    if (width === 320) await page.getByLabel("Цель сбора, роллы", { exact: true }).press("Enter");
+    else await footer.getByRole("button", { name: "Открыть сбор", exact: true }).click();
     await page.getByRole("progressbar").waitFor();
     assert.equal(await page.getByRole("progressbar").getAttribute("aria-valuemax"), "1000");
     await open("owner");
@@ -119,13 +173,8 @@ try {
     assert(await drawer.isVisible());
     await page.evaluate(() => { window.holdFundraisingPatch = false; window.releaseFundraisingPatch(); });
     await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
-    for (const name of ["Изменить цель", "Возобновить"]) {
-      const padding = await page.getByRole("button", { name, exact: true }).evaluate(node => {
-        const style = getComputedStyle(node);
-        return [style.paddingLeft, style.paddingRight];
-      });
-      assert.deepEqual(padding, ["24px", "24px"], `${width} ${name}: shared action padding`);
-    }
+    await footer.getByRole("button", { name: "Изменить цель", exact: true }).waitFor();
+    await footer.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
     await geometry();
     await page.screenshot({ path: `/tmp/rollapp-fundraising-owner-${width}.png`, fullPage: true });
     await page.getByRole("button", { name: "Возобновить", exact: true }).click();
@@ -134,26 +183,7 @@ try {
     await target.fill("200");
     assert(await page.getByRole("button", { name: "Сохранить", exact: true }).isDisabled());
     await target.fill("1500");
-    if (width === 390) {
-      await page.evaluate(() => {
-        Object.defineProperties(visualViewport, { height: { configurable: true, value: 220 }, offsetTop: { configurable: true, value: 96 } });
-        visualViewport.dispatchEvent(new Event("resize"));
-      });
-      await page.waitForFunction(() => {
-        const active = document.activeElement;
-        if (!active?.matches("input")) return false;
-        const popup = active.closest('[data-slot="drawer-popup"]');
-        const bounds = popup.getBoundingClientRect();
-        const field = active.getBoundingClientRect();
-        const header = popup.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
-        return bounds.top >= 96 && bounds.bottom <= 317 && field.top >= header.bottom && field.bottom <= bounds.bottom;
-      });
-      await page.evaluate(() => {
-        delete visualViewport.height;
-        delete visualViewport.offsetTop;
-        visualViewport.dispatchEvent(new Event("resize"));
-      });
-    }
+    if (width === 390) await verifyCompactKeyboard();
     await page.getByRole("button", { name: "Сохранить", exact: true }).click();
     await geometry();
     await open("member");
@@ -183,6 +213,7 @@ try {
     assert.equal(await group.evaluate(node => node.scrollTop), groupScroll, "Returning from the drawer moved the group grid");
     for (const mode of ["guest", "closed", "completed"]) {
       await open(mode); await geometry();
+      if (mode === "guest") await footer.getByRole("link", { name: "Войти", exact: true }).waitFor();
       assert.equal(await page.getByRole("button", { name: "Внести роллы", exact: true }).count(), 0);
       assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
     }
@@ -194,6 +225,7 @@ try {
     await page.getByLabel("Сумма тестовой покупки, роллы", { exact: true }).fill("1001");
     assert(await page.getByRole("button", { name: "Эмулировать покупку", exact: true }).isDisabled());
     await page.getByLabel("Сумма тестовой покупки, роллы", { exact: true }).fill("300");
+    if (width <= 390) await verifyCompactKeyboard();
     await page.getByRole("button", { name: "Эмулировать покупку", exact: true }).click();
     await geometry();
     await page.getByRole("button", { name: "Отмена", exact: true }).click();

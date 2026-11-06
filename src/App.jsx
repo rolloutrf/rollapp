@@ -82,6 +82,7 @@ import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
+import { ProfileInvites } from "@/components/profile-invites";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -484,6 +485,7 @@ function ProfileEditorProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [wishlistImportVersion, setWishlistImportVersion] = useState(0);
   const returnFocusRef = useRef(null);
   const openProfileEditor = useCallback((event) => {
     const trigger = event?.currentTarget;
@@ -491,7 +493,7 @@ function ProfileEditorProvider({ children }) {
     setOpen(true);
   }, []);
   const closeProfileEditor = useCallback(() => setOpen(false), []);
-  const value = useMemo(() => ({ openProfileEditor }), [openProfileEditor]);
+  const value = useMemo(() => ({ openProfileEditor, wishlistImportVersion }), [openProfileEditor, wishlistImportVersion]);
   return (
     <ProfileEditorContext.Provider value={value}>
       {children}
@@ -499,7 +501,8 @@ function ProfileEditorProvider({ children }) {
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
-        onAvatarSaved={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
+        onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
+        onWishlistsImported={() => setWishlistImportVersion((version) => version + 1)}
         onSaved={async (savedUser) => {
           const target = renamedProfileLocation(location, user.username, savedUser.username);
           setSession({ user: savedUser, loading: false, error: null });
@@ -852,21 +855,10 @@ function GlobalAppChrome() {
       <AppBrand showSwitcher={!isMobile} />
       {!isMobile && sectionSelector}
       {service && <div className="global-app-chrome__actions">
-        {user && <Link
-          to="/app/rolls"
-          aria-label="Открыть Роллы"
-          title="Роллы"
-          data-control-icon
-          className={cn(buttonVariants({
-            variant: location.pathname.startsWith("/app/rolls") ? "secondary" : "outline",
-            size: "icon",
-            className: "global-app-chrome__rolls rounded-full",
-          }))}
-        ><Coins className="size-8 text-amber-300" aria-hidden="true" /></Link>}
         <ShadcnButton data-control-icon className="global-app-chrome__share rounded-full" variant="outline" size="icon" type="button" aria-label="Поделиться" title="Поделиться" onClick={share}><Share2 aria-hidden="true" /></ShadcnButton>
       </div>}
     </ControlBar>
-    {isMobile && <ControlBar as="nav" className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
+    {isMobile && location.pathname !== "/register" && <ControlBar as="nav" className="mobile-app-navigation" data-has-planning={Boolean(user) || undefined} aria-label="Навигация приложения">
       <SphereSwitcher docked />
       {sectionSelector && <div className="mobile-app-navigation__section">{sectionSelector}</div>}
     </ControlBar>}
@@ -1026,15 +1018,17 @@ function Button({ children, className = "", variant = "primary", icon: Icon, loa
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
 }
 
-function YandexIdButton({ href, className = "", accessibleName = "Войти с помощью Яндекс ID" }) {
+function YandexIdButton({ href, onClick, disabled, className = "", accessibleName = "Войти с помощью Яндекс ID", label = "Войти с Яндекс ID" }) {
+  const Component = onClick ? "button" : "a";
+  const action = onClick ? { type: "button", onClick, disabled } : { href };
   return (
-    <a className={`yandex-id-button ${className}`} href={href} aria-label={accessibleName}>
+    <Component className={`yandex-id-button ${className}`} aria-label={accessibleName} {...action}>
       <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
         <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
       </svg>
-      <span>Войти с Яндекс ID</span>
-    </a>
+      <span>{label}</span>
+    </Component>
   );
 }
 
@@ -1503,7 +1497,47 @@ function YandexBackupResult({ backup, retryHref, userId }) {
   );
 }
 
-function AuthPage({ mode }) {
+function RegisterPage() {
+  const { hash, search } = useLocation();
+  const invite = new URLSearchParams(hash.slice(1)).get("invite") || "";
+  const [check, setCheck] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const result = check?.invite === invite && check?.attempt === attempt ? check : null;
+  const nextPath = safeNextPath(new URLSearchParams(search).get("next"));
+
+  useEffect(() => {
+    if (!invite) return;
+    let active = true;
+    api.post("/auth/invite/validate", { invite })
+      .then(() => { if (active) setCheck({ invite, attempt, valid: true }); })
+      .catch((error) => { if (active) setCheck({ invite, attempt, error }); });
+    return () => { active = false; };
+  }, [invite, attempt]);
+
+  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} />;
+  const invalid = result?.error?.code === "INVITE_INVALID";
+  const checking = Boolean(invite && !result);
+  return (
+    <div className="auth-page rollapp-body">
+      <div className="auth-panel">
+        <div className="auth-form">
+          <div>
+            <span className="eyebrow">Rollapp</span>
+            <h1>{checking ? "Проверяем приглашение" : invalid ? "Приглашение недействительно" : "Регистрация по приглашению"}</h1>
+            <p>
+              {checking ? "Подождите немного." : invalid ? "Ссылка могла истечь или быть использована. Попросите отправителя создать новую." : invite ? result?.error?.message : "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp."}
+            </p>
+          </div>
+          {checking && <div className="auth-config-loading" role="status"><Spinner /><span>Проверяем ссылку…</span></div>}
+          {result?.error && !invalid && <PageActionButton type="button" variant="outline" onClick={() => setAttempt((current) => current + 1)}>Проверить снова</PageActionButton>}
+          <PageActionButton to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</PageActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthPage({ mode, invite }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refresh } = useSession();
@@ -1531,7 +1565,7 @@ function AuthPage({ mode }) {
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
-  const shouldLinkYandex = Boolean(yandexError?.linkRequired);
+  const shouldLinkYandex = mode === "login" && Boolean(yandexError?.linkRequired);
   const yandexStartHref = yandexAuthStartPath(nextPath);
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
@@ -1651,7 +1685,9 @@ function AuthPage({ mode }) {
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
-      const result = await api.post(mode === "register" ? "/auth/register" : "/auth/login", form);
+      const result = mode === "register"
+        ? await api.post("/auth/register", { ...form, invite })
+        : await api.post("/auth/login", form);
       const destination = mode === "register"
         && result.user?.accountType === "business"
         && !authQuery.get("next")
@@ -1666,6 +1702,17 @@ function AuthPage({ mode }) {
         destination,
       );
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
+  };
+
+  const registerWithYandex = async () => {
+    setLoading(true);
+    try {
+      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: nextPath });
+      window.location.assign(authorizationUrl);
+    } catch (error) {
+      toast(error.message, "error");
+      setLoading(false);
+    }
   };
 
   const switchAuthMethod = () => {
@@ -1702,7 +1749,7 @@ function AuthPage({ mode }) {
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
     : mode === "register"
-      ? "Это бесплатно и займёт меньше минуты."
+      ? "У вас есть приглашение. Выберите способ регистрации."
       : "Продолжите собирать и исполнять желания.";
 
   return (
@@ -1738,7 +1785,12 @@ function AuthPage({ mode }) {
                   <AlertDescription>{yandexError.description}</AlertDescription>
                 </Alert>
               )}
-              {showYandexButton && <><YandexIdButton href={yandexStartHref} /><div className="or" aria-hidden="true"><span>или</span></div></>}
+              {showYandexButton && <>
+                {mode === "register"
+                  ? <YandexIdButton onClick={registerWithYandex} disabled={loading} label="Создать с Яндекс ID" accessibleName="Зарегистрироваться с Яндекс ID" />
+                  : <YandexIdButton href={yandexStartHref} />}
+                <div className="or" aria-hidden="true"><span>или</span></div>
+              </>}
           {connectingCurrentUser
             ? telegramAuth.status === "unlinked"
               ? <>
@@ -1766,7 +1818,7 @@ function AuthPage({ mode }) {
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
             </ShadcnButton>
           )}
-          {!connectingCurrentUser && <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : <>Впервые здесь? <Link to={`/register?next=${encodeURIComponent(nextPath)}`}>Создать аккаунт</Link></>}</p>}
+          {!connectingCurrentUser && <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : "Регистрация по приглашению."}</p>}
             </>}
         </form>
       </div>
@@ -4580,10 +4632,11 @@ function GiftSuggestionsPanel({ items = [], onOpenWish }) {
 
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
+  const { wishlistImportVersion } = useProfileEditor();
   const location = useLocation();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version]);
+  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version, wishlistImportVersion]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -6948,7 +7001,7 @@ function FriendsPage() {
   );
 }
 
-function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocus }) {
+function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -6961,9 +7014,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
     birthday: user.birthday ? String(user.birthday).slice(0, 10) : "",
   }), [user]);
   const [form, setForm] = useState(initialForm);
-  const [initialWishlistLinks] = useState(() => user.wishlistLinks || {});
+  const [initialWishlistLinks, setInitialWishlistLinks] = useState(() => user.wishlistLinks || {});
   const [wishlistLinks, setWishlistLinks] = useState(initialWishlistLinks);
   const [validateWishlistLinks, setValidateWishlistLinks] = useState(false);
+  const [importingWishlist, setImportingWishlist] = useState(false);
+  const [wishlistImportStatus, setWishlistImportStatus] = useState({});
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -6980,12 +7035,15 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   const scrollArea = useRef(null);
   const sections = [
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
+    { id: "invites", title: "Инвайты", icon: UserPlus },
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
-    { id: "orders", title: "Заказы", icon: PackageCheck },
+    { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon, path: ROLLS_SERVICE.path },
+    { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || imageUploading || loggingOut || openRouterBusy;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -6995,7 +7053,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   }, [isMobile, section]);
   const imageFileRef = useRef(null);
   const changedWishlists = EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => (wishlistLinks[id]?.trim() || "") !== (initialWishlistLinks[id] || ""));
-  const changed = changedWishlists.length > 0 || Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const profileChanged = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
+  const changed = profileChanged || changedWishlists.length > 0;
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
@@ -7030,7 +7089,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       const upload = await api.uploadImage(file);
       uploadId = upload.id;
       const result = await api.patch("/me", { avatarUrl: upload.imageUrl });
-      onAvatarSaved(result.user);
+      onProfileUpdated(result.user);
       toast("Фото профиля обновлено");
     } catch (error) {
       // A lost response can hide a successful save. Only clean up a rejected upload reference.
@@ -7061,24 +7120,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (busy || !changed) return;
-    const invalidWishlist = changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
-      && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
-    if (invalidWishlist) {
-      setValidateWishlistLinks(true);
-      event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
-      return;
-    }
+    if (busy || !profileChanged) return;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
       if (form[key] === initialForm[key]) return;
       payload[key] = key === "birthday" ? form[key] || null : form[key];
     });
-    if (changedWishlists.length) {
-      payload.wishlistLinks = Object.fromEntries(changedWishlists.map((provider) => [
-        provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
-      ]));
-    }
     setLoading(true);
     try {
       const result = await api.patch("/me", payload);
@@ -7090,6 +7137,62 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       setLoading(false);
     }
   };
+  const importWishlists = async (providers) => {
+    setImportingWishlist(true);
+    const results = await Promise.all(providers.map(async ({ id }) => {
+      const setStatus = (message) => setWishlistImportStatus((current) => ({ ...current, [id]: message }));
+      setStatus("Загружаем список…");
+      try {
+        const { added, skipped, partial } = await api.post(`/me/wishlist-import/${id}`);
+        const message = added ? `Добавлено в «Товары»: ${added}.` : skipped ? "Новых позиций среди прочитанных нет." : "Список пуст.";
+        setStatus(partial ? `${message} Сервис отдал только первую страницу списка.` : message);
+        return added;
+      } catch (error) {
+        setStatus(error.message);
+        return 0;
+      }
+    }));
+    if (results.some(Boolean)) onWishlistsImported?.();
+    setImportingWishlist(false);
+  };
+  const submitWishlists = async (event) => {
+    event.preventDefault();
+    if (busy || !changedWishlists.length) return;
+    const invalidWishlist = changedWishlists.find((provider) => wishlistLinks[provider.id]?.trim()
+      && !externalWishlistUrl(provider, wishlistLinks[provider.id]));
+    if (invalidWishlist) {
+      setValidateWishlistLinks(true);
+      event.currentTarget.querySelector(`#settings-wishlist-${invalidWishlist.id}`)?.focus();
+      return;
+    }
+    const links = Object.fromEntries(changedWishlists.map((provider) => [
+      provider.id, externalWishlistUrl(provider, wishlistLinks[provider.id]),
+    ]));
+    setLoading(true);
+    try {
+      const { user: savedUser } = await api.patch("/me", { wishlistLinks: links });
+      const savedLinks = savedUser.wishlistLinks || {};
+      setInitialWishlistLinks(savedLinks);
+      setWishlistLinks(savedLinks);
+      setValidateWishlistLinks(false);
+      onProfileUpdated(savedUser);
+      toast("Внешние вишлисты сохранены");
+      const imports = changedWishlists.filter(({ id, importsItems }) => importsItems && links[id] && savedLinks[id]);
+      if (imports.length) await importWishlists(imports);
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const wishlistsFooter = section === "wishlists" && (
+    <DrawerFooter className="mx-auto w-full max-w-full">
+      <ShadcnButton type="submit" form="profile-wishlists-form" disabled={!changedWishlists.length || busy} aria-busy={loading || undefined}>
+        {loading && <Spinner />}
+        Сохранить
+      </ShadcnButton>
+    </DrawerFooter>
+  );
   const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
     <div className="flex flex-col gap-2" role="group" aria-label="Фото профиля">
       <ShadcnButton
@@ -7104,21 +7207,22 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       >
         <Avatar user={user} size="xl" className="!size-full" aria-hidden="true" />
       </ShadcnButton>
+      <p className="w-full text-center font-semibold wrap-anywhere">{user.name}</p>
       <Input ref={imageFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
       {imageError && <FieldError>{imageError}</FieldError>}
     </div>
     <nav aria-label="Разделы профиля">
       <ul className="divide-y">
-        {sections.map(({ id, title, icon: Icon }) => <li key={id}>
+        {sections.map(({ id, title, icon: Icon, path }) => <li key={id}>
           <ShadcnButton
             type="button"
             variant="ghost"
             className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
-            disabled={busy || (id === "orders" && changed)}
+            disabled={busy || (Boolean(path) && changed)}
             onClick={(event) => {
-              if (id === "orders") exitSettings(() => {
+              if (path) exitSettings(() => {
                 onClose();
-                navigate(APP_ORDERS_PATH);
+                navigate(path);
               });
               else {
                 sectionTrigger.current = event.currentTarget;
@@ -7133,7 +7237,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         </li>)}
       </ul>
     </nav>
-    {changed && <p className="text-xs text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
+    {changed && <p className="text-xs text-muted-foreground">Сохраните изменения перед переходом в другой раздел приложения.</p>}
   </div>;
   const sectionBody = section === "personal" ? (
     <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
@@ -7174,10 +7278,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
         </Field>
       </FieldGroup>
-      <section className="grid min-w-0 gap-3 border-t pt-4" aria-labelledby="settings-wishlist-title" aria-describedby="settings-wishlist-help">
-        <h2 id="settings-wishlist-title" className="font-heading text-xl font-semibold">Внешние вишлисты</h2>
+    </form>
+  ) : section === "wishlists" ? (
+    <form id="profile-wishlists-form" onSubmit={submitWishlists}>
+      <section className="grid min-w-0 gap-4 px-4 pt-4 pb-1" aria-label={sectionTitle} aria-describedby="settings-wishlist-help">
         <p id="settings-wishlist-help" className="text-xs text-muted-foreground">
-          Скопируйте ссылку через «Поделиться» в нужном сервисе. После сохранения она появится в вашем публичном профиле. Чтобы отключить вишлист, очистите поле.
+          Скопируйте ссылку через «Поделиться». Ссылки видны в публичном профиле. После сохранения позиции из OhMyWishes и Яндекс Маркета добавятся в «Товары» как приватные айтемы.
         </p>
         <FieldGroup className="gap-3">
           {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
@@ -7200,16 +7306,27 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
                   disabled={busy}
                   aria-invalid={invalid || undefined}
                   aria-describedby={invalid ? `${id}-error` : undefined}
-                  onChange={(event) => setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value })}
+                  onChange={(event) => {
+                    setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
+                    if (provider.importsItems) setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
+                  }}
                 />
                 {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
+                {provider.importsItems && initialWishlistLinks[provider.id] && <div className="flex flex-col items-start gap-2">
+                  <ShadcnButton type="button" variant="outline" aria-label={`Импортировать позиции · ${provider.label}`} disabled={busy || value.trim() !== initialWishlistLinks[provider.id]} onClick={() => importWishlists([provider])}>
+                    Импортировать позиции
+                  </ShadcnButton>
+                  <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>
+                </div>}
+                {!provider.importsItems && initialWishlistLinks[provider.id] && <p className="text-xs text-muted-foreground">Доступна ссылка на список. Импорт позиций пока недоступен.</p>}
               </Field>
             );
           })}
         </FieldGroup>
       </section>
+      {isMobile && wishlistsFooter}
     </form>
-  ) : section === "yandex" ? <div className="px-4 pt-4">
+  ) : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7242,7 +7359,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
       <ShadcnButton
         type="submit"
         form="profile-editor-form"
-        disabled={!changed || busy}
+        disabled={!profileChanged || busy}
         aria-busy={loading || undefined}
       >
         {loading && <Spinner />}
@@ -7309,7 +7426,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
           <div hidden={Boolean(desktopSection)}>{menu}</div>
           {desktopSection && sectionBody}
         </ScrollArea>
-        {desktopSection ? openRouterSection || personalFooter || yandexFooter : isMobile && <DrawerFooter />}
+        {desktopSection ? openRouterSection || personalFooter || wishlistsFooter || yandexFooter : isMobile && <DrawerFooter />}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
@@ -7323,7 +7440,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocu
         <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
         {openRouterSection || <>
           {sectionBody}
-          {personalFooter || yandexFooter || <DrawerFooter />}
+          {section !== "wishlists" && (personalFooter || yandexFooter || <DrawerFooter />)}
         </>}
       </DrawerContent>
     </Drawer>}
@@ -7376,12 +7493,12 @@ function PublicProfile({ shared = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading } = useSession();
-  const { openProfileEditor } = useProfileEditor();
+  const { openProfileEditor, wishlistImportVersion } = useProfileEditor();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
-  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user]);
+  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user, wishlistImportVersion]);
   const selected = shared ? "all" : params.listId || (params.wishId ? location.state?.listId : null) || "all";
   const requestedSpace = params.space || new URLSearchParams(location.search).get("tab") || (params.wishId ? location.state?.collectionSpace : null);
   const defaultSpace = !shared && data?.profile?.accountType === "business" ? data.profile.sellerSpace : null;
@@ -7704,7 +7821,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage mode="login" />} />
-            <Route path="/register" element={<AuthPage mode="register" />} />
+            <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />

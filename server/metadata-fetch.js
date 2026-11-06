@@ -286,6 +286,7 @@ async function fetchPublicResource(input, {
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxBytes = DEFAULT_MAX_BYTES,
   maxRedirects = DEFAULT_MAX_REDIRECTS,
+  allowRedirect,
   lookup = dnsLookup,
   request = requestOnce,
 } = {}) {
@@ -325,6 +326,9 @@ async function fetchPublicResource(input, {
             code: "invalid_redirect",
             cause: error,
           });
+        }
+        if (allowRedirect && !allowRedirect(url)) {
+          throw new MetadataFetchError("Магазин перенаправил на другой сервис", { code: "invalid_redirect" });
         }
         continue;
       }

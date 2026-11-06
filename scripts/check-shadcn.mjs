@@ -379,13 +379,8 @@ for (const [, attributes, children] of topbarShareButtons) {
   assert(/^\s*<Share2\s+aria-hidden="true"\s*\/>\s*$/.test(children), "The topbar Share action must render only its decorative icon, without visible text");
 }
 assert(
-  /\.global-app-chrome__share,\s*\.global-app-chrome__rolls\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
+  /\.global-app-chrome__share\s*\{[^}]*\bwidth:\s*48px;[^}]*\bheight:\s*48px;[^}]*\bpadding:\s*0;[^}]*\bborder-radius:\s*var\(--radius-pill\);/s.test(legacyStyles),
   "The topbar Share action must keep its circular 48x48 geometry",
-);
-assert.match(
-  app,
-  /<Link\s+to="\/app\/rolls"\s+aria-label="Открыть Роллы"\s+title="Роллы"[^>]*><Coins className="size-8 text-amber-300" aria-hidden="true" \/><\/Link>/,
-  "The persistent application chrome must provide an accessible Rolls entry beside Share",
 );
 const friendsLinkSource = app.slice(app.indexOf("function AppFriendsLink"), app.indexOf("function AppProfileButton"));
 assert.equal([...friendsLinkSource.matchAll(/<Link\b/g)].length, 1, "Profile relationships must expose a single link");

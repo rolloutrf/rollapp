@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FileText, FileUp, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, FileUp, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { PageActionButton } from "@/components/page-action-button";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -45,8 +41,10 @@ export function IdentityReportOverview({ titleId, eyebrow, title, description, d
 }
 
 export function useIdentityReport(section, client = api) {
+  const { readOnly, loading: sharingLoading } = useSphereSharing();
   const [state, setState] = useState({ mode: "loading", report: null, files: [], updatedAt: null });
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -59,23 +57,14 @@ export function useIdentityReport(section, client = api) {
   }, [section, client]);
 
   useEffect(() => { load(); }, [load]);
-  return { state, setState, error, load };
-}
-
-export function IdentityReportControls({ section, label, state, setState, load, navigation, onEditTest, client = api }) {
-  const { readOnly } = useSphereSharing();
-  const inputRef = useRef(null);
-  const [busy, setBusy] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(null);
-  const canUpload = !readOnly && (state.files?.length || 0) < 8;
-  const canDelete = !readOnly && (state.files?.length || 0) > 0;
-  const uploadDisabled = busy || !canUpload || state.mode === "loading" || state.mode === "error";
+  const fileCount = state.files?.length || 0;
+  const uploadDisabled = uploading || readOnly || sharingLoading || fileCount >= 8 || state.mode === "loading" || state.mode === "error";
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])];
     event.target.value = "";
     if (uploadDisabled || !files.length) return;
-    if (files.length + (state.files?.length || 0) > 8) {
+    if (files.length + fileCount > 8) {
       toast.error("Для одного отчёта можно загрузить не больше 8 PDF");
       return;
     }
@@ -88,7 +77,7 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       toast.error(invalid.size > MAX_PDF_BYTES ? "PDF должен быть не больше 12 МБ" : "Выберите PDF-файлы");
       return;
     }
-    setBusy(true);
+    setUploading(true);
     let latest = null;
     try {
       for (const file of files) latest = await client.uploadIdentityReportPdf(section, file);
@@ -98,70 +87,11 @@ export function IdentityReportControls({ section, label, state, setState, load, 
       await load();
       toast.error(uploadError.message);
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   };
 
-  const removeFile = async (file) => {
-    if (busy || !canDelete) return;
-    setBusy(true);
-    try {
-      setState(await client.delete(`/identity/reports/${section}/files/${file.id}`));
-      setDeleteOpen(null);
-      toast.success(`PDF «${file.filename}» удалён`);
-    } catch (deleteError) {
-      toast.error(deleteError.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {!readOnly && <input ref={inputRef} className="sr-only" type="file" accept="application/pdf,.pdf" aria-label={`Загрузить PDF для ${label}`} aria-hidden="true" tabIndex={-1} multiple disabled={uploadDisabled} onChange={upload} />}
-      {!readOnly && <div className="identity-report-manager__actions horizontal-action-scroller">
-        {onEditTest && <PageActionButton type="button" variant="outline" disabled={busy} onClick={onEditTest}>Настройки теста</PageActionButton>}
-        <Button type="button" variant="ghost" size="icon" data-control-icon className="size-12 shrink-0 rounded-full" aria-label={`Загрузить PDF для ${label}`} title={`Загрузить PDF для ${label}`} aria-busy={busy || undefined} disabled={uploadDisabled} onClick={() => inputRef.current?.click()}>
-          {busy ? <Spinner aria-hidden="true" /> : <Plus aria-hidden="true" />}
-        </Button>
-      </div>}
-      {typeof navigation === "function" ? navigation({ busy }) : navigation}
-      {state.files?.length ? (
-        <section className="identity-report-files flex min-w-0 flex-col gap-3" aria-label="Исходные PDF">
-          <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Исходные PDF</span>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-            {state.files.map((file) => (
-              <div key={file.id} className="flex min-w-0 items-center gap-2">
-                <a href={file.pdfUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "ghost" }), "h-auto min-w-0 flex-1 justify-start gap-3 px-3 py-3 text-left whitespace-normal wrap-anywhere")}>
-                  <FileText className="size-5 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0">{file.filename}</span>
-                </a>
-                {!readOnly && <Button type="button" size="icon" variant="destructive" className="size-12 shrink-0" disabled={busy} aria-label={`Удалить PDF ${file.filename}`} onClick={() => setDeleteOpen(file)}><Trash2 aria-hidden="true" /></Button>}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {!readOnly && <AlertDialog open={Boolean(deleteOpen)} onOpenChange={(open) => !busy && !open && setDeleteOpen(null)}>
-        <AlertDialogContent className="overflow-y-auto">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="wrap-anywhere">Удалить PDF «{deleteOpen?.filename}»?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Файл и извлечённое из него содержимое будут удалены из отчёта.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Отмена</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={busy} onClick={() => removeFile(deleteOpen)}>
-              {busy ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-              Удалить
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>}
-    </section>
-  );
+  return { state, error, load, uploading, uploadDisabled, upload };
 }
 
 export function IdentityReportEmpty({ label }) {

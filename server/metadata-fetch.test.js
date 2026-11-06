@@ -103,6 +103,19 @@ test("safe relative redirects are followed and return the final URL", async () =
   assert.equal(result.html, "<title>Product</title>");
 });
 
+test("callers can stop a public redirect before the second request", async () => {
+  const requested = [];
+  const request = async (url) => {
+    requested.push(url.href);
+    return { statusCode: 302, headers: { location: "https://other.example/path" }, body: Buffer.alloc(0) };
+  };
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+  await assert.rejects(fetchPublicHtml("https://shop.example/old", {
+    lookup, request, allowRedirect: (url) => url.hostname === "shop.example",
+  }), { code: "invalid_redirect" });
+  assert.deepEqual(requested, ["https://shop.example/old"]);
+});
+
 test("one timeout budget covers the complete fetch", async () => {
   const request = (_url, { signal }) => new Promise((_resolve, reject) => {
     signal.addEventListener("abort", () => reject(signal.reason), { once: true });

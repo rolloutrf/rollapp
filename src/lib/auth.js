@@ -20,6 +20,16 @@ export function yandexAuthStartPath(nextPath, { link = false } = {}) {
 }
 
 const yandexAuthErrors = {
+  INVITE_REQUIRED: {
+    title: "Регистрация по приглашению",
+    description: "Попросите ссылку у человека, у которого уже есть аккаунт Rollapp.",
+    variant: "default",
+  },
+  INVITE_INVALID: {
+    title: "Приглашение недействительно",
+    description: "Попросите отправителя создать новую ссылку.",
+    variant: "destructive",
+  },
   YANDEX_CANCELLED: {
     title: "Вход через Яндекс отменён",
     description: "Можно попробовать ещё раз или выбрать другой способ входа.",

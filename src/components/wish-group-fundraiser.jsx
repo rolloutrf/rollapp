@@ -4,9 +4,9 @@ import { Link } from "react-router-dom";
 import { api } from "@/api";
 import { FundraiserVirtualCard } from "@/components/fundraiser-virtual-card";
 import { GroupDialogHeader } from "@/components/group-dialog";
-import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ControlBar } from "@/components/control-bar";
+import { DrawerFooter } from "@/components/form-surface";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -79,7 +79,7 @@ function WishGroupFundraisingHeader({ group, viewerId, shareToken, request, ...p
       ><Layers3 aria-hidden="true" /></DrawerTrigger>
     </ControlBar>
     <DrawerContent className="app-drawer--form rollapp-body">
-      <DrawerHeader className="flex-row items-center justify-between gap-2 pb-4">
+      <DrawerHeader className="flex-row items-center justify-between gap-2 pb-4 [[data-overlay-compact]_&]:py-1">
         <div className="min-w-0 text-left">
           <DrawerTitle className="text-xl font-semibold">Сбор роллов</DrawerTitle>
           <DrawerDescription className="truncate" title={group.title}>{group.title}</DrawerDescription>
@@ -90,13 +90,11 @@ function WishGroupFundraisingHeader({ group, viewerId, shareToken, request, ...p
           </DrawerClose>
         </ControlBar>
       </DrawerHeader>
-      <div className="app-drawer-body min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-[max(var(--layout-item-gap),env(safe-area-inset-bottom))]">
-        <WishGroupFundraiser
-          group={group} viewerId={viewerId} shareToken={shareToken} request={request} endpoint={endpoint}
-          data={data} setData={setData} loadError={loadError} refresh={refresh}
-          busy={busy} setBusy={setBusy} busyRef={busyRef}
-        />
-      </div>
+      <WishGroupFundraiser
+        group={group} viewerId={viewerId} shareToken={shareToken} request={request} endpoint={endpoint}
+        data={data} setData={setData} loadError={loadError} refresh={refresh}
+        busy={busy} setBusy={setBusy} busyRef={busyRef}
+      />
     </DrawerContent>
   </Drawer>;
 
@@ -170,57 +168,82 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
     }
   });
   const notice = error || loadError;
-  if (!data) return <div className="flex flex-col gap-4">
-    {loadError ? <><p role="alert">{loadError}</p><Button variant="outline" className="self-start rounded-full" onClick={refresh}>Повторить</Button></> : <p role="status">Загрузка сбора…</p>}
-  </div>;
-  if (!fund && !data.isOwner) return <p>Для этой группы пока нет сбора.</p>;
-  return <div className="wish-group-fundraiser flex min-w-0 flex-col gap-4">
-    {!fund && !editing && <>
-      <p>Откройте общий сбор на товары из этой группы.</p>
-      <Button className="self-start rounded-full" onClick={() => { setTarget(""); setEditing(true); }}>Организовать сбор</Button>
-    </>}
-    {fund && <>
-      <p className="text-xs text-muted-foreground">{fund.status === "completed" ? "Цель достигнута" : fund.status === "closed" ? "Приостановлен" : "Сбор открыт"}</p>
-      <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-        <strong className="text-2xl font-semibold">{formatRolls(fund.raised)}</strong><span className="text-muted-foreground">из {formatRolls(fund.target)}</span>
-      </div>
-      <div role="progressbar" aria-label="Прогресс сбора" aria-valuemin={0} aria-valuemax={fund.target} aria-valuenow={fund.raised} aria-valuetext={`Собрано ${formatRolls(fund.raised)} из ${formatRolls(fund.target)}`} className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, fund.raised / fund.target * 100)}%` }} />
-      </div>
-      <p className="text-xs text-muted-foreground">Участников: {fund.contributors}. {remaining > 0 ? `Осталось ${formatRolls(remaining)}.` : "Спасибо за поддержку!"}</p>
-      <p className="text-xs text-muted-foreground">Взносы сразу поступают в кошелёк владельца группы. Это внутренняя валюта Rollapp.</p>
-      {data.isOwner && !editing && <ControlBar className="flex flex-wrap gap-2">
-        <PageActionButton variant="outline" disabled={busy} onClick={() => { setTarget(String(fund.target)); setEditing(true); }}>Изменить цель</PageActionButton>
-        {fund.status !== "completed" && <PageActionButton variant="outline" disabled={busy} onClick={() => mutate(async () => {
+  const canContribute = fund && !data.isOwner && data.signedIn && (fund.status === "active" || pending);
+  const canSignIn = fund && !data.isOwner && !data.signedIn && fund.status === "active";
+  const contributionForm = `${id}-contribution`;
+  const targetForm = `${id}-target-form`;
+  const renderDrawer = (cardBody, cardActions, confirmingPurchase) => {
+    let actions;
+    if (data && editing) {
+      actions = <>
+        <Button type="submit" form={targetForm} disabled={busy || !validTarget}>{busy && <Spinner />}{fund ? "Сохранить" : "Открыть сбор"}</Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(false)}>Отмена</Button>
+      </>;
+    } else if (fund && data.isOwner) {
+      actions = <>
+        {cardActions}
+        {!confirmingPurchase && <Button type="button" variant={cardActions ? "outline" : "default"} disabled={busy} onClick={() => { setTarget(String(fund.target)); setEditing(true); }}>Изменить цель</Button>}
+        {fund.status !== "completed" && <Button type="button" variant="outline" disabled={busy} onClick={() => mutate(async () => {
           const result = await request.patch(endpoint, { target: fund.target, accepting: !fund.accepting });
           if (alive.current) setData(current => ({ ...current, ...result }));
-        })}>{fund.accepting ? "Приостановить" : "Возобновить"}</PageActionButton>}
-      </ControlBar>}
-      {data.isOwner && fund.status === "completed" && <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId} />}
-      {!data.isOwner && data.signedIn && (fund.status === "active" || pending) && <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); if (validAmount || pending) { setConfirmationAmount(pending?.amount || numericAmount); setConfirming(true); } }}>
-        <Field><FieldLabel htmlFor={`${id}-amount`}>Сумма взноса, роллы</FieldLabel>
-          <Input id={`${id}-amount`} inputMode="numeric" value={pending ? String(pending.amount) : amount} disabled={busy || Boolean(pending)} onChange={event => setAmount(event.target.value)} aria-describedby={`${id}-balance`} />
-          <FieldDescription id={`${id}-balance`}>На балансе {formatRolls(data.balance)}. {amount && !validAmount && !pending ? "Укажите целую сумму в пределах баланса и остатка до цели." : "Комиссия — 0 роллов."}</FieldDescription>
-        </Field>
-        <Button type="submit" disabled={busy || (!validAmount && !pending)} className="self-start rounded-full"><Coins aria-hidden="true" />{pending ? "Проверить взнос" : "Внести роллы"}</Button>
-      </form>}
-      {!data.isOwner && !data.signedIn && fund.status === "active" && <p><Link className="underline underline-offset-4" to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}>Войдите</Link>, чтобы внести роллы.</p>}
-    </>}
-    {editing && <form className="flex min-w-0 flex-col gap-3" onSubmit={save}>
-      <Field><FieldLabel htmlFor={`${id}-target`}>Цель сбора, роллы</FieldLabel>
-        <Input id={`${id}-target`} inputMode="numeric" autoFocus value={target} disabled={busy} onChange={event => setTarget(event.target.value)} aria-describedby={`${id}-target-hint`} />
-        <FieldDescription id={`${id}-target-hint`}>Целое число от {Math.max(1, fund?.raised || 0).toLocaleString("ru-RU")} до {ROLLS_MAX_TRANSFER.toLocaleString("ru-RU")}. Валюта — роллы.</FieldDescription>
-      </Field>
-      <ControlBar className="flex flex-wrap gap-2"><Button type="submit" disabled={busy || !validTarget}>{busy && <Spinner />}{fund ? "Сохранить" : "Открыть сбор"}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(false)}>Отмена</Button></ControlBar>
-    </form>}
-    {notice && <div className="flex flex-col gap-2"><p role="alert">{notice}</p><Button type="button" variant="outline" className="self-start rounded-full" disabled={busy} onClick={() => mutate(refresh)}>Обновить сбор</Button></div>}
-    {success && <p role="status">{success}</p>}
-    <AlertDialog open={confirming} onOpenChange={open => { if (!busy) setConfirming(open); }}>
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>{pending ? "Проверить взнос?" : `Внести ${formatRolls(confirmationAmount)}?`}</AlertDialogTitle><AlertDialogDescription>Сбор «{group.title}». Роллы сразу поступят владельцу группы. {pending ? "Проверим результат запроса без повторного списания." : "Отменить перевод после подтверждения нельзя."}</AlertDialogDescription></AlertDialogHeader>
-        {error && <p role="alert">{error}</p>}
-        <AlertDialogFooter><AlertDialogCancel disabled={busy}>Назад</AlertDialogCancel><AlertDialogAction disabled={busy || (!pending && !validAmount)} onClick={event => { event.preventDefault(); contribute(); }}>{busy && <Spinner />}{pending ? "Проверить взнос" : "Подтвердить взнос"}</AlertDialogAction></AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  </div>;
+        })}>{fund.accepting ? "Приостановить" : "Возобновить"}</Button>}
+      </>;
+    } else if (canContribute) {
+      actions = <Button type="submit" form={contributionForm} disabled={busy || (!validAmount && !pending)}><Coins aria-hidden="true" />{pending ? "Проверить взнос" : "Внести роллы"}</Button>;
+    } else if (canSignIn) {
+      actions = <Link data-slot="button" className={buttonVariants()} to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`}>Войти</Link>;
+    } else if (!fund && data?.isOwner) {
+      actions = <Button type="button" disabled={busy} onClick={() => { setTarget(""); setEditing(true); }}>Организовать сбор</Button>;
+    }
+
+    return <>
+      <div className="app-drawer-body wish-group-fundraiser flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--layout-item-gap),env(safe-area-inset-bottom))]">
+        {!data && !loadError && <p role="status">Загрузка сбора…</p>}
+        {data && !fund && !editing && <p>{data.isOwner ? "Откройте общий сбор на товары из этой группы." : "Для этой группы пока нет сбора."}</p>}
+        {fund && <>
+          <p className="text-xs text-muted-foreground">{fund.status === "completed" ? "Цель достигнута" : fund.status === "closed" ? "Приостановлен" : "Сбор открыт"}</p>
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+            <strong className="text-2xl font-semibold">{formatRolls(fund.raised)}</strong><span className="text-muted-foreground">из {formatRolls(fund.target)}</span>
+          </div>
+          <div role="progressbar" aria-label="Прогресс сбора" aria-valuemin={0} aria-valuemax={fund.target} aria-valuenow={fund.raised} aria-valuetext={`Собрано ${formatRolls(fund.raised)} из ${formatRolls(fund.target)}`} className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, fund.raised / fund.target * 100)}%` }} />
+          </div>
+          <p className="text-xs text-muted-foreground">Участников: {fund.contributors}. {remaining > 0 ? `Осталось ${formatRolls(remaining)}.` : "Спасибо за поддержку!"}</p>
+          <p className="text-xs text-muted-foreground">Взносы сразу поступают в кошелёк владельца группы. Это внутренняя валюта Rollapp.</p>
+          {!editing && cardBody}
+          {canContribute && <form id={contributionForm} className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); if (validAmount || pending) { setConfirmationAmount(pending?.amount || numericAmount); setConfirming(true); } }}>
+            <Field><FieldLabel htmlFor={`${id}-amount`}>Сумма взноса, роллы</FieldLabel>
+              <Input id={`${id}-amount`} inputMode="numeric" value={pending ? String(pending.amount) : amount} disabled={busy || Boolean(pending)} onChange={event => setAmount(event.target.value)} aria-describedby={`${id}-balance`} />
+              <FieldDescription id={`${id}-balance`}>На балансе {formatRolls(data.balance)}. {amount && !validAmount && !pending ? "Укажите целую сумму в пределах баланса и остатка до цели." : "Комиссия — 0 роллов."}</FieldDescription>
+            </Field>
+          </form>}
+          {canSignIn && <p>Войдите, чтобы внести роллы.</p>}
+        </>}
+        {data && editing && <form id={targetForm} className="flex min-w-0 flex-col gap-3" onSubmit={save}>
+          <Field><FieldLabel htmlFor={`${id}-target`}>Цель сбора, роллы</FieldLabel>
+            <Input id={`${id}-target`} inputMode="numeric" autoFocus value={target} disabled={busy} onChange={event => setTarget(event.target.value)} aria-describedby={`${id}-target-hint`} />
+            <FieldDescription id={`${id}-target-hint`}>Целое число от {Math.max(1, fund?.raised || 0).toLocaleString("ru-RU")} до {ROLLS_MAX_TRANSFER.toLocaleString("ru-RU")}. Валюта — роллы.</FieldDescription>
+          </Field>
+        </form>}
+        {notice && <p role="alert">{notice}</p>}
+        {success && <p role="status">{success}</p>}
+      </div>
+      {(actions || notice) && <DrawerFooter>
+        {actions}
+        {notice && <Button type="button" variant="outline" disabled={busy} onClick={() => mutate(refresh)}>{data ? "Обновить сбор" : "Повторить"}</Button>}
+      </DrawerFooter>}
+      <AlertDialog open={Boolean(fund && confirming)} onOpenChange={open => { if (!busy) setConfirming(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>{pending ? "Проверить взнос?" : `Внести ${formatRolls(confirmationAmount)}?`}</AlertDialogTitle><AlertDialogDescription>Сбор «{group.title}». Роллы сразу поступят владельцу группы. {pending ? "Проверим результат запроса без повторного списания." : "Отменить перевод после подтверждения нельзя."}</AlertDialogDescription></AlertDialogHeader>
+          {error && <p role="alert">{error}</p>}
+          <AlertDialogFooter><AlertDialogCancel disabled={busy}>Назад</AlertDialogCancel><AlertDialogAction disabled={busy || (!pending && !validAmount)} onClick={event => { event.preventDefault(); contribute(); }}>{busy && <Spinner />}{pending ? "Проверить взнос" : "Подтвердить взнос"}</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>;
+  };
+
+  if (data?.isOwner && fund?.status === "completed") {
+    return <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId}>{renderDrawer}</FundraiserVirtualCard>;
+  }
+  return renderDrawer();
 }
