@@ -29,6 +29,7 @@ const dashboard = { wishes: fixtureWishes(), lists: [{ id: 'general', title: 'М
 api.get = async path => {
   if (path === '/dashboard') return structuredClone(dashboard);
   if (path === '/gift-suggestions') return { items: [] };
+  if (/^\/wish-groups\/[^/]+\/fundraiser$/.test(path)) return { fundraiser: null, isOwner: true, signedIn: true, balance: 0 };
   throw new Error(`Unexpected read: ${path}`);
 };
 api.post = async (path, payload) => {

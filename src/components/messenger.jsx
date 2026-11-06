@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, MessageCircle, Search, Send, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, ArrowUpRight, Bot, MessageCircle, Search, Send, X } from 'lucide-react';
+import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_MESSAGE_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { ControlBar } from './control-bar';
-import { Button } from './ui/button';
+import { Button, buttonVariants } from './ui/button';
+import { Checkbox } from './ui/checkbox';
+import { cn } from '@/lib/utils';
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Input } from './ui/input';
@@ -10,6 +15,12 @@ import { Textarea } from './ui/textarea';
 import './messenger.css';
 
 const base = '/messenger';
+const assistantId = Symbol('messenger-assistant');
+const assistantStarters = [
+  ['Открыть календарь', 'Открой календарь Rollapp.'],
+  ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
+  ['Составить план', 'Помоги составить план на неделю.'],
+];
 const time = value => new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 function MessengerAvatar({ user }) {
@@ -21,15 +32,21 @@ function MessengerAvatar({ user }) {
 function ErrorNotice({ error, retry }) {
   return <div className="messenger-error" role="alert"><p>{error}</p>{retry && <Button variant="outline" onClick={retry}>Повторить</Button>}</div>;
 }
-export function MessengerDrawer({ user, open, onOpenChange, initialConversationId }) {
+export function MessengerDrawer({ user, assistant, open, onOpenChange, initialConversationId }) {
   const isMobile = useIsMobile();
+  const [presentation, setPresentation] = useState({ open, revision: 0 });
+  // The closing popup can still be mounted while the next form opens or closes.
+  // A new presentation starts from the directory even if that animation was interrupted.
+  if (open !== presentation.open) {
+    setPresentation({ open, revision: presentation.revision + Number(open) });
+  }
   return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}>
     <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className="messenger-fab" />} aria-label="Открыть сообщения" title="Сообщения">
       <MessageCircle aria-hidden="true" />
     </DrawerTrigger>
     <DrawerContent className="messenger-drawer app-drawer--form rollapp-body">
       <DrawerTitle className="sr-only">Сообщения</DrawerTitle>
-      <Messenger key={user.id} user={user} initialConversationId={initialConversationId} />
+      <Messenger key={presentation.revision} user={user} initialConversationId={initialConversationId} assistant={assistant} />
     </DrawerContent>
   </Drawer>;
 }
@@ -45,7 +62,7 @@ function ParticipantEntry({ peer, disabled, onSelect }) {
   </Button>;
 }
 
-function Messenger({ user, transport = api, initialConversationId = null }) {
+function Messenger({ user, assistant, transport = api, initialConversationId = null }) {
   const [conversationId, setSelectedId] = useState(initialConversationId);
   const [conversations, setConversations] = useState([]);
   const [subscriptions, setSubscriptions] = useState(null);
@@ -62,6 +79,14 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
   const [reload, setReload] = useState(0);
   const drafts = useRef(new Map());
   const mounted = useRef(true);
+  const assistantEntry = useRef(null);
+  const restoreAssistantFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (conversationId === null && restoreAssistantFocus.current) {
+      restoreAssistantFocus.current = false;
+      assistantEntry.current?.focus({ preventScroll: true });
+    }
+  }, [conversationId]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const refresh = useCallback(() => setReload(value => value + 1), []);
   useEffect(() => {
@@ -121,7 +146,9 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
   const peersWithConversations = new Set(conversations.map(item => item.peer.id));
   const contacts = subscriptions?.filter(peer => !peersWithConversations.has(peer.id)) ?? [];
   return <div className="messenger-layout">
-    {conversationId
+    {conversationId === assistantId
+      ? <AssistantConversation chat={assistant} onBack={() => { restoreAssistantFocus.current = true; setSelectedId(null); }} />
+      : conversationId
       ? <Conversation key={`${user.id}:${conversationId}`} id={conversationId} user={user} peer={conversations.find(item => item.id === conversationId)?.peer} transport={transport} drafts={drafts.current} onChanged={refresh} onBack={() => setSelectedId(null)} />
       : <section className="messenger-directory" aria-label="Диалоги и подписки">
         <ControlBar as="header" className="messenger-heading">
@@ -130,8 +157,12 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
         </ControlBar>
         <div className="messenger-search"><Search aria-hidden="true" /><Input type="search" aria-label="Найти участника" placeholder="Имя или username" value={query} maxLength={100} onChange={event => { setQuery(event.target.value); setOpenError(''); }} /></div>
         <div className="messenger-directory-scroll">
+          {!query.trim() && <Button ref={assistantEntry} variant="ghost" className="messenger-person" disabled={opening} onClick={() => { setQuery(''); setOpenError(''); setSelectedId(assistantId); }}>
+            <AssistantAvatar />
+            <span className="messenger-person-copy"><strong>{ASSISTANT_NAME}</strong><span>{assistant.messages.at(-1)?.content || 'Задайте вопрос или обсудите идею'}</span></span>
+          </Button>}
           {openError && <ErrorNotice error={openError} />}
-          {query ? <>
+          {query.trim() ? <>
             <p className="messenger-note">{query.trim().length < 2 ? 'Введите хотя бы два символа' : searching ? 'Ищем участников…' : 'Участники сервиса'}</p>
             {searchError && <ErrorNotice error={searchError} retry={refresh} />}
             {!searching && query.trim().length >= 2 && !searchError && !users.length && <p className="messenger-note">Участники не найдены</p>}
@@ -154,6 +185,124 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
         </div>
       </section>}
   </div>;
+}
+
+export function useMessengerAssistant() {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [includePlanning, setIncludePlanning] = useState(false);
+  const pending = useRef(null);
+  useEffect(() => () => pending.current?.abort(), []);
+
+  async function submit(event) {
+    event.preventDefault();
+    const content = draft.trim();
+    if (!content || pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setSending(true);
+    setError('');
+    try {
+      const context = messages.filter(message => includePlanning || !message.includePlanning)
+        .slice(-(ASSISTANT_CONTEXT_LIMIT - 1)).map(({ role, content }) => ({ role, content }));
+      const { reply, actions } = await api.post(`${base}/assistant/reply`, {
+        messages: [...context, { role: 'user', content }],
+        includePlanning,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (typeof reply !== 'string' || !reply.trim()) throw new Error('Ассистент не вернул ответ.');
+      setMessages(previous => [...previous,
+        { role: 'user', content, includePlanning },
+        { role: 'assistant', content: reply, includePlanning, actions },
+      ]);
+      setDraft('');
+      setIncludePlanning(false);
+    } catch (err) {
+      if (!controller.signal.aborted) setError(err.message);
+    } finally {
+      pending.current = null;
+      if (!controller.signal.aborted) setSending(false);
+    }
+  }
+  return { messages, draft, setDraft, sending, error, submit, includePlanning, setIncludePlanning };
+}
+
+function AssistantAvatar() {
+  return <span className="messenger-avatar" aria-hidden="true"><Bot className="size-5" /></span>;
+}
+
+function AssistantActions({ actions }) {
+  if (!Array.isArray(actions)) return null;
+  const targets = {
+    draft_task: ['todo', 'Проверить задачу'],
+    draft_event: ['calendar', 'Проверить событие'],
+    draft_note: ['notes', 'Проверить заметку'],
+  };
+  return actions.map((candidate, index) => {
+    const action = parseAssistantAction(candidate?.type, candidate?.value);
+    if (!action) return null;
+    const { type, value } = action;
+    const [section, label] = type === 'open_section'
+      ? [value.section, `Открыть: ${ASSISTANT_SECTIONS[value.section].title}`]
+      : targets[type];
+    const draftDate = type === 'draft_task' ? value.dueOn || localDateKey(new Date()) : value.dueOn;
+    const path = ASSISTANT_SECTIONS[section].path + (draftDate ? `&date=${draftDate}` : '');
+    return <div key={index} className="messenger-assistant-action">
+      {value.title && <p><strong>{value.title}</strong></p>}
+      {draftDate && <p>{date(`${draftDate}T12:00:00`)}{value.startTime && ` · ${value.startTime} · ${value.durationMinutes} мин`}</p>}
+      <Link to={path} state={type === 'open_section' ? undefined : { assistantDraft: draftDate ? { type, value: { ...value, dueOn: draftDate } } : action }}
+        className={cn(buttonVariants({ variant: 'outline' }), 'h-auto min-h-12 rounded-full whitespace-normal text-start')}>
+        {label}<ArrowUpRight aria-hidden="true" />
+      </Link>
+    </div>;
+  });
+}
+
+function AssistantConversation({ chat, onBack }) {
+  const back = useRef(null);
+  const history = useRef(null);
+  const input = useRef(null);
+  const atBottom = useRef(true);
+  useLayoutEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
+  useLayoutEffect(() => {
+    if (atBottom.current && (chat.messages.length || chat.sending || chat.error)) {
+      history.current.scrollTop = history.current.scrollHeight;
+    }
+  }, [chat.messages, chat.sending, chat.error]);
+  return <section className="messenger-conversation messenger-assistant-conversation" aria-label={ASSISTANT_NAME}>
+    <ControlBar as="header" className="messenger-heading">
+      <Button ref={back} data-control-icon variant="outline" size="icon" onClick={onBack} aria-label="Все диалоги"><ArrowLeft aria-hidden="true" /></Button>
+      <AssistantAvatar />
+      <span className="messenger-person-copy"><strong>{ASSISTANT_NAME}</strong></span>
+      <CloseMessages />
+    </ControlBar>
+    <div className="messenger-history" ref={history} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={event => {
+      const node = event.currentTarget;
+      atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+    }}>
+      <p className="messenger-note">Помогу найти раздел, составить план или подготовить задачу, событие и заметку. Сообщения обрабатывает базовая модель Rollapp в Yandex Cloud или ваша подключённая модель OpenRouter.</p>
+      {!chat.messages.length && !chat.draft && <div role="group" aria-label="Примеры запросов" className="flex shrink-0 flex-wrap justify-center gap-2">
+        {assistantStarters.map(([label, prompt]) => <Button key={label} type="button" variant="outline" className="min-h-12 rounded-full px-6" onClick={() => {
+          chat.setDraft(prompt);
+          input.current?.focus();
+        }}>{label}</Button>)}
+      </div>}
+      {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
+        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} /></article>)}
+      {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
+      {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
+    </div>
+    <MessageComposer inputRef={input} draft={chat.draft} onDraftChange={chat.setDraft} sending={chat.sending} onSubmit={chat.submit}>
+      <label className="messenger-planning-option">
+        <Checkbox aria-labelledby="messenger-planning-label" aria-describedby="messenger-planning-description"
+          checked={chat.includePlanning} onCheckedChange={chat.setIncludePlanning} disabled={chat.sending} />
+        <span><span id="messenger-planning-label">Учесть моё планирование</span><small id="messenger-planning-description">Передать выбранной модели задачи и события на 7 дней</small></span>
+      </label>
+    </MessageComposer>
+  </section>;
 }
 
 function Conversation({ id, user, peer: initialPeer, transport, drafts, onChanged, onBack }) {
@@ -259,16 +408,20 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
         <article className="messenger-message" data-own={item.senderId === user.id || undefined} aria-label={item.senderId === user.id ? 'Ваше сообщение' : `Сообщение от ${peer?.name || 'собеседника'}`}><p>{item.body}</p><time dateTime={item.createdAt}>{time(item.createdAt)}</time></article>
       </div>)}
     </div>
-    <form className="messenger-composer" onSubmit={submit} aria-label="Новое сообщение">
+    <MessageComposer draft={draft} sending={sending} sendError={sendError} disabled={loading || !peer} onSubmit={submit}
+      onDraftChange={value => { setDraft(value); drafts.set(id, { body: value }); }} />
+  </section>;
+}
+
+function MessageComposer({ inputRef, draft, sending, sendError, disabled, onSubmit, onDraftChange, children }) {
+  return <form className="messenger-composer" onSubmit={onSubmit} aria-label="Новое сообщение">
+      {children}
       {sendError && <div className="messenger-send-error" role="alert">{sendError} Текст сохранён — попробуйте отправить снова.</div>}
       <label htmlFor="messenger-text" className="sr-only">Сообщение</label>
-      <Textarea id="messenger-text" placeholder="Напишите сообщение…" rows={1} maxLength={4000} value={draft} readOnly={sending} aria-busy={sending} onChange={event => {
-        const value = event.target.value; setDraft(value); drafts.set(id, { body: value });
-      }} onKeyDown={event => {
+      <Textarea ref={inputRef} id="messenger-text" placeholder="Напишите сообщение…" rows={1} maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending} onChange={event => onDraftChange(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.form.requestSubmit(); }
       }} />
-      <ControlBar><Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || loading || !peer || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>
-      <p className="messenger-composer-hint">{draft.length}/4000 · Ctrl/⌘ + Enter — отправить</p>
-    </form>
-  </section>;
+      <ControlBar><Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || disabled || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>
+      <p className="messenger-composer-hint">{draft.length}/{ASSISTANT_MESSAGE_LIMIT} · Ctrl/⌘ + Enter — отправить</p>
+  </form>;
 }

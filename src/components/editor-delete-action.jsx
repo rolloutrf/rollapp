@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
-export function EditorDeleteAction({ compact = false, description, disabled, label, onBusyChange, onDelete, onDeleted, title }) {
+export function EditorDeleteAction({ description, disabled, label, onBusyChange, onDelete, onDeleted, title }) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -36,33 +36,29 @@ export function EditorDeleteAction({ compact = false, description, disabled, lab
     }
   };
 
-  const Wrapper = compact ? Fragment : "div";
   return (
-    <Wrapper {...(compact ? {} : { className: "border-t pt-4" })}>
-      <AlertDialog open={open} onOpenChange={changeOpen}>
-        <AlertDialogTrigger {...(compact ? { "data-slot": "button" } : {})} render={<Button className={compact ? "shrink-0 rounded-full" : "w-full"} data-control-icon={compact || undefined} size={compact ? "icon" : "default"} variant="destructive" type="button" aria-label={label} title={compact ? label : undefined} disabled={disabled || deleting} />}>
-          <Trash2 data-icon={compact ? undefined : "inline-start"} aria-hidden="true" />
-          {!compact && label}
-        </AlertDialogTrigger>
-        <AlertDialogContent className="rollapp-body">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{title}</AlertDialogTitle>
-            <AlertDialogDescription>{description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          {error && <Alert variant="destructive">
-            <AlertTriangle aria-hidden="true" />
-            <AlertTitle>Не удалось удалить</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
-            <AlertDialogAction type="button" variant="destructive" disabled={disabled || deleting} onClick={remove}>
-              {deleting ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
-              {deleting ? "Удаляем" : label}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Wrapper>
+    <AlertDialog open={open} onOpenChange={changeOpen}>
+      <AlertDialogTrigger data-slot="button" render={<Button data-control-icon size="icon" variant="destructive" type="button" aria-label={label} title={label} disabled={disabled || deleting} />}>
+        <Trash2 aria-hidden="true" />
+      </AlertDialogTrigger>
+      <AlertDialogContent className="rollapp-body">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && <Alert variant="destructive">
+          <AlertTriangle aria-hidden="true" />
+          <AlertTitle>Не удалось удалить</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleting}>Отмена</AlertDialogCancel>
+          <AlertDialogAction type="button" variant="destructive" disabled={disabled || deleting} onClick={remove}>
+            {deleting ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}
+            {deleting ? "Удаляем" : label}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

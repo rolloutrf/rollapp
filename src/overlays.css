@@ -86,11 +86,13 @@
      contact/wish compositions. The primitive remains at its upstream defaults. */
   .app-form-actions {
     display: flex;
+    flex-shrink: 0;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-start;
     gap: var(--layout-inline-gap);
+    margin-block-start: auto;
     padding: var(--layout-item-gap);
     padding-bottom: max(var(--layout-item-gap), env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
@@ -103,7 +105,7 @@
     margin: 0;
     padding-inline: var(--layout-item-gap);
   }
-  .app-form-actions > [type="submit"] {
+  .app-form-actions > :is([type="submit"], [class~="bg-primary"]):not([data-control-icon]) {
     flex: 1 1 auto;
   }
   .app-form-actions > [class~="group/button"]:only-child { flex-grow: 1; }
@@ -115,7 +117,9 @@
   [data-slot="drawer-popup"].contact-detail-drawer .contact-detail__edit-body {
     padding-inline: var(--layout-item-gap);
   }
-  [data-overlay-keyboard] [data-slot="drawer-footer"] { padding-bottom: 1rem; }
+  [data-overlay-keyboard] :is([data-slot="drawer-footer"], .app-form-actions) {
+    padding-bottom: var(--layout-item-gap);
+  }
   /* At short keyboard/landscape heights, reserve room for the active field.
      Descriptions remain accessible and return as soon as space is available. */
   [data-overlay-compact] [data-slot="drawer-header"] [data-slot="drawer-description"] {
@@ -165,13 +169,6 @@
     margin: 0;
     padding: 0;
   }
-  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer:not([data-native-form-actions]) {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  }
-  [data-overlay-keyboard] .wish-editor-drawer .wish-editor-screen--drawer .wish-editor-screen__footer:not([data-native-form-actions]) {
-    /* The home indicator is below the keyboard, outside this sheet. */
-    padding-bottom: 1rem;
-  }
   .wish-editor-drawer .wish-editor-screen__content {
     /* Keep keyboard focus scrolling independent of image/metadata reflow. */
     overflow-anchor: none;
@@ -181,10 +178,6 @@
       aspect-ratio: auto;
       min-height: 8rem;
     }
-  }
-  .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__submit {
-    width: 100%;
-    min-width: 0;
   }
   .wish-editor-drawer .wish-editor-screen--drawer .wish-editor__media { position: static; }
 }
@@ -306,8 +299,7 @@
     padding-inline: var(--layout-inline-gap);
     white-space: nowrap;
   }
-  .mobile-form-page__actions > [type="submit"] { flex: 1; }
-  .mobile-form-page__actions > button:not([type="submit"]) { background-color: var(--card); }
+  .mobile-form-page__actions > :is([type="submit"], [class~="bg-primary"]):not([data-control-icon]) { flex: 1; }
   .mobile-form-page__back {
     flex-shrink: 0;
     background-color: var(--card);

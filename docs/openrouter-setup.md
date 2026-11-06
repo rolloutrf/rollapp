@@ -1,6 +1,14 @@
 # OpenRouter settings
 
-## Shared marketplace search
+## Default model
+
+Since the Yandex AI integration, personal OpenRouter credentials take priority.
+Without a personal credential, `YANDEX_AI_MODEL` selects the managed Yandex
+model for both the assistant and marketplace search. The shared OpenRouter key
+remains a legacy option when Yandex is disabled, not an automatic retry on
+Yandex failures. See [Yandex AI setup](yandex-ai-setup.md).
+
+## Historical shared marketplace search
 
 Production marketplace AI search uses the `rollapp-openrouter` Lockbox secret
 (`e6qkgbgcvu4727knndhq`, entry `api_key`) in folder `b1gebpfrhvkd43r38q98`.

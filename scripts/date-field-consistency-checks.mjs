@@ -19,6 +19,9 @@ export async function runDateFieldConsistencyChecks(browser, origin, widths) {
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('**/api/**',route=>{if(route.request().method()!=='GET')errors.push('Unexpected API mutation');return route.abort();});
     await page.goto(`${origin}/__date-page?form=${form}`);
+    if (form === 'birthday') {
+      await page.getByRole('button', { name: 'Персональная информация', exact: true }).click();
+    }
     const trigger=label=>page.getByRole('button',{name:new RegExp(`^${label}: `)});
     await trigger(labels[0]).waitFor();
     assert.equal(await page.locator('input[type="date"]').count(),0,`${form}: native date input remains`);

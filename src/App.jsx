@@ -1,5 +1,5 @@
 import { ProductTitleInput } from "@/components/product-title-input";
-import { MessengerDrawer } from "@/components/messenger";
+import { MessengerDrawer, useMessengerAssistant } from "@/components/messenger";
 import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -15,10 +15,9 @@ import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown,
+  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, Upload, UserPlus,
@@ -47,7 +46,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
@@ -76,8 +74,8 @@ import {
 import { PersonalDevelopmentPlan } from "@/components/personal-development-plan";
 import { EditableLifeStrategy } from "@/components/editable-life-strategy";
 import { FullscreenDialog } from "@/components/fullscreen-dialog";
-import { GroupDialog, GroupDialogHeader } from "@/components/group-dialog";
-import { WishGroupFundraiser } from "@/components/wish-group-fundraiser";
+import { GroupDialog } from "@/components/group-dialog";
+import { WishGroupHeader } from "@/components/wish-group-fundraiser";
 import { LabResults } from "@/components/lab-results";
 import { Medications } from "@/components/medications";
 import { Mission } from "@/components/mission";
@@ -500,6 +498,7 @@ function ProfileEditorProvider({ children }) {
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
+        onAvatarSaved={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
         onSaved={async (savedUser) => {
           const target = renamedProfileLocation(location, user.username, savedUser.username);
           setSession({ user: savedUser, loading: false, error: null });
@@ -672,7 +671,7 @@ function SphereSwitcher({ docked = false }) {
                 >
                   <Avatar user={share.owner} size="sm" />
                   <span className="sphere-switcher__shared-copy">
-                    <span>{SPHERE_SECTION_LABELS[share.section] || share.section}</span>
+                    <span>{share.sphere === "wishlist" && share.section !== "wishlist" ? `Вишлист · ${businessSectionLabel(share.section)}` : businessSectionLabel(share.section)}</span>
                     <small>{share.owner.name}</small>
                   </span>
                 </Link>
@@ -691,8 +690,13 @@ function AppBrand({ showSwitcher = true }) {
 
 function PlanningFab() {
   const { user } = useSession();
+  return user ? <PlanningControls key={user.id} user={user} /> : null;
+}
+
+function PlanningControls({ user }) {
   const location = useLocation();
   const isMobile = useIsMobile();
+  const assistant = useMessengerAssistant();
   const returnPath = useRef(APP_HOME);
   useEffect(() => {
     if (location.pathname !== PLANNING_SERVICE.path) {
@@ -712,14 +716,23 @@ function PlanningFab() {
     if (value) setOpen(false);
     else setInitialConversationId(null);
   };
-  if (!user || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
+  if (location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
-  const requestedTab = new URLSearchParams(location.search).get("tab");
+  const search = new URLSearchParams(location.search);
+  const requestedTab = search.get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
+  const backToNotes = inPlanning && currentTab === "notes" && Boolean(search.get("note"));
+  const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
-      {inPlanning && <Link data-control-icon to={returnPath.current} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")} aria-label="Назад в приложение" title="Назад в приложение"><ArrowLeft aria-hidden="true" /></Link>}
+      <MessengerDrawer user={user} assistant={assistant} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
+      {inPlanning && <Link
+        data-control-icon
+        to={backToNotes ? `${PLANNING_SERVICE.path}?tab=notes` : returnPath.current}
+        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")}
+        aria-label={backLabel}
+        title={backLabel}
+      ><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
     <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessengerDrawerOpen(false); }}>
       <PopoverTrigger
@@ -1755,13 +1768,14 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const planningRoute = location.pathname === "/app/planning";
   const messengerRoute = location.pathname.startsWith("/app/messenger");
   const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
+  const planningLayout = notesRoute ? "app-layout--planning-notes" : planningRoute ? "app-layout--planning" : "";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS)
     || (wishesRoute && user?.accountType === "personal" ? { sphere: "wishlist", section: wishlistSpace(location.search) } : null);
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
-      <div className={`app-layout app-layout--dark ${planningRoute && !notesRoute ? "app-layout--planning" : ""} ${friendsRoute ? "app-layout--friends" : ""}`}>
+      <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
-          {!collectionChrome && (!planningRoute || notesRoute) && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
+          {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
@@ -2273,9 +2287,9 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
           {saveError && <p className="contact-detail__edit-error" role="alert">{saveError}</p>}
         </div>
       </ScrollArea>
-      <MobileFormFooter as={ControlBar} className="contact-detail__edit-actions">
+      <MobileFormFooter className="contact-detail__edit-actions">
         <ShadcnButton type="submit" disabled={busy}>{saving ? <><Spinner />Сохраняем</> : <><Check />{creating ? "Добавить контакт" : "Сохранить"}</>}</ShadcnButton>
-        {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" className="contact-detail__delete" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
+        {!creating && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить контакт" title="Удалить контакт" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
       </MobileFormFooter>
       {!creating && <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!deleting) setDeleteOpen(open); }}>
         <AlertDialogContent>
@@ -2662,7 +2676,7 @@ function SphereAccessRequestBanner() {
   const access = useSphereSharing();
   const toast = useToast();
   const [savingId, setSavingId] = useState("");
-  if (!access.active || !access.isOwner || access.requests.length === 0) return null;
+  if (!access.active || access.loading || !access.isOwner || access.requests.length === 0) return null;
 
   const respond = async (request, decision) => {
     if (savingId) return;
@@ -2683,7 +2697,7 @@ function SphereAccessRequestBanner() {
   return (
     <section className="sphere-access-requests rollapp-body" aria-label="Запросы доступа к пространству">
       {access.requests.map((request) => (
-        <Card key={request.id} className="sphere-access-request">
+        <Card key={request.id} className="sphere-access-request grid">
           <div className="sphere-access-request__person">
             <Avatar user={request.requester} size="sm" className="!size-11" />
             <span>
@@ -2692,7 +2706,9 @@ function SphereAccessRequestBanner() {
             </span>
           </div>
           <div className="sphere-access-request__copy">
-            <strong>Запрашивает доступ к «{SPHERE_SECTION_LABELS[access.section] || access.section}»</strong>
+            <strong>Запрашивает доступ к «{request.sphere === "wishlist" && request.section !== "wishlist"
+              ? `Вишлист · ${businessSectionLabel(request.section)}`
+              : businessSectionLabel(request.section)}»</strong>
             {request.message && <p>{request.message}</p>}
           </div>
           <div className="sphere-access-request__actions">
@@ -2710,13 +2726,23 @@ function SphereAccessRequestBanner() {
 
 const BUSINESS_REQUEST_STATUS = {
   pending: { label: "Ожидает ответа", variant: "secondary" },
-  approved: { label: "Доступ открыт", variant: "default" },
+  approved: { label: "Доступ закрыт", variant: "outline" },
   declined: { label: "Отклонён", variant: "destructive" },
   cancelled: { label: "Отменён", variant: "outline" },
 };
 
+const businessScopeKey = (ownerId, sphere, section) => JSON.stringify([ownerId, sphere, section]);
+const businessSphereLabel = (sphere) => SERVICE_SWITCHER_ITEMS.find((item) => item.id === sphere)?.label || sphere;
+const businessSectionLabel = (section) => SPHERE_SECTION_LABELS[section] || section;
+const businessSharePath = ({ owner, sphere, section }) => sphereSectionPath({ ownerUsername: owner.username, sphere, section });
+
 function BusinessAccessPage() {
   const { user } = useSession();
+  if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
+  return <BusinessAccessContent key={user.id} user={user} />;
+}
+
+function BusinessAccessContent({ user }) {
   const isMobile = useIsMobile();
   const toast = useToast();
   const category = businessCategoryFor(user);
@@ -2725,10 +2751,10 @@ function BusinessAccessPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
-  const [grantedSections, setGrantedSections] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(true);
-  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [peopleError, setPeopleError] = useState("");
+  const [accessData, setAccessData] = useState({ shares: [], requests: [], loading: true, error: "" });
+  const accessLoad = useRef(0);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [sphere, setSphere] = useState(initialSphere);
   const [section, setSection] = useState(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
@@ -2736,18 +2762,15 @@ function BusinessAccessPage() {
   const [saving, setSaving] = useState(false);
   const [cancellingId, setCancellingId] = useState("");
 
-  const loadRequests = useCallback(async () => {
-    if (user?.accountType !== "business") return;
-    setLoadingRequests(true);
+  const loadAccess = useCallback(async () => {
+    const load = ++accessLoad.current;
     try {
-      const result = await api.get("/business-access/requests");
-      setRequests(result.requests || []);
+      const { shares = [], requests = [] } = await api.get("/business-access/requests");
+      if (load === accessLoad.current) setAccessData({ shares, requests, loading: false, error: "" });
     } catch (error) {
-      toast(error.message, "error");
-    } finally {
-      setLoadingRequests(false);
+      if (load === accessLoad.current) setAccessData({ shares: [], requests: [], loading: false, error: error.message });
     }
-  }, [toast, user?.accountType]);
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 180);
@@ -2755,43 +2778,63 @@ function BusinessAccessPage() {
   }, [search]);
 
   useEffect(() => {
-    if (user?.accountType !== "business") return undefined;
     let current = true;
     const query = new URLSearchParams();
     if (debouncedSearch) query.set("search", debouncedSearch);
     setLoadingPeople(true);
-    Promise.all([
-      api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`),
-      api.get("/sphere-shares/incoming"),
-    ]).then(([result, { shares }]) => {
-      if (!current) return;
-      setPeople(result.people || []);
-      setGrantedSections(shares || []);
+    setPeopleError("");
+    api.get(`/business-access/users${query.size ? `?${query.toString()}` : ""}`).then((result) => {
+      if (current) setPeople(result.people || []);
     }).catch((error) => {
-      if (current) toast(error.message, "error");
+      if (current) setPeopleError(error.message);
     }).finally(() => {
       if (current) setLoadingPeople(false);
     });
     return () => { current = false; };
-  }, [debouncedSearch, toast, user?.accountType, user?.id]);
+  }, [debouncedSearch]);
 
-  useEffect(() => { void loadRequests(); }, [loadRequests]);
+  useEffect(() => {
+    void loadAccess();
+    window.addEventListener("focus", loadAccess);
+    return () => {
+      ++accessLoad.current;
+      window.removeEventListener("focus", loadAccess);
+    };
+  }, [loadAccess]);
 
-  if (user?.accountType !== "business") return <Navigate to={APP_HOME} replace />;
+  const { requests, loading, error } = accessData;
+  const fixedSellerSpace = category?.id === "seller" ? user.sellerSpace : null;
+  const contactShares = accessData.shares.map((share) => fixedSellerSpace && share.sphere === "wishlist" && share.section === "wishlist"
+    ? { ...share, section: fixedSellerSpace }
+    : share);
+  const shares = [...new Map(contactShares.map((share) => [businessScopeKey(share.owner.id, share.sphere, share.section), share])).values()];
+  const sharesByScope = new Map(shares.map((share) => [businessScopeKey(share.owner.id, share.sphere, share.section), share]));
+  const activeShareFor = (ownerId, scopeSphere, scopeSection) => sharesByScope.get(businessScopeKey(ownerId, scopeSphere, scopeSection))
+    || (scopeSphere === "wishlist" && sharesByScope.get(businessScopeKey(ownerId, "wishlist", "wishlist")));
+  const outstanding = requests.filter((request) => !activeShareFor(request.owner.id, request.sphere, request.section));
+  const pendingByScope = new Map(outstanding.filter((request) => request.status === "pending")
+    .map((request) => [businessScopeKey(request.owner.id, request.sphere, request.section), request]));
+  const selectedScope = businessScopeKey(selectedPerson?.id, sphere, section);
+  const selectedShare = activeShareFor(selectedPerson?.id, sphere, section);
+  const selectedRequest = pendingByScope.get(selectedScope);
+  const accessReady = !loading && !error;
 
   const selectSphere = (nextSphere) => {
     setSphere(nextSphere);
     setSection(SPHERE_SECTIONS[nextSphere][0]);
   };
   const openRequest = (person) => {
+    const existing = shares.find((share) => share.owner.id === person.id)
+      || outstanding.find((request) => request.owner.id === person.id && request.status === "pending");
     setSelectedPerson(person);
-    setSphere(initialSphere);
-    setSection(user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
+    setSphere(existing?.sphere || initialSphere);
+    setSection(existing?.section || user.sellerSpace || SPHERE_SECTIONS[initialSphere][0]);
     setMessage("");
+    void loadAccess();
   };
   const sendRequest = async (event) => {
     event.preventDefault();
-    if (!selectedPerson || saving) return;
+    if (!selectedPerson || saving || !accessReady || selectedShare || selectedRequest) return;
     setSaving(true);
     try {
       await api.post("/business-access/requests", {
@@ -2801,10 +2844,11 @@ function BusinessAccessPage() {
         message,
       });
       setSelectedPerson(null);
-      await loadRequests();
+      await loadAccess();
       toast("Запрос отправлен владельцу пространства", "success");
     } catch (error) {
       toast(error.message, "error");
+      if (error.status === 409) await loadAccess();
     } finally {
       setSaving(false);
     }
@@ -2814,14 +2858,23 @@ function BusinessAccessPage() {
     setCancellingId(request.id);
     try {
       await api.delete(`/business-access/requests/${request.id}`);
-      await loadRequests();
+      await loadAccess();
       toast("Запрос отменён", "success");
     } catch (error) {
       toast(error.message, "error");
+      if (error.status === 404) await loadAccess();
     } finally {
       setCancellingId("");
     }
   };
+  const accessStatus = loading ? (
+    <div className="business-access-page__status" role="status"><Spinner /><span>Загружаем доступы и запросы…</span></div>
+  ) : error ? (
+    <Alert variant="destructive">
+      <AlertTitle>Не удалось загрузить доступы и запросы</AlertTitle>
+      <AlertDescription>{error}<ShadcnButton type="button" variant="outline" onClick={loadAccess}>Повторить</ShadcnButton></AlertDescription>
+    </Alert>
+  ) : null;
 
   return (
     <div className="app-page business-access-page rollapp-body">
@@ -2829,83 +2882,132 @@ function BusinessAccessPage() {
         <span className="eyebrow"><Building2 aria-hidden="true" />Бизнес-аккаунт</span>
         <h1>Доступ к пространствам клиентов</h1>
         {category && <p>{category.label} · {category.sphereLabel}</p>}
-        <p>Откройте доступный раздел или запросите доступ у его владельца.</p>
+        <p>Открытые владельцами разделы доступны только для чтения. Чтобы получить доступ к другому разделу, найдите пользователя и отправьте запрос.</p>
         {category?.id === "seller" && <PageActionButton render={<Link to={`/app/wishes/business?tab=${user.sellerSpace || "products"}`} />}>Моя страница</PageActionButton>}
       </header>
 
       {category?.id !== "seller" && <BusinessPersonalOffers user={user} />}
-      <section className="business-access-page__section" aria-labelledby="business-people-title">
-        <div className="business-access-page__section-heading">
-          <div><h2 id="business-people-title">Пользователи</h2><p>В запросе всегда указано одно конкретное пространство.</p></div>
-          <InputGroup className="business-access-page__search">
-            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
-            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </InputGroup>
-        </div>
-        {loadingPeople ? <div className="business-access-page__status"><Spinner /><span>Загружаем пользователей…</span></div> : people.length ? (
-          <div className="business-access-page__people">
-            {people.map((person) => (
-              <Card key={person.id} className="business-access-person">
-                <Avatar user={person} size="md" />
-                <span><strong>{person.name}</strong><small>@{person.username}</small></span>
-                <BusinessClientAccessActions
-                  account={user}
-                  person={person}
-                  sections={grantedSections.filter((share) => share.owner.id === person.id)}
-                  onRequest={() => openRequest(person)}
-                />
+
+      <section className="business-access-page__section" aria-labelledby="business-shares-title">
+        <div className="business-access-page__section-heading"><h2 id="business-shares-title">Открытые разделы</h2></div>
+        {accessStatus || (shares.length ? (
+          <div className="business-access-page__requests">
+            {shares.map((share) => (
+              <Card key={businessScopeKey(share.owner.id, share.sphere, share.section)} className="business-access-request grid">
+                <BusinessAccessOwner owner={share.owner} />
+                <BusinessAccessScope scope={share} />
+                <div className="business-access-request__action">
+                  <Link to={businessSharePath(share)} className={buttonVariants({ variant: "outline" })} aria-label={`Открыть «${businessSectionLabel(share.section)}» — ${share.owner.name}`}>Открыть</Link>
+                </div>
               </Card>
             ))}
           </div>
-        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
+        ) : <div className="business-access-page__status">У вас пока нет открытых разделов</div>)}
       </section>
 
       <section className="business-access-page__section" aria-labelledby="business-requests-title">
-        <div className="business-access-page__section-heading"><div><h2 id="business-requests-title">Мои запросы</h2><p>Одобренные пространства появятся в переключателе сфер.</p></div></div>
-        {loadingRequests ? <div className="business-access-page__status"><Spinner /><span>Загружаем запросы…</span></div> : requests.length ? (
+        <div className="business-access-page__section-heading"><h2 id="business-requests-title">Мои запросы</h2></div>
+        {accessReady && (outstanding.length ? (
           <div className="business-access-page__requests">
-            {requests.map((request) => {
-              const status = BUSINESS_REQUEST_STATUS[request.status] || BUSINESS_REQUEST_STATUS.pending;
+            {outstanding.map((request) => {
+              const status = BUSINESS_REQUEST_STATUS[request.status];
               return (
-                <Card key={request.id} className="business-access-request">
-                  <div className="business-access-request__owner"><Avatar user={request.owner} size="sm" className="!size-11" /><span><strong>{request.owner.name}</strong><small>@{request.owner.username}</small></span></div>
-                  <div className="business-access-request__scope"><strong>{request.sphere === "wishlist" ? "Вишлист" : SPHERE_SERVICES.find((item) => item.id === request.sphere)?.label || request.sphere}</strong><span>{SPHERE_SECTION_LABELS[request.section] || request.section}</span></div>
-                  <Badge variant={status.variant}>{status.label}</Badge>
+                <Card key={request.id} className="business-access-request grid">
+                  <BusinessAccessOwner owner={request.owner} />
+                  <BusinessAccessScope scope={request} />
                   <div className="business-access-request__action">
-                    {request.status === "approved" ? (
-                      <Link to={sphereSectionPath({ ownerUsername: request.owner.username, sphere: request.sphere, section: request.section })} className={buttonVariants({ variant: "outline" })}>Открыть</Link>
-                    ) : request.status === "pending" ? (
+                    {status && <Badge variant={status.variant}>{status.label}</Badge>}
+                    {request.status === "pending" && (
                       <ShadcnButton type="button" variant="ghost" disabled={Boolean(cancellingId)} onClick={() => cancelRequest(request)}>{cancellingId === request.id && <Spinner data-icon="inline-start" />}Отменить</ShadcnButton>
-                    ) : null}
+                    )}
                   </div>
                 </Card>
               );
             })}
           </div>
-        ) : <div className="business-access-page__status"><Send aria-hidden="true" /><span>Вы ещё не отправляли запросы</span></div>}
+        ) : <div className="business-access-page__status">Здесь появятся запросы, по которым сейчас нет доступа</div>)}
+      </section>
+
+      <section className="business-access-page__section" aria-labelledby="business-people-title">
+        <div className="business-access-page__section-heading">
+          <h2 id="business-people-title">Пользователи</h2>
+          <InputGroup className="business-access-page__search">
+            <InputGroupAddon align="inline-start"><Search aria-hidden="true" /></InputGroupAddon>
+            <InputGroupInput type="search" aria-label="Найти пользователя" placeholder="Имя или username" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </InputGroup>
+        </div>
+        {loadingPeople ? <div className="business-access-page__status" role="status"><Spinner /><span>Загружаем пользователей…</span></div> : peopleError ? (
+          <Alert variant="destructive"><AlertTitle>Не удалось загрузить пользователей</AlertTitle><AlertDescription>{peopleError}</AlertDescription></Alert>
+        ) : people.length ? (
+          <ul className="business-access-page__people" aria-label="Пользователи">
+            {people.map((person) => {
+              const sections = shares.filter((share) => share.owner.id === person.id);
+              const hasPending = outstanding.some((request) => request.owner.id === person.id && request.status === "pending");
+              return (
+                <li key={person.id} className="business-access-person">
+                  <BusinessAccessOwner owner={person} />
+                  <div className="business-access-request__action">
+                    {hasPending && <Badge variant="outline">Есть запрос</Badge>}
+                    <BusinessClientAccessActions account={user} person={person} sections={sections} onRequest={() => openRequest(person)} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <div className="business-access-page__status"><Users aria-hidden="true" /><span>Пользователи не найдены</span></div>}
       </section>
 
       <Drawer open={Boolean(selectedPerson)} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => !open && !saving && setSelectedPerson(null)}>
         <DrawerContent className="rollapp-body app-drawer--form">
           <DrawerClose render={<ShadcnButton className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving} />} aria-label="Закрыть запрос доступа"><X aria-hidden="true" /></DrawerClose>
           <DrawerHeader className="pr-16 text-left!">
-            <DrawerTitle>Запросить доступ</DrawerTitle>
-            <DrawerDescription>{selectedPerson ? `${selectedPerson.name} увидит запрос и сам решит, открыть ли пространство.` : ""}</DrawerDescription>
+            <DrawerTitle>Разделы и доступ</DrawerTitle>
+            <DrawerDescription>Выберите раздел, чтобы открыть его или запросить доступ у владельца.</DrawerDescription>
           </DrawerHeader>
           <form className="business-access-form" onSubmit={sendRequest}>
             <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <div className="business-access-form__person"><Avatar user={selectedPerson} size="md" /><span><strong>{selectedPerson?.name}</strong><small>@{selectedPerson?.username}</small></span></div>
             <FieldGroup className="gap-4">
               <BusinessRequestScopeFields account={user} sphere={sphere} section={section} onSphereChange={selectSphere} onSectionChange={setSection} disabled={saving} />
-              <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} onChange={(event) => setMessage(event.target.value)} /></Field>
+              {accessStatus || (selectedShare ? (
+                <p role="status">Доступ открыт для чтения.</p>
+              ) : selectedRequest ? (
+                <p role="status">Запрос отправлен. Ожидаем ответа владельца.</p>
+              ) : (
+                <Field><FieldLabel htmlFor="business-access-message">Сообщение <span className="muted">необязательно</span></FieldLabel><Textarea id="business-access-message" maxLength={500} rows={4} placeholder="Объясните, зачем вам нужен доступ" value={message} disabled={saving} onChange={(event) => setMessage(event.target.value)} /></Field>
+              ))}
             </FieldGroup>
             </div>
-            <DrawerFooter><ShadcnButton type="submit" className="min-h-12 text-base" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton></DrawerFooter>
+            {accessReady && !selectedRequest && <DrawerFooter>{selectedShare ? (
+              <Link
+                to={businessSharePath({ owner: selectedShare.owner, sphere, section })}
+                replace={isMobile}
+                onClick={() => setSelectedPerson(null)}
+                data-slot="button"
+                className={buttonVariants({ className: "flex-1" })}
+              >Открыть</Link>
+            ) : (
+              <ShadcnButton type="submit" disabled={saving}>{saving && <Spinner data-icon="inline-start" />}Отправить запрос</ShadcnButton>
+            )}</DrawerFooter>}
           </form>
         </DrawerContent>
       </Drawer>
     </div>
   );
+}
+
+function BusinessAccessOwner({ owner }) {
+  return <div className="business-access-request__owner">
+    <Avatar user={owner} size="sm" className="!size-11" />
+    <span><strong>{owner.name}</strong><small>@{owner.username}</small></span>
+  </div>;
+}
+
+function BusinessAccessScope({ scope }) {
+  return <div className="business-access-request__scope">
+    <strong>{businessSectionLabel(scope.section)}</strong>
+    {scope.section !== scope.sphere && <span>{businessSphereLabel(scope.sphere)}</span>}
+  </div>;
 }
 
 function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", onAccessChanged = null }) {
@@ -3044,7 +3146,7 @@ function PersistentProfileHero({ user }) {
   const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && (user?.accountType === "personal" || canAccessPrivateSpheres(user));
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
-      <div className={`wishes-page__identity ${editable ? "" : "wishes-page__identity--readonly"}`}>
+      <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
           <ShadcnButton
             type="button"
@@ -3092,9 +3194,9 @@ function PersistentProfileHero({ user }) {
             </div>
           )}
         </div>
-        <span className="wishes-page__hero-copy">
-          <h1 id="persistent-profile-name">{editable ? <ShadcnButton type="button" variant="link" className="profile-name-button" aria-label={`Редактировать профиль ${profile.name}`} onClick={openProfileEditor}>{profile.name}</ShadcnButton> : profile.name}</h1>
-        </span>
+        <div className="wishes-page__hero-copy">
+          <h1 id="persistent-profile-name">{profile.name}</h1>
+        </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
@@ -3775,7 +3877,7 @@ function WishGroupTile({
   </>;
 }
 
-function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisband, busy: itemBusy, children, ...props }) {
+function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisband, viewerId, busy: itemBusy, children, ...props }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(group.title);
   const [saving, setSaving] = useState(false);
@@ -3799,7 +3901,9 @@ function WishGroupDialog({ group, count, moveTargets, onRename, onMove, onDisban
     if (removed) setDisbandOpen(false);
   };
   return <GroupDialog {...props} className="wish-group-open" busy={busy || editing} aria-label={`Группа «${group.title}»`}>
-    <GroupDialogHeader
+    <WishGroupHeader
+      group={group}
+      viewerId={viewerId}
       busy={busy || editing}
       title={editing ? <Input
         autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы"
@@ -3957,7 +4061,32 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
     ? `Убрать «${item.title}» из вишлиста`
     : `Добавить «${item.title}» в вишлист`;
 
-  return (
+  const ActionBar = screen ? ContentPageActions : DrawerFooter;
+  const actions = (
+          <ActionBar
+            data-slot="wish-actions"
+            className={screen ? "mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2" : undefined}
+            role="group"
+            aria-label="Действия с позицией каталога"
+          >
+            <ShadcnButton
+              type="button"
+              className="h-12 min-w-0 flex-1"
+              disabled={wishlistDisabled}
+              aria-label={wishlistLabel}
+              aria-pressed={Boolean(item.addedByMe)}
+              aria-busy={wishlistPending || undefined}
+              onClick={() => onToggleWishlist(item)}
+            >
+              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
+              {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
+                ? item.addedByMe ? "Удаляем…" : "Добавляем…"
+                : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
+            </ShadcnButton>
+          </ActionBar>
+  );
+
+  return <>
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
           <Card data-slot="wish-media" className="mx-auto w-full max-w-(--layout-compact-width) relative overflow-hidden p-0">
             {previewImageUrl
@@ -4000,29 +4129,11 @@ function CatalogWishDetailsContent({ item, wishlistDisabled = false, wishlistPen
             </a>
           )}
 
-          <ContentPageActions
-            data-slot="wish-actions"
-            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
-            role="group"
-            aria-label="Действия с позицией каталога"
-          >
-            <ShadcnButton
-              type="button"
-              className="h-12 min-w-0 flex-1"
-              disabled={wishlistDisabled}
-              aria-label={wishlistLabel}
-              aria-pressed={Boolean(item.addedByMe)}
-              aria-busy={wishlistPending || undefined}
-              onClick={() => onToggleWishlist(item)}
-            >
-              {wishlistPending ? <Spinner /> : <Heart className={item.addedByMe ? "fill-current text-destructive" : ""} aria-hidden="true" />}
-              {screen && isMobile ? (wishlistPending ? item.addedByMe ? "Удаляем…" : "Добавляем…" : item.addedByMe ? "Убрать" : "Добавить") : wishlistPending
-                ? item.addedByMe ? "Удаляем…" : "Добавляем…"
-                : item.addedByMe ? "Убрать из вишлиста" : "Добавить в вишлист"}
-            </ShadcnButton>
-          </ContentPageActions>
+          {screen && actions}
+
         </div>
-  );
+    {!screen && actions}
+  </>;
 }
 
 function CatalogWishDetailsDrawer({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onClose, returnFocusRef }) {
@@ -4087,10 +4198,14 @@ function WishCatalogPage() {
   const requestIdRef = useRef(0);
   const pendingWishlistIdsRef = useRef(new Map());
   const catalogLoadMoreOperationRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const lastCatalogOpenerRef = useRef(null);
-  const [catalog, setCatalog] = useState({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+  const [catalog, setCatalog] = useState({ filter: null, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
   const [pendingWishlistIds, setPendingWishlistIds] = useState(new Set());
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState(null);
+  const { nextOffset, loadingMore } = catalog;
+  const hasMore = catalog.filter === catalogFilter && !catalog.loading && nextOffset < catalog.total;
+  const canAutoLoad = typeof IntersectionObserver !== "undefined";
   const selectedCatalogItem = selectedCatalogItemId
     ? catalog.items.find((item) => item.id === selectedCatalogItemId) || null
     : null;
@@ -4112,16 +4227,16 @@ function WishCatalogPage() {
     lastCatalogOpenerRef.current = null;
     setPendingWishlistIds(new Set());
     setSelectedCatalogItemId(null);
-    setCatalog({ items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+    setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
     api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         const items = result.items || [];
-        setCatalog({ items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
+        setCatalog({ filter: catalogFilter, items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
       })
       .catch((error) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog({ items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
+        setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
       });
     return () => { requestIdRef.current += 1; };
   }, [catalogFilter]);
@@ -4144,34 +4259,50 @@ function WishCatalogPage() {
     setSelectedCatalogItemId(null);
   };
 
-  const loadMore = async () => {
-    if (catalog.loadingMore
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore
       || catalogLoadMoreOperationRef.current
-      || pendingWishlistIdsRef.current.size > 0
-      || catalog.nextOffset >= catalog.total) return;
+      || pendingWishlistIdsRef.current.size > 0) return;
     const requestId = requestIdRef.current;
-    const offset = catalog.nextOffset;
     const operation = Symbol("catalog-load-more");
     catalogLoadMoreOperationRef.current = operation;
     setCatalog((current) => ({ ...current, loadingMore: true, error: null }));
     try {
-      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
+      const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${nextOffset}`);
       if (requestId !== requestIdRef.current) return;
       const incoming = result.items || [];
-      setCatalog((current) => ({
-        ...current,
-        items: [...current.items, ...incoming.filter((item) => !current.items.some((existing) => existing.id === item.id))],
-        total: Number(result.total) || current.total,
-        nextOffset: offset + incoming.length,
-        loadingMore: false,
-      }));
+      const total = Number(result.total) || 0;
+      setCatalog((current) => {
+        const existingIds = new Set(current.items.map((item) => item.id));
+        return {
+          ...current,
+          items: [...current.items, ...incoming.filter((item) => !existingIds.has(item.id))],
+          total: incoming.length ? total : Math.min(total, nextOffset),
+          nextOffset: nextOffset + incoming.length,
+          loadingMore: false,
+        };
+      });
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       setCatalog((current) => ({ ...current, loadingMore: false, error }));
     } finally {
       if (catalogLoadMoreOperationRef.current === operation) catalogLoadMoreOperationRef.current = null;
     }
-  };
+  }, [catalogFilter, hasMore, loadingMore, nextOffset]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore || !canAutoLoad || loadingMore || catalog.error || pendingWishlistIds.size || selectedCatalogItemId) return;
+    let active = true;
+    const observer = new IntersectionObserver((entries) => {
+      if (active && entries.some((entry) => entry.isIntersecting)) void loadMore();
+    }, { rootMargin: "0px 0px 500px" });
+    observer.observe(node);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [canAutoLoad, hasMore, loadingMore, catalog.error, pendingWishlistIds.size, selectedCatalogItemId, loadMore]);
 
   const refreshLoadedCatalog = async (requestId) => {
     const targetCount = Math.max(CATALOG_PAGE_SIZE, catalog.nextOffset || catalog.items.length);
@@ -4274,6 +4405,7 @@ function WishCatalogPage() {
     }
   };
 
+  const showManualLoad = !canAutoLoad || Boolean(catalog.error);
   return (
     <>
       <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
@@ -4293,12 +4425,19 @@ function WishCatalogPage() {
                 />
               ))}
             </div>
-            {catalog.nextOffset < catalog.total && (
-              <div className="wish-catalog-page__more">
-                <ShadcnButton type="button" variant="outline" disabled={catalog.loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
-                  {catalog.loadingMore && <Spinner data-icon="inline-start" />}
-                  Показать ещё
-                </ShadcnButton>
+            {hasMore && (
+              <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
+                {showManualLoad ? (
+                  <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
+                    {loadingMore && <Spinner data-icon="inline-start" />}
+                    {catalog.error ? "Повторить" : "Показать ещё"}
+                  </ShadcnButton>
+                ) : loadingMore && (
+                  <div role="status">
+                    <Spinner aria-hidden="true" />
+                    <span className="sr-only">Загружаем карточки каталога</span>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -5438,6 +5577,7 @@ function WishesPage({ onAdd, version }) {
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
+  viewerId={user.id}
   count={openedGroupWishes.length}
   moveTargets={groupMoveTargets}
   onRename={(title) => renameGroup(openedGroup.id, openedGroup.listId, title)}
@@ -5447,7 +5587,7 @@ function WishesPage({ onAdd, version }) {
   busy={Boolean(removingGroupId)}
   suspended={Boolean(selectedWish || editingWish || listModal)}
   onClose={() => setOpenedGroupId(null)}
->{openedGroup.space === "products" && <WishGroupFundraiser key={`${user.id}:${openedGroup.id}`} group={openedGroup} viewerId={user.id} />}<div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
+><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
@@ -5735,19 +5875,21 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
   const reservationLabel = wish.reservedByMe ? "Забронировано вами" : reservationUnavailable ? "Уже забронировано" : "Забронировать";
   const reservationText = mobilePage ? (wish.reservedByMe ? "Ваша бронь" : reservationUnavailable ? "Занято" : "Забронировать") : reservationLabel;
   const fulfillmentLabel = wish.status === "fulfilled" ? "Вернуть в активные" : "Отметить исполненным";
-  const fulfillmentText = mobilePage ? (wish.status === "fulfilled" ? "В активные" : "Исполнить") : fulfillmentLabel;
+  const fulfillmentText = !screen || mobilePage ? (wish.status === "fulfilled" ? "В активные" : "Исполнить") : fulfillmentLabel;
+  const ActionBar = screen ? ContentPageActions : DrawerFooter;
   const renderActions = (primaryAction) => (
-          <ContentPageActions
+          <ActionBar
             data-slot="wish-actions"
-            className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2"
+            className={screen ? "mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 flex-nowrap items-center gap-2" : undefined}
             role="group"
             aria-label="Действия с желанием"
           >
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
             {!owner && !mobilePage && <ShadcnButton data-control-icon className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
-            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={mobilePage ? "default" : "outline"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
+            {owner && <ShadcnButton className="h-12 min-w-0 flex-1" variant={screen && !mobilePage ? "outline" : "default"} disabled={busy} aria-label={mobilePage && wish.status !== "fulfilled" ? "Исполнить желание: отметить исполненным" : fulfillmentLabel} aria-busy={busy || undefined} onClick={fulfilled}>{busy ? <Spinner /> : <PackageCheck />}{fulfillmentText}</ShadcnButton>}
             </>}
+            {!screen && owner && <ShadcnButton data-control-icon type="button" variant="destructive" size="icon" aria-label="Удалить желание" title="Удалить желание" aria-haspopup="dialog" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></ShadcnButton>}
             <DropdownMenu open={menuOpen} onOpenChange={(open) => {
               setMenuOpen(open);
               if (open) setListsOpen(false);
@@ -5805,11 +5947,11 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                   {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
                   {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
                   {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
-                  {owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
+                  {screen && owner && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>}
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-          </ContentPageActions>
+          </ActionBar>
   );
   const detailsContent = (
           <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [&>*]:shrink-0">
@@ -5871,7 +6013,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
           {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
-          {!marketplacePrimary && renderActions()}
+          {screen && !marketplacePrimary && renderActions()}
 
           {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
@@ -5881,6 +6023,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
       <DrawerContent className="wish-details-dialog app-drawer--compact">
         <DrawerClose render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}><X /><span className="sr-only">Закрыть</span></DrawerClose>
         {detailsContent}
+        {renderActions()}
       </DrawerContent>
     </Drawer>}
       {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
@@ -5906,6 +6049,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
   }));
   const submit = async (event) => {
     event.preventDefault();
+    if (loading || deleting || deleteOpen) return;
     setLoading(true);
     try {
       const result = editing ? await api.patch(`/lists/${list.id}`, form) : await api.post("/lists", form);
@@ -5918,7 +6062,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
     }
   };
   const remove = async () => {
-    if (!editing || deleting) return;
+    if (!editing || loading || deleting || listsCount <= 1) return;
     setDeleting(true);
     try {
       const result = await api.delete(`/lists/${list.id}`);
@@ -5962,11 +6106,31 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
               </div>
               <Switch id={secretListId} type="button" aria-describedby={secretListDescriptionId} checked={form.privacy === "private"} disabled={loading} onCheckedChange={(checked) => setForm((current) => ({ ...current, privacy: checked ? "private" : "public" }))} />
             </Field>
-            {editing && <div className="flex items-center justify-between gap-4 border-t pt-4"><div className="min-w-0"><strong className="block text-sm font-medium">Удалить список</strong><span className="text-sm text-muted-foreground">Желания останутся в общем списке.</span></div><ShadcnButton type="button" variant="destructive" disabled={deleting || listsCount <= 1} aria-busy={deleting || undefined} onClick={() => setDeleteOpen(true)}>{deleting ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" aria-hidden="true" />}Удалить</ShadcnButton></div>}
           </FieldGroup>
           </div>
           <DrawerFooter>
-            <ShadcnButton type="submit" disabled={loading || deleting} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{editing ? "Сохранить изменения" : "Создать список"}</ShadcnButton>
+            <ShadcnButton
+              type="submit"
+              aria-label={editing ? "Сохранить изменения" : undefined}
+              disabled={loading || deleting}
+              aria-busy={loading || undefined}
+            >
+              {loading && <Spinner data-icon="inline-start" />}
+              {editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : "Создать список"}
+            </ShadcnButton>
+            {editing && <ShadcnButton
+              data-control-icon=""
+              type="button"
+              variant="destructive"
+              size="icon"
+              aria-label="Удалить список"
+              title="Удалить список"
+              disabled={loading || deleting || listsCount <= 1}
+              aria-busy={deleting || undefined}
+              onClick={() => setDeleteOpen(true)}
+            >
+              {deleting ? <Spinner /> : <Trash2 aria-hidden="true" />}
+            </ShadcnButton>}
           </DrawerFooter>
         </form>
       </DrawerContent>
@@ -6505,11 +6669,11 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
             </div>
           </div>
 
-          <MobileFormFooter className="wish-editor-screen__footer border-t sm:flex-row">
-            <ShadcnButton className="wish-editor__submit h-12 px-4" type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
+          <MobileFormFooter className="wish-editor-screen__footer">
+            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
-            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon className="wish-editor__delete static" aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
+            {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
           </MobileFormFooter>
         </form>
     </>;
@@ -6705,20 +6869,10 @@ function FriendsPage() {
   );
 }
 
-function ProfileSettingsSection({ value, title, icon: Icon, children }) {
-  return <AccordionItem value={value} className="min-w-0">
-    <AccordionTrigger className="min-h-12 items-center gap-2 py-3 text-lg leading-7 hover:no-underline">
-      <span className="flex min-w-0 items-center gap-2"><Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /><span>{title}</span></span>
-    </AccordionTrigger>
-    <AccordionContent keepMounted className="rollapp-body flex h-auto min-w-0 flex-col gap-4 pt-2 pb-4 [&_p:not(:last-child)]:mb-0">
-      {children}
-    </AccordionContent>
-  </AccordionItem>;
-}
-
-function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
+function ProfileSettingsModal({ user, onClose, onSaved, onAvatarSaved, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const logout = useLogout();
   const initialForm = useMemo(() => ({
@@ -6735,15 +6889,39 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(null);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
-  const [openSections, setOpenSections] = useState(["personal"]);
-  const contentRef = useRef(null);
+  const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
+  const [section, setSection] = useState(null);
+  const [rootOpen, setRootOpen] = useState(true);
+  const pendingExit = useRef(null);
+  const sectionTrigger = useRef(null);
+  const sectionHeading = useRef(null);
+  const scrollArea = useRef(null);
+  const sections = [
+    { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
+    { id: "yandex", title: "Yandex ID", icon: Fingerprint },
+    { id: "orders", title: "Заказы", icon: PackageCheck },
+  ];
+  const sectionTitle = sections.find(({ id }) => id === section)?.title;
+  const busy = loading || imageUploading || loggingOut || openRouterBusy;
+  useLayoutEffect(() => {
+    if (isMobile) return;
+    if (section) {
+      scrollArea.current?.querySelector('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0, behavior: "instant" });
+      sectionHeading.current?.focus({ preventScroll: true });
+    } else sectionTrigger.current?.focus();
+  }, [isMobile, section]);
   const imageFileRef = useRef(null);
+  const photoHeading = useRef(null);
   const uploadedImageIdsRef = useRef(new Set());
-  const changed = Object.keys(initialForm).some((key) => form[key] !== initialForm[key]);
-  const yandexLinkNext = safeNextPath(`${location.pathname}${location.search}`);
+  const avatarChanged = form.avatarUrl !== initialForm.avatarUrl;
+  const personalChanged = Object.keys(initialForm).some((key) => key !== "avatarUrl" && form[key] !== initialForm[key]);
+  const changed = avatarChanged || personalChanged;
+  const sourceParams = new URLSearchParams(location.search);
+  sourceParams.delete("formScreen");
+  const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
   const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
-  const ordersLinkBlocked = yandexLinkBlocked || openRouterBusy;
   const cleanupUploadedImages = async (keepUrl = "") => {
     const keepId = uploadedImageIdFromUrl(keepUrl);
     const ids = [...uploadedImageIdsRef.current].filter((id) => id !== keepId);
@@ -6769,7 +6947,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
     return () => { active = false; };
   }, []);
   const uploadAvatar = async (file) => {
-    if (!file || imageUploading || loading || loggingOut) return;
+    if (!file || busy) return;
+    if (imageFileRef.current) imageFileRef.current.value = "";
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setImageError("Подойдёт изображение JPG, PNG или WEBP.");
       return;
@@ -6788,20 +6967,33 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       setImageError(error.message || "Не удалось загрузить фотографию.");
     } finally {
       setImageUploading(false);
-      if (imageFileRef.current) imageFileRef.current.value = "";
     }
   };
+  const backToSections = () => {
+    if (!busy) setSection(null);
+  };
   const close = () => {
-    if (loading || imageUploading || loggingOut || openRouterBusy) return;
+    if (busy) return;
     cleanupUploadedImages();
     onClose();
   };
-  const submit = async (event) => {
+  const exitSettings = (afterClose) => {
+    if (!isMobile) {
+      afterClose(onSaved);
+      return;
+    }
+    // Unwind the native form entries before changing the profile or route.
+    pendingExit.current = afterClose;
+    if (section) setSection(null);
+    else setRootOpen(false);
+  };
+  const submit = async (event, avatarOnly = false) => {
     event.preventDefault();
-    if (!changed || loading || imageUploading || loggingOut || openRouterBusy) return;
+    if (busy || (avatarOnly ? !avatarChanged : !changed)) return;
+    const submitter = event.nativeEvent.submitter;
     const payload = {};
     Object.keys(initialForm).forEach((key) => {
-      if (form[key] === initialForm[key]) return;
+      if ((avatarOnly && key !== "avatarUrl") || form[key] === initialForm[key]) return;
       payload[key] = key === "birthday" ? form[key] || null : form[key];
     });
     setLoading(true);
@@ -6810,161 +7002,233 @@ function ProfileSettingsModal({ user, onClose, onSaved, finalFocus }) {
       const savedUploadId = uploadedImageIdFromUrl(result.user?.avatarUrl);
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
       await cleanupUploadedImages(result.user?.avatarUrl || "");
-      toast("Профиль обновлён");
-      await onSaved(result.user);
+      if (avatarOnly) {
+        if (document.activeElement === submitter) photoHeading.current?.focus({ preventScroll: true });
+        setForm((current) => ({ ...current, avatarUrl: result.user.avatarUrl || "" }));
+        onAvatarSaved(result.user);
+        toast("Фото профиля обновлено");
+      } else {
+        toast("Профиль обновлён");
+        exitSettings((saveProfile) => saveProfile(result.user));
+      }
     } catch (error) {
       toast(error.message, "error");
     } finally {
       setLoading(false);
     }
   };
-  return <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open) close(); }}>
-    <DrawerContent
-      ref={contentRef}
-      className="profile-settings-dialog rollapp-body app-drawer--form"
-      initialFocus={() => canAutofocusForm() ? contentRef.current?.querySelector("#settings-profile-name") || true : true}
-      finalFocus={finalFocus}
-    >
-      <DrawerClose
-        render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10 size-12" size="icon-sm" />}
-      >
-        <X />
-        <span className="sr-only">Закрыть</span>
-      </DrawerClose>
-      <DrawerHeader className="mx-auto h-14 w-full max-w-full p-0">
-        <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>
-        <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
-      </DrawerHeader>
-      <ScrollArea className="mx-auto min-h-0 w-full max-w-full flex-1">
-        <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit} onInvalidCapture={() => flushSync(() => setOpenSections((current) => current.includes("personal") ? current : [...current, "personal"]))}>
-          <Accordion multiple value={openSections} onValueChange={setOpenSections} aria-label="Разделы профиля">
-            <ProfileSettingsSection value="personal" title="Персональная информация" icon={CircleUserRound}>
-              <Card className="flex flex-row items-center gap-3 p-3">
-                <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <strong className="block text-sm font-medium">Фото профиля</strong>
-                  <p className="text-sm text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
-                  <ShadcnButton
-                    type="button"
-                    variant="outline"
-                    className="mt-2"
-                    disabled={imageUploading || loading || loggingOut}
-                    aria-busy={imageUploading || undefined}
-                    onClick={() => imageFileRef.current?.click()}
-                  >
-                    {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
-                    {imageUploading ? "Загрузка…" : "Загрузить фото"}
-                  </ShadcnButton>
-                </div>
-                <Input ref={imageFileRef} className="sr-only !size-px" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
-              </Card>
-              {imageError && <FieldError>{imageError}</FieldError>}
-              <FieldGroup className="gap-4">
-                <div className="grid gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
-                    <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
-                    <InputGroup className="min-w-0">
-                      <InputGroupAddon align="inline-start" className="shrink-0">
-                        <InputGroupText aria-hidden="true">роллапп.рф/</InputGroupText>
-                      </InputGroupAddon>
-                      <InputGroupInput
-                        id="settings-profile-address"
-                        className="min-w-0"
-                        required
-                        pattern="[a-z0-9-]{3,32}"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        autoComplete="username"
-                        spellCheck={false}
-                        value={form.username}
-                        onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
-                      />
-                    </InputGroup>
-                    <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
-                  </Field>
-                </div>
-                <Field>
-                  <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
-                  <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
-                </Field>
-                <Field className="sm:max-w-[calc(50%-0.5rem)]">
-                  <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
-                  <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
-                </Field>
-              </FieldGroup>
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="openrouter" title="OpenRouter" icon={LockKeyhole}>
-              <OpenRouterSettings key={user.id} embedded disabled={loading || imageUploading || loggingOut} onBusyChange={setOpenRouterBusy} />
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="yandex" title="Yandex ID" icon={Fingerprint}>
-              <Card className="grid gap-3 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <strong className="block text-sm font-medium">Yandex ID</strong>
-                    <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
-                  </div>
-                  {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
-                </div>
-                {!user.hasYandex && yandexEnabled === null && <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status"><Spinner />Проверяем доступность Yandex ID…</p>}
-                {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
-                {!user.hasYandex && yandexEnabled && (yandexLinkBlocked
-                  ? <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>
-                  : <YandexIdButton href={yandexLinkHref} accessibleName="Войти с Яндекс ID и подключить его к аккаунту" />)}
-              </Card>
-            </ProfileSettingsSection>
-            <ProfileSettingsSection value="orders" title="Заказы" icon={PackageCheck}>
-              <p className="text-muted-foreground">История покупок, доставка и возврат товаров.</p>
-              <Link
-                to={APP_ORDERS_PATH}
-                className={cn(buttonVariants({ variant: "outline" }), "w-full rounded-full no-underline!", ordersLinkBlocked && "pointer-events-none opacity-50")}
-                aria-disabled={ordersLinkBlocked || undefined}
-                tabIndex={ordersLinkBlocked ? -1 : undefined}
-                onClick={(event) => { if (ordersLinkBlocked) event.preventDefault(); else close(); }}
-              >
-                Открыть заказы<ArrowRight className="size-5" aria-hidden="true" />
-              </Link>
-              {changed && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед переходом к заказам.</p>}
-            </ProfileSettingsSection>
-          </Accordion>
-          <div className="border-t pt-4">
-            <ShadcnButton
-              type="button"
-              variant="destructive"
-              className="h-12 w-full gap-2 px-4"
-              disabled={loading || imageUploading || loggingOut || openRouterBusy}
-              aria-busy={loggingOut || undefined}
-              onClick={async () => {
-                if (loggingOut) return;
-                setLoggingOut(true);
-                await cleanupUploadedImages();
-                const loggedOut = await logout();
-                if (!loggedOut) setLoggingOut(false);
-              }}
-            >
-              {loggingOut ? <Spinner /> : <LogOut className="size-5" aria-hidden="true" />}
-              <span>Выйти из аккаунта</span>
-            </ShadcnButton>
+  const menu = <div className="flex flex-col gap-4 px-4 pt-4 pb-1">
+    <form id="profile-photo-form" aria-labelledby="settings-profile-photo" className="grid gap-2" onSubmit={(event) => submit(event, true)}>
+      <div className="flex items-center gap-3">
+        <Avatar user={{ ...user, avatarUrl: form.avatarUrl }} size="lg" className="!size-16 shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+          <div>
+            <h2 id="settings-profile-photo" ref={photoHeading} tabIndex={-1} className="font-medium">Фото профиля</h2>
+            <p className="text-xs text-muted-foreground">JPG, PNG или WEBP · до 8 МБ</p>
           </div>
-        </form>
-      </ScrollArea>
-      <DrawerFooter className="mx-auto mt-0 mb-0 w-full max-w-full">
-        <ShadcnButton
-          type="submit"
-          form="profile-editor-form"
-          className="h-12 w-full"
-          disabled={!changed || imageUploading || loggingOut || loading || openRouterBusy}
-          aria-busy={loading || undefined}
+          <ShadcnButton
+            type="button"
+            variant="outline"
+            disabled={busy}
+            aria-busy={imageUploading || undefined}
+            onClick={() => imageFileRef.current?.click()}
+          >
+            {imageUploading ? <Spinner /> : <Upload aria-hidden="true" />}
+            {imageUploading ? "Загрузка…" : "Загрузить фото"}
+          </ShadcnButton>
+        </div>
+        <Input ref={imageFileRef} className="sr-only !size-px" type="file" tabIndex={-1} aria-hidden="true" accept="image/jpeg,image/png,image/webp" aria-label="Загрузить фото профиля" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} />
+      </div>
+      {imageError && <FieldError>{imageError}</FieldError>}
+    </form>
+    <nav aria-label="Разделы профиля">
+      <ul className="divide-y">
+        {sections.map(({ id, title, icon: Icon }) => <li key={id}>
+          <ShadcnButton
+            type="button"
+            variant="ghost"
+            className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
+            disabled={busy || (id === "orders" && changed)}
+            onClick={(event) => {
+              if (id === "orders") exitSettings(() => {
+                onClose();
+                navigate(APP_ORDERS_PATH);
+              });
+              else {
+                sectionTrigger.current = event.currentTarget;
+                setSection(id);
+              }
+            }}
+          >
+            <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{title}</span>
+            <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </ShadcnButton>
+        </li>)}
+      </ul>
+    </nav>
+    {personalChanged && <p className="text-xs text-muted-foreground">Сохраните изменения в персональной информации перед переходом к заказам.</p>}
+  </div>;
+  const sectionBody = section === "personal" ? (
+    <form id="profile-editor-form" className="flex flex-col gap-4 px-4 pt-4 pb-1" onSubmit={submit}>
+      <FieldGroup className="gap-4">
+        <div className="grid gap-4">
+          <Field>
+            <FieldLabel htmlFor="settings-profile-name">Имя</FieldLabel>
+            <Input id="settings-profile-name" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="settings-profile-address">Адрес профиля</FieldLabel>
+            <InputGroup className="min-w-0">
+              <InputGroupAddon align="inline-start" className="shrink-0">
+                <InputGroupText className="text-rollapp-body!" aria-hidden="true">роллапп.рф/</InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                id="settings-profile-address"
+                className="min-w-0"
+                required
+                pattern="[a-z0-9-]{3,32}"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                spellCheck={false}
+                value={form.username}
+                onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase() })}
+              />
+            </InputGroup>
+            <FieldDescription>Латиница, цифры и дефис · 3–32 символа.</FieldDescription>
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="settings-profile-bio">О себе</FieldLabel>
+          <Textarea id="settings-profile-bio" rows={4} maxLength={300} value={form.bio} placeholder="Что вам нравится?" onChange={(event) => setForm({ ...form, bio: event.target.value })} />
+        </Field>
+        <Field className="sm:max-w-[calc(50%-0.5rem)]">
+          <FieldLabel htmlFor="settings-profile-birthday">День рождения</FieldLabel>
+          <PlanningDatePicker id="settings-profile-birthday" label="День рождения" clearable max={localDateKey(new Date())} value={form.birthday} onChange={(date) => setForm({ ...form, birthday: date })} className="w-full justify-between" />
+        </Field>
+      </FieldGroup>
+    </form>
+  ) : section === "yandex" ? <div className="px-4 pt-4">
+    <Card className="grid gap-3 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{user.hasYandex ? "Подключён к аккаунту — можно входить без пароля." : "Подключите быстрый и безопасный вход через Яндекс."}</p>
+        </div>
+        {user.hasYandex && <Badge variant="secondary">Подключён</Badge>}
+      </div>
+      {!user.hasYandex && yandexEnabled === null && <p className="text-sm text-muted-foreground" role="status">Проверяем доступность Yandex ID…</p>}
+      {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
+      {!user.hasYandex && yandexEnabled && yandexLinkBlocked && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>}
+    </Card>
+  </div> : null;
+  const openRouterSection = section === "openrouter" && (
+    <OpenRouterSettings
+      key={user.id}
+      draft={openRouterDraft}
+      onDraftChange={setOpenRouterDraft}
+      disabled={loading || imageUploading || loggingOut}
+      onBusyChange={setOpenRouterBusy}
+    />
+  );
+  const personalFooter = section === "personal" && (
+    <DrawerFooter className="mx-auto w-full max-w-full">
+      <ShadcnButton
+        type="submit"
+        form="profile-editor-form"
+        disabled={!changed || busy}
+        aria-busy={loading || undefined}
+      >
+        {loading && <Spinner />}
+        Сохранить
+      </ShadcnButton>
+      <ShadcnButton
+        data-control-icon=""
+        type="button"
+        variant="destructive"
+        size="icon"
+        aria-label="Выйти из аккаунта"
+        title="Выйти из аккаунта"
+        disabled={busy}
+        aria-busy={loggingOut || undefined}
+        onClick={async () => {
+          if (busy) return;
+          setLoggingOut(true);
+          await cleanupUploadedImages();
+          const loggedOut = await logout();
+          if (!loggedOut) setLoggingOut(false);
+        }}
+      >
+        {loggingOut ? <Spinner /> : <LogOut aria-hidden="true" />}
+      </ShadcnButton>
+    </DrawerFooter>
+  );
+  const yandexFooter = section === "yandex" && !user.hasYandex && yandexEnabled && !yandexLinkBlocked && (
+    <DrawerFooter>
+      <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>
+    </DrawerFooter>
+  );
+  const menuFooter = (isMobile || avatarChanged) && (
+    <DrawerFooter>
+      {avatarChanged && <ShadcnButton type="submit" form="profile-photo-form" disabled={busy} aria-busy={loading || undefined}>
+        {loading && <Spinner />}
+        Сохранить фото
+      </ShadcnButton>}
+    </DrawerFooter>
+  );
+  const desktopSection = !isMobile && section;
+  return <>
+    <Drawer open={rootOpen} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => {
+      if (!open) {
+        if (desktopSection) backToSections();
+        else close();
+      }
+    }} onAfterClose={() => {
+      const exit = pendingExit.current;
+      pendingExit.current = null;
+      exit?.(onSaved);
+    }}>
+      <DrawerContent className="profile-settings-dialog rollapp-body app-drawer--form" finalFocus={finalFocus}>
+        {!desktopSection && <DrawerClose
+          render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10 size-12" size="icon-sm" />}
         >
-          {loading && <Spinner />}
-          Сохранить
-        </ShadcnButton>
-      </DrawerFooter>
-    </DrawerContent>
-  </Drawer>;
+          <X />
+          <span className="sr-only">Закрыть</span>
+        </DrawerClose>}
+        {desktopSection ? <DrawerHeader className="mx-auto w-full max-w-full flex-row items-center gap-2 p-4">
+          <ControlBar>
+            <ShadcnButton data-control-icon="" type="button" variant="outline" size="icon" aria-label="Назад" disabled={busy} onClick={backToSections}>
+              <ArrowLeft aria-hidden="true" />
+            </ShadcnButton>
+          </ControlBar>
+          <DrawerTitle ref={sectionHeading} tabIndex={-1}>{sectionTitle}</DrawerTitle>
+        </DrawerHeader> : <DrawerHeader className={cn("mx-auto w-full max-w-full", !isMobile && "h-14 p-0")}>
+          {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
+          <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
+        </DrawerHeader>}
+        <ScrollArea ref={scrollArea} hidden={desktopSection === "openrouter"} className="mx-auto min-h-0 w-full max-w-full flex-1">
+          <div hidden={Boolean(desktopSection)}>{menu}</div>
+          {desktopSection && sectionBody}
+        </ScrollArea>
+        {desktopSection ? openRouterSection || personalFooter || yandexFooter : menuFooter}
+      </DrawerContent>
+    </Drawer>
+    {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
+      if (pendingExit.current) setRootOpen(false);
+      else requestAnimationFrame(() => {
+        const trigger = sectionTrigger.current;
+        if (trigger && !trigger.closest("[hidden]")) trigger.focus({ preventScroll: true });
+      });
+    }}>
+      <DrawerContent className="rollapp-body app-drawer--form">
+        <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
+        {openRouterSection || <>
+          {sectionBody}
+          {personalFooter || yandexFooter || <DrawerFooter />}
+        </>}
+      </DrawerContent>
+    </Drawer>}
+  </>;
 }
 
 function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, initialGroupId = null, visibleLimit, ownerCollection, onReorder, onOpen, viewerId, ...cardProps }) {
@@ -6979,6 +7243,7 @@ function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, i
     onSave: onReorder,
     onError: (error) => toast(error.message || "Не удалось сохранить порядок желаний", "error"),
   });
+  const openedGroupWishes = openedGroup ? orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)) : [];
   const renderWish = (wish) => <WishCard
     key={wish.id}
     {...cardProps}
@@ -6995,9 +7260,13 @@ function PublicWishGrid({ wishes, allWishes, groups = [], detailsOpen = false, i
         : renderWish(item.wish))}
     </div>
     {openedGroup && <GroupDialog onClose={() => setOpenedGroupId(null)} suspended={detailsOpen} className="wish-group-open" aria-label={`Группа «${openedGroup.title}»`}>
-      <GroupDialogHeader title={openedGroup.title} description={`${orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).length} желаний`} />
-      {openedGroup.space === "products" && <WishGroupFundraiser key={`${viewerId || "guest"}:${openedGroup.id}`} group={openedGroup} viewerId={viewerId} shareToken={cardProps.shareToken} />}
-      <div className="wish-grid">{orderedWishes.filter((wish) => openedGroup.wishIds.includes(wish.id)).map(renderWish)}</div>
+      <WishGroupHeader
+        group={openedGroup}
+        viewerId={viewerId}
+        shareToken={cardProps.shareToken}
+        description={`${openedGroupWishes.length} ${wishCountNoun(openedGroupWishes.length)}`}
+      />
+      <div className="wish-grid">{openedGroupWishes.map(renderWish)}</div>
     </GroupDialog>}
   </>;
 }

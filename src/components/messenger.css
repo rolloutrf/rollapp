@@ -32,6 +32,16 @@
 .messenger-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); border-top: 1px solid var(--border); flex-shrink: 0; }
 .messenger-composer textarea { min-height: var(--layout-control-size); max-height: 112px; resize: none; }
 .messenger-composer-hint { grid-column: 1 / -1; color: var(--muted-foreground); }
+.messenger-planning-option { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--layout-inline-gap); min-height: var(--layout-control-size); cursor: pointer; }
+.messenger-planning-option small { display: block; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
+.messenger-assistant-message { display: grid; gap: var(--layout-item-gap); flex-shrink: 0; }
+.messenger-assistant-action { display: grid; gap: var(--layout-inline-gap); justify-items: start; min-width: 0; }
+.messenger-assistant-conversation .messenger-note, .messenger-assistant-conversation .messenger-send-error { flex-shrink: 0; }
+@media (max-width: 359px) {
+  .messenger-assistant-conversation .messenger-heading .messenger-avatar { display: none; }
+}
+:root[data-overlay-keyboard] .messenger-assistant-conversation .messenger-composer textarea { max-height: var(--layout-control-size); }
+:root[data-overlay-keyboard] .messenger-assistant-conversation .messenger-composer-hint { display: none; }
 .messenger-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); overflow-wrap: anywhere; }
 .messenger-send-error { grid-column: 1 / -1; color: var(--destructive); overflow-wrap: anywhere; }
 .messenger-section-label { padding: var(--layout-item-gap); color: var(--muted-foreground); letter-spacing: 0.08em; }

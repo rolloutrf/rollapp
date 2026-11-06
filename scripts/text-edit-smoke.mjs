@@ -65,9 +65,11 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
     if (id.endsWith('/src/api.js')) {
-      const start=source.indexOf('  uploadImage: (file) => request('),end=source.indexOf('  resolveContactAvatar:',start);
-      source=source.slice(0,start)+`  uploadImage: async file => {
-        if (!window.inlineImageFixture) return request('/uploads/images',{method:'POST',headers:{'Content-Type':file.type},body:file});
+      const start = source.indexOf('  uploadImage: ');
+      const end = source.indexOf('  resolveContactAvatar:', start);
+      assert(start >= 0 && end > start, 'Cannot locate the image upload method in the API fixture');
+      source=source.slice(0,start)+`  uploadImage: async (file, { signal } = {}) => {
+        if (!window.inlineImageFixture) return request('/uploads/images',{method:'POST',headers:{'Content-Type':file.type},body:file,signal});
         const fixture=window.inlineImageFixture;fixture.uploads.push({name:file.name,type:file.type,size:file.size});
         if(fixture.slow)await new Promise(resolve=>fixture.pending.push(resolve));
         if(fixture.fail)throw new Error('Не удалось загрузить изображение. Повторите попытку.');

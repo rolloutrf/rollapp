@@ -51,7 +51,7 @@ download API. Реальный перенос выполняется отдел�
 verify startup проверяет их через LIMIT0, не создаёт и не изменяет записи.
 
 Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
-новую поверхность на восьми размерах и входит в `check:release`. До первого
+единую сетку и редактор на восьми размерах и входит в `check:release`. До первого
 запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
 проверка — `node scripts/migrate-planning-notes.mjs`, применение после разрешения —
 та же команда с `--apply`. Обычный verify startup таблицу не создаёт.
@@ -150,6 +150,7 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
 | `npm run test:gifts` | Публичный бизнес-профиль, значок под аватаром, выпуск/пополнение/отправка карты и оплата только у её бизнеса, повтор после потерянного ответа, mobile/desktop футер. Входит в `check:release`; только UI transport, реальные API запрещены. Контракт: `docs/business-gift-cards.md` |
 | `npm run check:release:gift-cards` | Ручной `verification=gift-cards` только по явному запросу без полного аудита: unit, shadcn, обязательный `test:controls`, `test:gifts`, build. Default release остаётся полным |
+| Ручной `verification=drawers` | Целевой выпуск штор по явному запросу без полного аудита. После локальных smoke-проверок затронутых форм и реальной read-only проверки схемы CI запускает guard шаблона и старта БД, shadcn, полный `test:controls`, Docker build и сверку production SHA. |
 | `npm run test:gifts:production` | Цикл карты и покупки на настроенном production PostgreSQL внутри BEGIN → ROLLBACK. Схему не создаёт; запускать после отдельно разрешённой миграции `scripts/gift-cards-schema.mjs`, предварительно сверив базу и роль |
 | `npm run test:text-edit` | Полная матрица inline-документов: ввод без рамок, selection toolbar, блоки/группы, символы, стили/цвета, save/reload, очереди/draft/retry и доступ. Включает native clipboard и буквальные Markdown/HTML/whitespace в строчном коде, отдельный Undo и сохранение соседей; единый редактор четырёх ответов со сквозными диапазонами, фиксированными вопросами и общей историей. Block-colour матрица включает slash/palette, группы/ячейки/диапазоны через ответы, пустой блок/Enter/type, exact reload/public read, HTML clipboard, draft/retry, общий browser preference и его отказ, read-only/viewport. Slash-матрица проверяет команды в существующем тексте, middle-of-line/Shift+Enter, dismissal/clipboard/history guards, атомарные duplicate/delete/type, cell/four-answer scope и panning. Табличная матрица включает команды, merge/split, native resize, spans/ширины/вложенные блоки, public read, draft/retry и отзыв доступа во время drag. Контракт: `docs/inline-editing.md` |
 | `npm run check`, `npm run check:release` | Unit, UI-контракты, геометрия контролов, detail actions, даты, события календаря, синхронность Back/Save, редактирование текста, Drag-n-Drop канбан-колонок, трекеры сна/питания, production build; этот же набор обязателен в CI |
@@ -164,10 +165,10 @@ reader на восьми размерах, но остаётся diagnostic. `ch
 | `npm run test:contact-notes` | Выбор/удаление участников, поиск/ошибка/пустой результат и сохранение формы встречи; отдельные личные заметки и история To Do в настоящей форме контакта, 320–1920px и короткие экраны; несохранённые props, API запрещён; входит в `check:comprehensive` |
 | `npm run test:todo` | Пустой/длинный To Do, дата, создание и отмена отдельной страницы задачи, mobile/desktop ribbon, два нативных submit в одном кадре → одно сохранение после commit, canonical related references |
 | `npm run test:form-pages` | Все реальные формы на телефоне, desktop Drawer, история, вложенный черновик, busy/Enter guards; восстановление прокрутки исходного документа через page/browser Back без последующих скачков |
-| `npm run test:catalog-page` | Независимый экран карточки каталога, reload, Back, скролл до конца |
-| `npm run test:profile` | Вложенные настройки профиля: черновики, валидация скрытого поля, статусы провайдеров, переход к заказам и геометрия на 320–1920px и коротких экранах; входит в `check:comprehensive` |
+| `npm run test:catalog-page` | Независимый экран карточки каталога, reload и Back. Лента автоматически запрашивает следующую страницу у конца сетки, сохраняет прокрутку и карточки при добавлении, останавливается при ошибке или исчерпании страниц. Проверяются повтор запроса, смена фильтра во время загрузки, пустая страница и ручная подгрузка без IntersectionObserver. Только UI-транспорт, API запрещён. |
+| `npm run test:profile` | Фото на верхнем уровне настроек, выбор файла и сохранение аватара отдельно от черновика, вложенные разделы, валидация, статусы провайдеров, переход к заказам и геометрия на 320–1920px и коротких экранах; входит в `check:comprehensive` |
 | `npm run test:contacts` | Бесконечная лента реального ContactsSpherePage: добавление страниц без перемонтирования, ошибка/повтор, конец списка, кадры прокрутки при избранном, отказ сохранения, фильтры и устаревшие ответы; 320–1920px и короткий desktop. Только явный UI transport, реальные API запрещены. |
-| `npm run test:wish-groups` | Карточки групп Wishlist: длинные названия, клавиатура, отмена переименования, owner/read-only; сборы роллов: цель/пауза/взносы, retry/reload, guards хранения, геометрия и scroll на восьми размерах |
+| `npm run test:wish-groups` | Карточки групп Wishlist: длинные названия, клавиатура, отмена переименования, owner/read-only. Сборы: сумма в шапке товарной группы, шторка с иконки, фокус и прокрутка после закрытия, цель/пауза/взносы, повтор и восстановление, геометрия на восьми размерах |
 | `npm run test:fundraising:production` | Уже существующая production-схема, endpoints и переводы сборов в BEGIN → ROLLBACK; без DDL/инициализации, lock timeout 5s и statement timeout 15s |
 | `npm run test:identity-reports` | PDF-содержимое Hogan/Gallup без добавленных интерпретаций, заголовки/абзацы/списки/таблицы, исходные диаграммы и сегменты, точная длина полос 0/37/100, пустые/полные сегменты, типографика 18/28, перенос длинных строк и отсутствие переполнения на 320–1920 px и 390×400; без запросов к API/БД. Контракт: `docs/identity-report-charts.md` |
 | `npm run test:drawers` | Реальные формы и оставшиеся overlay-композиции, фокус, touch, dismiss, keyboard/panning, снятие scroll lock |
@@ -714,10 +715,18 @@ close/Escape/outside/focus, прямые ссылки, поиск, открыт�
 ошибка/повтор подписок и отсутствие дублей с существующими диалогами,
 страницы истории, безопасный
 повтор отправки, черновик при переходе, literal text, control geometry/overflow
-на девяти viewport. Это изолированный UI transport с запретом реальных API,
+на десяти размерах viewport. Это изолированный UI transport с запретом реальных API,
 не замена production PostgreSQL. `server/messenger.test.js` входит в `npm test`
 и проверяет auth/membership, public-only search и подписки, validation/read cursors,
 повторную отправку и видимую ошибку отсутствующей схемы.
+
+Та же браузерная матрица проверяет первую строку ассистента при отказе списка,
+клавиатуру/фокус, черновик после ошибки, переписку после закрытия шторы,
+явное включение контекста на один запрос, открытие и отмену форм задач, событий
+и заметок. Ответ модели не выполняет действий; успешное сохранение форм
+проверяется только в фикстуре. `server/messenger-assistant.test.js` проверяет
+авторизацию, валидацию, выборку планирования только владельца и фильтрацию
+предложений через изолированный transport OpenRouter.
 
 Три таблицы мессенджера устанавливает только отдельная авторизованная операция:
 `node scripts/migrate-messenger.mjs` сначала проверяет production target read-only;

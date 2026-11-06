@@ -85,13 +85,29 @@ try{
     for(const number of [29,30])assert.equal(await page.getByRole('button',{name:`Редактировать задачу: Задача ${number}`,exact:true}).locator('.daily-todo__time').count(),0,'Tasks without a free slot must remain visible and unscheduled');
     assert.equal(JSON.parse(await page.locator('[data-saved-task]').textContent()),null,'Rendering display slots must not save task data');
    }
-   for (const selector of ['.daily-todo__footer', '.daily-todo__composer-input']) {
-    const surface = page.locator(selector);
-    if (!await surface.count()) continue;
-    const paint = await surface.evaluate(el => { const s=getComputedStyle(el); return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter}; });
-    assert(['transparent','rgba(0, 0, 0, 0)'].includes(paint.background), `${width}x${height} ${selector}: footer background`);
-    assert.equal(paint.image,'none', `${selector}: footer gradient`);
-    assert.equal(paint.blur,'none', `${selector}: footer backdrop`);
+   assert.equal(await page.locator('.daily-todo__footer').evaluate(el=>getComputedStyle(el).backdropFilter),'none','Footer must not blur scrolling content');
+   if(width>=768){
+    const alphas=await page.locator('.daily-todo__composer-input').evaluate(group=>{
+     const root=document.documentElement;
+     const wasDark=root.classList.contains('dark');
+     const canvas=document.createElement('canvas');
+     canvas.width=canvas.height=1;
+     const context=canvas.getContext('2d');
+     try {
+      return [false,true].map(dark=>{
+       root.classList.toggle('dark',dark);
+       const style=getComputedStyle(group);
+       context.clearRect(0,0,1,1);
+       context.fillStyle=style.backgroundColor;
+       context.globalAlpha=Number(style.opacity);
+       context.fillRect(0,0,1,1);
+       return context.getImageData(0,0,1,1).data[3];
+      });
+     } finally {
+      root.classList.toggle('dark',wasDark);
+     }
+    });
+    assert.deepEqual(alphas,[255,255],`${width}x${height}: input group must cover tasks in both themes`);
    }
    const measure=()=>ribbon.evaluate(el=>{const r=el.getBoundingClientRect(),active=el.querySelector('[aria-pressed="true"]').getBoundingClientRect(),nav=document.querySelector('.planning-fab-controls').getBoundingClientRect();return {top:r.top,bottom:r.bottom,center:(active.left+active.right)/2,navTop:nav.top,position:getComputedStyle(el).position}});
    if(width>=768){
@@ -226,6 +242,27 @@ try{
     assert.equal(await selected.locator('[data-slot="list-tile-count"]').textContent(),'17');
     if(!empty&&[768,820,1024,1440,1920].includes(width)&&height===844)await page.screenshot({path:`/tmp/rollapp-date-tiles-${width}.png`});
     const m=await measure();assert(Math.abs(m.center-width/2)<1,'Desktop selected date lost its center');assert.notEqual(m.position,'fixed','Desktop ribbon became fixed');
+    if(!empty){
+     const geometry=await page.locator('.daily-todo__scroll').evaluate(scroller=>{
+      const footer=scroller.querySelector('.daily-todo__footer');
+      const items=scroller.querySelectorAll('.daily-todo__item');
+      const finalItem=items[items.length-1];
+      const start=footer.getBoundingClientRect();
+      const passesBehind=[...items].some(item=>{
+       const row=item.getBoundingClientRect();
+       return row.top>=start.top&&row.bottom<=start.bottom;
+      });
+      const endGap=scroller.getBoundingClientRect().bottom-start.bottom;
+      scroller.scrollTop=scroller.scrollHeight;
+      const end=footer.getBoundingClientRect();
+      const finalBottom=finalItem.getBoundingClientRect().bottom;
+      scroller.scrollTop=0;
+      return {passesBehind,endGap,finalBottom,footerTop:end.top,shift:end.top-start.top};
+     });
+     assert(geometry.passesBehind,'Rows must extend into the transparent footer area');
+     assert(Math.abs(geometry.endGap)<1&&Math.abs(geometry.shift)<1,'Composer must stay anchored to the scrollport bottom');
+     assert(geometry.finalBottom<=geometry.footerTop,'Last task must be reachable above the composer');
+    }
     await selected.press('ArrowRight');await page.waitForURL(url=>url.searchParams.get('date')==='2026-10-18');
     const composer=page.locator('.daily-todo__composer'),field=composer.getByRole('textbox',{name:'Новая задача на этот день',exact:true}),send=composer.getByRole('button',{name:'Добавить задачу',exact:true}),attach=composer.getByRole('button',{name:'Добавить связанные объекты',exact:true});
     assert(await send.isDisabled(),'Empty composer can submit');

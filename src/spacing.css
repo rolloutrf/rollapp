@@ -58,8 +58,9 @@
     .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
     .mobile-app-navigation, .mobile-content-page__nav, [data-content-page-actions],
     .planning-fab-controls,
-    .daily-todo__header, .daily-todo__footer, .daily-todo__composer-input,
+    .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
+    .wish-group-open > .app-group-dialog__header,
     [data-slot="drawer-header"], [data-slot="drawer-footer"],
     [data-slot="sheet-header"], [data-slot="sheet-footer"]
   ) {
@@ -208,9 +209,24 @@
     padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
   }
 
+  .app-layout--planning-notes > .app-main {
+    padding-block-start: var(--layout-screen-top);
+  }
+
   @media (min-width: 768px) {
-    .app-layout.app-layout--planning > .app-main {
+    .app-layout.app-layout--planning > .app-main:not(:has(.daily-todo__scroll)) {
       padding-block-start: var(--app-chrome-overlay-height);
+    }
+
+    /* Reserve room at rest inside the To Do scrollport. Content must be
+       able to pass behind the transparent header as it scrolls. */
+    .app-layout--planning .daily-todo__scroll {
+      padding-block-start: var(--app-chrome-overlay-height);
+      scroll-padding-block-start: var(--app-chrome-overlay-height);
+    }
+
+    .app-layout--planning-notes > .app-main {
+      padding-block-start: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
     }
   }
 
@@ -403,7 +419,7 @@
     gap: var(--layout-page-gap);
   }
 
-  .wish-group-open > :is(.app-group-dialog__header, .wish-group-fundraiser, .wish-grid) {
+  .wish-group-open > :is(.app-group-dialog__header, .wish-grid) {
     flex: none;
   }
 

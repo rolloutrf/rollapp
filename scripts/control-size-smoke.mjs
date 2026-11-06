@@ -64,7 +64,7 @@ async function geometry(page, label) {
 async function transparentChrome(page, label) {
   const rails = page.locator([
     ".global-app-chrome", ".mobile-app-navigation", ".planning-fab-controls",
-    ".daily-todo__header", ".daily-todo__footer", ".daily-todo__composer-input",
+    ".daily-todo__header", ".daily-todo__footer",
     ".mobile-form-page__header", "[data-native-form-actions]",
   ].join(", "));
   const painted = await rails.evaluateAll(nodes => nodes.flatMap(node =>
@@ -141,6 +141,26 @@ try {
             `${label}: planning selector must be at the top on desktop and at the bottom on mobile`);
           assert.equal(await page.locator(width < 768 ? ".planning-fab-controls .planning-fab-space" : ".global-app-chrome .planning-fab-space").count(), 1,
             `${label}: planning selector must belong to the desktop header or mobile navigation`);
+        }
+        if (width >= 768 && route.includes("tab=todo")) {
+          const scroller = page.locator(".daily-todo__scroll");
+          const header = page.locator(".global-app-chrome");
+          const ribbon = page.locator(".daily-todo__ribbon");
+          await ribbon.waitFor();
+          const headerBox = await header.boundingBox();
+          const ribbonBox = await ribbon.boundingBox();
+          assert(ribbonBox.y >= headerBox.y + headerBox.height, `${label}: ribbon overlaps header at rest`);
+          const headerCenter = headerBox.y + headerBox.height / 2;
+          const contentVisibleBehindHeader = await scroller.evaluate((element, y) => {
+            element.scrollTo({ top: element.querySelector(".daily-todo__ribbon").getBoundingClientRect().top - y + 8, behavior: "instant" });
+            const { left, width } = element.getBoundingClientRect();
+            const visible = [0.2, 0.3, 0.7, 0.8].some(fraction =>
+              document.elementFromPoint(left + width * fraction, y)?.closest(".daily-todo__day")
+            );
+            element.scrollTo({ top: 0, behavior: "instant" });
+            return visible;
+          }, headerCenter);
+          assert(contentVisibleBehindHeader, `${label}: To Do content is clipped below the transparent header`);
         }
         if (route.includes("view=list")) {
           const event = page.locator('.schedule-agenda__task').first();

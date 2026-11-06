@@ -1,7 +1,7 @@
 import React, { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ContactEditForm, ToastContext, WishModal } from "@/App.jsx?form-actions";
+import { ContactEditForm, ListModal, ToastContext, WishModal } from "@/App.jsx?form-actions";
 import { TaskEditor } from "@/components/planning-space.jsx?drawer-smoke-export=TaskEditor";
 import { MarkdownEditorDrawer } from "@/components/career-content.jsx?drawer-smoke-export=MarkdownEditorDrawer";
 import { MedicationGroupDrawer } from "@/components/medications.jsx?drawer-smoke-export=MedicationGroupDrawer";
@@ -30,12 +30,13 @@ function Fixture() {
   if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
+  if (name === "wish-list-edit") return <ListModal list={{ id: "unsaved-list", title: "Несохранённый список" }} listsCount={2} onClose={close} />;
   if (name === "wish") return <WishModal onClose={close} />;
   if (name === "wish-edit") return <WishModal wish={{ id: "unsaved-wish", title: "Несохранённое желание", url: "https://example.com", listIds: [] }} onClose={close} />;
   // The real editor owns its ScrollArea and separate footer.
   if (name === "contact-photo") return <Drawer open swipeDirection="right" onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><ContactEditForm /></DrawerContent></Drawer>;
   if (name === "contact") return <Drawer open swipeDirection="right" onOpenChange={setOpen}><DrawerContent className="contact-detail-drawer rollapp-body app-drawer--form"><DrawerTitle className="sr-only">Контакт</DrawerTitle><div className="contact-detail__toolbar flex shrink-0 justify-end px-4 pt-4 pb-2"><DrawerClose render={<Button type="button" variant="ghost" size="icon" className="contact-detail__close size-12 rounded-full" />} aria-label="Закрыть карточку контакта"><X /></DrawerClose></div><ContactEditForm contact={{ id: "unsaved-contact", name: "Контакт с длинным именем", avatarUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23777985'/%3E%3C/svg%3E", links: [{ label: "Ссылка", url: "https://example.com" }] }} /></DrawerContent></Drawer>;
-  if (name === "markdown") return <MarkdownEditorDrawer content="" label="Документ" open onOpenChange={setOpen} />;
+  if (name === "markdown") return <MarkdownEditorDrawer content="" label="Документ" deleteLabel="Удалить документ" deleteTitle="Удалить документ?" deleteDescription="Документ будет удалён." open onOpenChange={setOpen} onDelete={async () => {}} />;
   return <TaskEditor task={{ id: "unsaved-task", title: "Задача", dueOn: "2026-10-17", startTime: "09:00", durationMinutes: 60, recurrence: { frequency: "weekly", until: "2026-12-31" } }} columns={columns} onClose={close} />;
 }
 createRoot(document.getElementById("root")).render(<StrictMode><BrowserRouter><ToastContext.Provider value={() => {}}><MobileFormPages><Fixture /></MobileFormPages></ToastContext.Provider></BrowserRouter></StrictMode>);

@@ -21,33 +21,88 @@ try {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+    const group = page.locator(".app-group-dialog");
+    const summary = group.locator(".app-group-dialog__header [role=status]");
+    const trigger = group.getByRole("button", { name: "Открыть сбор группы «Часы для путешествий»" });
+    const drawer = page.locator('[data-slot="drawer-popup"]').filter({ has: page.getByText("Сбор роллов", { exact: true }) });
+    const close = drawer.getByRole("button", { name: "Закрыть сбор" });
+    const openDrawer = async ({ keyboard = false } = {}) => {
+      await trigger.waitFor();
+      assert.equal(await drawer.count(), 0, "Fundraising must only open from the group icon");
+      if (keyboard) await trigger.press("Enter");
+      else await trigger.click();
+      await drawer.waitFor();
+      await drawer.evaluate(async node => {
+        // The popup can be attached a frame before the browser starts its transition.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await Promise.allSettled(node.getAnimations().map(animation => animation.finished));
+      });
+      assert.equal(await drawer.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
+    };
     const open = async mode => {
       await page.goto(`${smokeOrigin(server)}/__fundraising?mode=${mode}`);
       await page.evaluate(() => document.fonts.ready);
-      await page.getByRole("heading", { name: "Сбор роллов" }).waitFor();
+      await page.waitForFunction(() => window.fundraisingReads.length > 0);
+      assert.equal(await drawer.count(), 0);
+      assert.equal(await group.getByText("6 желаний", { exact: true }).count(), 0);
+      assert.deepEqual(await page.evaluate(() => window.fundraisingReads), [`/wish-groups/fundraising-${mode}/fundraiser?shareToken=fixture%20token`]);
+      await openDrawer({ keyboard: mode === "empty" });
+      assert.equal(await page.evaluate(() => window.fundraisingReads.length), 1, "First drawer open reuses the group's read");
     };
     const geometry = async () => {
-      const result = await page.locator(".wish-group-fundraiser").evaluate(section => {
-        const parent = section.closest(".app-group-dialog");
-        const bounds = section.getBoundingClientRect();
-        const header = parent.querySelector('.app-group-dialog__header').getBoundingClientRect();
-        const grid = parent.querySelector('.wish-grid').getBoundingClientRect();
-        return { fits: bounds.left >= 0 && bounds.right <= innerWidth, root: document.documentElement.scrollWidth <= innerWidth,
-          gaps: [bounds.top - header.bottom + parent.scrollTop, grid.top - bounds.bottom],
-          overflow: [...section.querySelectorAll("*")].filter(node => { const r = node.getBoundingClientRect(); return r.width > 0 && (r.left < bounds.left - 1 || r.right > bounds.right + 1); }).map(node => node.tagName),
-          scroll: parent.scrollHeight > parent.clientHeight,
-          body: [getComputedStyle(section).fontSize, getComputedStyle(section).lineHeight] };
+      await page.getByRole("dialog", { name: "Сбор роллов" }).waitFor();
+      const result = await drawer.evaluate(node => {
+        const body = node.querySelector(".app-drawer-body");
+        const header = node.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
+        const bounds = node.getBoundingClientRect();
+        const bodyBounds = body.getBoundingClientRect();
+        const group = document.querySelector(".app-group-dialog");
+        return {
+          fits: bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.top >= -1 && bounds.bottom <= innerHeight + 1,
+          root: document.documentElement.scrollWidth <= innerWidth,
+          dimensions: {
+            bounds: bounds.toJSON(), viewport: [innerWidth, innerHeight],
+            rootScrollWidth: document.documentElement.scrollWidth,
+            transform: getComputedStyle(node).transform,
+            opening: node.hasAttribute('data-starting-style'),
+            closing: node.hasAttribute('data-ending-style'),
+          },
+          outsideGroup: !group.contains(node) && !group.querySelector(".wish-group-fundraiser"),
+          gap: group.querySelector(".wish-grid").offsetTop - group.querySelector(".app-group-dialog__header").offsetHeight,
+          overflow: [...body.querySelectorAll("*")].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < bounds.left - 1 || r.right > bounds.right + 1); }).map(element => element.tagName),
+          body: [getComputedStyle(body).fontSize, getComputedStyle(body).lineHeight],
+          scrollBody: getComputedStyle(body).overflowY === "auto" && bodyBounds.top >= header.bottom - 1,
+        };
       });
-      assert(result.fits && result.root, `${width} section overflow`);
+      assert(result.fits && result.root, `${width} section overflow: ${JSON.stringify(result.dimensions)}`);
+      assert(result.outsideGroup && result.scrollBody, `${width} drawer must own a separate scroller`);
       assert.deepEqual(result.overflow, [], `${width} descendant overflow`);
       assert.deepEqual(result.body, ["18px", "28px"]);
-      for (const gap of result.gaps) assert(Math.abs(gap - 24) < 1, `${width} group sibling gap ${gap}`);
+      assert(Math.abs(result.gap - 24) < 1, `${width} group header/grid gap ${result.gap}`);
       const controls = await page.locator(".wish-group-fundraiser button:visible").evaluateAll(nodes => nodes.map(node => {
         const css = getComputedStyle(node); return { height: node.getBoundingClientRect().height, radius: parseFloat(css.borderTopLeftRadius) };
       }));
       for (const control of controls) { assert(control.height >= 48); assert(control.radius >= 24); }
+      assert.deepEqual(await close.evaluate(button => {
+        const { width, height } = button.getBoundingClientRect();
+        const glyph = button.querySelector("svg").getBoundingClientRect();
+        return [width, height, getComputedStyle(button).borderRadius, glyph.width, glyph.height];
+      }), [48, 48, "24px", 20, 20]);
     };
+    if (width === 390) {
+      await open("loading");
+      assert.equal(await summary.textContent(), "Загрузка сбора…");
+      await drawer.getByText("Загрузка сбора…", { exact: true }).waitFor();
+      await page.evaluate(() => window.releaseFundraisingRead());
+      await summary.filter({ hasText: /^Собрано 250 роллов$/ }).waitFor();
+      await drawer.getByRole("progressbar").waitFor();
+    }
     await open("empty");
+    await page.keyboard.press("Escape");
+    await drawer.waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Открыть сбор группы «Часы для путешествий»");
+    await summary.filter({ hasText: /^Собрано 0 роллов$/ }).waitFor();
+    await trigger.click();
     await page.getByRole("button", { name: "Организовать сбор" }).click();
     await page.getByLabel("Цель сбора, роллы", { exact: true }).fill("1000");
     await geometry();
@@ -56,7 +111,13 @@ try {
     assert.equal(await page.getByRole("progressbar").getAttribute("aria-valuemax"), "1000");
     await open("owner");
     assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
+    await page.evaluate(() => { window.holdFundraisingPatch = true; });
     await page.getByRole("button", { name: "Приостановить", exact: true }).click();
+    await page.waitForFunction(() => typeof window.releaseFundraisingPatch === "function");
+    assert(await close.isDisabled());
+    await page.keyboard.press("Escape");
+    assert(await drawer.isVisible());
+    await page.evaluate(() => { window.holdFundraisingPatch = false; window.releaseFundraisingPatch(); });
     await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
     for (const name of ["Изменить цель", "Возобновить"]) {
       const padding = await page.getByRole("button", { name, exact: true }).evaluate(node => {
@@ -69,9 +130,30 @@ try {
     await page.screenshot({ path: `/tmp/rollapp-fundraising-owner-${width}.png`, fullPage: true });
     await page.getByRole("button", { name: "Возобновить", exact: true }).click();
     await page.getByRole("button", { name: "Изменить цель", exact: true }).click();
-    await page.getByLabel("Цель сбора, роллы", { exact: true }).fill("200");
+    const target = page.getByLabel("Цель сбора, роллы", { exact: true });
+    await target.fill("200");
     assert(await page.getByRole("button", { name: "Сохранить", exact: true }).isDisabled());
-    await page.getByLabel("Цель сбора, роллы", { exact: true }).fill("1500");
+    await target.fill("1500");
+    if (width === 390) {
+      await page.evaluate(() => {
+        Object.defineProperties(visualViewport, { height: { configurable: true, value: 220 }, offsetTop: { configurable: true, value: 96 } });
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+      await page.waitForFunction(() => {
+        const active = document.activeElement;
+        if (!active?.matches("input")) return false;
+        const popup = active.closest('[data-slot="drawer-popup"]');
+        const bounds = popup.getBoundingClientRect();
+        const field = active.getBoundingClientRect();
+        const header = popup.querySelector('[data-slot="drawer-header"]').getBoundingClientRect();
+        return bounds.top >= 96 && bounds.bottom <= 317 && field.top >= header.bottom && field.bottom <= bounds.bottom;
+      });
+      await page.evaluate(() => {
+        delete visualViewport.height;
+        delete visualViewport.offsetTop;
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+    }
     await page.getByRole("button", { name: "Сохранить", exact: true }).click();
     await geometry();
     await open("member");
@@ -88,10 +170,17 @@ try {
     assert.equal(await page.getByRole("progressbar").getAttribute("aria-valuenow"), "350");
     await geometry();
     await page.screenshot({ path: `/tmp/rollapp-fundraising-${width}.png`, fullPage: true });
-    // The group remains the sole scroller, and the last item is reachable.
-    await page.locator(".app-group-dialog").evaluate(node => { node.scrollTop = node.scrollHeight; });
+    await close.click();
+    await drawer.waitFor({ state: "detached" });
+    await summary.filter({ hasText: /^Собрано 350 роллов$/ }).waitFor();
+    await group.evaluate(node => { node.scrollTop = node.scrollHeight; });
     const last = await page.getByText("Часы 6", { exact: true }).boundingBox();
     assert(last.y + last.height <= page.viewportSize().height + 1);
+    const groupScroll = await group.evaluate(node => node.scrollTop);
+    await trigger.click();
+    await close.click();
+    await drawer.waitFor({ state: "detached" });
+    assert.equal(await group.evaluate(node => node.scrollTop), groupScroll, "Returning from the drawer moved the group grid");
     for (const mode of ["guest", "closed", "completed"]) {
       await open(mode); await geometry();
       assert.equal(await page.getByRole("button", { name: "Внести роллы", exact: true }).count(), 0);
@@ -112,6 +201,7 @@ try {
     await page.getByRole("button", { name: "Подтвердить покупку", exact: true }).click();
     await page.getByRole("status").getByText("Тестовая покупка выполнена. Реальные средства не списаны.", { exact: true }).waitFor();
     await page.reload();
+    await openDrawer();
     await page.getByText("700 роллов · тестовый баланс", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
     assert.deepEqual(await page.evaluate(() => window.fundraisingCalls), []);
@@ -129,6 +219,7 @@ try {
     await page.getByRole("button", { name: "Проверить взнос", exact: true }).last().waitFor();
     const firstKey = await page.evaluate(() => window.fundraisingCalls[0].input.idempotencyKey);
     await page.reload();
+    await openDrawer();
     await page.getByRole("button", { name: "Проверить взнос", exact: true }).last().click();
     await page.getByText("Взнос 100 роллов принят", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => window.fundraisingCalls[0].input.idempotencyKey), firstKey);
@@ -145,17 +236,31 @@ try {
     await page.getByRole("button", { name: "Подтвердить взнос", exact: true }).click();
     await page.getByRole("button", { name: "Проверить взнос", exact: true }).last().waitFor();
     await page.reload();
+    await openDrawer();
     await page.getByRole("button", { name: "Проверить взнос", exact: true }).last().click();
     await page.getByRole("alertdialog").getByText("Доступ к группе изменился", { exact: true }).waitFor();
     assert(await page.evaluate(() => Boolean(sessionStorage.getItem("rollapp:group-contribution:fixture-user:fundraising-lost-denied"))), "A late access error must preserve the original unknown request key");
-    await page.goto(`${smokeOrigin(server)}/__fundraising?mode=error`);
+    await open("error");
     await page.getByRole("alert").waitFor();
-    assert(await page.getByRole("button", { name: "Повторить", exact: true }).isVisible());
-    await page.goto(`${smokeOrigin(server)}/__fundraising?mode=hidden`);
+    assert.equal(await summary.textContent(), "Сумма недоступна");
+    await page.getByRole("button", { name: "Повторить", exact: true }).click();
+    await summary.filter({ hasText: /^Собрано 250 роллов$/ }).waitFor();
+    await open("hidden");
+    assert.equal(await summary.textContent(), "Собрано 0 роллов");
+    await drawer.getByText("Для этой группы пока нет сбора.").waitFor();
+    assert.equal(await drawer.getByRole("button", { name: "Организовать сбор" }).count(), 0);
+    await close.click();
+    await drawer.waitFor({ state: "detached" });
+    await group.getByRole("button", { name: "Закрыть группу", exact: true }).click();
+    await group.waitFor({ state: "detached" });
+    await page.goto(`${smokeOrigin(server)}/__fundraising?mode=non-product`);
     await page.getByText("Часы 1", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Сбор роллов" }).count(), 0);
+    await group.getByText("6 желаний", { exact: true }).waitFor();
+    assert.equal(await trigger.count(), 0);
+    assert.equal(await drawer.count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.fundraisingReads), []);
     assert.deepEqual(errors, []);
-    console.log(`PASS fundraising ${width}: create/edit/pause, balance validation, confirm/cancel, retry/reload, progress, guest/closed/completed/error, geometry and scroll`);
+    console.log(`PASS fundraising ${width}: group amount, icon and drawer, focus and scroll restoration, create/edit/pause, confirm/cancel, retry/reload, progress, guest/closed/completed/error and geometry`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

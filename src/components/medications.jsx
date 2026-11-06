@@ -742,7 +742,7 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
                 {saving && <Spinner aria-hidden="true" />}
                 {saving ? "Сохраняем" : group ? "Сохранить" : "Создать группу"}
               </Button>
-              <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>
+              {!group && <DrawerClose render={<Button className="min-h-12 px-4 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
               {group && <Button data-control-icon variant="destructive" size="icon" type="button" aria-label="Удалить группу" title="Удалить группу" disabled={busy} onClick={() => setDeleteOpen(true)}><Trash2 aria-hidden="true" /></Button>}
             </DrawerFooter>
           </form>

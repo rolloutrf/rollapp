@@ -59,6 +59,11 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   full-screen editor's outer padding or minimum viewport height.
 - If a sibling modal is opened from the wish editor, suspend the parent trap and
   dismissal until it closes, preserving the editor's form and return-focus target.
+- The layers icon in a product Wishlist group header opens the fundraising
+  Drawer, bottom on mobile and right on desktop. The panel has one scrolling
+  body, a persistent close control and its own nested contribution confirmation.
+  Closing it restores focus to the icon and preserves the group's scroll position.
+  See [the fundraising contract](wish-group-fundraising.md).
 
 ## Verification
 
@@ -70,6 +75,11 @@ grows first; secondary actions follow it, with wrapping when needed. Desktop
 footers use the same 16px inset and separator, outside the body scroller. Footer
 containers are transparent at every viewport: no background, gradient, backdrop
 blur or painted pseudo-element. Only individual controls have opaque surfaces.
+When an editor offers deletion, place the icon-only destructive button directly
+after the primary action in the footer and keep the full accessible label and
+existing confirmation. Native forms include Back in the same fixed row. The
+desktop catalog and Wishlist drawers use this footer for their main actions,
+while their standalone routes retain the shared ContentPage action layout.
 Disabled actions remain opaque; destructive colors survive hover and
 disabled states. Icon-only close actions also compose `ControlBar`. None of
 these rules change the upstream Drawer/Button primitives.
@@ -340,19 +350,22 @@ shadcn Calendar в Popover. `test:dates` проверяет все семь ре
 
 ## Вложенные разделы профиля
 
-Настройки профиля в общей форме `ProfileSettingsModal` используют четыре секции
-установленного shadcn Accordion: «Персональная информация», «OpenRouter»,
-«Yandex ID», «Заказы». Первая открыта при входе; секции раскрываются независимо.
-Панели остаются смонтированными при сворачивании: черновик профиля и личного
-API-ключа не теряется. Нативная валидация синхронно раскрывает персональные
-данные перед фокусировкой ошибочного поля. Общая кнопка сохранения сохраняет
-только профиль; настройки OpenRouter имеют собственное действие сохранения.
+Настройки профиля открывают отдельные экраны персональной информации, OpenRouter
+и Yandex ID. На телефоне они используют историю `MobileFormPages`, а на компьютере
+открываются внутри боковой панели. «Назад» возвращает к пункту меню. Черновики
+персональных данных и OpenRouter сохраняются при переходах. Фото и загрузка
+находятся над списком разделов. После выбора изображения появляется действие
+«Сохранить фото» в общем футере: оно обновляет только аватар и оставляет
+настройки открытыми вместе с черновиками. Кнопка выхода 48×48 находится справа
+от сохранения персональных данных в общем `ControlBar`.
 
-«Заказы» ведут на существующую `/app/orders`; при несохранённых персональных
-данных или выполняющейся операции переход блокируется с объяснением.
-Yandex ID остаётся отдельной секцией и показывает недоступность подключения,
-если провайдер выключен. Секции используют существующий scroll owner формы
-и общий `DrawerFooter`/`ControlBar`, включая мобильный Back.
+В OpenRouter «Сохранить изменения» и круглая кнопка отключения ключа 48×48
+стоят в общем футере за пределами прокручиваемых полей. На телефоне слева
+в этом ряду находится «Назад». Узкая кнопка сохранения использует подпись
+«Сохранить» с полным доступным именем.
 
-`npm run test:profile` проверяет настоящую форму на девяти viewport, включая
-320–1920px и короткие мобильный/настольный экраны, без запросов к API.
+Пункты меню при наведении сохраняют исходные цвета. При навигации клавишей Tab
+видна рамка фокуса. «Заказы» ведут на существующую `/app/orders` после закрытия настроек.
+Переход блокируется при несохранённых персональных данных, новом фото или
+активной операции.
+`npm run test:profile` проверяет форму на девяти размерах без запросов к API.

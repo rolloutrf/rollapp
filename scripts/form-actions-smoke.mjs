@@ -20,7 +20,7 @@ const server = await createServer({
   cacheDir: "node_modules/.vite-form-actions", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "form-actions-fixture",
   transform(source, id) {
-    if (id.endsWith("/src/App.jsx?form-actions")) return `${source}\nexport { ContactEditForm, ToastContext, WishModal };`;
+    if (id.endsWith("/src/App.jsx?form-actions")) return `${source}\nexport { ContactEditForm, ListModal, ToastContext, WishModal };`;
     const name = new URLSearchParams(id.split("?")[1]).get("drawer-smoke-export");
     if (name && /^[A-Z][A-Za-z]+$/.test(name) && id.includes("/src/") && !source.includes(`export function ${name}`)) return `${source}\nexport { ${name} };`;
   },
@@ -72,7 +72,7 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,medication-group,conference,coaching-edit,principle,identity-test").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,wish-list-edit,medication-group,conference,coaching-edit,principle,identity-test").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultNavigationTimeout(90000);
         page.setDefaultTimeout(10000);
@@ -132,6 +132,26 @@ try {
           assert(await confirm.evaluate(el => el.classList.contains("text-destructive")), "Task confirmation must use the warning variant");
           await page.getByRole("button", { name: "Отмена", exact: true }).click();
           await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+        }
+        if (name === "wish-list-edit") {
+          const trash = page.getByRole("button", { name: "Удалить список", exact: true });
+          const save = page.getByRole("button", { name: "Сохранить изменения", exact: true });
+          assert.equal(await trash.evaluate(el => el.previousElementSibling?.type), "submit");
+          const trashBox = await trash.boundingBox();
+          const saveBox = await save.boundingBox();
+          assert.equal(trashBox.width, 48);
+          assert.equal(trashBox.y, saveBox.y);
+          assert.equal(trashBox.x - saveBox.x - saveBox.width, 8);
+          await trash.click();
+          const confirmation = page.getByRole("alertdialog");
+          await confirmation.getByText("Желания из этого списка останутся", { exact: false }).waitFor();
+          assert(await confirmation.getByRole("button", { name: "Удалить", exact: true }).evaluate(el => el.classList.contains("text-destructive")));
+          await confirmation.getByRole("button", { name: "Отмена", exact: true }).click();
+          await confirmation.waitFor({ state: "hidden" });
+          await trash.waitFor();
+          if ((width === 390 && height === 400) || width === 1440) {
+            await page.screenshot({ path: `/tmp/rollapp-wish-list-edit-${width}x${height}.png` });
+          }
         }
         if (width < 768 && name !== "wish-edit") {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();

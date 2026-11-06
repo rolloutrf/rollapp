@@ -620,13 +620,14 @@ assert(/<DrawerTitle className="sr-only">Изменить профиль<\/Drawe
 assert(/<DrawerDescription className="sr-only">Редактирование данных профиля\.<\/DrawerDescription>/.test(profileSettingsSource), "ProfileSettingsModal must keep an accessible description without rendering helper copy");
 assert(/<form\b[^>]*onSubmit=\{submit\}/.test(profileSettingsSource), "ProfileSettingsModal must keep one native form submission path");
 assert(!/Ссылка на фото|settings-profile-avatar-url/.test(profileSettingsSource), "ProfileSettingsModal must not expose the retired avatar URL field");
-const profileLogoutLabel = profileSettingsSource.indexOf("<span>Выйти из аккаунта</span>");
+const profileLogoutLabel = profileSettingsSource.indexOf('aria-label="Выйти из аккаунта"');
 const profileLogoutStart = profileSettingsSource.lastIndexOf("<ShadcnButton", profileLogoutLabel);
 const profileLogoutEnd = profileSettingsSource.indexOf("</ShadcnButton>", profileLogoutLabel);
 const profileLogoutSource = profileSettingsSource.slice(profileLogoutStart, profileLogoutEnd + "</ShadcnButton>".length);
 assert(profileLogoutLabel >= 0 && profileLogoutStart >= 0 && profileLogoutEnd >= 0, "ProfileSettingsModal must keep its logout action");
 assert(/type="button"/.test(profileLogoutSource) && /variant="destructive"/.test(profileLogoutSource), "Profile logout must remain a native destructive shadcn Button");
-assert(/\bw-full\b/.test(profileLogoutSource) && !/\bjustify-start\b/.test(profileLogoutSource), "Profile logout must fill its content rail with a centered label");
+assert(/data-control-icon=/.test(profileLogoutSource) && /size="icon"/.test(profileLogoutSource), "Profile logout must use the shared circular ControlBar geometry");
+assert(/<DrawerFooter\b[^>]*>\s*<ShadcnButton\b[^>]*type="submit"[\s\S]*?<\/ShadcnButton>\s*<ShadcnButton\b[^>]*aria-label="Выйти из аккаунта"/.test(profileSettingsSource), "Profile logout must share the Save footer");
 const profileSettingsContentTag = profileSettingsSource.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
 assert(profileSettingsContentTag.includes("profile-settings-dialog"), "ProfileSettingsModal must mark its DrawerContent with the profile-settings-dialog class");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(profileSettingsContentTag), "ProfileSettingsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");
@@ -732,7 +733,7 @@ assert(/const refreshLoadedCatalog = async \(requestId\)/.test(wishCatalogPageSo
 assert(/limit=\$\{CATALOG_PAGE_SIZE\}&offset=\$\{offset\}/.test(wishCatalogPageSource), "Catalog refresh must preserve every already-loaded page within the API limit");
 assert(/catalogLoadMoreOperationRef\.current \|\| pendingWishlistIdsRef\.current\.size > 0/.test(wishCatalogPageSource), "Catalog pagination and Wishlist mutations must not overwrite one another");
 assert(/wishlistDisabled=\{pendingWishlistIds\.size > 0 \|\| catalog\.loadingMore\}/.test(wishCatalogPageSource), "Catalog Hearts must visibly disable while another catalog operation is active");
-assert(/disabled=\{catalog\.loadingMore \|\| pendingWishlistIds\.size > 0\}/.test(wishCatalogPageSource), "Catalog pagination must visibly disable while a Wishlist mutation is active");
+assert(/disabled=\{loadingMore \|\| pendingWishlistIds\.size > 0\} onClick=\{loadMore\}/.test(wishCatalogPageSource), "Manual catalog pagination must visibly disable while a Wishlist mutation is active");
 assert(!/pendingLike|toggleCatalogLike|catalog\/items\/like|onLike/.test(wishCatalogPageSource), "Catalog UI must not keep an independent Like mutation");
 const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalog-wish-card__actions"), legacyStyles.indexOf(".catalog-wish-card__body"));
 assert(!/\.is-liked\b/.test(catalogCardActionStyles), "Catalog Wishlist action must not keep a separate Like state");
@@ -772,18 +773,18 @@ for (const component of ["Drawer", "DrawerContent", "DrawerHeader"]) {
   assert(new RegExp(`<${component}\\b`).test(primaryWishDetailsDialog), `WishDetailsModal must compose the official shadcn ${component} directly`);
 }
 assert(/const Title = screen \? "h1" : DrawerTitle/.test(primaryWishDetailsDialog) && /const Description = screen \? "p" : DrawerDescription/.test(primaryWishDetailsDialog), "Wish details must use semantic page titles on mobile and Drawer semantics on desktop");
-assert(!/<(?:Dialog|Drawer)Footer\b/.test(primaryWishDetailsDialog), "WishDetailsModal actions must not restore the skinned footer wrapper");
-assert(/data-slot="wish-actions"/.test(primaryWishDetailsDialog), "WishDetailsModal must expose its unwrapped action group");
-const wishActionsTag = primaryWishDetailsDialog.match(/<ContentPageActions\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
+assert(/const ActionBar = screen \? ContentPageActions : DrawerFooter/.test(primaryWishDetailsDialog), "WishDetailsModal must use page actions on routes and the shared footer in drawers");
+assert(/\{detailsContent\}\s*\{renderActions\(\)\}\s*<\/DrawerContent>/.test(primaryWishDetailsDialog), "WishDetailsModal drawer actions must stay outside the scrolling body");
+const wishActionsTag = primaryWishDetailsDialog.match(/<ActionBar\b[^>]*data-slot="wish-actions"[^>]*>/)?.[0] || "";
 for (const className of ["flex", "w-full", "max-w-(--layout-compact-width)", "flex-nowrap", "gap-2"]) {
   assert(wishActionsTag.includes(className), `WishDetailsModal action group is missing ${className}`);
 }
 assert(/role="group"/.test(wishActionsTag) && /aria-label="Действия с желанием"/.test(wishActionsTag), "WishDetailsModal action group must keep its accessible group name");
 assert(!/(?:border-t|bg-muted\/50|p-4|rounded-b-xl|-mx-4|-mb-4)/.test(wishActionsTag), "WishDetailsModal action group must not restore footer chrome");
 assert(
-  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}")
-    && primaryWishDetailsDialog.indexOf("{!marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
-  "WishDetailsModal actions must follow the buy action and precede the guest notice",
+  primaryWishDetailsDialog.indexOf("wish-buy-action") < primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}")
+    && primaryWishDetailsDialog.indexOf("{screen && !marketplacePrimary && renderActions()}") < primaryWishDetailsDialog.indexOf("{!owner && <Alert"),
+  "WishDetailsModal page actions must follow the buy action and precede the guest notice",
 );
 assert(!/<Modal\b/.test(primaryWishDetailsDialog), "WishDetailsModal must not wrap its primary detail view in the legacy Modal adapter");
 assert(/<DrawerClose\b/.test(primaryWishDetailsDialog), "WishDetailsModal must render an explicit DrawerClose action (the shadcn Drawer has no built-in close button)");
@@ -872,8 +873,8 @@ for (const file of sourceFiles) {
   assert(!source.includes("shadcn.css"), `Legacy shadcn.css must not be referenced: ${relativeFile}`);
   if (!file.startsWith(`${uiDir}${path.sep}`)) {
     if (source.includes("@/components/ui/drawer")) {
-      // Messaging is a modal directory/chat on phones, independent of native form pages.
-      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
+      // Messaging and group fundraising keep modal panels on phones.
+      assert(["src/components/form-surface.jsx", "src/components/messenger.jsx", "src/components/wish-group-fundraiser.jsx"].includes(relativeFile), `${relativeFile}: use the responsive form-surface composition for mobile form pages`);
     }
     assert(!source.includes("@base-ui/react"), `Base UI must only be imported by owned shadcn components: ${relativeFile}`);
   }

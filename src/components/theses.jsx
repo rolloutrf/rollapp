@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { InlineDocument } from "@/components/inline-document";
-import { ControlBar } from "@/components/control-bar";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import {
   CareerContentError, useCareerContent,
@@ -128,24 +127,23 @@ function ThesisEditor({ initialValue = "", mode, onDelete, onOpenChange, onSave,
               <FieldDescription>Переносы строк внутри {labels.itemGenitive} сохраняются.</FieldDescription>
             </Field>
           </div>
-          <ControlBar as={DrawerFooter} className="flex-row items-center gap-2 border-t pt-4">
+          <DrawerFooter>
             <Button className="min-h-12 min-w-0 flex-1 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : `Добавить ${labels.item}`} disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : `Добавить ${labels.item}`}
             </Button>
-            {editing && onDelete && <EditorDeleteAction compact
-              label={`Удалить ${labels.item}`}
-              title={`Удалить этот ${labels.item}?`}
-              description={labels.deletedDescription}
-              disabled={saving}
-              onBusyChange={setDeleting}
-              onDelete={onDelete}
-              onDeleted={() => onOpenChange(false)}
-            />}
-            {!isMobile && <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
-              Отмена
-            </DrawerClose>}
-          </ControlBar>
+            {editing && onDelete
+              ? <EditorDeleteAction
+                  label={`Удалить ${labels.item}`}
+                  title={`Удалить этот ${labels.item}?`}
+                  description={labels.deletedDescription}
+                  disabled={saving}
+                  onBusyChange={setDeleting}
+                  onDelete={onDelete}
+                  onDeleted={() => onOpenChange(false)}
+                />
+              : <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
+          </DrawerFooter>
         </form>
       </DrawerContent>
     </Drawer>

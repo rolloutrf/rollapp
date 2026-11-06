@@ -92,7 +92,7 @@ try {
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: 'Настройки теста', exact: true }).click();
     await page.getByLabel('Название теста').fill('Несохранённое название');
-    await page.locator('form').getByRole('button', { name: 'Удалить', exact: true }).click();
+    await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     const dialogBounds = await page.getByRole('alertdialog').evaluate(el => ({ client: el.clientWidth, scroll: el.scrollWidth, left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, viewport: innerWidth, top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom, height: innerHeight }));
     assert.ok(dialogBounds.scroll <= dialogBounds.client + 1 && dialogBounds.left >= -1 && dialogBounds.right <= dialogBounds.viewport + 1 && dialogBounds.top >= -1 && dialogBounds.bottom <= dialogBounds.height + 1, `long confirmation title escapes ${width}: ${JSON.stringify(dialogBounds)}`);
     await page.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -115,12 +115,12 @@ try {
     await page.getByRole('tab', { name: renamedTitle, exact: true }).click();
     await page.getByRole('heading', { name: 'Результаты теста' }).waitFor();
     await page.getByRole('button', { name: 'Настройки теста', exact: true }).click();
-    await page.locator('form').getByRole('button', { name: 'Удалить', exact: true }).click();
+    await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.evaluate(() => { window.__identityFailNextDelete = true; });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.getByText('Не удалось удалить: повторите попытку', { exact: true }).waitFor();
     assert.equal(await page.getByLabel('Название теста').inputValue(), renamedTitle, 'Delete failure preserves the editor');
-    await page.locator('form').getByRole('button', { name: 'Удалить', exact: true }).click();
+    await page.locator('form [data-control-bar]').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.evaluate(() => { window.__identityHoldDelete = true; });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Удалить тест', exact: true }).click();
     await page.waitForFunction(() => typeof window.__identityReleaseDelete === 'function');

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus, Send } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
@@ -18,9 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
+import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/form-surface";
 import { WishlistBusinessItemEditor } from "@/components/wishlist-business-item-editor";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 export function wishlistSpace(search) { return WISHLIST_SPACES.find(item => item.id === new URLSearchParams(search).get("tab"))?.id || "products"; }
 const labelFor = space => WISHLIST_SPACES.find(item => item.id === space)?.label;
@@ -57,14 +56,14 @@ function BusinessItem({ item, onOpen }) {
  ) : content}</Card>;
 }
 function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose}) {
- const isMobile=useIsMobile();
  const [price,setPrice]=useState(""),[hours,setHours]=useState("24");const pending=useRef(null),sendLock=useRef(false);
  const [buyers,setBuyers]=useState([]);const [buyerId,setBuyerId]=useState("");const [error,setError]=useState("");const [loading,setLoading]=useState(owner);const [busy,setBusy]=useState(false);
  useEffect(()=>{if(!owner)return;let current=true;api.get(`/wishlist-business/${space}/buyers`).then(data=>{if(current)setBuyers(data.buyers);}).catch(e=>{if(current)setError(e.message);}).finally(()=>{if(current)setLoading(false);});return()=>{current=false;};},[owner,space]);
  const send=async()=>{if(sendLock.current)return;sendLock.current=true;setBusy(true);setError("");const terms={buyerId,priceRolls:Number(price),durationHours:Number(hours)};const signature=JSON.stringify(terms);if(pending.current?.signature!==signature)pending.current={signature,payload:{...terms,idempotencyKey:crypto.randomUUID()}};try{const result=await api.post(`/wishlist-business/${space}/items/${item.id}/recommend`,pending.current.payload);toast.success(result.alreadySent?"Этот счёт уже создан":"Персональный счёт создан");onClose();}catch(e){setError(e.message);}finally{sendLock.current=false;setBusy(false);}};
  const dismiss=async()=>{setBusy(true);try{await api.delete(`/wishlist-business/${space}/offers/${item.offerId}`);onDismiss();onClose();}catch(e){setError(e.message);}finally{setBusy(false);}};
  return <Drawer open={open} onAfterClose={onAfterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
- <DrawerHeader><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
+ <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть"><X aria-hidden="true" /></DrawerClose>
+ <DrawerHeader className="pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
  <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
  {item.imageUrl&&<img src={item.imageUrl} alt={item.title} className="max-h-96 w-full object-contain"/>}
  <p className="whitespace-pre-wrap">{item.description}</p>{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}
@@ -74,7 +73,14 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  {owner&&<><Field><FieldLabel htmlFor="wishlist-offer-price">Цена в роллах</FieldLabel><Input id="wishlist-offer-price" type="number" min="1" max="1000000" step="1" value={price} disabled={busy} onChange={e=>setPrice(e.target.value)} /></Field><Field><FieldLabel htmlFor="wishlist-offer-duration">Срок действия</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id="wishlist-offer-duration" className="w-full"><SelectValue>{()=>durations.find(([value])=>value===hours)?.[1]}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{durations.map(([value,label])=><SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field></>}
  {item.personalOffer&&<p>Действует до <time dateTime={item.personalOffer.expiresAt}>{new Date(item.personalOffer.expiresAt).toLocaleString("ru-RU")}</time></p>}
  <ErrorMessage message={error}/></div>
- <DrawerFooter><ControlBar className="flex gap-2"><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Закрыть" disabled={busy} onClick={onClose}>{isMobile?<X aria-hidden="true"/>:"Закрыть"}</Button>{owner&&<><Button variant="outline" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={()=>onEdit(item)}>{isMobile?<Pencil aria-hidden="true"/>:"Редактировать"}</Button><Button disabled={!buyerId||busy||!item.active||!Number.isInteger(Number(price))||Number(price)<1||Number(price)>1000000} onClick={send}><Send aria-hidden="true"/>Предложить</Button></>}{!owner&&item.personalOffer&&<OfferPaymentAction offer={item.personalOffer} onPaid={()=>{onDismiss();onClose();}}/>}{item.offerId&&<Button variant="destructive" size={isMobile?"icon":undefined} data-control-icon={isMobile||undefined} aria-label="Отклонить предложение" disabled={busy} onClick={dismiss}>{isMobile?<Trash2 aria-hidden="true"/>:"Отклонить"}</Button>}</ControlBar></DrawerFooter>
+ <DrawerFooter>
+   {owner && <>
+     <Button type="button" disabled={!buyerId || busy || !item.active || !Number.isInteger(Number(price)) || Number(price) < 1 || Number(price) > 1000000} onClick={send}>Предложить</Button>
+     <Button type="button" variant="outline" size="icon" data-control-icon aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={() => onEdit(item)}><Pencil aria-hidden="true" /></Button>
+   </>}
+   {!owner && item.personalOffer && <OfferPaymentAction offer={item.personalOffer} onPaid={() => { onDismiss(); onClose(); }} />}
+   {item.offerId && <Button type="button" variant="destructive" size="icon" data-control-icon aria-label="Отклонить предложение" title="Отклонить предложение" disabled={busy} onClick={dismiss}><Trash2 aria-hidden="true" /></Button>}
+ </DrawerFooter>
  </DrawerContent></Drawer>;
 }
 export function WishlistBusinessManager({user,space}) {

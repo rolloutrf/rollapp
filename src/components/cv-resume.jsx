@@ -252,24 +252,23 @@ function CvEditor({ cv, editor, onDelete, onOpenChange, onSave }) {
                 </Field>
               </FieldGroup>
             )}
-            {editingEntry && onDelete && <EditorDeleteAction
-              label="Удалить запись"
-              title="Удалить запись из CV?"
-              description="Запись будет удалена без возможности восстановления."
-              disabled={saving}
-              onBusyChange={setDeleting}
-              onDelete={onDelete}
-              onDeleted={() => onOpenChange(false)}
-            />}
           </div>
           <DrawerFooter>
             <Button className="min-h-12 text-base" type="submit" disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
               {saving ? "Сохраняем" : "Сохранить"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
-              Отмена
-            </DrawerClose>
+            {editingEntry && onDelete
+              ? <EditorDeleteAction
+                  label="Удалить запись"
+                  title="Удалить запись из CV?"
+                  description="Запись будет удалена без возможности восстановления."
+                  disabled={saving}
+                  onBusyChange={setDeleting}
+                  onDelete={onDelete}
+                  onDeleted={() => onOpenChange(false)}
+                />
+              : <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
           </DrawerFooter>
         </form>
       </DrawerContent>

@@ -113,24 +113,23 @@ function AboutMeQuestionEditor({ entry, mode, onDelete, onOpenChange, onSave, op
                 <FieldDescription>Оставьте пустую строку между абзацами. Ссылки можно добавлять в формате Markdown.</FieldDescription>
               </Field>
             </FieldGroup>
-            {editing && onDelete && <EditorDeleteAction
-              label="Удалить вопрос"
-              title="Удалить этот вопрос?"
-              description="Вопрос и ответ будут удалены без возможности восстановления."
-              disabled={saving}
-              onBusyChange={setDeleting}
-              onDelete={onDelete}
-              onDeleted={() => onOpenChange(false)}
-            />}
           </div>
           <DrawerFooter>
-            <Button className="min-h-12 text-base" type="submit" disabled={busy}>
+            <Button className="min-h-12 text-base" type="submit" aria-label={editing ? "Сохранить изменения" : undefined} disabled={busy}>
               {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
-              {saving ? "Сохраняем" : editing ? "Сохранить изменения" : "Добавить вопрос"}
+              {saving ? "Сохраняем" : editing ? (isMobile ? "Сохранить" : "Сохранить изменения") : "Добавить вопрос"}
             </Button>
-            <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>
-              Отмена
-            </DrawerClose>
+            {editing && onDelete
+              ? <EditorDeleteAction
+                  label="Удалить вопрос"
+                  title="Удалить этот вопрос?"
+                  description="Вопрос и ответ будут удалены без возможности восстановления."
+                  disabled={saving}
+                  onBusyChange={setDeleting}
+                  onDelete={onDelete}
+                  onDeleted={() => onOpenChange(false)}
+                />
+              : <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
           </DrawerFooter>
         </form>
       </DrawerContent>

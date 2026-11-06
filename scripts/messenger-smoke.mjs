@@ -15,10 +15,11 @@ const server=await createServer({optimizeDeps:{entries:['scripts/fixtures/messen
 await listenSmokeServer(server);const browser=instrumentSmokeBrowser(await chromium.launch(browserLaunchOptions()));
 let activePage;
 try{
- for(const [width,height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[390,400],[1440,400]]){
+ for(const [width,height] of [[320,844],[390,844],[767,844],[768,844],[820,844],[1024,844],[1440,844],[1920,844],[390,400],[1440,400]]){
   const page=await browser.newPage({viewport:{width,height}});const errors=[];activePage=page;let navigations=0;page.on('request',request=>{if(request.isNavigationRequest() && request.frame()===page.mainFrame())navigations++;});
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected production API request');return route.abort();});
+  await page.route('https://example.invalid/**',route=>{errors.push('Assistant note loaded unconfirmed remote media');return route.abort();});
   await page.goto(`${smokeOrigin(server)}/app/wishes`,{waitUntil:'networkidle'});
   const launcher=await page.getByRole('button',{name:'Открыть сообщения',exact:true}).boundingBox();
   const planning=await page.getByRole('button',{name:'Открыть планирование',exact:true}).boundingBox();
@@ -28,6 +29,7 @@ try{
   const drawer=page.getByRole('dialog',{name:'Сообщения',exact:true});
   await drawer.waitFor();
   await page.getByRole('searchbox',{name:'Найти участника'}).waitFor();
+  assert.match(await drawer.locator('.messenger-directory-scroll .messenger-person').first().innerText(), /^Ассистент Rollapp/);
   const subscriptions=drawer.getByRole('region',{name:'Подписки',exact:true});
   await subscriptions.getByRole('button',{name:/^Контакт 53 /}).waitFor();
 
@@ -132,6 +134,8 @@ try{
     assert.equal(new URL(page.url()).pathname,'/app/wishes');
   }
   assert.equal(navigations,1,'Fixture document reloaded during the interaction');
+  await checkAssistant(page, drawer, width, height);
+  assert.equal(navigations,1,'Assistant actions must use in-app navigation');
   if((width===1440 || width===390) && height===844){
     await page.goto(`${smokeOrigin(server)}/app/messenger/${cid}`,{waitUntil:'networkidle'});
     await drawer.locator('.messenger-message').last().waitFor();
@@ -139,4 +143,149 @@ try{
   }
   assert.deepEqual(errors,[]);console.log(`PASS messenger ${width}x${height}: search, chat, history, retry/idempotency, draft, plain text, error/retry, controls, overflow`);await page.close();
  }
-}catch(error){if(activePage)console.error(JSON.stringify(smokeBrowserDiagnostics(activePage)));throw error;}finally{await browser.close();await server.close();}
+}catch(error){
+  if(activePage) {
+    console.error(JSON.stringify(smokeBrowserDiagnostics(activePage)));
+    console.error(await activePage.locator('body').ariaSnapshot().catch(()=>activePage.url()));
+    await activePage.screenshot({path:'/tmp/rollapp-messenger-failure.png'}).catch(()=>{});
+  }
+  throw error;
+}finally{await browser.close();await server.close();}
+
+async function checkAssistant(page, drawer, width, height) {
+  const trigger=page.getByRole('button',{name:'Открыть сообщения',exact:true});
+  const entry=drawer.getByRole('button',{name:/^Ассистент Rollapp/});
+  const chat=drawer.getByRole('region',{name:'Ассистент Rollapp',exact:true});
+  const back=drawer.getByRole('button',{name:'Все диалоги',exact:true});
+  const close=drawer.getByRole('button',{name:'Закрыть сообщения',exact:true});
+  const openAssistant=async()=>{await trigger.click();await entry.click();await chat.waitFor();};
+  const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
+  const send=chat.getByRole('button',{name:'Отправить сообщение',exact:true});
+  const planning=chat.getByRole('checkbox',{name:'Учесть моё планирование',exact:true});
+  const writes=()=>page.evaluate(()=>window.messengerTest.planningWrites);
+  const title=page.getByRole('textbox',{name:'Название',exact:true});
+  const closeForm=async name=>{
+    if(width<768) {
+      await page.getByRole('button',{name:'Назад',exact:true}).click();
+      await page.locator('[data-mobile-form-page]').waitFor({state:'hidden'});
+      await page.waitForFunction(()=>!new URLSearchParams(location.search).has('formScreen'));
+    } else {
+      await page.getByRole('button',{name,exact:true}).click();
+      await title.waitFor({state:'hidden'});
+    }
+  };
+  await page.evaluate(()=>{window.messengerTest.failList=true;});
+  await trigger.click();
+  await drawer.getByRole('alert').filter({hasText:'Диалоги недоступны'}).waitFor();
+  assert.match(await drawer.locator('.messenger-directory-scroll .messenger-person').first().innerText(),/^Ассистент Rollapp/);
+  await entry.press('Enter');
+  await chat.waitFor();
+  assert(await back.evaluate(node=>node===document.activeElement),'Keyboard focus did not move to the assistant chat');
+  assert.equal(await planning.getAttribute('aria-checked'),'false');
+  assert.equal(await send.isDisabled(),true);
+  await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
+  assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
+  assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
+  assert.equal(await planning.getAttribute('aria-checked'),'false');
+  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
+  await text.fill('Что у меня в планах?');
+  await page.evaluate(()=>{window.messengerTest.failAssistant=true;});
+  await send.click();
+  await chat.getByRole('alert').filter({hasText:'Ассистент временно недоступен'}).waitFor();
+  assert.equal(await text.inputValue(),'Что у меня в планах?');
+  await page.evaluate(()=>{window.messengerTest.failAssistant=false;window.messengerTest.failList=false;});
+  await planning.click();
+  assert.equal(await planning.getAttribute('aria-checked'),'true');
+  await text.press('Control+Enter');
+  await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
+  assert.equal(await planning.getAttribute('aria-checked'),'false','Sharing must be opt-in for each send');
+  await back.click();
+  assert(await entry.evaluate(node=>node===document.activeElement),'Back did not restore focus to the assistant row');
+  assert.match(await entry.innerText(),/Личный ответ о планировании/);
+  await close.click();
+  await drawer.waitFor({state:'hidden'});
+  await openAssistant();
+  await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
+  await text.fill('Подготовь черновики');
+  await send.click();
+  const task=chat.getByRole('link',{name:'Проверить задачу',exact:true});
+  await task.waitFor();
+  assert.equal(await chat.locator('article img').count(),0,'Assistant output must not execute HTML');
+  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant.map(({messages,includePlanning})=>({messages,includePlanning}))),[
+    {messages:[{role:'user',content:'Что у меня в планах?'}],includePlanning:false},
+    {messages:[{role:'user',content:'Что у меня в планах?'}],includePlanning:true},
+    {messages:[{role:'user',content:'Подготовь черновики'}],includePlanning:false},
+  ]);
+  assert.deepEqual(await writes(),[],'An assistant reply must not save anything');
+  const metrics=await chat.evaluate(node=>{
+    const b=node.querySelector('button[type="submit"]').getBoundingClientRect(), history=node.querySelector('.messenger-history'), name=node.querySelector('header strong');
+    return { overflow:document.documentElement.scrollWidth>innerWidth || history.scrollWidth>history.clientWidth+1,
+      width:b.width,height:b.height,y:b.y,bottom:b.bottom,historyHeight:history.clientHeight, titleClipped:name.scrollWidth>name.clientWidth+1 };
+  });
+  assert.equal(metrics.overflow,false);assert.equal(metrics.titleClipped,false);assert.equal(metrics.width,48);assert.equal(metrics.height,48);
+  assert(metrics.y>=0 && metrics.bottom<=height && metrics.historyHeight>0);
+  if(width===390 && height===400) {
+    await text.fill('Многострочный черновик\n'.repeat(12));
+    await page.evaluate(()=>{
+      const root=document.documentElement;
+      root.style.setProperty('--app-visual-height','260px');
+      root.style.setProperty('--app-visual-top','50px');
+      root.style.setProperty('--app-visual-bottom','90px');
+      root.setAttribute('data-overlay-keyboard','');
+    });
+    const panned=await send.boundingBox();
+    assert(panned.y>=50 && panned.y+panned.height<=310,'Assistant composer escaped panned viewport');
+    await page.evaluate(()=>{
+      const root=document.documentElement;
+      for(const name of ['height','top','bottom']) root.style.removeProperty(`--app-visual-${name}`);
+      root.removeAttribute('data-overlay-keyboard');
+    });
+    await text.fill('');
+  }
+  if(width===1440 || width===390 || width===320) await page.screenshot({path:`/tmp/rollapp-assistant-${width}-${height}.png`});
+  await task.click();
+  await title.waitFor();
+  assert.equal(await title.inputValue(),'Подготовить встречу');
+  assert.equal(await page.getByRole('textbox',{name:'Описание',exact:true}).inputValue(),'Собрать вопросы');
+  assert.equal(new URL(page.url()).searchParams.get('date'),'2026-11-08');
+  assert.equal(await page.locator('input[type=time]:visible').inputValue(),'','An untimed task must stay untimed');
+  assert.deepEqual(await writes(),[]);
+  await closeForm('Закрыть задачу');
+  await openAssistant();
+  await chat.getByRole('link',{name:'Проверить событие',exact:true}).click();
+  await title.waitFor();
+  assert.equal(await title.inputValue(),'Встреча команды');
+  assert.equal(await page.locator('input[type=time]:visible').inputValue(),'14:30');
+  assert.equal(await page.getByRole('spinbutton',{name:'Длительность, минут'}).inputValue(),'45');
+  if(width===390 && height===844) {
+    await page.getByRole('button',{name:'Сохранить',exact:true}).click();
+    await title.waitFor({state:'hidden'});
+    const [record]=await writes();
+    assert.equal(record.body.startTime,'14:30');
+    assert.equal(record.body.dueOn,'2026-11-09');
+    await trigger.waitFor();
+  } else await closeForm('Закрыть задачу');
+  await openAssistant();
+  await chat.getByRole('link',{name:'Проверить заметку',exact:true}).click();
+  await title.waitFor();
+  assert.equal(await title.inputValue(),'Идеи встречи');
+  assert.match(await page.getByRole('textbox',{name:'Текст заметки',exact:true}).inputValue(),/^Первый пункт/);
+  if((width===390 || width===1440) && height===844) {
+    await page.getByRole('button',{name:'Сохранить',exact:true}).click();
+    await page.waitForFunction(()=>new URLSearchParams(location.search).has('note'));
+    const note=(await writes()).at(-1);
+    assert.equal(note.path,'/planning/notes');
+    assert.equal(note.body.title,'Идеи встречи');
+    assert.match(note.body.content,/!\\\[Внешнее изображение\\\]/);
+  } else await closeForm('Закрыть заметку');
+  await openAssistant();
+  await text.fill('Открой календарь');
+  await send.click();
+  const link=chat.getByRole('link',{name:'Открыть: Календарь',exact:true});
+  await link.waitFor();
+  assert.deepEqual((await page.evaluate(()=>window.messengerTest.assistant.at(-1).messages)).map(({role})=>role),['user','assistant','user']);
+  await link.click();
+  await drawer.waitFor({state:'hidden'});
+  assert.equal(new URL(page.url()).searchParams.get('tab'),'calendar');
+  console.log(`PASS assistant ${width}x${height}: first row, keyboard/focus, chat retry, scoped context, safe draft review, navigation`);
+}

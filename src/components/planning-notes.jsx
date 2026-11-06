@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { useLocation, useSearchParams } from "react-router-dom";
+import { Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { EditableTextBlock } from "@/components/editable-text-block";
 import { InlineTextField } from "@/components/inline-text-field";
 import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
-import { cn } from "@/lib/utils";
 import { NotesLibrary } from "@/components/notes-library";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { usePlanningAssistantDraft } from "@/lib/planning-assistant";
 import "./planning-notes.css";
 
 function NoteError({ error, retry }) {
@@ -27,6 +31,7 @@ export function PlanningNotes({ client = api }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [assistantDraft, clearAssistantDraft] = usePlanningAssistantDraft("draft_note");
   const [version, setVersion] = useState(0);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -45,17 +50,64 @@ export function PlanningNotes({ client = api }) {
     next.delete("space"); next.delete("spaceKind");
     return next;
   });
-  const create = async (template) => {
+  const create = async () => {
     if (creating) return;
     const sourceRevision = navigation.current.revision;
     setCreating(true); setError("");
-    try { const { note } = await client.post("/planning/notes", { title: template.id === "blank" ? "Без названия" : template.title, content: template.content }); if (mounted.current && navigation.current.revision === sourceRevision) open(note.id); }
+    try {
+      const { note } = await client.post("/planning/notes", { title: "Без названия", content: "" });
+      if (mounted.current && navigation.current.revision === sourceRevision) open(note.id);
+    }
     catch (cause) { if (mounted.current && navigation.current.revision === sourceRevision) setError(cause.message); }
     finally { if (mounted.current) setCreating(false); }
   };
   return <section className={`app-page planning-notes page-stack ${noteId ? "typeset typeset-rollapp" : "rollapp-body planning-notes--library"}`} aria-label="Заметки">
     {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <NotesLibrary notes={notes} loading={loading} error={error} creating={creating} onCreate={create} errorContent={<NoteError error={error} retry={() => setVersion(v => v + 1)} />} />}
+    {!noteId && assistantDraft && <AssistantNoteForm draft={assistantDraft} client={client} onClose={clearAssistantDraft} onCreated={open} />}
   </section>;
+}
+
+function AssistantNoteForm({ draft, client, onClose, onCreated }) {
+  const [open, setOpen] = useState(true);
+  const [title, setTitle] = useState(draft.title);
+  const [content, setContent] = useState(draft.content);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const createdId = useRef(null);
+  const saving = useRef(false);
+  async function save(event) {
+    event.preventDefault();
+    if (saving.current || createdId.current || !title.trim() || !content.trim()) return;
+    saving.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      // Import the proposed text without turning model-generated media or HTML into authored nodes.
+      const { note } = await client.post("/planning/notes", { title, content: content.replace(/[\\[\]<>]/g, "\\$&") });
+      createdId.current = note.id;
+      setOpen(false);
+    } catch (cause) { setError(cause.message); }
+    finally { saving.current = false; setBusy(false); }
+  }
+  return <Drawer open={open} onOpenChange={value => { if (!value && !busy) setOpen(false); }} onAfterClose={() => {
+    onClose();
+    if (createdId.current) onCreated(createdId.current);
+  }}>
+    <DrawerContent className="rollapp-body app-drawer--form">
+      <DrawerClose render={<Button variant="outline" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть заметку"><X aria-hidden="true" /></DrawerClose>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={save}>
+        <DrawerHeader className="pr-16 text-left!"><DrawerTitle>Новая заметка</DrawerTitle><DrawerDescription>Проверьте черновик ассистента перед сохранением.</DrawerDescription></DrawerHeader>
+        <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <NoteError error={error} />
+          <FieldGroup>
+            <Field><FieldLabel htmlFor="assistant-note-title">Название</FieldLabel><Input id="assistant-note-title" required maxLength={200} value={title} onChange={event => setTitle(event.target.value)} /></Field>
+            <Field><FieldLabel htmlFor="assistant-note-content">Текст заметки</FieldLabel><Textarea id="assistant-note-content" required maxLength={5000} rows={6} value={content} onChange={event => setContent(event.target.value)} /></Field>
+          </FieldGroup>
+        </div>
+        <DrawerFooter><Button type="submit" disabled={busy || !title.trim() || !content.trim()}>Сохранить</Button></DrawerFooter>
+      </form>
+    </DrawerContent>
+  </Drawer>;
 }
 
 function NoteLoader({ noteId, client }) {
@@ -71,7 +123,6 @@ function NoteLoader({ noteId, client }) {
   }, [client, noteId, version]);
   if (note) return <NoteEditor note={note} client={client} />;
   return <>
-    <ControlBar><Link data-control-icon aria-label="К списку заметок" to="?tab=notes" className={cn(buttonVariants({ variant: "outline", size: "icon" }), "rounded-full")}><ArrowLeft aria-hidden="true" /></Link></ControlBar>
     <NoteError error={error} retry={() => setVersion(v => v + 1)} />
     {!error && <p role="status">Загружаем заметку…</p>}
   </>;
@@ -100,13 +151,12 @@ function NoteEditor({ note, client }) {
     finally { if (mounted.current) { setBusy(false); setConfirmDelete(false); } }
   };
   return <>
-    <ControlBar className="not-typeset page-toolbar rollapp-body">
-      <Link data-control-icon aria-label="К списку заметок" to="?tab=notes" aria-disabled={busy || undefined} onClick={event => { if (busy) event.preventDefault(); }} className={cn(buttonVariants({ variant: "outline", size: "icon" }), "rounded-full")}><ArrowLeft aria-hidden="true" /></Link>
-      <Button data-control-icon variant="destructive" size="icon" aria-label="Удалить заметку" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>
-    </ControlBar>
     <NoteError error={error} />
-    <article className="typeset typeset-rollapp typeset-document planning-notes__document">
-      <h1><InlineTextField value={autosave.draft.title} onChange={title => autosave.change(current => ({ ...current, title: title.slice(0, 200) }))} onBlur={autosave.flush} label="Название заметки" singleLine placeholder="Без названия" disabled={busy} /></h1>
+    <article className="typeset typeset-rollapp typeset-document planning-notes__document page-stack">
+      <ControlBar as="header" className="page-toolbar flex-nowrap">
+        <h1 className="min-w-0"><InlineTextField value={autosave.draft.title} onChange={title => autosave.change(current => ({ ...current, title: title.slice(0, 200) }))} onBlur={autosave.flush} label="Название заметки" singleLine placeholder="Без названия" disabled={busy} /></h1>
+        <Button className="not-typeset" data-control-icon variant="destructive" size="icon" aria-label="Удалить заметку" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>
+      </ControlBar>
       <EditableTextBlock value={autosave.draft.content} onChange={content => autosave.change(current => ({ ...current, content }))} onBlur={autosave.flush} label="Текст заметки" placeholder="Напишите что-нибудь или введите / для выбора блока…" disabled={busy} />
     </article>
     <InlineSaveStatus autosave={autosave} />

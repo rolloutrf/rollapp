@@ -242,13 +242,24 @@ try {
     // Exercise both features successively without resetting presentation state.
     await load(page, '?pair&products');
     for (const expectedIds of [['w1','w0'], ['w0','w1']]) {
+      await start(page, 'wishes', 'w1');
       const source = await page.locator('[data-group-wish-id="w1"] .wish-card__image').boundingBox();
       const target = await page.locator('[data-group-id="g0"] .wish-group-tile__preview').boundingBox();
-      await page.mouse.move(source.x+source.width/2,source.y+source.height/2); await page.mouse.down();
       const targetX = source.x < target.x ? target.x+3 : target.x+target.width-3;
       await page.mouse.move(targetX,target.y+target.height/2,{steps:24});
       const expectedTiles = expectedIds[0] === 'w1' ? ['w1','g0'] : ['g0','w1'];
       await page.waitForFunction(expected=>JSON.stringify([...document.querySelector('.wishes-page > .wish-grid').children].map(e=>e.dataset.groupId||e.dataset.groupWishId))===JSON.stringify(expected),expectedTiles);
+      // This round trip releases on the moved card. The preceding two-tile
+      // cases separately cover a stationary release at the group's edge.
+      const moved = page.locator('.wishes-page > .wish-grid [data-group-wish-id="w1"]');
+      const releasePoint = await moved.evaluate(async element => {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await Promise.allSettled(element.getAnimations().map(animation => animation.finished));
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+      await page.mouse.move(releasePoint.x, releasePoint.y);
+      assert(await moved.evaluate((element, { x, y }) => element.contains(document.elementFromPoint(x, y)), releasePoint), 'Reorder release must hit the moved card');
       await page.mouse.up();
       await page.waitForFunction(n => window.dragTest.calls.length === n, expectedIds[0] === 'w1' ? 1 : 2);
       assert.deepEqual((await calls(page)).at(-1), {path:'/wishes/reorder',payload:{wishIds:expectedIds}});

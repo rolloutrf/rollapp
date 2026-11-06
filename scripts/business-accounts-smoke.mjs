@@ -120,7 +120,7 @@ try {
     const openProducts = grantedCard.getByRole("link", { name: "Товары", exact: true });
     await openProducts.waitFor();
     assert.equal(await openProducts.count(), 1);
-    assert.equal(await openProducts.getAttribute("href"), "/u/shared-client?tab=products");
+    assert.equal(await openProducts.getAttribute("href"), "/shared-client/products");
     assert.equal(await grantedCard.getByRole("button", { name: /Запросить/ }).count(), 0);
     await page.getByRole("button", { name: "Запросить доступ" }).click();
     assert.equal(JSON.parse(await page.locator("[data-submitted]").textContent()), "new-client");
