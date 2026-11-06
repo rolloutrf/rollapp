@@ -10,6 +10,7 @@ const MobileFormsContext = createContext(null);
 const FormPageContext = createContext(null);
 const FORM_QUERY = "formScreen";
 const formToken = (search) => new URLSearchParams(search).get(FORM_QUERY);
+const historyKey = () => window.history.state?.key ?? "default";
 function withForm(location, id) {
   const search = new URLSearchParams(location.search);
   if (id) search.set(FORM_QUERY, id); else search.delete(FORM_QUERY);
@@ -38,6 +39,7 @@ export function MobileFormPages({ children }) {
   const entriesRef = useRef(new Map());
   const timers = useRef(new Map());
   const pendingClose = useRef(null);
+  const pendingRestores = useRef(new Map());
   const closeCallbacks = useRef(new Map());
   const reconcileFrame = useRef(0);
   const [entries, setEntries] = useState([]);
@@ -74,12 +76,18 @@ export function MobileFormPages({ children }) {
     queueMicrotask(() => {
       const registered = entriesRef.current.get(entry.id);
       if (!registered) return;
+      registered.sourceKey = historyKey();
+      registered.scrollRestoration = window.history.scrollRestoration;
+      // The source entry is restored by the form host after it is visible.
+      // Chrome can otherwise start a second smooth scroll after history Back.
+      window.history.scrollRestoration = "manual";
       navigate(withForm(locationRef.current, entry.id), { state: locationRef.current.state });
+      window.history.scrollRestoration = registered.scrollRestoration;
       // Browser history is committed synchronously; React may coalesce the
       // route render with a fast Back before its effect ever sees this token.
       registered.ready = true;
+      window.scrollTo({ left: 0, top: 0, behavior: "instant" });
     });
-    window.scrollTo({ left: 0, top: 0, behavior: "instant" });
   }, [navigate, sync]);
   const unregister = useCallback((id) => {
     // StrictMode re-runs effects; a re-registration cancels this disposal.
@@ -88,23 +96,35 @@ export function MobileFormPages({ children }) {
       const entry = entriesRef.current.get(id);
       if (!entry) return;
       entriesRef.current.delete(id);
+      if (entry.ready) pendingRestores.current.set(entry.sourceKey, entry);
       sync();
       if (entry.afterClose?.current) closeCallbacks.current.set(id, entry.afterClose);
       if (formToken(window.location.search) === id) {
         pendingClose.current = id;
         navigate(-1);
       } else finishClose(formToken(window.location.search));
-      requestAnimationFrame(() => {
-        // The source's smooth-scroll CSS is active again after the form closes.
-        // Restoring history position must not animate through the whole page.
-        window.scrollTo({ left: 0, top: entry.scrollY, behavior: "instant" });
-        // A newly focused source control owns the next interaction. The queued
-        // return must not reclaim it after the form has already disappeared.
-        const focused = document.activeElement;
-        if (entry.opener?.isConnected && (!focused || focused === document.body || focused === document.documentElement)) entry.opener.focus?.({ preventScroll: true });
-      });
     }, 0));
   }, [navigate, sync, finishClose]);
+  useLayoutEffect(() => {
+    const active = entries.at(-1)?.id ?? null;
+    if (active !== formToken(window.location.search)) return;
+    const key = historyKey();
+    const entry = pendingRestores.current.get(key);
+    if (!entry) return;
+    pendingRestores.current.clear();
+    // The returning document must participate in layout before scrollTo can
+    // reach its previous position. Restore before painting that document.
+    window.scrollTo({ left: 0, top: entry.scrollY, behavior: "instant" });
+    const focused = document.activeElement;
+    if (entry.opener?.isConnected && (!focused || focused === document.body || focused === document.documentElement)) {
+      entry.opener.focus?.({ preventScroll: true });
+    }
+    requestAnimationFrame(() => {
+      // Let the current history traversal finish with manual restoration,
+      // then give the source entry its original behavior for future visits.
+      if (historyKey() === key) window.history.scrollRestoration = entry.scrollRestoration;
+    });
+  }, [entries, location]);
   const reconcileHistory = useCallback((id) => {
     cancelAnimationFrame(reconcileFrame.current);
     if (pendingClose.current && id !== pendingClose.current) pendingClose.current = null;

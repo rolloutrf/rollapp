@@ -143,6 +143,7 @@ try{
  await sourcePage.goto(`${origin}/__drawer-smoke?flow=1&source=1`);
  const edit=sourcePage.getByRole('button',{name:'Редактировать документ',exact:true});
  for(const back of ['page','browser']){
+  const scrollRestoration=await sourcePage.evaluate(()=>history.scrollRestoration);
   await edit.scrollIntoViewIfNeeded();
   const sourceScroll=await sourcePage.evaluate(()=>scrollY);assert(sourceScroll>500,'Source restoration fixture did not scroll');
   await edit.click();
@@ -156,6 +157,7 @@ try{
     return samples;
   });
   assert(positions.length>3&&positions.slice(2).every(y=>Math.abs(y-sourceScroll)<1),`${back} Back: source restoration animates or jumps after its first two frames: ${positions.join(',')}`);
+  assert.equal(await sourcePage.evaluate(()=>history.scrollRestoration),scrollRestoration,`${back} Back: changed the source history entry's scroll restoration mode`);
  }
  assert.deepEqual(errors,[]);await sourcePage.close();
  console.log('PASS source document: page/browser Back restores scroll without later jumps');

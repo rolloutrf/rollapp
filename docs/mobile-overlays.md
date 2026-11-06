@@ -168,10 +168,13 @@ longer forms grow with the document. Their minimum height uses
 resizing the layout viewport. The document is the only scroll owner. Smooth
 scrolling is disabled while a form page is active so keyboard focus and WebKit
 panning do not trigger a competing animation.
-Entry and source-scroll restoration use explicit `behavior: "instant"` as well:
-once the form unmounts, the source's global smooth-scroll CSS is active again.
-Restoring its saved position must not animate from the top. `test:form-pages`
-checks both page and browser Back from a deep source position, frame by frame.
+Entry and source-scroll restoration use explicit `behavior: "instant"`. While
+a form is open, its source history entry uses manual scroll restoration so a
+browser traversal cannot start a second scroll when the source's smooth-scroll
+CSS returns. The form host restores the saved position after React makes the
+source visible and returns the entry to its previous restoration mode after the
+traversal. `test:form-pages` checks both page and browser Back from a deep source
+position frame by frame, including restoration of the previous history mode.
 Queued opener focus restoration applies only while the document has no focused
 control. If a source field or calendar control has already received focus after
 closing, preserve that new owner. `test:calendar` focuses the newly created
