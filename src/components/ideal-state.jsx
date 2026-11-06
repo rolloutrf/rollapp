@@ -58,6 +58,6 @@ export function IdealState() {
     {!document.loading && !document.error && <InlineDocument key={`ideal-state:${sharing.owner?.id || "self"}`}
       documentKey="identity:ideal-state" value={content} onSave={document.save} label="Идеальное состояние"
       readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
-      placeholder="Опишите жизнь, к которой стремитесь…" addBlock={[{ type: "heading", attrs: { level: 2 } }, { type: "paragraph" }]} />}
+      placeholder="Опишите жизнь, к которой стремитесь…" />}
   </div>;
 }

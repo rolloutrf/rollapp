@@ -991,7 +991,7 @@ export function Medications() {
       {!requestState.loading && !requestState.error && visibleMedications.length > 0 && (
         <>
           <MedicationSection groups={requestState.groups} hideTitle id="active-medications-title" title="Принимаю сейчас" medications={active} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
-          <MedicationSection groups={requestState.groups} id="planned-medications-title" title="Запланировано" medications={planned} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
+          <MedicationSection groups={requestState.groups} hideTitle id="planned-medications-title" title="Запланировано" medications={planned} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
           <MedicationSection groups={requestState.groups} id="archived-medications-title" title="Приостановлено и завершено" medications={archived} moveState={moveState} onCreateGroup={(medication) => !readOnly && setGroupDrawerState({ group: null, moveItem: medication })} onEdit={(medication) => !readOnly && setDrawerState({ medication })} onMoveToGroup={moveMedicationToGroup} />
         </>
       )}
