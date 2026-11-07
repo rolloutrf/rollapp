@@ -1,3 +1,5 @@
+importScripts("wishlist-worker.js");
+
 const RETAILERS = Object.freeze({
   samokat: Object.freeze({
     label: "Самокат",
@@ -140,12 +142,22 @@ function trustedRollappSender(sender) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type !== "ROLLAPP_IMPORT_RETAILER") return false;
+  if (!["ROLLAPP_IMPORT_RETAILER", "ROLLAPP_IMPORT_WISHLIST"].includes(message?.type)) return false;
   if (!trustedRollappSender(sender)) {
     sendResponse({ ok: false, error: "Недоверенная страница Rollapp" });
     return false;
   }
 
+  if (message.type === "ROLLAPP_IMPORT_WISHLIST") {
+    if (URL.parse(sender.tab.url)?.origin !== "https://xn--80avakiab.xn--p1ai") {
+      sendResponse({ ok: false, error: "Импорт избранного доступен на роллапп.рф." });
+      return false;
+    }
+    collectMarketplaceWishlist(message.provider)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "Не удалось прочитать избранное" }));
+    return true;
+  }
   importRetailerProduct(message.retailerId, message.url)
     .then((metadata) => sendResponse({ ok: true, metadata }))
     .catch((error) => sendResponse({ ok: false, error: error?.message || "Не удалось прочитать товар магазина" }));

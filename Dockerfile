@@ -8,6 +8,7 @@ COPY public ./public
 COPY src ./src
 COPY shared ./shared
 COPY contracts ./contracts
+COPY browser-extension ./browser-extension
 RUN npm run build
 
 FROM node:22-alpine AS runtime

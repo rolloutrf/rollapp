@@ -1,4 +1,6 @@
 import path from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { zipSync } from "fflate";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -69,5 +71,23 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    rolldownOptions: {
+      plugins: [{
+        name: "rollapp-browser-extension-download",
+        async generateBundle() {
+          const directory = new URL("./browser-extension/", import.meta.url);
+          const names = (await readdir(directory)).filter((name) => /^(?:manifest\.json|README\.md|[a-z-]+\.js)$/.test(name)).sort();
+          const entries = await Promise.all(names.map(async (name) => [
+            `rollapp-browser-extension/${name}`,
+            new Uint8Array(await readFile(new URL(name, directory))),
+          ]));
+          this.emitFile({
+            type: "asset",
+            fileName: "rollapp-browser-extension.zip",
+            source: zipSync(Object.fromEntries(entries), { mtime: new Date("2020-01-01T00:00:00Z") }),
+          });
+        },
+      }],
+    },
   },
 });
