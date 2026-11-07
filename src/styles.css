@@ -4309,11 +4309,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   outline: 2px solid var(--ring);
   outline-offset: 5px;
 }
-.wishes-page__hero:has(.profile-portrait) {
-  isolation: isolate;
-}
 .profile-portrait {
-  position: relative;
   display: inline-flex;
   flex: none;
 }
@@ -4322,22 +4318,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .profile-portrait > .wishes-page__hero-avatar:has(> [data-slot="avatar-image"])::after {
   display: none;
-}
-.profile-portrait:has([data-slot="avatar-image"])::before {
-  content: "";
-  position: absolute;
-  inset: -30%;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(ellipse 46% 44% at 48% 47%, hsl(var(--profile-portrait-hue) 78% 59% / .76) 22%, transparent);
-  animation: profile-portrait-wave 9s ease-in-out infinite alternate;
-}
-@keyframes profile-portrait-wave {
-  from { transform: translate(-3%, 2%) rotate(-20deg) scale(.96); }
-  to { transform: translate(3%, -3%) rotate(32deg) scale(1.04); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .profile-portrait:has([data-slot="avatar-image"])::before { animation: none; }
 }
 .app-layout--dark .sphere-share-avatars__people {
   position: absolute;

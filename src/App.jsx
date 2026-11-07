@@ -574,29 +574,9 @@ function Avatar({ user, size = "md", className = "", ...props }) {
   );
 }
 
-function currentProfilePortraitHue() {
-  const hour = new Date().getHours();
-  if (hour < 5 || hour >= 22) return 23;
-  if (hour < 11) return 38;
-  if (hour < 17) return 33;
-  return 27;
-}
-
 function ProfilePortrait({ user }) {
-  const [hue, setHue] = useState(currentProfilePortraitHue);
-
-  useEffect(() => {
-    const updateHue = () => setHue(currentProfilePortraitHue());
-    const timer = window.setInterval(updateHue, 60_000);
-    document.addEventListener("visibilitychange", updateHue);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", updateHue);
-    };
-  }, []);
-
   return (
-    <span className="profile-portrait" style={{ "--profile-portrait-hue": hue }}>
+    <span className="profile-portrait">
       <Avatar user={user} size="xl" className="wishes-page__hero-avatar" />
     </span>
   );
