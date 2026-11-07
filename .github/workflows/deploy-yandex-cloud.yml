@@ -20,6 +20,7 @@ concurrency:
   # A cancelled job can leave an asynchronous VM metadata update racing the
   # next deployment. Let each production rollout reach a terminal state.
   cancel-in-progress: false
+  queue: max
 
 env:
   YC_FOLDER_ID: b1gebpfrhvkd43r38q98
