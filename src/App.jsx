@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 import { api } from "./api.js";
+import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
 import { useContactFeed } from "./hooks/use-contact-feed.js";
 import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.js";
 import { ContentPage, ContentPageActions } from "@/components/content-page";
@@ -816,6 +817,7 @@ function GlobalAppChrome() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useSession();
+  const waitlistLanding = TELEGRAM_WAITLIST_ENABLED && location.pathname === "/" && !user;
   const { collection } = useContext(CollectionNavigationContext);
   const collectionSpace = collection?.pathname === location.pathname ? collection.space : null;
   const brandCatalog = location.pathname === APP_WISH_CATALOG_PATH && isBrandCatalogSearch(location.search);
@@ -853,6 +855,7 @@ function GlobalAppChrome() {
       toast("Не удалось скопировать ссылку", "error");
     }
   };
+  if (waitlistLanding) return null;
   if ((isMobile && location.pathname.startsWith("/app/messenger")) || (isMobile && location.pathname === PLANNING_SERVICE.path) || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const sectionSelector = location.pathname === PLANNING_SERVICE.path && user
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
@@ -1066,7 +1069,8 @@ function RootRoute() {
   if (loading) return <LoadingScreen />;
   const telegramLaunch = initializeTelegramWebApp();
   if (telegramLaunch.initData) return <Navigate to={`/login?next=${encodeURIComponent(APP_HOME)}`} replace />;
-  return <Navigate to={user ? APP_HOME : "/login"} replace />;
+  if (user || !TELEGRAM_WAITLIST_ENABLED) return <Navigate to={user ? APP_HOME : "/login"} replace />;
+  return <TelegramWaitlistPage />;
 }
 
 function usePhoneOtp({ requestPath, verifyPath, onVerified }) {
@@ -1265,11 +1269,12 @@ function PhoneOtpFields({ flow, initialFocus = false, requestLabel = "Получ
   </>;
 }
 
-function AuthRecoveryForm({ eyebrow, title, description, busy = false, onSubmit, noValidate = false, children }) {
+function AuthRecoveryForm({ eyebrow, title, description, brand = false, busy = false, onSubmit, noValidate = false, children }) {
   return (
     <div className="auth-page rollapp-body">
       <div className="auth-panel">
         <form className="auth-form" aria-busy={busy || undefined} noValidate={noValidate} onSubmit={onSubmit}>
+          {brand && <span className="logo self-start" role="img" aria-label="Rollapp"><LogoMark /></span>}
           <div>
             <span className="eyebrow">{eyebrow}</span>
             <h1>{title}</h1>
@@ -1279,6 +1284,79 @@ function AuthRecoveryForm({ eyebrow, title, description, busy = false, onSubmit,
         </form>
       </div>
     </div>
+  );
+}
+
+function TelegramWaitlistPage() {
+  const inputId = useId();
+  const [telegram, setTelegram] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    if (loading || submitted) return;
+    const username = normalizeWaitlistTelegram(telegram);
+    if (!username) {
+      setError("Введите @username или ссылку t.me/username.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api.post("/waitlist", { telegram: username });
+      if (result.ok !== true) throw new Error("Не удалось сохранить заявку. Попробуйте ещё раз.");
+      setSubmitted(true);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <AuthRecoveryForm
+      brand
+      eyebrow="Ранний доступ"
+      title="Список ожидания"
+      description={submitted ? "Сообщим в Telegram, когда сможем пригласить вас в Rollapp." : "Оставьте свой Telegram, чтобы получить приглашение в Rollapp."}
+      busy={loading}
+      onSubmit={submit}
+    >
+      {submitted ? (
+        <Alert className="rounded-2xl border-primary/20 bg-primary/5 p-4" role="status">
+          <CheckCircle2 className="text-primary" aria-hidden="true" />
+          <AlertDescription>Вы в списке ожидания.</AlertDescription>
+        </Alert>
+      ) : (
+        <>
+          <Field>
+            <FieldLabel htmlFor={inputId}>Ваш Telegram</FieldLabel>
+            <Input
+              id={inputId}
+              required
+              maxLength={80}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="@username"
+              value={telegram}
+              disabled={loading}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? `${inputId}-error` : undefined}
+              onChange={(event) => { setTelegram(event.target.value); setError(""); }}
+            />
+            {error && <FieldError id={`${inputId}-error`} role="alert">{error}</FieldError>}
+          </Field>
+          <ShadcnButton type="submit" className="auth-submit rounded-full" disabled={loading}>
+            {loading && <Spinner data-icon="inline-start" />}
+            Записаться в список
+          </ShadcnButton>
+        </>
+      )}
+      <p className="auth-switch">Уже есть аккаунт? <Link to="/login">Войти</Link></p>
+    </AuthRecoveryForm>
   );
 }
 

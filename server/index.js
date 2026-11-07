@@ -7,6 +7,7 @@ import { registerHealthTrackerRoutes } from "./health-trackers.js";
 
 import { registerStoryRoutes } from "./stories.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
+import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
 import { imageIsInUse } from "./image-usage.js";
@@ -505,6 +506,7 @@ app.use(cookieParser());
 registerTonConnectRoutes(app);
 
 const authRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+const waitlistRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
 const inviteRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 20, key: (req) => req.user.id });
 const inviteValidationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 60 });
 const contactCardRateLimit = createRateLimit({ windowMs: 60 * 1000, max: 30 });
@@ -2083,6 +2085,20 @@ app.post("/api/telegram/webhook", asyncRoute(async (req, res) => {
   if (handled) return res.json(handled);
   const reply = telegramLaunchReply(req.body, config);
   if (reply) return res.json({ method: "sendMessage", ...reply });
+  return res.json({ ok: true });
+}));
+
+app.post("/api/waitlist", waitlistRateLimit, asyncRoute(async (req, res) => {
+  if (!TELEGRAM_WAITLIST_ENABLED) return res.sendStatus(404);
+  const username = normalizeWaitlistTelegram(req.body?.telegram);
+  if (!username) {
+    return res.status(400).json({ error: "Введите имя пользователя Telegram, например @username или https://t.me/username." });
+  }
+
+  await query(
+    "INSERT INTO application_settings (key,value_text) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING",
+    [`telegram_waitlist:${username}`, new Date().toISOString()],
+  );
   return res.json({ ok: true });
 }));
 
