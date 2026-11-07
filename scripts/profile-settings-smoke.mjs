@@ -42,7 +42,7 @@ try {
     const mobile = width < 768;
     await menu.waitFor();
     assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
-      "Персональная информация", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
+      "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
     ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
@@ -141,6 +141,10 @@ try {
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Персональная информация", undefined, { polling: 50 });
     assert.equal(await button("Заказы").isDisabled(), true);
     assert.equal(await button("Финансы").isDisabled(), true);
+    await button("Визитка и QR-код").click();
+    await page.getByRole("img", { name: "QR-код профиля Имя профиля", exact: true }).waitFor();
+    await back.click();
+    await menu.waitFor();
     const invites = button("Инвайты");
     await invites.click();
     await page.getByRole("heading", { name: "Инвайты", exact: true }).waitFor();

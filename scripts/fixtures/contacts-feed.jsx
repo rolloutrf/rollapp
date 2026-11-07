@@ -2,7 +2,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorContext, PersistentProfileHero, PublicProfile, CollectionNavigationProvider } from '../../src/App.jsx?contacts-feed-test-export';
+import { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorProvider, PersistentProfileHero, PublicProfile, CollectionNavigationProvider } from '../../src/App.jsx?contacts-feed-test-export';
+import { MobileFormPages } from '../../src/components/mobile-form-pages.jsx';
 import { useVisualViewport } from '../../src/hooks/use-visual-viewport.js';
 import { api } from '../../src/api.js';
 import '../../src/styles.css';
@@ -10,6 +11,7 @@ import '../../src/index.css';
 const contacts = Array.from({ length: 145 }, (_, i) => ({ id: String(i), name: `Контакт ${String(i).padStart(3, '0')}`, company: 'Компания', role: 'Дизайнер', favorite: false, links: [] }));
 window.feedTest = { requests: [], failNext: false, delay: 0 };
 api.get = async (path) => {
+  if (path === '/auth/yandex/config') return { enabled: false };
   if (path.startsWith('/profile/')) return { profile, lists: [], wishes: [], groups: [], isOwner: false, isFollowing: false, followersCount: 0, followingCount: 0 };
   const query = new URL(path, location.origin).searchParams;
   window.feedTest.requests.push(path);
@@ -30,8 +32,8 @@ const profile = { name: 'Тестовый Пользователь', username: '
 function Fixture() {
   useVisualViewport();
   const publicView = location.pathname.includes('/public/');
-  return <BrowserRouter><SessionContext.Provider value={{ user: publicView ? null : profile, loading: false }}><ProfileEditorContext.Provider value={{ openProfileEditor() {} }}><CollectionNavigationProvider><ToastProvider>
+  return <BrowserRouter><SessionContext.Provider value={{ user: publicView ? null : profile, loading: false }}><ToastProvider><MobileFormPages><ProfileEditorProvider><CollectionNavigationProvider>
     <Routes><Route path="/__contacts-feed/public/:username" element={<PublicProfile />} /><Route path="*" element={<><PersistentProfileHero user={profile} /><ContactsSpherePage /></>} /></Routes>
-  </ToastProvider></CollectionNavigationProvider></ProfileEditorContext.Provider></SessionContext.Provider></BrowserRouter>;
+  </CollectionNavigationProvider></ProfileEditorProvider></MobileFormPages></ToastProvider></SessionContext.Provider></BrowserRouter>;
 }
 createRoot(document.getElementById('root')).render(<Fixture />);

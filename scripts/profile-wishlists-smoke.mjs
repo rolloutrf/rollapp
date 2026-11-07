@@ -22,7 +22,7 @@ await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
 try {
-  for (const [width, height] of [[320,844], [390,400], [767,844], [768,844], [820,450], [1024,844], [1440,900], [1920,900]]) {
+  for (const [width, height] of [[320,844], [390,400], [390,844], [767,844], [768,844], [820,450], [1024,844], [1440,900], [1920,900]]) {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -214,8 +214,22 @@ try {
       assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
       assert.deepEqual(errors, []);
     }
+    await page.goto(origin + '/app/wishes?tab=products&sharing-fixture');
+    const hero = page.locator('[data-persistent-profile]');
+    await page.getByRole('region', { name: 'Запросы доступа к пространству' }).getByRole('button', { name: 'Открыть доступ', exact: true }).waitFor();
+    assert.equal(await hero.getByRole('button', { name: /Открыть доступ/ }).count(), 0);
+    assert.equal(await hero.getByRole('button', { name: /QR-код/ }).count(), 0);
+    assert(await open.isVisible());
+    assert(await page.getByRole('button', { name: 'Добавить', exact: true }).isVisible());
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    if ((width === 390 && height === 844) || width === 1440) {
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: `/tmp/rollapp-wishlist-owner-${width}.png` });
+    }
+    assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
+    assert.deepEqual(errors, []);
     await page.close();
-    console.log(`PASS ${width}×${height}: validation, error/retry, save, remove, cancel, guest links, control geometry`);
+    console.log(`PASS ${width}×${height}: validation, error/retry, save, remove, cancel, guest links, control geometry, Wishlist owner controls`);
   }
 } finally {
   await browser.close();

@@ -12,8 +12,11 @@ const sharedLinks = {
   wb: "https://www.wildberries.ru/wishlist/example",
   "yandex-market": "https://market.yandex.ru/cc/example?share=1",
 };
-const guest = new URLSearchParams(location.search).has("guest");
+const params = new URLSearchParams(location.search);
+const guest = params.has("guest");
+const sharingFixture = params.has("sharing-fixture");
 let profile = { id: "fixture", name: "Профиль", username: "fixture", wishlistLinks: guest || location.pathname === "/app/wishes" ? sharedLinks : {} };
+if (sharingFixture) profile.accountType = "personal";
 const importedWishes = new Map();
 window.profilePatches = [];
 window.wishlistImports = [];
@@ -31,6 +34,14 @@ api.get = async (path) => {
   if (path === "/me/openrouter/models") return { models: [] };
   if (path === "/dashboard") return { profile, lists: [], wishes: [...importedWishes.values()], groups: [] };
   if (path === "/gift-suggestions") return { items: [] };
+  if (sharingFixture && path === "/sphere-shares/context?sphere=wishlist&section=products") {
+    return {
+      owner: profile,
+      isOwner: true,
+      people: [],
+      requests: [{ id: "access-request", requester: { name: "Продавец", username: "seller" }, sphere: "wishlist", section: "products" }],
+    };
+  }
   if (["/profile/fixture", "/profile/fixture-renamed"].includes(path)) {
     return { profile, isOwner: !guest, lists: [], wishes: guest ? [] : [...importedWishes.values()], followingCount: 0, followersCount: 0 };
   }

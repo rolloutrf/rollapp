@@ -3,9 +3,10 @@ import QRCode from "qrcode";
 import { Copy, Download, Share2, Signature, X } from "lucide-react";
 import { publicContactCard, contactCardDownload } from "../../shared/contact-card.js";
 import { ControlBar } from "@/components/control-bar";
+import { DrawerFooter } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
 import { Button } from "@/components/ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Spinner } from "@/components/ui/spinner";
 import { SignedCardVerifier } from "@/components/signed-card-verifier";
 const TonCardSigner = lazy(() => import("@/components/ton-card-signer"));
@@ -29,10 +30,29 @@ export function ContactCardButton({ profile, canSign = false }) {
   </>;
 }
 
-// Wallet code is loaded only after the owner explicitly opens signing.
-export function ContactCardDialog({ profile, onClose, canSign = false }) {
-  const card = publicContactCard(profile, window.location.origin);
+function ContactCardDialog({ profile, onClose, canSign }) {
   const [open, setOpen] = useState(true);
+  return <Drawer open={open} swipeDirection="right" onOpenChange={setOpen} onOpenChangeComplete={(open) => { if (!open) onClose(); }}>
+    <DrawerContent className="app-drawer--form rollapp-body">
+      <DrawerHeader className="flex-row items-start gap-2 pt-[max(1rem,env(safe-area-inset-top))]">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <DrawerTitle>Цифровая визитка</DrawerTitle>
+          <DrawerDescription>Сохраните контакт или поделитесь ссылкой на профиль.</DrawerDescription>
+        </div>
+        <ControlBar>
+          <DrawerClose render={<Button data-control-icon variant="outline" size="icon" />} aria-label="Закрыть визитку">
+            <X aria-hidden="true" />
+          </DrawerClose>
+        </ControlBar>
+      </DrawerHeader>
+      <ContactCardContent profile={profile} canSign={canSign} />
+    </DrawerContent>
+  </Drawer>;
+}
+
+// Wallet code is loaded only after the owner explicitly opens signing.
+export function ContactCardContent({ profile, canSign = false }) {
+  const card = publicContactCard(profile, window.location.origin);
   const [qr, setQr] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [message, setMessage] = useState("");
@@ -61,19 +81,7 @@ export function ContactCardDialog({ profile, onClose, canSign = false }) {
       else { await navigator.clipboard.writeText(card.url); setMessage("Ссылка на профиль скопирована"); }
     } finally { setSharing(false); }
   });
-  return <Drawer open={open} swipeDirection="right" onOpenChange={setOpen} onOpenChangeComplete={(open) => { if (!open) onClose(); }}>
-    <DrawerContent className="app-drawer--form rollapp-body">
-      <DrawerHeader className="flex-row items-start gap-2 pt-[max(1rem,env(safe-area-inset-top))]">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <DrawerTitle>Цифровая визитка</DrawerTitle>
-          <DrawerDescription>Сохраните контакт или поделитесь ссылкой на профиль.</DrawerDescription>
-        </div>
-        <ControlBar>
-          <DrawerClose render={<Button data-control-icon variant="outline" size="icon" />} aria-label="Закрыть визитку">
-            <X aria-hidden="true" />
-          </DrawerClose>
-        </ControlBar>
-      </DrawerHeader>
+  return <>
       <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4" data-contact-card-body>
         <div className="flex flex-col items-center gap-2 text-center">
           <strong className="max-w-full break-words">{card.name}</strong>
@@ -100,9 +108,8 @@ export function ContactCardDialog({ profile, onClose, canSign = false }) {
         {message && <p role="status">{message}</p>}
         {error && <p role="alert">{error}</p>}
       </div>
-      <ControlBar as={DrawerFooter} className="app-form-actions" aria-label="Действия с визиткой">
+      <DrawerFooter aria-label="Действия с визиткой">
         <Button type="button" onClick={() => run(() => downloadCard(card, "vcard"))}><Download aria-hidden="true" />Скачать vCard</Button>
-      </ControlBar>
-    </DrawerContent>
-  </Drawer>;
+      </DrawerFooter>
+  </>;
 }

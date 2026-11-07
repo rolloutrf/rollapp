@@ -10,7 +10,7 @@ import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/i
 
 import { StoryAvatar } from "@/components/story-avatar";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
-import { ContactCardButton, ContactCardDialog } from "@/components/contact-card-dialog";
+import { ContactCardButton, ContactCardContent } from "@/components/contact-card-dialog";
 import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
@@ -3133,19 +3133,17 @@ function BusinessAccessScope({ scope }) {
   </div>;
 }
 
-function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", onAccessChanged = null }) {
+function SphereSharePicker({ open, onOpenChange }) {
   const isMobile = useIsMobile();
   const toast = useToast();
-  const access = useSphereSharing();
-  const sphere = scope?.sphere || access.sphere;
-  const section = scope?.section || access.section;
-  const isOwner = scope ? true : access.isOwner;
+  const { sphere, section, isOwner, reload } = useSphereSharing();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
+  const label = SPHERE_SECTION_LABELS[section] || section;
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 180);
@@ -3185,12 +3183,10 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
       setPeople((current) => current.map((item) => item.id === person.id ? { ...item, granted, grantSection: section } : item));
       const refreshed = await api.get(`/sphere-shares/candidates?${new URLSearchParams({ sphere, section, search: debouncedSearch })}`).catch(() => null);
       if (refreshed) setPeople(refreshed.people || []);
-      if (scope) await onAccessChanged?.();
-      else await access.reload();
-      const selectedLabel = scopeLabel || SPHERE_SECTION_LABELS[section] || section;
+      await reload();
       toast(granted
-        ? `Доступ к «${selectedLabel}» для ${person.name} открыт`
-        : `Доступ к «${selectedLabel}» для ${person.name} закрыт`, "success");
+        ? `Доступ к «${label}» для ${person.name} открыт`
+        : `Доступ к «${label}» для ${person.name} закрыт`, "success");
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -3198,10 +3194,6 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
     }
   };
 
-  const label = scopeLabel || SPHERE_SECTION_LABELS[section] || section;
-  const accessDescription = sphere === "wishlist"
-    ? "Выберите бизнес-аккаунты, которым хотите открыть это пространство Вишлиста для чтения и предложений."
-    : "Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.";
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(nextOpen) => !savingId && onOpenChange(nextOpen)}>
       <DrawerContent
@@ -3215,7 +3207,7 @@ function SphereSharePicker({ open, onOpenChange, scope = null, scopeLabel = "", 
         </DrawerClose>
         <DrawerHeader className="pr-16 text-left!">
           <DrawerTitle>Доступ к «{label}»</DrawerTitle>
-          <DrawerDescription>{accessDescription}</DrawerDescription>
+          <DrawerDescription>Выберите бизнес-аккаунты, которым хотите открыть этот раздел для чтения.</DrawerDescription>
         </DrawerHeader>
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           <InputGroup className="sphere-share-picker__search">
@@ -3290,44 +3282,19 @@ function PersistentProfileHero({ user }) {
   const location = useLocation();
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
   const profile = access.active ? (access.owner || user) : user;
   const editable = !access.active || access.isOwner;
-  const wishlistAccessControl = location.pathname.startsWith("/app/wishes") && editable && (user?.accountType === "personal" || canAccessPrivateSpheres(user));
+  const canManageSharing = access.active && access.isOwner && access.sphere !== "wishlist";
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
-          <ShadcnButton
-            type="button"
-            variant="outline"
-            size="icon"
-            className="persistent-profile-hero__qr size-12 rounded-full"
-            aria-label={`Показать QR-код профиля ${profile.name}`}
-            title="Показать QR-код профиля"
-            onClick={() => setQrOpen(true)}
-          >
-            <QrCode aria-hidden="true" />
-          </ShadcnButton>
           {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
             <ProfilePortrait user={profile} />
           </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
             <ProfilePortrait user={profile} />
           </ShadcnButton> : <ProfilePortrait user={profile} />}
-          {wishlistAccessControl && (
-            <ShadcnButton
-              type="button"
-              variant="outline"
-              size="icon"
-              className="sphere-share-avatars__business size-12 rounded-full"
-              aria-label="Открыть доступ бизнес-аккаунтам"
-              title="Открыть доступ бизнес-аккаунтам"
-              onClick={() => setSharePickerOpen(true)}
-            >
-              <Plus aria-hidden="true" />
-            </ShadcnButton>
-          )}
-          {access.active && access.isOwner && !wishlistAccessControl && (
+          {canManageSharing && (
             <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
               {access.people.slice(0, 3).map((person) => <Avatar key={person.id} user={person} size="sm" className="sphere-share-avatars__person !size-12" title={person.name} />)}
               <ShadcnButton
@@ -3351,14 +3318,10 @@ function PersistentProfileHero({ user }) {
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {location.pathname.startsWith("/app/wishes") && <ExternalWishlistLinks links={profile.wishlistLinks} />}
-      {(wishlistAccessControl || (access.active && access.isOwner)) && <SphereSharePicker
+      {canManageSharing && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
-        scope={wishlistAccessControl ? { sphere: "wishlist", section: SPACE_IDS.includes(new URLSearchParams(window.location.search).get("tab")) ? new URLSearchParams(window.location.search).get("tab") : "products" } : null}
-        onAccessChanged={access.active ? access.reload : null}
-        scopeLabel={wishlistAccessControl ? SPACES.find(item => item.id === (new URLSearchParams(window.location.search).get("tab") || "products"))?.label : ""}
       />}
-      {qrOpen && <ContactCardDialog key={profile.username} profile={profile} canSign={editable} onClose={() => setQrOpen(false)} />}
     </section>
   );
 }
@@ -7053,6 +7016,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const scrollArea = useRef(null);
   const sections = [
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "contact-card", title: "Визитка и QR-код", icon: QrCode },
     { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
     ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
@@ -7420,7 +7384,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
-  const sectionOwnsScroll = desktopSection === "openrouter" || desktopSection === "rolls";
+  const fullSection = openRouterSection || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
+  const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
   return <>
     <Drawer open={rootOpen} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => {
       if (!open) {
@@ -7454,7 +7419,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
           <div hidden={Boolean(desktopSection)}>{menu}</div>
           {desktopSection && !sectionOwnsScroll && sectionBody}
         </ScrollArea>
-        {desktopSection ? openRouterSection || (desktopSection === "rolls" ? sectionBody : personalFooter || wishlistsFooter || yandexFooter) : isMobile && <DrawerFooter />}
+        {desktopSection ? fullSection || (desktopSection === "rolls" ? sectionBody : personalFooter || wishlistsFooter || yandexFooter) : isMobile && <DrawerFooter />}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
@@ -7466,7 +7431,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     }}>
       <DrawerContent className="rollapp-body app-drawer--form">
         <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
-        {openRouterSection || <>
+        {fullSection || <>
           {sectionBody}
           {section !== "wishlists" && section !== "rolls" && (personalFooter || yandexFooter || <DrawerFooter />)}
         </>}

@@ -6,7 +6,7 @@ import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
 const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACTS_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contacts-feed-fixture', enforce: 'pre',
-  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorContext, PersistentProfileHero, PublicProfile, CollectionNavigationProvider };`; },
+  transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorProvider, PersistentProfileHero, PublicProfile, CollectionNavigationProvider };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith('/__contacts-feed')) return next();
     res.setHeader('Content-Type', 'text/html');
@@ -36,46 +36,63 @@ try {
     await page.goto(`${origin}/__contacts-feed`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('.contact-card').length === 48);
     await page.evaluate(() => document.fonts.ready);
-    const cardButton = page.getByRole('button', { name: 'Показать QR-код профиля Тестовый Пользователь', exact: true });
-    assert.deepEqual(await cardButton.evaluate(button => {
-      const { width, height } = button.getBoundingClientRect();
-      return [width, height];
-    }), [48, 48]);
+    const mobile = width < 768;
+    const profileButton = page.getByRole('button', { name: 'Редактировать профиль Тестовый Пользователь', exact: true });
+    assert.equal(await page.locator('[data-persistent-profile]').getByRole('button', { name: /QR-код/ }).count(), 0);
+    const menu = page.getByRole('navigation', { name: 'Разделы профиля' });
+    const cardButton = menu.getByRole('button', { name: 'Визитка и QR-код', exact: true });
+    const heading = page.getByRole('heading', { name: 'Визитка и QR-код', exact: true });
+    const ownerCard = page.locator(mobile ? '.mobile-form-page__surface' : '.profile-settings-dialog').filter({ has: heading });
     const requestsBeforeCard = await page.evaluate(() => window.feedTest.requests.length);
+    await profileButton.click();
+    assert((await cardButton.boundingBox()).height >= 48);
     await cardButton.click();
-    const dialog = page.getByRole('dialog', { name: 'Цифровая визитка' });
-    await dialog.getByRole('img', { name: 'QR-код профиля Тестовый Пользователь' }).waitFor();
-    await dialog.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
-    assert((await dialog.getByRole('img').getAttribute('src')).startsWith('data:image/png;base64,'));
-    const qrImage = dialog.getByRole('img');
-    await qrImage.scrollIntoViewIfNeeded();
-    assert(await qrImage.evaluate((image) => { const r = image.getBoundingClientRect(), body = image.closest('[data-contact-card-body]').getBoundingClientRect(); return r.top >= body.top - 1 && r.bottom <= body.bottom + 1; }), 'The complete QR must fit inside the scrollable body');
-    const bounds = await dialog.boundingBox();
-    assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y + bounds.height <= height + 1, 'Card outside viewport');
-    assert.equal(await dialog.getAttribute('data-swipe-direction'), 'right');
-    assert(Math.abs(bounds.x + bounds.width - width) <= 1 && bounds.y <= 1 && Math.abs(bounds.height - height) <= 1, 'Card must be flush with the right edge and span the viewport height');
-    const body = dialog.locator('[data-contact-card-body]');
+    const qrImage = ownerCard.getByRole('img', { name: 'QR-код профиля Тестовый Пользователь' });
+    await qrImage.waitFor();
+    await ownerCard.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
+    assert((await qrImage.getAttribute('src')).startsWith('data:image/png;base64,'));
+    await qrImage.evaluate(image => image.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    const body = ownerCard.locator('[data-contact-card-body]');
     assert(await body.evaluate((element) => element.scrollWidth <= element.clientWidth), 'Card body horizontal overflow');
-    const closeButton = dialog.getByRole('button', { name: 'Закрыть визитку', exact: true });
-    const vcardButton = dialog.getByRole('button', { name: 'Скачать vCard', exact: true });
+    const closeButton = ownerCard.getByRole('button', { name: 'Назад', exact: true });
+    const vcardButton = ownerCard.getByRole('button', { name: 'Скачать vCard', exact: true });
     const closeBounds = await closeButton.boundingBox();
     assert.equal(Math.round(closeBounds.width), 48);
     const vcardBounds = await vcardButton.boundingBox();
     const bodyBounds = await body.boundingBox();
-    assert(closeBounds.y + closeBounds.height <= bodyBounds.y && vcardBounds.y >= bodyBounds.y + bodyBounds.height, 'Actions overlap the scrolling body');
-    const scrollTop = await body.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
-      return element.scrollTop;
-    });
+    const qrBounds = await qrImage.boundingBox();
+    let scrollTop;
+    if (mobile) {
+      assert.equal(await page.getByRole('dialog').count(), 0);
+      assert.equal(await body.evaluate(el => getComputedStyle(el).overflowY), 'visible');
+      assert(qrBounds.y >= 0 && qrBounds.y + qrBounds.height <= vcardBounds.y + 1);
+      assert.equal(closeBounds.y, vcardBounds.y);
+      scrollTop = await page.evaluate(() => {
+        scrollTo({ top: document.scrollingElement.scrollHeight, behavior: 'instant' });
+        return scrollY;
+      });
+      const bottom = await body.boundingBox();
+      assert(bottom.y + bottom.height <= vcardBounds.y + 1);
+    } else {
+      const bounds = await ownerCard.boundingBox();
+      assert.equal(await ownerCard.getAttribute('data-swipe-direction'), 'right');
+      assert(Math.abs(bounds.x + bounds.width - width) <= 1 && bounds.y <= 1 && Math.abs(bounds.height - height) <= 1);
+      assert(qrBounds.y >= bodyBounds.y - 1 && qrBounds.y + qrBounds.height <= bodyBounds.y + bodyBounds.height + 1);
+      assert(closeBounds.y + closeBounds.height <= bodyBounds.y && vcardBounds.y >= bodyBounds.y + bodyBounds.height);
+      scrollTop = await body.evaluate(element => {
+        element.scrollTop = element.scrollHeight;
+        return element.scrollTop;
+      });
+    }
     if (height === 400) assert(scrollTop > 0, 'Card body must scroll in a short viewport');
     assert.deepEqual(await closeButton.boundingBox(), closeBounds, 'Close moved with the body');
     assert.deepEqual(await vcardButton.boundingBox(), vcardBounds, 'vCard moved with the body');
-    for (const button of await dialog.locator('[data-control-bar] button').all()) {
+    for (const button of await ownerCard.locator('[data-control-bar] button').all()) {
       assert.equal(Math.round((await button.boundingBox()).height), 48);
       assert.deepEqual(await button.evaluate((element) => { const css = getComputedStyle(element); return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomLeftRadius, css.borderBottomRightRadius]; }), ['24px','24px','24px','24px']);
     }
     const vcardWait = page.waitForEvent('download');
-    await dialog.getByRole('button', { name: 'Скачать vCard', exact: true }).click();
+    await vcardButton.click();
     const vcard = await vcardWait;
     assert.equal(vcard.suggestedFilename(), 'synthetic-user.vcf');
     const cardText = await readFile(await vcard.path(), 'utf8');
@@ -83,47 +100,51 @@ try {
     assert(cardText.includes(`URL:${origin}/synthetic-user\r\n`));
     assert.doesNotMatch(cardText, /PRIVATE|private@example/);
     const jsonWait = page.waitForEvent('download');
-    await dialog.getByRole('button', { name: 'Скачать JSON', exact: true }).click();
+    await ownerCard.getByRole('button', { name: 'Скачать JSON', exact: true }).click();
     const json = await jsonWait;
     const jsonText = await readFile(await json.path(), 'utf8');
     assert.deepEqual(Object.keys(JSON.parse(jsonText)), ['format','version','name','username','url']);
     assert.doesNotMatch(jsonText, /PRIVATE|private@example/);
-    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    await ownerCard.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
     assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/synthetic-user`);
     await page.evaluate(() => { window.cardTest.failCopy = true; });
-    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
-    await dialog.getByRole('alert').waitFor();
+    await ownerCard.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    await ownerCard.getByRole('alert').waitFor();
     await page.evaluate(() => { window.cardTest.failCopy = false; });
-    await dialog.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
-    assert.equal(await dialog.getByRole('alert').count(), 0);
+    await ownerCard.getByRole('button', { name: 'Скопировать ссылку', exact: true }).click();
+    assert.equal(await ownerCard.getByRole('alert').count(), 0);
     assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/synthetic-user`);
-    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
-    assert.equal(await dialog.getByRole('alert').count(), 0);
+    await ownerCard.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    assert.equal(await ownerCard.getByRole('alert').count(), 0);
     assert.equal(await page.evaluate(() => window.cardTest.shares[0].url), `${origin}/synthetic-user`);
     await page.evaluate(() => { window.cardTest.shareMode = 'cancel'; });
-    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
-    assert.equal(await dialog.getByRole('alert').count(), 0);
+    await ownerCard.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    assert.equal(await ownerCard.getByRole('alert').count(), 0);
     assert.equal(await page.evaluate(() => window.cardTest.shares.length), 2, 'Native Share cancellation was not exercised');
     await page.evaluate(() => { Object.defineProperty(navigator, 'share', { configurable: true, value: undefined }); window.cardTest.copied = ''; });
-    await dialog.getByRole('button', { name: 'Поделиться', exact: true }).click();
+    await ownerCard.getByRole('button', { name: 'Поделиться', exact: true }).click();
     assert.equal(await page.evaluate(() => window.cardTest.copied), `${origin}/synthetic-user`, 'Share fallback did not copy the profile');
     await page.screenshot({ path: `/tmp/rollapp-contact-card-${width}-${height}.png` });
     await closeButton.click();
-    await dialog.waitFor({ state: 'detached' });
-    assert(await cardButton.evaluate((element) => document.activeElement === element), 'Card did not restore opener focus');
+    await ownerCard.waitFor({ state: 'detached' });
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === 'Визитка и QR-код');
     assert.equal(await page.evaluate(() => window.feedTest.requests.length), requestsBeforeCard, 'Card changed feed');
     if (height === 400) await page.evaluate(() => { window.cardTest.failQr = true; });
     await cardButton.press('Enter');
     if (height === 400) {
-      const retryQr = dialog.getByRole('button', { name: 'Повторить QR-код', exact: true });
+      const retryQr = ownerCard.getByRole('button', { name: 'Повторить QR-код', exact: true });
       await retryQr.waitFor();
       assert(await retryQr.evaluate((button) => button.checkVisibility() && button.offsetWidth <= button.parentElement.clientWidth && button.closest('[aria-busy]') === null), 'QR retry must fit in the body without clipping');
       await page.evaluate(() => { window.cardTest.failQr = false; });
       await retryQr.click();
     }
-    await dialog.getByRole('img').waitFor();
-    await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'detached' });
+    await qrImage.waitFor();
+    if (mobile) await page.goBack();
+    else await page.keyboard.press('Escape');
+    await ownerCard.waitFor({ state: 'detached' });
+    await menu.waitFor();
+    await page.getByRole('button', { name: mobile ? 'Назад' : 'Закрыть', exact: true }).click();
+    await menu.waitFor({ state: 'detached' });
     await page.evaluate(() => scrollTo({top:0,behavior:'instant'}));
     console.log(`PASS ${width}×${height}: card integration, local QR, private-field isolation, real downloads, clipboard retry, share/cancel, focus, 48px controls`);
     await page.evaluate(() => { window.firstCard = document.querySelector('.contact-card'); window.feedTest.failNext = true; scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}); });
@@ -175,6 +196,7 @@ try {
     await page.getByText('Контакты не найдены', {exact:true}).waitFor();
     await page.goto(`${origin}/__contacts-feed/public/synthetic-user`, { waitUntil: 'domcontentloaded' });
     const visitorCard = page.getByRole('button', { name: 'Визитка', exact: true });
+    const dialog = page.getByRole('dialog', { name: 'Цифровая визитка' });
     assert.deepEqual(await visitorCard.evaluate(button => {
       const style = getComputedStyle(button);
       return [style.paddingLeft, style.paddingRight];
