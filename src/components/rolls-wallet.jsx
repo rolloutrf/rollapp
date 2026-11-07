@@ -1,5 +1,5 @@
 import { WalletGiftCards } from "@/components/gift-cards";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
@@ -8,13 +8,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { DrawerFooter } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { MakiIcon } from "@/components/maki-icon";
 import { RollsTopup } from "@/components/rolls-topup";
 import { PersonalOffers } from "@/components/personal-offers";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { formatRolls, ROLLS_MAX_TRANSFER } from "../../shared/rolls.js";
 
 const TonWallet = lazy(() => import("@/components/ton-wallet").then((module) => ({ default: module.TonWallet })));
@@ -42,7 +45,8 @@ function restoredTransfer(storageKey) {
   } catch { return null; }
 }
 
-export function RollsWallet({ user }) {
+export function RollsWallet({ user, embedded = false, onNavigate }) {
+  const transferFormId = useId();
   const storageKey = `rollapp:pending-roll-transfer:${user.id}`;
   const [pending, setPending] = useState(() => restoredTransfer(storageKey));
   const [wallet, setWallet] = useState(null);
@@ -182,7 +186,11 @@ export function RollsWallet({ user }) {
     finally { if (mounted.current) setLoadingMore(false); }
   };
 
-  return <div className="app-page rolls-page rollapp-body">
+  const transferLabel = pending ? "Проверить перевод" : "Продолжить";
+  const transferSubmit = <Button type="submit" form={transferFormId} className={embedded ? undefined : "w-full"} disabled={busy || (!pending && !canReview)} aria-label={transferLabel}>
+    {embedded && pending ? <><span className="md:hidden">Проверить</span><span className="hidden md:inline">{transferLabel}</span></> : transferLabel}
+  </Button>;
+  const content = <div className={cn("rolls-page rollapp-body", embedded ? "rolls-page--embedded min-w-0 px-4 pt-4 pb-1" : "app-page")}>
     <div className="rollapp-body flex flex-col gap-6">
       {loadError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
         <span>{loadError}</span><Button variant="outline" onClick={() => refresh()} disabled={loading}>Повторить</Button>
@@ -193,7 +201,7 @@ export function RollsWallet({ user }) {
             <RollsHeroIcon />
             <h1 id="rolls-transfer-title" className="rolls-balance__value">Перевод</h1>
           </header>
-          <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); sendTransfer(); } }}>
+          <form id={transferFormId} className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); if (pending || canReview) { setTransferError(""); sendTransfer(); } }}>
               <Field>
                 <FieldLabel htmlFor="rolls-recipient">Получатель</FieldLabel>
                 {recipient ? <div className="flex min-w-0 items-center gap-3 rounded-xl border p-3">
@@ -224,7 +232,7 @@ export function RollsWallet({ user }) {
                 <Textarea id="rolls-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={280} rows={2} placeholder="Спасибо за помощь!" disabled={busy || Boolean(pending)} />
               </Field>
               {pending && <Alert><AlertDescription>У вас есть перевод, результат которого нужно проверить.</AlertDescription></Alert>}
-              <Button type="submit" className="w-full" disabled={busy || (!pending && !canReview)}>{pending ? "Проверить перевод" : "Продолжить"}</Button>
+              {!embedded && transferSubmit}
           </form>
         </section> : <>
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
@@ -247,7 +255,7 @@ export function RollsWallet({ user }) {
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>}
 
-          <WalletGiftCards user={user} onChanged={() => refresh({ quiet: true })} />
+          <WalletGiftCards user={user} onChanged={() => refresh({ quiet: true })} onNavigate={onNavigate} />
 
           <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
             {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col">
@@ -286,4 +294,15 @@ export function RollsWallet({ user }) {
       </AlertDialogContent>
     </AlertDialog>
   </div>;
+
+  if (!embedded) return content;
+  return <>
+    <ScrollArea className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
+    <DrawerFooter className="empty:hidden">
+      {transferView && <>
+        {transferSubmit}
+        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={() => setTransferView(false)}><Coins aria-hidden="true" /></Button>
+      </>}
+    </DrawerFooter>
+  </>;
 }

@@ -25,6 +25,23 @@ api.get = async (path) => {
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
   if (path === "/me/invites") return { invites };
+  if (path === "/rolls") {
+    if (!window.finishWalletLoad) {
+      await new Promise((resolve) => { window.finishWalletLoad = resolve; });
+      throw new Error("Кошелёк временно недоступен");
+    }
+    return {
+      balance: 23_999_870,
+      transactions: Array.from({ length: 16 }, (_, index) => ({
+        id: String(index), kind: "manual_grant", direction: "incoming",
+        amount: 1_000_000_000, createdAt: "2026-09-23T10:07:00Z",
+      })),
+    };
+  }
+  if (path === "/personal-offers") return { offers: [] };
+  if (path === "/rolls/gift-cards") {
+    return { cards: [{ id: "gift-card", balance: 100, business: { id: "fixture-shop", username: "fixture-shop", name: "Магазин" } }] };
+  }
   throw new Error(`Unexpected fixture read: ${path}`);
 };
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";

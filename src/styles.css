@@ -10002,6 +10002,12 @@ form.contact-detail__edit-form { display: flex; flex-direction: column; flex: 1;
 .rolls-page__columns { display: flex; flex-direction: column; gap: var(--layout-page-gap); }
 .rolls-hero-icon { width: 160px; height: 160px; }
 .rolls-balance__value { font-family: var(--font-heading); font-size: clamp(40px, 6vw, 60px); line-height: 1; font-weight: 760; font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -.05em; }
+.rolls-page--embedded .rolls-balance__value {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.rolls-page--embedded [data-rolls-transaction] time { white-space: normal; }
 
 @media (min-width: 821px) and (max-width: 1180px) {
   .rolls-hero-icon { width: 136px; height: 136px; }

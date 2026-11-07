@@ -160,7 +160,7 @@ export function BusinessGiftAction({ business, user }) {
   </>;
 }
 
-export function WalletGiftCards({ user, onChanged }) {
+export function WalletGiftCards({ user, onChanged, onNavigate }) {
   const [cards, setCards] = useState([]);
   const [selectedCard, setSelectedCard] = useState(null);
   const [error, setError] = useState("");
@@ -185,7 +185,11 @@ export function WalletGiftCards({ user, onChanged }) {
     {error && <Alert variant="destructive"><AlertDescription>{error} <Button variant="outline" onClick={refresh}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !cards.length && <p className="text-muted-foreground">Полученные и выпущенные карты появятся здесь.</p>}
     {cards.map((card) => <article key={card.id} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4">
-      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business.username)}>{card.business.name}</Link>
+      <Link className="break-words font-semibold underline underline-offset-4" to={publicProfilePath(card.business.username)} onClick={(event) => {
+        if (!onNavigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+        event.preventDefault();
+        onNavigate(publicProfilePath(card.business.username));
+      }}>{card.business.name}</Link>
       <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
       <Button variant="outline" onClick={() => setSelectedCard(card)}>Открыть карту</Button>
     </article>)}

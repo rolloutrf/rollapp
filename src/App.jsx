@@ -7057,7 +7057,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
-    { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon, path: ROLLS_SERVICE.path },
+    { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon },
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
@@ -7136,6 +7136,10 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     if (section) setSection(null);
     else setRootOpen(false);
   };
+  const leaveSettingsFor = (path) => exitSettings(() => {
+    onClose();
+    navigate(path);
+  });
   const submit = async (event) => {
     event.preventDefault();
     if (busy || !profileChanged) return;
@@ -7236,12 +7240,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
             type="button"
             variant="ghost"
             className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
-            disabled={busy || (Boolean(path) && changed)}
+            disabled={busy || (changed && (Boolean(path) || id === "rolls"))}
             onClick={(event) => {
-              if (path) exitSettings(() => {
-                onClose();
-                navigate(path);
-              });
+              if (path) leaveSettingsFor(path);
               else {
                 sectionTrigger.current = event.currentTarget;
                 setSection(id);
@@ -7351,7 +7352,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       </section>
       {isMobile && wishlistsFooter}
     </form>
-  ) : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
+  ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onNavigate={leaveSettingsFor} />
+    : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7418,6 +7420,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
+  const sectionOwnsScroll = desktopSection === "openrouter" || desktopSection === "rolls";
   return <>
     <Drawer open={rootOpen} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => {
       if (!open) {
@@ -7447,11 +7450,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
           {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
           <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
         </DrawerHeader>}
-        <ScrollArea ref={scrollArea} hidden={desktopSection === "openrouter"} className="mx-auto min-h-0 w-full max-w-full flex-1">
+        <ScrollArea ref={scrollArea} hidden={sectionOwnsScroll} className="mx-auto min-h-0 w-full max-w-full flex-1">
           <div hidden={Boolean(desktopSection)}>{menu}</div>
-          {desktopSection && sectionBody}
+          {desktopSection && !sectionOwnsScroll && sectionBody}
         </ScrollArea>
-        {desktopSection ? openRouterSection || personalFooter || wishlistsFooter || yandexFooter : isMobile && <DrawerFooter />}
+        {desktopSection ? openRouterSection || (desktopSection === "rolls" ? sectionBody : personalFooter || wishlistsFooter || yandexFooter) : isMobile && <DrawerFooter />}
       </DrawerContent>
     </Drawer>
     {isMobile && <Drawer open={Boolean(section)} onOpenChange={(open) => { if (!open) backToSections(); }} onAfterClose={() => {
@@ -7465,7 +7468,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
         {openRouterSection || <>
           {sectionBody}
-          {section !== "wishlists" && (personalFooter || yandexFooter || <DrawerFooter />)}
+          {section !== "wishlists" && section !== "rolls" && (personalFooter || yandexFooter || <DrawerFooter />)}
         </>}
       </DrawerContent>
     </Drawer>}

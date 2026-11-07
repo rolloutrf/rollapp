@@ -262,9 +262,74 @@ try {
     }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.equal(await button("Выйти из аккаунта").count(), 0);
-    const financeExit = width === 320 || width === 1440;
-    const destination = financeExit ? "/app/rolls" : "/app/orders";
-    await button(financeExit ? "Финансы" : "Заказы").click();
+    const finance = button("Финансы");
+    const source = new URL(page.url());
+    await finance.click();
+    const financeTitle = page.getByRole("heading", { name: "Финансы", exact: true });
+    await financeTitle.waitFor();
+    await menu.waitFor({ state: "hidden" });
+    assert.equal(new URL(page.url()).pathname, source.pathname);
+    if (!mobile) assert.equal(page.url(), source.href);
+    await page.getByText("Загружаем баланс…", { exact: true }).waitFor();
+    await page.evaluate(() => window.finishWalletLoad());
+    await page.getByRole("alert").filter({ hasText: "Кошелёк временно недоступен" }).waitFor();
+    await button("Повторить").click();
+    const balance = page.getByRole("region", { name: "Баланс роллов" });
+    await balance.getByText(/23\s999\s870/).waitFor();
+    await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
+    await page.getByRole("heading", { name: "Подарочные карты" }).waitFor();
+    const wallet = balance.locator("xpath=ancestor::div[contains(@class, 'rolls-page--embedded')]");
+    const backBox = await back.boundingBox();
+    assert.equal(backBox.width, 48);
+    assert.equal(backBox.height, 48);
+    assert.equal(await wallet.evaluate(element => [...element.querySelectorAll("*")].some(child => (
+      child.clientWidth > 0 && child.scrollWidth > child.clientWidth + 1
+    ))), false, `${width}×${height}: wallet content overflows horizontally`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: `/tmp/rollapp-profile-finances-${width}x${height}.png` });
+    const lastTransaction = page.locator("[data-rolls-transaction]").last();
+    const scrolled = await wallet.evaluate((element, mobile) => {
+      const viewport = mobile ? document.scrollingElement : element.closest('[data-slot="scroll-area-viewport"]');
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
+      return viewport.scrollTop;
+    }, mobile);
+    assert(scrolled > 0);
+    const lastBox = await lastTransaction.boundingBox();
+    assert(lastBox.y + lastBox.height <= (mobile ? backBox.y : height));
+    assert.deepEqual(await back.boundingBox(), backBox);
+    await button("Отправить роллы").click();
+    await page.getByRole("heading", { name: "Перевод" }).waitFor();
+    const continueTransfer = button("Продолжить");
+    assert.equal(await continueTransfer.isDisabled(), true);
+    assert(await continueTransfer.evaluate(element => element.form?.closest("[data-slot=scroll-area-viewport]")
+      && !element.closest("[data-slot=scroll-area-viewport]") && element.closest("[data-control-bar]")));
+    const returnToWallet = button("К кошельку");
+    const returnBox = await returnToWallet.boundingBox();
+    assert.equal(returnBox.width, 48);
+    assert.equal(returnBox.height, 48);
+    await returnToWallet.click();
+    await balance.getByText(/23\s999\s870/).waitFor();
+    const giftExit = width === 320 || width === 1440;
+    if (giftExit) {
+      await button("Открыть карту").click();
+      const card = page.getByRole("heading", { name: "Подарочная карта", exact: true });
+      await card.waitFor();
+      await page.getByRole("group", { name: "Мои карты этого бизнеса" }).waitFor();
+      await button(mobile ? "Назад" : "Закрыть подарочную карту").click();
+      await card.waitFor({ state: "hidden" });
+      await balance.waitFor();
+    }
+    if (mobile && width === 320) await page.goBack();
+    else if (width === 1440) await page.keyboard.press("Escape");
+    else await back.click();
+    await menu.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Финансы", undefined, { polling: 50 });
+    assert.equal(page.url(), source.href);
+    const destination = giftExit ? "/fixture-shop" : "/app/orders";
+    if (giftExit) {
+      await finance.click();
+      await page.getByRole("link", { name: "Магазин", exact: true }).click();
+    } else await button("Заказы").click();
     await page.waitForURL(url => url.pathname === destination && !url.searchParams.has("formScreen"));
     await menu.waitFor({ state: "hidden" });
     await page.goBack();
@@ -365,7 +430,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     if (height === 400) await page.screenshot({ path: `/tmp/rollapp-yandex-result-${width}x${height}.png` });
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, orders and Yandex backup result (${result})`);
+    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance and Yandex backup result (${result})`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }
