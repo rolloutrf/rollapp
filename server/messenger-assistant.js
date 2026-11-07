@@ -4,7 +4,7 @@ import { addCalendarDays } from '../shared/planning-calendar.js';
 import { expandRecurringTasks } from '../shared/planning-recurrence.js';
 import { openRouterFetch } from './openrouter-fetch.js';
 import { createRateLimit } from './rate-limit.js';
-import { fetchYandexAi, YandexAiError } from './yandex-ai.js';
+import { fetchYandexAi, yandexAiConfig, YandexAiError } from './yandex-ai.js';
 import { hasAiCredential } from './ai-provider.js';
 
 const assistantInput = z.object({
@@ -84,7 +84,10 @@ function replyActions(calls, canDiscoverSpheres) {
   return actions;
 }
 
-export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential, fetchImpl = openRouterFetch, yandexRequest = fetchYandexAi, now = () => new Date() }) {
+export function registerMessengerAssistantRoute(app, {
+  requireAuth, asyncRoute, query, resolveCredential, fetchImpl = openRouterFetch,
+  yandexRequest = fetchYandexAi, env = process.env, now = () => new Date(),
+}) {
   const limit = createRateLimit({ windowMs: 60_000, max: 8, key: req => req.user.id });
 
   app.post('/api/messenger/assistant/reply', requireAuth, (_req, res, next) => {
@@ -112,9 +115,10 @@ export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, 
         ...(planning ? [`Невыполненные записи планирования (ограниченный снимок): ${JSON.stringify(planning)}`] : []),
       ].join('\n') }, ...messages];
       const signal = AbortSignal.any([connection.signal, AbortSignal.timeout(45_000)]);
+      const requestYandex = () => yandexRequest('chat/completions', { messages: chatMessages, tools, max_tokens: 1200 }, { signal, env });
       let payload;
       if (provider === 'yandex') {
-        payload = await yandexRequest('chat/completions', { messages: chatMessages, tools, max_tokens: 1200 }, { signal });
+        payload = await requestYandex();
       } else {
         const response = await fetchImpl('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
@@ -128,14 +132,17 @@ export function registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, 
           }),
           signal,
         });
-        if (!response.ok) {
-          await response.body?.cancel();
-          if (response.status === 402) return res.status(503).json({ error: 'На балансе OpenRouter недостаточно средств.' });
+        if (response.ok) payload = await response.json();
+        else await response.body?.cancel();
+        if (response.status === 402 || payload?.error?.code === 402) {
+          signal.throwIfAborted();
+          if (!yandexAiConfig(env).enabled) return res.status(503).json({ error: 'На балансе OpenRouter недостаточно средств.' });
+          payload = await requestYandex();
+        } else if (!response.ok) {
           if (response.status === 401 || response.status === 403) return res.status(503).json({ error: 'OpenRouter не разрешил запрос. Проверьте подключение в настройках профиля.' });
           if (response.status === 404 || response.status === 422) return res.status(503).json({ error: 'Модель OpenRouter недоступна для ассистента. Проверьте выбранную модель в настройках профиля.' });
           return res.status(502).json({ error: 'Ассистент временно недоступен.' });
         }
-        payload = await response.json();
       }
       const message = payload?.choices?.[0]?.message;
       const content = typeof message?.content === 'string' ? message.content.trim().slice(0, ASSISTANT_MESSAGE_LIMIT) : '';

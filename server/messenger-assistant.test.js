@@ -6,6 +6,7 @@ import { registerMessengerAssistantRoute } from './messenger-assistant.js';
 const ask = content => ({ messages: [{ role: 'user', content }] });
 const tool = (name, args) => ({ type: 'function', function: { name, arguments: JSON.stringify(args) } });
 const completion = message => Response.json({ choices: [{ message }] });
+const yandexEnv = { YC_FOLDER_ID: 'folder', YANDEX_AI_MODEL: 'aliceai-llm-flash' };
 
 test('assistant without a personal key uses Yandex and keeps function suggestions guarded', async () => {
   await withAssistant({
@@ -24,13 +25,51 @@ test('assistant without a personal key uses Yandex and keeps function suggestion
   });
 });
 
-test('personal provider failures never silently spend the shared Yandex balance', async () => {
+test('assistant retries an OpenRouter credit failure once on Yandex with the same request context', async () => {
+  for (const openRouterResponse of [new Response(null, { status: 402 }), Response.json({ error: { code: 402 } })]) {
+    const calls = [];
+    let openRouterRequest;
+    let requestSignal;
+    const body = ask('Открой календарь');
+    await withAssistant({
+      env: yandexEnv,
+      resolveCredential: async () => ({ provider: 'openrouter', apiKey: 'personal-key', model: 'personal/model' }),
+      fetchImpl: async (_url, { body, headers, signal }) => {
+        calls.push('openrouter');
+        assert.equal(headers.Authorization, 'Bearer personal-key');
+        openRouterRequest = JSON.parse(body);
+        assert.equal(openRouterRequest.model, 'personal/model');
+        requestSignal = signal;
+        return openRouterResponse;
+      },
+      yandexRequest: async (path, body, { signal, env }) => {
+        calls.push('yandex');
+        assert.equal(path, 'chat/completions');
+        assert.equal(signal, requestSignal);
+        assert.equal(env, yandexEnv);
+        assert.deepEqual(body, { messages: openRouterRequest.messages, tools: openRouterRequest.tools, max_tokens: 1200 });
+        return { choices: [{ message: { content: 'Открыть календарь:', tool_calls: [tool('open_section', { section: 'calendar' })] } }] };
+      },
+    }, async request => {
+      const response = await request(body);
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        reply: 'Открыть календарь:', actions: [{ type: 'open_section', value: { section: 'calendar' } }],
+      });
+      assert.deepEqual(calls, ['openrouter', 'yandex']);
+    });
+  }
+});
+
+test('assistant reports insufficient credits when Yandex is unconfigured', async () => {
   await withAssistant({
+    env: {},
     resolveCredential: async () => ({ provider: 'openrouter', apiKey: 'personal-key', model: 'personal/model' }),
     fetchImpl: async () => new Response('', { status: 402 }),
-    yandexRequest: async () => { throw Error('Must not call Yandex'); },
   }, async request => {
-    assert.equal((await request(ask('Привет'))).status, 503);
+    const response = await request(ask('Привет'));
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /недостаточно средств/);
   });
 });
 
@@ -46,6 +85,7 @@ async function withAssistant(options, run) {
     asyncRoute: handler => (req, res, next) => Promise.resolve(handler(req, res)).catch(next),
     resolveCredential: async () => { throw Error('Unexpected credential read'); },
     fetchImpl: async () => { throw Error('Unexpected provider call'); },
+    yandexRequest: async () => { throw Error('Unexpected Yandex call'); },
     query: async () => { throw Error('Unexpected planning read'); },
     now: () => new Date('2026-11-05T22:30:00Z'),
     ...options,
@@ -139,11 +179,12 @@ test('assistant reports a missing key and shields upstream error details', async
     assert.match((await response.json()).error, /настройках профиля/);
   });
   await withAssistant({
+    env: yandexEnv,
     resolveCredential: async () => ({ apiKey: 'secret', model: 'test/model' }),
     fetchImpl: async () => Response.json({ error: 'sensitive upstream detail' }, { status: 429 }),
   }, async request => {
     const response = await request(ask('Привет'));
     assert.equal(response.status, 502);
-    assert.doesNotMatch(JSON.stringify(await response.json()), /sensitive|secret/);
+    assert.deepEqual(await response.json(), { error: 'Ассистент временно недоступен.' });
   });
 });
