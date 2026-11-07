@@ -45,6 +45,23 @@ api.get = async (path) => {
   if (path === "/wishlist-business/products/store" && (params.has("sales") || params.has("sale-buyer"))) {
     return clone({ items: state.sales.filter(item => item.active), pages: [] });
   }
+  if (path === "/wishlist-business/classifieds" && params.has("sales")) {
+    return clone({ items: state.sales.filter(item => item.active).map(item => ({ ...item, published: true })) });
+  }
+  if (path === "/wishlist-business/classifieds" && params.has("classifieds")) {
+    if (params.has("board-error") && !state.boardRetried) {
+      state.boardRetried = true;
+      throw new Error("Доска временно недоступна");
+    }
+    const listings = state.sellerItems.flatMap(item => [
+      { ...item, published: false },
+      ...Array.from({ length: 5 }, (_, index) => ({
+        ...item, id: `listing-${index}`, title: `Позиция ${index + 2}`, published: true,
+      })),
+      { ...item, id: "long-listing", title: "Длинноеназваниетовара".repeat(7), published: true },
+    ]);
+    return { items: listings };
+  }
   if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
   if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
@@ -129,4 +146,5 @@ function Fixture() {
 if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
 if (params.has("sales")) history.replaceState({}, "", "/app/wishes?tab=products");
 if (params.has("sale-buyer")) history.replaceState({}, "", "/app/store?tab=products");
-createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") || params.has("sales") || params.has("sale-buyer") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);
+if (params.has("classifieds") && !params.has("public")) history.replaceState({}, "", "/app/classifieds");
+createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") || params.has("sales") || params.has("sale-buyer") || params.has("classifieds") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

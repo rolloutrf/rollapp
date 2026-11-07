@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
 import { formatRolls } from "../../shared/rolls.js";
 import { api } from "@/api";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { WISHLIST_SPACES, canManageWishSales, canManageWishlistSpace } from "../../shared/wishlist-business.js";
 import { PageActionButton } from "@/components/page-action-button";
 import { ControlBar } from "@/components/control-bar";
@@ -51,6 +52,7 @@ function BusinessItem({ item, onOpen }) {
      <h3 className="break-words font-semibold">{item.title || "Название"}</h3>
      {(item.personalOffer || item.price) && <p className="break-words">{item.personalOffer ? formatRolls(item.personalOffer.priceRolls) : item.price}</p>}
      <p className="break-words text-muted-foreground">{item.brand || item.business.pageTitle || item.business.name}</p>
+     {item.published === false && <p className="text-xs text-muted-foreground">Витрина не опубликована</p>}
      {!item.active && onOpen && <p className="text-muted-foreground">Скрыт</p>}
    </div>
  </>;
@@ -60,7 +62,8 @@ function BusinessItem({ item, onOpen }) {
    </Button>
  ) : content}</Card>;
 }
-function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId}) {
+function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId,managePath}) {
+ const mobile = useIsMobile();
  const location = useLocation();
  const navigate = useNavigate();
  const [conversationId, setConversationId] = useState(null);
@@ -92,11 +95,13 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  };
  return <Drawer open={open && !conversationId} onAfterClose={afterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
  <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть"><X aria-hidden="true" /></DrawerClose>
- <DrawerHeader className="pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
- <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
+ <DrawerHeader className="wrap-anywhere pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
+ <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto wrap-anywhere p-6">
  {item.imageUrl&&<img src={item.imageUrl} alt={item.title} className="max-h-96 w-full object-contain"/>}
- <p className="whitespace-pre-wrap">{item.description}</p>{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}
- <Link to={publicSpacePath(item.business.username,space)} onClick={onClose}>Страница продавца · {item.business.name}</Link>
+ {item.description && <p className="whitespace-pre-wrap">{item.description}</p>}{(item.personalOffer||item.price)&&<p>{item.personalOffer?formatRolls(item.personalOffer.priceRolls):item.price}</p>}
+ {!managePath && (
+   <Link to={publicSpacePath(item.business.username,space)} onClick={onClose}>Страница продавца · {item.business.name}</Link>
+ )}
  {item.actionUrl&&<a href={item.actionUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({variant:"outline"})}>Открыть у продавца<ExternalLink aria-hidden="true"/></a>}
  {owner&&<Field><FieldLabel htmlFor="offer-buyer">Покупатель</FieldLabel>{loading?<p role="status">Загружаем покупателей…</p>:buyers.length?<Select value={buyerId||null} onValueChange={setBuyerId} disabled={busy}><SelectTrigger id="offer-buyer" className="w-full"><SelectValue placeholder="Выберите покупателя">{selected=>buyers.find(buyer=>buyer.id===selected)?.name}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{buyers.map(buyer=><SelectItem key={buyer.id} value={buyer.id}>{buyer.name} · @{buyer.username}</SelectItem>)}</SelectContent></Select>:<p>Покупатели ещё не открыли доступ к этому пространству.</p>}</Field>}
  {owner&&<><Field><FieldLabel htmlFor="wishlist-offer-price">Цена в роллах</FieldLabel><Input id="wishlist-offer-price" type="number" min="1" max="1000000" step="1" value={price} disabled={busy} onChange={e=>setPrice(e.target.value)} /></Field><Field><FieldLabel htmlFor="wishlist-offer-duration">Срок действия</FieldLabel><Select value={hours} onValueChange={setHours} disabled={busy}><SelectTrigger id="wishlist-offer-duration" className="w-full"><SelectValue>{()=>durations.find(([value])=>value===hours)?.[1]}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}>{durations.map(([value,label])=><SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field></>}
@@ -104,6 +109,11 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  <ErrorMessage message={error}/></div>
  <DrawerFooter>
    {item.personalSale && viewerId && viewerId !== item.business.id && <Button type="button" disabled={busy} onClick={contact}>Написать продавцу</Button>}
+   {managePath && (
+     <Link to={managePath} replace={mobile} className={buttonVariants()} data-slot="button" onClick={onClose}>
+       {item.personalSale ? "Управлять продажами" : "Управлять витриной"}
+     </Link>
+   )}
    {owner && <>
      <Button type="button" disabled={!buyerId || busy || !item.active || !Number.isInteger(Number(price)) || Number(price) < 1 || Number(price) > 1000000} onClick={send}>Предложить</Button>
      <Button type="button" variant="outline" size="icon" data-control-icon aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={() => onEdit(item)}><Pencil aria-hidden="true" /></Button>
@@ -244,4 +254,53 @@ export function WishlistBusinessPage({user,manager=false}) {
    </>}
    {manager?<WishlistBusinessManager key={space} user={user} space={space}/>:<WishlistBusinessListing key={space} space={space} offers/>}
  </section>;
+}
+
+export function ClassifiedsPage({ user }) {
+  const state = useBusinessData("/wishlist-business/classifieds");
+  const [selected, setSelected] = useState(null);
+  const items = state.data?.items ?? [];
+  const personal = user.accountType === "personal";
+  const managePath = (space) => personal ? wishSalesPath(space) : `/app/wishes/business?tab=${space}`;
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+
+  return (
+    <section className="app-page page-stack rollapp-body" aria-labelledby="classifieds-title">
+      <header className="typeset typeset-rollapp">
+        <h1 id="classifieds-title">Доска объявлений</h1>
+        <p>Все ваши активные позиции на продажу.</p>
+      </header>
+      <Status state={state}>
+        {items.length ? (
+          <div className="wish-grid catalog-wish-grid wrap-anywhere max-[360px]:grid-cols-1">
+            {items.map((item) => <BusinessItem key={item.id} item={item} onOpen={setSelected} />)}
+          </div>
+        ) : (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>Пока нет объявлений</EmptyTitle>
+              <EmptyDescription className="text-rollapp-body">
+                {personal ? "Здесь появятся объявления, которые вы показываете в магазине." : "Активные позиции из вашей витрины появятся здесь."}
+              </EmptyDescription>
+            </EmptyHeader>
+            <PageActionButton to={managePath(user.sellerSpace ?? "products")} variant="outline">
+              {personal ? "Мои продажи" : "Перейти к витрине"}
+            </PageActionButton>
+          </Empty>
+        )}
+      </Status>
+      {selected && (
+        <ItemDetails
+          key={selected.id}
+          item={selected}
+          space={selected.space}
+          managePath={managePath(selected.space)}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </section>
+  );
 }

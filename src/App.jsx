@@ -1,6 +1,6 @@
 import { ProductTitleInput } from "@/components/product-title-input";
 import { MessengerDrawer, useMessengerAssistant } from "@/components/messenger";
-import { WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
+import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
@@ -128,7 +128,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
@@ -620,6 +620,7 @@ function isFriendsDirectoryPath(pathname) {
 }
 
 function activeServiceFromPath(pathname) {
+  if (pathname === APP_CLASSIFIEDS_PATH) return "classifieds";
   if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
@@ -644,6 +645,9 @@ function SphereSwitcher({ docked = false }) {
   const sharedOwner = new URLSearchParams(location.search).get("owner");
   const visibleServices = [
     ...serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user),
+    ...(canManageWishSales(user, user?.sellerSpace ?? "products")
+      ? [{ id: "classifieds", label: "Объявления о продаже", path: APP_CLASSIFIEDS_PATH, icon: Newspaper }]
+      : []),
     ...(user?.accountType === "business"
       ? [{ id: "business-access", label: "Клиенты", path: "/app/business/access", icon: Building2, color: "#8b7cf6" }]
       : []),
@@ -2015,6 +2019,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const wishesRoute = location.pathname.startsWith("/app/wishes");
   const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
   const storeRoute = location.pathname === APP_STORE_PATH;
+  const classifiedsRoute = location.pathname === APP_CLASSIFIEDS_PATH;
   const ordersRoute = location.pathname === APP_ORDERS_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
@@ -2029,7 +2034,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !storeRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3582,11 +3587,15 @@ function StorePage({ user, selectedSpace }) {
   </>;
 }
 
-function ProtectedWishlistBusiness({ manager = false, sales = false }) {
+function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
+  if (classifieds) {
+    if (!canManageWishSales(user, user.sellerSpace ?? "products")) return <Navigate to={APP_HOME} replace />;
+    return <AppShell><ClassifiedsPage key={user.id} user={user} /></AppShell>;
+  }
   return <AppShell>{sales ? <WishSalesPage user={user} /> : <WishlistBusinessPage user={user} manager={manager} />}</AppShell>;
 }
 
@@ -7999,6 +8008,7 @@ export default function App() {
             <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
             <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
             <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
+            <Route path={APP_CLASSIFIEDS_PATH} element={<ProtectedWishlistBusiness classifieds />} />
             <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
             <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />

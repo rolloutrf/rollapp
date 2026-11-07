@@ -50,7 +50,7 @@ const wishSale = `starts_with(i.id, '${wishSalePrefix}')`;
 const personalSale = `(u.account_type='personal' AND ${wishSale})`;
 const consent = `EXISTS (SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.buyer_user_id AND s.viewer_user_id=i.business_user_id AND s.sphere='wishlist' AND s.section IN (i.space,'wishlist'))`;
 const eligible = `u.account_type='business' AND u.business_category='seller' AND (u.seller_space IS NULL OR u.seller_space=i.space)`;
-const itemSelect = `SELECT i.*,u.name AS business_name,u.username AS business_username,p.title AS page_title,${personalSale} AS personal_sale FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space JOIN users u ON u.id=i.business_user_id`;
+const itemSelect = `SELECT i.*,u.name AS business_name,u.username AS business_username,p.title AS page_title,p.published AS page_published,${personalSale} AS personal_sale FROM wishlist_business_items i JOIN wishlist_business_pages p ON p.business_user_id=i.business_user_id AND p.space=i.space JOIN users u ON u.id=i.business_user_id`;
 const clean = row => ({ id: row.id, space: row.space, title: row.title, description: row.description, brand: row.brand, imageUrl: row.image_url, actionUrl: row.action_url, price: row.price, active: row.active, offerId: row.offer_id, personalSale: row.personal_sale, business: { id: row.business_user_id, name: row.business_name, username: row.business_username, pageTitle: row.page_title } });
 const fail = (res, status, error) => res.status(status).json({ error });
 
@@ -86,6 +86,17 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  const seller = (req,res,next) => canManageWishlistSpace(req.user,req.params.space) ? next() : fail(res,403,"Раздел недоступен для вашей категории бизнеса");
  const saleOwner = (req,res,next) => canManageWishSales(req.user,req.params.space) ? next() : fail(res,403,"Продажи в этом разделе недоступны");
  const base = "/api/wishlist-business/:space";
+ app.get("/api/wishlist-business/classifieds", requireAuth, route(async (req, res) => {
+   res.set("Cache-Control", "private, no-store");
+   const spaces = WISHLIST_SPACE_IDS.filter(space => canManageWishSales(req.user, space));
+   if (!spaces.length) return fail(res, 403, "Доска объявлений недоступна для вашей категории");
+   const { rows } = await query(
+     `${itemSelect} WHERE i.business_user_id=$1 AND i.space=ANY($2::text[]) AND i.active AND ((${eligible}) OR ${personalSale})
+      ORDER BY i.created_at DESC,i.id`,
+     [req.user.id, spaces],
+   );
+   res.json({ items: rows.map(row => ({ ...clean(row), published: row.page_published })) });
+ }));
  app.get(`${base}/accounts`, requireAuth, scope, route(async (req, res) => {
    const { rows } = await query(
      `SELECT u.username, u.name, u.avatar_url AS "avatarUrl", p.title AS "storefrontTitle"
