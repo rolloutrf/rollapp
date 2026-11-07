@@ -4322,36 +4322,21 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .profile-portrait > .wishes-page__hero-avatar:has(> [data-slot="avatar-image"])::after {
   display: none;
 }
-.profile-portrait:has([data-slot="avatar-image"])::before,
-.profile-portrait:has([data-slot="avatar-image"])::after {
+.profile-portrait:has([data-slot="avatar-image"])::before {
   content: "";
   position: absolute;
-  inset: -55%;
+  inset: -30%;
   z-index: -1;
   pointer-events: none;
-  mask-image: radial-gradient(closest-side, #000 54%, transparent);
-}
-.profile-portrait::before {
-  background:
-    radial-gradient(ellipse at 68% 39%, hsl(var(--profile-portrait-hue) 92% 60%) 0%, transparent 48%),
-    radial-gradient(ellipse at 39% 65%, hsl(var(--profile-portrait-hue) 80% 44%) 0%, transparent 48%);
-  opacity: .72;
+  background: radial-gradient(ellipse 46% 44% at 48% 47%, hsl(var(--profile-portrait-hue) 78% 59% / .76) 22%, transparent);
   animation: profile-portrait-wave 9s ease-in-out infinite alternate;
 }
-.profile-portrait::after {
-  background:
-    radial-gradient(ellipse at 36% 33%, hsl(var(--profile-portrait-hue) 96% 69%) 0%, transparent 41%),
-    radial-gradient(ellipse at 67% 63%, hsl(var(--profile-portrait-hue) 88% 53%) 0%, transparent 39%);
-  opacity: .84;
-  animation: profile-portrait-wave 7s ease-in-out -3s infinite alternate-reverse;
-}
 @keyframes profile-portrait-wave {
-  from { transform: translate(-4%, 3%) rotate(-20deg) scale(.93); }
-  to { transform: translate(5%, -4%) rotate(32deg) scale(1.08); }
+  from { transform: translate(-3%, 2%) rotate(-20deg) scale(.96); }
+  to { transform: translate(3%, -3%) rotate(32deg) scale(1.04); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .profile-portrait::before,
-  .profile-portrait::after { animation: none; }
+  .profile-portrait:has([data-slot="avatar-image"])::before { animation: none; }
 }
 .app-layout--dark .sphere-share-avatars__people {
   position: absolute;

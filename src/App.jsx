@@ -558,10 +558,10 @@ function Avatar({ user, size = "md", className = "", ...props }) {
 
 function currentProfilePortraitHue() {
   const hour = new Date().getHours();
-  if (hour < 5 || hour >= 22) return 266;
+  if (hour < 5 || hour >= 22) return 23;
   if (hour < 11) return 38;
-  if (hour < 17) return 204;
-  return 338;
+  if (hour < 17) return 33;
+  return 27;
 }
 
 function ProfilePortrait({ user }) {
