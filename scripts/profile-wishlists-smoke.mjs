@@ -61,6 +61,32 @@ try {
       });
     };
     const inputs = ['OhMyWishes', 'Ozon', 'WB', 'Яндекс Маркет'].map(name => wishlist.getByRole('textbox', { name, exact: true }));
+    const importBrowser = wishlist.getByRole('button', { name: 'Импортировать все списки · Яндекс Маркет', exact: true });
+    const importBox = await importBrowser.boundingBox();
+    assert(importBox.x >= 0 && importBox.x + importBox.width <= width && importBox.height >= 47.5);
+    assert.equal(await importBrowser.evaluate(el => getComputedStyle(el).paddingInlineStart), '24px');
+    if (width === 320 || width === 1440) {
+      await importBrowser.click();
+      await wishlist.getByRole('status').getByText(/Установите или обновите расширение Rollapp/).waitFor();
+      assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);
+      await page.evaluate(() => {
+        window.addEventListener('message', ({ data, origin, source }) => {
+          if (source !== window || origin !== location.origin || data?.source !== 'rollapp-page') return;
+          const type = data.type === 'ROLLAPP_WISHLIST_PING' ? 'ROLLAPP_WISHLIST_PONG'
+            : data.type === 'ROLLAPP_WISHLIST_IMPORT' ? 'ROLLAPP_WISHLIST_RESULT' : null;
+          if (!type) return;
+          const items = [{ url: 'https://market.yandex.ru/card/example/1001', title: 'Карточка из браузера' }];
+          window.postMessage({ type, source: 'rollapp-retailer-helper', requestId: data.requestId, result: { ok: true, items } }, location.origin);
+        });
+      });
+      await importBrowser.click();
+      await wishlist.getByRole('status').getByText('Добавлено в «Товары»: 1. Уже было в Rollapp: 0.').waitFor();
+      assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), [{
+        ownerId: 'fixture',
+        items: [{ url: 'https://market.yandex.ru/card/example/1001', title: 'Карточка из браузера' }],
+      }]);
+      assert.deepEqual(await page.evaluate(() => window.profilePatches), []);
+    }
     assert(await save.isDisabled());
     assert(await save.evaluate(button => button.form?.id === 'profile-wishlists-form'));
     await inputs[1].fill('https://ozon.ru.example/t/test');
@@ -124,7 +150,7 @@ try {
     await page.evaluate(() => { window.rejectProfileSave = false; window.rejectMarketImport = true; });
     await saveWishlists();
     assert.deepEqual(await page.evaluate(() => window.wishlistImports), ['ohmywishes', 'yandex-market']);
-    await page.getByRole('status').getByText('Добавлено в «Товары»: 1.').waitFor();
+    await page.getByRole('status').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
     await page.getByRole('status').getByText('Не удалось прочитать список Маркета').waitFor();
     if (width === 320 || width === 1440) {
       await page.getByRole('button', { name: 'Импортировать позиции · OhMyWishes' }).click();

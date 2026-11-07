@@ -20,6 +20,7 @@ if (sharingFixture) profile.accountType = "personal";
 const importedWishes = new Map();
 window.profilePatches = [];
 window.wishlistImports = [];
+window.browserWishlistImports = [];
 window.unexpectedRequests = [];
 
 function unexpected(path) {
@@ -47,7 +48,11 @@ api.get = async (path) => {
   }
   return unexpected(path);
 };
-api.post = async (path) => {
+api.post = async (path, body) => {
+  if (!guest && path === "/me/browser-wishlist-import/yandex-market") {
+    window.browserWishlistImports.push(body);
+    return { added: 1, skipped: 0 };
+  }
   if (!guest && path === "/wishes/backfill-previews") return { updated: 0 };
   const provider = /^\/me\/wishlist-import\/(ohmywishes|yandex-market)$/.exec(path)?.[1];
   if (!guest && provider && profile.wishlistLinks[provider]) {

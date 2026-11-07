@@ -1,9 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Rollapp — импорт из магазинов",
-  "version": "1.1.0",
-  "description": "Автоматически переносит фото и данные товара из Самоката, Яндекс Лавки и Ленты в Rollapp.",
-  "permissions": ["tabs"],
+  "version": "1.2.0",
+  "description": "Импорт товаров и избранного из поддерживаемых магазинов в Rollapp.",
+  "permissions": [
+    "tabs"
+  ],
   "host_permissions": [
     "https://samokat.ru/product/*",
     "https://www.samokat.ru/product/*",
@@ -27,7 +29,9 @@
         "https://lenta.com/item/*",
         "https://www.lenta.com/item/*"
       ],
-      "js": ["retailer-content.js"],
+      "js": [
+        "retailer-content.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -36,8 +40,23 @@
         "http://localhost/*",
         "https://xn--80avakiab.xn--p1ai/*"
       ],
-      "js": ["rollapp-content.js"],
+      "js": [
+        "rollapp-content.js"
+      ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://market.yandex.ru/my/wishlist*",
+        "https://market.yandex.ru/wishlist/*",
+        "https://www.ozon.ru/my/favorites*",
+        "https://www.ozon.ru/selections/*",
+        "https://www.wildberries.ru/lk/favorites*"
+      ],
+      "js": [
+        "wishlist-content.js"
+      ],
+      "run_at": "document_idle"
     }
   ]
 }
