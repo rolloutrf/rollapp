@@ -71,10 +71,14 @@
     return (cards.length || empty) && items.every(Boolean) ? { scope, items, links: [], expected, empty: empty && !cards.length } : null;
   }
 
+  class MarketplaceAccessError extends Error {
+    code = "marketplace_access_required";
+  }
+
   function ozonRead(kind) {
     const config = selectors.ozon;
     const status = [...document.querySelectorAll('[data-widget="statusWidget"]')].map((node) => node.innerText).join("\n");
-    if (/войдите, чтобы|войти в аккаунт/i.test(status)) throw new Error("Войдите в Ozon и повторите импорт.");
+    if (/войдите, чтобы|войти в аккаунт/i.test(status)) throw new MarketplaceAccessError("Войдите в Ozon в этом браузере и повторите импорт.");
     if (kind === "collections" || kind === "lists") {
       const links = linksWithin(document, /^\/(?:selections\/(?!list(?:\/|$))[^/]+|my\/favorites\/[^/]+)\/?$/);
       const empty = /(?:подборок|вишлистов) пока нет|нет (?:подборок|вишлистов)/i.test(status);
@@ -109,7 +113,7 @@
     if (/captcha|showcaptcha|\/security\/login|\/auth\/login/.test(location.pathname)
       || /вы не робот|доступ ограничен/i.test(document.title)
       || /подтвердите, что запросы отправляли вы/i.test(text)) {
-      throw new Error("Откройте сайт магазина, завершите вход или проверку и повторите импорт.");
+      throw new MarketplaceAccessError("Завершите вход или проверку на сайте магазина и повторите импорт.");
     }
   }
 
@@ -170,7 +174,7 @@
     if (message?.type !== "ROLLAPP_COLLECT_WISHLIST") return false;
     collect(message.provider, message.kind, message.timeoutMs)
       .then((data) => sendResponse({ ok: true, ...data }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
+      .catch((error) => sendResponse({ ok: false, error: error.message, code: error.code }));
     return true;
   });
 })();

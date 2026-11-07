@@ -20,6 +20,24 @@ const WISHLIST_SOURCES = new Map([
 
 let runningWishlistImport = null;
 
+class MarketplaceAccessError extends Error {
+  code = "marketplace_access_required";
+}
+
+async function checkMarketplaceRedirect(tabId, provider) {
+  if (provider !== "wb" && provider !== "yandex-market") return;
+  const { url, pendingUrl } = await chrome.tabs.get(tabId).catch(() => ({}));
+  if ([url, pendingUrl].some((value) => {
+    const target = URL.parse(value);
+    if (provider === "wb") return target?.origin === "https://id.wb.ru" && target.pathname.startsWith("/login/");
+    return target?.origin === "https://market.yandex.ru" && target.pathname === "/showcaptcha";
+  })) {
+    throw new MarketplaceAccessError(provider === "wb"
+      ? "Войдите с WB ID в этом браузере и повторите импорт."
+      : "Завершите проверку на Яндекс Маркете в этом браузере и повторите импорт.");
+  }
+}
+
 async function readWishlistPage(provider, url, kind, deadline, signal) {
   signal.throwIfAborted();
   const tab = await chrome.tabs.create({ url, active: false });
@@ -40,11 +58,13 @@ async function readWishlistPage(provider, url, kind, deadline, signal) {
         });
       } catch {
         signal.throwIfAborted();
+        await checkMarketplaceRedirect(tab.id, provider);
         // The content script is injected after the shop document has loaded.
         await delay(300);
         continue;
       }
       signal.throwIfAborted();
+      if (result?.code === "marketplace_access_required") throw new MarketplaceAccessError(result.error);
       if (!result?.ok) throw new Error(result?.error || "Магазин не отдал список.");
       return result;
     }
