@@ -34,7 +34,7 @@ function listingUrl(value) {
   }
 }
 
-function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, onPhotoError }) {
+function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, onPhotoError, sale }) {
   const picker = useRef(null);
   const [dragging, setDragging] = useState(false);
   const hasFiles = (event) => event.dataTransfer.types.includes("Files");
@@ -44,7 +44,7 @@ function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, on
       <div className="grid gap-1">
         <h2 id={`${captionId}-heading`} className="font-heading text-xl font-semibold">Фото для обложки</h2>
         <p className="text-xs text-muted-foreground" id={captionId}>
-          JPG, PNG или WebP до 8 МБ. Это фото будет видно в каталоге и на витрине.
+          JPG, PNG или WebP до 8 МБ. {sale ? "Это фото будет видно в объявлении." : "Это фото будет видно в каталоге и на витрине."}
         </p>
       </div>
       <Input
@@ -113,7 +113,7 @@ function ItemPhoto({ photo, onChange, disabled, captionId, error, unreadable, on
   );
 }
 
-export function WishlistBusinessItemEditor({ item, space, spaceLabel, published, onClose, onSaved, renderPreview }) {
+export function WishlistBusinessItemEditor({ item, space, spaceLabel, published, onClose, onSaved, renderPreview, sale, open = true, onAfterClose }) {
   const isMobile = useIsMobile();
   const prefix = useId();
   const [initial] = useState(() => Object.fromEntries(Object.entries(itemDefaults).map(
@@ -215,10 +215,11 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
       uploading = false;
       setPhase("saving");
       const payload = { ...form, title, actionUrl, imageUrl, brand: form.brand.trim(), price: form.price.trim(), description: form.description.trim() };
-      const endpoint = `/wishlist-business/${space}/items`;
+      const endpoint = `/wishlist-business/${space}/${sale ? "sales" : "items"}`;
       const options = { signal: AbortSignal.timeout(25_000) };
       let result;
-      if (item.id) result = await api.patch(`${endpoint}/${item.id}`, payload, options);
+      if (item.id) result = await api.patch(`${endpoint}/${encodeURIComponent(item.id)}`, payload, options);
+      else if (sale) result = await api.post(endpoint, { ...payload, wishId: sale.wishId }, options);
       else {
         requestId.current ??= crypto.randomUUID();
         result = await api.post(endpoint, { ...payload, requestId: requestId.current }, options);
@@ -245,10 +246,13 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
   const submitLabel = item.id
     ? "Сохранить"
     : publicItem ? "Опубликовать" : form.active ? "Добавить" : "Сохранить скрытым";
+  const heading = sale
+    ? (item.id ? "Редактировать объявление" : "Выставить на продажу")
+    : (item.id ? `Редактировать ${noun}` : `Добавить ${noun}`);
 
   return (
     <>
-      <Drawer open onOpenChange={(open, details) => {
+      <Drawer open={open} onAfterClose={onAfterClose} onOpenChange={(open, details) => {
         if (open) return;
         details?.cancel();
         close();
@@ -256,19 +260,19 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
         <DrawerContent
           className="app-drawer--form rollapp-body"
           data-wishlist-item-editor=""
-          aria-label={item.id ? `Редактировать ${noun}` : `Добавить ${noun}`}
+          aria-label={heading}
           initialFocus={headingRef}
         >
           <DrawerHeader className="shrink-0 gap-1 border-b px-(--layout-page-inset) py-4 md:px-6">
-            <DrawerDescription className="text-xs text-muted-foreground">Витрина · {spaceLabel}</DrawerDescription>
+            <DrawerDescription className="text-xs text-muted-foreground">{sale ? "Мои продажи" : "Витрина"} · {spaceLabel}</DrawerDescription>
             <DrawerTitle ref={headingRef} tabIndex={-1} className="font-heading text-2xl font-semibold">
-              {item.id ? `Редактировать ${noun}` : `Добавить ${noun}`}
+              {heading}
             </DrawerTitle>
           </DrawerHeader>
           <form onSubmit={save} noValidate className="form-surface flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-(--layout-page-inset) py-5 md:px-6">
               <ItemPhoto
-                photo={photo} onChange={selectPhoto} disabled={Boolean(phase)} captionId={`${prefix}-photo`}
+                photo={photo} onChange={selectPhoto} disabled={Boolean(phase)} captionId={`${prefix}-photo`} sale={Boolean(sale)}
                 error={photoError || (unreadable ? "Замените повреждённый файл или уберите фото." : "")}
                 unreadable={unreadable} onPhotoError={file ? () => setUnreadableFile(file) : undefined}
               />
@@ -321,7 +325,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
                 <h2 id={`${prefix}-visibility`} className="font-heading text-xl font-semibold">Видимость</h2>
                 <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl border bg-muted/25 p-3">
                   <div className="grid min-w-0 gap-1">
-                    <FieldLabel htmlFor={`${prefix}-active`}>Показывать на витрине</FieldLabel>
+                    <FieldLabel htmlFor={`${prefix}-active`}>{sale ? "Показывать в магазине" : "Показывать на витрине"}</FieldLabel>
                     <p id={`${prefix}-visibility-hint`} className="text-xs text-muted-foreground">
                       {!form.active ? "Карточка видна только вам." : published ? "Покупатели увидят карточку после сохранения." : "Покупатели увидят карточку после публикации страницы продавца."}
                     </p>

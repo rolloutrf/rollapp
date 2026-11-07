@@ -17,6 +17,14 @@ const params = new URLSearchParams(location.search);
 const state = { balance: 100, cards: params.has("offers") ? [{id:"card", balance:25, business}, {id:"other-card", balance:100, business:{id:"other",name:"Другой бизнес",username:"other"}}] : params.has("cards") ? [{id:"first-card",balance:25,business},{id:"second-card",balance:50,business}] : [], calls: [], requests: new Map(), lost: false };
 state.reads = [];
 state.sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "products", title: "Товар мастерской", description: "Описание товара", brand: "Мастерская", active: true, price: "1 000 ₽", business }];
+const personal = { ...user, username: "owner", accountType: "personal" };
+const wishes = [
+  { id: "fulfilled", title: "Кофемолка", description: "Ручная кофемолка", status: "fulfilled", space: "products", listIds: [], userId: user.id },
+  { id: "active", title: "Кофеварка", status: "active", space: "products", listIds: [], userId: user.id },
+];
+state.sales = params.has("sale-buyer")
+  ? [{ id: "wish-sale:peer", space: "products", title: "Товар участника", active: true, personalSale: true, business: friend }]
+  : [];
 window.giftHarness = state;
 const clone = (value) => JSON.parse(JSON.stringify(value));
 // Explicit UI transport. Real API and production writes are forbidden here.
@@ -27,6 +35,16 @@ api.get = async (path) => {
   const owner = params.has("owner") || params.has("dashboard");
   if (path === "/me") return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null } : { ...user, username: "owner", accountType: "personal" } };
   if (path === "/sphere-shares/incoming") return { shares: [] };
+  if (path === "/dashboard" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [] };
+  if (path === "/profile/owner" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [], isOwner: true };
+  if (path.startsWith("/wishlist-business/products/sales")) {
+    const wishId = new URL(path, location.origin).searchParams.get("wish");
+    const editor = wishId ? state.sales[0] || { ...wishes[0], id: undefined, active: false } : null;
+    return clone({ items: state.sales, editor, published: true });
+  }
+  if (path === "/wishlist-business/products/store" && (params.has("sales") || params.has("sale-buyer"))) {
+    return clone({ items: state.sales.filter(item => item.active), pages: [] });
+  }
   if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
   if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
   if (path === "/business-profiles/studio/offers") return { items: [{ id:"offer", sphere:"career", kind:"store", itemType:"service", title:"Консультация", description:"Описание услуги", priceRolls:20, business }] };
@@ -36,6 +54,9 @@ api.get = async (path) => {
   }
   if (path === "/wishlist-business/products/page") return { items: state.sellerItems, page: {title: business.name, description: "", published: params.has("owner")} };
   if (path === "/wishlist-business/products/buyers") return { buyers: [] };
+  if (params.has("sale-buyer") && path === "/messenger/conversations") return { conversations: [{ id: "sale-chat", peer: friend, unread: 0 }] };
+  if (params.has("sale-buyer") && path.startsWith("/messenger/conversations/sale-chat/messages")) return { peer: friend, messages: [], hasMore: false };
+  if (params.has("sale-buyer") && path === "/messenger/subscriptions") return { users: [] };
   if (path === "/rolls/gift-cards") {
     const cards = clone(state.cards);
     if (params.has("missing-card")) state.cards = state.cards.filter((card) => card.id !== "second-card");
@@ -55,7 +76,8 @@ api.uploadImage = async (file) => {
 };
 api.patch = async (path, payload) => {
   state.calls.push({ path, payload: clone(payload) });
-  const item = state.sellerItems.find((item) => path === `/wishlist-business/products/items/${item.id}`);
+  const item = state.sellerItems.find((item) => path === `/wishlist-business/products/items/${item.id}`)
+    || state.sales.find((item) => path === `/wishlist-business/products/sales/${encodeURIComponent(item.id)}`);
   if (!item) throw new Error(`Unexpected fixture mutation: ${path}`);
   Object.assign(item, payload);
   return { id: item.id, item: clone(item) };
@@ -63,7 +85,17 @@ api.patch = async (path, payload) => {
 api.post = async (path, payload) => {
   // Read-only suggestions do not belong to the authored mutation history.
   if (path === "/catalog/product-suggestions") return { items: [], source: "Wikidata" };
+  if (path === "/wishes/backfill-previews" && params.has("sales")) return { updated: 0 };
   state.calls.push({ path, payload: clone(payload) });
+  if (path === "/messenger/conversations" && params.has("sale-buyer")) return { conversation: { id: "sale-chat", peer: friend } };
+  if (path === "/wishlist-business/products/sales") {
+    const { wishId, ...fields } = payload;
+    const id = `wish-sale:${wishId}`;
+    const existing = state.sales.find((item) => item.id === id);
+    if (existing) return { id, item: clone(existing), replayed: true };
+    state.sales.push({ ...fields, id, space: "products", personalSale: true, business: personal });
+    throw new Error("Ответ сервера потерян");
+  }
   if (path === "/wishlist-business/products/items") {
     const { requestId, ...fields } = payload;
     const existing = state.sellerItems.find((item) => item.id === requestId);
@@ -95,4 +127,6 @@ function Fixture() {
   </div></main></div>;
 }
 if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
-createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);
+if (params.has("sales")) history.replaceState({}, "", "/app/wishes?tab=products");
+if (params.has("sale-buyer")) history.replaceState({}, "", "/app/store?tab=products");
+createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") || params.has("sales") || params.has("sale-buyer") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

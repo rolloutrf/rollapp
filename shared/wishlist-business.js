@@ -10,3 +10,8 @@ export function canManageWishlistSpace(account, space) {
     && WISHLIST_SPACE_IDS.includes(space)
     && (!(account?.sellerSpace ?? account?.seller_space) || (account.sellerSpace ?? account.seller_space) === space);
 }
+
+export function canManageWishSales(account, space) {
+  return WISHLIST_SPACE_IDS.includes(space)
+    && ((account?.accountType ?? account?.account_type) === "personal" || canManageWishlistSpace(account, space));
+}
