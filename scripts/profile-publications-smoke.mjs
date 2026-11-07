@@ -59,6 +59,24 @@ try {
     await page.getByRole("alertdialog").getByRole("heading", { name: "Отменить запись?" }).waitFor();
     await page.getByRole("alertdialog").getByRole("button", { name: "Назад" }).click();
     await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
+    const book = page.getByRole("button", { name: /Записаться: Первая встреча/ });
+    const booked = page.getByRole("button", { name: /Отменить запись: Первая встреча/ });
+    await book.click();
+    await page.getByRole("status").getByText("Вы записаны на сессию").waitFor();
+    await booked.click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Отменить запись" }).click();
+    await page.getByRole("status").getByText("Запись отменена").waitFor();
+    await book.waitFor();
+    await page.evaluate(() => { window.publicationTransport.conflictNextBooking = true; });
+    await book.click();
+    await page.getByRole("alert").getByText("Это время больше недоступно. Выберите другой слот.").waitFor();
+    await book.waitFor({ state: "detached" });
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), [
+      ["POST", "/profile/host/calendar/open/book", {}],
+      ["DELETE", "/profile/host/calendar/open/bookings/open-booking"],
+      ["POST", "/profile/host/calendar/open/book", {}],
+    ]);
     await geometry();
 
     await open("calendar", "owner");
@@ -71,7 +89,16 @@ try {
     await page.getByRole("grid").waitFor({ state: "hidden" });
     await page.locator("button[type=submit]:enabled").waitFor();
     assert.equal(await page.getByLabel("Название сессии").inputValue(), "Планирование");
-    await page.getByRole("button", { name: "Отмена", exact: true }).click();
+    await page.getByRole("button", { name: "Опубликовать", exact: true }).click();
+    await page.getByRole("status").getByText("Слот опубликован").waitFor();
+    await page.getByRole("heading", { name: "Планирование", exact: true }).waitFor();
+    const [[slotMethod, slotPath, slotPayload]] = await page.evaluate(() => window.publicationTransport.calls);
+    assert.equal(slotMethod, "POST");
+    assert.equal(slotPath, "/profile/host/calendar");
+    assert.match(slotPayload.id, /^[0-9a-f-]{36}$/);
+    assert.equal(slotPayload.duration, 60);
+    assert.equal(slotPayload.title, "Планирование");
+    assert.match(slotPayload.startsAt, /T06:00:00.000Z$/); // 09:00 Europe/Moscow
     await geometry();
 
     await open("announcements", "owner");
@@ -81,6 +108,27 @@ try {
     assert.equal(await page.getByLabel("Заголовок объявления").inputValue(), "Открыта запись на ноябрь");
     await geometry();
     await page.getByRole("button", { name: "Отмена", exact: true }).click();
+    await page.getByRole("button", { name: /Редактировать: Открыта запись/ }).click();
+    await page.getByLabel("Заголовок объявления").fill("Обновлённое объявление");
+    await page.getByLabel("Текст объявления").fill("Новое время");
+    await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+    await page.getByRole("heading", { name: "Обновлённое объявление", exact: true }).waitFor();
+    await page.getByRole("button", { name: /Удалить объявление: Обновлённое объявление/ }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Удалить", exact: true }).click();
+    await page.getByText("Здесь появятся ваши опубликованные объявления.").waitFor();
+    await page.getByRole("button", { name: "Добавить объявление", exact: true }).click();
+    await page.getByLabel("Заголовок объявления").fill("Новая публикация");
+    await page.getByLabel("Текст объявления").fill("Даты встреч");
+    await page.getByRole("button", { name: "Опубликовать", exact: true }).click();
+    await page.getByRole("heading", { name: "Новая публикация", exact: true }).waitFor();
+    const writes = await page.evaluate(() => window.publicationTransport.calls);
+    assert.deepEqual(writes.slice(0, 2), [
+      ["PATCH", "/profile/host/announcements/announcement", { title: "Обновлённое объявление", body: "Новое время" }],
+      ["DELETE", "/profile/host/announcements/announcement"],
+    ]);
+    assert.deepEqual(writes[2].slice(0, 2), ["POST", "/profile/host/announcements"]);
+    assert.equal(writes[2][2].body, "Даты встреч");
+    assert.equal(writes.length, 3);
 
     await open("announcements", "visitor");
     assert.equal(await page.getByRole("button", { name: /Добавить объявление|Удалить объявление|Редактировать:/ }).count(), 0);
@@ -92,7 +140,7 @@ try {
     await open("calendar", "loading");
     await page.getByRole("status").getByText("Загрузка…").waitFor();
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height} · populated, loading, empty, guest, owner, actions, date picker, overflow`);
+    console.log(`PASS ${width}×${height} · booking, cancellation, conflict, publications, guest, date picker, overflow`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }
