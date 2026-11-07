@@ -91,7 +91,7 @@ export function yandexRegistrationReturnPath(value) {
   return /^\/app\/member-number\/?(?:[?#]|$)/i.test(path) ? "/app/wishes" : path;
 }
 
-export function createYandexAuthorization(config, { nextPath, linkUserId = null, now = Date.now() } = {}) {
+export function createYandexAuthorization(config, { nextPath, linkUserId = null, addUserId = null, now = Date.now() } = {}) {
   if (!config?.enabled) {
     throw new YandexAuthError("Вход через Яндекс ID не настроен", "YANDEX_AUTH_UNAVAILABLE", 503);
   }
@@ -112,6 +112,7 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("code_challenge", challenge);
   authorizationUrl.searchParams.set("code_challenge_method", "S256");
+  if (addUserId) authorizationUrl.searchParams.set("force_confirm", "yes");
 
   return {
     authorizationUrl: authorizationUrl.toString(),
@@ -122,8 +123,8 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
       stateHash: createHash("sha256").update(state).digest("hex"),
       verifier,
       nextPath: safeOauthReturnPath(nextPath),
-      purpose: requestsBackup ? "link-backup" : linkUserId ? "link" : "login",
-      userId: linkUserId || null,
+      purpose: requestsBackup ? "link-backup" : linkUserId ? "link" : addUserId ? "add" : "login",
+      userId: linkUserId || addUserId,
     },
   };
 }

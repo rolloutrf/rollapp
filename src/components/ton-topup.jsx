@@ -1,3 +1,4 @@
+import { sessionFetch } from "@/api";
 import { useEffect, useRef, useState } from "react";
 import { toUserFriendlyAddress } from "@tonconnect/sdk";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatTon, TON_MAINNET } from "../../shared/ton.js";
 
 async function request(path, body) {
-  const response = await fetch(`/api/rolls/ton${path}`, {
+  const response = await sessionFetch(`/api/rolls/ton${path}`, {
     method: body ? "POST" : "GET", credentials: "include", signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}),
   });

@@ -2368,7 +2368,7 @@ async function expectProfileEditorForm(page, label, { mobile = false } = {}) {
   await name.fill(initialName);
   assert(await save.isDisabled(), `${label} profile save did not disable after restoring the initial value`);
 
-  const logoutButton = dialog.getByRole("button", { name: "Выйти из аккаунта", exact: true });
+  const logoutButton = dialog.getByRole("button", { name: "Выйти на этом устройстве", exact: true });
   assert(await logoutButton.count() === 1, `${label} profile editor is missing the account logout action`);
   const logoutGeometry = await logoutButton.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -5386,7 +5386,7 @@ try {
   const logoutDialog = dashboard.getByRole("dialog", { name: "Изменить профиль", exact: true });
   await logoutDialog.waitFor({ state: "visible" });
   await dashboard.screenshot({ path: "/tmp/rollapp-desktop-profile-editor.png", fullPage: true });
-  const settingsLogout = logoutDialog.getByRole("button", { name: "Выйти из аккаунта", exact: true });
+  const settingsLogout = logoutDialog.getByRole("button", { name: "Выйти на этом устройстве", exact: true });
   const logoutResponsePromise = dashboard.waitForResponse((response) => (
     response.request().method() === "POST"
       && new URL(response.url()).pathname === "/api/auth/logout"

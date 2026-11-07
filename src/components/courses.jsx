@@ -5,7 +5,7 @@ import {
   AlertTriangle, CalendarDays, CheckCircle2, Clock3, FolderInput, GraduationCap,
   ImagePlus, MoreHorizontal, Pencil, PlayCircle, RotateCcw, Trash2, Ungroup, X,
 } from "lucide-react";
-import { api } from "@/api";
+import { api, sessionFetch } from "@/api";
 import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -513,7 +513,7 @@ function CourseDrawer({ course, initialListId = "", lists = [], open, onOpenChan
     const ids = [...uploadedImageIdsRef.current];
     uploadedImageIdsRef.current.clear();
     ids.forEach((id) => {
-      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+      sessionFetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
         method: "DELETE",
         credentials: "include",
         keepalive: true,

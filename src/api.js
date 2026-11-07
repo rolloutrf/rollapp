@@ -1,4 +1,22 @@
 const API_ROOT = "/api";
+let activeAccountId;
+
+export function bindApiAccount(accountId) {
+  activeAccountId = accountId;
+}
+
+// The cookie is shared by tabs, while a page's drafts and controls belong to
+// the account it loaded. Let the server reject stale requests before routing.
+export async function sessionFetch(url, options = {}) {
+  const headers = { ...options.headers };
+  if (activeAccountId) headers["X-Rollapp-Account"] = activeAccountId;
+  const response = await fetch(url, { credentials: "include", cache: "no-store", ...options, headers });
+  if (response.status === 409) {
+    const payload = await response.clone().json().catch(() => null);
+    if (payload?.code === "ACTIVE_ACCOUNT_CHANGED") window.location.replace("/app/wishes");
+  }
+  return response;
+}
 
 const PRIVATE_SPHERE_API_PREFIXES = ["/contacts", "/career/", "/identity/", "/education/", "/health/"];
 
@@ -16,13 +34,12 @@ async function request(path, options = {}) {
   const scopedPath = scopedSpherePath(path);
   let response;
   try {
-    response = await fetch(`${API_ROOT}${scopedPath}`, {
-      credentials: "include",
+    response = await sessionFetch(`${API_ROOT}${scopedPath}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
         ...options.headers,
       },
-      ...options,
     });
   } catch (cause) {
     const error = new Error("Сервер временно недоступен. Подождите пару секунд и попробуйте снова.", { cause });

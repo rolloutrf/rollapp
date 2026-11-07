@@ -42,7 +42,7 @@ try {
     const mobile = width < 768;
     await menu.waitFor();
     assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
-      "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
+      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
     ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
@@ -85,6 +85,8 @@ try {
       }
       await upload.focus();
       await page.keyboard.press("Tab");
+      assert(await button("Аккаунты").evaluate(el => el.matches(":focus-visible")));
+      await page.keyboard.press("Tab");
       assert(await personal.evaluate(el => el.matches(":focus-visible") && getComputedStyle(el).boxShadow !== "none"));
     } else {
       await personal.focus();
@@ -102,7 +104,7 @@ try {
     await menu.waitFor({ state: "hidden" });
     assert.equal(await photo.count(), 0);
     assert.equal(await button("Сохранить").isEnabled(), true);
-    const logout = button("Выйти из аккаунта");
+    const logout = button("Выйти на этом устройстве");
     const saveBox = await button("Сохранить").boundingBox();
     const logoutBox = await logout.boundingBox();
     assert.equal(logoutBox.width, 48);
@@ -265,7 +267,7 @@ try {
       assert(item.height >= 48 && !item.overflow && item.x >= 0 && item.right <= width, `${width}: section control geometry`);
     }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    assert.equal(await button("Выйти из аккаунта").count(), 0);
+    assert.equal(await button("Выйти на этом устройстве").count(), 0);
     const finance = button("Финансы");
     const source = new URL(page.url());
     await finance.click();

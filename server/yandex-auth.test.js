@@ -76,6 +76,14 @@ test("authorization uses one-time state, PKCE S256, minimal scopes and a safe re
   );
 });
 
+test("adding an account requests the Yandex chooser and binds the attempt to the current account", () => {
+  const authorization = createYandexAuthorization(config, { addUserId: "current-account" });
+  assert.equal(new URL(authorization.authorizationUrl).searchParams.get("force_confirm"), "yes");
+  assert.equal(authorization.attempt.purpose, "add");
+  assert.equal(authorization.attempt.userId, "current-account");
+  assert.equal(new URL(createYandexAuthorization(config).authorizationUrl).searchParams.has("force_confirm"), false);
+});
+
 test("OAuth return paths reject external, protocol-relative and backslash redirects", () => {
   assert.equal(safeOauthReturnPath("/app/wishes?space=food#top"), "/app/wishes?space=food#top");
   assert.equal(safeOauthReturnPath("https://evil.example"), "/app/wishes");

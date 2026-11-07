@@ -616,14 +616,14 @@ assert(/<DrawerTitle className="sr-only">Изменить профиль<\/Drawe
 assert(/<DrawerDescription className="sr-only">Редактирование данных профиля\.<\/DrawerDescription>/.test(profileSettingsSource), "ProfileSettingsModal must keep an accessible description without rendering helper copy");
 assert(/<form\b[^>]*onSubmit=\{submit\}/.test(profileSettingsSource), "ProfileSettingsModal must keep one native form submission path");
 assert(!/Ссылка на фото|settings-profile-avatar-url/.test(profileSettingsSource), "ProfileSettingsModal must not expose the retired avatar URL field");
-const profileLogoutLabel = profileSettingsSource.indexOf('aria-label="Выйти из аккаунта"');
+const profileLogoutLabel = profileSettingsSource.indexOf('aria-label="Выйти на этом устройстве"');
 const profileLogoutStart = profileSettingsSource.lastIndexOf("<ShadcnButton", profileLogoutLabel);
 const profileLogoutEnd = profileSettingsSource.indexOf("</ShadcnButton>", profileLogoutLabel);
 const profileLogoutSource = profileSettingsSource.slice(profileLogoutStart, profileLogoutEnd + "</ShadcnButton>".length);
 assert(profileLogoutLabel >= 0 && profileLogoutStart >= 0 && profileLogoutEnd >= 0, "ProfileSettingsModal must keep its logout action");
 assert(/type="button"/.test(profileLogoutSource) && /variant="destructive"/.test(profileLogoutSource), "Profile logout must remain a native destructive shadcn Button");
 assert(/data-control-icon=/.test(profileLogoutSource) && /size="icon"/.test(profileLogoutSource), "Profile logout must use the shared circular ControlBar geometry");
-assert(/<DrawerFooter\b[^>]*>\s*<ShadcnButton\b[^>]*type="submit"[\s\S]*?<\/ShadcnButton>\s*<ShadcnButton\b[^>]*aria-label="Выйти из аккаунта"/.test(profileSettingsSource), "Profile logout must share the Save footer");
+assert(/<DrawerFooter\b[^>]*>\s*<ShadcnButton\b[^>]*type="submit"[\s\S]*?<\/ShadcnButton>\s*<ShadcnButton\b[^>]*aria-label="Выйти на этом устройстве"/.test(profileSettingsSource), "Profile logout must share the Save footer");
 const profileSettingsContentTag = profileSettingsSource.match(/<DrawerContent\b[^>]*>/)?.[0] || "";
 assert(profileSettingsContentTag.includes("profile-settings-dialog"), "ProfileSettingsModal must mark its DrawerContent with the profile-settings-dialog class");
 assert(!/(?:^|\s)(?:h-dvh|max-h-none|w-screen|top-0|left-0|translate-x-0|translate-y-0|max-w-none|sm:max-w-none|data-\[swipe-direction=down\]:rounded-t-none|data-\[swipe-direction=down\]:border-t-0)(?:\s|$)/.test(profileSettingsContentTag), "ProfileSettingsModal must stay a native side drawer without fullscreen or Dialog positioning overrides");

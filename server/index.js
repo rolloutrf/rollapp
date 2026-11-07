@@ -123,6 +123,7 @@ import {
 } from "./phone-auth.js";
 import { isReservedProfileUsername, legacyProfileTarget, profileUsernameCandidates } from "./profile-paths.js";
 import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } from "./security.js";
+import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./account-sessions.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/sphere-sharing.js";
 import { businessCategoryForSection, canBusinessAccessSection } from "../shared/business-accounts.js";
@@ -155,7 +156,7 @@ const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 let memberAnchor = { kick() {} };
-const sessionCookie = "rw_session";
+const { setAuthenticatedSession, registerAccountRoutes } = createAccountSessions({ query, sessionCookieOptions });
 const yandexOauthCookiePrefix = "rw_yandex_oauth_";
 const localImageUrlSchema = z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/);
 const uploadedMediaUrlPattern = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -1118,7 +1119,7 @@ app.use("/api", asyncRoute(optionalAuth));
 const csrfSafeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function requireTrustedSessionMutation(req, res, next) {
-  if (csrfSafeMethods.has(req.method) || !req.cookies[sessionCookie]) return next();
+  if (csrfSafeMethods.has(req.method) || (!req.cookies[sessionCookie] && !req.cookies[savedSessionsCookie])) return next();
 
   const origin = req.get("origin");
   const fetchSite = (req.get("sec-fetch-site") || "").toLowerCase();
@@ -1143,6 +1144,7 @@ function requireTrustedSessionMutation(req, res, next) {
 }
 
 app.use("/api", requireTrustedSessionMutation);
+app.use("/api", requireExpectedAccount);
 
 registerRollsRoutes(app, { requireAuth, query, transaction });
 registerWishGroupFundraisingRoutes(app, { requireAuth, query, transaction, canViewWish });
@@ -1164,9 +1166,9 @@ registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute 
 
 registerStoryRoutes(app, { requireAuth, query, asyncRoute });
 
-async function createSession(res, userId) {
+async function createSession(req, res, userId) {
   const session = await createSessionRecord({ query: (text, params) => query(text, params) }, userId);
-  setSessionCookie(res, session);
+  await setAuthenticatedSession(req, res, session, userId);
 }
 
 async function createSessionRecord(client, userId) {
@@ -1176,16 +1178,24 @@ async function createSessionRecord(client, userId) {
   return { token, expiresAt };
 }
 
-function setSessionCookie(res, { token, expiresAt }) {
+function sessionCookieOptions(path) {
   const telegramEnabled = getTelegramAuthConfig().enabled;
   const secure = isProduction && process.env.COOKIE_SECURE !== "false";
-  res.cookie(sessionCookie, token, {
+  return {
     httpOnly: true,
     sameSite: isProduction && telegramEnabled && secure ? "none" : "lax",
     secure,
-    path: "/",
-    expires: expiresAt,
-  });
+    path,
+  };
+}
+
+function addAccountRequested(req) {
+  return req.query.add_account === "1";
+}
+
+function requireAddAccountSession(req, res, next) {
+  if (addAccountRequested(req)) return requireAuth(req, res, next);
+  next();
 }
 
 function yandexOauthCookieOptions(expires) {
@@ -1210,8 +1220,9 @@ function clearYandexOauthCookie(res, state) {
   if (name) res.clearCookie(name, yandexOauthCookieOptions());
 }
 
-function yandexLoginRedirect(nextPath, errorCode, successCode, backup) {
+function yandexLoginRedirect(nextPath, errorCode, successCode, backup, addAccount = false) {
   const params = new URLSearchParams({ next: safeOauthReturnPath(nextPath) });
+  if (addAccount) params.set("add_account", "1");
   if (errorCode) params.set("auth_error", errorCode);
   if (successCode) params.set("auth_success", successCode);
   if (backup) params.set("backup", backup);
@@ -1588,6 +1599,7 @@ async function resolveYandexLogin(yandexUser, attempt, currentUser, account) {
 
     const existingEmail = await client.query("SELECT id FROM users WHERE email=$1 FOR UPDATE", [yandexUser.email]);
     if (existingEmail.rowCount) return { kind: "link-required" };
+    if (attempt.purpose === "add") return { kind: "account-not-found" };
 
     await lockMembership(client, isMemoryDatabase);
     if (!account || !attempt.invite_token_hash) return { kind: "invite-required" };
@@ -1859,19 +1871,22 @@ async function verifyPhoneChallenge(req, res, { purpose, userId = null }) {
     return res.status(409).json({ error: "Этот номер уже привязан к другому аккаунту" });
   }
   if (result.kind !== "success") return res.status(401).json(invalidPhoneCodeResponse);
-  if (result.session) setSessionCookie(res, result.session);
-  return res.json({ user: await cleanAuthenticatedUser(result.user) });
+  const user = await cleanAuthenticatedUser(result.user);
+  if (result.session) {
+    await setAuthenticatedSession(req, res, result.session, result.user.id, { addAccount: addAccountRequested(req) });
+  }
+  return res.json({ user });
 }
 
 app.get("/api/auth/phone/config", (_req, res) => {
   res.json(publicPhoneAuthConfig());
 });
 
-app.post("/api/auth/phone/request", asyncRoute(async (req, res) => {
+app.post("/api/auth/phone/request", requireAddAccountSession, asyncRoute(async (req, res) => {
   await startPhoneChallenge(req, res, { purpose: "login" });
 }));
 
-app.post("/api/auth/phone/verify", asyncRoute(async (req, res) => {
+app.post("/api/auth/phone/verify", requireAddAccountSession, asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "login" });
 }));
 
@@ -1907,13 +1922,15 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     if (!invite.rowCount) return res.status(403).json(invalidInvite);
   }
   const nextPath = signingUp ? yandexRegistrationReturnPath(req.body.next) : safeOauthReturnPath(req.query.next);
-  if (wantsLink && !req.user) {
+  const wantsAdd = !signingUp && !wantsLink && addAccountRequested(req);
+  if ((wantsLink || wantsAdd) && !req.user) {
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
   }
   await cleanupExpiredAuthData();
   const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: config.diskBackupEnabled && !isMemoryDatabase }, {
     nextPath,
     linkUserId: wantsLink ? req.user.id : null,
+    addUserId: wantsAdd ? req.user.id : null,
   });
   await query(
     `INSERT INTO yandex_oauth_attempts
@@ -1968,16 +1985,19 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   const attempt = consumed.rows[0];
   if (!attempt) return res.redirect(303, yandexLoginRedirect("", "YANDEX_STATE_INVALID"));
   const inviteToken = attempt.purpose === "invite" ? cookieInvite : "";
+  const addingAccount = attempt.purpose === "add";
   const account = attempt.purpose === "invite"
     ? registrationAccountSchema.safeParse({ accountType, businessCategory: businessCategory || null, sellerSpace: sellerSpace || null })
     : null;
   const nextPath = account ? yandexRegistrationReturnPath(attempt.next_path) : safeOauthReturnPath(attempt.next_path);
 
   const authErrorRedirect = (code) => {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(nextPath, code);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(inviteToken)) return yandexLoginRedirect(nextPath, code, "", undefined, addingAccount);
     const params = new URLSearchParams({ next: nextPath, auth_error: code });
     return `/register?${params}#invite=${inviteToken}`;
   };
+  const loginError = (code) => res.redirect(303, authErrorRedirect(code));
+  if (addingAccount && req.user?.id !== attempt.user_id) return loginError("YANDEX_ADD_SESSION_CHANGED");
   if (typeof req.query.error === "string") {
     const errorCode = req.query.error === "access_denied" ? "YANDEX_CANCELLED" : "YANDEX_PROVIDER_ERROR";
     return res.redirect(303, authErrorRedirect(errorCode));
@@ -1997,18 +2017,19 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       return res.redirect(303, authErrorRedirect("INVITE_INVALID"));
     }
     if (result.kind === "link-required") {
-      return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_REQUIRED"));
+      return loginError(addingAccount ? "YANDEX_ADD_USE_CREDENTIALS" : "YANDEX_LINK_REQUIRED");
     }
     if (result.kind === "limit-reached") {
       return res.redirect(303, authErrorRedirect("YANDEX_LIMIT_REACHED"));
     }
+    if (result.kind === "account-not-found") return loginError("YANDEX_ADD_ACCOUNT_NOT_FOUND");
     if (result.kind === "identity-conflict") {
-      return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_IDENTITY_CONFLICT"));
+      return loginError("YANDEX_IDENTITY_CONFLICT");
     }
     if (result.kind === "link-session-missing") {
       return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
     }
-    setSessionCookie(res, result.session);
+    await setAuthenticatedSession(req, res, result.session, result.user.id, { addAccount: addingAccount });
     if (purpose === "link") {
       let backup;
       if (wantsBackup && config.diskBackupEnabled && !isMemoryDatabase) {
@@ -2018,7 +2039,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
       }
       return res.redirect(303, yandexLoginRedirect(nextPath, "", "YANDEX_LINKED", backup));
     }
-    return res.redirect(303, nextPath);
+    return res.redirect(303, addingAccount ? "/app/wishes" : nextPath);
   } catch (error) {
     const publicCode = error instanceof YandexAuthError
       ? {
@@ -2068,7 +2089,7 @@ app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
       telegram: publicTelegramUser(identity.user),
     });
   }
-  setSessionCookie(res, result.session);
+  await setAuthenticatedSession(req, res, result.session, result.user.id);
   return res.json({ user: await cleanAuthenticatedUser(result.user), telegram: publicTelegramUser(identity.user) });
 }));
 
@@ -2328,7 +2349,7 @@ app.get("/api/me/member-number", requireAuth, asyncRoute(async (req, res) => {
   } : { number: null });
 }));
 
-app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
+app.post("/api/auth/login", authRateLimit, requireAddAccountSession, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Введите корректные email и пароль" });
   const authenticated = await withMutationLock(`password-auth:${parsed.data.email}`, () => transaction(async (client) => {
@@ -2341,24 +2362,20 @@ app.post("/api/auth/login", authRateLimit, asyncRoute(async (req, res) => {
   if (!authenticated) {
     return res.status(401).json({ error: "Неверные email или пароль" });
   }
-  setSessionCookie(res, authenticated.session);
-  res.json({ user: await cleanAuthenticatedUser(authenticated.user) });
+  const user = await cleanAuthenticatedUser(authenticated.user);
+  await setAuthenticatedSession(req, res, authenticated.session, authenticated.user.id, { addAccount: addAccountRequested(req) });
+  res.json({ user });
 }));
 
-app.post("/api/auth/demo", asyncRoute(async (_req, res) => {
+app.post("/api/auth/demo", asyncRoute(async (req, res) => {
   if (process.env.DEMO_MODE === "false") return res.status(404).json({ error: "Демо-вход отключён" });
   const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (!result.rowCount) return res.status(404).json({ error: "Демо-профиль не найден" });
-  await createSession(res, result.rows[0].id);
+  await createSession(req, res, result.rows[0].id);
   res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
 }));
 
-app.post("/api/auth/logout", asyncRoute(async (req, res) => {
-  const token = req.cookies[sessionCookie];
-  if (token) await query("DELETE FROM sessions WHERE token_hash = $1", [hashToken(token)]);
-  res.clearCookie(sessionCookie, { path: "/" });
-  res.json({ ok: true });
-}));
+registerAccountRoutes(app, { requireAuth, asyncRoute });
 
 app.post("/api/me/phone/request", requireAuth, asyncRoute(async (req, res) => {
   await startPhoneChallenge(req, res, { purpose: "link", userId: req.user.id });
@@ -2395,6 +2412,7 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
 }));
 
 app.get("/api/me", asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
   if (!req.user) return res.json({ user: null });
   res.json({ user: await cleanAuthenticatedUser(req.user) });
 }));

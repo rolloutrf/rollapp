@@ -167,6 +167,8 @@ read-only без сохранения и отправки пользовател
 | `npm run check:comprehensive` | Release-набор плюс все расширенные UI-проверки ниже; без запросов к API/БД |
 | `npm run test:stories` | Запись/предпросмотр сторис, retry, кольцо и 48px действия на восьми экранах; реальная обрезка FFmpeg входит в unit. Контракт: `docs/stories.md`. Включено в release/comprehensive. |
 | `npm run test:navigation` | Верхняя/нижняя навигация, полноширинные меню, safe area, короткий экран и клавиатура |
+| `npm run test:accounts` | Профиль и добавление аккаунта на восьми размерах, переключение, устаревшая вкладка, отмена, повтор запроса и выход. Запросы перехватывает браузер; доступ к API/БД запрещён |
+| `npm run test:accounts:production` | Маршруты сессий на настроенной PostgreSQL; временные пользователи и сессии существуют только внутри откатываемой транзакции. Без миграций, SMS и запросов к Яндексу |
 | `npm run test:business-accounts` | Обязательная категория нового бизнес-аккаунта, личный/бизнес reset, клавиатура, пять ограниченных сфер, реальные select-компоненты на восьми размерах; API запрещён; входит в release/comprehensive |
 | `npm run test:business:production` | Только после разрешённой миграции: пять категорий и ограничения в существующей production-схеме, временные строки только в BEGIN → ROLLBACK; без initialization/HTTP-побочных эффектов |
 | `npm run test:action-rails` | Центрирование, динамические действия, оба края горизонтального скролла и вертикальный скролл |
@@ -568,6 +570,22 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 `text-image-alignment-checks.mjs` добавляет10 default cases: восемь размеров320–1920, light390×400/1440×844 и short DPR3. Native клики проверяют положения, exact JSON/selection/neighbours, Undo/Redo/save/public read, nested/columns/table/fixed questions, twins, stale source/selection/access, no-op/full-width, selected state,48/20px/radius24 и chrome/panned bounds. Изолированная quote/link/alignment версия ожидает401 records; после совмещения с file-transfer candidate399 потребуется409, не сумма targeted PASS. Неизвестные/множественные CLI modes fail до запуска fixture. Caption/viewer/прочие media и actual-device IME сохраняются в goal audit.
 
+
+## Аккаунты в профиле
+
+«Аккаунты» показывает действующие входы этого браузера, выделяет текущий и
+позволяет убрать неактивный вход. «Добавить аккаунт» проверяет его обычным входом
+по email, телефону или ранее подключённому Яндекс ID. Яндекс показывает
+[выбор аккаунта](https://yandex.ru/dev/id/doc/ru/codes/code-url) через
+`force_confirm`, а Rollapp привязывает OAuth-попытку к текущему аккаунту. Отмена
+возвращает к исходному разделу, в том числе из мобильной страницы профиля.
+
+Хранится до пяти входов с исходными сроками сессий. Сохранённые токены доступны
+только серверу в HttpOnly-cookie на `/api/auth`; список возвращает только
+сведения для отображения. Переключение перезагружает приложение с новым
+аккаунтом, а запрос из вкладки со старым аккаунтом отклоняется до обработки.
+«Выйти на этом устройстве» отзывает активный и сохранённые входы этого браузера.
+Схема базы не меняется.
 
 ## Лента контактов
 

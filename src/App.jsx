@@ -25,7 +25,7 @@ import {
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
-import { api } from "./api.js";
+import { api, bindApiAccount, sessionFetch } from "./api.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
 import { useContactFeed } from "./hooks/use-contact-feed.js";
 import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.js";
@@ -85,6 +85,7 @@ import { Mission } from "@/components/mission";
 import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { ProfileInvites } from "@/components/profile-invites";
+import { ProfileAccounts } from "@/components/profile-accounts";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -438,10 +439,25 @@ function ToastProvider({ children }) {
 }
 
 function SessionProvider({ children }) {
-  const [session, setSession] = useState({ user: null, loading: true, error: null });
+  const [session, updateSession] = useState({ user: null, loading: true, error: null });
   const [retrying, setRetrying] = useState(false);
-  const refresh = useCallback(() => refreshSession(() => api.get("/me"), setSession), []);
+  const setSession = useCallback((next) => {
+    if (typeof next !== "function") bindApiAccount(next.user?.id);
+    updateSession(next);
+  }, []);
+  const refresh = useCallback(() => refreshSession(() => api.get("/me"), setSession), [setSession]);
   useEffect(() => { refresh().catch(() => {}); }, [refresh]);
+  useEffect(() => {
+    if (!session.user?.id) return undefined;
+    const checkAccount = () => { api.get("/me").catch(() => {}); };
+    const onPageShow = (event) => { if (event.persisted) checkAccount(); };
+    window.addEventListener("focus", checkAccount);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("focus", checkAccount);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [session.user?.id]);
   if (session.error && !session.user) {
     return <div className="auth-page rollapp-body">
       <div className="auth-panel">
@@ -473,7 +489,7 @@ function useLogout() {
       await api.post("/auth/logout", {});
       setSession({ user: null, loading: false, error: null });
       navigate("/");
-      toast("Вы вышли из аккаунта");
+      toast("Вы вышли из Rollapp на этом устройстве");
       return true;
     } catch (error) {
       toast(error?.message || "Не удалось выйти из аккаунта");
@@ -1694,7 +1710,7 @@ function RegistrationForm({ invite, email }) {
 function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, refresh } = useSession();
+  const { user, loading: sessionLoading, refresh } = useSession();
   const toast = useToast();
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -1702,8 +1718,11 @@ function AuthPage() {
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(false);
   const [yandexEnabled, setYandexEnabled] = useState(false);
   const [authMethod, setAuthMethod] = useState("email");
+  const authQuery = new URLSearchParams(location.search);
+  const addingAccount = authQuery.get("add_account") === "1";
+  const addAccountQuery = addingAccount ? "?add_account=1" : "";
   const [telegramAuth, setTelegramAuth] = useState(() => {
-    const launch = initializeTelegramWebApp();
+    const launch = addingAccount ? {} : initializeTelegramWebApp();
     return {
       initData: launch.initData,
       status: launch.initData ? "checking" : "absent",
@@ -1713,17 +1732,20 @@ function AuthPage() {
   });
   const authId = useId();
   const methodTouchedRef = useRef(false);
-  const authQuery = new URLSearchParams(location.search);
   const nextPath = safeNextPath(authQuery.get("next"));
   const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"));
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
   const shouldLinkYandex = Boolean(yandexError?.linkRequired);
-  const yandexStartHref = yandexAuthStartPath(nextPath);
+  const yandexStartHref = yandexAuthStartPath(nextPath, { addAccount: addingAccount });
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
   const finishAuthentication = async (message) => {
+    if (addingAccount) {
+      window.location.replace(APP_HOME);
+      return;
+    }
     let linkError = null;
     if (telegramAuth.initData && telegramAuth.status === "unlinked") {
       try {
@@ -1744,8 +1766,8 @@ function AuthPage() {
   };
 
   const phoneFlow = usePhoneOtp({
-    requestPath: "/auth/phone/request",
-    verifyPath: "/auth/phone/verify",
+    requestPath: `/auth/phone/request${addAccountQuery}`,
+    verifyPath: `/auth/phone/verify${addAccountQuery}`,
     onVerified: async () => finishAuthentication("С возвращением!"),
   });
 
@@ -1805,7 +1827,10 @@ function AuthPage() {
     return () => { active = false; };
   }, []);
 
-  if (user && (!telegramAuth.initData || yandexLinked)) {
+  if (addingAccount && sessionLoading) return <LoadingScreen />;
+  if (addingAccount && !user) return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
+
+  if (user && !addingAccount && (!telegramAuth.initData || yandexLinked)) {
     if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
     return (
       <div className="auth-page rollapp-body">
@@ -1833,7 +1858,7 @@ function AuthPage() {
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
-      await api.post("/auth/login", form);
+      await api.post(`/auth/login${addAccountQuery}`, form);
       await finishAuthentication("С возвращением!");
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
   };
@@ -1871,15 +1896,17 @@ function AuthPage() {
       ? `Подключите Telegram к профилю @${user.username}.`
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
-    : "Продолжите собирать и исполнять желания.";
+    : addingAccount
+      ? "Войдите в другой аккаунт. Текущий останется в списке для быстрого переключения."
+      : "Продолжите собирать и исполнять желания.";
 
   return (
     <div className="auth-page rollapp-body">
       <div className="auth-panel">
         <form className="auth-form" aria-busy={telegramChecking || !phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={connectingCurrentUser ? confirmTelegramLink : usingPhone ? phoneFlow.submit : submitCredentials}>
           <div>
-            <span className="eyebrow">{telegramChecking ? "Telegram" : connectingCurrentUser ? "Один шаг" : usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : "С возвращением"}</span>
-            <h1>{telegramChecking ? "Открываем Rollapp" : connectingCurrentUser ? "Подключить Telegram" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h1>
+            <span className="eyebrow">{telegramChecking ? "Telegram" : connectingCurrentUser ? "Один шаг" : usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : addingAccount ? "Профиль" : "С возвращением"}</span>
+            <h1>{telegramChecking ? "Открываем Rollapp" : connectingCurrentUser ? "Подключить Telegram" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : addingAccount ? "Добавить аккаунт" : "Войти в Rollapp"}</h1>
             <p>{subtitle}</p>
           </div>
           {telegramChecking
@@ -1926,7 +1953,7 @@ function AuthPage() {
                 <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
                 <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete="current-password" placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
-              <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>
+              {!addingAccount && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
               <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
           {!connectingCurrentUser && phoneConfigLoaded && phoneEnabled && (
@@ -1935,7 +1962,9 @@ function AuthPage() {
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
             </ShadcnButton>
           )}
-          {!connectingCurrentUser && <p className="auth-switch">Регистрация по приглашению.</p>}
+          {!connectingCurrentUser && <p className="auth-switch">{addingAccount
+            ? <Link to={nextPath} replace aria-disabled={loading || phoneFlow.loading || undefined} onClick={(event) => { if (loading || phoneFlow.loading) event.preventDefault(); }}>Отмена</Link>
+            : "Регистрация по приглашению."}</p>}
             </>}
         </form>
       </div>
@@ -2279,7 +2308,7 @@ function ContactEditForm({ contact = null, favoriteSaving = false, onFavoriteTog
     const ids = [...uploadedImageIdsRef.current];
     uploadedImageIdsRef.current.clear();
     ids.forEach((id) => {
-      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+      sessionFetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
         method: "DELETE",
         credentials: "include",
         keepalive: true,
@@ -6580,7 +6609,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     const ids = [...uploadedImageIdsRef.current];
     uploadedImageIdsRef.current.clear();
     ids.forEach((id) => {
-      fetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
+      sessionFetch(`/api/uploads/images/${encodeURIComponent(id)}`, {
         method: "DELETE",
         credentials: "include",
         keepalive: true,
@@ -7107,6 +7136,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [yandexEnabled, setYandexEnabled] = useState(null);
   const [yandexDiskBackupEnabled, setYandexDiskBackupEnabled] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
+  const [accountsBusy, setAccountsBusy] = useState(false);
   const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
   const [section, setSection] = useState(null);
   const [rootOpen, setRootOpen] = useState(true);
@@ -7115,6 +7145,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const sectionHeading = useRef(null);
   const scrollArea = useRef(null);
   const sections = [
+    { id: "accounts", title: "Аккаунты", icon: Users },
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
     { id: "contact-card", title: "Визитка и QR-код", icon: QrCode },
     { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
@@ -7125,7 +7156,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7140,6 +7171,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
+  const accountReturnPath = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}${location.hash}`);
+  const addAccountHref = `/login?${new URLSearchParams({ add_account: "1", next: accountReturnPath })}`;
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
   const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
   useEffect(() => {
@@ -7416,6 +7449,13 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       </section>
       {isMobile && wishlistsFooter}
     </form>
+  ) : section === "accounts" ? (
+    <div className="px-4 py-4">
+      <ProfileAccounts Avatar={Avatar} addHref={addAccountHref} home={APP_HOME}
+        changed={changed || Boolean(openRouterDraft.apiKey || openRouterDraft.modelId)}
+        blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
+        onBusyChange={setAccountsBusy} />
+    </div>
   ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onNavigate={leaveSettingsFor} />
     : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
@@ -7461,8 +7501,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         type="button"
         variant="destructive"
         size="icon"
-        aria-label="Выйти из аккаунта"
-        title="Выйти из аккаунта"
+        aria-label="Выйти на этом устройстве"
+        title="Выйти на этом устройстве"
         disabled={busy}
         aria-busy={loggingOut || undefined}
         onClick={async () => {

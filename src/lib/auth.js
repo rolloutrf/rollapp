@@ -12,9 +12,10 @@ export function safeNextPath(value, fallback = "/app/wishes") {
   }
 }
 
-export function yandexAuthStartPath(nextPath, { link = false, invite = "" } = {}) {
+export function yandexAuthStartPath(nextPath, { link = false, invite = "", addAccount = false } = {}) {
   const params = new URLSearchParams();
   if (link) params.set("link", "1");
+  else if (addAccount) params.set("add_account", "1");
   if (invite) params.set("invite", invite);
   params.set("next", safeNextPath(nextPath));
   return `/api/auth/yandex/start?${params.toString()}`;
@@ -66,6 +67,21 @@ const yandexAuthErrors = {
     title: "Этот Yandex ID уже используется",
     description: "Он привязан к другому аккаунту Rollapp.",
     variant: "destructive",
+  },
+  YANDEX_ADD_SESSION_CHANGED: {
+    title: "Активный аккаунт изменился",
+    description: "Откройте профиль и начните добавление аккаунта ещё раз.",
+    variant: "destructive",
+  },
+  YANDEX_ADD_ACCOUNT_NOT_FOUND: {
+    title: "Аккаунт Rollapp не найден",
+    description: "Выберите Яндекс ID, который уже подключён к другому аккаунту Rollapp.",
+    variant: "destructive",
+  },
+  YANDEX_ADD_USE_CREDENTIALS: {
+    title: "Этот Яндекс ID ещё не подключён",
+    description: "Войдите в нужный аккаунт по email или номеру телефона.",
+    variant: "default",
   },
   YANDEX_EMAIL_REQUIRED: {
     title: "Яндекс не передал email",

@@ -1,3 +1,4 @@
+import { sessionFetch } from "@/api";
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ export function TonBalance({ address, chain }) {
       setLoading(true);
       try {
         const search = new URLSearchParams({ address, chain });
-        const response = await fetch(`/api/ton-connect/balance?${search}`, { credentials: "include", signal });
+        const response = await sessionFetch(`/api/ton-connect/balance?${search}`, { credentials: "include", signal });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Не удалось получить баланс TON.");
         if (data.address !== address.toLowerCase() || data.chain !== chain) throw new Error("Не удалось проверить баланс этого кошелька.");
