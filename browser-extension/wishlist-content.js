@@ -78,9 +78,14 @@
   function ozonRead(kind) {
     const config = selectors.ozon;
     const status = [...document.querySelectorAll('[data-widget="statusWidget"]')].map((node) => node.innerText).join("\n");
-    if (/войдите, чтобы|войти в аккаунт/i.test(status)) throw new MarketplaceAccessError("Войдите в Ozon в этом браузере и повторите импорт.");
-    if (kind === "collections" || kind === "lists") {
-      const links = linksWithin(document, /^\/(?:selections\/(?!list(?:\/|$))[^/]+|my\/favorites\/[^/]+)\/?$/);
+    const listIndex = kind === "collections" || kind === "lists";
+    const loginButton = listIndex && [...document.querySelectorAll('[data-widget="buttonWidget"] button')]
+      .some((button) => button.innerText.trim() === "Войти в аккаунт");
+    if (loginButton || /войдите, чтобы|войти в аккаунт/i.test(status)) {
+      throw new MarketplaceAccessError("Войдите в Ozon в этом браузере и повторите импорт.");
+    }
+    if (listIndex) {
+      const links = linksWithin(document, /^\/(?:selections\/(?!list(?:\/|$))[^/]+|my\/favorites\/(?:lists\/[^/]+|(?!lists(?:\/|$))[^/]+))\/?$/);
       const empty = /(?:подборок|вишлистов) пока нет|нет (?:подборок|вишлистов)/i.test(status);
       return links.length || empty ? { items: [], links, empty: empty && !links.length } : null;
     }
@@ -117,14 +122,6 @@
     }
   }
 
-  function selectOzonCollections() {
-    const tab = [...document.querySelectorAll('[data-widget="tabs"] [tabindex="0"]')]
-      .find((element) => element.innerText.trim() === "Подборки");
-    if (!tab) return false;
-    tab.click();
-    return true;
-  }
-
   async function collect(provider, kind, timeoutMs) {
     const reader = readers[provider];
     if (!reader) throw new Error("Неизвестный магазин.");
@@ -133,14 +130,8 @@
     const links = new Set();
     let stable = 0;
     let lastSize = "";
-    let selectedTab = false;
     while (Date.now() < deadline) {
       checkAccess();
-      if (provider === "ozon" && kind === "collections" && !selectedTab) {
-        selectedTab = selectOzonCollections();
-        await delay(500);
-        continue;
-      }
       const page = reader(kind);
       if (page) {
         for (const item of page.items) items.set(item.url, item);

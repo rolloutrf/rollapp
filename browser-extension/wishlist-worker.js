@@ -8,8 +8,9 @@ const WISHLIST_SOURCES = new Map([
   ["ozon", {
     start: "https://www.ozon.ru/my/favorites",
     pages: ["collections", "favorites", "lists"],
-    lists: "https://www.ozon.ru/selections/list",
-    allowedList: /^\/(?:selections\/(?!list(?:\/|$))[^/]+|my\/favorites\/[^/]+)\/?$/,
+    collections: "https://www.ozon.ru/selections/list",
+    lists: "https://www.ozon.ru/my/favorites/lists",
+    allowedList: /^\/(?:selections\/(?!list(?:\/|$))[^/]+|my\/favorites\/(?:lists\/[^/]+|(?!lists(?:\/|$))[^/]+))\/?$/,
   }],
   ["wb", {
     start: "https://www.wildberries.ru/lk/favorites",
@@ -83,7 +84,7 @@ async function collectMarketplaceWishlist(provider, signal) {
   const deadline = Date.now() + 170_000;
   const origin = new URL(source.start).origin;
   const items = new Map();
-  const queue = source.pages.map((kind) => ({ url: kind === "lists" && source.lists ? source.lists : source.start, kind }));
+  const queue = source.pages.map((kind) => ({ url: source[kind] || source.start, kind }));
   const visitedLists = new Set();
   try {
     for (const { url, kind } of queue) {
