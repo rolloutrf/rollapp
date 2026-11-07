@@ -125,7 +125,10 @@ export async function requestBrowserWishlist(provider, { target = window, signal
   }
   const response = await exchange(target, "ROLLAPP_WISHLIST_IMPORT", "ROLLAPP_WISHLIST_RESULT", { provider }, 180_000, signal);
   if (!response.result?.ok || !Array.isArray(response.result.items)) {
-    throw new RetailerBrowserImportError(response.result?.error || "Не удалось прочитать избранное.", "wishlist_unavailable");
+    throw new RetailerBrowserImportError(
+      response.result?.error || "Не удалось прочитать избранное.",
+      response.result?.code === "marketplace_access_required" ? "marketplace_access_required" : "wishlist_unavailable",
+    );
   }
   return response.result;
 }

@@ -1,8 +1,8 @@
 export const EXTERNAL_WISHLIST_PROVIDERS = [
   { id: "ohmywishes", label: "OhMyWishes", domains: ["ohmywishes.com", "ohmywishes.ru"], importsItems: true },
-  { id: "ozon", label: "Ozon", domains: ["ozon.ru"] },
-  { id: "wb", label: "WB", domains: ["wildberries.ru", "wb.ru"] },
-  { id: "yandex-market", label: "Яндекс Маркет", domains: ["market.yandex.ru"], importsItems: true },
+  { id: "ozon", label: "Ozon", domains: ["ozon.ru"], browserFavoritesUrl: "https://www.ozon.ru/my/favorites" },
+  { id: "wb", label: "WB", domains: ["wildberries.ru", "wb.ru"], browserFavoritesUrl: "https://www.wildberries.ru/lk/favorites" },
+  { id: "yandex-market", label: "Яндекс Маркет", domains: ["market.yandex.ru"], importsItems: true, browserFavoritesUrl: "https://market.yandex.ru/my/wishlist" },
 ];
 
 export const EXTERNAL_WISHLIST_URL_MAX_LENGTH = 2048;

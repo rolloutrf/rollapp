@@ -175,7 +175,7 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onMessage.removeListener(start);
     collectMarketplaceWishlist(message?.provider, request.signal)
       .then((result) => send({ ok: true, ...result }))
-      .catch((error) => send({ ok: false, error: error?.message || "Не удалось прочитать избранное" }));
+      .catch((error) => send({ ok: false, error: error?.message || "Не удалось прочитать избранное", code: error?.code }));
   };
   port.onMessage.addListener(start);
 });

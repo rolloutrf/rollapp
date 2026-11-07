@@ -76,11 +76,23 @@ try {
             : data.type === 'ROLLAPP_WISHLIST_IMPORT' ? 'ROLLAPP_WISHLIST_RESULT' : null;
           if (!type) return;
           const items = [{ url: 'https://market.yandex.ru/card/example/1001', title: 'Карточка из браузера' }];
-          window.postMessage({ type, source: 'rollapp-retailer-helper', requestId: data.requestId, result: { ok: true, items } }, location.origin);
+          const result = type === 'ROLLAPP_WISHLIST_RESULT' && window.browserWishlistRequiresAccess
+            ? { ok: false, code: 'marketplace_access_required', error: 'Завершите проверку в магазине.' }
+            : { ok: true, items };
+          window.postMessage({ type, source: 'rollapp-retailer-helper', requestId: data.requestId, result }, location.origin);
         });
+        window.browserWishlistRequiresAccess = true;
       });
       await importBrowser.click();
+      const openStore = wishlist.getByRole('link', { name: 'Открыть избранное в Яндекс Маркете' });
+      await openStore.waitFor();
+      assert.equal(await openStore.getAttribute('href'), 'https://market.yandex.ru/my/wishlist');
+      assert.equal(await openStore.getAttribute('target'), '_blank');
+      assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);
+      await page.evaluate(() => { window.browserWishlistRequiresAccess = false; });
+      await importBrowser.click();
       await wishlist.getByRole('status').getByText('Добавлено в «Товары»: 1. Уже было в Rollapp: 0.').waitFor();
+      assert.equal(await openStore.count(), 0);
       assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), [{
         ownerId: 'fixture',
         items: [{ url: 'https://market.yandex.ru/card/example/1001', title: 'Карточка из браузера' }],

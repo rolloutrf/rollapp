@@ -7283,7 +7283,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     const request = new AbortController();
     browserWishlistRequest.current = request;
     setImportingWishlist(true);
-    const setStatus = (text) => setBrowserWishlistStatus((current) => ({ ...current, [provider.id]: text }));
+    const setStatus = (text, openStore = false) =>
+      setBrowserWishlistStatus((current) => ({ ...current, [provider.id]: { text, openStore } }));
     setStatus("Читаем избранное и списки…");
     try {
       const { items } = await requestBrowserWishlist(provider.id, { signal: request.signal });
@@ -7297,7 +7298,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       setStatus(added ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.` : "Все найденные товары уже в Rollapp.");
       if (added) onWishlistsImported?.();
     } catch (error) {
-      if (!request.signal.aborted) setStatus(error.message);
+      if (!request.signal.aborted) setStatus(error.message, error.code === "marketplace_access_required");
     } finally {
       if (browserWishlistRequest.current === request) {
         browserWishlistRequest.current = null;
@@ -7443,7 +7444,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
             <a className="underline underline-offset-4" href="/rollapp-browser-extension.zip" download>Скачайте расширение Rollapp</a>. Распакуйте архив и загрузите папку в режиме разработчика на странице расширений браузера.
           </p>
           <ul className="grid min-w-0 gap-2">
-            {EXTERNAL_WISHLIST_PROVIDERS.filter(({ id }) => id !== "ohmywishes").map((provider) => (
+            {EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl).map((provider) => (
               <li key={provider.id} className="grid min-w-0 gap-2">
                 <PageActionButton
                   type="button"
@@ -7455,7 +7456,14 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
                 >
                   {provider.label}
                 </PageActionButton>
-                <p role="status" className={cn("rollapp-body", !browserWishlistStatus[provider.id] && "sr-only")}>{browserWishlistStatus[provider.id]}</p>
+                <p role="status" className={cn("rollapp-body", !browserWishlistStatus[provider.id] && "sr-only")}>
+                  {browserWishlistStatus[provider.id]?.text}
+                  {browserWishlistStatus[provider.id]?.openStore && <>
+                    {" "}<a className="underline underline-offset-4" href={provider.browserFavoritesUrl} target="_blank" rel="noopener noreferrer">
+                      Открыть избранное в {provider.id === "yandex-market" ? "Яндекс Маркете" : provider.label}
+                    </a>
+                  </>}
+                </p>
               </li>
             ))}
           </ul>
