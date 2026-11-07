@@ -143,6 +143,9 @@ try {
     }
     await closeSettings();
     const nav = page.getByRole('navigation', { name: 'Внешние вишлисты' });
+    const waitForNavLinks = count => page.waitForFunction(expected =>
+      document.querySelector('nav[aria-label="Внешние вишлисты"]')?.querySelectorAll('a').length === expected,
+    count);
     await nav.waitFor();
     await page.getByText('Айтем из ohmywishes', { exact: true }).waitFor();
     if (width === 320 || width === 1440) await page.getByText('Айтем из yandex-market', { exact: true }).waitFor();
@@ -183,12 +186,12 @@ try {
       await address.fill('fixture-renamed');
       await address.press('Enter');
       await page.waitForURL(origin + '/fixture-renamed');
-      await nav.waitFor();
+      await waitForNavLinks(urls.length - 1);
       assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     await page.goto(origin + '/fixture?guest');
-    await nav.waitFor();
+    await waitForNavLinks(urls.length);
     assert.equal(await nav.getByRole('link').count(), urls.length);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
@@ -196,7 +199,7 @@ try {
     if ([320,390,820,1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-profile-wishlists-guest-${width}.png` });
     if (width === 320 || width === 1440) {
       await page.goto(origin + '/app/wishes?tab=products');
-      await nav.waitFor();
+      await waitForNavLinks(urls.length);
       assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls);
       await openWishlists();
       assert.equal(await inputs[3].inputValue(), urls[3]);
