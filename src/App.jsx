@@ -1039,11 +1039,11 @@ function Button({ children, className = "", variant = "primary", icon: Icon, loa
   return <ShadcnButton variant={shadcnVariant} className={className} {...props} disabled={loading || props.disabled} aria-busy={loading || props["aria-busy"] || undefined}>{loading ? <Spinner data-icon="inline-start" /> : Icon ? <Icon data-icon="inline-start" aria-hidden="true" /> : null}{children}</ShadcnButton>;
 }
 
-function YandexIdButton({ href, onClick, disabled, className = "", accessibleName = "Войти с помощью Яндекс ID", label = "Войти с Яндекс ID" }) {
-  const Component = onClick ? "button" : "a";
-  const action = onClick ? { type: "button", onClick, disabled } : { href };
+function YandexIdButton({ href, disabled, accessibleName = "Войти с помощью Яндекс ID", label = "Войти с Яндекс ID" }) {
+  const Component = href ? "a" : "button";
+  const action = href ? { href } : { type: "submit", disabled };
   return (
-    <Component className={`yandex-id-button ${className}`} aria-label={accessibleName} {...action}>
+    <Component className="yandex-id-button" aria-label={accessibleName} {...action}>
       <svg className="yandex-id-button__mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <circle cx="12" cy="12" r="12" fill="#fc3f1d" />
         <path fill="#fff" d="M15.24 16.2h-1.68V8.04h-1.2c-1.637 0-2.52.818-2.52 2.045 0 1.39.597 2.047 1.843 2.87l1.017.676-2.903 4.57H7.92l2.676-3.913C9.08 13.18 8.16 12.11 8.16 10.016c0-2.24 1.554-3.696 4.306-3.696h2.774v9.88Z" />
@@ -1535,7 +1535,7 @@ function RegisterPage() {
     return () => { active = false; };
   }, [invite, attempt]);
 
-  if (result?.valid) return <AuthPage key={invite} mode="register" invite={invite} inviteEmail={result.email} />;
+  if (result?.valid) return <RegistrationForm key={invite} invite={invite} email={result.email} />;
   const invalid = result?.error?.code === "INVITE_INVALID";
   const checking = Boolean(invite && !result);
   return (
@@ -1558,15 +1558,70 @@ function RegisterPage() {
   );
 }
 
-function AuthPage({ mode, invite, inviteEmail = "" }) {
+function RegistrationForm({ invite, email }) {
+  const { user } = useSession();
+  const { search } = useLocation();
+  const id = useId();
+  const [account, setAccount] = useState({ accountType: "personal", businessCategory: null, sellerSpace: null });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const params = new URLSearchParams(search);
+  const nextPath = safeNextPath(params.get("next"));
+  const authErrorCode = params.get("auth_error");
+  const yandexError = yandexAuthErrorDetails(authErrorCode);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: nextPath, ...account });
+      window.location.assign(authorizationUrl);
+    } catch (cause) {
+      setError(cause.message);
+      setLoading(false);
+    }
+  };
+
+  if (user) return <Navigate to={nextPath} replace />;
+  return (
+    <div className="auth-page rollapp-body">
+      <div className="auth-panel">
+        <form className="auth-form" onSubmit={submit} aria-busy={loading}>
+          <div>
+            <span className="eyebrow">Новый аккаунт</span>
+            <h1>Создать свой Rollapp</h1>
+            <p>Для регистрации выберите Яндекс ID с адресом <strong className="wrap-anywhere">{email}</strong>.</p>
+          </div>
+          <FieldGroup className="gap-4">
+            <RegistrationAccountFields id={id} value={account} onChange={setAccount} disabled={loading} />
+          </FieldGroup>
+          {error ? (
+            <Alert variant="destructive" role="alert" className="auth-provider-alert"><AlertDescription>{error}</AlertDescription></Alert>
+          ) : yandexError && (
+            <Alert variant={yandexError.variant} className="auth-provider-alert">
+              <AlertTitle>{yandexError.title}</AlertTitle>
+              <AlertDescription>{authErrorCode === "YANDEX_CANCELLED" ? "Попробуйте зарегистрироваться ещё раз." : yandexError.description}</AlertDescription>
+            </Alert>
+          )}
+          <YandexIdButton disabled={loading} label="Создать с Яндекс ID" accessibleName="Зарегистрироваться с Яндекс ID" />
+          <p className="auth-switch">Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, refresh } = useSession();
   const toast = useToast();
-  const [form, setForm] = useState({ name: "", email: inviteEmail, password: "", accountType: "personal", businessCategory: null });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
-  const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(mode !== "login");
+  const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(false);
   const [yandexEnabled, setYandexEnabled] = useState(false);
   const [authMethod, setAuthMethod] = useState("email");
   const [telegramAuth, setTelegramAuth] = useState(() => {
@@ -1586,11 +1641,11 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
-  const shouldLinkYandex = mode === "login" && Boolean(yandexError?.linkRequired);
+  const shouldLinkYandex = Boolean(yandexError?.linkRequired);
   const yandexStartHref = yandexAuthStartPath(nextPath);
   const yandexLinkHref = yandexAuthStartPath(nextPath, { link: true });
 
-  const finishAuthentication = async (message, destination = nextPath) => {
+  const finishAuthentication = async (message) => {
     let linkError = null;
     if (telegramAuth.initData && telegramAuth.status === "unlinked") {
       try {
@@ -1605,7 +1660,7 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
       window.location.assign(yandexLinkHref);
       return;
     }
-    navigate(destination);
+    navigate(nextPath);
     if (linkError) toast("Вы вошли, но Telegram не привязался. Откройте Rollapp из бота ещё раз.", "error");
     else toast(message);
   };
@@ -1654,12 +1709,6 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
 
   useEffect(() => {
     methodTouchedRef.current = false;
-    if (mode !== "login") {
-      setPhoneEnabled(false);
-      setPhoneConfigLoaded(true);
-      setAuthMethod("email");
-      return undefined;
-    }
     let active = true;
     setPhoneConfigLoaded(false);
     api.get("/auth/phone/config")
@@ -1676,7 +1725,7 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
       })
       .finally(() => { if (active) setPhoneConfigLoaded(true); });
     return () => { active = false; };
-  }, [mode]);
+  }, []);
 
   if (user && (!telegramAuth.initData || yandexLinked)) {
     if (!yandexError && !yandexLinked) return <Navigate to={nextPath} replace />;
@@ -1706,30 +1755,9 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
   const submitCredentials = async (event) => {
     event.preventDefault(); setLoading(true);
     try {
-      const result = mode === "register"
-        ? await api.post("/auth/register", { ...form, invite })
-        : await api.post("/auth/login", form);
-      const destination = mode === "register" ? "/app/member-number" : nextPath;
-      await finishAuthentication(
-        mode === "register"
-          ? result.user?.accountType === "business"
-            ? "Бизнес-аккаунт готов"
-            : "Вишлист готов — добавьте первую мечту"
-          : "С возвращением!",
-        destination,
-      );
+      await api.post("/auth/login", form);
+      await finishAuthentication("С возвращением!");
     } catch (error) { toast(error.message, "error"); } finally { setLoading(false); }
-  };
-
-  const registerWithYandex = async () => {
-    setLoading(true);
-    try {
-      const { authorizationUrl } = await api.post("/auth/yandex/start", { invite, next: "/app/member-number" });
-      window.location.assign(authorizationUrl);
-    } catch (error) {
-      toast(error.message, "error");
-      setLoading(false);
-    }
   };
 
   const switchAuthMethod = () => {
@@ -1751,7 +1779,7 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
       setLoading(false);
     }
   };
-  const usingPhone = mode === "login" && phoneEnabled && authMethod === "phone";
+  const usingPhone = phoneEnabled && authMethod === "phone";
   const telegramChecking = telegramAuth.status === "checking";
   const connectingCurrentUser = Boolean(user && telegramAuth.initData);
   const showYandexButton = yandexEnabled
@@ -1765,17 +1793,15 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
       ? `Подключите Telegram к профилю @${user.username}.`
     : usingPhone && phoneFlow.step === "otp"
     ? <>Введите код, который мы отправили на <strong>{phoneFlow.phoneMasked}</strong>.</>
-    : mode === "register"
-      ? "Регистрация доступна по приглашению. Ссылка действует 10 дней."
-      : "Продолжите собирать и исполнять желания.";
+    : "Продолжите собирать и исполнять желания.";
 
   return (
     <div className="auth-page rollapp-body">
       <div className="auth-panel">
         <form className="auth-form" aria-busy={telegramChecking || !phoneConfigLoaded || (usingPhone ? phoneFlow.loading : loading)} onSubmit={connectingCurrentUser ? confirmTelegramLink : usingPhone ? phoneFlow.submit : submitCredentials}>
           <div>
-            <span className="eyebrow">{telegramChecking ? "Telegram" : connectingCurrentUser ? "Один шаг" : usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : mode === "register" ? "Новый аккаунт" : "С возвращением"}</span>
-            <h1>{telegramChecking ? "Открываем Rollapp" : connectingCurrentUser ? "Подключить Telegram" : mode === "register" ? "Создать свой Rollapp" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h1>
+            <span className="eyebrow">{telegramChecking ? "Telegram" : connectingCurrentUser ? "Один шаг" : usingPhone && phoneFlow.step === "otp" ? "Подтверждение" : "С возвращением"}</span>
+            <h1>{telegramChecking ? "Открываем Rollapp" : connectingCurrentUser ? "Подключить Telegram" : usingPhone && phoneFlow.step === "otp" ? "Введите код" : "Войти в Rollapp"}</h1>
             <p>{subtitle}</p>
           </div>
           {telegramChecking
@@ -1786,7 +1812,7 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
                   <span className="telegram-auth-status__icon"><Send aria-hidden="true" /></span>
                   <span>
                     <strong>{telegramAuth.profile?.name || "Telegram подключён"}</strong>
-                    <small>{connectingCurrentUser ? `Подтвердите привязку к @${user.username}.` : mode === "register" ? "Создайте аккаунт — мы сразу привяжем его к Telegram." : "Войдите один раз — дальше бот будет открывать профиль без пароля."}</small>
+                    <small>{connectingCurrentUser ? `Подтвердите привязку к @${user.username}.` : "Войдите один раз — дальше бот будет открывать профиль без пароля."}</small>
                   </span>
                 </div>
               )}
@@ -1803,9 +1829,7 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
                 </Alert>
               )}
               {showYandexButton && <>
-                {mode === "register"
-                  ? <YandexIdButton onClick={registerWithYandex} disabled={loading} label="Создать с Яндекс ID" accessibleName="Зарегистрироваться с Яндекс ID" />
-                  : <YandexIdButton href={yandexStartHref} />}
+                <YandexIdButton href={yandexStartHref} />
                 <div className="or" aria-hidden="true"><span>или</span></div>
               </>}
           {connectingCurrentUser
@@ -1815,27 +1839,25 @@ function AuthPage({ mode, invite, inviteEmail = "" }) {
                 <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={loading} onClick={() => navigate(nextPath)}>Не сейчас</ShadcnButton>
               </>
               : <ShadcnButton variant="link" className="auth-method-switch" type="button" onClick={() => navigate(nextPath)}>Вернуться в Rollapp</ShadcnButton>
-            : mode === "login" && !phoneConfigLoaded
+            : !phoneConfigLoaded
             ? <div className="auth-config-loading" role="status"><LoaderCircle className="spin" /><span>Проверяем способы входа…</span></div>
             : usingPhone
             ? <PhoneOtpFields flow={phoneFlow} verifyLabel={shouldLinkYandex ? "Подтвердить и привязать Yandex ID" : undefined} />
             : <>
               <FieldGroup className="gap-4">
-                {mode === "register" && <RegistrationAccountFields id={authId} value={form} onChange={setForm} disabled={loading} />}
-                {mode === "register" && <Field><FieldLabel htmlFor={`${authId}-name`}>Как вас зовут</FieldLabel><Input id={`${authId}-name`} required minLength={2} autoComplete="name" placeholder="Алиса Морозова" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>}
-                <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} readOnly={mode === "register"} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} />{mode === "register" && <FieldDescription>Приглашение подходит только для этого email.</FieldDescription>}</Field>
-                <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { if (mode === "login") methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
+                <Field><FieldLabel htmlFor={`${authId}-email`}>Email</FieldLabel><Input id={`${authId}-email`} required type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => { methodTouchedRef.current = true; setForm({ ...form, email: event.target.value }); }} /></Field>
+                <Field><FieldLabel htmlFor={`${authId}-password`}>Пароль</FieldLabel><Input id={`${authId}-password`} required minLength={8} type="password" autoComplete="current-password" placeholder="Минимум 8 символов" value={form.password} onChange={(event) => { methodTouchedRef.current = true; setForm({ ...form, password: event.target.value }); }} /></Field>
               </FieldGroup>
-              {mode === "login" && <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>}
-              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{mode === "register" ? form.accountType === "business" ? "Создать бизнес-аккаунт" : "Создать вишлист" : shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
+              <Link className="auth-password-link" to="/forgot-password">Забыли пароль?</Link>
+              <ShadcnButton type="submit" className="auth-submit" disabled={loading} aria-busy={loading || undefined}>{loading && <Spinner data-icon="inline-start" />}{shouldLinkYandex ? "Войти и привязать Yandex ID" : "Войти"}</ShadcnButton>
             </>}
-          {!connectingCurrentUser && mode === "login" && phoneConfigLoaded && phoneEnabled && (
+          {!connectingCurrentUser && phoneConfigLoaded && phoneEnabled && (
             <ShadcnButton variant="link" className="auth-method-switch" type="button" disabled={phoneFlow.loading || loading} onClick={switchAuthMethod}>
               {usingPhone ? <Mail aria-hidden="true" /> : <Phone aria-hidden="true" />}
               <span>{usingPhone ? "Войти по email и паролю" : "Войти по номеру телефона"}</span>
             </ShadcnButton>
           )}
-          {!connectingCurrentUser && <p className="auth-switch">{mode === "register" ? <>Уже есть аккаунт? <Link to={`/login?next=${encodeURIComponent(nextPath)}`}>Войти</Link></> : "Регистрация по приглашению."}</p>}
+          {!connectingCurrentUser && <p className="auth-switch">Регистрация по приглашению.</p>}
             </>}
         </form>
       </div>
@@ -7813,7 +7835,7 @@ export default function App() {
           {!linkingResult && <PlanningFab />}
           <Routes>
             <Route path="/" element={<RootRoute />} />
-            <Route path="/login" element={<AuthPage mode="login" />} />
+            <Route path="/login" element={<AuthPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />

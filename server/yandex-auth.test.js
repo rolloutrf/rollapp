@@ -9,7 +9,16 @@ import {
   normalizeYandexProfile,
   readYandexAuthorization,
   safeOauthReturnPath,
+  yandexRegistrationReturnPath,
 } from "./yandex-auth.js";
+
+test("registration skips the member-number onboarding, including for old OAuth attempts", () => {
+  assert.equal(yandexRegistrationReturnPath("/app/member-number"), "/app/wishes");
+  assert.equal(yandexRegistrationReturnPath("/APP/member-number/?from=register"), "/app/wishes");
+  assert.equal(yandexRegistrationReturnPath("/app/friends/subscriptions?from=invite#top"), "/app/friends/subscriptions?from=invite#top");
+  assert.equal(yandexRegistrationReturnPath("//example.com"), "/app/wishes");
+  assert.equal(safeOauthReturnPath("/app/member-number"), "/app/member-number");
+});
 
 const clientSecret = "test-secret-that-is-long-enough-for-oauth";
 const config = getYandexAuthConfig({

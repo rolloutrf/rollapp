@@ -8,7 +8,7 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "member-invites-fixture", enforce: "pre",
   transform(source, id) {
-    if (id.endsWith("/src/App.jsx?member-invites-smoke")) return `${source}\nexport { AuthPage, ProfileSettingsModal, SessionContext, ToastContext };`;
+    if (id.endsWith("/src/App.jsx?member-invites-smoke")) return `${source}\nexport { RegistrationForm, ProfileSettingsModal, SessionContext, ToastContext };`;
   },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/member-fixture")) return next();
@@ -32,6 +32,38 @@ try {
         await page.route("**/api/**", route => route.abort());
         await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
         await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-number-wheel").waitFor();
+        if (variant.includes("auth")) {
+          const submit = page.getByRole("button", { name: "Зарегистрироваться с Яндекс ID" });
+          assert(await submit.isVisible());
+          assert.equal(await page.locator("form button[type=submit]").count(), 1);
+          assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-number-wheel").count(), 0);
+          assert(await page.getByText("invited@example.com").isVisible());
+          const seller = width === 390 && height === 844;
+          if (seller) {
+            await page.getByRole("radio", { name: /^Бизнес/ }).check();
+            await page.getByRole("combobox", { name: "Категория бизнеса" }).click();
+            await page.getByRole("option", { name: /Продавец/ }).click();
+            await page.getByRole("combobox", { name: "Раздел Вишлиста" }).click();
+            await page.getByRole("option", { name: "Транспорт", exact: true }).click();
+            await page.locator('[data-slot="select-content"]').filter({ hasText: "Транспорт" }).waitFor({ state: "hidden" });
+          }
+          if ((width === 390 || width === 1440) && height === 844) {
+            await page.evaluate(() => document.fonts.ready);
+            await page.screenshot({ path: `/tmp/rollapp-member-invites/${width}-yandex-registration.png`, fullPage: true, animations: "disabled" });
+          }
+          const [request] = await Promise.all([
+            page.waitForRequest(request => new URL(request.url()).pathname.startsWith("/api/auth/")),
+            submit.click(),
+          ]);
+          assert.equal(new URL(request.url()).pathname, "/api/auth/yandex/start");
+          assert.equal(request.method(), "POST");
+          assert.deepEqual(request.postDataJSON(), {
+            invite: "a".repeat(43), next: "/app/wishes",
+            accountType: seller ? "business" : "personal", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "transport" : null,
+          });
+          await page.getByRole("alert").waitFor();
+          assert(await submit.isEnabled());
+        }
         if (variant.includes("profile")) await page.getByRole("button", { name: "Инвайты", exact: true }).click();
         await page.evaluate(() => document.fonts.ready);
         if (variant.includes("profile")) await page.locator("#account-invite-email").scrollIntoViewIfNeeded();

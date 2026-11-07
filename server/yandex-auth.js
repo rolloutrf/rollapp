@@ -86,6 +86,11 @@ export function safeOauthReturnPath(value, fallback = "/app/wishes") {
   }
 }
 
+export function yandexRegistrationReturnPath(value) {
+  const path = safeOauthReturnPath(value);
+  return /^\/app\/member-number\/?(?:[?#]|$)/i.test(path) ? "/app/wishes" : path;
+}
+
 export function createYandexAuthorization(config, { nextPath, linkUserId = null, now = Date.now() } = {}) {
   if (!config?.enabled) {
     throw new YandexAuthError("Вход через Яндекс ID не настроен", "YANDEX_AUTH_UNAVAILABLE", 503);
