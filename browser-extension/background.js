@@ -142,24 +142,40 @@ function trustedRollappSender(sender) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!["ROLLAPP_IMPORT_RETAILER", "ROLLAPP_IMPORT_WISHLIST"].includes(message?.type)) return false;
+  if (message?.type !== "ROLLAPP_IMPORT_RETAILER") return false;
   if (!trustedRollappSender(sender)) {
     sendResponse({ ok: false, error: "Недоверенная страница Rollapp" });
     return false;
   }
 
-  if (message.type === "ROLLAPP_IMPORT_WISHLIST") {
-    if (URL.parse(sender.tab.url)?.origin !== "https://xn--80avakiab.xn--p1ai") {
-      sendResponse({ ok: false, error: "Импорт избранного доступен на роллапп.рф." });
-      return false;
-    }
-    collectMarketplaceWishlist(message.provider)
-      .then((result) => sendResponse({ ok: true, ...result }))
-      .catch((error) => sendResponse({ ok: false, error: error?.message || "Не удалось прочитать избранное" }));
-    return true;
-  }
   importRetailerProduct(message.retailerId, message.url)
     .then((metadata) => sendResponse({ ok: true, metadata }))
     .catch((error) => sendResponse({ ok: false, error: error?.message || "Не удалось прочитать товар магазина" }));
   return true;
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "rollapp-wishlist-import") return;
+  if (!trustedRollappSender(port.sender) || URL.parse(port.sender.tab.url)?.origin !== "https://xn--80avakiab.xn--p1ai") {
+    port.disconnect();
+    return;
+  }
+
+  const request = new AbortController();
+  port.onDisconnect.addListener(() => request.abort());
+  const send = (result) => {
+    if (request.signal.aborted) return;
+    try {
+      port.postMessage(result);
+    } catch {
+      request.abort();
+    }
+  };
+  const start = (message) => {
+    port.onMessage.removeListener(start);
+    collectMarketplaceWishlist(message?.provider, request.signal)
+      .then((result) => send({ ok: true, ...result }))
+      .catch((error) => send({ ok: false, error: error?.message || "Не удалось прочитать избранное" }));
+  };
+  port.onMessage.addListener(start);
 });

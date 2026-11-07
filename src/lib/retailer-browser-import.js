@@ -39,7 +39,15 @@ function exchange(target, requestType, responseType, payload, timeoutMs, signal)
       signal?.removeEventListener("abort", onAbort);
       callback(value);
     };
-    const onAbort = () => finish(reject, signal.reason);
+    const cancelWishlist = () => {
+      if (requestType === "ROLLAPP_WISHLIST_IMPORT") {
+        target.postMessage({ source: PAGE_SOURCE, type: "ROLLAPP_WISHLIST_CANCEL", requestId: id }, target.location.origin);
+      }
+    };
+    const onAbort = () => {
+      cancelWishlist();
+      finish(reject, signal.reason);
+    };
     const onMessage = (event) => {
       if (event.source !== target || event.origin !== target.location.origin) return;
       const message = event.data;
@@ -49,14 +57,14 @@ function exchange(target, requestType, responseType, payload, timeoutMs, signal)
     if (signal?.aborted) return onAbort();
     signal?.addEventListener("abort", onAbort, { once: true });
     target.addEventListener("message", onMessage);
-    timer = setTimeout(() => finish(
-      reject,
-      new RetailerBrowserImportError(
+    timer = setTimeout(() => {
+      cancelWishlist();
+      finish(reject, new RetailerBrowserImportError(
         requestType === "ROLLAPP_WISHLIST_IMPORT" ? "Магазин не успел загрузить все списки."
           : requestType === "ROLLAPP_RETAILER_PING" ? "Помощник браузера не подключён" : "Магазин не успел загрузить товар",
         requestType === "ROLLAPP_RETAILER_PING" ? "helper_unavailable" : "helper_timeout",
-      ),
-    ), timeoutMs);
+      ));
+    }, timeoutMs);
     target.postMessage({ source: PAGE_SOURCE, type: requestType, requestId: id, ...payload }, target.location.origin);
   });
 }

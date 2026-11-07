@@ -516,6 +516,7 @@ function ProfileEditorProvider({ children }) {
     <ProfileEditorContext.Provider value={value}>
       {children}
       {open && user && <ProfileSettingsModal
+        key={user.id}
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
