@@ -4,7 +4,8 @@ import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 
-const server = await createServer({ cacheDir: "node_modules/.vite-business-profile", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
+const salesOnly = process.argv.includes("--sales-only");
+const server = await createServer({ cacheDir: salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
   name: "business-profile-fixture", configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith("/__business-profile")) return next();
@@ -15,8 +16,84 @@ const server = await createServer({ cacheDir: "node_modules/.vite-business-profi
 }] });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+async function checkWishSale(width, height) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
+  try {
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sales`);
+    const sale = page.getByRole("menuitem", { name: "Выставить на продажу" });
+    await page.getByRole("button", { name: "Опции желания «Кофеварка»" }).click();
+    await page.getByRole("menuitem", { name: "Исполнено", exact: true }).waitFor();
+    assert.equal(await sale.count(), 0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Опции желания «Кофемолка»" }).click();
+    await sale.click();
+
+    const editor = page.locator("[data-wishlist-item-editor]");
+    const title = editor.getByRole("combobox", { name: "Название" });
+    const description = editor.getByRole("textbox", { name: "Описание" });
+    await title.waitFor();
+    assert.equal(await title.inputValue(), "Кофемолка");
+    assert.equal(await description.inputValue(), "Ручная кофемолка");
+    const submit = editor.locator("button[type=submit]");
+    assert.equal(await submit.textContent(), "Сохранить скрытым");
+    assert.deepEqual(await submit.evaluate(node => [node.offsetHeight, getComputedStyle(node).borderRadius]), [48, "24px"]);
+    assert(await editor.locator(".app-drawer-body").evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.screenshot({ path: `/tmp/rollapp-wish-sale-${width}-${height}.png` });
+    if (width < 768) await page.goBack();
+    else await editor.getByRole("button", { name: "Отмена", exact: true }).click();
+    await page.waitForFunction(() => !new URLSearchParams(location.search).has("wish") && !new URLSearchParams(location.search).has("formScreen"));
+    await page.getByText("Объявлений пока нет").waitFor();
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+
+    await page.getByRole("link", { name: "Вернуться в Вишлист" }).click();
+    await page.getByRole("button", { name: "Открыть желание «Кофемолка»" }).click();
+    await page.locator("[data-slot=wish-actions]").getByRole("button", { name: "Опции желания «Кофемолка»" }).click();
+    await sale.click();
+    await title.waitFor();
+    const price = editor.getByRole("textbox", { name: "Цена с валютой" });
+    await price.fill("3 500 ₽");
+    await submit.click();
+    await editor.getByText(/Ответ сервера потерян/).waitFor();
+    assert.equal(await price.inputValue(), "3 500 ₽");
+    await submit.click();
+    await editor.waitFor({ state: "hidden" });
+    const card = page.getByRole("button", { name: "Открыть «Кофемолка»", exact: true });
+    await card.waitFor();
+    assert.equal(await card.count(), 1);
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls.map(call => call.payload.wishId)), ["fulfilled", "fulfilled"]);
+    await card.click();
+    await editor.getByRole("switch", { name: "Показывать в магазине" }).click();
+    await submit.click();
+    await editor.waitFor({ state: "hidden" });
+    await page.getByRole("link", { name: "Магазин", exact: true }).click();
+    await card.waitFor();
+    await card.click();
+    assert.equal(await page.getByRole("button", { name: "Написать продавцу" }).count(), 0);
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sale-buyer`);
+    await page.getByRole("button", { name: "Открыть «Товар участника»" }).click();
+    await page.getByRole("button", { name: "Написать продавцу" }).click();
+    await page.getByRole("region", { name: "Переписка с Получатель подарочной карты" }).waitFor();
+    assert.equal(new URL(page.url()).pathname, "/app/store");
+    assert(!new URL(page.url()).searchParams.has("formScreen"));
+    await page.getByRole("button", { name: "Закрыть сообщения" }).click();
+    await page.getByRole("button", { name: "Открыть «Товар участника»" }).waitFor();
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), [
+      { path: "/messenger/conversations", payload: { participantId: "friend" } },
+    ]);
+    assert.deepEqual(errors, []);
+    console.log(`PASS wish sale ${width}x${height}`);
+  } finally {
+    await page.close();
+  }
+}
 try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
+    await checkWishSale(width, height);
+    if (salesOnly) continue;
     for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "listing-error", "personal"]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
       const errors = [];

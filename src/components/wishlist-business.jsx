@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
 import { formatRolls } from "../../shared/rolls.js";
 import { api } from "@/api";
-import { WISHLIST_SPACES, canManageWishlistSpace } from "../../shared/wishlist-business.js";
+import { WISHLIST_SPACES, canManageWishSales, canManageWishlistSpace } from "../../shared/wishlist-business.js";
 import { PageActionButton } from "@/components/page-action-button";
 import { ControlBar } from "@/components/control-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -22,6 +22,11 @@ import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerDe
 import { WishlistBusinessItemEditor } from "@/components/wishlist-business-item-editor";
 
 export function wishlistSpace(search) { return WISHLIST_SPACES.find(item => item.id === new URLSearchParams(search).get("tab"))?.id || "products"; }
+export function wishSalesPath(space, wishId) {
+ const params = new URLSearchParams({ tab: space });
+ if (wishId) params.set("wish", wishId);
+ return `/app/wishes/sales?${params}`;
+}
 const labelFor = space => WISHLIST_SPACES.find(item => item.id === space)?.label;
 function useBusinessData(endpoint) {
  const [version,setVersion]=useState(0);
@@ -55,13 +60,37 @@ function BusinessItem({ item, onOpen }) {
    </Button>
  ) : content}</Card>;
 }
-function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose}) {
+function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId}) {
+ const location = useLocation();
+ const navigate = useNavigate();
+ const [conversationId, setConversationId] = useState(null);
  const [price,setPrice]=useState(""),[hours,setHours]=useState("24");const pending=useRef(null),sendLock=useRef(false);
  const [buyers,setBuyers]=useState([]);const [buyerId,setBuyerId]=useState("");const [error,setError]=useState("");const [loading,setLoading]=useState(owner);const [busy,setBusy]=useState(false);
  useEffect(()=>{if(!owner)return;let current=true;api.get(`/wishlist-business/${space}/buyers`).then(data=>{if(current)setBuyers(data.buyers);}).catch(e=>{if(current)setError(e.message);}).finally(()=>{if(current)setLoading(false);});return()=>{current=false;};},[owner,space]);
  const send=async()=>{if(sendLock.current)return;sendLock.current=true;setBusy(true);setError("");const terms={buyerId,priceRolls:Number(price),durationHours:Number(hours)};const signature=JSON.stringify(terms);if(pending.current?.signature!==signature)pending.current={signature,payload:{...terms,idempotencyKey:crypto.randomUUID()}};try{const result=await api.post(`/wishlist-business/${space}/items/${item.id}/recommend`,pending.current.payload);toast.success(result.alreadySent?"Этот счёт уже создан":"Персональный счёт создан");onClose();}catch(e){setError(e.message);}finally{sendLock.current=false;setBusy(false);}};
  const dismiss=async()=>{setBusy(true);try{await api.delete(`/wishlist-business/${space}/offers/${item.offerId}`);onDismiss();onClose();}catch(e){setError(e.message);}finally{setBusy(false);}};
- return <Drawer open={open} onAfterClose={onAfterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
+ const contact = async () => {
+   if (sendLock.current) return;
+   sendLock.current = true;
+   setBusy(true);
+   setError("");
+   try {
+     const { conversation } = await api.post("/messenger/conversations", { participantId: item.business.id });
+     setConversationId(conversation.id);
+   } catch (error) {
+     setError(error.message);
+   } finally {
+     sendLock.current = false;
+     setBusy(false);
+   }
+ };
+ const afterClose = () => {
+   if (conversationId) {
+     onClose();
+     navigate(location, { replace: true, state: { ...location.state, messengerOpen: true, messengerConversationId: conversationId } });
+   } else onAfterClose?.();
+ };
+ return <Drawer open={open && !conversationId} onAfterClose={afterClose} onOpenChange={open=>{if(!open&&!busy)onClose();}}><DrawerContent className="rollapp-body app-drawer--form">
  <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 z-10" disabled={busy} />} aria-label="Закрыть"><X aria-hidden="true" /></DrawerClose>
  <DrawerHeader className="pr-16"><DrawerTitle>{item.personalOffer?.title||item.title}</DrawerTitle><DrawerDescription>{item.brand || item.business.pageTitle} · {labelFor(space)}</DrawerDescription></DrawerHeader>
  <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
@@ -74,6 +103,7 @@ function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfte
  {item.personalOffer&&<p>Действует до <time dateTime={item.personalOffer.expiresAt}>{new Date(item.personalOffer.expiresAt).toLocaleString("ru-RU")}</time></p>}
  <ErrorMessage message={error}/></div>
  <DrawerFooter>
+   {item.personalSale && viewerId && viewerId !== item.business.id && <Button type="button" disabled={busy} onClick={contact}>Написать продавцу</Button>}
    {owner && <>
      <Button type="button" disabled={!buyerId || busy || !item.active || !Number.isInteger(Number(price)) || Number(price) < 1 || Number(price) > 1000000} onClick={send}>Предложить</Button>
      <Button type="button" variant="outline" size="icon" data-control-icon aria-label={space === "products" ? "Редактировать товар" : "Редактировать позицию"} disabled={busy} onClick={() => onEdit(item)}><Pencil aria-hidden="true" /></Button>
@@ -135,7 +165,7 @@ export function WishlistBusinessManager({user,space}) {
  )}
  </div>}</Status>;
 }
-export function WishlistBusinessListing({space,offers=false,business="",publicProfile=false}) {
+export function WishlistBusinessListing({space,offers=false,business="",publicProfile=false,viewerId}) {
  const state=useBusinessData(publicProfile ? `/wishlist-business/${space}/profiles/${encodeURIComponent(business)}` : `/wishlist-business/${space}/${offers?"offers":"store"}${business?`?business=${encodeURIComponent(business)}`:""}`);
  const [selected,setSelected]=useState(null);const [brand,setBrand]=useState("all");
  useEffect(()=>{setSelected(null);setBrand("all");},[space,business]);
@@ -145,9 +175,66 @@ export function WishlistBusinessListing({space,offers=false,business="",publicPr
  {brands.length>0&&<Field><FieldLabel htmlFor={`seller-brands-${offers?"offers":"store"}`}>Бренд</FieldLabel><Select value={brand} onValueChange={setBrand}><SelectTrigger id={`seller-brands-${offers?"offers":"store"}`}><SelectValue>{selected=>selected==="all"?"Все бренды":selected}</SelectValue></SelectTrigger><SelectContent alignItemWithTrigger={false}><SelectItem value="all">Все бренды</SelectItem>{brands.map(value=><SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></Field>}
  {!offers&&state.data?.pages?.map(page=><article className="typeset typeset-rollapp" key={page.username}><h2>{publicProfile ? page.title : <Link to={`/app/store?tab=${space}&business=${encodeURIComponent(page.username)}`}>{page.title}</Link>}</h2>{page.description&&<p className="whitespace-pre-wrap">{page.description}</p>}</article>)}
  {items.length?<div className="wish-grid catalog-wish-grid">{items.map(item=><BusinessItem key={item.id} item={item} onOpen={setSelected}/>)}</div>:<Blank title={offers?"Предложений пока нет":publicProfile?"Товаров пока нет":"Айтемов продавцов пока нет"} text={offers?"Здесь появятся рекомендации от продавцов, которым вы открыли доступ к этому пространству.":publicProfile?"Здесь появятся опубликованные товары этого бизнеса.":"Продавцы ещё не опубликовали айтемы в этом пространстве."}/>}
- {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload}/>}
+ {selected&&<ItemDetails key={selected.id} item={selected} space={space} onClose={()=>setSelected(null)} onDismiss={state.reload} viewerId={viewerId}/>}
  </div></Status>;
 }
+function WishSalesManager({ user, space, wishId }) {
+ const navigate = useNavigate();
+ const state = useBusinessData(`/wishlist-business/${space}/sales${wishId ? `?wish=${encodeURIComponent(wishId)}` : ""}`);
+ const [editor, setEditor] = useState(null);
+ const [editorOpen, setEditorOpen] = useState(false);
+ const savedItem = useRef(null);
+ const openEditor = useCallback((item) => {
+   savedItem.current = null;
+   setEditor(item);
+   setEditorOpen(true);
+ }, []);
+ useEffect(() => {
+   if (state.data?.editor) openEditor(state.data.editor);
+ }, [state.data, openEditor]);
+ const closeEditor = () => {
+   setEditor(null);
+   if (wishId) navigate(wishSalesPath(savedItem.current?.space || space), { replace: true });
+   else if (savedItem.current) state.reload();
+ };
+ return <>
+   <Status state={state}>
+     {state.data?.items.length ? (
+       <div className="wish-grid catalog-wish-grid">
+         {state.data.items.map(item => <BusinessItem key={item.id} item={item} onOpen={openEditor} />)}
+       </div>
+     ) : <Blank title="Объявлений пока нет" text="Откройте меню исполненного желания и выберите «Выставить на продажу»." />}
+   </Status>
+   {editor && <WishlistBusinessItemEditor
+     key={editor.id || wishId} item={editor} space={editor.space} spaceLabel={labelFor(editor.space)}
+     sale={{ wishId }} published={state.data.published} open={editorOpen}
+     onClose={() => setEditorOpen(false)} onAfterClose={closeEditor}
+     onSaved={(item) => { savedItem.current = item; }}
+     renderPreview={(draft) => (
+       <div className="mx-auto w-full max-w-xs" aria-label="Предпросмотр объявления">
+         <BusinessItem item={{ ...draft, business: { name: user.name } }} />
+       </div>
+     )}
+   />}
+ </>;
+}
+
+export function WishSalesPage({ user }) {
+ const { search } = useLocation();
+ const space = wishlistSpace(search);
+ const wishId = new URLSearchParams(search).get("wish");
+ return <section className="app-page page-stack rollapp-body" aria-label={`Мои продажи · ${labelFor(space)}`}>
+   <ControlBar className="page-actions horizontal-action-scroller">
+     <Link to={`/app/wishes?tab=${space}`} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true" /></Link>
+     <PageActionButton variant="outline" to={`/app/store?tab=${space}`}>Магазин</PageActionButton>
+   </ControlBar>
+   <header className="typeset typeset-rollapp"><h1>Мои продажи · {labelFor(space)}</h1></header>
+   {canManageWishSales(user, space)
+     ? <WishSalesManager key={`${user.id}:${space}:${wishId || ""}`} user={user} space={space} wishId={wishId} />
+     : <Blank title="Продажи недоступны" text="Выберите раздел, в котором можете размещать объявления." />}
+ </section>;
+}
+
 export function WishlistBusinessPage({user,manager=false}) {
  const location=useLocation();const space=wishlistSpace(location.search);
  return <section className="app-page page-stack rollapp-body" aria-label={`${manager?"Страница продавца":"Предложения"}: ${labelFor(space)}`}>

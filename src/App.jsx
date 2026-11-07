@@ -1,7 +1,7 @@
 import { ProductTitleInput } from "@/components/product-title-input";
 import { MessengerDrawer, useMessengerAssistant } from "@/components/messenger";
-import { WishlistBusinessPage, WishlistBusinessListing, wishlistSpace } from "@/components/wishlist-business";
-import { canManageWishlistSpace } from "../shared/wishlist-business.js";
+import { WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
+import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
@@ -21,7 +21,7 @@ import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
-  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Trash2, UserPlus,
+  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Trash2, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -3514,6 +3514,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
         </Link>
         <ControlBar className="flex shrink-0 gap-2">
           <Link to={`/app/wishes/offers?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Открыть предложения" title="Предложения"><Send aria-hidden="true" /></Link>
+          {canManageWishSales(user, selectedSpace) && <Link to={wishSalesPath(selectedSpace)} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Мои продажи" title="Мои продажи"><Tag aria-hidden="true" /></Link>}
           {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
         </ControlBar>
       </div>
@@ -3549,7 +3550,7 @@ function StorePage({ user, selectedSpace }) {
       </Link>
     } />
     <div className="app-page wish-catalog-page cat-store-page page-stack">
-      <WishlistBusinessListing key={`${selectedSpace}:${business}`} space={selectedSpace} business={business} />
+      <WishlistBusinessListing key={`${selectedSpace}:${business}`} space={selectedSpace} business={business} viewerId={user.id} />
       <div className="wish-grid catalog-wish-grid">
         {storeCats.map((cat) => (
           <article className="catalog-wish-card cat-store-card" key={cat.id}>
@@ -3581,12 +3582,12 @@ function StorePage({ user, selectedSpace }) {
   </>;
 }
 
-function ProtectedWishlistBusiness({ manager = false }) {
+function ProtectedWishlistBusiness({ manager = false, sales = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><WishlistBusinessPage user={user} manager={manager} /></AppShell>;
+  return <AppShell>{sales ? <WishSalesPage user={user} /> : <WishlistBusinessPage user={user} manager={manager} />}</AppShell>;
 }
 
 function ProtectedStore() {
@@ -3830,6 +3831,16 @@ function WishGroupingSubmenu({ wish, groups = [], busy = false, onCreate, onAdd 
   </DropdownMenuSub>;
 }
 
+function WishSaleMenuItem({ wish, space, disabled }) {
+  const { user } = useSession();
+  if (!canManageWishSales(user, space)) return null;
+  return <DropdownMenuItem
+    className="min-h-12 gap-2 px-3 py-2 text-base"
+    disabled={disabled}
+    render={<Link to={wishSalesPath(space, wish.id)} />}
+  ><Tag aria-hidden="true" /> Выставить на продажу</DropdownMenuItem>;
+}
+
 function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -3922,6 +3933,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
             >
               {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
               {owner && wish.status === "fulfilled" ? <>
+                <WishSaleMenuItem wish={wish} space={cardSpace} disabled={interactionBusy} />
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
                 {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
@@ -6152,6 +6164,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                   {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy || wish.status !== "active" || reservationUnavailable} onClick={reserve}><Gift /> {wish.reservedByMe ? "Снять бронь" : "Забронировать"}</DropdownMenuItem>}
                   {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy || wish.likedByMe} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /> {wish.likedByMe ? "Уже в вашем списке" : "Лайкнуть и добавить к себе"}</DropdownMenuItem>}
                   {owner && wish.status === "fulfilled" ? <>
+                    <WishSaleMenuItem wish={wish} space={resolvedSpace} disabled={busy} />
                     <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
                     <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={repeat}><Plus /> Загадать ещё раз</DropdownMenuItem>
                     {onEdit && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={onEdit}><Pencil /> Редактировать</DropdownMenuItem>}
@@ -7988,6 +8001,7 @@ export default function App() {
             <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
             <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
+            <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />
             <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
