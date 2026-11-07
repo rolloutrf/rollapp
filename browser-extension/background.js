@@ -1,3 +1,5 @@
+importScripts("wishlist-worker.js");
+
 const RETAILERS = Object.freeze({
   samokat: Object.freeze({
     label: "Самокат",
@@ -150,4 +152,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     .then((metadata) => sendResponse({ ok: true, metadata }))
     .catch((error) => sendResponse({ ok: false, error: error?.message || "Не удалось прочитать товар магазина" }));
   return true;
+});
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "rollapp-wishlist-import") return;
+  if (!trustedRollappSender(port.sender) || URL.parse(port.sender.tab.url)?.origin !== "https://xn--80avakiab.xn--p1ai") {
+    port.disconnect();
+    return;
+  }
+
+  const request = new AbortController();
+  port.onDisconnect.addListener(() => request.abort());
+  const send = (result) => {
+    if (request.signal.aborted) return;
+    try {
+      port.postMessage(result);
+    } catch {
+      request.abort();
+    }
+  };
+  const start = (message) => {
+    port.onMessage.removeListener(start);
+    collectMarketplaceWishlist(message?.provider, request.signal)
+      .then((result) => send({ ok: true, ...result }))
+      .catch((error) => send({ ok: false, error: error?.message || "Не удалось прочитать избранное", code: error?.code }));
+  };
+  port.onMessage.addListener(start);
 });

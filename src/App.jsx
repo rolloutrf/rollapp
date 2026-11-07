@@ -157,7 +157,7 @@ import {
 import { retailerPreview, retailerPreviewImageUrl } from "../shared/retailer-previews.js";
 import { formatRolls } from "../shared/rolls.js";
 import { isVideoUrl, isVkVideoUrl, isYouTubeUrl } from "../shared/video-links.js";
-import { requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
+import { requestBrowserWishlist, requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
 import { publicProfilePath, publicSpacePath, publicListPath, publicWishPath, publicProfileRoute, renamedProfileLocation } from "../shared/profile-links.js";
@@ -517,6 +517,7 @@ function ProfileEditorProvider({ children }) {
     <ProfileEditorContext.Provider value={value}>
       {children}
       {open && user && <ProfileSettingsModal
+        key={user.id}
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
@@ -7150,6 +7151,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [wishlistLinks, setWishlistLinks] = useState(initialWishlistLinks);
   const [validateWishlistLinks, setValidateWishlistLinks] = useState(false);
   const [importingWishlist, setImportingWishlist] = useState(false);
+  const browserWishlistRequest = useRef(null);
+  const [browserWishlistStatus, setBrowserWishlistStatus] = useState({});
+  useEffect(() => () => browserWishlistRequest.current?.abort(), [user.id]);
   const [wishlistImportStatus, setWishlistImportStatus] = useState({});
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -7296,6 +7300,34 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     if (results.some(Boolean)) onWishlistsImported?.();
     setImportingWishlist(false);
   };
+  const importBrowserWishlist = async (provider) => {
+    if (busy || browserWishlistRequest.current) return;
+    const request = new AbortController();
+    browserWishlistRequest.current = request;
+    setImportingWishlist(true);
+    const setStatus = (text, openStore = false) =>
+      setBrowserWishlistStatus((current) => ({ ...current, [provider.id]: { text, openStore } }));
+    setStatus("Читаем избранное и списки…");
+    try {
+      const { items } = await requestBrowserWishlist(provider.id, { signal: request.signal });
+      request.signal.throwIfAborted();
+      if (!items.length) {
+        setStatus("В избранном и списках нет товаров.");
+        return;
+      }
+      const { added, skipped } = await api.post(`/me/browser-wishlist-import/${provider.id}`, { ownerId: user.id, items });
+      if (request.signal.aborted) return;
+      setStatus(added ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.` : "Все найденные товары уже в Rollapp.");
+      if (added) onWishlistsImported?.();
+    } catch (error) {
+      if (!request.signal.aborted) setStatus(error.message, error.code === "marketplace_access_required");
+    } finally {
+      if (browserWishlistRequest.current === request) {
+        browserWishlistRequest.current = null;
+        if (!request.signal.aborted) setImportingWishlist(false);
+      }
+    }
+  };
   const submitWishlists = async (event) => {
     event.preventDefault();
     if (busy || !changedWishlists.length) return;
@@ -7427,7 +7459,39 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   ) : section === "wishlists" ? (
     <form id="profile-wishlists-form" onSubmit={submitWishlists}>
       <section className="grid min-w-0 gap-4 px-4 pt-4 pb-1" aria-label={sectionTitle} aria-describedby="settings-wishlist-help">
-        <p id="settings-wishlist-help" className="text-xs text-muted-foreground">
+        <div className="grid min-w-0 gap-3">
+          <h3>Избранное и списки из браузера</h3>
+          <p className="rollapp-body">Войдите в магазин в Chrome или Comet с расширением Rollapp. Товары из избранного и личных списков появятся в разделе «Товары» как приватные позиции.</p>
+          <p className="rollapp-body">
+            <a className="underline underline-offset-4" href="/rollapp-browser-extension.zip" download>Скачайте расширение Rollapp</a>. Распакуйте архив и загрузите папку в режиме разработчика на странице расширений браузера.
+          </p>
+          <ul className="grid min-w-0 gap-2">
+            {EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl).map((provider) => (
+              <li key={provider.id} className="grid min-w-0 gap-2">
+                <PageActionButton
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  disabled={busy}
+                  aria-label={`Импортировать все списки · ${provider.label}`}
+                  onClick={() => importBrowserWishlist(provider)}
+                >
+                  {provider.label}
+                </PageActionButton>
+                <p role="status" className={cn("rollapp-body", !browserWishlistStatus[provider.id] && "sr-only")}>
+                  {browserWishlistStatus[provider.id]?.text}
+                  {browserWishlistStatus[provider.id]?.openStore && <>
+                    {" "}<a className="underline underline-offset-4" href={provider.browserFavoritesUrl} target="_blank" rel="noopener noreferrer">
+                      Открыть избранное в {provider.id === "yandex-market" ? "Яндекс Маркете" : provider.label}
+                    </a>
+                  </>}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <h3>Ссылки в профиле</h3>
+        <p id="settings-wishlist-help" className="rollapp-body">
           Скопируйте ссылку через «Поделиться». Ссылки видны в публичном профиле. После сохранения позиции из OhMyWishes и Яндекс Маркета добавятся в «Товары» как приватные айтемы.
         </p>
         <FieldGroup className="gap-3">
@@ -7463,7 +7527,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
                   </ShadcnButton>
                   <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>
                 </div>}
-                {!provider.importsItems && initialWishlistLinks[provider.id] && <p className="text-xs text-muted-foreground">Доступна ссылка на список. Импорт позиций пока недоступен.</p>}
+                {!provider.importsItems && initialWishlistLinks[provider.id] && <p className="text-xs text-muted-foreground">Ссылка отображается в публичном профиле.</p>}
               </Field>
             );
           })}

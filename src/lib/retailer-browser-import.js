@@ -29,14 +29,24 @@ function requestId() {
   return `retailer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function exchange(target, requestType, responseType, payload, timeoutMs) {
+function exchange(target, requestType, responseType, payload, timeoutMs, signal) {
   return new Promise((resolve, reject) => {
     const id = requestId();
     let timer;
     const finish = (callback, value) => {
       target.removeEventListener("message", onMessage);
       clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
       callback(value);
+    };
+    const cancelWishlist = () => {
+      if (requestType === "ROLLAPP_WISHLIST_IMPORT") {
+        target.postMessage({ source: PAGE_SOURCE, type: "ROLLAPP_WISHLIST_CANCEL", requestId: id }, target.location.origin);
+      }
+    };
+    const onAbort = () => {
+      cancelWishlist();
+      finish(reject, signal.reason);
     };
     const onMessage = (event) => {
       if (event.source !== target || event.origin !== target.location.origin) return;
@@ -44,14 +54,17 @@ function exchange(target, requestType, responseType, payload, timeoutMs) {
       if (message?.source !== HELPER_SOURCE || message.type !== responseType || message.requestId !== id) return;
       finish(resolve, message);
     };
+    if (signal?.aborted) return onAbort();
+    signal?.addEventListener("abort", onAbort, { once: true });
     target.addEventListener("message", onMessage);
-    timer = setTimeout(() => finish(
-      reject,
-      new RetailerBrowserImportError(
-        requestType === "ROLLAPP_RETAILER_PING" ? "Помощник браузера не подключён" : "Магазин не успел загрузить товар",
+    timer = setTimeout(() => {
+      cancelWishlist();
+      finish(reject, new RetailerBrowserImportError(
+        requestType === "ROLLAPP_WISHLIST_IMPORT" ? "Магазин не успел загрузить все списки."
+          : requestType === "ROLLAPP_RETAILER_PING" ? "Помощник браузера не подключён" : "Магазин не успел загрузить товар",
         requestType === "ROLLAPP_RETAILER_PING" ? "helper_unavailable" : "helper_timeout",
-      ),
-    ), timeoutMs);
+      ));
+    }, timeoutMs);
     target.postMessage({ source: PAGE_SOURCE, type: requestType, requestId: id, ...payload }, target.location.origin);
   });
 }
@@ -101,4 +114,21 @@ export async function requestRetailerBrowserMetadata(retailerId, url, {
     );
   }
   return normalizeRetailerBrowserMetadata(retailerId, response.result.metadata);
+}
+
+export async function requestBrowserWishlist(provider, { target = window, signal } = {}) {
+  try {
+    await exchange(target, "ROLLAPP_WISHLIST_PING", "ROLLAPP_WISHLIST_PONG", {}, 700, signal);
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw new RetailerBrowserImportError("Установите или обновите расширение Rollapp в Chrome или Comet, затем обновите эту страницу.", "helper_unavailable");
+  }
+  const response = await exchange(target, "ROLLAPP_WISHLIST_IMPORT", "ROLLAPP_WISHLIST_RESULT", { provider }, 180_000, signal);
+  if (!response.result?.ok || !Array.isArray(response.result.items)) {
+    throw new RetailerBrowserImportError(
+      response.result?.error || "Не удалось прочитать избранное.",
+      response.result?.code === "marketplace_access_required" ? "marketplace_access_required" : "wishlist_unavailable",
+    );
+  }
+  return response.result;
 }

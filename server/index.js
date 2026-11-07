@@ -14,6 +14,7 @@ import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
 import { mergeProfileWishlistLinks, profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistLinks } from "../shared/external-wishlists.js";
+import { marketplaceWishlistKey, parseBrowserWishlist } from "./browser-wishlist-import.js";
 import { externalWishlistReaders, insertExternalWishlistItems, WishlistImportError } from "./external-wishlist-import.js";
 import "dotenv/config";
 import compression from "compression";
@@ -504,6 +505,7 @@ app.use(helmet({
 app.use(compression());
 app.use("/api/planning/notes", express.json({ limit: "2mb" }));
 app.use("/api/calendar-device/snapshot", express.json({ limit: "4mb" }));
+app.use("/api/me/browser-wishlist-import", express.json({ limit: "3mb" }));
 app.use(express.json({ limit: "256kb" }));
 app.use(cookieParser());
 registerTonConnectRoutes(app);
@@ -2806,6 +2808,24 @@ app.post("/api/me/wishlist-import/:provider", requireAuth, wishlistImportRateLim
     if (error instanceof WishlistImportError) return res.status(error.status).json({ error: error.message });
     throw error;
   }
+}));
+
+app.post("/api/me/browser-wishlist-import/:provider", requireAuth, wishlistImportRateLimit, asyncRoute(async (req, res) => {
+  const { provider } = req.params;
+  if (typeof req.body?.ownerId === "string" && req.body.ownerId !== req.user.id) {
+    return res.status(409).json({ error: "Аккаунт Rollapp сменился во время чтения. Запустите импорт снова." });
+  }
+  const items = parseBrowserWishlist(provider, req.body, req.user.id);
+  if (!items) return res.status(400).json({ error: "Проверьте список товаров и версию расширения Rollapp." });
+
+  const added = await transaction(async (client) => {
+    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    const existing = await client.query("SELECT url FROM wishes WHERE user_id=$1 AND url<>''", [req.user.id]);
+    const keys = new Set(existing.rows.map(({ url }) => marketplaceWishlistKey(provider, url)));
+    return insertExternalWishlistItems(client, req.user.id, items.filter(({ key }) => !keys.has(key)));
+  });
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ added, skipped: items.length - added });
 }));
 
 async function getLists(userId) {
