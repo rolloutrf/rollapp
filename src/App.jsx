@@ -32,7 +32,7 @@ import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.j
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
-import { BusinessGiftAction } from "@/components/gift-cards";
+import { BusinessGiftAction, BusinessGiftCertificates } from "@/components/gift-cards";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { MemberNumberPage } from "@/components/member-number-page";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
@@ -4435,7 +4435,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   const { user } = useSession();
   const toast = useToast();
   const catalogFilter = source === "brands"
-    ? `source=brands&space=${encodeURIComponent(selectedSpace)}&brand=${encodeURIComponent(selectedBrand)}`
+    ? `source=brands&space=${encodeURIComponent(selectedSpace)}&brand=${encodeURIComponent(selectedBrand)}&sections=certificates`
     : `source=community&space=${encodeURIComponent(selectedSpace)}`;
   const space = SPACES.find((entry) => entry.id === selectedSpace) || SPACES[0];
   const requestIdRef = useRef(0);
@@ -4443,22 +4443,25 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   const catalogLoadMoreOperationRef = useRef(null);
   const loadMoreRef = useRef(null);
   const lastCatalogOpenerRef = useRef(null);
-  const [catalog, setCatalog] = useState({ filter: null, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+  const [catalog, setCatalog] = useState({ filter: null, items: [], certificates: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
   const [pendingWishlistIds, setPendingWishlistIds] = useState(new Set());
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState(null);
   const { nextOffset, loadingMore } = catalog;
   const hasMore = catalog.filter === catalogFilter && !catalog.loading && nextOffset < catalog.total;
   const canAutoLoad = typeof IntersectionObserver !== "undefined";
   const selectedCatalogItem = selectedCatalogItemId
-    ? catalog.items.find((item) => item.id === selectedCatalogItemId) || null
+    ? catalog.items.find((item) => item.id === selectedCatalogItemId)
+      || catalog.certificates.find((item) => item.id === selectedCatalogItemId) || null
     : null;
 
   const updateCatalogItem = useCallback((itemId, patch) => {
+    const update = (item) => item.id === itemId
+      ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
+      : item;
     setCatalog((current) => ({
       ...current,
-      items: current.items.map((item) => item.id === itemId
-        ? { ...item, ...(typeof patch === "function" ? patch(item) : patch) }
-        : item),
+      items: current.items.map(update),
+      certificates: current.certificates.map(update),
     }));
   }, []);
 
@@ -4470,16 +4473,16 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
     lastCatalogOpenerRef.current = null;
     setPendingWishlistIds(new Set());
     setSelectedCatalogItemId(null);
-    setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
+    setCatalog({ filter: catalogFilter, items: [], certificates: [], total: 0, nextOffset: 0, loading: true, loadingMore: false, error: null });
     api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=0`)
       .then((result) => {
         if (requestId !== requestIdRef.current) return;
         const items = result.items || [];
-        setCatalog({ filter: catalogFilter, items, total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
+        setCatalog({ filter: catalogFilter, items, brand: result.brand, certificates: result.certificates || [], total: Number(result.total) || 0, nextOffset: items.length, loading: false, loadingMore: false, error: null });
       })
       .catch((error) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog({ filter: catalogFilter, items: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
+        setCatalog({ filter: catalogFilter, items: [], certificates: [], total: 0, nextOffset: 0, loading: false, loadingMore: false, error });
       });
     return () => { requestIdRef.current += 1; };
   }, [catalogFilter]);
@@ -4550,16 +4553,18 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   const refreshLoadedCatalog = async (requestId) => {
     const targetCount = Math.max(CATALOG_PAGE_SIZE, catalog.nextOffset || catalog.items.length);
     const items = [];
+    let certificates = [];
     let total = 0;
     for (let offset = 0; offset < targetCount; offset += CATALOG_PAGE_SIZE) {
       const result = await api.get(`/catalog?${catalogFilter}&limit=${CATALOG_PAGE_SIZE}&offset=${offset}`);
       if (requestId !== requestIdRef.current) return null;
       const incoming = result.items || [];
       total = Number(result.total) || 0;
+      if (offset === 0) certificates = result.certificates || [];
       items.push(...incoming.filter((candidate) => !items.some((existing) => existing.id === candidate.id)));
       if (incoming.length < CATALOG_PAGE_SIZE || offset + incoming.length >= total) break;
     }
-    return { items, total };
+    return { items, certificates, total };
   };
 
   const toggleCatalogWishlist = async (item) => {
@@ -4584,12 +4589,13 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
           setCatalog((current) => ({
             ...current,
             items: refreshed.items,
+            certificates: refreshed.certificates,
             total: refreshed.total,
             nextOffset: refreshed.items.length,
             error: null,
           }));
           setSelectedCatalogItemId((current) => (
-            current && !refreshed.items.some((candidate) => candidate.id === current) ? null : current
+            current && ![...refreshed.items, ...refreshed.certificates].some((candidate) => candidate.id === current) ? null : current
           ));
         } catch {
           refreshFailed = true;
@@ -4649,24 +4655,36 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
   };
 
   const showManualLoad = !canAutoLoad || Boolean(catalog.error);
+  const brand = catalog.filter === catalogFilter ? catalog.brand : null;
+  const certificates = brand ? catalog.certificates : [];
+  const renderCards = (items) => (
+    <div className="wish-grid catalog-wish-grid">
+      {items.map((item) => (
+        <CatalogWishCard
+          key={item.id}
+          item={item}
+          wishlistDisabled={pendingWishlistIds.size > 0 || loadingMore}
+          wishlistPending={pendingWishlistIds.has(item.id)}
+          onToggleWishlist={toggleCatalogWishlist}
+          onOpen={openCatalogItem}
+        />
+      ))}
+    </div>
+  );
   return (
     <>
-      <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
+      <CatalogProfileHero selectedSpace={selectedSpace} source={source} title={brand?.label} />
       <div className="app-page wish-catalog-page page-stack">
+        {certificates.length > 0 && <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-certificates">
+          <h2 id="catalog-brand-certificates" className="text-2xl font-semibold">Сертификаты</h2>
+          {renderCards(certificates)}
+        </section>}
         {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
           <>
-            <div className="wish-grid catalog-wish-grid">
-              {catalog.items.map((item) => (
-                <CatalogWishCard
-                  key={item.id}
-                  item={item}
-                  wishlistDisabled={pendingWishlistIds.size > 0 || catalog.loadingMore}
-                  wishlistPending={pendingWishlistIds.has(item.id)}
-                  onToggleWishlist={toggleCatalogWishlist}
-                  onOpen={openCatalogItem}
-                />
-              ))}
-            </div>
+            {certificates.length ? <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-products">
+              <h2 id="catalog-brand-products" className="text-2xl font-semibold">Товары</h2>
+              {renderCards(catalog.items)}
+            </section> : renderCards(catalog.items)}
             {hasMore && (
               <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
                 {showManualLoad ? (
@@ -4683,7 +4701,7 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
               </div>
             )}
           </>
-        ) : (
+        ) : certificates.length ? null : (
           <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Выберите бизнес-аккаунт в меню." : "Здесь появятся публичные желания участников."} />
         )}
         {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
@@ -7877,10 +7895,13 @@ function PublicProfile({ shared = false }) {
       {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
-    {businessStorefront && <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">
-      {sellerProfile && <WishlistBusinessListing key={`${data.profile.username}:${sellerSpace}`} space={sellerSpace} business={data.profile.username} publicProfile />}
-      <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" hideEmpty={sellerProfile} />
-    </section>}
+    {businessStorefront && <div className="page-stack">
+      <BusinessGiftCertificates business={data.profile} user={user} />
+      <section className="page-stack rollapp-body" aria-label="Товары и предложения бизнеса">
+        {sellerProfile && <WishlistBusinessListing key={`${data.profile.username}:${sellerSpace}`} space={sellerSpace} business={data.profile.username} publicProfile />}
+        <BusinessMarketplacePage key={`${data.profile.username}:${user?.id}`} user={user} businessUsername={data.profile.username} kind="store" hideEmpty={sellerProfile} />
+      </section>
+    </div>}
 
     {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
         <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) selectCollection(values[0]); }} aria-label="Списки желаний">

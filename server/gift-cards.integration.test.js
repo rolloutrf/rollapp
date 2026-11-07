@@ -84,6 +84,15 @@ test("production gift-card lifecycle is atomic, scoped, replayable and rollback-
     assert.equal((await readRollOrders(client, recipient)).orders.find((order) => order.id === purchase.id).status, "refunded");
     assert.equal((await readRollOrders(client, onward)).orders.length, 0);
     assert.equal(Number((await client.query("SELECT count(*) AS count FROM business_gift_card_events WHERE card_id=$1", [card.id])).rows[0].count), 5);
+
+    // The business owner can fund and send a card for its own storefront.
+    const ownCard = await issueGiftCard(client, business, { businessId: business, idempotencyKey: randomUUID() });
+    await changeGiftCard(client, business, ownCard.id, "topup", { amount: 25, idempotencyKey: randomUUID() });
+    await changeGiftCard(client, business, ownCard.id, "send", { recipientId: recipient, idempotencyKey: randomUUID() });
+    assert.equal((await listGiftCards(client.query.bind(client), business)).length, 0);
+    const companyGift = (await listGiftCards(client.query.bind(client), recipient)).find((entry) => entry.id === ownCard.id);
+    assert.equal(companyGift.balance, 25);
+    assert.equal(companyGift.business.id, business);
   } finally {
     await client.query("ROLLBACK"); client.release(); await db.pool.end();
   }

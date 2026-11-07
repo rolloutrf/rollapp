@@ -74,6 +74,25 @@ try {
       const heading = document.getElementById("public-profile-name").getBoundingClientRect();
       return avatar.bottom <= gift.top && gift.bottom <= heading.top;
     }); assert(order, "Gift icon belongs directly below the real business avatar");
+    const certificates = page.getByRole("region", { name: "Сертификаты" });
+    const issue = certificates.getByRole("button", { name: "Выпустить и подарить" });
+    await issue.waitFor();
+    assert.equal((await issue.boundingBox()).height, 48);
+    assert.equal(await issue.evaluate((element) => getComputedStyle(element).paddingInlineStart), "24px");
+    const section = await certificates.boundingBox();
+    const offers = await page.getByRole("region", { name: "Товары и предложения бизнеса" }).boundingBox();
+    assert.equal(Math.round(offers.y - section.y - section.height), 24);
+    await issue.click();
+    const form = page.locator('[data-mobile-form-page]:visible, [data-slot="drawer-popup"]:visible');
+    await form.getByRole("heading", { name: "Подарочная карта", exact: true }).waitFor();
+    if (width < 768) {
+      await page.getByRole("button", { name: "Назад", exact: true }).click();
+      await page.waitForURL((url) => !url.searchParams.has("formScreen"));
+    } else {
+      await page.getByRole("button", { name: "Закрыть подарочную карту" }).click();
+    }
+    await form.waitFor({ state: "hidden" });
+    assert.equal(await page.evaluate(() => giftHarness.calls.length), 0);
     assert.equal(await page.getByRole("link", { name: /^Открыть бизнес-профиль/ }).getAttribute("href"), "/studio");
     assert((await page.getByRole("link", { name: /^Открыть бизнес-профиль/ }).boundingBox()).height >= 48);
     await page.getByRole("button", { name: "Купить", exact: true }).click();
@@ -119,8 +138,32 @@ try {
     console.log(`PASS wallet gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
     await page.close();
   }
+  for (const width of [390, 1440]) {
+    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
+    await page.goto(`${smokeOrigin(server)}/__gift-cards?brand-certificates`);
+    const certificates = page.getByRole("region", { name: "Сертификаты" });
+    await certificates.getByRole("button", { name: "Открыть информацию о «Подарочный сертификат»" }).waitFor();
+    await page.getByRole("region", { name: "Товары" }).getByRole("button", { name: "Открыть информацию о «Товар бренда»" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Открыть информацию о «Подарочный сертификат»" }).count(), 1);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.deepEqual(errors, []);
+    await page.close();
+    console.log(`PASS brand catalog ${width}: certificates separate from products`);
+  }
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.route("**/api/**", (route) => route.abort());
+  await page.goto(`${smokeOrigin(server)}/__gift-cards?public&owner`);
+  const ownerCertificates = page.getByRole("region", { name: "Сертификаты" });
+  await ownerCertificates.getByRole("button", { name: "Выпустить и подарить" }).click();
+  await page.getByRole("button", { name: "Выпустить карту", exact: true }).click();
+  await page.getByLabel("Сколько роллов добавить").waitFor();
+  assert.equal(await page.evaluate(() => giftHarness.calls[0].payload.businessId), "business");
+  await page.goto(`${smokeOrigin(server)}/__gift-cards?public&guest`);
+  const signIn = page.getByRole("region", { name: "Сертификаты" }).getByRole("link", { name: "Войти и подарить" });
+  assert.equal(await signIn.getAttribute("href"), "/login?next=%2Fstudio");
   await page.goto(`${smokeOrigin(server)}/__gift-cards?guest`);
   assert((await page.getByRole("link", { name: "Войти и выпустить подарочную карту" }).getAttribute("href")).startsWith("/login?next="));
   await page.goto(`${smokeOrigin(server)}/__gift-cards?error`);

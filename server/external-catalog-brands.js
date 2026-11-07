@@ -47,7 +47,11 @@ export async function getStoredCatalogBrands(query, source, space = "products") 
   return result.rows.map(brandFromRow);
 }
 
-export async function getStoredCatalogBrandPage(query, source, slug, limit, offset, space = "products") {
+// The provider has no certificate category. Match card titles only, so a
+// product mentioning a certificate in its description stays in the product feed.
+const certificateTitle = "^[[:space:]]*(?:(?:электронный|бумажный|подарочный)[[:space:]]+)*сертификат(?:[[:space:][:punct:]]|$)|^[[:space:]]*(?:подарочная[[:space:]]+карта|gift[[:space:]]+(?:card|certificate))(?:[[:space:][:punct:]]|$)";
+
+export async function getStoredCatalogBrandPage(query, source, slug, limit, offset, space = "products", { separateCertificates = false } = {}) {
   if (!CATALOG_BRAND_SLUGS.includes(slug)) return null;
   const result = await query(`SELECT * FROM external_catalog_brands WHERE source=$1 AND slug=$2`, [source, slug]);
   if (!result.rowCount) return null;
@@ -56,10 +60,24 @@ export async function getStoredCatalogBrandPage(query, source, slug, limit, offs
     JOIN external_catalog_brands b ON b.source=bi.source AND b.external_id=bi.brand_id AND b.synced_at=bi.synced_at
     JOIN external_catalog_items i ON i.source=bi.source AND i.external_id=bi.external_id
     WHERE bi.source=$1 AND bi.brand_id=$2 AND i.active=TRUE AND i.space=$3`;
-  const [count, items] = await Promise.all([
-    query(`SELECT COUNT(*)::int AS total ${from}`, [source, brand.id, space]),
-    query(`SELECT i.* ${from} ORDER BY bi.sort_order,bi.external_id LIMIT $4 OFFSET $5`, [source, brand.id, space, limit, offset]),
+  const params = [source, brand.id, space];
+  const order = "ORDER BY bi.sort_order,bi.external_id";
+  const countSql = separateCertificates
+    ? `SELECT COUNT(*)::int AS available, COUNT(*) FILTER (WHERE i.title !~* $4)::int AS total ${from}`
+    : `SELECT COUNT(*)::int AS available, COUNT(*)::int AS total ${from}`;
+  const productFilter = separateCertificates ? "AND i.title !~* $6" : "";
+  const [count, items, certificates] = await Promise.all([
+    query(countSql, separateCertificates ? [...params, certificateTitle] : params),
+    query(`SELECT i.* ${from} ${productFilter} ${order} LIMIT $4 OFFSET $5`,
+      separateCertificates ? [...params, limit, offset, certificateTitle] : [...params, limit, offset]),
+    separateCertificates && offset === 0
+      ? query(`SELECT i.* ${from} AND i.title ~* $4 ${order}`, [...params, certificateTitle])
+      : null,
   ]);
-  if (!count.rows[0].total) return null;
-  return { brand, total: count.rows[0].total, items: items.rows.map((row) => ({ ...externalCatalogItemFromRow(row), brand })) };
+  if (!count.rows[0].available) return null;
+  const fromRow = (row) => ({ ...externalCatalogItemFromRow(row), brand });
+  return {
+    brand, total: count.rows[0].total, items: items.rows.map(fromRow),
+    ...(certificates && { certificates: certificates.rows.map(fromRow) }),
+  };
 }

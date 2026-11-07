@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Gift, X } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
+import { PageActionButton } from "@/components/page-action-button";
+import { Card } from "@/components/ui/card";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -149,15 +151,35 @@ export function GiftCardManager({ business, user, initialCardId = "", onClose, o
   </Drawer>;
 }
 
-export function BusinessGiftAction({ business, user }) {
+export function BusinessGiftAction({ business, user, labelled = false }) {
   const [open, setOpen] = useState(false);
+  const loginPath = `/login?next=${encodeURIComponent(publicProfilePath(business.username))}`;
   return <>
-    <ControlBar className="justify-center" aria-label="Подарочная карта бизнеса">
+    {labelled ? (user
+      ? <PageActionButton type="button" onClick={() => setOpen(true)}>Выпустить и подарить</PageActionButton>
+      : <PageActionButton to={loginPath}>Войти и подарить</PageActionButton>
+    ) : <ControlBar className="justify-center" aria-label="Подарочная карта бизнеса">
       {user ? <Button type="button" variant="outline" size="icon" data-control-icon aria-label={`Выпустить подарочную карту ${business.name}`} title="Подарочная карта" onClick={() => setOpen(true)}><Gift /></Button>
-        : <Link className={buttonVariants({ variant: "outline", size: "icon" })} data-slot="button" data-control-icon to={`/login?next=${encodeURIComponent(publicProfilePath(business.username))}`} aria-label="Войти и выпустить подарочную карту"><Gift /></Link>}
-    </ControlBar>
+        : <Link className={buttonVariants({ variant: "outline", size: "icon" })} data-slot="button" data-control-icon to={loginPath} aria-label="Войти и выпустить подарочную карту"><Gift /></Link>}
+    </ControlBar>}
     {open && user && <GiftCardManager key={`${user.id}:${business.id}`} business={business} user={user} onClose={() => setOpen(false)} />}
   </>;
+}
+
+export function BusinessGiftCertificates({ business, user }) {
+  return <section className="typeset typeset-rollapp flex min-w-0 flex-col gap-4" aria-labelledby="business-certificates-title">
+    <h2 id="business-certificates-title">Сертификаты</h2>
+    <Card className="min-w-0 flex-row flex-wrap items-center justify-between gap-4 p-4 sm:p-5" data-not-typeset>
+      <div className="rollapp-body flex min-w-0 flex-1 items-start gap-3 max-sm:basis-full">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-muted"><Gift className="size-5" aria-hidden="true" /></span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="font-semibold">Подарочная карта</h3>
+          <p className="text-muted-foreground">Выберите номинал в роллах и отправьте карту пользователю Rollapp. Картой можно оплатить покупки у этого бренда.</p>
+        </div>
+      </div>
+      <BusinessGiftAction business={business} user={user} labelled />
+    </Card>
+  </section>;
 }
 
 export function WalletGiftCards({ user, onChanged, onNavigate }) {

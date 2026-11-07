@@ -35,6 +35,16 @@ api.get = async (path) => {
   const owner = params.has("owner") || params.has("dashboard");
   if (path === "/me") return { user: params.has("guest") ? null : owner ? { ...business, accountType: "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null } : { ...user, username: "owner", accountType: "personal" } };
   if (path === "/sphere-shares/incoming") return { shares: [] };
+  if (params.has("brand-certificates") && path === "/catalog/brands?space=products") {
+    return { brands: [{ id: "brand", label: "BORK", slug: "bork.ru" }] };
+  }
+  if (params.has("brand-certificates") && path.startsWith("/catalog?")) {
+    const query = new URL(path, location.origin).searchParams;
+    if (query.get("sections") !== "certificates" || query.get("brand") !== "bork.ru") throw new Error("Expected certificate section request");
+    const brand = { id: "brand", label: "BORK", slug: "bork.ru" };
+    return { brand, items: [{ id: "product", title: "Товар бренда", space: "products", brand }], total: 1,
+      certificates: [{ id: "certificate", title: "Подарочный сертификат", price: 2700, currency: "RUB", space: "products", brand }] };
+  }
   if (path === "/dashboard" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [] };
   if (path === "/profile/owner" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [], isOwner: true };
   if (path.startsWith("/wishlist-business/products/sales")) {
@@ -147,4 +157,6 @@ if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ?
 if (params.has("sales")) history.replaceState({}, "", "/app/wishes?tab=products");
 if (params.has("sale-buyer")) history.replaceState({}, "", "/app/store?tab=products");
 if (params.has("classifieds") && !params.has("public")) history.replaceState({}, "", "/app/classifieds");
-createRoot(document.getElementById("root")).render(<BrowserRouter>{params.has("public") || params.has("sales") || params.has("sale-buyer") || params.has("classifieds") ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);
+if (params.has("brand-certificates")) history.replaceState({}, "", "/app/wishes/catalog?source=brands&brand=bork.ru");
+const fullApp = ["public", "sales", "sale-buyer", "classifieds", "brand-certificates"].some((mode) => params.has(mode));
+createRoot(document.getElementById("root")).render(<BrowserRouter>{fullApp ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

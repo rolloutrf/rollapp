@@ -180,6 +180,7 @@ const listSpaceSchema = z.enum(listSpaceValues);
 const catalogQuerySchema = z.object({
   source: z.enum(["community", "brands", "ohmywishes"]).default("community").transform((source) => source === "brands" ? "ohmywishes" : source),
   brand: z.string().trim().min(1).max(100).optional(),
+  sections: z.literal("certificates").optional(),
   space: listSpaceSchema.default("products"),
   limit: z.coerce.number().int().min(1).max(96).default(48),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
@@ -3037,13 +3038,17 @@ app.get("/api/catalog/brands", requireAuth, asyncRoute(async (req, res) => {
 app.get("/api/catalog", requireAuth, asyncRoute(async (req, res) => {
   const parsed = catalogQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Проверьте параметры каталога" });
-  const { source, brand, space, limit, offset } = parsed.data;
+  const { source, brand, sections, space, limit, offset } = parsed.data;
   res.set("Cache-Control", "private, no-store");
   if (source === "ohmywishes" && brand) {
-    const page = await getStoredCatalogBrandPage(query, source, brand, limit, offset, space);
+    const page = await getStoredCatalogBrandPage(query, source, brand, limit, offset, space, { separateCertificates: sections === "certificates" });
     if (!page) return res.status(404).json({ error: "Бренд не найден в каталоге" });
-    const items = await decorateCatalogItems(page.items, req.user.id, space);
-    return res.json({ source, brand: page.brand, space, total: page.total, limit, offset, items });
+    const decorated = await decorateCatalogItems([...page.items, ...(page.certificates || [])], req.user.id, space);
+    return res.json({
+      source, brand: page.brand, space, total: page.total, limit, offset,
+      items: decorated.slice(0, page.items.length),
+      ...(page.certificates && { certificates: decorated.slice(page.items.length) }),
+    });
   }
   if (source === "ohmywishes") {
     if (space !== "products") return res.json({ source, space, collection: "recommendations", total: 0, limit, offset, items: [] });
