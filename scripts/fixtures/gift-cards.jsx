@@ -52,6 +52,9 @@ api.get = async (path) => {
     const editor = wishId ? state.sales[0] || { ...wishes[0], id: undefined, active: false } : null;
     return clone({ items: state.sales, editor, published: true });
   }
+  if (/^\/wishlist-business\/[^/]+\/store(?:\?|$)/.test(path) && params.has("store-only")) {
+    return { items: [...state.sellerItems, { id: "wish-sale:peer", title: "Товар участника", active: true, personalSale: true, business: friend }], pages: [{ title: "Витрина продавца", username: "studio" }] };
+  }
   if (path === "/wishlist-business/products/store" && (params.has("sales") || params.has("sale-buyer"))) {
     return clone({ items: state.sales.filter(item => item.active), pages: [] });
   }
@@ -90,6 +93,8 @@ api.get = async (path) => {
     return { cards };
   }
   if (path === "/rolls") return { balance: state.balance };
+  if (params.has("store-only") && path === "/rolls/orders") return { orders: [] };
+  if (params.has("store-only") && path === "/delivery/cdek/cities") return { cities: [] };
   if (path.startsWith("/rolls/recipients?q=")) return { people: [friend] };
   throw new Error(`Unexpected fixture read: ${path}`);
 };
@@ -155,8 +160,13 @@ function Fixture() {
 }
 if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
 if (params.has("sales")) history.replaceState({}, "", "/app/wishes?tab=products");
-if (params.has("sale-buyer")) history.replaceState({}, "", "/app/store?tab=products");
+if (params.has("sale-buyer")) history.replaceState({}, "", "/app/wishes/listings?tab=products");
+if (params.has("store-only")) {
+  const search = new URLSearchParams({ tab: params.get("store-only") || "products" });
+  if (params.has("business")) search.set("business", params.get("business"));
+  history.replaceState({}, "", `/app/store?${search}`);
+}
 if (params.has("classifieds") && !params.has("public")) history.replaceState({}, "", "/app/classifieds");
 if (params.has("brand-certificates")) history.replaceState({}, "", "/app/wishes/catalog?source=brands&brand=bork.ru");
-const fullApp = ["public", "sales", "sale-buyer", "classifieds", "brand-certificates"].some((mode) => params.has(mode));
+const fullApp = ["public", "sales", "sale-buyer", "store-only", "classifieds", "brand-certificates"].some((mode) => params.has(mode));
 createRoot(document.getElementById("root")).render(<BrowserRouter>{fullApp ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

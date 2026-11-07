@@ -325,7 +325,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
                 <h2 id={`${prefix}-visibility`} className="font-heading text-xl font-semibold">Видимость</h2>
                 <div className="flex min-w-0 items-start justify-between gap-3 rounded-xl border bg-muted/25 p-3">
                   <div className="grid min-w-0 gap-1">
-                    <FieldLabel htmlFor={`${prefix}-active`}>{sale ? "Показывать в магазине" : "Показывать на витрине"}</FieldLabel>
+                    <FieldLabel htmlFor={`${prefix}-active`}>{sale ? "Опубликовать объявление" : "Показывать на витрине"}</FieldLabel>
                     <p id={`${prefix}-visibility-hint`} className="text-xs text-muted-foreground">
                       {!form.active ? "Карточка видна только вам." : published ? "Покупатели увидят карточку после сохранения." : "Покупатели увидят карточку после публикации страницы продавца."}
                     </p>

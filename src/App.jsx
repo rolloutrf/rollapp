@@ -128,7 +128,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
@@ -3519,26 +3519,22 @@ const STORE_CATS = [
 const STORE_CAT_PRICE = "1 000 ролл";
 
 function StorePage({ user, selectedSpace }) {
-  const { search } = useLocation();
-  const business = new URLSearchParams(search).get("business") || "";
   const toast = useToast();
-  const storeCats = selectedSpace === "products" && !business ? STORE_CATS : [];
+  const isProducts = selectedSpace === "products";
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
-  const [purchase, setPurchase] = useState(() => selectedSpace === "products" && !business ? restoreCatPurchase(storageKey, STORE_CATS) : null);
+  const [purchase, setPurchase] = useState(() => isProducts ? restoreCatPurchase(storageKey, STORE_CATS) : null);
   const beginPurchase = (cat) => {
-    if (selectedSpace !== "products" || business) return;
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={selectedSpace === "products" && !business &&
+    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={isProducts &&
       <Link to={`${APP_ORDERS_PATH}?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
         <PackageCheck aria-hidden="true" />Заказы
       </Link>
     } />
     <div className="app-page wish-catalog-page cat-store-page page-stack">
-      <WishlistBusinessListing key={`${selectedSpace}:${business}`} space={selectedSpace} business={business} viewerId={user.id} />
-      <div className="wish-grid catalog-wish-grid">
-        {storeCats.map((cat) => (
+      {isProducts ? <div className="wish-grid catalog-wish-grid">
+        {STORE_CATS.map((cat) => (
           <article className="catalog-wish-card cat-store-card" key={cat.id}>
             <div className="catalog-wish-card__image cat-store-card__image">
               <img src={cat.image} alt={`${cat.name} кот${cat.mood ? ` — ${cat.mood.toLowerCase()}` : ""}`} loading="lazy" />
@@ -3562,13 +3558,13 @@ function StorePage({ user, selectedSpace }) {
             </div>
           </article>
         ))}
-      </div>
+      </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
     </div>
-    {purchase && !business && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
+    {purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
   </>;
 }
 
-function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds = false }) {
+function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds = false, listings = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
@@ -3576,6 +3572,14 @@ function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds
   if (classifieds) {
     if (!canManageWishSales(user, user.sellerSpace ?? "products")) return <Navigate to={APP_HOME} replace />;
     return <AppShell><ClassifiedsPage key={user.id} user={user} /></AppShell>;
+  }
+  if (listings) {
+    const space = wishlistSpace(location.search);
+    const business = new URLSearchParams(location.search).get("business") || "";
+    return <AppShell><section className="app-page page-stack rollapp-body">
+      <header className="typeset typeset-rollapp"><h1>Объявления продавцов</h1></header>
+      <WishlistBusinessListing key={`${user.id}:${space}:${business}`} space={space} business={business} viewerId={user.id} />
+    </section></AppShell>;
   }
   return <AppShell>{sales ? <WishSalesPage user={user} /> : <WishlistBusinessPage user={user} manager={manager} />}</AppShell>;
 }
@@ -8074,6 +8078,7 @@ export default function App() {
             <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
             <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
             <Route path={APP_CLASSIFIEDS_PATH} element={<ProtectedWishlistBusiness classifieds />} />
+            <Route path={APP_WISH_LISTINGS_PATH} element={<ProtectedWishlistBusiness listings />} />
             <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
             <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />

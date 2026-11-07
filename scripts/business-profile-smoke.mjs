@@ -16,6 +16,56 @@ const server = await createServer({ cacheDir: salesOnly ? "node_modules/.vite-wi
 }] });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+async function checkRolloutStore(width, height) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
+  const fixture = `${smokeOrigin(server)}/__business-profile?store-only`;
+  const cats = page.locator(".cat-store-card");
+  const orders = page.getByRole("link", { name: "Заказы", exact: true });
+  const checkLayoutAndSource = async () => {
+    assert(await page.locator(".cat-store-page").evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    assert.equal(await page.getByText(/Товар участника|Товар мастерской|Витрина продавца|Айтемов продавцов/).count(), 0);
+    assert.deepEqual(await page.evaluate(() => giftHarness.reads.filter(path => path.startsWith("/wishlist-business/"))), []);
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+  };
+  try {
+    await page.goto(fixture);
+    await page.getByRole("heading", { name: "Магазин · Товары" }).waitFor();
+    await cats.first().waitFor();
+    assert.equal(await cats.count(), 6);
+    const buy = page.getByRole("button", { name: /Купить «Красный кот»/ });
+    await buy.click();
+    const checkout = page.getByRole("dialog");
+    await checkout.getByRole("button", { name: "Отмена", exact: true }).click();
+    await checkout.waitFor({ state: "hidden" });
+    await orders.click();
+    await page.getByText("Заказов пока нет", { exact: true }).waitFor();
+    await page.goBack();
+    await cats.first().waitFor();
+    await checkLayoutAndSource();
+    await page.screenshot({ path: `/tmp/rollapp-rollout-store-${width}-${height}.png` });
+
+    await page.goto(`${fixture}&business=studio`);
+    await cats.first().waitFor();
+    assert.equal(await cats.count(), 6);
+    await orders.waitFor();
+    await checkLayoutAndSource();
+
+    await page.goto(`${fixture}=food`);
+    await page.getByText("В этом разделе магазина пока пусто", { exact: true }).waitFor();
+    assert.equal(await cats.count(), 0);
+    assert.equal(await orders.count(), 0);
+    await checkLayoutAndSource();
+    assert.deepEqual(errors, []);
+    console.log(`PASS Rollout store ${width}x${height}`);
+  } finally {
+    await page.close();
+  }
+}
+
 async function checkWishSale(width, height) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
   const errors = [];
@@ -75,14 +125,14 @@ async function checkWishSale(width, height) {
     assert.equal(await card.count(), 0);
     await page.getByRole("link", { name: "Мои продажи", exact: true }).click();
     await card.click();
-    await editor.getByRole("switch", { name: "Показывать в магазине" }).click();
+    await editor.getByRole("switch", { name: "Опубликовать объявление" }).click();
     await submit.click();
     await editor.waitFor({ state: "hidden" });
     await openBoard();
     await card.click();
     await page.getByRole("link", { name: "Управлять продажами", exact: true }).click();
     await card.waitFor();
-    await page.getByRole("link", { name: "Магазин", exact: true }).click();
+    await page.getByRole("link", { name: "Объявления", exact: true }).click();
     await card.waitFor();
     await card.click();
     assert.equal(await page.getByRole("button", { name: "Написать продавцу" }).count(), 0);
@@ -90,7 +140,7 @@ async function checkWishSale(width, height) {
     await page.getByRole("button", { name: "Открыть «Товар участника»" }).click();
     await page.getByRole("button", { name: "Написать продавцу" }).click();
     await page.getByRole("region", { name: "Переписка с Получатель подарочной карты" }).waitFor();
-    assert.equal(new URL(page.url()).pathname, "/app/store");
+    assert.equal(new URL(page.url()).pathname, "/app/wishes/listings");
     assert(!new URL(page.url()).searchParams.has("formScreen"));
     await page.getByRole("button", { name: "Закрыть сообщения" }).click();
     await page.getByRole("button", { name: "Открыть «Товар участника»" }).waitFor();
@@ -178,6 +228,7 @@ async function checkClassifieds(width, height) {
 
 try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
+    await checkRolloutStore(width, height);
     await checkWishSale(width, height);
     if (salesOnly) continue;
     await checkClassifieds(width, height);
