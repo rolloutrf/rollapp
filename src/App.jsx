@@ -39,6 +39,7 @@ import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersPage } from "@/components/orders-page";
 import { PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
 import { PlanningSpace, PLANNING_TABS } from "@/components/planning-space";
+import { ProfilePublicationLinks, ProfilePublications } from "@/components/profile-publications";
 import { MakiIcon } from "@/components/maki-icon";
 import { buildRepeatWishPayload } from "./lib/wish-repeat.js";
 import { createLatestSaveQueue } from "./lib/latest-save-queue.js";
@@ -845,7 +846,7 @@ function GlobalAppChrome() {
   const publicRoute = publicProfileRoute(location.pathname);
   const requestedTab = publicRoute?.space || collectionSpace || new URLSearchParams(location.search).get("tab");
   const serviceOptions = service?.id === "planning" ? [] : service?.tabs || [];
-  const options = location.pathname.startsWith("/s/") || isFriendsDirectoryPath(location.pathname) ? [] : sharedOwner
+  const options = location.pathname.startsWith("/s/") || publicRoute?.publication || isFriendsDirectoryPath(location.pathname) ? [] : sharedOwner
     ? serviceOptions.filter((option) => option.id === requestedTab || (!requestedTab && option === serviceOptions[0]))
     : serviceOptions;
   const normalizedTab = service?.id === "identity" && ["gallup", "hogan"].includes(requestedTab) ? "identity-reports" : requestedTab;
@@ -3447,6 +3448,7 @@ function PersistentProfileHero({ user }) {
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {location.pathname.startsWith("/app/wishes") && <ExternalWishlistLinks links={profile.wishlistLinks} />}
+      {location.pathname === "/app/wishes" && editable && <ProfilePublicationLinks username={profile.username} />}
       {canManageSharing && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
@@ -7869,6 +7871,7 @@ function PublicProfile({ shared = false }) {
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
         <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
       </div>
+      {!shared && <ProfilePublicationLinks username={data.profile.username} />}
       {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
@@ -7923,6 +7926,26 @@ function PublicProfile({ shared = false }) {
 
 function NotFound() { return <div className="not-found rollapp-body"><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link to={APP_HOME} className={buttonVariants()}>В приложение</Link></div>; }
 
+function ProfilePublicationsRoute({ section }) {
+  const { username } = useParams();
+  const { user, loading: sessionLoading } = useSession();
+  if (sessionLoading) return <LoadingScreen />;
+  return <ProfilePublicationsPage key={`${section}:${username}:${user?.id || ""}`} {...{ section, username, user }} />;
+}
+
+function ProfilePublicationsPage({ section, username, user }) {
+  const location = useLocation();
+  const endpoint = `/profile/${encodeURIComponent(username)}/${section}`;
+  const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
+  if (data && data.profile.username !== username) {
+    return <Navigate to={renamedProfileLocation(location, username, data.profile.username)} replace />;
+  }
+  const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload }} />;
+  return user
+    ? <AppShell friendsContext={!data?.isOwner} collectionChrome>{page}</AppShell>
+    : <div className="app-layout app-layout--dark"><main className="app-main app-main--with-profile">{page}</main></div>;
+}
+
 function LegacyProfileRedirect() {
   const params = useParams();
   const location = useLocation();
@@ -7970,6 +7993,8 @@ export default function App() {
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/:username" element={<PublicProfile />} />
+            <Route path="/:username/calendar" element={<ProfilePublicationsRoute section="calendar" />} />
+            <Route path="/:username/announcements" element={<ProfilePublicationsRoute section="announcements" />} />
             <Route path="/:username/:space" element={<PublicProfile />} />
             <Route path="/:username/lists/:listId" element={<PublicProfile />} />
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />

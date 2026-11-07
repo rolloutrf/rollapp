@@ -43,6 +43,7 @@ import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
 import { registerNotesRoutes } from "./notes.js";
 import { registerCalendarDeviceRoutes } from "./calendar-device.js";
+import { registerProfilePublicationRoutes } from "./profile-publications.js";
 import { getEmailConfig, sendPasswordResetEmail } from "./email.js";
 import { sendAccountInviteEmail } from "./email.js";
 import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash, lockMembership, membershipHasCapacity } from "./invites.js";
@@ -1163,6 +1164,7 @@ registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerProfilePublicationRoutes(app, { requireAuth, query, transaction, asyncRoute });
 
 registerStoryRoutes(app, { requireAuth, query, asyncRoute });
 

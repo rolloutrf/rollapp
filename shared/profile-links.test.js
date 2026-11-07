@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publicSpacePath, publicProfileRoute, renamedProfileLocation } from "./profile-links.js";
+import { publicPublicationPath, publicSpacePath, publicProfileRoute, renamedProfileLocation } from "./profile-links.js";
 import { merchantProductUrl } from "./product-links.js";
 
 test("shared space links preserve every space and default safely", () => {
@@ -17,12 +17,21 @@ test("shared space links preserve every space and default safely", () => {
 });
 
 test("renaming preserves list, wish, space, query and hash context", () => {
-  for (const suffix of ["", "/media", "/lists/list-1", "/wishes/wish-1"]) {
+  for (const suffix of ["", "/media", "/lists/list-1", "/wishes/wish-1", "/calendar", "/announcements"]) {
     assert.equal(renamedProfileLocation({ pathname: `/old${suffix}`, search: "?tab=media", hash: "#card" }, "old", "new"), `/new${suffix}?tab=media#card`);
   }
   assert.equal(renamedProfileLocation({ pathname: "/app/spheres/career", search: "?owner=old&tab=cv" }, "old", "new"), "/app/spheres/career?owner=new&tab=cv");
   assert.equal(renamedProfileLocation({ pathname: "/another/media" }, "old", "new"), "/another/media");
   assert.equal(renamedProfileLocation({ pathname: "/s/token/wishes/wish-1" }, "old", "new"), "/s/token/wishes/wish-1");
+});
+
+test("publication addresses preserve the owner and have no Wishlist space", () => {
+  for (const publication of ["calendar", "announcements"]) {
+    const path = publicPublicationPath("иван", publication);
+    assert.equal(path, `/%D0%B8%D0%B2%D0%B0%D0%BD/${publication}`);
+    assert.deepEqual(publicProfileRoute(path), { username: "иван", space: null, publication });
+  }
+  assert.equal(publicProfileRoute("/app/calendar"), null);
 });
 
 test("merchant URLs remove provider links and tracking without losing product parameters", () => {
