@@ -210,14 +210,19 @@ function WishSalesManager({ user, space, wishId }) {
  };
  return <>
    <Status state={state}>
+     <div className="page-actions page-toolbar horizontal-action-scroller">
+       <PageActionButton type="button" onClick={() => openEditor({ space, active: false })}>
+         <Plus aria-hidden="true" />{space === "products" ? "Добавить товар" : "Добавить позицию"}
+       </PageActionButton>
+     </div>
      {state.data?.items.length ? (
        <div className="wish-grid catalog-wish-grid">
          {state.data.items.map(item => <BusinessItem key={item.id} item={item} onOpen={openEditor} />)}
        </div>
-     ) : <Blank title="Объявлений пока нет" text="Откройте меню исполненного желания и выберите «Выставить на продажу»." />}
+     ) : <Blank title="Объявлений пока нет" text="Добавьте объявление здесь или выставьте на продажу исполненное желание." />}
    </Status>
    {editor && <WishlistBusinessItemEditor
-     key={editor.id || wishId} item={editor} space={editor.space} spaceLabel={labelFor(editor.space)}
+     key={editor.id || wishId || "new"} item={editor} space={editor.space} spaceLabel={labelFor(editor.space)}
      sale={{ wishId }} published={state.data.published} open={editorOpen}
      onClose={() => setEditorOpen(false)} onAfterClose={closeEditor}
      onSaved={(item) => { savedItem.current = item; }}
@@ -235,10 +240,6 @@ export function WishSalesPage({ user }) {
  const space = wishlistSpace(search);
  const wishId = new URLSearchParams(search).get("wish");
  return <section className="app-page page-stack rollapp-body" aria-label={`Мои продажи · ${labelFor(space)}`}>
-   <ControlBar className="page-actions horizontal-action-scroller">
-     <Link to={`/app/wishes?tab=${space}`} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Вернуться в Вишлист"><ArrowLeft aria-hidden="true" /></Link>
-     <PageActionButton variant="outline" to={`${APP_WISH_LISTINGS_PATH}?tab=${space}`}>Объявления</PageActionButton>
-   </ControlBar>
    <header className="typeset typeset-rollapp"><h1>Мои продажи · {labelFor(space)}</h1></header>
    {canManageWishSales(user, space)
      ? <WishSalesManager key={`${user.id}:${space}:${wishId || ""}`} user={user} space={space} wishId={wishId} />

@@ -5,6 +5,7 @@ import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 
 const salesOnly = process.argv.includes("--sales-only");
+const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
 const server = await createServer({ cacheDir: salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
   name: "business-profile-fixture", configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
@@ -97,9 +98,15 @@ async function checkWishSale(width, height) {
     else await editor.getByRole("button", { name: "Отмена", exact: true }).click();
     await page.waitForFunction(() => !new URLSearchParams(location.search).has("wish") && !new URLSearchParams(location.search).has("formScreen"));
     await page.getByText("Объявлений пока нет").waitFor();
+    const salesPage = page.getByRole("region", { name: "Мои продажи · Товары" });
+    await salesPage.getByRole("heading", { name: "Мои продажи · Товары" }).waitFor();
+    assert.equal(await salesPage.getByRole("link", { name: /^(Вернуться в Вишлист|Магазин|Объявления)$/ }).count(), 0);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await page.screenshot({ path: `/tmp/rollapp-wish-sales-page-${width}-${height}.png` });
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
 
-    await page.getByRole("link", { name: "Вернуться в Вишлист" }).click();
+    await page.goBack();
     await page.getByRole("button", { name: "Открыть желание «Кофемолка»" }).click();
     await page.locator("[data-slot=wish-actions]").getByRole("button", { name: "Опции желания «Кофемолка»" }).click();
     await sale.click();
@@ -132,9 +139,10 @@ async function checkWishSale(width, height) {
     await card.click();
     await page.getByRole("link", { name: "Управлять продажами", exact: true }).click();
     await card.waitFor();
-    await page.getByRole("link", { name: "Объявления", exact: true }).click();
-    await card.waitFor();
-    await card.click();
+    await salesPage.getByRole("button", { name: "Добавить товар", exact: true }).waitFor();
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sale-buyer=owner`);
+    await page.getByRole("button", { name: "Открыть «Товар участника»" }).click();
+    await page.getByRole("link", { name: "Страница продавца · Владелец" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Написать продавцу" }).count(), 0);
     await page.goto(`${smokeOrigin(server)}/__business-profile?sale-buyer`);
     await page.getByRole("button", { name: "Открыть «Товар участника»" }).click();
@@ -152,6 +160,76 @@ async function checkWishSale(width, height) {
   } finally {
     await page.close();
   }
+}
+async function checkDirectSale(width, height) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
+  try {
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sales=direct`);
+    const add = page.getByRole("button", { name: "Добавить товар", exact: true });
+    await add.waitFor();
+    assert.deepEqual(await add.evaluate(node => {
+      const css = getComputedStyle(node);
+      return [node.offsetHeight, css.paddingLeft, css.paddingRight, parseFloat(css.borderRadius) >= node.offsetHeight / 2];
+    }), [48, "24px", "24px", true]);
+    assert(await add.evaluate(node => {
+      const button = node.getBoundingClientRect();
+      const rail = node.parentElement.getBoundingClientRect();
+      return Math.abs(rail.left) < 1 && Math.abs(rail.right - innerWidth) < 1
+        && Math.abs(button.left + button.right - innerWidth) < 1;
+    }), "The centered action rail must reach both viewport edges");
+    const editor = page.locator("[data-wishlist-item-editor]");
+    const title = editor.getByRole("combobox", { name: "Название", exact: true });
+    const submit = editor.locator("button[type=submit]");
+    const publish = editor.getByRole("switch", { name: "Опубликовать объявление" });
+    await add.click();
+    await title.waitFor();
+    assert.equal(await title.inputValue(), "");
+    assert.equal(await publish.getAttribute("aria-checked"), "false");
+    assert.equal(await submit.textContent(), "Сохранить скрытым");
+    assert.equal(new URL(page.url()).searchParams.has("formScreen"), width < 768);
+    assert(await editor.locator(".app-drawer-body").evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.screenshot({ path: `/tmp/rollapp-direct-sale-${width}-${height}.png` });
+    if (width < 768) await page.goBack();
+    else await editor.getByRole("button", { name: "Отмена", exact: true }).click();
+    await editor.waitFor({ state: "hidden" });
+    await add.click();
+    await title.fill("Кофемашина Dedica");
+    await title.press("Tab");
+    await editor.getByRole("textbox", { name: "Цена с валютой" }).fill("12 900 ₽");
+    await editor.getByRole("textbox", { name: "Описание", exact: true }).fill("Готовит эспрессо.");
+    await editor.locator("input[type=file]").setInputFiles(cover);
+    await editor.getByRole("img", { name: "Предпросмотр обложки" }).waitFor();
+    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+    await submit.click();
+    await editor.getByText(/Фото временно недоступно/).waitFor();
+    await submit.click();
+    await editor.getByText(/Ответ сервера потерян/).waitFor();
+    assert.equal(await title.inputValue(), "Кофемашина Dedica");
+    await submit.click();
+    await editor.waitFor({ state: "hidden" });
+    const card = page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true });
+    await card.getByText("Скрыт", { exact: true }).waitFor();
+    assert.equal(await card.count(), 1);
+    const calls = await page.evaluate(() => giftHarness.calls);
+    assert.deepEqual(calls.map(call => call.path), ["/uploads/images", "/uploads/images", "/wishlist-business/products/sales", "/wishlist-business/products/sales"]);
+    assert.deepEqual(calls[2].payload, calls[3].payload);
+    assert.match(calls[2].payload.requestId, /^[0-9a-f-]{36}$/i);
+    assert.equal(Object.hasOwn(calls[2].payload, "wishId"), false);
+    await card.click();
+    await publish.click();
+    await submit.click();
+    await editor.waitFor({ state: "hidden" });
+    await card.getByText("Скрыт", { exact: true }).waitFor({ state: "hidden" });
+    await card.waitFor();
+    assert.equal(await card.getByText("Скрыт", { exact: true }).count(), 0);
+    assert.equal(new URL(page.url()).search, "?tab=products");
+    assert.deepEqual(errors, []);
+    console.log(`PASS direct sale ${width}x${height}`);
+  } finally { await page.close(); }
 }
 async function checkClassifieds(width, height) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
@@ -230,6 +308,7 @@ try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
     await checkRolloutStore(width, height);
     await checkWishSale(width, height);
+    await checkDirectSale(width, height);
     if (salesOnly) continue;
     await checkClassifieds(width, height);
     for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "listing-error", "personal"]) {
@@ -336,7 +415,6 @@ try {
           ]);
           await chooser.setFiles({ name: "cover.txt", mimeType: "text/plain", buffer: Buffer.from("cover") });
           await editor.getByText("Выберите фото в формате JPG, PNG или WebP.").waitFor();
-          const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
           await picker.setInputFiles({ ...cover, buffer: Buffer.from("broken image") });
           await editor.getByText("Фото не открывается", { exact: true }).waitFor();
           assert(await submit.isDisabled());

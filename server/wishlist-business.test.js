@@ -34,11 +34,79 @@ test("public seller profile scopes published products to the exact username and 
     }
     assert.match(calls[0].sql, /i\.active/);
     const before = calls.length;
-    for (const path of ["/classifieds", "/products/page", "/products/store", "/products/buyers", "/products/offers"]) {
+    for (const path of ["/classifieds", "/products/page", "/products/store", "/products/buyers", "/products/offers", "/products/sales"]) {
       assert.equal((await fetch(`${origin}/api/wishlist-business${path}`)).status, 401);
     }
     assert.equal((await fetch(`${origin}/api/wishlist-business/unknown/profiles/studio`)).status, 404);
     assert.equal(calls.length, before, "Invalid scope and private reads must not query products");
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test("direct sale creation retries in the same owner and space, while wish sales still require a fulfilled source", async () => {
+  const app = express();
+  app.use(express.json());
+  let user = { id: "owner", name: "Owner", account_type: "personal" };
+  const items = new Map();
+  const calls = [];
+  registerWishlistBusinessRoutes(app, {
+    requireAuth: (req, _res, next) => { req.user = user; next(); },
+    transaction: async (fn) => fn({ query: async (sql, params) => {
+      calls.push({ sql, params });
+      const [id, owner, space, title, description, brand, imageUrl, actionUrl, price, active] = params;
+      if (sql.startsWith("SELECT i.*")) {
+        const item = items.get(id);
+        return { rows: item?.business_user_id === owner && item.space === space ? [item] : [] };
+      }
+      if (sql.includes("FROM wishes w") || sql.includes("FROM wish_images")) return { rows: [], rowCount: 0 };
+      if (sql.startsWith("INSERT INTO wishlist_business_pages")) return { rowCount: 1 };
+      if (sql.startsWith("INSERT INTO wishlist_business_items")) {
+        if (items.has(id)) return { rowCount: 0 };
+        items.set(id, { id, business_user_id: owner, space, title, description, brand, image_url: imageUrl, action_url: actionUrl, price, active });
+        return { rowCount: 1 };
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    } }),
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise(resolve => server.once("listening", resolve));
+  const endpoint = `http://127.0.0.1:${server.address().port}/api/wishlist-business`;
+  const payload = { title: "Кофемашина", price: "3 500 ₽", active: false };
+  const requestId = "63dc864f-d91d-47d4-b035-0a579765f951";
+  const create = (body, space = "products") => fetch(`${endpoint}/${space}/sales`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  try {
+    for (const invalid of [payload, { ...payload, requestId, wishId: "wish" }, { ...payload, requestId: "invalid" }]) {
+      assert.equal((await create(invalid)).status, 400);
+    }
+    assert.equal(calls.length, 0);
+    const response = await create({ ...payload, requestId });
+    assert.equal(response.status, 201);
+    const first = await response.json();
+    assert.match(first.id, /^wish-sale:manual:[a-f0-9]{64}$/);
+    assert.equal(first.item.active, false);
+    assert.equal(first.item.price, payload.price);
+    assert.deepEqual(calls.find(call => call.sql.startsWith("INSERT INTO wishlist_business_pages")).params, ["owner", "products", "Owner", true]);
+    assert(!calls.some(call => call.sql.includes("FROM wishes w")));
+    const retry = await create({ ...payload, requestId, title: "Правка после обрыва" });
+    assert.equal(retry.status, 200);
+    assert.deepEqual(await retry.json(), { ...first, replayed: true });
+    assert.equal(items.size, 1);
+    assert.equal((await create({ ...payload, requestId }, "transport")).status, 201);
+
+    user = { ...user, id: "other" };
+    assert.equal((await create({ ...payload, requestId })).status, 201);
+    assert.equal(items.size, 3);
+    assert.equal((await create({ ...payload, requestId: "db5081ba-ef4a-409c-bece-c6fd04c3331f", imageUrl: "/api/media/63dc864f-d91d-47d4-b035-0a579765f951" })).status, 404);
+    assert.equal((await create({ ...payload, wishId: "missing" })).status, 404);
+    assert.equal(items.size, 3);
+    const source = calls.find(call => call.sql.includes("FROM wishes w"));
+    assert.match(source.sql, /w\.status='fulfilled'/);
+    assert.deepEqual(source.params, ["missing", "other", "products"]);
+
+    user = { ...user, account_type: "business", business_category: "seller", seller_space: "transport" };
+    assert.equal((await create({ ...payload, requestId })).status, 403);
+    assert.equal(items.size, 3);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 

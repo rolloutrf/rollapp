@@ -43,9 +43,15 @@ const itemSchema = z.object({
 }).strict();
 const createItemSchema = itemSchema.extend({ requestId: z.uuid().optional() });
 const wishIdSchema = z.string().min(1).max(200);
-const saleItemSchema = itemSchema.extend({ wishId: wishIdSchema, active: z.boolean() });
+const saleFields = itemSchema.extend({ active: z.boolean() });
+const createSaleSchema = z.union([
+  saleFields.extend({ wishId: wishIdSchema }),
+  saleFields.extend({ requestId: z.uuid() }),
+]);
 const wishSalePrefix = "wish-sale:";
 const saleIdForWish = (wishId) => wishSalePrefix + createHash("sha256").update(wishId).digest("hex");
+const manualSaleId = (userId, space, requestId) =>
+  `${wishSalePrefix}manual:${createHash("sha256").update(JSON.stringify([userId, space, requestId])).digest("hex")}`;
 const wishSale = `starts_with(i.id, '${wishSalePrefix}')`;
 const personalSale = `(u.account_type='personal' AND ${wishSale})`;
 const consent = `EXISTS (SELECT 1 FROM sphere_section_shares s WHERE s.owner_user_id=o.buyer_user_id AND s.viewer_user_id=i.business_user_id AND s.sphere='wishlist' AND s.section IN (i.space,'wishlist'))`;
@@ -161,10 +167,13 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
  }));
  const saveItem = (sale = false) => route(async (req, res) => {
    const editing = Boolean(req.params.itemId);
-   const parsed = (editing ? itemSchema : sale ? saleItemSchema : createItemSchema).safeParse(req.body);
+   const parsed = (editing ? itemSchema : sale ? createSaleSchema : createItemSchema).safeParse(req.body);
    if (!parsed.success) return fail(res, 400, "Проверьте поля карточки");
    const input = parsed.data;
-   const id = req.params.itemId || (sale ? saleIdForWish(input.wishId) : input.requestId || randomUUID());
+   const { wishId, requestId } = input;
+   const id = req.params.itemId || (sale
+     ? wishId ? saleIdForWish(wishId) : manualSaleId(req.user.id, req.params.space, requestId)
+     : requestId || randomUUID());
    if (sale && !id.startsWith(wishSalePrefix)) return fail(res, 404, "Продажа не найдена");
    const personal = sale && req.user.account_type === "personal";
    const itemKey = [id, req.user.id, req.params.space];
@@ -172,11 +181,11 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
      const readItem = async () => (await client.query(
        `${itemSelect} WHERE i.id=$1 AND i.business_user_id=$2 AND i.space=$3`, itemKey,
      )).rows[0];
-     if (input.requestId || (sale && !editing)) {
+     if (requestId || wishId) {
        const existing = await readItem();
        if (existing) return { item: clean(existing), replayed: true };
      }
-     if (sale && !editing && !await readSaleSource(client.query.bind(client), input.wishId, req.user.id, req.params.space, true)) {
+     if (wishId && !await readSaleSource(client.query.bind(client), wishId, req.user.id, req.params.space, true)) {
        return { error: "Исполненное желание не найдено в этом разделе" };
      }
      if (!await ownsItemImage(client.query.bind(client), input.imageUrl, req.user.id)) return null;
@@ -190,7 +199,7 @@ export function registerWishlistBusinessRoutes(app, { requireAuth, query, transa
      const inserted = await client.query(`INSERT INTO wishlist_business_items(id,business_user_id,space,title,description,brand,image_url,action_url,price,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO NOTHING RETURNING id`, params);
      const saved = await readItem();
      if (saved) return { item: clean(saved), replayed: !inserted.rowCount };
-     if (sale) throw new RollsError("Желание уже добавлено в продажи в другом разделе", "wish_sale_exists", 409);
+     if (wishId) throw new RollsError("Желание уже добавлено в продажи в другом разделе", "wish_sale_exists", 409);
      return null;
    });
    if (!result) return fail(res, 404, "Карточка или ваше фото не найдены");

@@ -23,7 +23,8 @@ const wishes = [
   { id: "active", title: "Кофеварка", status: "active", space: "products", listIds: [], userId: user.id },
 ];
 state.sales = params.has("sale-buyer")
-  ? [{ id: "wish-sale:peer", space: "products", title: "Товар участника", active: true, personalSale: true, business: friend }]
+  ? [{ id: "wish-sale:peer", space: "products", title: "Товар участника", active: true, personalSale: true,
+    business: params.get("sale-buyer") === "owner" ? personal : friend }]
   : [];
 window.giftHarness = state;
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -49,7 +50,7 @@ api.get = async (path) => {
   if (path === "/profile/owner" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [], isOwner: true };
   if (path.startsWith("/wishlist-business/products/sales")) {
     const wishId = new URL(path, location.origin).searchParams.get("wish");
-    const editor = wishId ? state.sales[0] || { ...wishes[0], id: undefined, active: false } : null;
+    const editor = wishId ? state.sales.find(item => item.id === `wish-sale:${wishId}`) || { ...wishes[0], id: undefined, active: false } : null;
     return clone({ items: state.sales, editor, published: true });
   }
   if (/^\/wishlist-business\/[^/]+\/store(?:\?|$)/.test(path) && params.has("store-only")) {
@@ -121,8 +122,8 @@ api.post = async (path, payload) => {
   state.calls.push({ path, payload: clone(payload) });
   if (path === "/messenger/conversations" && params.has("sale-buyer")) return { conversation: { id: "sale-chat", peer: friend } };
   if (path === "/wishlist-business/products/sales") {
-    const { wishId, ...fields } = payload;
-    const id = `wish-sale:${wishId}`;
+    const { wishId, requestId, ...fields } = payload;
+    const id = wishId ? `wish-sale:${wishId}` : `wish-sale:manual:${requestId}`;
     const existing = state.sales.find((item) => item.id === id);
     if (existing) return { id, item: clone(existing), replayed: true };
     state.sales.push({ ...fields, id, space: "products", personalSale: true, business: personal });
@@ -159,7 +160,7 @@ function Fixture() {
   </div></main></div>;
 }
 if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");
-if (params.has("sales")) history.replaceState({}, "", "/app/wishes?tab=products");
+if (params.has("sales")) history.replaceState({}, "", params.get("sales") === "direct" ? "/app/wishes/sales?tab=products" : "/app/wishes?tab=products");
 if (params.has("sale-buyer")) history.replaceState({}, "", "/app/wishes/listings?tab=products");
 if (params.has("store-only")) {
   const search = new URLSearchParams({ tab: params.get("store-only") || "products" });

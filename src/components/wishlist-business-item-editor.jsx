@@ -219,7 +219,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
       const options = { signal: AbortSignal.timeout(25_000) };
       let result;
       if (item.id) result = await api.patch(`${endpoint}/${encodeURIComponent(item.id)}`, payload, options);
-      else if (sale) result = await api.post(endpoint, { ...payload, wishId: sale.wishId }, options);
+      else if (sale?.wishId) result = await api.post(endpoint, { ...payload, wishId: sale.wishId }, options);
       else {
         requestId.current ??= crypto.randomUUID();
         result = await api.post(endpoint, { ...payload, requestId: requestId.current }, options);
@@ -247,7 +247,7 @@ export function WishlistBusinessItemEditor({ item, space, spaceLabel, published,
     ? "Сохранить"
     : publicItem ? "Опубликовать" : form.active ? "Добавить" : "Сохранить скрытым";
   const heading = sale
-    ? (item.id ? "Редактировать объявление" : "Выставить на продажу")
+    ? (item.id ? "Редактировать объявление" : sale.wishId ? "Выставить на продажу" : `Добавить ${noun}`)
     : (item.id ? `Редактировать ${noun}` : `Добавить ${noun}`);
 
   return (
