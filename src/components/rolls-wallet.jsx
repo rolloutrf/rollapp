@@ -235,7 +235,6 @@ export function RollsWallet({ user, embedded = false }) {
           </form>
         </section> : <>
           <section className="rolls-balance flex min-w-0 flex-col items-center gap-3 text-center" aria-label="Баланс роллов">
-            <RollsHeroIcon />
             {wallet ? <div className="rolls-balance__value" aria-live="polite" aria-atomic="true" data-rolls-balance>
               {new Intl.NumberFormat("ru-RU").format(wallet.balance)}
             </div> : <div className="flex min-h-15 items-center justify-center gap-2 text-base text-muted-foreground" role="status" aria-live="polite" aria-atomic="true" data-rolls-balance>
