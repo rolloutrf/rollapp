@@ -140,16 +140,16 @@ const InlineStarterKit = StarterKit.extend({
   addExtensions() { return this.parent().map(extension => extension.name === "italic" ? InlineItalic : extension); },
 });
 
-export function inlineEditorExtensions(placeholder = "Начните писать или введите / для выбора блока…", documentExtension) {
+export function inlineEditorExtensions(placeholder = "Начните писать или введите / для выбора блока…", documentExtension, { allowImages = true } = {}) {
   return [
     InlineBlockSelection, InlinePasteHistory, InlineNativeSelection, InlineNativeFocus,
     InlineStarterKit.configure({ ...(documentExtension ? { document: false } : {}), link: { openOnClick: false, autolink: true, markdownLinks: true }, code: false, paragraph: false, heading: false, trailingNode: false, codeBlock: false, strike: false, blockquote: false, orderedList: false }),
     ...(documentExtension ? [documentExtension] : []),
     withRichCode(Paragraph), withRichCode(Heading), NestedBlock, DocumentColumns, DocumentColumn, RichInlineMarkdown, InlineHTMLBreak,
-    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText, CaptionedImage, ImageCaption,
+    Code.extend({ excludes: "", priority: 50 }), InlineTextStyle, InlineNormalText, ...(allowImages ? [CaptionedImage, ImageCaption] : []),
     SymbolCodeBlock, SymbolStrike, SymbolBlockquote, SymbolOrderedList,
     Markdown, TaskList, SymbolTaskItem.configure({ nested: true, HTMLAttributes: { "data-type": "taskItem" }, a11y: { checkboxLabel: node => `Выполнено: ${node.textContent || "задача"}` } }),
-    InlinePlaceholder.configure({ placeholder: ({ node }) => node.type.name === "imageCaption" ? "Добавьте подпись…" : placeholder }), Image, RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),
+    InlinePlaceholder.configure({ placeholder: ({ node }) => node.type.name === "imageCaption" ? "Добавьте подпись…" : placeholder }), ...(allowImages ? [Image] : []), RichTableMarkdown, EditableTableKit.configure({ table: { resizable: true, renderWrapper: true, cellMinWidth: 96 } }), withRichCode(TypographyBlock),
     EditableDetails.configure({ persist: true, renderToggleButton: ({ element, isOpen }) => {
       element.setAttribute("aria-label", isOpen ? "Свернуть блок" : "Раскрыть блок");
       element.setAttribute("aria-expanded", String(isOpen));

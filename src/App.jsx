@@ -87,6 +87,7 @@ import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { ProfileInvites } from "@/components/profile-invites";
 import { ProfileAccounts } from "@/components/profile-accounts";
+import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -2007,6 +2008,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
   const messengerRoute = location.pathname.startsWith("/app/messenger");
+  const diskNotesRoute = location.pathname === PRIVATE_NOTES_PATH;
   const notesRoute = planningRoute && new URLSearchParams(location.search).get("tab") === "notes";
   const planningLayout = notesRoute ? "app-layout--planning-notes" : planningRoute ? "app-layout--planning" : "";
   const sphereScope = sphereScopeFromLocation(location.pathname, location.search, SERVICE_TABS)
@@ -2014,9 +2016,9 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
-        <main className={`app-main ${!friendsRoute || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
+        <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3663,7 +3665,7 @@ function ProtectedApp() {
     const requestedSpace = new URLSearchParams(location.search).get("tab");
     return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
   }
-  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -7594,7 +7596,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     </div>
   ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded />
     : section === "gift-cards" ? <ProfileGiftCards key={user.id} user={user} onNavigate={leaveSettingsFor} />
-    : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
+    : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="grid gap-3 px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -7612,6 +7614,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         <p className="rollapp-body">Сохраните или отмените изменения профиля перед копированием.</p>
       )}
     </Card>
+    {!yandexLinkBlocked && <PrivateNotesLink onNavigate={leaveSettingsFor} />}
   </div> : null;
   const openRouterSection = section === "openrouter" && (
     <OpenRouterSettings

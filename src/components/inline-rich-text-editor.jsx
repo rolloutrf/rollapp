@@ -42,7 +42,7 @@ const pickerCollision = { side: "shift", align: "shift" };
 const safeLink = safeInlineLink;
 const symbolHints = { "Жирный": "**текст** или __текст__", "Курсив": "*текст* или _текст_", "Ссылка": "[текст](https://…)" };
 
-export default function InlineRichTextEditor({ value = "", onChange, onBlur, disabled = false, readOnly = false, label, className, placeholder, editorRef, contentAdapter }) {
+export default function InlineRichTextEditor({ value = "", onChange, onBlur, disabled = false, readOnly = false, label, className, placeholder, editorRef, contentAdapter, allowImages = true }) {
   const externalValue = useRef(value);
   const [initialContent] = useState(() => contentAdapter ? contentAdapter.parse(value) : value);
   const serializedContent = current => contentAdapter ? contentAdapter.serialize(current.state.doc) : current.getMarkdown();
@@ -87,7 +87,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
   };
   const instance = useRef(null);
   const blockActions = useRef(null);
-  const extensions = useMemo(() => [...inlineEditorExtensions(placeholder, contentAdapter?.documentExtension), ...(contentAdapter?.extensions || [])], [placeholder, contentAdapter]);
+  const extensions = useMemo(() => [...inlineEditorExtensions(placeholder, contentAdapter?.documentExtension, { allowImages }), ...(contentAdapter?.extensions || [])], [placeholder, contentAdapter, allowImages]);
   const viewportBoundary = useVisualViewportBoundary(Boolean(picker));
   const editorProps = useMemo(() => ({
       attributes: { class: "inline-editor__content typeset typeset-rollapp typeset-document", role: "textbox", "aria-label": label, "aria-multiline": "true", spellcheck: "true" },
@@ -202,7 +202,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
         linkIntent.current = mapInlineLinkIntent(linkIntent.current, transaction);
         if (!linkIntent.current) setLinkOpen(false);
       }
-      const next = nextSlashSuggestion(current.state, transaction, menuRef.current, { editable: current.isEditable, composing: current.view.composing });
+      const next = nextSlashSuggestion(current.state, transaction, menuRef.current, { editable: current.isEditable, composing: current.view.composing, allowImages });
       if (next !== menuRef.current) updateMenu(next);
     },
     onSelectionUpdate() {
@@ -218,7 +218,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     updateMenu(null); setLinkOpen(false);
     const rect = element?.getBoundingClientRect() || editor.view.nodeDOM(position)?.getBoundingClientRect();
     const anchor = rect ? { contextElement: editor.view.dom, getBoundingClientRect: () => rect } : undefined;
-    setPicker({ position, side, anchor, kind, doc: editor.state.doc, query: "", items: blockTypes, index: 0 });
+    setPicker({ position, side, anchor, kind, doc: editor.state.doc, query: "", items: allowImages ? blockTypes : blockTypes.filter(item => item.id !== "image"), index: 0 });
   };
   const finishStyle = () => { pickerChosen.current = true; setPicker(null); };
   const resetStyles = () => {
@@ -325,7 +325,7 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
           <InlineStyleButtons editor={editor} onApply={finishStyle} onColors={openColors} />
         </div>}
         <InlineBlockPicker searchable items={picker.items} index={picker.index} query={picker.query}
-          onQuery={query => setPicker(current => current && ({ ...current, query, items: filterBlockTypes(query), index: 0 }))}
+          onQuery={query => setPicker(current => current && ({ ...current, query, items: filterBlockTypes(query).filter(item => allowImages || item.id !== "image"), index: 0 }))}
           onIndex={index => setPicker(current => current && ({ ...current, index }))} onChoose={chooseInserted} onClose={closePicker} />
         </>}
       </PopoverContent>
@@ -344,12 +344,12 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
       {linkError && <span role="alert">{linkError}</span>}
     </form>}
     </FloatingMenu>}
-    {editable && <InlineImagePicker editor={editor} onVisibilityChange={setImagePickerVisible} />}
-    {editable && <InlineImageTransfer editor={editor} onVisibilityChange={setImageTransferVisible} />}
-    {editable && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageViewing)} onActiveChange={setImageResizing} />}
+    {editable && allowImages && <InlineImagePicker editor={editor} onVisibilityChange={setImagePickerVisible} />}
+    {editable && allowImages && <InlineImageTransfer editor={editor} onVisibilityChange={setImageTransferVisible} />}
+    {editable && allowImages && <InlineImageResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageViewing)} onActiveChange={setImageResizing} />}
     {editable && <InlineTableHandles editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} onVisibilityChange={setTableHandlesVisible} onCellColors={(position,event) => openPicker(position,null,event.currentTarget,"cellColors")} />}
     {editable && <InlineColumnResize editor={editor} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing || imageViewing)} />}
-    <InlineImageViewer editor={editor} disabled={disabled} accessKey={editable} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setImageViewing} />
+    {allowImages && <InlineImageViewer editor={editor} disabled={disabled} accessKey={editable} suspended={Boolean(picker || menu || linkOpen || imagePickerVisible || imageTransferVisible || imageResizing)} onVisibilityChange={setImageViewing} />}
     <EditorContent editor={editor} />
   </section>;
 }
