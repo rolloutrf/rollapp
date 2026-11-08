@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "@/components/mobile-form-pages";
-import { BusinessGiftAction, WalletGiftCards } from "@/components/gift-cards";
+import { BusinessGiftAction, ProfileGiftCards } from "@/components/gift-cards";
 import App from "@/App";
 import { BusinessMarketplacePage } from "@/components/business-marketplace-page";
 import { api } from "@/api";
@@ -155,7 +155,7 @@ function Fixture() {
   useVisualViewport();
   return <div className="app-layout app-layout--dark"><main className="app-main app-main--wishes"><div className="app-page page-stack rollapp-body">
     {params.has("offers") ? <BusinessMarketplacePage businessUsername="studio" kind="store" user={user} /> : <section className="flex flex-col items-center gap-4"><div className="size-24 rounded-full bg-muted" aria-label="Аватар бизнеса" /><BusinessGiftAction business={business} user={params.has("guest") ? null : user} /><h1>{business.name}</h1></section>}
-    {!params.has("guest") && <WalletGiftCards user={user} />}
+    {!params.has("guest") && <ProfileGiftCards user={user} />}
   </div></main></div>;
 }
 if (params.has("public")) history.replaceState({}, "", params.has("dashboard") ? "/app/wishes?tab=products" : "/studio/products");

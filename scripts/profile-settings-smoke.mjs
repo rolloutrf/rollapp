@@ -42,7 +42,7 @@ try {
     const mobile = width < 768;
     await menu.waitFor();
     assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
-      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Заказы",
+      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Подарочные карты", "Заказы",
     ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
@@ -283,7 +283,8 @@ try {
     const balance = page.getByRole("region", { name: "Баланс роллов" });
     await balance.getByText(/23\s999\s870/).waitFor();
     await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
-    await page.getByRole("heading", { name: "Подарочные карты" }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
+    assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);
     const wallet = balance.locator("xpath=ancestor::div[contains(@class, 'rolls-page--embedded')]");
     const backBox = await back.boundingBox();
     assert.equal(backBox.width, 48);
@@ -315,31 +316,66 @@ try {
     assert.equal(returnBox.height, 48);
     await returnToWallet.click();
     await balance.getByText(/23\s999\s870/).waitFor();
-    const giftExit = width === 320 || width === 1440;
-    if (giftExit) {
-      await button("Открыть карту").click();
-      const card = page.getByRole("heading", { name: "Подарочная карта", exact: true });
-      await card.waitFor();
-      await page.getByRole("group", { name: "Мои карты этого бизнеса" }).waitFor();
-      await button(mobile ? "Назад" : "Закрыть подарочную карту").click();
-      await card.waitFor({ state: "hidden" });
-      await balance.waitFor();
-    }
     if (mobile && width === 320) await page.goBack();
     else if (width === 1440) await page.keyboard.press("Escape");
     else await back.click();
     await menu.waitFor();
     await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Финансы", undefined, { polling: 50 });
     assert.equal(page.url(), source.href);
+    const gifts = button("Подарочные карты");
+    const giftList = page.getByRole("region", { name: "Подарочные карты" });
+    const business = giftList.getByRole("link", { name: "Магазин", exact: true });
+    await gifts.click();
+    await giftList.waitFor();
+    await business.waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Подарочные карты", exact: true }).count(), 1);
+    assert.equal(await balance.count(), 0);
+    assert.equal(new URL(page.url()).pathname, source.pathname);
+    if (!mobile) assert.equal(page.url(), source.href);
+    await page.evaluate(() => document.fonts.ready);
+    const openCard = giftList.getByRole("button", { name: "Открыть карту", exact: true });
+    const giftBox = await openCard.boundingBox();
+    const giftBackBox = await back.boundingBox();
+    assert.equal(giftBox.height, 48);
+    assert(giftBox.x >= 0 && giftBox.x + giftBox.width <= width);
+    assert(giftBox.y + giftBox.height <= (mobile ? giftBackBox.y : height));
+    assert.deepEqual([giftBackBox.width, giftBackBox.height], [48, 48]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: `/tmp/rollapp-profile-gift-cards-${width}x${height}.png` });
+    await openCard.click();
+    const card = page.getByRole("heading", { name: "Подарочная карта", exact: true });
+    await card.waitFor();
+    await page.getByRole("button", { name: "Магазин · 100 роллов", pressed: true }).waitFor();
+    await button(mobile ? "Назад" : "Закрыть подарочную карту").click();
+    await card.waitFor({ state: "hidden" });
+    await giftList.waitFor();
+    if (mobile && width === 320) await page.goBack();
+    else await back.click();
+    await menu.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Подарочные карты");
+    assert.equal(page.url(), source.href);
+    const giftExit = width === 320 || width === 1440;
     const destination = giftExit ? "/fixture-shop" : "/app/orders";
     if (giftExit) {
-      await finance.click();
-      await page.getByRole("link", { name: "Магазин", exact: true }).click();
+      await gifts.click();
+      await business.click();
     } else await button("Заказы").click();
     await page.waitForURL(url => url.pathname === destination && !url.searchParams.has("formScreen"));
     await menu.waitFor({ state: "hidden" });
     await page.goBack();
     await page.waitForURL(url => url.pathname === "/__profile-settings" && !url.searchParams.has("formScreen"));
+    if (giftExit) {
+      await page.goto(`${origin}/__profile-settings?state=gifts-empty`);
+      await gifts.click();
+      await giftList.getByText("Полученные и выпущенные карты появятся здесь.").waitFor();
+      await page.goto(`${origin}/__profile-settings?state=gifts-error`);
+      await gifts.click();
+      await giftList.getByRole("status").filter({ hasText: "Загружаем карты…" }).waitFor();
+      await page.evaluate(() => window.finishGiftLoad());
+      await giftList.getByText("Подарочные карты временно недоступны").waitFor();
+      await giftList.getByRole("button", { name: "Повторить", exact: true }).click();
+      await business.waitFor();
+    }
     await page.goto(`${origin}/__profile-settings?state=error`);
     await button("OpenRouter").click();
     await page.getByRole("alert").filter({ hasText: "Fixture settings unavailable" }).waitFor();

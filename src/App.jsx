@@ -32,7 +32,7 @@ import { createCardDragPreview, guardDragClick } from "./lib/card-drag-preview.j
 import { ContentPage, ContentPageActions } from "@/components/content-page";
 import { MobileFormFooter, MobileFormPages } from "@/components/mobile-form-pages";
 import { ControlBar } from "@/components/control-bar";
-import { BusinessGiftAction, BusinessGiftCertificates } from "@/components/gift-cards";
+import { BusinessGiftAction, BusinessGiftCertificates, ProfileGiftCards } from "@/components/gift-cards";
 import { RollsWallet } from "@/components/rolls-wallet";
 import { MemberNumberPage } from "@/components/member-number-page";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
@@ -7183,6 +7183,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
     { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon },
+    { id: "gift-cards", title: "Подарочные карты", icon: Gift },
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
@@ -7395,7 +7396,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
             type="button"
             variant="ghost"
             className="h-auto min-h-12 w-full justify-start gap-2 rounded-none px-0 py-3 text-start whitespace-normal hover:bg-transparent hover:text-inherit dark:hover:bg-transparent"
-            disabled={busy || (changed && (Boolean(path) || id === "rolls"))}
+            disabled={busy || (changed && (Boolean(path) || id === "rolls" || id === "gift-cards"))}
             onClick={(event) => {
               if (path) leaveSettingsFor(path);
               else {
@@ -7546,7 +7547,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
         onBusyChange={setAccountsBusy} />
     </div>
-  ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onNavigate={leaveSettingsFor} />
+  ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded />
+    : section === "gift-cards" ? <ProfileGiftCards key={user.id} user={user} onNavigate={leaveSettingsFor} />
     : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="px-4 pt-4">
     <Card className="grid gap-3 p-3">
       <div className="flex items-start justify-between gap-3">

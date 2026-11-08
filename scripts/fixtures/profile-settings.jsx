@@ -40,6 +40,12 @@ api.get = async (path) => {
   }
   if (path === "/personal-offers") return { offers: [] };
   if (path === "/rolls/gift-cards") {
+    window.giftCardReads = (window.giftCardReads || 0) + 1;
+    if (mode === "gifts-empty") return { cards: [] };
+    if (mode === "gifts-error" && window.giftCardReads === 1) {
+      await new Promise((resolve) => { window.finishGiftLoad = resolve; });
+      throw new Error("Подарочные карты временно недоступны");
+    }
     return { cards: [{ id: "gift-card", balance: 100, business: { id: "fixture-shop", username: "fixture-shop", name: "Магазин" } }] };
   }
   throw new Error(`Unexpected fixture read: ${path}`);

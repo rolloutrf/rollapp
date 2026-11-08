@@ -135,7 +135,7 @@ try {
     }
     assert.equal(await page.evaluate(() => giftHarness.calls.length), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS wallet gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
+    console.log(`PASS profile gift selection ${width} missing=${missing}: exact source card, no automatic substitution or writes`);
     await page.close();
   }
   for (const width of [390, 1440]) {

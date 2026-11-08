@@ -1,4 +1,3 @@
-import { WalletGiftCards } from "@/components/gift-cards";
 import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -45,7 +44,7 @@ function restoredTransfer(storageKey) {
   } catch { return null; }
 }
 
-export function RollsWallet({ user, embedded = false, onNavigate }) {
+export function RollsWallet({ user, embedded = false }) {
   const transferFormId = useId();
   const storageKey = `rollapp:pending-roll-transfer:${user.id}`;
   const [pending, setPending] = useState(() => restoredTransfer(storageKey));
@@ -254,8 +253,6 @@ export function RollsWallet({ user, embedded = false, onNavigate }) {
           {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>
             <TonWallet key={user.id} userId={user.id} onPaid={refresh} />
           </Suspense>}
-
-          <WalletGiftCards user={user} onChanged={() => refresh({ quiet: true })} onNavigate={onNavigate} />
 
           <section className="flex min-w-0 flex-col gap-4" aria-label="История операций">
             {!wallet ? <p className="text-muted-foreground" role="status">{loading ? "Загружаем операции…" : "Не удалось загрузить историю."}</p> : wallet.transactions.length === 0 ? <p className="text-muted-foreground">Здесь появятся ваши начисления и переводы.</p> : <ul className="flex flex-col">

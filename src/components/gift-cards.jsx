@@ -131,7 +131,7 @@ export function GiftCardManager({ business, user, initialCardId = "", onClose, o
             </form>
           </section>
           <section className="flex flex-col gap-3" aria-label="Получатель подарочной карты">
-            <Field><FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel><Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} /><FieldDescription className="text-xs leading-4">Выберите человека с аккаунтом Rollapp. После отправки карта появится в его кошельке и исчезнет из вашего.</FieldDescription></Field>
+            <Field><FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel><Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} /><FieldDescription className="text-xs leading-4">Выберите человека с аккаунтом Rollapp. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка.</FieldDescription></Field>
             {searching && <p role="status">Ищем получателя…</p>}
             {searchError && <p role="alert">{searchError}</p>}
             {!searching && !searchError && !recipient && search.trim().replace(/^@/, "").length >= 2 && !people.length && <p>Никого не нашли. Проверьте имя или username.</p>}
@@ -182,7 +182,7 @@ export function BusinessGiftCertificates({ business, user }) {
   </section>;
 }
 
-export function WalletGiftCards({ user, onChanged, onNavigate }) {
+export function ProfileGiftCards({ user, onNavigate }) {
   const [cards, setCards] = useState([]);
   const [selectedCard, setSelectedCard] = useState(null);
   const [error, setError] = useState("");
@@ -201,8 +201,7 @@ export function WalletGiftCards({ user, onChanged, onNavigate }) {
     const timer = setInterval(visible, 30000);
     return () => { revision.current += 1; window.removeEventListener("focus", visible); clearInterval(timer); };
   }, []);
-  return <section className="flex min-w-0 flex-col gap-4" aria-labelledby="wallet-gifts-title">
-    <h2 id="wallet-gifts-title" className="font-heading text-3xl font-semibold tracking-tight">Подарочные карты</h2>
+  return <section className="flex min-w-0 flex-col gap-4 p-4" aria-label="Подарочные карты">
     {loading && <p role="status">Загружаем карты…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error} <Button variant="outline" onClick={refresh}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !cards.length && <p className="text-muted-foreground">Полученные и выпущенные карты появятся здесь.</p>}
@@ -215,6 +214,6 @@ export function WalletGiftCards({ user, onChanged, onNavigate }) {
       <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
       <Button variant="outline" onClick={() => setSelectedCard(card)}>Открыть карту</Button>
     </article>)}
-    {selectedCard && <GiftCardManager key={`${user.id}:${selectedCard.id}`} business={selectedCard.business} initialCardId={selectedCard.id} user={user} onClose={() => { setSelectedCard(null); refresh(); }} onChanged={() => { refresh(); onChanged?.(); }} />}
+    {selectedCard && <GiftCardManager key={`${user.id}:${selectedCard.id}`} business={selectedCard.business} initialCardId={selectedCard.id} user={user} onClose={() => { setSelectedCard(null); refresh(); }} onChanged={refresh} />}
   </section>;
 }
