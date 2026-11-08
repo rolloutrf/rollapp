@@ -223,10 +223,15 @@ async function checkDirectSale(width, height) {
     await publish.click();
     await submit.click();
     await editor.waitFor({ state: "hidden" });
-    await card.getByText("Скрыт", { exact: true }).waitFor({ state: "hidden" });
-    await card.waitFor();
-    assert.equal(await card.getByText("Скрыт", { exact: true }).count(), 0);
-    assert.equal(new URL(page.url()).search, "?tab=products");
+    await page.waitForURL(url => url.search === "?tab=products");
+    // Reload temporarily removes the whole grid. Wait for the published card itself.
+    await card.filter({ hasNot: page.getByText("Скрыт", { exact: true }) }).waitFor();
+    assert.equal(await card.count(), 1);
+    const publicationCalls = await page.evaluate(() => giftHarness.calls.slice(4));
+    const saleId = `wish-sale:manual:${calls[2].payload.requestId}`;
+    assert.equal(publicationCalls.length, 1);
+    assert.equal(publicationCalls[0].path, `/wishlist-business/products/sales/${encodeURIComponent(saleId)}`);
+    assert.equal(publicationCalls[0].payload.active, true);
     assert.deepEqual(errors, []);
     console.log(`PASS direct sale ${width}x${height}`);
   } finally { await page.close(); }
