@@ -6,6 +6,7 @@ import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
 
 import { registerStoryRoutes } from "./stories.js";
+import { getYandexDiskConfig } from "./yandex-disk.js";
 import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
@@ -2141,6 +2142,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
       marketplaceAi: sharedAiConfigured(),
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
+      privateNotes: getYandexDiskConfig().enabled,
     },
   });
 }));

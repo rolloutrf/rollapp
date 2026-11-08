@@ -8,6 +8,7 @@ const validId = value => typeof value === "string" && /^[a-zA-Z0-9-]{1,50}$/.tes
 
 function validate(config) {
   if (![config.vmId, config.folderId, config.runtimeSaId].every(validId)
+    || (config.yandexDiskNotesSecretId && !validId(config.yandexDiskNotesSecretId))
     || !/^[a-f0-9]{40}$/.test(config.version || "")
     || !/^cr\.yandex\/[a-z0-9]+\/[a-z0-9/_.-]+:[a-f0-9]{40}$/.test(config.image || "")
     || !config.image.endsWith(`:${config.version}`)
@@ -20,7 +21,8 @@ export function renderDeploymentCompose(template, config) {
   validate(config);
   if (!template.includes('__IMAGE__') || !template.includes('__VERSION__')) throw new Error("Deployment template is missing immutable image/version placeholders");
   return template.replaceAll('__IMAGE__', config.image).replaceAll('__VERSION__', config.version)
-    .replaceAll('__YANDEX_DISK_BACKUP_ENABLED__', String(config.yandexDiskBackupEnabled === true));
+    .replaceAll('__YANDEX_DISK_BACKUP_ENABLED__', String(config.yandexDiskBackupEnabled === true))
+    .replaceAll('__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__', config.yandexDiskNotesSecretId || '');
 }
 
 function verifyInstance(instance, config) {
@@ -87,7 +89,9 @@ export async function deployVmMetadata(config, compose, { fetch = globalThis.fet
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const config = { vmId: process.env.YC_VM_ID, folderId: process.env.YC_FOLDER_ID, runtimeSaId: process.env.YC_RUNTIME_SA_ID, token: process.env.YC_IAM_TOKEN, image: process.env.IMAGE_SHA, version: process.env.GITHUB_SHA, yandexDiskBackupEnabled: process.env.YANDEX_DISK_BACKUP_ENABLED === "true" };
+    const config = { vmId: process.env.YC_VM_ID, folderId: process.env.YC_FOLDER_ID, runtimeSaId: process.env.YC_RUNTIME_SA_ID, token: process.env.YC_IAM_TOKEN, image: process.env.IMAGE_SHA, version: process.env.GITHUB_SHA, yandexDiskBackupEnabled: process.env.YANDEX_DISK_BACKUP_ENABLED === "true",
+      yandexDiskNotesSecretId: process.env.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID,
+    };
     const template = await readFile(new URL("../deploy/docker-compose.template.yml", import.meta.url), "utf8");
     const result = await deployVmMetadata(config, renderDeploymentCompose(template, config), { checkOnly: process.argv.includes("--check-only") });
     console.log(result.checked ? "VM identity verified; no metadata written." : "Expected immutable image/version verified in VM metadata; production health verification is still required.");

@@ -210,11 +210,13 @@ jobs:
         env:
           IMAGE_SHA: ${{ env.IMAGE_REPOSITORY }}:${{ github.sha }}
           YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
+          YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
         run: node scripts/deploy-vm-metadata.mjs
 
       - name: Verify production health
         env:
           YANDEX_DISK_BACKUP_ENABLED: ${{ vars.YANDEX_DISK_BACKUP_ENABLED }}
+          YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ${{ vars.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID }}
         run: |
           set -euo pipefail
 
@@ -260,6 +262,9 @@ jobs:
               jq -e '.enabled == true and .diskBackupEnabled == true' >/dev/null
           fi
           health="$(read_health)"
+          if [ -n "$YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID" ]; then
+            jq -e '.capabilities.privateNotes == true' <<<"$health" >/dev/null
+          fi
           if ! jq -e '.capabilities.marketplaceAi == true' <<<"$health" >/dev/null 2>&1; then
             echo "::warning::Marketplace AI search is not configured; production will use direct catalogues only"
           fi
