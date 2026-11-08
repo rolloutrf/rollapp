@@ -30,7 +30,7 @@ export function SignedCardVerifier({ profile, onUpdate }) {
       if (version === epoch.current) setState((value) => ({ ...value, busy: false, registration }));
     } catch (error) { if (version === epoch.current) setState((value) => ({ ...value, busy: false, registration: null, error: error.message })); }
   }
-  return <section className="flex min-w-0 flex-col gap-2 border-t pt-4" aria-label="Проверка подписанной визитки">
+  return <section className="flex min-w-0 flex-col gap-2" aria-label="Проверка подписанной визитки">
     <Input ref={input} hidden type="file" accept=".json,application/json" aria-label="Файл подписанной визитки" onChange={verifyFile} />
     <ControlBar className="flex flex-col gap-2"><Button type="button" variant="outline" disabled={state.busy} onClick={() => input.current?.click()}><FileCheck aria-hidden="true" />Проверить файл</Button></ControlBar>
     {state.busy && <p role="status">Проверяем подпись…</p>}

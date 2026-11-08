@@ -105,6 +105,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import {
@@ -7138,6 +7139,8 @@ function FriendsPage() {
   );
 }
 
+const BROWSER_WISHLIST_PROVIDERS = EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl);
+
 function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -7157,6 +7160,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [importingWishlist, setImportingWishlist] = useState(false);
   const browserWishlistRequest = useRef(null);
   const [browserWishlistStatus, setBrowserWishlistStatus] = useState({});
+  const [browserWishlistExtensionError, setBrowserWishlistExtensionError] = useState("");
   useEffect(() => () => browserWishlistRequest.current?.abort(), [user.id]);
   const [wishlistImportStatus, setWishlistImportStatus] = useState({});
   const [loading, setLoading] = useState(false);
@@ -7316,6 +7320,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     try {
       const { items } = await requestBrowserWishlist(provider.id, { signal: request.signal });
       request.signal.throwIfAborted();
+      setBrowserWishlistExtensionError("");
       if (!items.length) {
         setStatus("В избранном и списках нет товаров.");
         return;
@@ -7325,7 +7330,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       setStatus(added ? `Добавлено в «Товары»: ${added}. Уже было в Rollapp: ${skipped}.` : "Все найденные товары уже в Rollapp.");
       if (added) onWishlistsImported?.();
     } catch (error) {
-      if (!request.signal.aborted) setStatus(error.message, error.code === "marketplace_access_required");
+      if (!request.signal.aborted) {
+        const missingExtension = error.code === "helper_unavailable";
+        setBrowserWishlistExtensionError(missingExtension ? error.message : "");
+        setStatus(missingExtension ? "" : error.message, error.code === "marketplace_access_required");
+      }
     } finally {
       if (browserWishlistRequest.current === request) {
         browserWishlistRequest.current = null;
@@ -7463,80 +7472,113 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     </form>
   ) : section === "wishlists" ? (
     <form id="profile-wishlists-form" onSubmit={submitWishlists}>
-      <section className="grid min-w-0 gap-4 px-4 pt-4 pb-1" aria-label={sectionTitle} aria-describedby="settings-wishlist-help">
-        <div className="grid min-w-0 gap-3">
-          <h3>Избранное и списки из браузера</h3>
-          <p className="rollapp-body">Войдите в магазин в Chrome или Comet с расширением Rollapp. Товары из избранного и личных списков появятся в разделе «Товары» как приватные позиции.</p>
-          <p className="rollapp-body">
-            <a className="underline underline-offset-4" href="/rollapp-browser-extension.zip" download>Скачайте расширение Rollapp</a>. Распакуйте архив и загрузите папку в режиме разработчика на странице расширений браузера.
-          </p>
-          <ul className="grid min-w-0 gap-2">
-            {EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl).map((provider) => (
-              <li key={provider.id} className="grid min-w-0 gap-2">
-                <PageActionButton
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  disabled={busy}
-                  aria-label={`Импортировать все списки · ${provider.label}`}
-                  onClick={() => importBrowserWishlist(provider)}
-                >
-                  {provider.label}
-                </PageActionButton>
-                <p role="status" className={cn("rollapp-body", !browserWishlistStatus[provider.id] && "sr-only")}>
-                  {browserWishlistStatus[provider.id]?.text}
-                  {browserWishlistStatus[provider.id]?.openStore && <>
-                    {" "}<a className="underline underline-offset-4" href={provider.browserFavoritesUrl} target="_blank" rel="noopener noreferrer">
-                      Открыть избранное в {provider.id === "yandex-market" ? "Яндекс Маркете" : provider.label}
-                    </a>
-                  </>}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <h3>Ссылки в профиле</h3>
-        <p id="settings-wishlist-help" className="rollapp-body">
-          Скопируйте ссылку через «Поделиться». Ссылки видны в публичном профиле. После сохранения позиции из OhMyWishes и Яндекс Маркета добавятся в «Товары» как приватные айтемы.
-        </p>
-        <FieldGroup className="gap-3">
-          {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
-            const id = `settings-wishlist-${provider.id}`;
-            const value = wishlistLinks[provider.id] || "";
-            const invalid = validateWishlistLinks && Boolean(value.trim()) && !externalWishlistUrl(provider, value);
-            return (
-              <Field key={provider.id} data-invalid={invalid || undefined}>
-                <FieldLabel htmlFor={id}>{provider.label}</FieldLabel>
-                <Input
-                  id={id}
-                  inputMode="url"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={EXTERNAL_WISHLIST_URL_MAX_LENGTH}
-                  placeholder="https://"
-                  value={value}
-                  disabled={busy}
-                  aria-invalid={invalid || undefined}
-                  aria-describedby={invalid ? `${id}-error` : undefined}
-                  onChange={(event) => {
-                    setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
-                    if (provider.importsItems) setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
-                  }}
-                />
-                {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
-                {provider.importsItems && initialWishlistLinks[provider.id] && <div className="flex flex-col items-start gap-2">
-                  <ShadcnButton type="button" variant="outline" aria-label={`Импортировать позиции · ${provider.label}`} disabled={busy || value.trim() !== initialWishlistLinks[provider.id]} onClick={() => importWishlists([provider])}>
-                    Импортировать позиции
-                  </ShadcnButton>
-                  <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>
-                </div>}
-                {!provider.importsItems && initialWishlistLinks[provider.id] && <p className="text-xs text-muted-foreground">Ссылка отображается в публичном профиле.</p>}
-              </Field>
-            );
-          })}
-        </FieldGroup>
+      <section className="grid min-w-0 gap-6 p-4" aria-label={sectionTitle}>
+        <section className="grid min-w-0 gap-4" aria-labelledby="settings-wishlist-links-heading">
+          <header className="typeset typeset-rollapp">
+            <h3 id="settings-wishlist-links-heading">Ссылки в профиле</h3>
+            <p className="text-muted-foreground">Вставьте ссылки из меню «Поделиться». Они будут видны в публичном профиле.</p>
+          </header>
+          <FieldGroup className="gap-4">
+            {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
+              const id = `settings-wishlist-${provider.id}`;
+              const value = wishlistLinks[provider.id] || "";
+              const invalid = validateWishlistLinks && Boolean(value.trim()) && !externalWishlistUrl(provider, value);
+              const canReimport = provider.importsItems && initialWishlistLinks[provider.id];
+              return (
+                <Field key={provider.id} className="min-w-0" data-invalid={invalid || undefined}>
+                  <FieldLabel htmlFor={id}>{provider.label}</FieldLabel>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Input
+                      id={id}
+                      className="min-w-0 flex-1"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={EXTERNAL_WISHLIST_URL_MAX_LENGTH}
+                      placeholder="https://"
+                      value={value}
+                      disabled={busy}
+                      aria-invalid={invalid || undefined}
+                      aria-describedby={invalid ? `${id}-error` : undefined}
+                      onChange={(event) => {
+                        setWishlistLinks({ ...wishlistLinks, [provider.id]: event.target.value });
+                        if (provider.importsItems) setWishlistImportStatus((current) => ({ ...current, [provider.id]: "" }));
+                      }}
+                    />
+                    {canReimport && (
+                      <ControlBar className="flex shrink-0">
+                        <ShadcnButton
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          data-control-icon=""
+                          aria-label={`Импортировать позиции · ${provider.label}`}
+                          title={`Повторить импорт из ${provider.label}`}
+                          disabled={busy || value.trim() !== initialWishlistLinks[provider.id]}
+                          onClick={() => importWishlists([provider])}
+                        >
+                          <RotateCcw aria-hidden="true" />
+                        </ShadcnButton>
+                      </ControlBar>
+                    )}
+                  </div>
+                  {invalid && <FieldError id={`${id}-error`}>Вставьте HTTPS-ссылку на вишлист {provider.label}.</FieldError>}
+                  {canReimport && <p role="status" className={cn("text-xs text-muted-foreground", !wishlistImportStatus[provider.id] && "sr-only")}>{wishlistImportStatus[provider.id]}</p>}
+                </Field>
+              );
+            })}
+          </FieldGroup>
+          <p className="text-xs text-muted-foreground">После сохранения списки OhMyWishes и Яндекс Маркета импортируются в «Товары» как приватные позиции.</p>
+        </section>
+        <Accordion className="min-w-0 rounded-xl border bg-card px-3">
+          <AccordionItem value="browser-import">
+            <AccordionTrigger headerAs="h3" className="min-h-(--layout-control-size) items-center gap-2 px-1 text-rollapp-body! hover:no-underline">
+              Импорт из браузера
+            </AccordionTrigger>
+            <AccordionContent className="px-1 pb-4">
+              <div className="grid min-w-0 gap-3">
+                <div role="status" className="text-rollapp-body text-muted-foreground">
+                  {browserWishlistExtensionError || "Войдите в магазин в Chrome или Comet с расширением Rollapp. Избранное и личные списки добавятся в «Товары» как приватные позиции."}
+                </div>
+                <ul className="flex flex-wrap gap-2">
+                  {BROWSER_WISHLIST_PROVIDERS.map((provider) => (
+                    <li key={provider.id}>
+                      <PageActionButton
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        aria-label={`Импортировать все списки · ${provider.label}`}
+                        onClick={() => importBrowserWishlist(provider)}
+                      >
+                        {provider.label}
+                      </PageActionButton>
+                    </li>
+                  ))}
+                </ul>
+                {BROWSER_WISHLIST_PROVIDERS.map((provider) => {
+                  const status = browserWishlistStatus[provider.id];
+                  return (
+                    <div key={provider.id} role="status" className={cn("rollapp-body grid min-w-0 gap-1 wrap-anywhere", !status?.text && "sr-only")}>
+                      {status?.text && <>
+                        <strong>{provider.label}</strong>
+                        <span>{status.text}</span>
+                        {status.openStore && <a href={provider.browserFavoritesUrl} target="_blank" rel="noopener noreferrer">
+                          Открыть избранное в {provider.id === "yandex-market" ? "Яндекс Маркете" : provider.label}
+                        </a>}
+                      </>}
+                    </div>
+                  );
+                })}
+                <div className="grid gap-1">
+                  <a className="w-fit rollapp-body" href="/rollapp-browser-extension.zip" download>Скачать расширение Rollapp</a>
+                  <span className="text-xs text-muted-foreground">Распакуйте архив и загрузите папку на странице расширений в режиме разработчика.</span>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </section>
       {isMobile && wishlistsFooter}
     </form>

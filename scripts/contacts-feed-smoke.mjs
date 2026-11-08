@@ -4,6 +4,17 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokePort, smokeOrigin } from './smoke-server.mjs';
+
+async function assertVerificationActionSpacing(card, precedingAction) {
+  const preceding = card.getByRole('button', { name: precedingAction, exact: true });
+  const verifier = card.getByRole('region', { name: 'Проверка подписанной визитки' });
+  const verify = verifier.getByRole('button', { name: 'Проверить файл', exact: true });
+  const precedingBounds = await preceding.boundingBox();
+  const verifyBounds = await verify.boundingBox();
+  assert(Math.abs(verifyBounds.y - precedingBounds.y - precedingBounds.height - 8) < 0.5, 'Verification action must follow with an 8px gap');
+  assert.equal(await verifier.evaluate(element => getComputedStyle(element).borderTopWidth), '0px');
+}
+
 const server = await createServer({ cacheDir: 'node_modules/.vite-contacts-smoke', server: { host: '127.0.0.1', port: smokePort(process.env.CONTACTS_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: 'contacts-feed-fixture', enforce: 'pre',
   transform(source, id) { if (id.includes('/src/App.jsx?contacts-feed-test-export')) return `${source}\nexport { ContactsSpherePage, ToastProvider, SessionContext, ProfileEditorProvider, PersistentProfileHero, PublicProfile, CollectionNavigationProvider };`; },
@@ -50,6 +61,7 @@ try {
     const qrImage = ownerCard.getByRole('img', { name: 'QR-код профиля Тестовый Пользователь' });
     await qrImage.waitFor();
     await ownerCard.evaluate(async (element) => { await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {}))); });
+    await assertVerificationActionSpacing(ownerCard, 'Подпись TON Testnet');
     assert((await qrImage.getAttribute('src')).startsWith('data:image/png;base64,'));
     await qrImage.evaluate(image => image.scrollIntoView({ block: 'center', behavior: 'instant' }));
     const body = ownerCard.locator('[data-contact-card-body]');
@@ -203,6 +215,7 @@ try {
     }), ['24px', '24px']);
     await visitorCard.click();
     await dialog.getByRole('img', { name: 'QR-код профиля Тестовый Пользователь' }).waitFor();
+    await assertVerificationActionSpacing(dialog, 'Скачать JSON');
     await dialog.getByRole('button', { name: 'Закрыть визитку', exact: true }).click();
     await dialog.waitFor({ state: 'detached' });
     assert(await visitorCard.evaluate((element) => document.activeElement === element));

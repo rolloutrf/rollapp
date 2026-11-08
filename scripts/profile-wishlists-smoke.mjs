@@ -61,13 +61,33 @@ try {
       });
     };
     const inputs = ['OhMyWishes', 'Ozon', 'WB', 'Яндекс Маркет'].map(name => wishlist.getByRole('textbox', { name, exact: true }));
+    const browserDisclosure = wishlist.getByRole('button', { name: 'Импорт из браузера', exact: true });
     const importBrowser = wishlist.getByRole('button', { name: 'Импортировать все списки · Яндекс Маркет', exact: true });
+    assert.equal(await browserDisclosure.getAttribute('aria-expanded'), 'false');
+    assert.equal(await importBrowser.isVisible(), false);
+    const [lastInputBox, disclosureBox] = await Promise.all([inputs.at(-1).boundingBox(), browserDisclosure.boundingBox()]);
+    assert(lastInputBox.y + lastInputBox.height < disclosureBox.y && disclosureBox.height >= 48);
+    assert.equal(await browserDisclosure.evaluate(el => getComputedStyle(el).fontSize), '18px');
+    if ((width === 390 && height === 844) || width === 1440) {
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: `/tmp/rollapp-profile-wishlists-links-${width}.png` });
+    }
+    await browserDisclosure.click();
     const importBox = await importBrowser.boundingBox();
     assert(importBox.x >= 0 && importBox.x + importBox.width <= width && importBox.height >= 47.5);
     assert.equal(await importBrowser.evaluate(el => getComputedStyle(el).paddingInlineStart), '24px');
     if (width === 320 || width === 1440) {
       await importBrowser.click();
-      await wishlist.getByRole('status').getByText(/Установите или обновите расширение Rollapp/).waitFor();
+      const extensionNotice = wishlist.getByRole('status').getByText(/Установите или обновите расширение Rollapp/);
+      await extensionNotice.waitFor();
+      const ozonImport = wishlist.getByRole('button', { name: 'Импортировать все списки · Ozon', exact: true });
+      await ozonImport.click();
+      await wishlist.getByRole('status').getByText('Читаем избранное и списки…').waitFor({ state: 'hidden' });
+      assert.equal(await extensionNotice.count(), 1);
+      const downloadExtension = wishlist.getByRole('link', { name: 'Скачать расширение Rollapp' });
+      assert.equal(await downloadExtension.getAttribute('href'), '/rollapp-browser-extension.zip');
+      await downloadExtension.scrollIntoViewIfNeeded();
+      if (width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-wishlists-extension-${width}.png` });
       assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);
       await page.evaluate(() => {
         window.addEventListener('message', ({ data, origin, source }) => {
@@ -86,6 +106,7 @@ try {
       await importBrowser.click();
       const openStore = wishlist.getByRole('link', { name: 'Открыть избранное в Яндекс Маркете' });
       await openStore.waitFor();
+      assert.equal(await extensionNotice.count(), 0);
       assert.equal(await openStore.getAttribute('href'), 'https://market.yandex.ru/my/wishlist');
       assert.equal(await openStore.getAttribute('target'), '_blank');
       assert.deepEqual(await page.evaluate(() => window.browserWishlistImports), []);
@@ -99,6 +120,8 @@ try {
       }]);
       assert.deepEqual(await page.evaluate(() => window.profilePatches), []);
     }
+    await browserDisclosure.click();
+    await importBrowser.waitFor({ state: 'hidden' });
     assert(await save.isDisabled());
     assert(await save.evaluate(button => button.form?.id === 'profile-wishlists-form'));
     await inputs[1].fill('https://ozon.ru.example/t/test');
@@ -165,7 +188,13 @@ try {
     await page.getByRole('status').getByText('Добавлено в «Товары»: 1.', { exact: true }).waitFor();
     await page.getByRole('status').getByText('Не удалось прочитать список Маркета').waitFor();
     if (width === 320 || width === 1440) {
-      await page.getByRole('button', { name: 'Импортировать позиции · OhMyWishes' }).click();
+      const reimport = page.getByRole('button', { name: 'Импортировать позиции · OhMyWishes' });
+      const [inputBox, reimportBox] = await Promise.all([inputs[0].boundingBox(), reimport.boundingBox()]);
+      assert.equal(reimportBox.width, 48);
+      assert.equal(reimportBox.height, 48);
+      assert.equal(reimportBox.x - (inputBox.x + inputBox.width), 8);
+      assert.equal(reimportBox.y, inputBox.y);
+      await reimport.click();
       await page.getByRole('status').getByText('Новых позиций среди прочитанных нет.').waitFor();
       await page.evaluate(() => { window.rejectMarketImport = false; });
       await page.getByRole('button', { name: 'Импортировать позиции · Яндекс Маркет' }).click();
@@ -225,6 +254,7 @@ try {
       await address.press('Enter');
       await page.waitForURL(origin + '/fixture-renamed');
       await waitForNavLinks(urls.length - 1);
+      await nav.waitFor();
       assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
