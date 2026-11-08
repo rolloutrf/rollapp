@@ -83,9 +83,16 @@ test("real deployment template renders exact SHA without changing other content"
   const template = await readFile(new URL("../deploy/docker-compose.template.yml", import.meta.url), "utf8");
   const rendered = renderDeploymentCompose(template, config);
   assert.equal(rendered, template.replaceAll("__IMAGE__", config.image).replaceAll("__VERSION__", version)
-    .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false"));
+    .replaceAll("__YANDEX_DISK_BACKUP_ENABLED__", "false")
+    .replaceAll("__YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID__", ""));
   const withBackup = renderDeploymentCompose(template, { ...config, yandexDiskBackupEnabled: true });
   assert.equal(withBackup, rendered.replace('YANDEX_DISK_BACKUP_ENABLED: "false"', 'YANDEX_DISK_BACKUP_ENABLED: "true"'));
+  const withDiskNotes = renderDeploymentCompose(template, { ...config, yandexDiskNotesSecretId: "disk-notes-test" });
+  assert.equal(withDiskNotes, rendered.replace(
+    'YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: ""',
+    'YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID: "disk-notes-test"',
+  ));
+  assert.throws(() => renderDeploymentCompose(template, { ...config, yandexDiskNotesSecretId: 'injected"\nkey' }), /Invalid deployment/);
   assert.throws(() => renderDeploymentCompose("no placeholders", config));
 });
 
