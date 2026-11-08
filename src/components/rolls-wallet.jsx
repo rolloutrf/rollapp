@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Check, Coins, Gift, Plus, Search, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
@@ -68,6 +68,15 @@ export function RollsWallet({ user, embedded = false }) {
   const busyRef = useRef(false);
   const revision = useRef(0);
   const amountInput = useRef(null);
+  const walletScrollArea = useRef(null);
+  const transferOpener = useRef(null);
+  const restoreTransferFocus = useRef(false);
+
+  useLayoutEffect(() => {
+    if (transferView || !restoreTransferFocus.current) return;
+    restoreTransferFocus.current = false;
+    transferOpener.current?.focus();
+  }, [transferView]);
 
   const refresh = useCallback(async ({ quiet = false } = {}) => {
     if (busyRef.current) return;
@@ -243,7 +252,11 @@ export function RollsWallet({ user, embedded = false }) {
             </div>}
             <div className="mt-5 mb-5 flex w-full items-center justify-center gap-3" aria-label="Действия с роллами">
               {wallet?.features?.starsPurchases && <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Пополнить баланс" title="Пополнить баланс" onClick={() => setTopupView(true)} disabled={!wallet || busy}><Plus aria-hidden="true" /></Button>}
-              <Button type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => { setTransferError(""); setTransferView(true); }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
+              <Button ref={transferOpener} type="button" size="icon" className="size-12 justify-self-center rounded-full" aria-label="Отправить роллы" title="Отправить роллы" onClick={() => {
+                walletScrollArea.current?.focus({ preventScroll: true });
+                setTransferError("");
+                setTransferView(true);
+              }} disabled={!wallet || busy}><ArrowRight aria-hidden="true" /></Button>
             </div>
           </section>
 
@@ -293,11 +306,16 @@ export function RollsWallet({ user, embedded = false }) {
 
   if (!embedded) return content;
   return <>
-    <ScrollArea className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
+    <ScrollArea ref={walletScrollArea} tabIndex={-1} className="min-h-0 min-w-0 w-full flex-1">{content}</ScrollArea>
     <DrawerFooter className="empty:hidden">
       {transferView && <>
         {transferSubmit}
-        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={() => setTransferView(false)}><Coins aria-hidden="true" /></Button>
+        <Button data-control-icon type="button" size="icon" variant="outline" aria-label="К кошельку" title="К кошельку" disabled={busy} onClick={() => {
+          // Keep focus inside the drawer while React removes this footer button.
+          walletScrollArea.current?.focus({ preventScroll: true });
+          restoreTransferFocus.current = true;
+          setTransferView(false);
+        }}><Coins aria-hidden="true" /></Button>
       </>}
     </DrawerFooter>
   </>;

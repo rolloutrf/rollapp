@@ -304,7 +304,8 @@ try {
     const lastBox = await lastTransaction.boundingBox();
     assert(lastBox.y + lastBox.height <= (mobile ? backBox.y : height));
     assert.deepEqual(await back.boundingBox(), backBox);
-    await button("Отправить роллы").click();
+    const sendRolls = button("Отправить роллы");
+    await sendRolls.click();
     await page.getByRole("heading", { name: "Перевод" }).waitFor();
     const continueTransfer = button("Продолжить");
     assert.equal(await continueTransfer.isDisabled(), true);
@@ -314,8 +315,10 @@ try {
     const returnBox = await returnToWallet.boundingBox();
     assert.equal(returnBox.width, 48);
     assert.equal(returnBox.height, 48);
-    await returnToWallet.click();
+    await returnToWallet.focus();
+    await page.keyboard.press("Enter");
     await balance.getByText(/23\s999\s870/).waitFor();
+    assert(await sendRolls.evaluate(element => document.activeElement === element), "Returning to the wallet must restore focus to the transfer opener");
     if (mobile && width === 320) await page.goBack();
     else if (width === 1440) await page.keyboard.press("Escape");
     else await back.click();
