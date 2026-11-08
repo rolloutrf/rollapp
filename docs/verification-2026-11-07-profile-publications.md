@@ -20,7 +20,7 @@
 
 ## Production
 
-Текущий production health подтверждает базовый SHA `ed696ed6eb13cdee6442d153d13601f8e8e7bd57`. Полная проверка, сборка и развёртывание этой базы прошли в [GitHub Actions](https://github.com/rolloutrf/rollapp/actions/runs/42376464466). Этот результат относится к базе до изменений календаря записи и доски.
+До выпуска функции production health подтверждал базовый SHA `ed696ed6eb13cdee6442d153d13601f8e8e7bd57`. Полная проверка, сборка и развёртывание этой базы прошли в [GitHub Actions](https://github.com/rolloutrf/rollapp/actions/runs/42376464466). Этот результат относится к базе до изменений календаря записи и доски.
 
 `node scripts/profile-publications-schema.mjs` по TLS проверил базу `rollapp`, роль `rollapp_app` и схему `public`. Первичная проверка обнаружила отсутствие всех трёх таблиц и подтвердила права роли на создание таблиц и ссылку на `users.id`. После отдельного согласия команда `node scripts/profile-publications-schema.mjs --apply` создала `profile_session_slots`, `profile_session_bookings`, `profile_announcements` и индексы. Повторная проверка READ ONLY подтвердила колонки и уникальность бронирования по `slot_id`. `initializeRuntimeDatabase` отдельно прошёл на реальной базе в режиме `verify`. Dev-сервис ветки оставлен запущенным.
 
@@ -28,4 +28,8 @@
 
 `npm run test:profile-publications:production` прошёл на реальных обработчиках и настроенном production PostgreSQL. Проверены повтор записи, отказ для занятого слота, изоляция прав, отмена и доска в одной транзакции с откатом. После отката независимая READ ONLY выборка подтвердила нулевые счётчики во всех трёх таблицах. Полный auth-flow и конкуренция двух отдельных DB-сессий выходят за рамки этого теста.
 
-Выпуск проходит полный релизный gate на актуальном main. После него требуется сверка точного production SHA и живых экранов.
+Релизный коммит `912c48d67a5d6c8f4d8801c3fd50c3d03f22ef0d` включает изменения main для продажи исполненных желаний. На чистом дереве прошли сборка, UI-аудит, 19 целевых unit-тестов, восемь сценариев `test:profile-publications` и read-only проверка превью на восьми размерах.
+
+Автоматический запуск [42410321251](https://github.com/rolloutrf/rollapp/actions/runs/42410321251) отменён. Тот же SHA развернул ручной [запуск 42410556250](https://github.com/rolloutrf/rollapp/actions/runs/42410556250), в котором был выбран режим без тестов. Production health подтвердил точное совпадение SHA. На сайте обе ссылки и целевые разделы открылись на восьми размерах.
+
+Отдельный [аудит 42412104847](https://github.com/rolloutrf/rollapp/actions/runs/42412104847) на том же чистом SHA прошёл все 15 этапов `check:comprehensive`, включая `test:profile-publications` внутри `check:release`. После следующего развёртывания production health показал `610a97c0514bac7e4aad11731dfe1ccaa6165a18`, который включает релизный SHA и сохраняет маршруты и код функции. Повторная read-only проверка сайта прошла на всех восьми размерах. Локальные журналы и копия отчёта сохранены в `~/Library/Logs/Rollapp/profile-publications-production`.
