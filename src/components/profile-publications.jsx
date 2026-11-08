@@ -11,6 +11,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/api";
+import { cn } from "@/lib/utils";
 import { localDateKey } from "../../shared/planning.js";
 import { publicProfilePath, publicPublicationPath } from "../../shared/profile-links.js";
 
@@ -21,8 +22,8 @@ const sections = {
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full" });
 const timeFormat = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-export function ProfilePublicationLinks({ username }) {
-  return <nav aria-label="Календарь и объявления профиля" className="flex flex-wrap justify-center gap-2">
+export function ProfilePublicationLinks({ username, className }) {
+  return <nav aria-label="Календарь и объявления профиля" className={cn("flex flex-wrap justify-center gap-2", className)}>
     {Object.entries(sections).map(([section, { title, icon: Icon }]) => (
       <PageActionButton key={section} variant="outline" nativeButton={false} role="link" render={<Link to={publicPublicationPath(username, section)} />}>
         <Icon className="size-5" aria-hidden="true" />{title}

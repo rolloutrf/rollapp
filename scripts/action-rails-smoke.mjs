@@ -33,7 +33,13 @@ try{
    let metrics=await measure();
    const textActions=await rail.locator('[data-page-action]').evaluateAll(elements=>elements.map(element=>{const s=getComputedStyle(element);return {left:s.paddingLeft,right:s.paddingRight,radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],height:element.getBoundingClientRect().height};}));
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
-   if(['collection','wishlist-real'].includes(variant))assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
+   if(variant==='collection')assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
+   if(variant==='wishlist-real'){
+    assert.equal(textActions.length,4,'Wishlist settings, Add and both publication links use shared page actions');
+    for(const [name,path] of [['Календарь','calendar'],['Доска объявлений','announcements']]){
+     assert.equal(await rail.getByRole('link',{name,exact:true}).getAttribute('href'),`/fixture/${path}`);
+    }
+   }
    if(variant==='contacts-real')assert.equal(textActions.length,1);
    if(['collection','wishlist-real'].includes(variant)){
     const tiles=await page.locator('.list-tabs [data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
@@ -59,6 +65,7 @@ try{
    }
    const assertCentered=(m)=>{if(m.scrollWidth<=m.clientWidth+1)assert(Math.abs((m.first+m.last)/2-(m.left+m.right)/2)<1,`${width} ${variant}: fitting action group is not centered ${JSON.stringify(m)}`);};
    assertCentered(metrics);
+   if(variant==='wishlist-real'&&[390,1440].includes(width))await page.screenshot({path:`/tmp/rollapp-wishlist-actions-${width}.png`});
    {
     assert(Math.abs(metrics.left)<1&&Math.abs(metrics.right-width)<1,`${width} ${variant}: inset scroll viewport ${JSON.stringify(metrics)}`);
     if(metrics.scrollWidth>metrics.clientWidth)assert.equal(metrics.first,gutter,`${width} ${variant}: initial action inset`);
@@ -69,6 +76,7 @@ try{
      if(metrics.scrollWidth-metrics.clientWidth>(gutter))assert(metrics.first<metrics.left,`${width} ${variant}: action did not pass behind left screen edge`);
      await rail.evaluate(element=>{element.scrollLeft=element.scrollWidth});metrics=await measure();
      assert(Math.abs(metrics.last-(width-(gutter)))<1,`${width} ${variant}: unequal trailing gutter`);
+     if(width===390&&variant==='wishlist-real')await page.screenshot({path:'/tmp/rollapp-wishlist-actions-390-end.png'});
      if(width===390&&variant==='text')await page.screenshot({path:'/tmp/rollapp-action-rail-edges.png',clip:{x:0,y:0,width,height:192}});
     }
    }
@@ -103,6 +111,7 @@ try{
   }
   await page.goto(`${origin}/__action-rails?variant=wishlist-error`);
   await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
+  assert.equal(await page.locator('.horizontal-action-scroller').getByRole('link',{name:'Календарь',exact:true}).count(),1,'Publication links remain available when the Wishlist fails to load');
   assert.equal(await page.getByRole('heading',{name:'В этом списке пока пусто',exact:true}).count(),0,'Connection failure must never pretend the Wishlist is empty');
   await page.getByRole('button',{name:'Повторить',exact:true}).click();
   await page.waitForFunction(()=>window.wishlistLoadAttempts===2);

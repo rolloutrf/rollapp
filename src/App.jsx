@@ -3434,7 +3434,6 @@ function PersistentProfileHero({ user }) {
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {location.pathname.startsWith("/app/wishes") && <ExternalWishlistLinks links={profile.wishlistLinks} />}
-      {location.pathname === "/app/wishes" && editable && <ProfilePublicationLinks username={profile.username} />}
       {canManageSharing && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
@@ -3468,6 +3467,7 @@ function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, acti
 
 function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd }) {
   const { user } = useSession();
+  const { isOwner, owner } = useSphereSharing();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <AppFriendsLink />
@@ -3503,6 +3503,7 @@ function WishesProfileControls({ selectedList, selectedSpace, onEditList, onAdd 
           {canManageWishSales(user, selectedSpace) && <Link to={wishSalesPath(selectedSpace)} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Мои продажи" title="Мои продажи"><Tag aria-hidden="true" /></Link>}
           {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
         </ControlBar>
+        {isOwner && user?.username && <ProfilePublicationLinks username={owner?.username || user.username} className="flex-nowrap" />}
       </div>
     </section>
   );
@@ -4939,12 +4940,14 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
-  if (loading) return <LoadingScreen compact />;
+  const profileControls = <WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />;
   const loadError = error && <Alert variant="destructive" className="not-typeset rollapp-body">
     <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
     <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
   </Alert>;
-  if (error && !data) return <div className="app-page page-stack rollapp-body">{loadError}</div>;
+  if (loading || (error && !data)) {
+    return <div className="app-page wishes-page">{profileControls}{loading ? <LoadingScreen compact /> : loadError}</div>;
+  }
   const share = async () => {
     if (selectedValue === "secret" || selectedList?.privacy === "private") {
       toast("Приватный список виден только вам", "error");
@@ -5839,7 +5842,7 @@ function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className="app-page wishes-page">{loadError}<WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
+  return <div className="app-page wishes-page">{profileControls}{loadError}{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => { if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); } }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {openedGroup && <WishGroupDialog
   group={openedGroup}
