@@ -131,7 +131,13 @@ export function GiftCardManager({ business, user, initialCardId = "", onClose, o
             </form>
           </section>
           <section className="flex flex-col gap-3" aria-label="Получатель подарочной карты">
-            <Field><FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel><Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} /><FieldDescription className="text-xs leading-4">Выберите человека с аккаунтом Rollapp. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка.</FieldDescription></Field>
+            <Field>
+              <FieldLabel htmlFor="gift-recipient">Кому подарить</FieldLabel>
+              <Input id="gift-recipient" placeholder="Имя или @username" autoComplete="off" maxLength={80} value={search} disabled={locked} aria-describedby="gift-recipient-hint" onChange={(event) => { setSearch(event.target.value); setRecipient(null); }} />
+              <FieldDescription className="text-xs leading-4" id="gift-recipient-hint">
+                Введите имя или @username в Rollapp. Для поиска нужно хотя бы два символа, не считая @. После отправки карта появится в разделе «Подарочные карты» профиля получателя и исчезнет из вашего списка.
+              </FieldDescription>
+            </Field>
             {searching && <p role="status">Ищем получателя…</p>}
             {searchError && <p role="alert">{searchError}</p>}
             {!searching && !searchError && !recipient && search.trim().replace(/^@/, "").length >= 2 && !people.length && <p>Никого не нашли. Проверьте имя или username.</p>}
