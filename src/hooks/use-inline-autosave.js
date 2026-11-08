@@ -4,11 +4,11 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // One queue per document, shared by all its editable blocks. Server responses
 // acknowledge a snapshot; they never replace text typed while it was in flight.
-export function useInlineAutosave({ value, onSave, storageKey, enabled = true, delay = 800 }) {
+export function useInlineAutosave({ value, onSave, storageKey, revision, enabled = true, delay = 800 }) {
   const [draft, setDraft] = useState(value);
   const [status, setStatus] = useState("saved");
   const [error, setError] = useState("");
-  const ref = useRef({ draft: value, saved: value, timer: null, pending: null, mounted: true, restored: false });
+  const ref = useRef({ draft: value, saved: value, revision, timer: null, pending: null, mounted: true, restored: false });
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const saveRef = useRef(onSave);
@@ -21,7 +21,7 @@ export function useInlineAutosave({ value, onSave, storageKey, enabled = true, d
     if (!storageKey) return;
     try {
       if (same(state.draft, state.saved)) sessionStorage.removeItem(storageKey);
-      else sessionStorage.setItem(storageKey, JSON.stringify({ base: state.saved, draft: state.draft }));
+      else sessionStorage.setItem(storageKey, JSON.stringify({ base: state.saved, draft: state.draft, revision: state.revision }));
     } catch { /* Private mode/quota must not stop editing or server saving. */ }
   };
   const flush = (force = false) => {
@@ -36,7 +36,10 @@ export function useInlineAutosave({ value, onSave, storageKey, enabled = true, d
         const snapshot = state.draft;
         publish("saving");
         try {
-          await saveRef.current(snapshot);
+          const result = state.revision === undefined
+            ? await saveRef.current(snapshot)
+            : await saveRef.current(snapshot, state.revision);
+          if (state.revision !== undefined) state.revision = result.revision;
           state.saved = snapshot;
           persist();
         } catch (cause) {
@@ -63,10 +66,20 @@ export function useInlineAutosave({ value, onSave, storageKey, enabled = true, d
         if (cached && !same(cached.draft, value)) {
           state.blocked = true;
           state.draft = cached.draft;
+          if (revision !== undefined) {
+            // A restored draft must still compare against the version that
+            // was open when it was written, including after a page reload.
+            state.revision = typeof cached.revision === "string" ? cached.revision : "";
+            state.saved = cached.base;
+          }
           setDraft(cached.draft);
-          publish("error", same(cached.base, value)
+          publish("error", (revision !== undefined ? cached.revision === revision : same(cached.base, value))
             ? "Восстановлен несохранённый черновик. Проверьте текст и повторите сохранение."
-            : "На сервере другая версия. Восстановленный черновик не сохранён автоматически. Скопируйте нужный текст перед повторным сохранением.");
+            : revision !== undefined
+              ? "На Диске другая версия. Восстановили ваш несохранённый черновик."
+              : "На сервере другая версия. Восстановленный черновик не сохранён автоматически. Скопируйте нужный текст перед повторным сохранением.");
+        } else if (cached && revision !== undefined) {
+          sessionStorage.removeItem(storageKey);
         }
       } catch { /* Ignore invalid or unavailable browser storage. */ }
     }
@@ -89,7 +102,7 @@ export function useInlineAutosave({ value, onSave, storageKey, enabled = true, d
 
   useEffect(() => {
     if (!state.pending && same(state.draft, state.saved) && !same(value, state.saved)) {
-      state.saved = value; state.draft = value; setDraft(value);
+      state.saved = value; state.draft = value; state.revision = revision; setDraft(value);
     }
   }, [value]);
 

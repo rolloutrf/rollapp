@@ -42,6 +42,7 @@
     "test:dates": "node scripts/date-picker-pages-smoke.mjs",
     "test:time-inputs": "node scripts/native-time-inputs-smoke.mjs",
     "test:text-edit": "node scripts/text-edit-smoke.mjs",
+    "test:private-notes": "node scripts/private-notes-smoke.mjs",
     "test:navigation": "node scripts/mobile-navigation-smoke.mjs",
     "test:action-rails": "node scripts/action-rails-smoke.mjs",
     "test:page-scrollers": "node scripts/page-scrollers-smoke.mjs",

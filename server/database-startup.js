@@ -1,3 +1,4 @@
+import { getYandexDiskConfig } from "./yandex-disk.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { verifyAccountBackupSchema } from "./account-backup.js";
 
@@ -48,6 +49,9 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
       await client.query("SELECT offer_id,content,digest,status,proof,bitcoin_height,bitcoin_hash,verified_at,attempts,next_attempt_at,lease_token,last_error,created_at FROM reward_blockchain_receipts LIMIT 0");
     }
     if (environment.YANDEX_DISK_BACKUP_ENABLED === "true") await verifyAccountBackupSchema(client);
+    if (getYandexDiskConfig(environment).enabled) {
+      await client.query("SELECT user_id,oauth_client_id,folder_id,encrypted_tokens,revision FROM yandex_disk_notes LIMIT 0");
+    }
   });
   return mode;
 }

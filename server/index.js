@@ -6,6 +6,7 @@ import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
 
 import { registerStoryRoutes } from "./stories.js";
+import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
@@ -1168,6 +1169,7 @@ registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfilePublicationRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction });
 
 registerStoryRoutes(app, { requireAuth, query, asyncRoute });
 
@@ -1983,7 +1985,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
   }
   const consumed = await query(
     `DELETE FROM yandex_oauth_attempts
-     WHERE state_hash=$1 AND expires_at>$2
+     WHERE state_hash=$1 AND expires_at>$2 AND purpose <> 'disk-notes'
      RETURNING code_verifier,next_path,purpose,user_id,invite_token_hash`,
     [stateHash, new Date()],
   );
@@ -6796,6 +6798,18 @@ if (isProduction) {
 
 app.use((error, req, res, _next) => {
   if (error?.code === "IDENTITY_TEST_NOT_FOUND") return res.status(404).json({ error: error.message });
+  if (req.path === "/api/private-notes" || req.path.startsWith("/api/private-notes/")) {
+    res.set("Cache-Control", "private, no-store");
+    // Malformed JSON errors may carry the entire raw note in error.body.
+    if (error?.type === "entity.too.large") {
+      return res.status(413).json({ error: "Текст заметок слишком большой.", code: "DISK_NOTE_TOO_LARGE" });
+    }
+    if (error?.type === "entity.parse.failed") {
+      return res.status(400).json({ error: "Проверьте текст заметок.", code: "DISK_NOTE_VALIDATION" });
+    }
+    console.error("[disk-notes] Request error", error?.code || error?.name || "unknown");
+    return res.status(500).json({ error: "Не удалось открыть или сохранить заметки." });
+  }
   console.error(error);
   if (error instanceof z.ZodError) return res.status(400).json({ error: "Проверьте введённые данные" });
   if (error?.type === "entity.too.large") {

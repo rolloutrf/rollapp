@@ -37,7 +37,7 @@ function rangeAt(state, from, to) {
 
 // A menu has a lifetime tied to an inserted slash, not just a matching regex.
 // Selection, Undo, pasted/loaded text and a dismissed query cannot resurrect it.
-export function nextSlashSuggestion(state, transaction, previous, { editable = true, composing = false } = {}) {
+export function nextSlashSuggestion(state, transaction, previous, { editable = true, composing = false, allowImages = true } = {}) {
   if (!editable || composing || transaction.getMeta("preventUpdate") !== undefined || transaction.getMeta("paste") || ["paste", "drop"].includes(transaction.getMeta("uiEvent")) || isHistoryTransaction(transaction)) return null;
   let next;
   if (previous) {
@@ -57,7 +57,7 @@ export function nextSlashSuggestion(state, transaction, previous, { editable = t
   }
   if (!next) return null;
   if (previous && next.from === previous.from && next.to === previous.to && next.query === previous.query && next.doc === previous.doc) return previous;
-  return { ...next, items: filterSlashCommands(next.query), index: previous?.query === next.query ? previous.index : 0 };
+  return { ...next, items: filterSlashCommands(next.query).filter(item => allowImages || item.id !== "image"), index: previous?.query === next.query ? previous.index : 0 };
 }
 
 export function applySlashCommand(editor, suggestion, item) {

@@ -193,7 +193,11 @@ export function InlineBlockControls({ editor, actionsRef, onCreateBlock, childre
   } : {}, [editor.state, position, open]);
   const actionAllowed = id => Boolean(block && (["indent", "outdent"].includes(id) ? depthTransactions[id] : (["up", "down"].includes(id) ? canMoveTextBlock(editor.state.doc, position, editor.state.selection, id === "up" ? -1 : 1) : true)));
   const words = query.trim().toLocaleLowerCase().split(/\s+/);
-  const commandItems = [...filterSlashCommands(query).filter(item => item.kind === "action" ? actionAllowed(item.id) : item.kind !== "color" || colorAllowed), ...menuActions.filter(item => actionAllowed(item.id) && words.every(word => `${item.label} ${item.aliases}`.toLocaleLowerCase().includes(word)))];
+  const commandItems = [...filterSlashCommands(query).filter(item => {
+    if (item.id === "image") return Boolean(editor.schema.nodes.image);
+    if (item.kind === "action") return actionAllowed(item.id);
+    return item.kind !== "color" || colorAllowed;
+  }), ...menuActions.filter(item => actionAllowed(item.id) && words.every(word => `${item.label} ${item.aliases}`.toLocaleLowerCase().includes(word)))];
   const perform = action => {
     if (!editor.isEditable || editor.state.doc !== menuDoc.current) { setOpen(false); return; }
     if (action === "indent" || action === "outdent") {

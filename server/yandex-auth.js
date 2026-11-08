@@ -103,12 +103,13 @@ export function createYandexAuthorization(config, { nextPath, linkUserId = null,
   authorizationUrl.searchParams.set("response_type", "code");
   authorizationUrl.searchParams.set("client_id", config.clientId);
   authorizationUrl.searchParams.set("redirect_uri", config.redirectUri);
-  authorizationUrl.searchParams.set("scope", "login:info login:email");
+  authorizationUrl.searchParams.set("scope", config.scope ?? "login:info login:email");
   const requestsBackup = Boolean(linkUserId && config.diskBackupEnabled);
-  authorizationUrl.searchParams.set("optional_scope", requestsBackup
+  const optionalScope = config.optionalScope ?? (requestsBackup
     ? "login:avatar cloud_api:disk.read cloud_api:disk.write"
     : "login:avatar");
-  if (requestsBackup) authorizationUrl.searchParams.set("force_confirm", "yes");
+  if (optionalScope) authorizationUrl.searchParams.set("optional_scope", optionalScope);
+  if (requestsBackup || config.forceConfirm) authorizationUrl.searchParams.set("force_confirm", "yes");
   authorizationUrl.searchParams.set("state", state);
   authorizationUrl.searchParams.set("code_challenge", challenge);
   authorizationUrl.searchParams.set("code_challenge_method", "S256");

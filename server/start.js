@@ -72,6 +72,13 @@ async function loadYandexOauthSecrets() {
   if (loaded) console.log("Runtime Yandex OAuth credentials loaded from Yandex Lockbox");
 }
 
+async function loadYandexDiskOauthSecrets() {
+  const secretId = process.env.YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID;
+  if (!secretId) return;
+  process.env.YANDEX_DISK_OAUTH_CLIENT_ID ||= await loadLockboxValue(secretId, "client_id");
+  process.env.YANDEX_DISK_OAUTH_CLIENT_SECRET ||= await loadLockboxValue(secretId, "client_secret");
+}
+
 async function loadOpenRouterLockboxSecret() {
   const secretId = process.env.YC_OPENROUTER_LOCKBOX_SECRET_ID;
   if (!secretId || process.env.OPENROUTER_API_KEY) return;
@@ -116,6 +123,7 @@ await loadAutoDatabaseLockboxSecret();
 await loadPhoneAuthLockboxSecret();
 await loadTelegramLockboxSecrets();
 await loadYandexOauthSecrets();
+await loadYandexDiskOauthSecrets();
 await loadOpenRouterLockboxSecret();
 await loadOpenRouterProxyLockboxSecret();
 await loadUserCredentialsLockboxSecret();
