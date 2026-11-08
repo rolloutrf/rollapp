@@ -68,6 +68,31 @@ try {
     await page.route("**/api/**", (route) => { errors.push("Forbidden API"); return route.abort(); });
     await page.goto(`${smokeOrigin(server)}/__gift-cards?offers&public`);
     await page.getByRole("button", { name: /^Выпустить подарочную карту/ }).waitFor();
+    const actions = page.locator(".public-collection-page__hero .horizontal-action-scroller");
+    await page.evaluate(() => document.fonts.ready);
+    assert.deepEqual(await actions.locator("[data-page-action]").allTextContents(), ["Подписаться", "Визитка", "Календарь", "Доска объявлений"]);
+    const rail = await actions.evaluate((element) => {
+      const { left, right } = element.getBoundingClientRect();
+      const buttons = [...element.querySelectorAll("[data-page-action]")];
+      const controls = buttons.map((button) => {
+        const { left, top, height } = button.getBoundingClientRect();
+        return { left, top, height };
+      });
+      const gutter = parseFloat(getComputedStyle(element).paddingInlineEnd);
+      const overflow = element.scrollWidth > element.clientWidth;
+      element.scrollLeft = element.scrollWidth;
+      const lastRight = buttons.at(-1).getBoundingClientRect().right;
+      element.scrollLeft = 0;
+      return { left, right, controls, gutter, overflow, lastRight };
+    });
+    assert(rail.controls.every(({ top, height }) => top === rail.controls[0].top && height === 48), `${width}: all four actions share one 48px row`);
+    if (width <= 390) assert(rail.overflow, `${width}: the profile actions must scroll`);
+    if (rail.overflow) {
+      assert(Math.abs(rail.controls[0].left - rail.left - rail.gutter) < 1);
+      assert(Math.abs(rail.right - rail.lastRight - rail.gutter) < 1, `${width}: announcements must be reachable`);
+    } else {
+      assert(Math.abs(rail.controls[0].left + rail.lastRight - rail.left - rail.right) < 1, `${width}: fitting row must be centered`);
+    }
     const order = await page.evaluate(() => {
       const avatar = document.querySelector(".wishes-page__hero-avatar").getBoundingClientRect();
       const gift = document.querySelector('[aria-label^="Выпустить подарочную карту"]').getBoundingClientRect();

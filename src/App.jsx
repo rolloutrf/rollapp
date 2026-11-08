@@ -7985,7 +7985,7 @@ function PublicProfile({ shared = false }) {
     <section className={`wishes-page__hero public-collection-page__hero ${profileVisitor ? "friend-profile-page__hero" : ""}`} data-friend-profile={profileVisitor && !shared ? "" : undefined} aria-labelledby="public-profile-name">
       {identity}
       {relationshipBlock}
-      <div className={`page-actions wishes-page__hero-actions ${ownerCollection ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={businessStorefront ? "Действия с бизнес-профилем" : data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
+      <div className={`page-actions wishes-page__hero-actions ${!shared ? "horizontal-action-scroller" : ""} ${profileVisitor ? "friend-profile-page__actions" : ""}`} role="group" aria-label={businessStorefront ? "Действия с бизнес-профилем" : data.isOwner ? "Действия со списком желаний" : "Действия с профилем"}>
         {businessStorefront && data.isOwner ? <>
           {sellerProfile && <PageActionButton to={`/app/wishes/business?tab=${data.profile.sellerSpace || sellerSpace}`} >Управлять товарами</PageActionButton>}
           <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
@@ -8002,8 +8002,8 @@ function PublicProfile({ shared = false }) {
             onClick={follow}
           >{data.isFollowing ? "Отписаться" : "Подписаться"}</PageActionButton>}
         <ContactCardButton key={data.profile.username} profile={data.profile} canSign={data.isOwner} />
+        {!shared && <ProfilePublicationLinks username={data.profile.username} className="flex-nowrap" />}
       </div>
-      {!shared && <ProfilePublicationLinks username={data.profile.username} />}
       {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
