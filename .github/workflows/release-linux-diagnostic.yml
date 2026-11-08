@@ -1,4 +1,4 @@
-name: Rollapp release Linux diagnostic
+name: Rollapp post-release verification
 on:
   push:
     branches: [codex/rollapp-linux-diagnostic-20261108]
@@ -7,21 +7,35 @@ permissions:
 jobs:
   public-health:
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 4
+    env:
+      EXPECTED: 1acaaae4d397580171da4c57789dd399b732a481
+      PUBLIC_URL: https://xn--80avakiab.xn--p1ai
     steps:
-      - name: Read public health from the runner
+      - uses: actions/checkout@v6
+      - name: Check exact production version and canonical paths
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 12 https://xn--80avakiab.xn--p1ai/api/healthz | jq -e '{ok,service,version} | select(.ok == true and .service == "rollapp")'
-  profile:
+          curl --fail --silent --show-error --max-time 12 "$PUBLIC_URL/api/healthz" |
+            jq -e --arg expected "$EXPECTED" '{ok,service,version} | select(.ok == true and .service == "rollapp" and .version == $expected)'
+          profile_key=$(node scripts/production-profile-key.mjs "$PUBLIC_URL")
+          for legacy_path in "/u/$profile_key" "/users/$profile_key"; do
+            status=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code} %{redirect_url}' "$PUBLIC_URL$legacy_path")
+            test "$status" = "301 $PUBLIC_URL/$profile_key"
+          done
+          for route in "/$profile_key" "/$profile_key/calendar" "/$profile_key/announcements"; do
+            test "$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$PUBLIC_URL$route")" = 200
+          done
+          test "$(curl -sS --max-time 12 -o /dev/null -w '%{http_code} %{redirect_url}' "https://www.xn--80avakiab.xn--p1ai/api/healthz")" = "301 $PUBLIC_URL/api/healthz"
+          echo 'Public profile, publication routes and canonical redirects passed.'
+  legacy-alias:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test:profile
+      - name: Compare the historical alias with the production listener
+        shell: bash
+        run: |
+          alias_url=https://rollapp.130-193-58-26.sslip.io/api/healthz
+          curl --max-time 12 -sS -o /dev/null -w 'Direct alias: %{http_code} %{redirect_url}\n' "$alias_url"
+          curl --max-time 12 -sS --resolve 'rollapp.130-193-58-26.sslip.io:443:51.250.92.131' -o /dev/null -w 'Production listener: %{http_code} %{redirect_url}\n' "$alias_url"
