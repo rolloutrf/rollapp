@@ -167,6 +167,13 @@ have a `formScreen` URL/history entry and render into a normal document-flow
 page host through the shared `ScreenPortal`. No Drawer, backdrop, fixed-height
 sheet, focus trap or document scroll lock is created on mobile.
 
+На доске объявлений профиля добавление и редактирование используют этот же
+сценарий, что и добавление желания. На компьютере форма открывается справа:
+закрытие в шапке, публикация или сохранение в общем футере. На телефоне
+открывается отдельная страница, где «Назад» и основное действие находятся
+в одной нижней строке. Ошибка публикации показывается внутри формы и сохраняет
+введённый текст. Отмена возвращает фокус на кнопку, открывшую форму.
+
 The source React tree is cached, hidden and inert while a form page is active;
 its contexts and save callbacks remain intact. Short forms fill the visible viewport;
 longer forms grow with the document. Their minimum height uses

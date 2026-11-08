@@ -99,7 +99,7 @@ async function checkWishSale(width, height) {
     await page.waitForFunction(() => !new URLSearchParams(location.search).has("wish") && !new URLSearchParams(location.search).has("formScreen"));
     await page.getByText("Объявлений пока нет").waitFor();
     const salesPage = page.getByRole("region", { name: "Мои продажи · Товары" });
-    await salesPage.getByRole("heading", { name: "Мои продажи · Товары" }).waitFor();
+    assert.equal(await salesPage.getByRole("heading", { name: "Мои продажи · Товары" }).count(), 0);
     assert.equal(await salesPage.getByRole("link", { name: /^(Вернуться в Вишлист|Магазин|Объявления)$/ }).count(), 0);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));

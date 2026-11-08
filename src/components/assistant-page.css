@@ -1,0 +1,67 @@
+.assistant-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: calc(var(--layout-text-width) + 2 * var(--layout-page-inset));
+  height: var(--app-visual-height, 100dvh);
+  margin-block-start: var(--app-visual-top, 0px);
+  margin-inline: auto;
+  padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
+}
+
+.assistant-page__header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--layout-inline-gap);
+  padding-block: calc(var(--layout-inline-gap) + var(--layout-safe-top)) var(--layout-inline-gap);
+}
+
+.assistant-page__header h1 {
+  margin-block-start: 0;
+  outline: none;
+}
+
+.assistant-page .messenger-history {
+  padding: var(--layout-item-gap) 0;
+  overflow-wrap: anywhere;
+}
+.assistant-page .messenger-history > :is(.messenger-note, .messenger-send-error) { flex-shrink: 0; }
+
+.assistant-page__welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: var(--layout-item-gap);
+  flex-shrink: 0;
+  max-width: var(--layout-form-width);
+  padding-block: var(--layout-inline-gap);
+}
+
+.assistant-page .messenger-composer {
+  padding-inline: 0;
+  padding-block-end: calc(var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
+}
+
+.assistant-page .messenger-composer textarea { background-color: var(--card); }
+.assistant-page__voice-hint {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+@media (max-width: 767px) {
+  :root[data-overlay-keyboard] .assistant-page .messenger-composer {
+    padding-block-end: var(--layout-inline-gap);
+  }
+
+  :root[data-overlay-keyboard] .assistant-page .messenger-composer textarea {
+    max-height: var(--layout-control-size);
+    padding-block: var(--layout-inline-gap);
+  }
+
+  :root[data-overlay-keyboard] .assistant-page :is(.messenger-composer-hint, .messenger-planning-option small) {
+    display: none;
+  }
+}

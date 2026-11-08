@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "../../src/components/mobile-form-pages.jsx";
 import { ProfilePublications } from "../../src/components/profile-publications.jsx";
+import { useVisualViewport } from "../../src/hooks/use-visual-viewport.js";
 import "../../src/styles.css";
 import "../../src/index.css";
 
@@ -34,7 +35,7 @@ let snapshot = loading ? null : {
 
 // Simulate UI responses through the fixture transport. The browser forbids all
 // network API requests, and the PostgreSQL lifecycle has a separate test.
-const transport = window.publicationTransport = { calls: [], conflictNextBooking: false };
+const transport = window.publicationTransport = { calls: [], conflictNextBooking: false, loseNextAnnouncementResponse: false };
 const endpoint = `/profile/host/${section}`;
 const openBooking = `${endpoint}/open/bookings/open-booking`;
 api.post = async (path, body) => {
@@ -57,7 +58,13 @@ api.post = async (path, body) => {
     return { id: body.id };
   }
   if (owner && path === endpoint && section === "announcements") {
-    snapshot = { ...snapshot, announcements: [{ ...body, createdAt: baseSlot.startsAt }, ...snapshot.announcements] };
+    if (!snapshot.announcements.some(item => item.id === body.id)) {
+      snapshot = { ...snapshot, announcements: [{ ...body, createdAt: baseSlot.startsAt }, ...snapshot.announcements] };
+    }
+    if (transport.loseNextAnnouncementResponse) {
+      transport.loseNextAnnouncementResponse = false;
+      throw new Error("Ответ сервера потерян");
+    }
     return { id: body.id };
   }
   throw new Error(`Unexpected POST ${path}`);
@@ -82,6 +89,7 @@ api.delete = async path => {
 };
 
 function Fixture() {
+  useVisualViewport();
   const [data, setData] = useState(snapshot);
   return <div className="app-layout app-layout--dark">
     <main className="app-main app-main--with-profile">

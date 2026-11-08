@@ -104,23 +104,98 @@ try {
     await open("announcements", "owner");
     await page.getByRole("heading", { name: "Открыта запись на ноябрь" }).waitFor();
     await geometry();
+    const mobile = width < 768;
+    const editor = page.locator("[data-profile-announcement-editor]");
+    const titleInput = editor.getByLabel("Заголовок объявления");
+    const bodyInput = editor.getByLabel("Текст объявления");
+    const add = page.getByRole("button", { name: "Добавить объявление", exact: true });
+    const publish = editor.getByRole("button", { name: "Опубликовать", exact: true });
+    const waitForEditor = async name => {
+      await editor.getByRole("heading", { name, exact: true }).waitFor();
+      if (mobile) {
+        await page.waitForFunction(() => new URLSearchParams(location.search).has("formScreen"));
+        assert.equal(await editor.locator("xpath=ancestor::main[@data-mobile-form-page]").count(), 1);
+        assert.equal(await page.locator("[data-form-page-background]").getAttribute("inert"), "");
+      } else {
+        assert.equal(await editor.getAttribute("data-swipe-axis"), "x");
+        assert.equal(await editor.getAttribute("data-slot"), "drawer-popup");
+        assert(!new URL(page.url()).searchParams.has("formScreen"));
+      }
+    };
+    const waitForClose = async () => {
+      await editor.waitFor({ state: "hidden" });
+      await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
+    };
+    assert.equal(await page.getByLabel("Заголовок объявления").count(), 0);
     await page.getByRole("button", { name: /Редактировать: Открыта запись/ }).click();
-    assert.equal(await page.getByLabel("Заголовок объявления").inputValue(), "Открыта запись на ноябрь");
-    await geometry();
-    await page.getByRole("button", { name: "Отмена", exact: true }).click();
+    await waitForEditor("Редактировать объявление");
+    assert.equal(await titleInput.inputValue(), "Открыта запись на ноябрь");
+    await titleInput.fill("Черновик для отмены");
+    await editor.getByRole("button", { name: mobile ? "Назад" : "Закрыть форму объявления", exact: true }).click();
+    await waitForClose();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Редактировать:"));
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     await page.getByRole("button", { name: /Редактировать: Открыта запись/ }).click();
-    await page.getByLabel("Заголовок объявления").fill("Обновлённое объявление");
-    await page.getByLabel("Текст объявления").fill("Новое время");
-    await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+    await waitForEditor("Редактировать объявление");
+    await titleInput.fill("Обновлённое объявление");
+    await bodyInput.fill("Новое время");
+    await editor.getByRole("button", { name: "Сохранить", exact: true }).click();
+    await waitForClose();
     await page.getByRole("heading", { name: "Обновлённое объявление", exact: true }).waitFor();
     await page.getByRole("button", { name: /Удалить объявление: Обновлённое объявление/ }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Удалить", exact: true }).click();
     await page.getByText("Здесь появятся ваши опубликованные объявления.").waitFor();
-    await page.getByRole("button", { name: "Добавить объявление", exact: true }).click();
-    await page.getByLabel("Заголовок объявления").fill("Новая публикация");
-    await page.getByLabel("Текст объявления").fill("Даты встреч");
-    await page.getByRole("button", { name: "Опубликовать", exact: true }).click();
+    await add.click();
+    await waitForEditor("Добавить объявление");
+    assert.equal(await publish.isDisabled(), true);
+    await titleInput.fill("Черновик для отмены");
+    if (mobile) await page.goBack();
+    else await page.keyboard.press("Escape");
+    await waitForClose();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Добавить объявление");
+    assert.equal(await page.evaluate(() => window.publicationTransport.calls.length), 2);
+
+    await add.click();
+    await waitForEditor("Добавить объявление");
+    assert.equal(await titleInput.inputValue(), "");
+    await titleInput.fill("Новая публикация");
+    await bodyInput.fill("Даты встреч");
+    const actions = await publish.evaluate(node => {
+      const footer = node.closest("[data-control-bar]");
+      const bounds = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      const background = getComputedStyle(footer).backgroundColor;
+      return { owned: node.form?.contains(footer), height: bounds.height, radius: style.borderTopLeftRadius,
+        fits: bounds.left >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight,
+        native: footer.hasAttribute("data-native-form-actions"), background };
+    });
+    assert.deepEqual(actions, { owned: true, height: 48, radius: "24px", fits: true, native: mobile, background: "rgba(0, 0, 0, 0)" });
+    if (width === 390 && height === 400) {
+      await page.evaluate(() => {
+        Object.defineProperties(visualViewport, { height: { configurable: true, value: 260 }, offsetTop: { configurable: true, value: 50 } });
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+      await page.waitForFunction(() => document.documentElement.hasAttribute("data-overlay-keyboard"));
+      const back = await editor.getByRole("button", { name: "Назад", exact: true }).boundingBox();
+      const submit = await publish.boundingBox();
+      assert.equal(back.y, submit.y);
+      assert(submit.y >= 50 && submit.y + submit.height <= 310);
+      await page.evaluate(() => {
+        delete visualViewport.height;
+        delete visualViewport.offsetTop;
+        visualViewport.dispatchEvent(new Event("resize"));
+      });
+    }
+    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-announcement-${width}-${height}.png` });
+    await page.evaluate(() => { window.publicationTransport.loseNextAnnouncementResponse = true; });
+    await titleInput.press("Enter");
+    await editor.getByRole("alert").getByText("Ответ сервера потерян").waitFor();
+    assert.equal(await titleInput.inputValue(), "Новая публикация");
+    assert.equal(await bodyInput.inputValue(), "Даты встреч");
+    await publish.click();
+    await waitForClose();
     await page.getByRole("heading", { name: "Новая публикация", exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Новая публикация", exact: true }).count(), 1);
     const writes = await page.evaluate(() => window.publicationTransport.calls);
     assert.deepEqual(writes.slice(0, 2), [
       ["PATCH", "/profile/host/announcements/announcement", { title: "Обновлённое объявление", body: "Новое время" }],
@@ -128,7 +203,9 @@ try {
     ]);
     assert.deepEqual(writes[2].slice(0, 2), ["POST", "/profile/host/announcements"]);
     assert.equal(writes[2][2].body, "Даты встреч");
-    assert.equal(writes.length, 3);
+    assert.match(writes[2][2].id, /^[0-9a-f-]{36}$/);
+    assert.deepEqual(writes[3], writes[2]);
+    assert.equal(writes.length, 4);
 
     await open("announcements", "visitor");
     assert.equal(await page.getByRole("button", { name: /Добавить объявление|Удалить объявление|Редактировать:/ }).count(), 0);

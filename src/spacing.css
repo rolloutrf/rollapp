@@ -598,13 +598,18 @@ html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="tr
   }
 }
 
-/* The messenger shortcut shares the planning rail's safe area and viewport
-   position, with exactly one control and an 8px gap above its trigger. */
+/* The assistant and messages shortcuts share the planning rail's safe area
+   and viewport position, with the usual 8px gap between controls. */
 @layer components {
-  .planning-fab-controls .messenger-fab {
+  .planning-fab-controls :is(.assistant-fab, .messenger-fab) {
     position: absolute;
     right: 0;
-    bottom: calc(var(--layout-control-size) + var(--layout-inline-gap));
     pointer-events: auto;
+  }
+  .planning-fab-controls .messenger-fab {
+    bottom: calc(var(--layout-control-size) + var(--layout-inline-gap));
+  }
+  .planning-fab-controls .assistant-fab {
+    bottom: calc(2 * (var(--layout-control-size) + var(--layout-inline-gap)));
   }
 }

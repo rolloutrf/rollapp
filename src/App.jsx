@@ -1,5 +1,6 @@
 import { ProductTitleInput } from "@/components/product-title-input";
-import { MessengerDrawer, useMessengerAssistant } from "@/components/messenger";
+import { AssistantPage, AssistantProvider } from "@/components/assistant-page";
+import { MessengerDrawer } from "@/components/messenger";
 import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { ListTileContent } from "@/components/list-tile-content";
@@ -18,7 +19,7 @@ import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, external
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
+  Archive, ArrowLeft, ArrowRight, Bot, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Trash2, UserPlus,
@@ -129,7 +130,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { businessMarketplacePath, isPublicWishDetailPath, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessMarketplacePath, isPublicWishDetailPath, APP_ASSISTANT_PATH, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
@@ -737,10 +738,17 @@ function PlanningFab() {
 function PlanningControls({ user }) {
   const location = useLocation();
   const isMobile = useIsMobile();
-  const assistant = useMessengerAssistant();
+  const assistantShortcut = useRef(null);
+  const assistantOrigin = useRef(null);
+  useLayoutEffect(() => {
+    if (assistantOrigin.current === location.key) {
+      assistantOrigin.current = null;
+      assistantShortcut.current?.focus({ preventScroll: true });
+    }
+  }, [location.key]);
   const returnPath = useRef(APP_HOME);
   useEffect(() => {
-    if (location.pathname !== PLANNING_SERVICE.path) {
+    if (location.pathname !== PLANNING_SERVICE.path && !isAssistantPath(location.pathname)) {
       returnPath.current = `${location.pathname}${location.search}${location.hash}`;
     }
   }, [location.pathname, location.search, location.hash]);
@@ -757,7 +765,7 @@ function PlanningControls({ user }) {
     if (value) setOpen(false);
     else setInitialConversationId(null);
   };
-  if (location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
+  if (isAssistantPath(location.pathname) || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
   const search = new URLSearchParams(location.search);
   const requestedTab = search.get("tab");
@@ -766,7 +774,16 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <MessengerDrawer user={user} assistant={assistant} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
+      <Link ref={assistantShortcut} data-control-icon to={APP_ASSISTANT_PATH} state={{ assistantFromShortcut: true }}
+        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "assistant-fab")}
+        aria-label="Ассистент Rollapp" title="Ассистент Rollapp"
+        onClick={event => {
+          if (!event.defaultPrevented && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+            assistantOrigin.current = location.key;
+          }
+        }}
+      ><Bot aria-hidden="true" /></Link>
+      <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon
         to={backToNotes ? `${PLANNING_SERVICE.path}?tab=notes` : returnPath.current}
@@ -858,7 +875,7 @@ function GlobalAppChrome() {
       toast("Не удалось скопировать ссылку", "error");
     }
   };
-  if (waitlistLanding) return null;
+  if (waitlistLanding || isAssistantPath(location.pathname)) return null;
   if ((isMobile && location.pathname.startsWith("/app/messenger")) || (isMobile && location.pathname === PLANNING_SERVICE.path) || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const sectionSelector = location.pathname === PLANNING_SERVICE.path && user
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
@@ -3644,6 +3661,27 @@ function BusinessMarketplaceRoute() {
   const sphere = SPHERE_SERVICES.find((item) => item.id === sphereId);
   if (!sphere || !businessMarketplacePath(sphereId)) return <Navigate to={APP_HOME} replace />;
   return <BusinessMarketplacePage key={`${user?.id}:${sphere.id}`} user={user} sphere={sphere} />;
+}
+
+function isAssistantPath(pathname) {
+  return pathname.replace(/\/$/, "").toLowerCase() === APP_ASSISTANT_PATH;
+}
+
+function AssistantSession({ children }) {
+  const { user } = useSession();
+  return <AssistantProvider owner={user?.id}>{children}</AssistantProvider>;
+}
+
+function AssistantRoute() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(APP_ASSISTANT_PATH)}`} replace />;
+  return <AssistantPage key={user.id} onBack={() => {
+    if (location.state?.assistantFromShortcut) navigate(-1);
+    else navigate(APP_HOME, { replace: true });
+  }} />;
 }
 
 function MessengerRoute({ user }) {
@@ -8112,6 +8150,7 @@ export default function App() {
           <CatalogBusinessDirectoryScope>
           {!linkingResult && <GlobalAppChrome />}
           {!linkingResult && <PlanningFab />}
+          <AssistantSession>
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage />} />
@@ -8130,6 +8169,7 @@ export default function App() {
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
             <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />
             <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
+            <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
@@ -8141,6 +8181,7 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </AssistantSession>
           </CatalogBusinessDirectoryScope>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>

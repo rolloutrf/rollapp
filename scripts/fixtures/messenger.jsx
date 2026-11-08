@@ -2,7 +2,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { GlobalAppChrome, PlanningFab, MessengerRoute, AppShell, SessionContext, ToastContext, CollectionNavigationContext } from '../../src/App.jsx?messenger-smoke';
+import { GlobalAppChrome, PlanningFab, MessengerRoute, AssistantRoute, AssistantSession, AppShell, SessionContext, ToastContext, CollectionNavigationContext } from '../../src/App.jsx?messenger-smoke';
 import { api } from '../../src/api.js';
 import { useVisualViewport } from '../../src/hooks/use-visual-viewport';
 import { MobileFormPages } from '../../src/components/mobile-form-pages';
@@ -91,5 +91,14 @@ const transport={
   },
 };
 api.get=transport.get;api.post=transport.post;
-function Fixture(){useVisualViewport();return <SessionContext.Provider value={{user:{id:'alice',name:'Алиса',username:'alice',accountType:'personal'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
+// Simulate the browser speech service while using native UI input and keyboard events.
+window.SpeechRecognition = class {
+  start() {
+    window.messengerTest.speech = this;
+    this.onstart();
+  }
+  stop() { this.stopRequested = true; }
+  abort() { this.aborted = true; }
+};
+function Fixture(){useVisualViewport();return <SessionContext.Provider value={{user:{id:'alice',name:'Алиса',username:'alice',accountType:'personal'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><AssistantSession><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></AssistantSession></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Fixture/></BrowserRouter>);

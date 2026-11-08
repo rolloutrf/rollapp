@@ -1,8 +1,10 @@
 import { useId, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, Megaphone, Plus } from "lucide-react";
+import { ArrowLeft, CalendarDays, Megaphone, Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -32,7 +34,7 @@ export function ProfilePublicationLinks({ username, className }) {
   </nav>;
 }
 
-function PublicationForm({ calendar, item, busy, onSave, onClose }) {
+function PublicationForm({ calendar, item, busy, error, onSave, onClose }) {
   const formId = useId();
   const requestId = useRef(null);
   const [title, setTitle] = useState(item?.title || "");
@@ -63,7 +65,9 @@ function PublicationForm({ calendar, item, busy, onSave, onClose }) {
     onSave(values, item);
   }
 
-  return <form className="not-typeset rollapp-body flex min-w-0 flex-col gap-4 rounded-2xl border bg-card p-4 sm:p-6" onSubmit={submit}>
+  const submitLabel = item ? "Сохранить" : "Опубликовать";
+  const submitDisabled = busy || !title.trim() || (calendar ? !date : !body.trim());
+  const fields = <>
     <Field>
       <FieldLabel htmlFor={`${formId}-title`}>{calendar ? "Название сессии" : "Заголовок объявления"}</FieldLabel>
       <Input id={`${formId}-title`} value={title} onChange={event => setTitle(event.target.value)} maxLength={160} required disabled={busy} />
@@ -88,13 +92,47 @@ function PublicationForm({ calendar, item, busy, onSave, onClose }) {
       <Textarea id={`${formId}-body`} className="min-w-0" value={body} onChange={event => setBody(event.target.value)} rows={5} maxLength={4000} required disabled={busy} />
     </Field>}
     {dateError && <p role="alert" className="text-destructive">{dateError}</p>}
-    <div className="flex flex-wrap gap-2">
-      <PageActionButton type="submit" disabled={busy || !title.trim() || (calendar ? !date : !body.trim())}>
-        {item ? "Сохранить" : "Опубликовать"}
-      </PageActionButton>
-      <PageActionButton type="button" variant="outline" disabled={busy} onClick={onClose}>Отмена</PageActionButton>
-    </div>
-  </form>;
+  </>;
+
+  return calendar
+    ? <form className="not-typeset rollapp-body flex min-w-0 flex-col gap-4 rounded-2xl border bg-card p-4 sm:p-6" onSubmit={submit}>
+      {fields}
+      <div className="flex flex-wrap gap-2">
+        <PageActionButton type="submit" disabled={submitDisabled}>{submitLabel}</PageActionButton>
+        <PageActionButton type="button" variant="outline" disabled={busy} onClick={onClose}>Отмена</PageActionButton>
+      </div>
+    </form>
+    : <form className="form-surface flex min-h-0 min-w-0 flex-1 flex-col" onSubmit={submit} aria-busy={busy || undefined}>
+      <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-(--layout-page-inset) py-5 md:px-6">
+        {fields}
+        {error && <p role="alert" className="wrap-anywhere text-destructive">{error}</p>}
+      </div>
+      <DrawerFooter>
+        <Button type="submit" disabled={submitDisabled}>{submitLabel}</Button>
+      </DrawerFooter>
+    </form>;
+}
+
+function AnnouncementEditor({ form, busy, error, opener, onSave, onClose, onAfterClose }) {
+  const heading = form.item ? "Редактировать объявление" : "Добавить объявление";
+  const headingRef = useRef(null);
+  const headingId = useId();
+  return <Drawer open={form.open} onAfterClose={onAfterClose} onOpenChange={(open, details) => {
+    if (open) return;
+    details?.cancel();
+    onClose();
+  }}>
+    <DrawerContent className="app-drawer--form rollapp-body" data-profile-announcement-editor=""
+      aria-labelledby={headingId} initialFocus={headingRef} finalFocus={opener}>
+      <DrawerHeader className="flex-row items-center justify-between gap-2 px-(--layout-page-inset) md:px-6">
+        <DrawerTitle id={headingId} ref={headingRef} tabIndex={-1}>{heading}</DrawerTitle>
+        <DrawerClose render={<Button type="button" variant="outline" size="icon" disabled={busy} />} aria-label="Закрыть форму объявления">
+          <X aria-hidden="true" />
+        </DrawerClose>
+      </DrawerHeader>
+      <PublicationForm item={form.item} busy={busy} error={error} onSave={onSave} />
+    </DrawerContent>
+  </Drawer>;
 }
 
 function slotDays(slots) {
@@ -150,7 +188,7 @@ function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
       <h2>{item.title}</h2>
       <p className="whitespace-pre-wrap">{item.body}</p>
       {owner && <div className="not-typeset mt-4 flex flex-wrap gap-2">
-        <PageActionButton type="button" variant="outline" disabled={busy} aria-label={`Редактировать: ${item.title}`} onClick={() => onEdit(item)}>Редактировать</PageActionButton>
+        <PageActionButton type="button" variant="outline" disabled={busy} aria-label={`Редактировать: ${item.title}`} onClick={event => onEdit(item, event.currentTarget)}>Редактировать</PageActionButton>
         <PageActionButton type="button" variant="destructive" disabled={busy} aria-label={`Удалить объявление: ${item.title}`} onClick={() => onRemove(item)}>Удалить</PageActionButton>
       </div>}
     </article>)}
@@ -168,6 +206,7 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
   const [confirmation, setConfirmation] = useState(null);
   const mutation = useRef(false);
   const formArea = useRef(null);
+  const formOpener = useRef(null);
   const profilePath = publicProfilePath(profile?.username || username);
   const loginPath = `/login?next=${encodeURIComponent(publicPublicationPath(profile?.username || username, section))}`;
 
@@ -179,9 +218,9 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
     setNotice(null);
     try {
       await write();
-      onSaved?.();
       setNotice({ message });
       await refresh();
+      onSaved?.();
     } catch (failure) {
       setNotice({ message: failure.message, error: true });
       if (failure.status === 409 || failure.status === 404) await refresh();
@@ -191,15 +230,29 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
     }
   };
 
-  const openForm = (item = null) => {
+  const openForm = (item = null, opener) => {
+    if (form || mutation.current) return;
     setNotice(null);
-    setForm({ item });
-    formArea.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    if (calendar) formArea.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    else {
+      formOpener.current = opener;
+      opener?.focus({ preventScroll: true });
+    }
+    setForm({ item, open: true });
+  };
+  const dismissForm = () => {
+    if (calendar) setForm(null);
+    else setForm(current => ({ ...current, open: false }));
+  };
+  const closeAnnouncement = () => {
+    if (mutation.current) return;
+    setNotice(null);
+    dismissForm();
   };
   const save = (values, item) => mutate(
     () => item ? api.patch(`${endpoint}/${item.id}`, values) : api.post(endpoint, values),
     item ? "Объявление обновлено" : calendar ? "Слот опубликован" : "Объявление опубликовано",
-    () => setForm(null),
+    dismissForm,
   );
   const askToRemove = (item) => {
     if (!calendar) {
@@ -230,11 +283,12 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
         <div className="not-typeset"><PageActionButton type="button" variant="outline" onClick={refresh}>Повторить</PageActionButton></div>
       </div>}
       {data && <>
-        {notice && <p role={notice.error ? "alert" : "status"} className={notice.error ? "text-destructive" : undefined}>{notice.message}</p>}
+        {notice && (!notice.error || calendar || !form?.open) &&
+          <p role={notice.error ? "alert" : "status"} className={notice.error ? "text-destructive" : undefined}>{notice.message}</p>}
         {owner && <div ref={formArea} className="not-typeset scroll-mt-24">
-          {form
-            ? <PublicationForm key={form.item?.id || "new"} calendar={calendar} item={form.item} busy={pending} onSave={save} onClose={() => setForm(null)} />
-            : <PageActionButton type="button" disabled={pending} onClick={() => openForm()}>
+          {calendar && form
+            ? <PublicationForm calendar item={form.item} busy={pending} onSave={save} onClose={dismissForm} />
+            : <PageActionButton type="button" disabled={pending} onClick={event => openForm(null, event.currentTarget)}>
               <Plus className="size-5" aria-hidden="true" />{calendar ? "Добавить слот" : "Добавить объявление"}
             </PageActionButton>}
         </div>}
@@ -244,6 +298,9 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
           : <Announcements announcements={data.announcements} owner={owner} busy={pending} onEdit={openForm} onRemove={askToRemove} />}
       </>}
     </article>
+    {owner && !calendar && form && <AnnouncementEditor form={form} busy={pending}
+      error={notice?.error ? notice.message : undefined} opener={formOpener}
+      onSave={save} onClose={closeAnnouncement} onAfterClose={() => setForm(null)} />}
     <AlertDialog open={Boolean(confirmation)} onOpenChange={open => { if (!open) setConfirmation(null); }}>
       {confirmation && <AlertDialogContent className="not-typeset rollapp-body max-w-[calc(100%-2rem)] sm:max-w-sm">
         <AlertDialogHeader>
