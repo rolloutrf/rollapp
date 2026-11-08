@@ -1,0 +1,27 @@
+name: Rollapp release Linux diagnostic
+on:
+  push:
+    branches: [codex/rollapp-linux-diagnostic-20261108]
+permissions:
+  contents: read
+jobs:
+  public-health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read public health from the runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 12 https://xn--80avakiab.xn--p1ai/api/healthz | jq -e '{ok,service,version} | select(.ok == true and .service == "rollapp")'
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:profile
