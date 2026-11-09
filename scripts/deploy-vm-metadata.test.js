@@ -123,7 +123,9 @@ test("workflow retains complete release gate, OIDC, serialized rollout and exact
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /run: node scripts\/deploy-vm-metadata\.mjs/);
   assert(workflow.indexOf('run: npm run check:release') < workflow.indexOf('run: node scripts/deploy-vm-metadata.mjs'));
-  assert.match(workflow, /\.ok == true and \.version == \$expected/);
+  assert.match(workflow, /\.ok == true and \.service == "rollapp" and \.version == \$expected/);
+  assert.match(workflow, /mcp_status=.*PUBLIC_URL.*\/mcp.*\n\s+if \[ "\$mcp_status" != "401" \]; then/);
+  assert(workflow.indexOf("Rollapp is healthy at") < workflow.indexOf("mcp_status="));
   assert.match(workflow, /keeping the running service available/);
   assert.doesNotMatch(workflow, /Install pinned Yandex Cloud CLI|yc compute instance (?:restart|stop|delete)|--max-time 120/);
   assert.match(workflow, /YC_LOCKBOX_SOURCE: iam/);

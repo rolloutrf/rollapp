@@ -230,7 +230,7 @@ jobs:
             for attempt in $(seq 1 "$max_attempts"); do
               health="$(read_health)"
               if jq -e --arg expected "$GITHUB_SHA" \
-                '.ok == true and .version == $expected' \
+                '.ok == true and .service == "rollapp" and .version == $expected' \
                 <<<"$health" >/dev/null 2>&1; then
                 return 0
               fi
@@ -257,6 +257,11 @@ jobs:
           fi
 
           echo "Rollapp is healthy at ${PUBLIC_URL} on ${GITHUB_SHA}"
+          mcp_status="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIC_URL}/mcp")"
+          if [ "$mcp_status" != "401" ]; then
+            echo "Unauthenticated MCP endpoint returned ${mcp_status}, expected 401" >&2
+            exit 1
+          fi
           if [ "$YANDEX_DISK_BACKUP_ENABLED" = "true" ]; then
             curl -fsS --max-time 10 "${PUBLIC_URL}/api/auth/yandex/config" |
               jq -e '.enabled == true and .diskBackupEnabled == true' >/dev/null

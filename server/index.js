@@ -44,6 +44,7 @@ import { registerNeedRewardsRoutes, startNeedRewardExpiryWorker } from "./need-r
 import { checkRewardProofRuntime, startRewardProofWorker } from "./reward-proof-queue.js";
 import { contactMeetingNotes } from "./planning-contacts.js";
 import { registerPlanningRoutes } from "./planning.js";
+import { createRollappMcpHttp } from "./mcp-http.js";
 import { registerNotesRoutes } from "./notes.js";
 import { registerCalendarDeviceRoutes } from "./calendar-device.js";
 import { registerProfilePublicationRoutes } from "./profile-publications.js";
@@ -159,6 +160,7 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
+const mcpHttp = createRollappMcpHttp({ query, trustedOrigins: trustedAppOrigins, publicHost: process.env.PUBLIC_HOST });
 let memberAnchor = { kick() {} };
 const { setAuthenticatedSession, registerAccountRoutes } = createAccountSessions({ query, sessionCookieOptions });
 const yandexOauthCookiePrefix = "rw_yandex_oauth_";
@@ -999,7 +1001,8 @@ function asyncRoute(handler) {
 
 async function optionalAuth(req, _res, next) {
   const token = req.cookies[sessionCookie];
-  if (!token) return next();
+  const mcpHash = mcpHttp.internalSessionHash(req);
+  if (!token && !mcpHash) return next();
   const result = await query(
     `SELECT u.*,
        (yi.yandex_user_id IS NOT NULL) AS has_yandex,
@@ -1009,7 +1012,7 @@ async function optionalAuth(req, _res, next) {
      LEFT JOIN yandex_identities yi ON yi.user_id=u.id
      LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
      WHERE s.token_hash = $1 AND s.expires_at > $2`,
-    [hashToken(token), new Date()],
+    [mcpHash || hashToken(token), new Date()],
   );
   req.user = result.rows[0] || null;
   next();
@@ -1151,6 +1154,7 @@ function requireTrustedSessionMutation(req, res, next) {
 
 app.use("/api", requireTrustedSessionMutation);
 app.use("/api", requireExpectedAccount);
+mcpHttp.registerRoutes(app, { asyncRoute, requireAuth });
 
 registerRollsRoutes(app, { requireAuth, query, transaction });
 registerWishGroupFundraisingRoutes(app, { requireAuth, query, transaction, canViewWish });

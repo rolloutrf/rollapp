@@ -157,6 +157,7 @@ read-only без сохранения и отправки пользовател
 | Команда | Назначение |
 | --- | --- |
 | `npm test`, `npm run test:unit` | Только тесты без БД; runner исключает integration и старые memory-fixtures, проверяет прямые импорты БД |
+| `node --test server/mcp-http.test.js scripts/mcp/mcp.test.js` | Обмен MCP по Streamable HTTP и stdio, выпуск и отзыв токенов, scope и изоляция REST. Входит в `npm test`. CI проверяет `/mcp` после появления точного SHA на production. [Проверка живого MCP](mcp.md#проверка) |
 | `npm run test:gifts` | Публичный бизнес-профиль, значок под аватаром, выпуск/пополнение/отправка карты и оплата только у её бизнеса, повтор после потерянного ответа, mobile/desktop футер. Входит в `check:release`; только UI transport, реальные API запрещены. Контракт: `docs/business-gift-cards.md` |
 | `npm run check:release:gift-cards` | Ручной `verification=gift-cards` только по явному запросу без полного аудита: unit, shadcn, обязательный `test:controls`, `test:gifts`, build. Default release остаётся полным |
 | Ручной `verification=drawers` | Целевой выпуск штор по явному запросу без полного аудита. После локальных smoke-проверок затронутых форм и реальной read-only проверки схемы CI запускает guard шаблона и старта БД, shadcn, полный `test:controls`, Docker build и сверку production SHA. |

@@ -60,6 +60,10 @@ Open `http://localhost:5172` (override with `ROLLAPP_DEV_FRONTEND_PORT`). Local 
 
 `APP_ORIGIN` should contain the frontend origin. The frontend and its readiness check use the same configured port.
 
+### Rollapp MCP
+
+Rollapp serves planning and wishlists through Streamable HTTP at `/mcp`. The repository also includes a local stdio server. See the [connection and token instructions](docs/mcp.md).
+
 ### Persistent production connection
 
 Direct TLS access to the configured production database is the default (`ROLLAPP_DATABASE_CONNECTION=direct`). On macOS, enable a persistent development service with:
