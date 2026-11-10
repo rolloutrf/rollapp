@@ -23,26 +23,33 @@ function ErrorNotice({ error, retry }) {
   return <div className="messenger-error" role="alert"><p>{error}</p>{retry && <Button variant="outline" onClick={retry}>Повторить</Button>}</div>;
 }
 export function MessengerDrawer({ user, open, onOpenChange, initialConversationId }) {
-  const isMobile = useIsMobile();
   const [presentation, setPresentation] = useState({ open, revision: 0 });
   // The closing popup can still be mounted while the next form opens or closes.
   // A new presentation starts from the directory even if that animation was interrupted.
   if (open !== presentation.open) {
     setPresentation({ open, revision: presentation.revision + Number(open) });
   }
+  return <MessageDrawer open={open} onOpenChange={onOpenChange} triggerClassName="messenger-fab"
+    title="Сообщения" triggerLabel="Открыть сообщения" icon={MessageCircle}>
+    <DrawerTitle className="sr-only">Сообщения</DrawerTitle>
+    <Messenger key={presentation.revision} user={user} initialConversationId={initialConversationId} />
+  </MessageDrawer>;
+}
+
+export function MessageDrawer({ open, onOpenChange, triggerClassName, title, triggerLabel = title, icon: Icon, initialFocus, children }) {
+  const isMobile = useIsMobile();
   return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}>
-    <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className="messenger-fab" />} aria-label="Открыть сообщения" title="Сообщения">
-      <MessageCircle aria-hidden="true" />
+    <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className={triggerClassName} />} aria-label={triggerLabel} title={title}>
+      <Icon aria-hidden="true" />
     </DrawerTrigger>
-    <DrawerContent className="messenger-drawer app-drawer--form rollapp-body">
-      <DrawerTitle className="sr-only">Сообщения</DrawerTitle>
-      <Messenger key={presentation.revision} user={user} initialConversationId={initialConversationId} />
+    <DrawerContent className="messenger-drawer app-drawer--form rollapp-body" initialFocus={initialFocus}>
+      {children}
     </DrawerContent>
   </Drawer>;
 }
 
-function CloseMessages() {
-  return <DrawerClose render={<Button data-control-icon variant="outline" size="icon" className="ml-auto" />} aria-label="Закрыть сообщения"><X aria-hidden="true" /></DrawerClose>;
+export function MessageDrawerClose({ label = 'Закрыть сообщения' }) {
+  return <DrawerClose render={<Button data-control-icon variant="outline" size="icon" className="ml-auto" />} aria-label={label}><X aria-hidden="true" /></DrawerClose>;
 }
 
 function ParticipantEntry({ peer, disabled, onSelect }) {
@@ -133,7 +140,7 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
       : <section className="messenger-directory" aria-label="Диалоги и подписки">
         <ControlBar as="header" className="messenger-heading">
           <h2 className="text-2xl font-semibold">Сообщения</h2>
-          <CloseMessages />
+          <MessageDrawerClose />
         </ControlBar>
         <div className="messenger-search"><Search aria-hidden="true" /><Input type="search" aria-label="Найти участника" placeholder="Имя или username" value={query} maxLength={100} onChange={event => { setQuery(event.target.value); setOpenError(''); }} /></div>
         <div className="messenger-directory-scroll">
@@ -252,7 +259,7 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
     <ControlBar as="header" className="messenger-heading">
       <Button data-control-icon variant="outline" size="icon" onClick={onBack} aria-label="Все диалоги"><ArrowLeft aria-hidden="true" /></Button>
       {peer && <><MessengerAvatar user={peer} /><span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span></>}
-      <CloseMessages />
+      <MessageDrawerClose />
     </ControlBar>
     <div className="messenger-history" ref={list} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={() => {
       const node = list.current; bottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; void acknowledge();

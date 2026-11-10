@@ -96,13 +96,20 @@ export function useAssistantDictation({ disabled, setDraft }) {
     };
   }, [cancel]);
 
+  useLayoutEffect(() => {
+    if (disabled && session.current) {
+      cancel();
+      setPhase('idle');
+    }
+  }, [disabled, cancel]);
+
   useEffect(() => {
     if (!Recognition || disabled) return;
     const onKeyDown = event => {
       if (event.key !== ' ' || event.defaultPrevented || event.isComposing || event.keyCode === 229 ||
           event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.target instanceof Element && event.target.closest(
-        'button, a[href], input, textarea, select, [contenteditable], [role="button"], [role="checkbox"]',
+        'button, a[href], input, textarea, select, [contenteditable], [role="button"], [role="checkbox"], [role="menu"]',
       )) return;
       event.preventDefault();
       if (!event.repeat) toggle();

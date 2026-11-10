@@ -1,5 +1,5 @@
 import { ProductTitleInput } from "@/components/product-title-input";
-import { AssistantPage, AssistantProvider } from "@/components/assistant-page";
+import { AssistantDrawer, AssistantProvider } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
 import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
@@ -19,7 +19,7 @@ import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, external
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  Archive, ArrowLeft, ArrowRight, Bot, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
+  Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
   Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Trash2, UserPlus,
@@ -734,20 +734,12 @@ function AppBrand({ showSwitcher = true }) {
 
 function PlanningFab() {
   const { user } = useSession();
-  return user ? <PlanningControls key={user.id} user={user} /> : null;
+  return user ? <AssistantProvider key={user.id}><PlanningControls user={user} /></AssistantProvider> : null;
 }
 
 function PlanningControls({ user }) {
   const location = useLocation();
   const isMobile = useIsMobile();
-  const assistantShortcut = useRef(null);
-  const assistantOrigin = useRef(null);
-  useLayoutEffect(() => {
-    if (assistantOrigin.current === location.key) {
-      assistantOrigin.current = null;
-      assistantShortcut.current?.focus({ preventScroll: true });
-    }
-  }, [location.key]);
   const returnPath = useRef(APP_HOME);
   useEffect(() => {
     if (location.pathname !== PLANNING_SERVICE.path && !isAssistantPath(location.pathname)) {
@@ -755,17 +747,30 @@ function PlanningControls({ user }) {
     }
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const showMessages = Boolean(location.state?.messengerOpen);
     setOpen(false);
-    setMessagesOpen(Boolean(location.state?.messengerOpen));
+    setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
+    setMessagesOpen(showMessages);
     setInitialConversationId(location.state?.messengerConversationId || null);
   }, [location]);
   const setMessengerDrawerOpen = (value) => {
     setMessagesOpen(value);
-    if (value) setOpen(false);
+    if (value) {
+      setOpen(false);
+      setAssistantOpen(false);
+    }
     else setInitialConversationId(null);
+  };
+  const setAssistantDrawerOpen = (value) => {
+    setAssistantOpen(value);
+    if (value) {
+      setOpen(false);
+      setMessengerDrawerOpen(false);
+    }
   };
   if (isAssistantPath(location.pathname) || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
@@ -776,15 +781,7 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <Link ref={assistantShortcut} data-control-icon to={APP_ASSISTANT_PATH} state={{ assistantFromShortcut: true }}
-        className={cn(buttonVariants({ variant: "outline", size: "icon" }), "assistant-fab")}
-        aria-label="Ассистент Rollapp" title="Ассистент Rollapp"
-        onClick={event => {
-          if (!event.defaultPrevented && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-            assistantOrigin.current = location.key;
-          }
-        }}
-      ><Bot aria-hidden="true" /></Link>
+      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} />
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon
@@ -794,7 +791,13 @@ function PlanningControls({ user }) {
         title={backLabel}
       ><ArrowLeft aria-hidden="true" /></Link>}
       {inPlanning && isMobile && <div className="planning-fab-space"><PlanningSpaceSwitcher /></div>}
-    <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setMessengerDrawerOpen(false); }}>
+    <Popover open={open} onOpenChange={value => {
+      setOpen(value);
+      if (value) {
+        setAssistantOpen(false);
+        setMessengerDrawerOpen(false);
+      }
+    }}>
       <PopoverTrigger
         render={<ShadcnButton data-control-icon className="planning-fab rounded-full" size="icon" type="button" />}
         aria-label="Открыть планирование"
@@ -3670,29 +3673,22 @@ function isAssistantPath(pathname) {
   return pathname.replace(/\/$/, "").toLowerCase() === APP_ASSISTANT_PATH;
 }
 
-function AssistantSession({ children }) {
-  const { user } = useSession();
-  return <AssistantProvider owner={user?.id}>{children}</AssistantProvider>;
+function messagesHostPath(user) {
+  return user.accountType === "business"
+    ? publicSpacePath(user.username, user.sellerSpace || "products")
+    : APP_HOME;
 }
 
 function AssistantRoute() {
-  const location = useLocation();
-  const navigate = useNavigate();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(APP_ASSISTANT_PATH)}`} replace />;
-  return <AssistantPage key={user.id} onBack={() => {
-    if (location.state?.assistantFromShortcut) navigate(-1);
-    else navigate(APP_HOME, { replace: true });
-  }} />;
+  return <Navigate to={messagesHostPath(user)} replace state={{ assistantOpen: true }} />;
 }
 
 function MessengerRoute({ user }) {
   const { conversationId } = useParams();
-  const destination = user.accountType === "business"
-    ? publicSpacePath(user.username, user.sellerSpace || "products")
-    : APP_HOME;
-  return <Navigate to={destination} replace state={{ messengerOpen: true, messengerConversationId: conversationId || null }} />;
+  return <Navigate to={messagesHostPath(user)} replace state={{ messengerOpen: true, messengerConversationId: conversationId || null }} />;
 }
 
 function ProtectedApp() {
@@ -8158,7 +8154,6 @@ export default function App() {
           <CatalogBusinessDirectoryScope>
           {!linkingResult && <GlobalAppChrome />}
           {!linkingResult && <PlanningFab />}
-          <AssistantSession>
           <Routes>
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage />} />
@@ -8189,7 +8184,6 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </AssistantSession>
           </CatalogBusinessDirectoryScope>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>
