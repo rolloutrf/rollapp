@@ -1001,8 +1001,8 @@ function asyncRoute(handler) {
 
 async function optionalAuth(req, _res, next) {
   const token = req.cookies[sessionCookie];
-  const mcpHash = mcpHttp.internalSessionHash(req);
-  if (!token && !mcpHash) return next();
+  const mcpHashes = mcpHttp.internalSessionHashes(req);
+  if (!token && !mcpHashes) return next();
   const result = await query(
     `SELECT u.*,
        (yi.yandex_user_id IS NOT NULL) AS has_yandex,
@@ -1011,8 +1011,8 @@ async function optionalAuth(req, _res, next) {
      JOIN users u ON u.id = s.user_id
      LEFT JOIN yandex_identities yi ON yi.user_id=u.id
      LEFT JOIN default_follow_targets dft ON dft.user_id=u.id
-     WHERE s.token_hash = $1 AND s.expires_at > $2`,
-    [mcpHash || hashToken(token), new Date()],
+     WHERE s.token_hash = ANY($1::text[]) AND s.expires_at > $2`,
+    [mcpHashes || [hashToken(token)], new Date()],
   );
   req.user = result.rows[0] || null;
   next();

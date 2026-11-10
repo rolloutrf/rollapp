@@ -12,6 +12,8 @@ const mode = new URLSearchParams(location.search).get("state");
 const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null };
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 let invites = [];
+let mcpKeys = [];
+window.mcpKeyRequests = [];
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
   if (path === "/me" && mode === "backup-result") return { user: fixtureUser };
@@ -25,6 +27,13 @@ api.get = async (path) => {
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
   if (path === "/me/invites") return { invites };
+  if (path === "/mcp/tokens") {
+    if (window.rejectMcpKeyList) {
+      window.rejectMcpKeyList = false;
+      throw new Error("Ключи временно недоступны");
+    }
+    return { keys: mcpKeys };
+  }
   if (path === "/rolls") {
     if (!window.finishWalletLoad) {
       await new Promise((resolve) => { window.finishWalletLoad = resolve; });
@@ -53,6 +62,13 @@ api.get = async (path) => {
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
 const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
+  if (path === "/mcp/tokens") {
+    window.mcpKeyRequests.push(data.scope);
+    const id = window.mcpKeyRequests.length.toString(16).padStart(64, "0");
+    const key = { id, scope: data.scope, expiresAt: "2026-12-12T12:00:00.000Z" };
+    mcpKeys = [key, ...mcpKeys];
+    return { ...key, token: `rwmcp_${data.scope}_${"x".repeat(43)}` };
+  }
   if (path === "/me/invites") {
     window.inviteRequests = (window.inviteRequests || 0) + 1;
     if (window.inviteRequests === 1) throw new Error("Отправка временно недоступна");
@@ -67,6 +83,10 @@ api.post = async (path, data) => {
   throw new Error("Unexpected fixture POST");
 };
 api.delete = async (path) => {
+  if (path.startsWith("/mcp/tokens/")) {
+    mcpKeys = mcpKeys.filter(({ id }) => path !== `/mcp/tokens/${id}`);
+    return { ok: true };
+  }
   if (mode === "avatar" && window.rejectAvatarSave && path === `/uploads/images/${avatarId}`) {
     window.rejectedAvatarReleased = true;
     return { ok: true };

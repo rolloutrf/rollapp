@@ -88,6 +88,7 @@ import { IdealState } from "@/components/ideal-state";
 import { OpenRouterSettings } from "@/components/openrouter-settings";
 import { ProfileInvites } from "@/components/profile-invites";
 import { ProfileAccounts } from "@/components/profile-accounts";
+import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
@@ -7214,6 +7215,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [yandexDiskBackupEnabled, setYandexDiskBackupEnabled] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
   const [accountsBusy, setAccountsBusy] = useState(false);
+  const [mcpKeysBusy, setMcpKeysBusy] = useState(false);
   const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
   const [section, setSection] = useState(null);
   const [rootOpen, setRootOpen] = useState(true);
@@ -7228,13 +7230,14 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
     ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
     { id: "openrouter", title: "OpenRouter", icon: LockKeyhole },
+    { id: "mcp", title: "Ключи MCP", icon: LockKeyhole },
     { id: "yandex", title: "Yandex ID", icon: Fingerprint },
     { id: "rolls", title: "Финансы", icon: ROLLS_SERVICE.icon },
     { id: "gift-cards", title: "Подарочные карты", icon: Gift },
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7702,7 +7705,9 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
-  const fullSection = openRouterSection || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
+  const fullSection = openRouterSection
+    || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
+    || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
   const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
   return <>
     <Drawer open={rootOpen} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => {

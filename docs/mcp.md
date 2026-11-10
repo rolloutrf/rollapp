@@ -4,16 +4,17 @@ Rollapp поддерживает Streamable HTTP по адресу `https://ро
 
 ## Подключение по HTTPS
 
-Выполните из корня репозитория. Токен получает права чтения и действует 30 дней.
+В настройках профиля Rollapp откройте **Ключи MCP**, нажмите **Создать ключ** и скопируйте его. Ключ получает права чтения и действует 30 дней. Включите **Разрешить запись** перед выпуском, если клиенту нужны операции записи. Список активных ключей и отзыв доступны в том же разделе.
 
 ```bash
-npm ci
-npm run mcp:auth -- login
-export ROLLAPP_MCP_TOKEN="$(npm run --silent mcp:auth -- token)"
+read -rs ROLLAPP_MCP_TOKEN
+export ROLLAPP_MCP_TOKEN
 codex mcp add rollapp --url https://xn--80avakiab.xn--p1ai/mcp --bearer-token-env-var ROLLAPP_MCP_TOKEN
 ```
 
-Запускайте Codex из окружения, где задан `ROLLAPP_MCP_TOKEN`. Для другого клиента передайте токен в заголовке `Authorization: Bearer …`. Чтобы получить права записи, выпустите токен командой `npm run --silent mcp:auth -- token --write`. Для отзыва текущего токена выполните `npm run mcp:auth -- revoke` из того же окружения. Выход из локальной сессии и отзыв HTTPS-токена выполняются отдельно. [OpenAI Docs о подключении MCP](https://developers.openai.com/codex/mcp/), [MCP SDK о Streamable HTTP](https://ts.sdk.modelcontextprotocol.io/v2/serving/http).
+Первая команда ждёт ввода ключа и скрывает ввод. Запускайте Codex из окружения, где задан `ROLLAPP_MCP_TOKEN`. Другие MCP-клиенты могут передать ключ через `Authorization: Bearer …` или `X-API-Key`. [OpenAI Docs о подключении MCP](https://developers.openai.com/codex/mcp/), [MCP SDK о Streamable HTTP](https://ts.sdk.modelcontextprotocol.io/v2/serving/http).
+
+Для управления из терминала войдите через `npm run mcp:auth -- login`, выпустите ключ через `npm run --silent mcp:auth -- token` (с `--write` для записи), или отзовите ключ из `ROLLAPP_MCP_TOKEN` командой `npm run mcp:auth -- revoke`. Выход из локальной сессии и отзыв HTTPS-ключа выполняются отдельно.
 
 ## Подключение по stdio
 
@@ -59,4 +60,4 @@ codex mcp add rollapp -- "$(command -v node)" "$PWD/scripts/mcp/server.mjs" --wr
 
 ## Проверка
 
-`node --test server/mcp-http.test.js scripts/mcp/mcp.test.js` проверяет оба транспорта, маршрутизацию, валидацию, scope, отзыв и истечение токенов через изолированные HTTP fixture. В production ответ `/api/healthz` должен показывать точный SHA выпуска, а `/mcp` без токена — HTTP `401`. Для проверки с токеном вызовите `get_service_status`, `get_account` и `list_planning_spaces`. Эти вызовы не меняют данные аккаунта.
+`node --test server/mcp-http.test.js scripts/mcp/mcp.test.js` проверяет оба транспорта, маршрутизацию, валидацию, scope, отзыв и истечение ключей через изолированные HTTP fixture. `npm run test:profile` проверяет выпуск, копирование, скрытие и отзыв в настройках на девяти размерах. В production ответ `/api/healthz` должен показывать точный SHA выпуска, а `/mcp` без ключа — HTTP `401`. Для проверки с ключом вызовите `get_service_status`, `get_account` и `list_planning_spaces`. Эти вызовы не меняют данные аккаунта.

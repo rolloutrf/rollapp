@@ -42,7 +42,7 @@ try {
     const mobile = width < 768;
     await menu.waitFor();
     assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
-      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Yandex ID", "Финансы", "Подарочные карты", "Заказы",
+      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Ключи MCP", "Yandex ID", "Финансы", "Подарочные карты", "Заказы",
     ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();
@@ -454,6 +454,64 @@ try {
       assert.equal(await disconnectOpenRouter.count(), 0);
       assert.equal(await page.getByRole("alert").count(), 0);
     }
+    await page.goto(`${origin}/__profile-settings?state=mcp`);
+    const shortMobile = width === 390 && height === 400;
+    if (shortMobile) await page.evaluate(() => { window.rejectMcpKeyList = true; });
+    await button("Ключи MCP").click();
+    const keys = page.getByRole("region", { name: "Ключи доступа MCP" });
+    const writeScope = keys.getByRole("switch", { name: "Разрешить запись" });
+    const createKey = button("Создать ключ");
+    const secret = keys.getByRole("textbox", { name: "Новый ключ MCP" });
+    if (shortMobile) {
+      await keys.getByRole("alert").getByText("Ключи временно недоступны").waitFor();
+      await button("Повторить").click();
+    }
+    await createKey.waitFor();
+    await keys.getByText("Активных ключей пока нет.").waitFor();
+    assert.equal(await writeScope.getAttribute("aria-checked"), "false");
+    const createBox = await createKey.boundingBox();
+    assert(createBox.x >= 0 && createBox.x + createBox.width <= width && createBox.height >= 48);
+    await createKey.click();
+    await secret.waitFor();
+    const readToken = `rwmcp_read_${"x".repeat(43)}`;
+    assert.equal(await secret.inputValue(), readToken);
+    const keyMetadata = keys.getByText(/Только чтение · до/);
+    assert.deepEqual(await keyMetadata.evaluate((element) => {
+      const { fontSize, lineHeight } = getComputedStyle(element);
+      return [fontSize, lineHeight];
+    }), ["13px", "16px"]);
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => { window.copiedMcpKey = text; } } });
+    });
+    await button("Скопировать ключ").click();
+    await keys.getByRole("status").getByText("Ключ скопирован").waitFor();
+    assert.equal(await page.evaluate(() => window.copiedMcpKey), readToken);
+    if (width === 1440 && height === 900) {
+      await writeScope.click();
+      await createKey.click();
+      await keys.getByText("Чтение и запись", { exact: false }).waitFor();
+      assert.deepEqual(await page.evaluate(() => window.mcpKeyRequests), ["read", "write"]);
+      assert.equal(await writeScope.getAttribute("aria-checked"), "false");
+    }
+    await page.screenshot({ path: `/tmp/rollapp-profile-mcp-${width}x${height}.png` });
+    if (mobile) {
+      const lastKey = keys.getByRole("listitem").last();
+      await lastKey.evaluate((element) => element.scrollIntoView({ block: "end", behavior: "instant" }));
+      const [lastBox, backBox] = await Promise.all([lastKey.boundingBox(), back.boundingBox()]);
+      assert(lastBox.y + lastBox.height <= backBox.y + 1);
+    }
+    await back.click();
+    await menu.waitFor();
+    await button("Ключи MCP").click();
+    const revoke = button("Отозвать ключ …00000001");
+    await revoke.waitFor();
+    assert.equal(await secret.count(), 0);
+    await revoke.click();
+    const confirmRevoke = page.getByRole("alertdialog", { name: "Отозвать ключ MCP?" });
+    await confirmRevoke.getByRole("button", { name: "Отозвать ключ …00000001" }).click();
+    await revoke.waitFor({ state: "detached" });
+    await back.click();
+    await menu.waitFor();
     const result = mobile ? "permission" : "complete";
     await page.clock.install();
     await page.goto(`${origin}/login?state=backup-result&auth_success=YANDEX_LINKED&backup=f589bf34-5586-4456-aea6-83223dbbd052&result=${result}`);
@@ -475,7 +533,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     if (height === 400) await page.screenshot({ path: `/tmp/rollapp-yandex-result-${width}x${height}.png` });
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance and Yandex backup result (${result})`);
+    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance, MCP keys and Yandex backup result (${result})`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }
