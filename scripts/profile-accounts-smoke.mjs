@@ -40,6 +40,7 @@ async function fixture(viewport, startWithTwo = true) {
   let remembered = startWithTwo ? [personal, business] : [personal];
   let staleWrites = 0;
   let failList = false;
+  let cancelYandex = true;
   await context.route("**/api/**", async (route) => {
     const request = route.request();
     const { pathname, searchParams } = new URL(request.url());
@@ -53,8 +54,7 @@ async function fixture(viewport, startWithTwo = true) {
     if (pathname === "/api/me" && method === "GET") return reply({ user: active });
     if (pathname === "/api/me/openrouter") return reply({ available: false, configured: false });
     if (pathname === "/api/me/openrouter/models") return reply({ models: [] });
-    if (pathname === "/api/auth/phone/config") return reply({ enabled: false });
-    if (pathname === "/api/auth/yandex/config") return reply({ enabled: true });
+    if (pathname === "/api/auth/yandex/config") return reply({ enabled: true, legacySignInEnabled: false });
     if (pathname === "/api/auth/accounts" && method === "GET" && expected === active?.id) {
       if (failList) {
         failList = false;
@@ -62,11 +62,16 @@ async function fixture(viewport, startWithTwo = true) {
       }
       return reply({ accounts: [active, ...remembered.filter(({ id }) => id !== active.id)].map((user) => ({ ...user, active: user.id === active.id })), maxAccounts: 5 });
     }
-    if (pathname === "/api/auth/login" && method === "POST" && searchParams.get("add_account") === "1" && expected === active?.id) {
-      if (request.postDataJSON().password !== "valid-password") return reply({ error: "Неверные email или пароль" }, 401);
+    if (pathname === "/api/auth/yandex/start" && method === "GET" && searchParams.get("add_account") === "1" && active?.id === personal.id) {
+      assert.equal(searchParams.get("next"), "/app/wishes?space=products");
+      if (cancelYandex) {
+        cancelYandex = false;
+        searchParams.set("auth_error", "YANDEX_CANCELLED");
+        return route.fulfill({ status: 303, headers: { Location: `/login?${searchParams}` } });
+      }
       remembered = [personal, business];
       active = business;
-      return reply({ user: active });
+      return route.fulfill({ status: 303, headers: { Location: "/app/wishes" } });
     }
     if (pathname === "/api/auth/accounts/switch" && method === "POST" && expected === active?.id) {
       active = remembered.find(({ id }) => id === request.postDataJSON().accountId);
@@ -140,6 +145,7 @@ try {
     const yandex = page.getByRole("link", { name: "Войти с помощью Яндекс ID", exact: true });
     await yandex.waitFor();
     assert.equal(new URL(await yandex.getAttribute("href"), origin).searchParams.get("add_account"), "1");
+    assert.equal(await page.locator(".auth-form input, .auth-method-switch, .auth-password-link, .auth-form .or").count(), 0);
     await page.getByRole("link", { name: "Отмена", exact: true }).click();
     await home(page).waitFor();
     assert.equal(new URL(page.url()).search, "?space=products");
@@ -151,12 +157,9 @@ try {
     await stale.getByLabel("Имя", { exact: true }).fill("Черновик старой вкладки");
     await openAccounts(page);
     await section(page).getByRole("link", { name: "Добавить аккаунт" }).click();
-    await page.getByLabel("Email", { exact: true }).fill("business@example.invalid");
-    await page.getByLabel("Пароль", { exact: true }).fill("wrong-password");
-    await page.getByRole("button", { name: "Войти", exact: true }).click();
-    await page.getByText("Неверные email или пароль", { exact: true }).waitFor();
-    await page.getByLabel("Пароль", { exact: true }).fill("valid-password");
-    await page.getByRole("button", { name: "Войти", exact: true }).click();
+    await yandex.click();
+    await page.getByText("Вход через Яндекс отменён", { exact: true }).waitFor();
+    await yandex.click();
     await home(page, business).waitFor();
     await stale.locator("#profile-editor-form").evaluate((element) => element.requestSubmit());
     await home(stale, business).waitFor();
@@ -172,7 +175,7 @@ try {
     await page.getByRole("button", { name: "Персональная информация" }).click();
     await page.getByRole("button", { name: "Выйти на этом устройстве", exact: true }).click();
     await page.getByText("Нет активного аккаунта").waitFor();
-    console.log("PASS: retry, cancel, failed login, add, switch back, stale tab write guard, remove, logout");
+    console.log("PASS: retry, cancel, Yandex-only add, OAuth cancellation/retry, switch back, stale tab write guard, remove, logout");
   } finally {
     await context.close();
   }

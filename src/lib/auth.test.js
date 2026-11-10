@@ -27,6 +27,9 @@ test("Yandex start paths preserve an encoded local destination", () => {
 
 test("Yandex callback errors map to safe local copy", () => {
   assert.equal(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED").linkRequired, true);
+  assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED").description, /настройки профиля/);
+  assert.match(yandexAuthErrorDetails("YANDEX_LINK_REQUIRED", { legacySignInEnabled: true }).description, /по email/);
   assert.equal(yandexAuthErrorDetails("unknown-provider-text"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
+  assert.equal(yandexAuthErrorDetails("constructor"), yandexAuthErrorDetails("YANDEX_PROVIDER_ERROR"));
   assert.equal(yandexAuthErrorDetails(""), null);
 });

@@ -1719,7 +1719,27 @@ function RegistrationForm({ invite, email }) {
   );
 }
 
-function AuthPage() {
+function AuthPage({ recovery }) {
+  const location = useLocation();
+  const [config, setConfig] = useState(null);
+  useEffect(() => {
+    let active = true;
+    api.get("/auth/yandex/config")
+      .then((result) => { if (active) setConfig(result); })
+      .catch(() => { if (active) setConfig({ enabled: false }); });
+    return () => { active = false; };
+  }, []);
+
+  if (!config) return <LoadingScreen />;
+  if (recovery) {
+    if (config.legacySignInEnabled === true) return recovery === "reset" ? <ResetPasswordPage /> : <ForgotPasswordPage />;
+    const nextPath = safeNextPath(new URLSearchParams(location.search).get("next"));
+    return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
+  }
+  return <SignInPage yandexEnabled={config.enabled === true} legacySignInEnabled={config.legacySignInEnabled === true} />;
+}
+
+function SignInPage({ yandexEnabled, legacySignInEnabled }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading, refresh } = useSession();
@@ -1728,13 +1748,12 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneConfigLoaded, setPhoneConfigLoaded] = useState(false);
-  const [yandexEnabled, setYandexEnabled] = useState(false);
   const [authMethod, setAuthMethod] = useState("email");
   const authQuery = new URLSearchParams(location.search);
   const addingAccount = authQuery.get("add_account") === "1";
   const addAccountQuery = addingAccount ? "?add_account=1" : "";
   const [telegramAuth, setTelegramAuth] = useState(() => {
-    const launch = addingAccount ? {} : initializeTelegramWebApp();
+    const launch = addingAccount || !legacySignInEnabled ? {} : initializeTelegramWebApp();
     return {
       initData: launch.initData,
       status: launch.initData ? "checking" : "absent",
@@ -1745,7 +1764,7 @@ function AuthPage() {
   const authId = useId();
   const methodTouchedRef = useRef(false);
   const nextPath = safeNextPath(authQuery.get("next"));
-  const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"));
+  const yandexError = yandexAuthErrorDetails(authQuery.get("auth_error"), { legacySignInEnabled });
   const yandexLinked = authQuery.get("auth_success") === "YANDEX_LINKED";
   const backup = authQuery.get("backup");
   const yandexBackup = yandexLinked && (backup === "busy" || /^[0-9a-f-]{36}$/.test(backup || "")) ? backup : "";
@@ -1812,14 +1831,7 @@ function AuthPage() {
   }, [telegramAuth.initData, user, refresh, navigate, nextPath, toast]);
 
   useEffect(() => {
-    let active = true;
-    api.get("/auth/yandex/config")
-      .then((config) => { if (active) setYandexEnabled(Boolean(config.enabled)); })
-      .catch(() => { if (active) setYandexEnabled(false); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
+    if (!legacySignInEnabled) return undefined;
     methodTouchedRef.current = false;
     let active = true;
     setPhoneConfigLoaded(false);
@@ -1837,7 +1849,7 @@ function AuthPage() {
       })
       .finally(() => { if (active) setPhoneConfigLoaded(true); });
     return () => { active = false; };
-  }, []);
+  }, [legacySignInEnabled]);
 
   if (addingAccount && sessionLoading) return <LoadingScreen />;
   if (addingAccount && !user) return <Navigate to={`/login?next=${encodeURIComponent(nextPath)}`} replace />;
@@ -1861,6 +1873,31 @@ function AuthPage() {
             )}
             {yandexBackup && <YandexBackupResult key={`${user.id}:${yandexBackup}`} backup={yandexBackup} retryHref={yandexLinkHref} userId={user.id} />}
             <Link className={buttonVariants({ variant: "outline", className: "h-12 w-full" })} to={nextPath}>Вернуться в Rollapp</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!legacySignInEnabled) {
+    const alert = yandexError || (!yandexEnabled && yandexAuthErrorDetails("YANDEX_AUTH_UNAVAILABLE"));
+    return (
+      <div className="auth-page rollapp-body">
+        <div className="auth-panel">
+          <div className="auth-form">
+            <div>
+              <span className="eyebrow">{addingAccount ? "Профиль" : "С возвращением"}</span>
+              <h1>{addingAccount ? "Добавить аккаунт" : "Войти в Rollapp"}</h1>
+              <p>{addingAccount ? "Войдите в другой аккаунт. Текущий останется в списке для быстрого переключения." : "Войдите с Яндекс ID, подключённым к вашему аккаунту Rollapp."}</p>
+            </div>
+            {alert && (
+              <Alert variant={alert.variant} className="auth-provider-alert">
+                <AlertTitle>{alert.title}</AlertTitle>
+                <AlertDescription>{alert.description}</AlertDescription>
+              </Alert>
+            )}
+            {yandexEnabled && <YandexIdButton href={yandexStartHref} />}
+            <p className="auth-switch">{addingAccount ? <Link to={nextPath} replace>Отмена</Link> : "Регистрация по приглашению."}</p>
           </div>
         </div>
       </div>
@@ -8256,8 +8293,8 @@ export default function App() {
             <Route path="/" element={<RootRoute />} />
             <Route path="/login" element={<AuthPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/forgot-password" element={<AuthPage recovery="forgot" />} />
+            <Route path="/reset-password" element={<AuthPage recovery="reset" />} />
             <Route path="/ideas" element={<Navigate to={APP_HOME} replace />} />
             <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
             <Route path="/s/:token" element={<PublicProfile shared />} />

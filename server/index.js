@@ -1892,22 +1892,35 @@ async function verifyPhoneChallenge(req, res, { purpose, userId = null }) {
   return res.json({ user });
 }
 
+// Keep the previous sign-in methods available for an explicit rollback.
+const legacySignInEnabled = process.env.ROLLAPP_LEGACY_SIGN_IN === "true";
+
+function requireLegacySignIn(_req, res, next) {
+  if (legacySignInEnabled) return next();
+  res.set("Cache-Control", "no-store");
+  return res.status(403).json({
+    error: "Вход в Rollapp доступен только через Яндекс ID",
+    code: "YANDEX_SIGN_IN_REQUIRED",
+  });
+}
+
 app.get("/api/auth/phone/config", (_req, res) => {
-  res.json(publicPhoneAuthConfig());
+  res.set("Cache-Control", "no-store");
+  res.json(legacySignInEnabled ? publicPhoneAuthConfig() : { enabled: false });
 });
 
-app.post("/api/auth/phone/request", requireAddAccountSession, asyncRoute(async (req, res) => {
+app.post("/api/auth/phone/request", requireLegacySignIn, requireAddAccountSession, asyncRoute(async (req, res) => {
   await startPhoneChallenge(req, res, { purpose: "login" });
 }));
 
-app.post("/api/auth/phone/verify", requireAddAccountSession, asyncRoute(async (req, res) => {
+app.post("/api/auth/phone/verify", requireLegacySignIn, requireAddAccountSession, asyncRoute(async (req, res) => {
   await verifyPhoneChallenge(req, res, { purpose: "login" });
 }));
 
 app.get("/api/auth/yandex/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
   const config = getYandexAuthConfig();
-  res.json({ enabled: config.enabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase });
+  res.json({ enabled: config.enabled, legacySignInEnabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase });
 });
 
 app.get("/api/me/yandex-backup/:id", requireAuth, (req, res) => {
@@ -2068,14 +2081,15 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
 
 app.get("/api/auth/telegram/config", (_req, res) => {
   const config = getTelegramAuthConfig();
+  res.set("Cache-Control", "no-store");
   res.json({
-    enabled: config.enabled,
+    enabled: legacySignInEnabled && config.enabled,
     botUsername: config.botUsername,
     botUrl: config.botUsername ? `https://t.me/${config.botUsername}` : null,
   });
 });
 
-app.post("/api/auth/telegram", authRateLimit, asyncRoute(async (req, res) => {
+app.post("/api/auth/telegram", requireLegacySignIn, authRateLimit, asyncRoute(async (req, res) => {
   let identity;
   try {
     ({ identity } = parseTelegramRequest(req.body));
@@ -2192,7 +2206,7 @@ app.delete("/api/uploads/images/:id", requireAuth, asyncRoute(async (req, res) =
   res.json({ ok: true });
 }));
 
-app.post("/api/auth/password-reset/request", passwordResetRequestRateLimit, asyncRoute(async (req, res) => {
+app.post("/api/auth/password-reset/request", requireLegacySignIn, passwordResetRequestRateLimit, asyncRoute(async (req, res) => {
   const emailConfig = getEmailConfig();
   const origin = getPasswordResetOrigin();
   if (!emailConfig.enabled || !origin) {
@@ -2209,7 +2223,7 @@ app.post("/api/auth/password-reset/request", passwordResetRequestRateLimit, asyn
   trackBackgroundTask(processPasswordResetRequest(parsed.data.email, origin));
 }));
 
-app.post("/api/auth/password-reset/confirm", authRateLimit, asyncRoute(async (req, res) => {
+app.post("/api/auth/password-reset/confirm", requireLegacySignIn, authRateLimit, asyncRoute(async (req, res) => {
   const parsed = passwordResetConfirmSchema.safeParse(req.body);
   if (!parsed.success) {
     const invalidPassword = parsed.error.issues.some((issue) => issue.path[0] === "password");
@@ -2364,7 +2378,7 @@ app.get("/api/me/member-number", requireAuth, asyncRoute(async (req, res) => {
   } : { number: null });
 }));
 
-app.post("/api/auth/login", authRateLimit, requireAddAccountSession, asyncRoute(async (req, res) => {
+app.post("/api/auth/login", requireLegacySignIn, authRateLimit, requireAddAccountSession, asyncRoute(async (req, res) => {
   const parsed = credentialsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Введите корректные email и пароль" });
   const authenticated = await withMutationLock(`password-auth:${parsed.data.email}`, () => transaction(async (client) => {
@@ -2382,7 +2396,7 @@ app.post("/api/auth/login", authRateLimit, requireAddAccountSession, asyncRoute(
   res.json({ user });
 }));
 
-app.post("/api/auth/demo", asyncRoute(async (req, res) => {
+app.post("/api/auth/demo", requireLegacySignIn, asyncRoute(async (req, res) => {
   if (process.env.DEMO_MODE === "false") return res.status(404).json({ error: "Демо-вход отключён" });
   const result = await query("SELECT * FROM users WHERE email = $1", ["demo@rollapp.test"]);
   if (!result.rowCount) return res.status(404).json({ error: "Демо-профиль не найден" });

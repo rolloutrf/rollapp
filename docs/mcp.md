@@ -14,11 +14,11 @@ codex mcp add rollapp --url https://xn--80avakiab.xn--p1ai/mcp --bearer-token-en
 
 Первая команда ждёт ввода ключа и скрывает ввод. Запускайте Codex из окружения, где задан `ROLLAPP_MCP_TOKEN`. Другие MCP-клиенты могут передать ключ через `Authorization: Bearer …` или `X-API-Key`. [OpenAI Docs о подключении MCP](https://developers.openai.com/codex/mcp/), [MCP SDK о Streamable HTTP](https://ts.sdk.modelcontextprotocol.io/v2/serving/http).
 
-Для управления из терминала войдите через `npm run mcp:auth -- login`, выпустите ключ через `npm run --silent mcp:auth -- token` (с `--write` для записи), или отзовите ключ из `ROLLAPP_MCP_TOKEN` командой `npm run mcp:auth -- revoke`. Выход из локальной сессии и отзыв HTTPS-ключа выполняются отдельно.
+В режиме входа только через Яндекс ID создавайте новые ключи в настройках профиля. При наличии сохранённой сессии MCP ключ также можно выпустить из терминала командой `npm run --silent mcp:auth -- token` (с `--write` для записи). Чтобы отозвать ключ из `ROLLAPP_MCP_TOKEN`, выполните `npm run mcp:auth -- revoke`.
 
 ## Подключение по stdio
 
-Выполните команды в терминале из корня репозитория.
+Для новой сессии stdio нужен сервер с явно включённым прежним входом (`ROLLAPP_LEGACY_SIGN_IN=true`). Для нового подключения к production используйте HTTPS и ключ из настроек профиля. Если прежний вход включён, выполните команды в терминале из корня репозитория.
 
 ```bash
 npm ci

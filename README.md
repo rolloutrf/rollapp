@@ -6,7 +6,7 @@ The product is an independent functional alternative to popular wishlist service
 
 ## What is included
 
-- Email/password authentication, Yandex ID, and optional SMS OTP login with HTTP-only sessions.
+- Yandex ID sign-in with HTTP-only sessions.
 - Telegram Mini App authentication with explicit one-time account linking.
 - Public profiles and shareable list links.
 - Multiple lists with public, followers-only, link-only, and private visibility.
@@ -208,9 +208,14 @@ Yandex ID uses the server-side Authorization Code flow with PKCE S256. The
 browser receives only a short-lived, HTTP-only state cookie; authorization
 attempts are consumed once from PostgreSQL. Refresh tokens are never stored;
 access tokens are discarded after profile lookup or the current Disk backup.
-Existing Rollapp accounts are never merged
-silently by email because Yandex userinfo does not expose an `email_verified`
-flag. Instead, the user signs in locally once and explicitly completes linking.
+For an existing account, connect Yandex ID in profile settings from an active
+Rollapp session. Linking requires control of the Rollapp session and of the
+Yandex account. New accounts register with Yandex ID using an invitation.
+
+Yandex ID is the only sign-in method by default. The login page and API pause
+email/password, password recovery, phone OTP, Telegram sign-in and demo sign-in.
+To restore the previous methods, set `ROLLAPP_LEGACY_SIGN_IN=true` in the
+server environment and restart. Each method still requires its own configuration.
 
 Create a Yandex OAuth application of type **For user authentication** with the
 web platform, enable login/name and email access (avatar may be optional), and
@@ -261,13 +266,13 @@ if a release interrupts it, the user can start it again from profile settings.
 
 ### Password recovery
 
-Email/password accounts can request a one-time reset link from `/forgot-password`. Reset tokens expire after 30 minutes, are stored only as SHA-256 hashes, become invalid after one use, and revoke every existing session when the password changes. The request endpoint always returns the same public response for known and unknown email addresses.
+With legacy sign-in explicitly enabled, email/password accounts can request a one-time reset link from `/forgot-password`. Reset tokens expire after 30 minutes, are stored only as SHA-256 hashes, become invalid after one use, and revoke every existing session when the password changes. The request endpoint always returns the same public response for known and unknown email addresses.
 
 In-memory local development can use `EMAIL_PROVIDER=console` and print the reset link only to the local server terminal. That provider is blocked in production and whenever `DATABASE_URL` or `PGHOST` points at persistent PostgreSQL. Automated tests use the test-only provider. Production sends from the verified `noreply@роллапп.рф` Cloud Postbox identity through the VM's short-lived IAM token, without a static mail credential; the runtime service account has the least-privilege `postbox.sender` role. `PUBLIC_APP_URL` must be the canonical HTTPS origin used in reset links.
 
 ### Phone login
 
-Phone login is an additional sign-in method for existing accounts. A signed-in user first verifies and links a Russian mobile number in settings; email/password login remains available and existing sessions are not invalidated. Unknown phone numbers never create accounts and receive the same API response shape as linked numbers.
+With legacy sign-in explicitly enabled, a user can sign in with a Russian mobile number previously verified and linked to their account. Unknown phone numbers never create accounts and receive the same API response shape as linked numbers.
 
 The OTP backend supports three provider modes:
 
@@ -283,7 +288,7 @@ OTP codes expire after five minutes, are single-use, and are stored only as HMAC
 
 ### Telegram Mini App
 
-`@rollappRFbot` opens the production app over HTTPS. The browser sends only Telegram's raw `initData`; the server verifies its HMAC signature and freshness before it trusts the Telegram user ID. A Telegram identity is never merged by display name or `@username`: an existing Rollapp user signs in once and explicitly links the accounts, then later bot launches create the normal HTTP-only Rollapp session without a password.
+`@rollappRFbot` opens the production app over HTTPS. With legacy sign-in explicitly enabled, the browser sends Telegram's raw `initData`; the server verifies its HMAC signature and freshness before it trusts the Telegram user ID. An existing Rollapp user can explicitly link the accounts. Later bot launches can then create a normal HTTP-only Rollapp session.
 
 Store `bot_token` and an independent random `webhook_secret` in a dedicated Yandex Lockbox secret. Configure its ID through `YC_TELEGRAM_LOCKBOX_SECRET_ID` and grant payload-viewer access to the runtime and CI service accounts. Telegram currently times out in both directions to Yandex Cloud, so production updates are long-polled by the dedicated GitHub Actions worker while the web application and database remain in Yandex Cloud. The worker exchanges GitHub OIDC for a dedicated least-privilege service account that can read only this secret, loads the bot token once, and clears the temporary Yandex IAM token before polling. Neither token is sent to the browser, stored in GitHub, or committed to the repository. Every successful `main` deployment removes stale webhooks and restores the global Mini App menu button and bot commands.
 # Вознаграждения за закрытые потребности

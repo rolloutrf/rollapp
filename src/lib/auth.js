@@ -34,7 +34,7 @@ const yandexAuthErrors = {
   },
   YANDEX_CANCELLED: {
     title: "Вход через Яндекс отменён",
-    description: "Можно попробовать ещё раз или выбрать другой способ входа.",
+    description: "Попробуйте войти с Яндекс ID ещё раз.",
     variant: "default",
   },
   YANDEX_STATE_INVALID: {
@@ -44,7 +44,7 @@ const yandexAuthErrors = {
   },
   YANDEX_LINK_REQUIRED: {
     title: "Такой аккаунт Rollapp уже существует",
-    description: "Войдите по email или номеру телефона — после этого мы безопасно привяжем Yandex ID.",
+    description: "Откройте настройки профиля в браузере, где вы уже вошли в этот аккаунт Rollapp, и подключите Яндекс ID.",
     variant: "default",
     linkRequired: true,
   },
@@ -60,7 +60,7 @@ const yandexAuthErrors = {
   },
   YANDEX_LINK_LOGIN_REQUIRED: {
     title: "Сначала войдите в Rollapp",
-    description: "После обычного входа снова подключите Yandex ID.",
+    description: "Откройте настройки профиля в активной сессии Rollapp и повторите действие.",
     variant: "default",
   },
   YANDEX_IDENTITY_CONFLICT: {
@@ -80,7 +80,7 @@ const yandexAuthErrors = {
   },
   YANDEX_ADD_USE_CREDENTIALS: {
     title: "Этот Яндекс ID ещё не подключён",
-    description: "Войдите в нужный аккаунт по email или номеру телефона.",
+    description: "Выберите Яндекс ID, уже подключённый к нужному аккаунту Rollapp.",
     variant: "default",
   },
   YANDEX_EMAIL_REQUIRED: {
@@ -90,7 +90,7 @@ const yandexAuthErrors = {
   },
   YANDEX_AUTH_UNAVAILABLE: {
     title: "Вход через Яндекс пока недоступен",
-    description: "Выберите другой способ входа или попробуйте позже.",
+    description: "Попробуйте войти позже.",
     variant: "destructive",
   },
   YANDEX_PROVIDER_ERROR: {
@@ -100,7 +100,14 @@ const yandexAuthErrors = {
   },
 };
 
-export function yandexAuthErrorDetails(code) {
+export function yandexAuthErrorDetails(code, { legacySignInEnabled = false } = {}) {
   if (!code) return null;
-  return yandexAuthErrors[code] || yandexAuthErrors.YANDEX_PROVIDER_ERROR;
+  const details = Object.hasOwn(yandexAuthErrors, code) ? yandexAuthErrors[code] : yandexAuthErrors.YANDEX_PROVIDER_ERROR;
+  if (legacySignInEnabled && code === "YANDEX_LINK_REQUIRED") {
+    return { ...details, description: "Войдите по email или номеру телефона, чтобы подключить Яндекс ID." };
+  }
+  if (legacySignInEnabled && code === "YANDEX_ADD_USE_CREDENTIALS") {
+    return { ...details, description: "Войдите в нужный аккаунт по email или номеру телефона." };
+  }
+  return details;
 }
