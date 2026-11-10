@@ -1,5 +1,6 @@
 export const PROFILE_SPACES = ["products", "places", "events", "media", "food", "transport"];
 const PROFILE_PUBLICATIONS = ["calendar", "announcements"];
+export const profilePublicationSection = (value) => PROFILE_PUBLICATIONS.includes(value) ? value : null;
 const segment = (value) => encodeURIComponent(String(value || ""));
 export const publicProfilePath = (username) => `/${segment(username)}`;
 export const publicSpacePath = (username, space = "products") => `${publicProfilePath(username)}/${PROFILE_SPACES.includes(space) ? space : "products"}`;
@@ -10,7 +11,7 @@ export const publicPublicationPath = (username, section) => `${publicProfilePath
 export function publicProfileRoute(pathname) {
   const parts = pathname.split("/").filter(Boolean);
   if (!parts.length || ["app", "s", "login", "register", "forgot-password", "reset-password", "ideas"].includes(parts[0])) return null;
-  const publication = parts.length === 2 && PROFILE_PUBLICATIONS.includes(parts[1]) ? parts[1] : null;
+  const publication = parts.length === 2 ? profilePublicationSection(parts[1]) : null;
   if (publication || parts.length === 1 || (parts.length === 2 && PROFILE_SPACES.includes(parts[1])) || (parts.length === 3 && ["lists", "wishes"].includes(parts[1]))) {
     try {
       const profile = { username: decodeURIComponent(parts[0]), space: PROFILE_SPACES.includes(parts[1]) ? parts[1] : null };

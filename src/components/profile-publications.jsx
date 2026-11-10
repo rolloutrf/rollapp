@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -13,7 +13,6 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/api";
-import { cn } from "@/lib/utils";
 import { localDateKey } from "../../shared/planning.js";
 import { publicProfilePath, publicPublicationPath } from "../../shared/profile-links.js";
 
@@ -24,14 +23,14 @@ const sections = {
 const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full" });
 const timeFormat = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
-export function ProfilePublicationLinks({ username, className }) {
-  return <nav aria-label="Календарь и объявления профиля" className={cn("flex flex-wrap justify-center gap-2", className)}>
-    {Object.entries(sections).map(([section, { title, icon: Icon }]) => (
-      <PageActionButton key={section} variant="outline" nativeButton={false} role="link" render={<Link to={publicPublicationPath(username, section)} />}>
-        <Icon className="size-5" aria-hidden="true" />{title}
-      </PageActionButton>
-    ))}
-  </nav>;
+export function ProfilePublicationLinks({ activeSection, toSection, state }) {
+  return Object.entries(sections).map(([section, { title, icon: Icon }]) => (
+    <Link key={section} to={toSection(section)} state={state}
+      className={buttonVariants({ variant: activeSection === section ? "default" : "outline", size: "icon" })}
+      data-control-icon aria-label={title} aria-current={activeSection === section ? "page" : undefined} title={title}>
+      <Icon aria-hidden="true" />
+    </Link>
+  ));
 }
 
 function PublicationForm({ calendar, item, busy, error, onSave, onClose }) {
@@ -195,7 +194,7 @@ function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
   </div>;
 }
 
-export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload }) {
+export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo }) {
   const calendar = section === "calendar";
   const { title, icon: Icon } = sections[section];
   const profile = data?.profile;
@@ -209,6 +208,7 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
   const formOpener = useRef(null);
   const profilePath = publicProfilePath(profile?.username || username);
   const loginPath = `/login?next=${encodeURIComponent(publicPublicationPath(profile?.username || username, section))}`;
+  const Heading = returnTo ? "h2" : "h1";
 
   const refresh = () => reload({ background: true }).catch(() => {});
   const mutate = async (write, message, onSaved) => {
@@ -264,17 +264,17 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
     }
   };
 
-  return <div className="app-page page-stack">
-    <div className="app-shell-chrome-spacer" aria-hidden="true" />
+  return <div className={returnTo ? "page-stack" : "app-page page-stack"}>
+    {!returnTo && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
     <article className="page-stack mx-auto w-full max-w-(--layout-text-width) typeset typeset-rollapp typeset-document">
       <div className="not-typeset flex flex-wrap gap-2">
-        <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={profilePath} />}>
-          <ArrowLeft className="size-5" aria-hidden="true" />К профилю
+        <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={returnTo || profilePath} />}>
+          <ArrowLeft className="size-5" aria-hidden="true" />{returnTo ? "К Вишлисту" : "К профилю"}
         </PageActionButton>
       </div>
       <header className="min-w-0 wrap-anywhere" data-typeset-group>
-        {profile && <div data-typography="label" className="text-muted-foreground">{profile.name}</div>}
-        <h1 className="flex items-baseline gap-3"><Icon className="size-6 shrink-0 self-center text-primary" aria-hidden="true" />{title}</h1>
+        {profile && !returnTo && <div data-typography="label" className="text-muted-foreground">{profile.name}</div>}
+        <Heading className="flex items-baseline gap-3"><Icon className="size-6 shrink-0 self-center text-primary" aria-hidden="true" />{title}</Heading>
         {data && calendar && <p>Запись на сессии · время в вашем часовом поясе ({timeFormat.resolvedOptions().timeZone})</p>}
       </header>
       {loading && <p role="status">Загрузка…</p>}

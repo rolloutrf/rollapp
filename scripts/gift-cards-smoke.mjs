@@ -70,10 +70,12 @@ try {
     await page.getByRole("button", { name: /^Выпустить подарочную карту/ }).waitFor();
     const actions = page.locator(".public-collection-page__hero .horizontal-action-scroller");
     await page.evaluate(() => document.fonts.ready);
-    assert.deepEqual(await actions.locator("[data-page-action]").allTextContents(), ["Подписаться", "Визитка", "Календарь", "Доска объявлений"]);
+    assert.deepEqual(await actions.locator("[data-page-action]").allTextContents(), ["Подписаться", "Визитка"]);
+    const publicationLinks = actions.locator(":scope > a[data-control-icon]");
+    assert.deepEqual(await publicationLinks.evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), ["Календарь", "Доска объявлений"]);
     const rail = await actions.evaluate((element) => {
       const { left, right } = element.getBoundingClientRect();
-      const buttons = [...element.querySelectorAll("[data-page-action]")];
+      const buttons = [...element.querySelectorAll(":scope > :is([data-page-action], [data-control-icon])")];
       const controls = buttons.map((button) => {
         const { left, top, height } = button.getBoundingClientRect();
         return { left, top, height };
@@ -85,6 +87,7 @@ try {
       element.scrollLeft = 0;
       return { left, right, controls, gutter, overflow, lastRight };
     });
+    assert.equal(rail.controls.length, 4);
     assert(rail.controls.every(({ top, height }) => top === rail.controls[0].top && height === 48), `${width}: all four actions share one 48px row`);
     if (width <= 390) assert(rail.overflow, `${width}: the profile actions must scroll`);
     if (rail.overflow) {

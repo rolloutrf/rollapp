@@ -35,9 +35,14 @@ try{
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
    if(variant==='collection')assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
    if(variant==='wishlist-real'){
-    assert.equal(textActions.length,4,'Wishlist settings, Add and both publication links use shared page actions');
+    assert.equal(textActions.length,2,'Wishlist settings and Add use shared text actions');
     for(const [name,path] of [['Календарь','calendar'],['Доска объявлений','announcements']]){
-     assert.equal(await rail.getByRole('link',{name,exact:true}).getAttribute('href'),`/fixture/${path}`);
+     const link=rail.getByRole('link',{name,exact:true});
+     assert.equal(await link.getAttribute('href'),`/app/wishes?tab=products&publication=${path}`);
+     assert.deepEqual(await link.evaluate(element=>{
+      const {width,height}=element.getBoundingClientRect(),glyph=element.querySelector('svg').getBoundingClientRect();
+      return [element.parentElement.matches('.horizontal-action-scroller[data-control-bar]'),width,height,glyph.width,glyph.height,getComputedStyle(element).borderRadius];
+     }),[true,48,48,20,20,'24px'],`${name} belongs directly to the common row`);
     }
    }
    if(variant==='contacts-real')assert.equal(textActions.length,1);

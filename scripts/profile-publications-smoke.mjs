@@ -216,6 +216,53 @@ try {
     await page.getByText("Сейчас нет доступных слотов.").waitFor();
     await open("calendar", "loading");
     await page.getByRole("status").getByText("Загрузка…").waitFor();
+    for (const routing of ["wishlist", "public"]) {
+      await page.goto(`${origin}/__profile-publications?routing=${routing}`);
+      const rail = page.getByRole("group", { name: "Действия со списком желаний" });
+      const calendarLink = rail.getByRole("link", { name: "Календарь", exact: true });
+      const boardLink = rail.getByRole("link", { name: "Доска объявлений", exact: true });
+      const profileHeading = page.getByRole("heading", { name: "Участник", exact: true });
+      const space = page.getByRole("combobox", { name: "Раздел сервиса Вишлист" });
+      const list = page.getByRole("button", { name: /^Медиатека/ });
+      const wish = page.getByRole("button", { name: "Открыть желание «Фильм для вечера»" });
+      await wish.waitFor();
+      const original = await rail.elementHandle();
+      const assertShell = async () => {
+        assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
+        assert.equal(await profileHeading.count(), 1);
+        assert.equal(await rail.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
+        assert.equal(await list.getAttribute("aria-pressed"), "true");
+        assert.match(await space.innerText(), /Медиа/);
+        assert(await rail.evaluate(node => [...node.children].every(child => child.getBoundingClientRect().top === node.firstElementChild.getBoundingClientRect().top)));
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      };
+      await calendarLink.click();
+      await page.getByRole("heading", { name: "Календарь", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
+      assert.equal(await calendarLink.getAttribute("aria-current"), "page");
+      await page.waitForFunction(() => {
+        const row = document.querySelector('[aria-label="Действия со списком желаний"]');
+        const active = row.querySelector('[aria-current="page"]');
+        const inactive = row.querySelector('[aria-label="Доска объявлений"]');
+        return getComputedStyle(active).backgroundColor !== getComputedStyle(inactive).backgroundColor;
+      });
+      assert.equal(await wish.count(), 0);
+      await assertShell();
+      await boardLink.click();
+      await page.getByRole("heading", { name: "Открыта запись на ноябрь", exact: true }).waitFor();
+      assert.equal(await boardLink.getAttribute("aria-current"), "page");
+      await assertShell();
+      if ((width === 390 && height === 844) || width === 1440) {
+        await page.screenshot({ path: `/tmp/rollapp-publication-shell-${routing}-${width}.png`, animations: "disabled" });
+      }
+      await page.goBack();
+      await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
+      await assertShell();
+      await page.getByRole("link", { name: "К Вишлисту", exact: true }).click();
+      await wish.waitFor();
+      await assertShell();
+      assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
+    }
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}×${height} · booking, cancellation, conflict, publications, guest, date picker, overflow`);
     await page.close();

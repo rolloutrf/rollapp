@@ -5,10 +5,12 @@ import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "../../src/components/mobile-form-pages.jsx";
 import { ProfilePublications } from "../../src/components/profile-publications.jsx";
 import { useVisualViewport } from "../../src/hooks/use-visual-viewport.js";
+import App from "../../src/App.jsx";
 import "../../src/styles.css";
 import "../../src/index.css";
 
 const params = new URLSearchParams(location.search);
+const routing = params.get("routing");
 const section = params.get("section");
 const mode = params.get("mode");
 const owner = mode === "owner";
@@ -38,7 +40,29 @@ let snapshot = loading ? null : {
 const transport = window.publicationTransport = { calls: [], conflictNextBooking: false, loseNextAnnouncementResponse: false };
 const endpoint = `/profile/host/${section}`;
 const openBooking = `${endpoint}/open/bookings/open-booking`;
+if (routing) {
+  const account = { ...profile, id: "owner", accountType: "personal" };
+  const collection = {
+    profile: account,
+    lists: [
+      { id: "media-list", title: "Медиатека", space: "media", privacy: "public" },
+      { id: "archive", title: "Архив", space: "media", privacy: "public" },
+    ],
+    wishes: [{ id: "film", title: "Фильм для вечера", space: "media", listIds: ["media-list"], status: "active", userId: account.id }],
+    groups: [], isOwner: true, followersCount: 0, followingCount: 0,
+  };
+  api.get = async path => {
+    if (path === "/me") return { user: account };
+    if (path === "/sphere-shares/incoming") return { shares: [] };
+    if (path === "/dashboard" || path === "/profile/host") return collection;
+    if (path === "/gift-suggestions") return { items: [] };
+    if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: true };
+    throw new Error(`Unexpected GET ${path}`);
+  };
+  history.replaceState({}, "", routing === "wishlist" ? "/app/wishes?tab=media" : "/host/lists/media-list");
+}
 api.post = async (path, body) => {
+  if (routing && path === "/wishes/backfill-previews") return { updated: 0 };
   transport.calls.push(["POST", path, body]);
   if (!owner && !guest && section === "calendar" && path === `${endpoint}/open/book`) {
     if (transport.conflictNextBooking) {
@@ -108,6 +132,6 @@ function Fixture() {
 
 createRoot(document.getElementById("root")).render(
   <BrowserRouter>
-    <MobileFormPages><Fixture /></MobileFormPages>
+    {routing ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}
   </BrowserRouter>,
 );
