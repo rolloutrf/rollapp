@@ -63,6 +63,7 @@
 
 ## Database
 
+- For every database change, review the Yandex Disk account backup inventory in `server/account-backup.js`. Add or update the exported fields and explicit owner/participant scope for new or changed user data. Record deliberate exclusions for credentials, internal state, and data owned by other accounts. Verify affected projections with the existing read-only schema check and test cross-account visibility for new relationships.
 - Keep the shared production PostgreSQL connection budget: `PG_POOL_SIZE=2` in the production Compose and `PG_POOL_SIZE=1` per persistent development preview. Follow `docs/database-connections.md`; never size each checkout as if the role limit were private to it. Preserve configured production/TLS/verify mode and keep managed previews running after changes.
 
 - Always use the repository's configured production database for Rollapp development, previews, diagnostics, and verification.

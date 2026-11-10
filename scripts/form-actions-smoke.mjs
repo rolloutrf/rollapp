@@ -81,6 +81,28 @@ try {
         // Every mutation is forbidden; no accounts or database records exist here.
         await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
         await page.goto(`${origin}/__form-actions?form=${name}`);
+        if (name === "wish" || name === "wish-edit") {
+          const add = page.getByRole("button", { name: "Добавить участника", exact: true });
+          await add.click();
+          const search = page.getByRole("textbox", { name: "Имя или @username" });
+          await search.waitFor();
+          await search.press("Enter"); // A search must never submit the wish form.
+          const bounds = await add.evaluate(button => {
+            const style = getComputedStyle(button);
+            return [button.getBoundingClientRect().height, style.paddingInlineStart, style.paddingInlineEnd];
+          });
+          assert.deepEqual(bounds, [48, "24px", "24px"]);
+          if (name === "wish-edit") {
+            const remove = page.getByRole("button", { name: /^Убрать участника / });
+            const box = await remove.boundingBox();
+            assert.deepEqual([box.width, box.height], [48, 48]);
+            await remove.click();
+            await remove.waitFor({ state: "detached" });
+          }
+          await page.screenshot({ path: `/tmp/rollapp-wish-participants-${name}-${width}-${height}.png` });
+          await add.click();
+          await search.waitFor({ state: "detached" });
+        }
         if (name === "contact") {
           const heading = page.locator('.contact-detail__edit-heading--editable');
           await heading.waitFor();

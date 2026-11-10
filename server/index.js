@@ -54,6 +54,8 @@ import { createInvite, drawAvailableNumber, formatMemberNumber, inviteTokenHash,
 import { startMemberTonAnchor } from "./member-ton-anchor.js";
 import { deleteOwnedWishGroup, moveOwnedWishGroup, removeWishFromOwnedGroup, syncWishGroupMemberships } from "./wish-groups.js";
 import { externalCatalogItemFromRow } from "./external-catalog.js";
+import { applyWishParticipantChanges, validateWishParticipantChanges } from "./wish-participants.js";
+import { maxWishParticipants } from "../shared/wish-participants.js";
 import { getOhMyWishesRecommendationsPage, resolveOhMyWishesItem } from "./ohmywishes-brands.js";
 import { getStoredCatalogBrands, getStoredCatalogBrandPage } from "./external-catalog-brands.js";
 import {
@@ -2869,7 +2871,7 @@ async function getWishes(userId, viewerId = null, includePrivate = false, grante
   const wishIds = wishes.map((wish) => wish.id);
   const wishIdPlaceholders = wishIds.map((_, index) => `$${index + 1}`).join(",");
   const likedWishIdPlaceholders = wishIds.map((_, index) => `$${index + 2}`).join(",");
-  const [links, reservations, likes] = await Promise.all([
+  const [links, reservations, likes, participants] = await Promise.all([
     query(
       `SELECT wish_id,wishlist_id FROM wishlist_wishes WHERE wish_id IN (${wishIdPlaceholders})`,
       wishIds,
@@ -2888,6 +2890,14 @@ async function getWishes(userId, viewerId = null, includePrivate = false, grante
         [viewerId, ...wishIds],
       )
       : Promise.resolve({ rows: [] }),
+    viewerId === userId
+      ? query(
+        `SELECT p.wish_id,u.id,u.username,u.name,u.avatar_url FROM wish_participants p
+         JOIN wishes w ON w.id=p.wish_id JOIN users u ON u.id=p.user_id
+         WHERE w.user_id=$1 ORDER BY p.created_at,u.id`,
+        [userId],
+      )
+      : Promise.resolve({ rows: [] }),
   ]);
   const listIdsByWish = new Map();
   for (const row of links.rows) {
@@ -2900,9 +2910,15 @@ async function getWishes(userId, viewerId = null, includePrivate = false, grante
     reservationsByWish.get(row.wish_id).push(row.user_id);
   }
   const likedWishIds = new Set(likes.rows.map((row) => row.source_wish_id));
+  const participantsByWish = new Map();
+  for (const row of participants.rows) {
+    if (!participantsByWish.has(row.wish_id)) participantsByWish.set(row.wish_id, []);
+    participantsByWish.get(row.wish_id).push(shareUser(row));
+  }
   for (const wish of wishes) {
     wish.listIds = listIdsByWish.get(wish.id) || [];
     if (viewerId === userId) {
+      wish.participants = participantsByWish.get(wish.id) || [];
       wish.reservationCount = 0;
       wish.reservedByMe = false;
       wish.likedByMe = false;
@@ -2914,6 +2930,36 @@ async function getWishes(userId, viewerId = null, includePrivate = false, grante
     }
   }
   return wishes;
+}
+
+async function getSharedWishes(userId) {
+  const result = await query(
+    `SELECT w.*,u.name AS owner_name,u.username AS owner_username,u.avatar_url AS owner_avatar_url
+     FROM wish_participants p JOIN wishes w ON w.id=p.wish_id JOIN users u ON u.id=w.user_id
+     WHERE p.user_id=$1 ORDER BY p.created_at DESC,w.id`,
+    [userId],
+  );
+  const legacySpaces = new Map();
+  if (result.rows.some((row) => !listSpaceValues.includes(row.space))) {
+    const links = await query(
+      `SELECT p.wish_id,l.space FROM wish_participants p
+       JOIN wishes w ON w.id=p.wish_id
+       JOIN wishlist_wishes ww ON ww.wish_id=w.id
+       JOIN wishlists l ON l.id=ww.wishlist_id AND l.user_id=w.user_id
+       WHERE p.user_id=$1 AND w.space IS NULL
+         AND (l.title<>'Мои желания' OR l.description<>'Всё, чему я буду рад')
+       ORDER BY l.created_at,l.id`,
+      [userId],
+    );
+    for (const { wish_id, space } of links.rows) {
+      if (!legacySpaces.has(wish_id) && listSpaceValues.includes(space)) legacySpaces.set(wish_id, space);
+    }
+  }
+  return result.rows.map((row) => ({
+    ...mapWish(row),
+    space: listSpaceValues.includes(row.space) ? row.space : legacySpaces.get(row.id) || "products",
+    sharedBy: { id: row.user_id, name: row.owner_name, username: row.owner_username, avatarUrl: row.owner_avatar_url },
+  }));
 }
 
 async function canViewWish(wish, viewerId, shareToken = "", client = null) {
@@ -3362,9 +3408,10 @@ app.get("/api/gift-suggestions", requireAuth, asyncRoute(async (req, res) => {
 }));
 
 app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
-  const [lists, wishes, follows, birthdays, reservations, groupRows] = await Promise.all([
+  const [lists, wishes, sharedWishes, follows, birthdays, reservations, groupRows] = await Promise.all([
     getLists(req.user.id),
     getWishes(req.user.id, req.user.id, true),
+    getSharedWishes(req.user.id),
     query("SELECT COUNT(*) AS count FROM follows WHERE follower_id=$1", [req.user.id]),
     query(
       `SELECT u.id,u.username,u.name,u.avatar_url,u.birthday
@@ -3420,9 +3467,11 @@ app.get("/api/dashboard", requireAuth, asyncRoute(async (req, res) => {
     if (!groupsById.has(row.id)) groupsById.set(row.id, { id: row.id, listId: row.wishlist_id, space: row.space, title: row.title, wishIds: [] });
     if (row.wish_id) groupsById.get(row.id).wishIds.push(row.wish_id);
   }
+  res.set("Cache-Control", "private, no-store");
   res.json({
     lists,
     wishes,
+    sharedWishes,
     groups: [...groupsById.values()],
     followingCount: Number(follows.rows[0].count),
     birthdays: birthdays.rows.map((row) => ({ ...cleanUser(row), email: undefined })),
@@ -3736,6 +3785,13 @@ const listIdsSchema = z.array(z.string()).refine(
 // собственное поле space желания, поэтому пустой listIds разрешён и при создании.
 const createListIdsSchema = listIdsSchema;
 
+const participantIdsSchema = z.array(z.string().trim().min(1).max(100))
+  .max(maxWishParticipants).refine((ids) => new Set(ids).size === ids.length);
+const wishParticipantChangesSchema = z.object({
+  add: participantIdsSchema.default([]),
+  remove: participantIdsSchema.default([]),
+}).strict().refine(({ add, remove }) => !add.some((id) => remove.includes(id)));
+
 const wishFieldsSchema = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(1000).default(""),
@@ -3754,10 +3810,10 @@ const wishFieldsSchema = z.object({
 });
 
 // Создание: пустой listIds разрешён — желание живёт в своём пространстве (space).
-const wishSchema = wishFieldsSchema.extend({ listIds: createListIdsSchema });
+const wishSchema = wishFieldsSchema.extend({ listIds: createListIdsSchema, participantIds: participantIdsSchema.default([]) });
 
 // Патч: listIds: [] по-прежнему разрешён для намеренной отвязки желания от списков.
-const wishPatchSchema = wishFieldsSchema.extend({ listIds: listIdsSchema });
+const wishPatchSchema = wishFieldsSchema.extend({ listIds: listIdsSchema, participantChanges: wishParticipantChangesSchema.optional() });
 
 const wishMediaNoteSchema = z.object({
   summary: z.string().max(12000).default(""),
@@ -4098,17 +4154,22 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
   if (data.listIds.some((id) => !ownedIds.has(id))) return res.status(403).json({ error: "Список вам не принадлежит" });
   const id = randomUUID();
-  const reward = await transaction(async (client) => {
+  const outcome = await transaction(async (client) => {
+    const participantChanges = { add: data.participantIds, remove: [] };
+    const error = await validateWishParticipantChanges(client, req.user.id, null, participantChanges);
+    if (error) return { error };
     await client.query(
       `INSERT INTO wishes (id,user_id,title,description,url,image_url,fundraising_url,vehicle_make,vehicle_model,price,currency,priority,privacy,allow_multiple,event_date,space)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [id, req.user.id, data.title, data.description, data.url, data.imageUrl, data.fundraisingUrl, data.vehicleMake, data.vehicleModel, data.price ?? null, data.currency, data.priority, data.privacy, data.allowMultiple, data.eventDate, data.space ?? null],
     );
     for (const listId of data.listIds) await client.query("INSERT INTO wishlist_wishes (wishlist_id,wish_id) VALUES ($1,$2)", [listId, id]);
-    return grantWishReward(client, req.user.id, { id, title: data.title });
+    await applyWishParticipantChanges(client, id, participantChanges);
+    return { reward: await grantWishReward(client, req.user.id, { id, title: data.title }) };
   });
+  if (outcome.error) return res.status(400).json({ error: outcome.error });
   const result = await getWishes(req.user.id, req.user.id, true);
-  res.status(201).json({ wish: result.find((wish) => wish.id === id), reward });
+  res.status(201).json({ wish: result.find((wish) => wish.id === id), reward: outcome.reward });
 }));
 
 app.post("/api/wishes/backfill-previews", requireAuth, previewBackfillRateLimit, asyncRoute(async (req, res) => {
@@ -4140,6 +4201,7 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
       eventDate: req.body.eventDate === undefined ? formatEventDate(current.event_date) : req.body.eventDate,
       space: req.body.space === undefined ? current.space : req.body.space,
       listIds: req.body.listIds ?? currentLinks.rows.map((row) => row.wishlist_id),
+      participantChanges: req.body.participantChanges,
     };
     const parsed = wishPatchSchema.safeParse(merged);
     if (!parsed.success) return { status: 400, error: "Проверьте данные желания" };
@@ -4148,6 +4210,11 @@ app.patch("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
     const ownedIds = new Set(ownedLists.rows.map((row) => row.id));
     if (data.listIds.some((id) => !ownedIds.has(id))) {
       return { status: 403, error: "Список вам не принадлежит" };
+    }
+    if (data.participantChanges) {
+      const error = await validateWishParticipantChanges(client, req.user.id, current.id, data.participantChanges);
+      if (error) return { status: 400, error };
+      await applyWishParticipantChanges(client, current.id, data.participantChanges);
     }
     await client.query(
       `UPDATE wishes SET title=$1,description=$2,url=$3,image_url=$4,fundraising_url=$5,vehicle_make=$6,vehicle_model=$7,price=$8,currency=$9,priority=$10,privacy=$11,allow_multiple=$12,event_date=$13,space=$14 WHERE id=$15`,
@@ -4228,6 +4295,14 @@ app.delete("/api/wishes/:id", requireAuth, asyncRoute(async (req, res) => {
     return client.query("DELETE FROM wishes WHERE id=$1 AND user_id=$2 RETURNING id", [req.params.id, req.user.id]);
   }));
   if (!result.rowCount) return res.status(404).json({ error: "Желание не найдено" });
+  res.json({ ok: true });
+}));
+
+app.delete("/api/wishes/:id/participation", requireAuth, asyncRoute(async (req, res) => {
+  await withMutationLock(`wish:${req.params.id}`, () => transaction(async (client) => {
+    await client.query("SELECT id FROM wishes WHERE id=$1 FOR UPDATE", [req.params.id]);
+    await applyWishParticipantChanges(client, req.params.id, { add: [], remove: [req.user.id] });
+  }));
   res.json({ ok: true });
 }));
 
@@ -4412,6 +4487,7 @@ app.get("/api/profile/:username", asyncRoute(async (req, res) => {
   }));
   res.json({
     profile: { ...shareUser(owner), bio: owner.bio, birthday: owner.birthday, wishlistLinks: externalWishlistLinks(owner.wishlist_links) }, lists: visibleLists, wishes,
+    ...(isOwner ? { sharedWishes: await getSharedWishes(owner.id) } : {}),
     groups: await getVisibleWishGroups(owner.id, visibleLists, wishes),
     isOwner, isFollowing: follower, hasWishlistAccess,
     followersCount: Number(stats[0].rows[0].count), followingCount: Number(stats[1].rows[0].count),
@@ -6719,8 +6795,8 @@ app.get("/api/people", asyncRoute(async (req, res) => {
        FROM users u
        WHERE (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
          AND ($2::text IS NULL OR u.id<>$2)
-       ORDER BY u.created_at DESC LIMIT 48`,
-      [pattern, req.user?.id || null],
+       ORDER BY CASE WHEN u.username=$3 THEN 0 ELSE 1 END,u.created_at DESC LIMIT 48`,
+      [pattern, req.user?.id || null, search.toLowerCase()],
     );
   }
   const relationships = new Map(result.rows.map((row) => [row.id, { isFollowing: false, isFollower: false }]));

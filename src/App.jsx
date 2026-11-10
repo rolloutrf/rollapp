@@ -11,6 +11,8 @@ import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/i
 
 import { StoryAvatar } from "@/components/story-avatar";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
+import { WishParticipantField } from "@/components/wish-participant-field";
+import { wishParticipantChanges } from "../shared/wish-participants.js";
 import { ContactCardButton, ContactCardContent } from "@/components/contact-card-dialog";
 import { PageActionButton } from "@/components/page-action-button";
 import { isBrandCatalogSearch } from "../shared/catalog-links.js";
@@ -3761,6 +3763,19 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
       setBusy(false);
     }
   };
+  const leave = async () => {
+    setBusy(true);
+    try {
+      await api.delete(`/wishes/${wish.id}/participation`);
+      onDeleted?.();
+      await refreshAfterMutation();
+      toast("Совместное желание убрано с вашей доски");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   const fulfilled = async () => {
     const targetFulfilled = wish.status !== "fulfilled";
     setBusy(true);
@@ -3778,7 +3793,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
   };
   const share = async () => {
     if (isWishSecret(wish, lists)) {
-      toast("Секретное желание видно только вам", "error");
+      toast(wish.participants?.length ? "Секретное желание доступно вам и участникам" : "Секретное желание видно только вам", "error");
       return false;
     }
     try {
@@ -3836,7 +3851,7 @@ function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged,
       setBusy(false);
     }
   };
-  return { busy, reserve, remove, fulfilled, share, save, update, repeat };
+  return { busy, reserve, remove, leave, fulfilled, share, save, update, repeat };
 }
 
 function WishGroupingSubmenu({ wish, groups = [], busy = false, onCreate, onAdd }) {
@@ -3890,7 +3905,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const [removingFromGroup, setRemovingFromGroup] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => [...(wish.listIds || [])]);
   const listMutationRef = useRef(false);
-  const { busy, remove, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
+  const { busy, remove, leave, fulfilled, share, save, update, repeat } = useWishActions({ wish, profile, lists, shareToken, onChanged });
   const interactionBusy = busy || grouping || removingFromGroup || groupBusy;
   const categoryLists = lists.filter((list) => !isGeneralList(list));
   const cardSpace = wishSpaceId(wish, lists);
@@ -3973,7 +3988,7 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
               className="wish-card-actions-menu w-70 rounded-2xl p-2 [&_[data-slot=dropdown-menu-item]]:min-h-12 [&_[data-slot=dropdown-menu-sub-trigger]]:min-h-12"
               aria-label={`Действия с желанием «${wish.title}»`}
             >
-              {!owner && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
+              {!owner && !wish.sharedBy && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={save}><Archive /> Сохранить к себе</DropdownMenuItem>}
               {owner && wish.status === "fulfilled" ? <>
                 <WishSaleMenuItem wish={wish} space={cardSpace} disabled={interactionBusy} />
                 <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={fulfilled}><RotateCcw /> Не исполнено</DropdownMenuItem>
@@ -4047,9 +4062,10 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={interactionBusy} onClick={removeFromGroup}>{removingFromGroup || groupBusy ? <LoaderCircle className="spin" /> : <Ungroup />} Убрать из группы</DropdownMenuItem>
               </>}
-              {(!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
+              {!wish.sharedBy && (!owner || wish.status !== "fulfilled") && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={share}><Share2 /> Поделиться</DropdownMenuItem>}
               {!owner && merchantProductUrl(wish.url) && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" />}><ExternalLink /> {isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Открыть магазин"}</DropdownMenuItem>}
               {!owner && wish.fundraisingUrl && <DropdownMenuItem className="min-h-12 gap-2 px-3 py-2 text-base" render={<a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /> Перейти к сбору</DropdownMenuItem>}
+              {wish.sharedBy && <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} onClick={leave}><LogOut /> Убрать с доски</DropdownMenuItem>}
               {owner && <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-2 px-3 py-2 text-base" disabled={busy} aria-haspopup="dialog" onClick={() => setDeleteOpen(true)}><Trash2 /> Удалить</DropdownMenuItem>
@@ -4061,12 +4077,24 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
         {placeAddress
           ? <p className="wish-card__place-address">{placeAddress}</p>
           : <p>{wish.description || "Без дополнительного описания"}</p>}
-        {owner && <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> Только вам</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div>}
+        {owner && <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> {wish.participants?.length ? "Вам и участникам" : "Только вам"}</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div>}
+        {(wish.sharedBy || wish.participants?.length > 0) && <span className="order-4 flex min-w-0 items-center gap-1 text-xs text-muted-foreground"><Users className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">{wish.sharedBy?.name || "Совместное"}</span></span>}
       </div>
     </Card>
     {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
     </>
   );
+}
+
+function SharedWishes({ wishes, profile, onOpen, onChanged }) {
+  const titleId = useId();
+  if (!wishes.length) return null;
+  return <section className="page-stack min-w-0" aria-labelledby={titleId}>
+    <h2 id={titleId} className="font-semibold">Совместные со мной</h2>
+    <div className="wish-grid">
+      {wishes.map((wish) => <WishCard key={wish.id} wish={wish} profile={profile} onChanged={onChanged} onOpen={(opener) => onOpen(wish.id, opener)} />)}
+    </div>
+  </section>;
 }
 
 function WishGroupMoveSubmenu({ lists, busy, onMove }) {
@@ -4823,7 +4851,12 @@ function WishesPage({ onAdd, version }) {
   const publication = isOwner && user?.username ? profilePublicationSection(new URLSearchParams(location.search).get("publication")) : null;
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
-  const { data, loading, error, reload, updateData } = useAsync(() => api.get("/dashboard"), [version, wishlistImportVersion]);
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const viewerId = user?.id;
+  const { data, loading, error, reload, updateData } = useAsync(async () => ({
+    ...await api.get("/dashboard"), viewerId,
+  }), [version, wishlistImportVersion, viewerId]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -4972,7 +5005,9 @@ function WishesPage({ onAdd, version }) {
     ...(generalList && groupingListId !== generalList.id ? [{ ...generalList, title: UNSORTED_LIST_TITLE }] : []),
     ...categoryLists.filter((list) => list.id !== groupingListId),
   ];
-  const selectedWish = selectedWishId ? dashboardWishes.find((wish) => wish.id === selectedWishId) : null;
+  const sharedWishes = data?.sharedWishes || [];
+  const spaceSharedWishes = sharedWishes.filter((wish) => wish.space === selectedSpace);
+  const selectedWish = selectedWishId ? [...dashboardWishes, ...sharedWishes].find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? dashboardWishes.find((wish) => wish.id === editingWishId) : null;
   const giftSuggestions = (giftSuggestionData?.items || []).filter((item) => item.space === selectedSpace);
   const selectedWishSuggestion = selectedWishId
@@ -4999,6 +5034,7 @@ function WishesPage({ onAdd, version }) {
     <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
     <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
   </Alert>;
+  if (data && data.viewerId !== viewerId) return <LoadingScreen compact />;
   const share = async () => {
     if (publication) {
       await navigator.clipboard.writeText(`${window.location.origin}${publicPublicationPath(user.username, publication)}`);
@@ -5920,7 +5956,13 @@ function WishesPage({ onAdd, version }) {
   suspended={Boolean(selectedWish || editingWish || listModal)}
   onClose={() => setOpenedGroupId(null)}
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
-{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}{selectedWish && <WishDetailsModal wish={selectedWish} owner profile={user} lists={data.lists} wishes={data.wishes} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}</>}
+{wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
+<SharedWishes wishes={spaceSharedWishes} profile={user} onOpen={(id) => {
+  if (isMobile) navigate(publicWishPath(user.username, id), { state: { fromWishlistBoard: true } });
+  else setSelectedWishId(id);
+}} onChanged={refreshWishes} />
+{selectedWish && <WishDetailsModal wish={selectedWish} owner={!selectedWish.sharedBy} profile={user} lists={data.lists} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}
+{editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}</>}
 {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
 }
 
@@ -6103,6 +6145,7 @@ function ScreenNavigation({ to }) {
 
 function WishDetailsModal({ wish, screen = false, owner = false, profile, shareToken = "", lists = [], giftSuggestion = null, onChanged, onEdit, onCreateList, onClose }) {
   const isMobile = useIsMobile();
+  const sharedBy = wish.sharedBy;
   const resolvedSpace = wishSpaceId(wish, lists);
   const offerWish = useMemo(
     () => ({ ...wish, space: resolvedSpace, url: merchantProductUrl(wish.url) }),
@@ -6116,7 +6159,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedListIds, setSelectedListIds] = useState(() => normalizeListIds(wish.listIds));
   const listMutationRef = useRef(false);
-  const { busy, reserve, remove, fulfilled, share, save, update, repeat } = useWishActions({
+  const { busy, reserve, remove, leave, fulfilled, share, save, update, repeat } = useWishActions({
     wish,
     profile,
     lists,
@@ -6217,6 +6260,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
             role="group"
             aria-label="Действия с желанием"
           >
+            {sharedBy ? <ShadcnButton type="button" className="min-w-0 flex-1" variant="destructive" disabled={busy} onClick={leave}>Убрать с доски</ShadcnButton> : <>
             {primaryAction ?? <>
             {!owner && <ShadcnButton className="h-12 min-w-0 flex-1" disabled={busy || wish.status !== "active" || reservationUnavailable} aria-label={mobilePage ? (wish.reservedByMe ? "Ваша бронь: снять бронирование" : reservationUnavailable ? "Занято: желание уже забронировано" : "Забронировать") : reservationLabel} aria-busy={busy || undefined} onClick={reserve}>{busy ? <Spinner /> : !mobilePage && <Gift />}{reservationText}</ShadcnButton>}
             {!owner && !mobilePage && <ShadcnButton data-control-icon className={`size-12 shrink-0 ${wish.likedByMe ? "" : "text-destructive"}`} variant={wish.likedByMe ? "default" : "outline"} size="icon" disabled={busy || wish.likedByMe} aria-label={wish.likedByMe ? "Желание уже в вашем общем списке" : "Лайкнуть и добавить в общий список"} title={wish.likedByMe ? "Уже в вашем списке" : "Добавить к себе"} onClick={save}><Heart fill={wish.likedByMe ? "currentColor" : "none"} /></ShadcnButton>}
@@ -6285,6 +6329,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                 </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+            </>}
           </ActionBar>
   );
   const detailsContent = (
@@ -6298,6 +6343,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
 
           <DrawerHeader className="mx-auto w-full max-w-(--layout-compact-width) p-0 text-left!">
             <Title className={screen ? "text-2xl font-semibold" : undefined}><span className="sr-only">Желание: </span>{wish.title}</Title>
+            {(sharedBy || wish.participants?.length > 0) && <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"><Users className="size-4 shrink-0" aria-hidden="true" /><span className="break-words">Совместное желание · {sharedBy ? sharedBy.name : wish.participants.map((person) => person.name).join(", ")}</span></span>}
             {(wish.vehicleMake || wish.vehicleModel) && <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><Car className="size-4" aria-hidden="true" />{[wish.vehicleMake, wish.vehicleModel].filter(Boolean).join(" ")}</span>}
             {(wish.price != null || wish.eventDate) && <div data-slot="wish-price-row" className="w-full">
               {wish.price != null && <strong data-slot="wish-price" className="whitespace-nowrap tabular-nums text-3xl leading-none font-semibold sm:text-4xl">{formatMoney(wish.price, wish.currency)}</strong>}
@@ -6308,7 +6354,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
 
           {owner && resolvedSpace === "media" && <MediaNotesPanel wish={wish} />}
 
-          <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
+          {!sharedBy && <div data-slot="wish-toolbar" className="mx-auto flex w-full max-w-(--layout-compact-width) min-w-0 items-center gap-2">
             {owner
               ? <DropdownMenu open={listsOpen} onOpenChange={(open) => {
                   setListsOpen(open);
@@ -6332,7 +6378,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
                 </DropdownMenu>
               : <Badge variant="secondary" className="max-w-full truncate">{listLabel}</Badge>}
 
-          </div>
+          </div>}
 
           {owner && wish.status === "fulfilled" && giftSuggestion && <Card className="mx-auto w-full max-w-(--layout-compact-width) gap-3 p-4">
             <div className="flex flex-col gap-1">
@@ -6344,12 +6390,12 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
 
           {["products", "food", "transport"].includes(resolvedSpace) && <MarketplaceOffers wish={offerWish} owner={owner} formatPrice={formatMoney} compactAction={marketplacePrimary} renderAction={marketplacePrimary ? renderActions : undefined} />}
 
-          {merchantProductUrl(wish.url) && !["products", "food"].includes(resolvedSpace) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
+          {merchantProductUrl(wish.url) && (sharedBy || !["products", "food"].includes(resolvedSpace)) && <a href={merchantProductUrl(wish.url)} target="_blank" rel="noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>{isYandexMapsUrl(wish.url) ? "Открыть в Яндекс Картах" : "Где купить"} <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
           {wish.fundraisingUrl && <a href={wish.fundraisingUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ className: "wish-buy-action mx-auto h-12 w-full max-w-(--layout-compact-width)" })}>Перейти к сбору <ExternalLink data-icon="inline-end" aria-hidden="true" /></a>}
 
           {screen && !marketplacePrimary && renderActions()}
 
-          {!owner && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
+          {!owner && !sharedBy && <Alert className="mx-auto w-full max-w-(--layout-compact-width)"><Hand /><AlertDescription>Если вы решили исполнить это желание, обязательно забронируйте его, чтобы никто другой не подарил то же самое.</AlertDescription></Alert>}
           </div>
   );
   return <>
@@ -6493,6 +6539,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const [metadata, setMetadata] = useState({ status: "idle", message: "" });
   const [vehicleCatalog, setVehicleCatalog] = useState({ status: "idle", makes: [], models: [], modelsStatus: "idle" });
   const [form, setForm] = useState(() => wishFormFrom(wish, initialListId));
+  const [initialParticipants] = useState(() => wish?.participants || []);
+  const [participants, setParticipants] = useState(initialParticipants);
   const autoTimerRef = useRef(null);
   const metadataRequestRef = useRef(0);
   const editedMetadataFieldsRef = useRef(new Set());
@@ -6741,7 +6789,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     setLoading(true);
     try {
       const payload = { ...form, price: form.price === "" ? null : Number(form.price), eventDate: form.eventDate || null };
-      if (!editing) payload.space = effectiveSpace;
+      if (editing) {
+        const { add, remove } = wishParticipantChanges(initialParticipants, participants);
+        if (add.length || remove.length) payload.participantChanges = { add, remove };
+      } else {
+        payload.space = effectiveSpace;
+        payload.participantIds = participants.map(({ id }) => id);
+      }
       const result = editing ? await api.patch(`/wishes/${wish.id}`, payload) : await api.post("/wishes", payload);
       const savedUploadId = uploadedImageIdFromUrl(result.wish?.imageUrl);
       if (savedUploadId) uploadedImageIdsRef.current.delete(savedUploadId);
@@ -6859,6 +6913,8 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
                 <FieldLabel htmlFor={fieldId("title")}>Название</FieldLabel>
                 <ProductTitleInput id={fieldId("title")} enabled={effectiveSpace === "products"} disabled={loading || deleting} autoFocus={editing && canAutofocusForm()} required value={form.title} placeholder="Название желания" onValueChange={(value) => updateMetadataField("title", value)} />
               </Field>
+
+              <WishParticipantField participants={participants} onChange={setParticipants} spaceLabel={SPACES.find(({ id }) => id === effectiveSpace)?.label} disabled={loading || deleting} />
 
               {isTransport && <div className="grid gap-4">
                 <Field className="wish-editor__field">
@@ -7836,7 +7892,10 @@ function PublicProfile({ shared = false }) {
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
   const endpoint = shared ? "/shared/" + params.token : "/profile/" + params.username;
-  const { data, loading, error, reload, updateData } = useAsync(async () => ({ ...await api.get(endpoint), requestEndpoint: endpoint }), [endpoint, user, wishlistImportVersion]);
+  const viewerId = user?.id;
+  const { data, loading, error, reload, updateData } = useAsync(async () => ({
+    ...await api.get(endpoint), requestEndpoint: endpoint, viewerId,
+  }), [endpoint, user, wishlistImportVersion]);
   const publication = profilePublicationSection(params.space);
   const publicationListId = publication ? location.state?.publicationListId : null;
   const selected = shared ? "all" : params.listId || publicationListId || (params.wishId ? location.state?.listId : null) || "all";
@@ -7867,7 +7926,7 @@ function PublicProfile({ shared = false }) {
   useEffect(() => {
     const lists = shared ? [data?.list].filter(Boolean) : data?.lists || [];
     const list = lists.find((item) => item.id === (params.listId || publicationListId)) || (shared ? data?.list : null);
-    const wish = data?.wishes?.find((item) => item.id === params.wishId);
+    const wish = [...(data?.wishes || []), ...(data?.sharedWishes || [])].find((item) => item.id === params.wishId);
     setCollection({ pathname: location.pathname, space: list ? listSpace(list) : wish ? wishSpaceId(wish, lists) : selectedSpace });
     return () => setCollection(null);
   }, [data, params.listId, params.wishId, publicationListId, shared, selectedSpace, location.pathname, setCollection]);
@@ -7891,7 +7950,7 @@ function PublicProfile({ shared = false }) {
     return <div className="app-layout app-layout--dark public-collection-shell"><main className="app-main app-main--with-profile app-main--wishes">{page}</main></div>;
   };
 
-  if (loading || sessionLoading || (data && data.requestEndpoint !== endpoint)) return <LoadingScreen />;
+  if (loading || sessionLoading || (data && (data.requestEndpoint !== endpoint || data.viewerId !== viewerId))) return <LoadingScreen />;
   if (error && !data && publication) return <ProfilePublicationsPage key={publication} section={publication} username={params.username} user={user} />;
   if (error && !data) return renderCollectionState({ title: "Такой список не нашёлся", text: error.message });
 
@@ -7899,10 +7958,13 @@ function PublicProfile({ shared = false }) {
   const visibleWishes = data.isOwner
     ? data.wishes
     : data.wishes.filter((wish) => wish.status === "active");
-  const routeWish = params.wishId ? visibleWishes.find((wish) => wish.id === params.wishId) : null;
+  const sharedWishes = data.isOwner && !shared ? data.sharedWishes || [] : [];
+  const detailWishes = [...visibleWishes, ...sharedWishes];
+  const routeWish = params.wishId ? detailWishes.find((wish) => wish.id === params.wishId) : null;
   const routeList = lists.find((list) => list.id === selected) || (routeWish && !location.state?.collectionPath ? lists.find((list) => !isGeneralList(list) && routeWish.listIds.includes(list.id)) : null);
   const routeSelectedList = routeList && !isGeneralList(routeList) ? routeList : null;
   const activeSpace = routeSelectedList ? listSpace(routeSelectedList) : routeWish ? wishSpaceId(routeWish, lists) : selectedSpace;
+  const spaceSharedWishes = sharedWishes.filter((wish) => wish.space === activeSpace);
   const navigationLists = shared ? lists : orderWishListsForNavigation(lists.filter((list) => !isGeneralList(list) && listSpace(list) === activeSpace));
   const listsById = new Map(lists.map((list) => [list.id, list]));
   const spaceWishes = shared ? visibleWishes : visibleWishes.filter((wish) => wishBelongsToSpace(wish, listsById, activeSpace));
@@ -7916,7 +7978,7 @@ function PublicProfile({ shared = false }) {
     : selectedValue === "all"
       ? unlistedWishes
       : spaceWishes.filter((wish) => wish.listIds.includes(selectedValue));
-  const selectedWish = selectedWishId ? visibleWishes.find((wish) => wish.id === selectedWishId) : null;
+  const selectedWish = selectedWishId ? detailWishes.find((wish) => wish.id === selectedWishId) : null;
   const editingWish = editingWishId ? data.wishes.find((wish) => wish.id === editingWishId) : null;
   const invalidSelection = (params.space && !publication && !SPACE_IDS.includes(params.space)) || (!shared && params.listId && !routeList) || (params.wishId && !selectedWish);
   if (invalidSelection) {
@@ -7956,7 +8018,8 @@ function PublicProfile({ shared = false }) {
     const wishId = selectedWishId;
     const opener = lastWishOpenerRef.current;
     setSelectedWishId(null);
-    navigate(currentCollectionPath, { replace: true, state: { groupId: location.state?.groupId } });
+    const destination = location.state?.fromWishlistBoard ? `${APP_HOME}?tab=${activeSpace}` : currentCollectionPath;
+    navigate(destination, { replace: true, state: { groupId: location.state?.groupId } });
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
       const fallback = [...document.querySelectorAll(".wish-card__open")].find((element) => element.dataset.wishId === wishId);
       const target = opener?.isConnected ? opener : fallback;
@@ -8056,7 +8119,7 @@ function PublicProfile({ shared = false }) {
     <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1>{data.profile.memberNumber && <span className="eyebrow">ID #{data.profile.memberNumber}</span>}</span>
   </div>;
   if (isMobile && selectedWish && !editingWish) {
-    return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
+    return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
   }
   const collectionPage = <div className={`app-page wishes-page public-collection-page ${profileVisitor ? "friend-profile-page" : ""}`} data-public-collection>
     <div className="app-shell-chrome-spacer" aria-hidden="true" />
@@ -8134,8 +8197,9 @@ function PublicProfile({ shared = false }) {
           updateData((current) => ({ ...current, wishes: [...current.wishes].sort((a, b) => (positions.get(a.id) ?? Infinity) - (positions.get(b.id) ?? Infinity)) }));
         }}
       />{visibleLimit < wishes.length && <div className="wish-load-more" ref={loadMoreRef}><LoaderCircle className="spin" /><span>Загружаем ещё желания…</span></div>}</>
-      : <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />)}
-    {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
+      : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text={ownerCollection ? "Добавьте то, что действительно порадует." : "Загляните чуть позже — новая мечта наверняка появится."} />)}
+    {!publication && !businessStorefront && <SharedWishes wishes={spaceSharedWishes} profile={data.profile} onOpen={openWish} onChanged={() => reload({ background: true })} />}
+    {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
     {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
     {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
     {wishModalOpen && <WishModal space={wishModalSpace} initialListId={selectedList?.id} onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}

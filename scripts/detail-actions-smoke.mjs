@@ -12,7 +12,7 @@ for (const candidate of [process.env.CHROME_PATH, "/Applications/Google Chrome.a
 assert(executablePath, "Install Chrome or set CHROME_PATH");
 const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions", server: { host: "127.0.0.1", port: smokePort(process.env.DETAIL_ACTION_PORT), strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "detail-actions-fixture", enforce: "pre",
-  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, CatalogWishDetailsDrawer, WishDetailsModal, SessionContext, ToastContext };`; },
+  transform(source, id) { if (id.endsWith("/src/App.jsx?detail-actions-smoke")) return `${source}\nexport { CatalogWishDetailsContent, CatalogWishDetailsDrawer, SharedWishes, WishDetailsModal, SessionContext, ToastContext };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (!req.url.startsWith("/__detail-actions")) return next();
     res.setHeader("Content-Type", "text/html");
@@ -22,7 +22,7 @@ const server = await createServer({ cacheDir: "node_modules/.vite-detail-actions
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch({ ...browserLaunchOptions(), executablePath });
-const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];
+const variants = ["kind=product", "kind=owner", "kind=owner&fulfilled=1", "kind=guest", "kind=guest&reserved=1", "kind=guest&reserved=1&mine=1", "kind=shared", "kind=catalog", "kind=catalog&added=1", "kind=catalog&pending=1"];
 async function mobileGeometry(page, count) {
   const nav = page.getByRole("navigation", { name: "Навигация страницы" });
   const row = await nav.locator('button[class~="group/button"]').evaluateAll(elements => elements.map(element => {
@@ -53,12 +53,27 @@ try {
       // response/database; any mutation from this layout check is a test failure.
       await page.route("**/api/**", route => { if (route.request().method() !== "GET") errors.push("Unexpected API mutation"); return route.abort(); });
       for (const variant of variants) {
-        await page.goto(`${origin}/__detail-actions?${variant}`);
-        await page.getByRole("link", { name: "Открыть карточку" }).click();
+        const shared = variant === "kind=shared";
+        await page.goto(`${origin}/__detail-actions?${variant}${shared ? "&board" : ""}`);
+        const opener = shared
+          ? page.getByRole("region", { name: "Совместные со мной" }).getByRole("button", { name: /^Открыть желание/ })
+          : page.getByRole("link", { name: "Открыть карточку" });
+        if (shared) {
+          await page.getByText("Автор желания", { exact: true }).waitFor();
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Shared wish board overflow");
+          await page.screenshot({ path: `/tmp/rollapp-shared-wish-board-${width}-${height}.png` });
+        }
+        await opener.click();
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);
         const catalog = variant.includes("catalog");
-        if (!catalog) {
+        if (shared) {
+          await page.getByText("Совместное желание · Автор желания").waitFor();
+          const leave = page.getByRole("button", { name: "Убрать с доски" });
+          assert.equal((await leave.boundingBox()).height, 48);
+          assert.equal(await page.getByRole("button", { name: /Забронировать|Опции желания|Исполнить/ }).count(), 0);
+          await page.screenshot({ path: `/tmp/rollapp-shared-wish-${width}-${height}.png` });
+        } else if (!catalog) {
           const radii = await page.locator('[data-slot="wish-actions"] button[class~="group/button"]').evaluateAll(buttons => buttons.map(button => {
             const style = getComputedStyle(button);
             return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius].map(parseFloat);
@@ -67,14 +82,14 @@ try {
           assert(radii.every(corners => corners.every(radius => radius === 24)), "Wish actions must retain the shared pill/circle corners on desktop and mobile");
         }
         if (width < 768) {
-          const before = await mobileGeometry(page, catalog ? 2 : 3);
+          const before = await mobileGeometry(page, catalog || shared ? 2 : 3);
           await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
           assert(await page.evaluate(() => scrollY > 0), "The scroll check did not move the document");
-          const after = await mobileGeometry(page, catalog ? 2 : 3);
+          const after = await mobileGeometry(page, catalog || shared ? 2 : 3);
           assert.equal(after[0].y, before[0].y, "Footer moved with document scroll");
           const body = await page.locator('.app-drawer-body').boundingBox();
           assert(body.y + body.height <= after[0].y + 1, "Final content cannot scroll above footer");
-          if (!catalog) {
+          if (!catalog && !shared) {
             await page.getByRole("button", { name: /^Опции желания/ }).click();
             await page.getByRole("menuitem", { name: variant.includes("guest") ? /Лайкнуть и добавить к себе/ : variant.includes("fulfilled") ? /Не исполнено/ : /^Исполнено$/ }).waitFor();
             await page.keyboard.press("Escape");
@@ -95,7 +110,7 @@ try {
           assert.equal(await page.locator('.app-drawer-body [data-slot="wish-actions"]').count(), 1);
         }
         await page.getByRole("button", { name: catalog ? "Назад: Каталог" : "Назад: Желание" }).click();
-        await page.getByRole("link", { name: "Открыть карточку" }).waitFor();
+        await opener.waitFor();
         console.log(`PASS ${width}x${height} ${variant}: detail actions, scroll, Back`);
       }
       if (width >= 768) {
