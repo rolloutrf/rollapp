@@ -39,4 +39,3 @@ export async function applyWishParticipantChanges(client, wishId, { add, remove 
     );
   }
 }
-

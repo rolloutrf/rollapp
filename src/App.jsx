@@ -4851,7 +4851,6 @@ function WishesPage({ onAdd, version }) {
   const publication = isOwner && user?.username ? profilePublicationSection(new URLSearchParams(location.search).get("publication")) : null;
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const viewerId = user?.id;
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
