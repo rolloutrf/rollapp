@@ -9,3 +9,10 @@
 - Прошли `npm run test:ui`, `npm run test:wish-groups`, `npm run test:action-rails`, `npm run test:todo` и `npm run build`. Постоянный production dev-сервис в основном checkout оставлен работающим. Для проверки CSS использован frontend этой рабочей копии, подключённый к тому же API.
 - `npm run check:comprehensive` дошёл до `test:form-actions` и остановился на тайм-ауте наведения на «Удалить всю серию» в редакторе задачи на 768 px. До остановки прошли unit (789 passed, 1 skipped), shadcn, размеры контролов, детали, выбор дат и календарь. Повтор `FORM_ACTION_WIDTHS=768 FORM_ACTION_CASES=task npm run test:form-actions` прошёл в рабочем дереве и в чистой копии базового коммита. Полный набор не засчитан.
 - `npm audit` сообщил об 11 существующих уязвимостях, `npm audit --omit=dev` о трёх высокого уровня. Версии зависимостей и lockfile в этой правке не менялись.
+
+## Production · 10 ноября 2026
+
+- Чистый релизный коммит `6c783272cc3f39efc39b1a34db188eb4e2952bbc` добавил правку Wishlist поверх `5d125dc06b7ec21a2b4c7602c6b05c5626f6928e` в `main`. Этот базовый коммит содержит ожидавший выкладки Rollapp MCP. Предыдущий здоровый образ использовал `0365455b5ff804cd096552c62e7beacdc7e18d68`.
+- Перед выкладкой настроенная production-база подтверждена через прямой TLS. Релизный `initializeRuntimeDatabase` прошёл проверку схемы в транзакции READ ONLY с `ROLLAPP_DATABASE_INITIALIZATION=verify`.
+- По запросу пользователя workflow запущен с `verification=none`. Тестовые шаги CI пропущены. Сборка образа, обновление конфигурации VM, проверка health и настройка Telegram прошли. [GitHub Actions](https://github.com/rolloutrf/rollapp/actions/runs/42771768672)
+- Production `/api/healthz` вернул `ok: true`, `service: rollapp` и точный SHA `6c783272cc3f39efc39b1a34db188eb4e2952bbc`. В публичном Wishlist на 390 и 1440 px подтверждены выбор плитки, свечение и цвет счётчика. Запросы, кроме GET, блокировались.
