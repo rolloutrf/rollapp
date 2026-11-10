@@ -47,10 +47,30 @@ try{
    }
    if(variant==='wishlist-real'&&width>=768){
     const parity=await page.evaluate(()=>{
-     const style=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect(),label=getComputedStyle(el.querySelector('[data-slot="list-tile-label"]')),count=getComputedStyle(el.querySelector('[data-slot="list-tile-count"]'));return {width:r.width,height:r.height,radius:s.borderRadius,padding:s.padding,background:s.backgroundColor,color:s.color,labelSize:label.fontSize,labelLine:label.lineHeight,labelWeight:label.fontWeight,countSize:count.fontSize,countLine:count.lineHeight,countWeight:count.fontWeight,countColor:count.color};};
-     return [false,true].map(selected=>{const state=selected?'true':'false';return {wishlist:style(document.querySelector(`.list-tabs [data-list-tile][aria-pressed="${state}"]`)),day:style(document.querySelector(`[data-day-tile-comparison] [data-list-tile][aria-pressed="${state}"]`))};});
+     const style=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect(),label=getComputedStyle(el.querySelector('[data-slot="list-tile-label"]')),count=getComputedStyle(el.querySelector('[data-slot="list-tile-count"]'));return {geometry:{width:r.width,height:r.height,radius:s.borderRadius,padding:s.padding,labelSize:label.fontSize,labelLine:label.lineHeight,labelWeight:label.fontWeight,countSize:count.fontSize,countLine:count.lineHeight,countWeight:count.fontWeight},paint:{background:s.backgroundColor,color:s.color,countColor:count.color}};};
+     const tile=(container,state)=>document.querySelector(`${container} [data-list-tile][aria-pressed="${state}"]`);
+     const wishlist=tile('.list-tabs','true'),day=tile('[data-day-tile-comparison]','true');
+     const expectedPaint=(el,surface,ink,countColor)=>{
+      const sample=document.createElement('span');sample.style.cssText='position:absolute;visibility:hidden';
+      sample.style.backgroundColor=`var(${surface})`;sample.style.color=`var(${ink})`;
+      const count=sample.appendChild(document.createElement('span'));count.style.color=countColor;
+      el.append(sample);const s=getComputedStyle(sample),paint={background:s.backgroundColor,color:s.color,countColor:getComputedStyle(count).color};sample.remove();return paint;
+     };
+     return {
+      idle:{wishlist:style(tile('.list-tabs','false')),day:style(tile('[data-day-tile-comparison]','false'))},
+      selected:{wishlist:style(wishlist),day:style(day)},
+      wishlistPaint:expectedPaint(wishlist,'--list-tile-selected-surface','--list-tile-selected-ink','inherit'),
+      dayPaint:expectedPaint(day,'--primary','--primary-foreground','var(--muted-foreground)'),
+      wishlistGlow:getComputedStyle(wishlist,'::before').backgroundImage,
+      dayGlow:getComputedStyle(day,'::before').backgroundImage,
+     };
     });
-    for(const pair of parity)assert.deepEqual(pair.day,pair.wishlist,'Day tiles must match actual main Wishlist tiles, including selected count color');
+    assert.deepEqual(parity.idle.day,parity.idle.wishlist,'Unselected day and Wishlist tiles share geometry and paint');
+    assert.deepEqual(parity.selected.day.geometry,parity.selected.wishlist.geometry,'Selected day and Wishlist tiles share geometry and typography');
+    assert.deepEqual(parity.selected.day.paint,parity.dayPaint,'Selected days use the shared primary colors');
+    assert.deepEqual(parity.selected.wishlist.paint,parity.wishlistPaint,'Selected Wishlist tiles use the dedicated surface and equal title and count colors');
+    assert.match(parity.wishlistGlow,/radial-gradient/);
+    assert.equal(parity.dayGlow,'none');
    }
    if(variant==='nested'){
     const gap=await page.locator('[data-nested-content]').evaluate(element=>element.getBoundingClientRect().top-document.querySelector('.page-toolbar').getBoundingClientRect().bottom);
