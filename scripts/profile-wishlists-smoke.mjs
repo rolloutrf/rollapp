@@ -253,8 +253,9 @@ try {
       await address.fill('fixture-renamed');
       await address.press('Enter');
       await page.waitForURL(origin + '/fixture-renamed');
+      await page.locator('.profile-settings-dialog').waitFor({ state: 'detached' });
       await waitForNavLinks(urls.length - 1);
-      await nav.waitFor();
+      await nav.getByRole('link').nth(urls.length - 2).waitFor();
       assert.equal(await nav.getByRole('link').count(), urls.length - 1);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
