@@ -10,3 +10,7 @@
 [Первый CI-релиз](https://github.com/rolloutrf/rollapp/actions/runs/42774348034) проверял чистый `9c0e48c9ecd6d3aa60a299ab7c4766fee15290ef`. `check:release`, `test:private-notes` и `test:navigation` прошли. `test:action-rails` ожидал одинаковую палитру выбранных плиток, хотя опубликованный Wishlist использует собственное свечение и палитру. Тест сохраняет полное совпадение геометрии, типографики и оформления невыбранных плиток, а выбранные цвета проверяет отдельно по токенам каждой композиции. Продуктовый CSS сохранён. [Отчёт CI](https://github.com/rolloutrf/rollapp/actions/runs/42774348034/artifacts/13752520070)
 
 После исправления полный `npm run test:action-rails` прошёл на девяти ширинах от 320 до 1920 px.
+
+[Повторный полный запуск](https://github.com/rolloutrf/rollapp/actions/runs/42803785038) для `1ee7fd6a` был отменён. Ключи выпущены в составе [сводной выкладки](https://github.com/rolloutrf/rollapp/actions/runs/42829504769) `e8850be3b6c46cd91a74e347274f9c07da94f168`, которую CI провёл в режиме `verification=none`. Модуль ключей и его серверные маршруты в сводном SHA совпадают с проверенным кодом.
+
+Production `/api/healthz` подтвердил точный SHA сводного релиза и `ok=true`. Публичный JS профиля содержит «Ключи MCP». `GET /api/mcp/tokens` без сессии и `POST /mcp` с невыданным `X-API-Key` вернули `401`. На точном SHA релиза локально повторены `npm run test:profile` на девяти размерах и 17 тестов MCP и guard выкладки. Выдача, отзыв и вызовы с действующим ключом проверены в тестовых окружениях.
