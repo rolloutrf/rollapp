@@ -4876,6 +4876,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .wishes-page .list-tabs .list-tabs__editable-tile:has(> [aria-pressed="true"]) .list-tabs__settings {
   color: var(--list-tile-selected-ink, var(--primary-foreground));
+  forced-color-adjust: none;
 }
 .app-layout--dark .wishes-page .list-tabs .list-tabs__settings:hover {
   background: color-mix(in oklch, currentColor 10%, transparent);

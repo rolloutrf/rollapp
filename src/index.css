@@ -793,7 +793,7 @@
   }
 
   @media (forced-colors: none) {
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"] {
+    [data-wishlist-list-navigation] {
       --list-tile-selected-surface: oklch(0.16 0.02 275);
       --list-tile-selected-ink: oklch(0.99 0 0);
       --list-tile-glow-hue: 280;
@@ -839,9 +839,11 @@
   }
 
   @media (forced-colors: active) {
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"][aria-pressed="true"] {
+    [data-wishlist-list-navigation] {
       --list-tile-selected-surface: Highlight;
       --list-tile-selected-ink: HighlightText;
+    }
+    [data-wishlist-list-navigation] [data-slot="toggle-group-item"][aria-pressed="true"] {
       forced-color-adjust: none;
     }
   }
