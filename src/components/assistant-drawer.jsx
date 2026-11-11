@@ -7,7 +7,6 @@ import { api } from '../api.js';
 import { ControlBar } from './control-bar';
 import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
 import { Button, buttonVariants } from './ui/button';
-import { Checkbox } from './ui/checkbox';
 import { DrawerTitle } from './ui/drawer';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -30,7 +29,6 @@ function newChat(number) {
     draft: '',
     sending: false,
     error: '',
-    includePlanning: false,
     hasNewReply: false,
   };
 }
@@ -54,7 +52,7 @@ function useAssistantChats() {
 
   const { chats, selected } = workspace;
   const chat = chats.find(item => item.id === selected);
-  const { id, messages, draft, includePlanning } = chat;
+  const { id, messages, draft } = chat;
 
   function updateChat(change) {
     setWorkspace(previous => ({
@@ -86,20 +84,18 @@ function useAssistantChats() {
     pending.current.set(id, controller);
     updateChat(item => ({ ...item, title: messages.length ? item.title : chatTitle(content), sending: true, error: '' }));
     try {
-      const context = messages.filter(message => includePlanning || !message.includePlanning)
-        .slice(-(ASSISTANT_CONTEXT_LIMIT - 1)).map(({ role, content }) => ({ role, content }));
+      const context = messages.slice(-(ASSISTANT_CONTEXT_LIMIT - 1)).map(({ role, content }) => ({ role, content }));
       const { reply, actions } = await api.post('/messenger/assistant/reply', {
         messages: [...context, { role: 'user', content }],
-        includePlanning,
+        includePlanning: true,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }, { signal: controller.signal });
       if (controller.signal.aborted) return;
       if (typeof reply !== 'string' || !reply.trim()) throw new Error('Ассистент не вернул ответ.');
       updateChat((item, selectedId) => ({
         ...item,
-        messages: [...item.messages, { role: 'user', content, includePlanning }, { role: 'assistant', content: reply, includePlanning, actions }],
+        messages: [...item.messages, { role: 'user', content }, { role: 'assistant', content: reply, actions }],
         draft: '',
-        includePlanning: false,
         sending: false,
         hasNewReply: selectedId !== id,
       }));
@@ -113,7 +109,6 @@ function useAssistantChats() {
   return {
     chats, chat, createChat, selectChat, submit,
     setDraft: draft => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft })),
-    setIncludePlanning: includePlanning => updateChat(item => ({ ...item, includePlanning })),
   };
 }
 
@@ -210,8 +205,9 @@ export function AssistantDrawer({ open, onOpenChange }) {
   </MessageDrawer>;
 }
 
-function AssistantConversation({ chat, open, setDraft, setIncludePlanning, submit }) {
+function AssistantConversation({ chat, open, setDraft, submit }) {
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft });
+  const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
   const history = useRef(null);
   const input = useRef(null);
   const atBottom = useRef(true);
@@ -245,18 +241,10 @@ function AssistantConversation({ chat, open, setDraft, setIncludePlanning, submi
       sending={chat.sending} disabled={voice.active} onSubmit={submit}
       extraAction={<Button type="button" data-control-icon size="icon" variant={voice.active ? 'default' : 'outline'}
         aria-label="Диктовка" aria-pressed={voice.active} aria-keyshortcuts={voice.supported ? 'Space' : undefined}
-        aria-describedby="assistant-voice-hint" title={voice.active ? 'Остановить диктовку' : 'Начать диктовку'}
+        aria-describedby={voiceStatus ? 'assistant-voice-status' : undefined} title={voice.active ? 'Остановить диктовку' : 'Начать диктовку'}
         disabled={!voice.supported || chat.sending || voice.stopping} onClick={voice.toggle}>
         {voice.active ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
       </Button>}
-      status={<p id="assistant-voice-hint" className="assistant-drawer__voice-hint" role="status">
-        {voice.status || (voice.supported ? 'Диктовка: микрофон или пробел вне поля ввода' : 'Диктовка недоступна в этом браузере')}
-      </p>}>
-      <label className="messenger-planning-option">
-        <Checkbox aria-labelledby="messenger-planning-label" aria-describedby="messenger-planning-description"
-          checked={chat.includePlanning} onCheckedChange={setIncludePlanning} disabled={chat.sending} />
-        <span><span id="messenger-planning-label">Учесть моё планирование</span><small id="messenger-planning-description">Передать выбранной модели задачи и события на 7 дней</small></span>
-      </label>
-    </MessageComposer>
+      status={<p id="assistant-voice-status" className={voiceStatus ? 'assistant-drawer__voice-status' : 'sr-only'} role="status">{voiceStatus}</p>} />
   </>;
 }

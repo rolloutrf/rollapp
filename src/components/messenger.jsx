@@ -274,16 +274,16 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
       </div>)}
     </div>
     <MessageComposer draft={draft} sending={sending} sendError={sendError} disabled={loading || !peer} onSubmit={submit}
+      status={<p className="messenger-composer-hint">{draft.length}/{ASSISTANT_MESSAGE_LIMIT} · Ctrl/⌘ + Enter — отправить</p>}
       onDraftChange={value => { setDraft(value); drafts.set(id, { body: value }); }} />
   </section>;
 }
 
-export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status, children }) {
+export function MessageComposer({ inputRef, placeholder = 'Напишите сообщение…', draft, sending, sendError, disabled, onSubmit, onDraftChange, extraAction, status }) {
   return <form className="messenger-composer" onSubmit={event => {
     if (disabled) event.preventDefault();
     else onSubmit(event);
   }} aria-label="Новое сообщение">
-      {children}
       {sendError && <div className="messenger-send-error" role="alert">{sendError} Текст сохранён — попробуйте отправить снова.</div>}
       <label htmlFor="messenger-text" className="sr-only">Сообщение</label>
       <Textarea ref={inputRef} id="messenger-text" placeholder={placeholder} rows={1} maxLength={ASSISTANT_MESSAGE_LIMIT} value={draft} readOnly={sending} aria-busy={sending} onChange={event => onDraftChange(event.target.value)} onKeyDown={event => {
@@ -291,6 +291,5 @@ export function MessageComposer({ inputRef, placeholder = 'Напишите со
       }} />
       <ControlBar className="messenger-composer-actions">{extraAction}<Button type="submit" data-control-icon size="icon" aria-label={sending ? 'Отправляем сообщение' : 'Отправить сообщение'} disabled={sending || disabled || !draft.trim()}><Send aria-hidden="true" /></Button></ControlBar>
       {status}
-      <p className="messenger-composer-hint">{draft.length}/{ASSISTANT_MESSAGE_LIMIT} · Ctrl/⌘ + Enter — отправить</p>
   </form>;
 }

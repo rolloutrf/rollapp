@@ -35,7 +35,7 @@
 }
 
 .assistant-drawer .messenger-composer textarea { background-color: var(--card); }
-.assistant-drawer__voice-hint {
+.assistant-drawer__voice-status {
   grid-column: 1 / -1;
   color: var(--muted-foreground);
   font-size: var(--text-xs);
@@ -61,6 +61,4 @@
     max-height: var(--layout-control-size);
     padding-block: var(--layout-inline-gap);
   }
-
-  :root[data-overlay-keyboard] .assistant-drawer :is(.messenger-composer-hint, .messenger-planning-option small) { display: none; }
 }

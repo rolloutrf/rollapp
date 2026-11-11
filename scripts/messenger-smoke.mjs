@@ -62,6 +62,7 @@ try{
   assert.equal(await page.locator('.messenger-message').count(),50);
   const text=page.getByRole('textbox',{name:'Сообщение',exact:true});
   await text.fill('Не терять текст');
+  assert.equal(await drawer.getByText(/^\d+\/4000 · Ctrl\/⌘ \+ Enter — отправить$/).isVisible(),true);
   await page.evaluate(()=>{window.messengerTest.failSend=true;});
   await page.getByRole('button',{name:'Отправить сообщение',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'Сеть недоступна'}).waitFor();
@@ -153,6 +154,7 @@ try{
     await direct.getByRole('button',{name:'Закрыть ассистента',exact:true}).click();
     await direct.waitFor({state:'hidden'});
   }
+  assert.equal(await page.evaluate(()=>window.messengerTest.assistant.every(request=>request.includePlanning===true)),true);
   assert.deepEqual(errors,[]);console.log(`PASS messenger ${width}x${height}: search, chat, history, retry/idempotency, draft, plain text, error/retry, controls, overflow`);await page.close();
  }
 }catch(error){
@@ -177,7 +179,6 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   };
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
   const send=chat.getByRole('button',{name:'Отправить сообщение',exact:true});
-  const planning=chat.getByRole('checkbox',{name:'Учесть моё планирование',exact:true});
   const writes=()=>page.evaluate(()=>window.messengerTest.planningWrites);
   const title=page.getByRole('textbox',{name:'Название',exact:true});
   const closeForm=async name=>{
@@ -205,14 +206,16 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   const assistantBounds=await chat.boundingBox();
   assert.deepEqual(assistantBounds,contactBounds,'Assistant must use the same drawer geometry as contacts');
   assert.equal(await chat.getAttribute('data-swipe-direction'),width<768?'down':'right');
+  assert.equal(await chat.getByText('Диктовка: микрофон или пробел вне поля ввода',{exact:true}).count(),0);
+  assert.equal(await chat.getByText(/Ctrl\/⌘ \+ Enter — отправить/).count(),0);
+  assert.equal(await chat.getByRole('checkbox').count(),0);
+  assert.equal(await chat.getByText('Учесть моё планирование',{exact:true}).count(),0);
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
-  assert.equal(await planning.getAttribute('aria-checked'),'false');
   assert.equal(await send.isDisabled(),true);
   await chat.getByRole('button',{name:'Открыть календарь',exact:true}).press('Enter');
   assert.equal(await text.inputValue(),'Открой календарь Rollapp.');
   assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
-  assert.equal(await planning.getAttribute('aria-checked'),'false');
   assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
   await text.fill('Что у меня в планах?');
   await page.evaluate(()=>{window.messengerTest.failAssistant=true;});
@@ -220,11 +223,8 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await chat.getByRole('alert').filter({hasText:'Ассистент временно недоступен'}).waitFor();
   assert.equal(await text.inputValue(),'Что у меня в планах?');
   await page.evaluate(()=>{window.messengerTest.failAssistant=false;window.messengerTest.failList=false;});
-  await planning.click();
-  assert.equal(await planning.getAttribute('aria-checked'),'true');
   await text.press('Control+Enter');
   await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
-  assert.equal(await planning.getAttribute('aria-checked'),'false','Sharing must be opt-in for each send');
   await close.click();
   await chat.waitFor({state:'hidden'});
   await page.waitForFunction(()=>document.activeElement?.classList.contains('assistant-fab'));
@@ -241,10 +241,11 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   const task=chat.getByRole('link',{name:'Проверить задачу',exact:true});
   await task.waitFor();
   assert.equal(await chat.locator('article img').count(),0,'Assistant output must not execute HTML');
-  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant.map(({messages,includePlanning})=>({messages,includePlanning}))),[
-    {messages:[{role:'user',content:'Что у меня в планах?'}],includePlanning:false},
-    {messages:[{role:'user',content:'Что у меня в планах?'}],includePlanning:true},
-    {messages:[{role:'user',content:'Подготовь черновики'}],includePlanning:false},
+  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant.map(request=>request.messages)),[
+    [{role:'user',content:'Что у меня в планах?'}],
+    [{role:'user',content:'Что у меня в планах?'}],
+    [{role:'user',content:'Что у меня в планах?'},{role:'assistant',content:'Личный ответ о планировании'},
+      {role:'user',content:'Подготовь черновики'}],
   ]);
   assert.deepEqual(await writes(),[],'An assistant reply must not save anything');
   const metrics=await chat.evaluate(node=>{
@@ -315,8 +316,8 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await send.click();
   const link=chat.getByRole('link',{name:'Открыть: Календарь',exact:true});
   await link.waitFor();
-  assert.deepEqual((await page.evaluate(()=>window.messengerTest.assistant.at(-1).messages)).map(({role})=>role),['user','assistant','user']);
-  await checkParallelChats(page, chat, text, planning, close, openAssistant, width, height);
+  assert.deepEqual((await page.evaluate(()=>window.messengerTest.assistant.at(-1).messages)).map(({role})=>role),['user','assistant','user','assistant','user']);
+  await checkParallelChats(page, chat, text, close, openAssistant, width, height);
   await link.click();
   await chat.waitFor({state:'hidden'});
   assert.equal(new URL(page.url()).searchParams.get('tab'),'calendar');
@@ -365,7 +366,7 @@ async function finishAssistantReply(page, prompt, { reply, error }) {
   },{prompt,reply,error});
 }
 
-async function checkParallelChats(page, chat, text, planning, close, openAssistant, width, height) {
+async function checkParallelChats(page, chat, text, close, openAssistant, width, height) {
   const picker=chat.getByRole('button',{name:/^Чаты ассистента/});
   const create=chat.getByRole('button',{name:'Новый чат',exact:true});
   const list=page.getByRole('menu',{name:/^Чаты ассистента/});
@@ -394,7 +395,6 @@ async function checkParallelChats(page, chat, text, planning, close, openAssista
   assert.equal(await history.locator('article').count(),0);
   assert.equal(await text.inputValue(),'');
   await text.fill(slow);
-  await planning.click();
   await mic.click();
   await create.click();
   assert.equal(await page.evaluate(()=>window.messengerTest.speech.aborted),true);
@@ -403,11 +403,9 @@ async function checkParallelChats(page, chat, text, planning, close, openAssista
     window.messengerTest.speech.onresult({resultIndex:0,results:[result]});
   });
   assert.equal(await text.inputValue(),'');
-  assert.equal(await planning.getAttribute('aria-checked'),'false');
   await text.fill(fast);
   await select('Чат 2');
   assert.equal(await text.inputValue(),slow);
-  assert.equal(await planning.getAttribute('aria-checked'),'true');
   await text.press('Control+Enter');
   await history.getByText('Ассистент готовит ответ…').waitFor();
   assert.equal(await text.getAttribute('readonly'),'');
@@ -415,13 +413,12 @@ async function checkParallelChats(page, chat, text, planning, close, openAssista
 
   await select('Чат 3');
   assert.equal(await text.inputValue(),fast);
-  assert.equal(await planning.getAttribute('aria-checked'),'false');
   await send.click();
   await history.getByText('Ассистент готовит ответ…').waitFor();
   assert.equal(await page.evaluate(()=>window.messengerTest.assistant.length),initialRequests+2);
-  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant.slice(-2).map(({messages,includePlanning})=>({messages,includePlanning}))),[
-    {messages:[{role:'user',content:slow}],includePlanning:true},
-    {messages:[{role:'user',content:fast}],includePlanning:false},
+  assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant.slice(-2).map(request=>request.messages)),[
+    [{role:'user',content:slow}],
+    [{role:'user',content:fast}],
   ]);
   await select(first);
   await chat.getByRole('button',{name:/Готовятся ответы: 2/}).waitFor();
@@ -457,12 +454,10 @@ async function checkParallelChats(page, chat, text, planning, close, openAssista
   await select(/^Длинный план.*Ошибка отправки$/);
   await chat.getByRole('alert').filter({hasText:'Ошибка медленного запроса'}).waitFor();
   assert.equal(await text.inputValue(),slow);
-  assert.equal(await planning.getAttribute('aria-checked'),'true');
   await send.click();
   await history.getByText('Личный ответ о планировании',{exact:true}).waitFor();
   assert.equal(await history.locator('article').count(),2);
   assert.equal(await text.inputValue(),'');
-  assert.equal(await planning.getAttribute('aria-checked'),'false');
   await select(first);
   assert.equal(await history.getByText('Третий чат ответил первым',{exact:true}).count(),0);
 }

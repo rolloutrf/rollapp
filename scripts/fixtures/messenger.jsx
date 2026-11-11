@@ -56,13 +56,13 @@ const transport={
       if(hold) return new Promise((resolve,reject)=>Object.assign(hold,{resolve,reject,signal}));
       await new Promise(resolve=>setTimeout(resolve,80));
       if(window.messengerTest.failAssistant) throw Error('Ассистент временно недоступен');
-      if(body.includePlanning) return {reply:'Личный ответ о планировании',actions:[]};
       if(content==='Подготовь черновики') return {reply:'Вот черновики. <img src=x>',actions:[
         {type:'draft_task',value:{title:'Подготовить встречу',description:'Собрать вопросы',dueOn:'2026-11-08'}},
         {type:'draft_event',value:{title:'Встреча команды',dueOn:'2026-11-09',startTime:'14:30',durationMinutes:45}},
         {type:'draft_note',value:{title:'Идеи встречи',content:'Первый пункт\n![Внешнее изображение](https://example.invalid/image.png)'}},
       ]};
-      return {reply:'Могу открыть календарь.',actions:[{type:'open_section',value:{section:'calendar'}}]};
+      if(content==='Открой календарь') return {reply:'Могу открыть календарь.',actions:[{type:'open_section',value:{section:'calendar'}}]};
+      return {reply:'Личный ответ о планировании',actions:[]};
     }
     if(path.startsWith('/planning/tasks?') || path==='/planning/notes') {
       window.messengerTest.planningWrites.push({path,body});

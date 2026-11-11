@@ -33,8 +33,6 @@
 .messenger-composer textarea { min-height: var(--layout-control-size); max-height: 112px; resize: none; }
 .messenger-composer-actions { display: flex; gap: var(--layout-inline-gap); }
 .messenger-composer-hint { grid-column: 1 / -1; color: var(--muted-foreground); }
-.messenger-planning-option { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--layout-inline-gap); min-height: var(--layout-control-size); cursor: pointer; }
-.messenger-planning-option small { display: block; color: var(--muted-foreground); font-size: var(--text-xs); line-height: var(--text-xs--line-height); }
 .messenger-assistant-message { display: grid; gap: var(--layout-item-gap); flex-shrink: 0; }
 .messenger-assistant-action { display: grid; gap: var(--layout-inline-gap); justify-items: start; min-width: 0; }
 .messenger-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--layout-inline-gap); padding: var(--layout-item-gap); overflow-wrap: anywhere; }
