@@ -10,7 +10,6 @@ import { ContactsProfileControls, WishesProfileControls, WishesPage, ProfileEdit
 import { api } from '@/api';
 import { WishListNavigation } from '@/components/wish-list-navigation';
 import { InlineDocument } from '@/components/inline-document';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import '../../src/styles.css';
 import '../../src/index.css';
 
@@ -51,7 +50,7 @@ function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRou
         <section className={variant==='narrow'?'mx-auto w-full max-w-(--layout-form-width)':variant==='report'?'identity-report-manager':variant==='text'?'sphere-text-page page-stack':'w-full'}>
           {variant==='collection'?<EducationSectionHeader title="Курсы" titleId="courses" selectedList={{id:'courses',title:'Курсы'}} onAdd={()=>{}} onEditList={()=>{}}/>
             :variant==='contacts-real'?<ContactsProfileControls onAdd={()=>{}}/>
-            :variant==='wishlist-real'?<SessionContext.Provider value={{user:{id:'unsaved',username:'fixture',accountType:'personal'}}}><WishesProfileControls selectedList={{id:'personal',title:'Личный список'}} selectedSpace="products" onAdd={()=>{}} onEditList={()=>{}}/></SessionContext.Provider>
+            :variant==='wishlist-real'?<SessionContext.Provider value={{user:{id:'unsaved',username:'fixture',accountType:'personal'}}}><WishesProfileControls selectedSpace="products" onAdd={()=>{}} onImport={()=>{}}/></SessionContext.Provider>
             :variant!=='nested'&&<header className="not-typeset rollapp-body page-toolbar w-full justify-center"><Actions/></header>}
           {variant==='collection'&&<EducationListNavigation items={[]} lists={[{id:'courses',title:'Очень длинное название списка курсов, которое занимает несколько строк'},{id:'archive',title:'Архив'}]} selectedListId="courses" ariaLabel="Списки курсов" onCreateList={()=>{}} onSelectList={()=>{}}/>}
           {variant==='wishlist-real'&&<WishListNavigation value="personal" items={[{ id: "personal", title: "Очень длинное название личного списка желаний", count: 999, privateList: true }, { id: "archive", title: "Архив", count: 0 }]} />}

@@ -6473,6 +6473,7 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
 }
 
 function ListModal({ list = null, listsCount = 0, space = "products", onClose, onSaved, onDeleted, returnFocusRef }) {
+  const isMobile = useIsMobile();
   const editing = Boolean(list?.id);
   const toast = useToast();
   const titleId = useId();

@@ -12,7 +12,7 @@ const server = await createServer({
     name: "purchase-history-fixture",
     enforce: "pre",
     transform(source, id) {
-      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { WishesProfileControls };`;
+      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { SessionContext, WishesProfileControls };`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {

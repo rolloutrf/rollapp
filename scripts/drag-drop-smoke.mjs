@@ -73,6 +73,27 @@ async function checkMouseListTiles(page, width) {
   await page.mouse.click(start.x, start.y);
   assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Short click still selects the tile');
   assert.equal(await listPreview(page).count(), 0);
+  const settings = page.getByRole('button', { name: 'Настройки списка «Список 2»', exact: true });
+  await settings.scrollIntoViewIfNeeded();
+  assert.deepEqual(await settings.evaluate(button => {
+    const box = button.getBoundingClientRect();
+    const glyph = button.querySelector('svg').getBoundingClientRect();
+    const tile = button.closest('.list-tabs__editable-tile').querySelector('[data-list-tile]');
+    const title = tile.querySelector('[data-slot="list-tile-label"]').getBoundingClientRect();
+    return [box.width, box.height, glyph.width, glyph.height, title.right <= box.left];
+  }), [48, 48, 20, 20, true]);
+  await settings.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Изменить список' });
+  await dialog.waitFor();
+  assert.equal(await dialog.getAttribute('data-swipe-direction'), width < 768 ? 'down' : 'right');
+  assert.equal(await dialog.getByRole('textbox', { name: 'Название' }).inputValue(), 'Список 2');
+  assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Opening another list preserves selection');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  await settings.evaluate(button => {
+    if (document.activeElement !== button) throw new Error('List settings did not restore focus');
+  });
+  await row(page).evaluate(node => node.scrollTo({ left: 138, behavior: 'instant' }));
   for (const action of ['escape', 'outside', 'capture', 'drop']) {
     const point = await listPoints(page);
     await page.mouse.move(point.start.x, point.start.y);
@@ -196,6 +217,13 @@ try {
   for (const width of (process.env.DRAG_WIDTHS || '320,390,767,768,820,1024,1440,1920').split(',').map(Number)) {
     await page.setViewportSize({ width, height: width === 820 ? 450 : 900 });
     console.log(`RUN ${width}: drag/drop matrix`);
+    await load(page, "?mode=list-tiles");
+    await load(touch, "?mode=list-tiles");
+    await checkMouseListTiles(page, width);
+    await checkTouchListTiles(touch, client);
+    if (width === 390) await checkListTileEdgeAndStorage(page);
+    console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
+
     errors = [];
     await touch.setViewportSize({ width, height: width === 820 ? 450 : 900 });
     for (const [target, input] of [[page, 'mouse'], [touch, 'touch']]) {
@@ -744,10 +772,6 @@ try {
       assert.equal((await calls(touch)).length, 1, `${mode}: native touch drop saves once`);
     }
     console.log(`PASS ${width}: native touch handles/cancellation in Wishlist, collections and public lists`);
-    await checkMouseListTiles(page, width);
-    await checkTouchListTiles(touch, client);
-    if (width === 390) await checkListTileEdgeAndStorage(page);
-    console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
     assert.deepEqual(errors, []);
   }
 } catch (error) {

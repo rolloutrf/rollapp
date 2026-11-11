@@ -200,6 +200,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await entry.press('Enter');
   await chat.waitFor();
   assert.equal(new URL(page.url()).pathname,'/app/wishes');
+  await page.waitForFunction(() => document.querySelector('.assistant-drawer__header h2') === document.activeElement);
   assert(await heading.evaluate(node=>node===document.activeElement),'Keyboard focus did not move to the assistant heading');
   assert.equal(await drawer.count(),0,'Assistant and contacts must not open two drawers');
   await settlePopup(chat);

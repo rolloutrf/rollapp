@@ -128,7 +128,7 @@ export function WishListNavigation({ value, className, items, leadingItem, order
   return (
     <div
       ref={viewportRef}
-      className={cn("list-tabs", className)}
+      className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
       aria-label="Списки желаний"
       onClickCapture={suppressDragClick}
