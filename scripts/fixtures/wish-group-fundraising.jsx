@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { api } from "../../src/api";
 import { GroupDialog } from "../../src/components/group-dialog";
+import { RollsWallet } from "../../src/components/rolls-wallet";
 import { WishGroupHeader } from "../../src/components/wish-group-fundraiser";
 import { useVisualViewport } from "../../src/hooks/use-visual-viewport";
 import "../../src/styles.css";
@@ -9,8 +11,10 @@ import "../../src/index.css";
 
 // Isolated component fixture; no database or HTTP API is used.
 const mode = new URLSearchParams(location.search).get("mode") || "owner";
+const viewerId = "fixture-user";
 const group = { id: `fundraising-${mode}`, title: "Часы для путешествий", space: mode === "non-product" ? "places" : "products" };
-let fund = ["empty", "hidden"].includes(mode) ? null : { id: `fund-${mode}`, raised: 250, target: 1000, contributors: 2, accepting: mode !== "closed", status: mode === "closed" ? "closed" : "active" };
+const paused = ["closed", "closed-owner"].includes(mode);
+let fund = ["empty", "hidden"].includes(mode) ? null : { id: `fund-${mode}`, raised: 250, target: 1000, contributors: 2, accepting: !paused, status: paused ? "closed" : "active" };
 if (["completed", "completed-owner", "card-storage"].includes(mode)) fund = { ...fund, raised: 1000, status: "completed" };
 const saved = sessionStorage.getItem(`fixture:${mode}`);
 if (saved) fund = JSON.parse(saved);
@@ -28,7 +32,7 @@ const request = {
     window.fundraisingReads.push(path);
     if (mode === "loading") await new Promise(resolve => { window.releaseFundraisingRead = resolve; });
     if (mode === "error" && window.fundraisingReads.length === 1) throw new Error("Не удалось загрузить сбор");
-    return { fundraiser: fund, isOwner: ["owner", "empty", "completed-owner", "card-storage"].includes(mode), signedIn: mode !== "guest", balance: 500 };
+    return { fundraiser: fund, isOwner: ["owner", "empty", "closed-owner", "completed-owner", "card-storage"].includes(mode), signedIn: mode !== "guest", balance: 500 };
   },
   async post(path, input) {
     window.fundraisingCalls.push({ path, input });
@@ -57,7 +61,7 @@ function Fixture() {
   return groupOpen && <GroupDialog onClose={() => setGroupOpen(false)} className="wish-group-open" aria-label="Группа часов">
     <WishGroupHeader
       group={group}
-      viewerId="fixture-user"
+      viewerId={viewerId}
       shareToken="fixture token"
       request={request}
       description="6 желаний"
@@ -66,4 +70,13 @@ function Fixture() {
   </GroupDialog>;
 }
 
-createRoot(document.getElementById("root")).render(<MemoryRouter><Fixture /></MemoryRouter>);
+api.get = async path => {
+  if (path === "/rolls") return { balance: 500, transactions: [], features: {} };
+  if (path === "/personal-offers") return { offers: [] };
+  throw new Error(`Unexpected fixture request: ${path}`);
+};
+
+createRoot(document.getElementById("root")).render(<MemoryRouter><Routes>
+  <Route path="/" element={<Fixture />} />
+  <Route path="/app/rolls" element={<RollsWallet user={{ id: viewerId }} />} />
+</Routes></MemoryRouter>);

@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { FinanceFundraiserCards } from "@/components/fundraiser-virtual-card";
 import { DrawerFooter } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -260,6 +261,7 @@ export function RollsWallet({ user, embedded = false }) {
             </div>
           </section>
 
+          <FinanceFundraiserCards key={user.id} ownerId={user.id} />
           <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
 
           {wallet?.features?.tonWallet && <Suspense fallback={<p role="status" className="flex items-center gap-2"><Spinner />Загружаем TON Connect</p>}>

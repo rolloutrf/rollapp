@@ -85,7 +85,7 @@ try {
           gap: group.querySelector(".wish-grid").offsetTop - group.querySelector(".app-group-dialog__header").offsetHeight,
           overflow: [...body.querySelectorAll("*")].filter(element => { const r = element.getBoundingClientRect(); return r.width > 0 && (r.left < bounds.left - 1 || r.right > bounds.right + 1); }).map(element => element.tagName),
           body: [getComputedStyle(body).fontSize, getComputedStyle(body).lineHeight],
-          bodyActions: body.querySelectorAll("button, a[href]").length,
+          bodyActions: body.querySelectorAll('button, a[href]:not([href="/app/rolls"])').length,
           scrollBody: getComputedStyle(body).overflowY === "auto" && bodyBounds.top >= header.bottom - 1,
           footerAtBottom: !footer || (footer.hasAttribute("data-control-bar") && !body.contains(footer)
             && Math.abs(footerBounds.bottom - bounds.bottom) <= 1
@@ -161,6 +161,7 @@ try {
     await summary.filter({ hasText: /^Собрано 0 роллов$/ }).waitFor();
     await openDrawer();
     const footer = drawer.locator('[data-slot="drawer-footer"]');
+    const issueCard = footer.getByRole("button", { name: "Выпустить виртуальную карту", exact: true });
     await footer.getByRole("button", { name: "Организовать сбор" }).waitFor();
     await geometry();
     if ([320, 1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-fundraising-empty-footer-${width}.png` });
@@ -171,21 +172,38 @@ try {
     else await footer.getByRole("button", { name: "Открыть сбор", exact: true }).click();
     await page.getByRole("progressbar").waitFor();
     assert.equal(await page.getByRole("progressbar").getAttribute("aria-valuemax"), "1000");
+    await issueCard.click();
+    const card = drawer.getByRole("region", { name: "Виртуальная карта — эмулятор" });
+    await card.getByText("0 роллов · тестовый баланс", { exact: true }).waitFor();
+    const cardNumber = await card.getByText(/^Тестовая карта · /).textContent();
+    assert.deepEqual(await page.evaluate(() => window.fundraisingCalls.map(call => call.input)), [{ target: 1000 }]);
+    await geometry();
+    await card.getByRole("link", { name: "Открыть «Финансы»" }).click();
+    await drawer.waitFor({ state: "detached" });
+    const cards = page.getByRole("region", { name: "Карты сборов" });
+    const row = cards.getByRole("listitem").filter({ hasText: cardNumber });
+    await row.getByText("Часы для путешествий", { exact: true }).waitFor();
+    await row.getByText("0 роллов · тестовый баланс", { exact: true }).waitFor();
+    assert(await cards.evaluate(node => node.scrollWidth <= node.clientWidth && document.documentElement.scrollWidth <= innerWidth));
+    if ([320, 390, 1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-fundraiser-finance-${width}.png`, fullPage: true });
     await open("owner");
-    assert.equal(await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).count(), 0);
+    await issueCard.waitFor();
+    assert.equal(await footer.getByRole("button", { name: "Приостановить", exact: true }).count(), 0);
+    await geometry();
+    await page.screenshot({ path: `/tmp/rollapp-fundraising-owner-${width}.png`, fullPage: true });
+    await open("closed-owner");
+    await issueCard.waitFor();
     await page.evaluate(() => { window.holdFundraisingPatch = true; });
-    await page.getByRole("button", { name: "Приостановить", exact: true }).click();
+    await page.getByRole("button", { name: "Возобновить", exact: true }).click();
     await page.waitForFunction(() => typeof window.releaseFundraisingPatch === "function");
     assert(await close.isDisabled());
+    assert(await issueCard.isDisabled());
     await page.keyboard.press("Escape");
     assert(await drawer.isVisible());
     await page.evaluate(() => { window.holdFundraisingPatch = false; window.releaseFundraisingPatch(); });
-    await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
-    await footer.getByRole("button", { name: "Изменить цель", exact: true }).waitFor();
-    await footer.getByRole("button", { name: "Возобновить", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Возобновить", exact: true }).waitFor({ state: "detached" });
+    await drawer.getByText("Сбор открыт", { exact: true }).waitFor();
     await geometry();
-    await page.screenshot({ path: `/tmp/rollapp-fundraising-owner-${width}.png`, fullPage: true });
-    await page.getByRole("button", { name: "Возобновить", exact: true }).click();
     await page.getByRole("button", { name: "Изменить цель", exact: true }).click();
     const target = page.getByLabel("Цель сбора, роллы", { exact: true });
     await target.fill("200");
@@ -247,6 +265,10 @@ try {
     assert.deepEqual(await page.evaluate(() => window.fundraisingCalls), []);
     await geometry();
     await page.screenshot({ path: `/tmp/rollapp-virtual-card-${width}.png`, fullPage: true });
+    const completedCardNumber = await card.getByText(/^Тестовая карта · /).textContent();
+    await card.getByRole("link", { name: "Открыть «Финансы»" }).click();
+    await cards.getByRole("listitem").filter({ hasText: completedCardNumber }).getByText("700 роллов · тестовый баланс", { exact: true }).waitFor();
+    assert.equal(await cards.getByRole("listitem").count(), 2);
     await open("card-storage");
     await page.getByRole("button", { name: "Выпустить виртуальную карту", exact: true }).click();
     await page.getByRole("alert").waitFor();
@@ -300,7 +322,7 @@ try {
     assert.equal(await drawer.count(), 0);
     assert.deepEqual(await page.evaluate(() => window.fundraisingReads), []);
     assert.deepEqual(errors, []);
-    console.log(`PASS fundraising ${width}: group amount, icon and drawer, focus and scroll restoration, create/edit/pause, confirm/cancel, retry/reload, progress, guest/closed/completed/error and geometry`);
+    console.log(`PASS fundraising ${width}: focus, scroll, create/edit/resume, zero-balance issue, Finance, purchases, contributions, retry, access and geometry`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

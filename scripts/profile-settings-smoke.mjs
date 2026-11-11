@@ -282,6 +282,9 @@ try {
     await button("Повторить").click();
     const balance = page.getByRole("region", { name: "Баланс роллов" });
     await balance.getByText(/23\s999\s870/).waitFor();
+    const fundraiserCards = page.getByRole("region", { name: "Карты сборов" });
+    await fundraiserCards.getByText("Карта сбора", { exact: true }).waitFor();
+    await fundraiserCards.getByText("150 роллов · тестовый баланс", { exact: true }).waitFor();
     await page.getByRole("heading", { name: "Персональные офферы" }).waitFor();
     assert.equal(await page.getByRole("region", { name: "Подарочные карты" }).count(), 0);
     assert.equal(await page.evaluate(() => window.giftCardReads || 0), 0);

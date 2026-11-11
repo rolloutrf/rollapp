@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Coins, Layers3, X } from "lucide-react";
+import { Coins, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "@/api";
 import { FundraiserVirtualCard } from "@/components/fundraiser-virtual-card";
@@ -76,7 +76,7 @@ function WishGroupFundraisingHeader({ group, viewerId, shareToken, request, ...p
         render={<Button type="button" variant="secondary" size="icon" data-control-icon />}
         aria-label={`Открыть сбор группы «${group.title}»`}
         title="Открыть сбор"
-      ><Layers3 aria-hidden="true" /></DrawerTrigger>
+      ><Coins aria-hidden="true" /></DrawerTrigger>
     </ControlBar>
     <DrawerContent className="app-drawer--form rollapp-body">
       <DrawerHeader className="flex-row items-center justify-between gap-2 pb-4 [[data-overlay-compact]_&]:py-1">
@@ -183,10 +183,10 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
       actions = <>
         {cardActions}
         {!confirmingPurchase && <Button type="button" variant={cardActions ? "outline" : "default"} disabled={busy} onClick={() => { setTarget(String(fund.target)); setEditing(true); }}>Изменить цель</Button>}
-        {fund.status !== "completed" && <Button type="button" variant="outline" disabled={busy} onClick={() => mutate(async () => {
-          const result = await request.patch(endpoint, { target: fund.target, accepting: !fund.accepting });
+        {!confirmingPurchase && fund.status === "closed" && <Button type="button" variant="outline" disabled={busy} onClick={() => mutate(async () => {
+          const result = await request.patch(endpoint, { target: fund.target, accepting: true });
           if (alive.current) setData(current => ({ ...current, ...result }));
-        })}>{fund.accepting ? "Приостановить" : "Возобновить"}</Button>}
+        })}>Возобновить</Button>}
       </>;
     } else if (canContribute) {
       actions = <Button type="submit" form={contributionForm} disabled={busy || (!validAmount && !pending)}><Coins aria-hidden="true" />{pending ? "Проверить взнос" : "Внести роллы"}</Button>;
@@ -242,8 +242,8 @@ function WishGroupFundraiser({ group, viewerId, shareToken, request, endpoint, d
     </>;
   };
 
-  if (data?.isOwner && fund?.status === "completed") {
-    return <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId}>{renderDrawer}</FundraiserVirtualCard>;
+  if (data?.isOwner && data.signedIn && fund) {
+    return <FundraiserVirtualCard key={`${viewerId}:${fund.id}`} fundraiser={fund} ownerId={viewerId} groupTitle={group.title} busy={busy || Boolean(loadError)}>{renderDrawer}</FundraiserVirtualCard>;
   }
   return renderDrawer();
 }

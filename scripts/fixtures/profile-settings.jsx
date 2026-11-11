@@ -10,6 +10,10 @@ import "../../src/index.css";
 
 const mode = new URLSearchParams(location.search).get("state");
 const fixtureUser = { id: "unsaved-profile", name: "Имя профиля", username: "profile", bio: "", hasYandex: mode !== "error", canInvite: true, memberNumber: null };
+sessionStorage.setItem(`rollapp:virtual-card-sandbox:${fixtureUser.id}:legacy-fund`, JSON.stringify({
+  version: 1, id: "DEMO-12345678", ownerId: fixtureUser.id, fundraiserId: "legacy-fund",
+  initialBalance: 200, balance: 150, purchases: [{ id: "fixture-purchase", merchant: "Магазин", amount: 50 }],
+}));
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 let invites = [];
 let mcpKeys = [];

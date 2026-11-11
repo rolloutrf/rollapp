@@ -59,7 +59,7 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   full-screen editor's outer padding or minimum viewport height.
 - If a sibling modal is opened from the wish editor, suspend the parent trap and
   dismissal until it closes, preserving the editor's form and return-focus target.
-- The layers icon in a product Wishlist group header opens the fundraising
+- The coins icon in a product Wishlist group header opens the fundraising
   Drawer, bottom on mobile and right on desktop. The panel has one scrolling
   body, a persistent close control, a shared bottom footer for actions and its
   own nested contribution confirmation.
