@@ -9,7 +9,6 @@ import { EducationListNavigation, EducationSectionHeader } from '@/components/ed
 import { ContactsProfileControls, WishesProfileControls, WishesPage, ProfileEditorProvider, SessionContext, ToastContext } from '../../src/App.jsx?action-rails-export';
 import { api } from '@/api';
 import { WishListNavigation } from '@/components/wish-list-navigation';
-import { ListTileContent } from '@/components/list-tile-content';
 import { InlineDocument } from '@/components/inline-document';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import '../../src/styles.css';
@@ -55,7 +54,7 @@ function Fixture(){if(variant.startsWith('identity-document'))return <BrowserRou
             :variant==='wishlist-real'?<SessionContext.Provider value={{user:{id:'unsaved',username:'fixture',accountType:'personal'}}}><WishesProfileControls selectedList={{id:'personal',title:'Личный список'}} selectedSpace="products" onAdd={()=>{}} onEditList={()=>{}}/></SessionContext.Provider>
             :variant!=='nested'&&<header className="not-typeset rollapp-body page-toolbar w-full justify-center"><Actions/></header>}
           {variant==='collection'&&<EducationListNavigation items={[]} lists={[{id:'courses',title:'Очень длинное название списка курсов, которое занимает несколько строк'},{id:'archive',title:'Архив'}]} selectedListId="courses" ariaLabel="Списки курсов" onCreateList={()=>{}} onSelectList={()=>{}}/>}
-          {variant==='wishlist-real'&&<WishListNavigation value="personal"><ToggleGroup className="contents" value={['personal']} aria-label="Списки желаний"><ToggleGroupItem data-list-tile value="personal" aria-label="Личный список, 999, приватный"><ListTileContent title="Очень длинное название личного списка желаний" count={999} privateList/></ToggleGroupItem><ToggleGroupItem data-list-tile value="archive" aria-label="Архив, 0"><ListTileContent title="Архив" count={0}/></ToggleGroupItem></ToggleGroup></WishListNavigation>}
+          {variant==='wishlist-real'&&<WishListNavigation value="personal" items={[{ id: "personal", title: "Очень длинное название личного списка желаний", count: 999, privateList: true }, { id: "archive", title: "Архив", count: 0 }]} />}
           {variant==='wishlist-real'&&<div className="hidden md:block" data-day-tile-comparison><PlanningDayRibbon selected="2026-10-25" today="2026-10-25" onChange={()=>{}}/></div>}
           {variant==='nested'&&<article className="typeset typeset-rollapp typeset-document" data-nested-content><h3>Каков этот мир?</h3></article>}
           <p className="rollapp-body mt-6" data-content-copy>Содержимое страницы сохраняет стандартный отступ.</p>

@@ -3,7 +3,6 @@ import { AssistantDrawer, AssistantProvider } from "@/components/assistant-drawe
 import { MessengerDrawer } from "@/components/messenger";
 import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
-import { ListTileContent } from "@/components/list-tile-content";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { HealthTracker } from "@/components/health-tracker";
@@ -132,7 +131,7 @@ import { useWishReorder } from "@/hooks/use-wish-reorder";
 import { safeNextPath, yandexAuthErrorDetails, yandexAuthStartPath } from "./lib/auth.js";
 import {
   isGeneralList, listDisplayTitle, orderWishListsForNavigation, resolveVisibleListSelection, shouldShowListNavigation,
-  shouldShowUnsortedList, UNSORTED_LIST_TITLE,
+  shouldShowUnsortedList, UNSORTED_LIST_TITLE, wishCountNoun,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
 import { businessMarketplacePath, isPublicWishDetailPath, APP_ASSISTANT_PATH, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
@@ -303,14 +302,6 @@ const readPasswordResetToken = () => {
   const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
   return (new URLSearchParams(fragment).get("token") || "").trim();
 };
-const wishCountNoun = (count) => {
-  const absolute = Math.abs(Number(count) || 0);
-  const lastTwo = absolute % 100;
-  const last = absolute % 10;
-  if (last === 1 && lastTwo !== 11) return "желание";
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "желания";
-  return "желаний";
-};
 const participantCountLabel = (count) => {
   const absolute = Math.abs(Number(count) || 0);
   const lastTwo = absolute % 100;
@@ -335,7 +326,6 @@ const attachWishesToDashboardList = (dashboard, listId, wishIds) => {
     : dashboard.lists;
   return { ...dashboard, wishes, lists };
 };
-const listTileAccessibleName = (title, count, privateList = false) => `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}`;
 const isWishSecret = (wish, lists = []) => wish?.privacy === "private" || lists.some((list) => (
   list.privacy === "private" && wish?.listIds?.includes(list.id)
 ));
@@ -3535,14 +3525,13 @@ function wishlistPublicationPath(space, publication) {
   return `${APP_HOME}?${search}`;
 }
 
-function WishesProfileControls({ selectedList, selectedSpace, publication, onEditList, onAdd, onImport, importButtonRef }) {
+function WishesProfileControls({ selectedSpace, publication, onAdd, onImport, importButtonRef }) {
   const { user } = useSession();
   const { isOwner } = useSphereSharing();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <AppFriendsLink />
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        {selectedList && <PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" onClick={() => onEditList(selectedList)}>Настройки списка</PageActionButton>}
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         {onImport && <PageActionButton ref={importButtonRef} type="button" className="shrink-0" variant="outline" onClick={onImport} aria-label="Импорт покупок">Импорт</PageActionButton>}
         <Link
@@ -4902,6 +4891,7 @@ function WishesPage({ onAdd, version }) {
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
+  const listSettingsTriggerRef = useRef(null);
   const [historyImport, setHistoryImport] = useState(null);
   const importButtonRef = useRef(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
@@ -5063,9 +5053,9 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
-  const canImport = !publication && data?.viewerId === viewerId && ["products", "food"].includes(selectedSpace);
-  const profileControls = <WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} publication={publication}
-    onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} importButtonRef={importButtonRef}
+  const canImport = !publication && Boolean(data && viewerId && data.viewerId === viewerId) && ["products", "food"].includes(selectedSpace);
+  const profileControls = <WishesProfileControls selectedSpace={selectedSpace} publication={publication}
+    onAdd={() => onAdd(selectedSpace, selectedList?.id)} importButtonRef={importButtonRef}
     onImport={canImport ? () => setHistoryImport({
       listId: selectedList?.id ?? null,
       listTitle: selectedList ? listDisplayTitle(selectedList) : UNSORTED_LIST_TITLE,
@@ -5107,6 +5097,7 @@ function WishesPage({ onAdd, version }) {
     reloadGiftSuggestions({ background: true }),
   ]);
   const saveList = async (saved) => {
+    const editingList = Boolean(listModal?.id);
     const attachWishId = listModal?.attachWishId;
     let attached = true;
     setListModal(null);
@@ -5119,8 +5110,19 @@ function WishesPage({ onAdd, version }) {
         toast(error.message, "error");
       }
     }
-    await reload();
-    if (saved?.id && attached) setSelected(saved.id);
+    await reload({ background: editingList });
+    if (!editingList && saved?.id && attached) setSelected(saved.id);
+  };
+  const openListSettings = (id, trigger) => {
+    const list = categoryLists.find((entry) => entry.id === id);
+    if (!list) return;
+    listSettingsTriggerRef.current = trigger;
+    setListModal(list);
+  };
+  const deleteList = async () => {
+    setListModal(null);
+    if (selectedValue === listModal.id) setSelected("all");
+    await reload({ background: true });
   };
   const clearGroupIntent = () => {
     clearTimeout(groupTimerRef.current);
@@ -5981,10 +5983,21 @@ function WishesPage({ onAdd, version }) {
       ? renderGroupTile(item.group, item.wishes)
       : renderWish(item.wish)
   );
-  return <div className="app-page wishes-page">{profileControls}{loadError}{shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation value={selectedValue}><ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => {
-  if (publication) navigate(wishlistPath);
-  if (values[0]) { setSelected(values[0]); setOpenedGroupId(null); }
-}} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
+  return <div className="app-page wishes-page">
+    {profileControls}{loadError}
+    {shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
+      value={selectedValue}
+      items={categoryLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: list.privacy === "private" }))}
+      leadingItem={shouldShowUnsortedList(unlistedWishes.length) ? { title: UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}
+      orderScope={viewerId ? `${viewerId}:${selectedSpace}` : null}
+      onSelect={(id) => {
+        if (publication) navigate(wishlistPath);
+        if (id) { setSelected(id); setOpenedGroupId(null); }
+      }}
+      onAdd={() => setListModal({})}
+      onSettings={openListSettings}
+      onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
+    />}
 {publicationContent || <>
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
 {historyImport && <PurchaseHistoryImport {...historyImport} returnFocusRef={importButtonRef} onClose={() => setHistoryImport(null)} onSaved={({ created, skipped }) => {
@@ -6012,7 +6025,7 @@ function WishesPage({ onAdd, version }) {
 }} onChanged={refreshWishes} />
 {selectedWish && <WishDetailsModal wish={selectedWish} owner={!selectedWish.sharedBy} profile={user} lists={data.lists} giftSuggestion={selectedWishSuggestion} onChanged={refreshWishes} onEdit={() => editWish(selectedWish.id)} onCreateList={() => { setSelectedWishId(null); setListModal({ attachWishId: selectedWish.id }); }} onClose={() => setSelectedWishId(null)} />}
 {editingWish && <WishModal wish={editingWish} space={selectedSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}</>}
-{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={async () => { setListModal(null); setSelected("all"); await reload(); }} />}</div>;
+{listModal && <ListModal list={listModal.id ? listModal : null} listsCount={data.lists.length} space={selectedSpace} onClose={() => setListModal(null)} onSaved={saveList} onDeleted={deleteList} returnFocusRef={listModal.id ? listSettingsTriggerRef : undefined} />}</div>;
 }
 
 function WishDeleteAlert({ open = true, wish, busy = false, onOpenChange, onConfirm }) {
@@ -6460,7 +6473,6 @@ function WishDetailsModal({ wish, screen = false, owner = false, profile, shareT
 }
 
 function ListModal({ list = null, listsCount = 0, space = "products", onClose, onSaved, onDeleted, returnFocusRef }) {
-  const isMobile = useIsMobile();
   const editing = Boolean(list?.id);
   const toast = useToast();
   const titleId = useId();
@@ -6505,7 +6517,7 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
     }
   };
   return <>
-    <Drawer open showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
+    <Drawer open mobileDrawer={editing} onOpenChange={(open) => { if (!open && !loading && !deleting) onClose(); }}>
       <DrawerContent className="app-drawer--compact" finalFocus={returnFocusRef}>
         <DrawerClose
           render={<ShadcnButton variant="ghost" className="absolute top-2 right-2 z-10" size="icon-sm" />}
@@ -7954,6 +7966,7 @@ function PublicProfile({ shared = false }) {
   const [selectedWishId, setSelectedWishId] = useState(params.wishId || null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
+  const listSettingsTriggerRef = useRef(null);
   const [wishModalOpen, setWishModalOpen] = useState(false);
   const [wishModalSpace, setWishModalSpace] = useState("products");
   const [visibleLimit, setVisibleLimit] = useState(20);
@@ -8121,6 +8134,7 @@ function PublicProfile({ shared = false }) {
   };
 
   const saveProfileList = async (saved) => {
+    const editingList = Boolean(listModal?.id);
     const attachWishId = listModal?.attachWishId;
     let attached = true;
     setListModal(null);
@@ -8133,8 +8147,19 @@ function PublicProfile({ shared = false }) {
         toast(listError.message, "error");
       }
     }
-    await reload();
-    if (saved?.id && attached && !shared) selectCollection(saved.id);
+    await reload({ background: editingList });
+    if (!editingList && saved?.id && attached && !shared) selectCollection(saved.id);
+  };
+  const openListSettings = (id, trigger) => {
+    const list = navigationLists.find((entry) => entry.id === id);
+    if (!list) return;
+    listSettingsTriggerRef.current = trigger;
+    setListModal(list);
+  };
+  const deleteProfileList = async () => {
+    setListModal(null);
+    if (selectedValue === listModal.id) selectCollection("all");
+    await reload({ background: true });
   };
 
   const profileVisitor = !data.isOwner;
@@ -8181,7 +8206,6 @@ function PublicProfile({ shared = false }) {
           {sellerProfile && <PageActionButton to={`/app/wishes/business?tab=${data.profile.sellerSpace || sellerSpace}`} >Управлять товарами</PageActionButton>}
           <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
         </> : ownerCollection ? <>
-          {selectedList && <PageActionButton className="max-[560px]:flex-1" variant="outline" onClick={() => setListModal(selectedList)}>Настройки списка</PageActionButton>}
           <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</PageActionButton>
         </> : data.isOwner && shared
           ? <PageActionButton onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</PageActionButton>
@@ -8208,16 +8232,20 @@ function PublicProfile({ shared = false }) {
       </section>
     </div>}
 
-    {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation value={selectedValue} className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}>
-        <ToggleGroup className="contents" value={[selectedValue]} onValueChange={(values) => {
-          if (values[0]) selectCollection(values[0]);
-          else if (publication) navigate(currentCollectionPath);
-        }} aria-label="Списки желаний">
-          {showAllCollection && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}
-          {!shared && navigationLists.map((list) => <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(listDisplayTitle(list), wishCountForList(list.id), ownerCollection && list.privacy === "private")}><ListTileContent title={listDisplayTitle(list)} count={wishCountForList(list.id)} privateList={ownerCollection && list.privacy === "private"} /></ToggleGroupItem>)}
-        </ToggleGroup>
-        {ownerCollection && <ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /><span className="visually-hidden">Новый список</span></ShadcnButton>}
-    </WishListNavigation>}
+    {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
+      value={selectedValue}
+      className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
+      items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
+      leadingItem={showAllCollection ? { title: shared ? listDisplayTitle(data.list) : UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}
+      orderScope={ownerCollection && user?.id && data.profile.id === user.id ? `${user.id}:${activeSpace}` : null}
+      onSelect={(id) => {
+        if (id) selectCollection(id);
+        else if (publication) navigate(currentCollectionPath);
+      }}
+      onAdd={ownerCollection ? () => setListModal({}) : null}
+      onSettings={ownerCollection ? openListSettings : undefined}
+      onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
+    />}
 
     {publication && <ProfilePublicationsPage key={`${data.profile.username}:${user?.id || ""}:${publication}`}
       section={publication} username={data.profile.username} user={user} returnTo={currentCollectionPath} />}
@@ -8250,7 +8278,7 @@ function PublicProfile({ shared = false }) {
     {!publication && !businessStorefront && <SharedWishes wishes={spaceSharedWishes} profile={data.profile} onOpen={openWish} onChanged={() => reload({ background: true })} />}
     {selectedWish && <WishDetailsModal wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />}
     {editingWish && <WishModal wish={editingWish} space={activeSpace} onClose={() => setEditingWishId(null)} onSaved={async () => { setEditingWishId(null); await reload(); }} onDeleted={async () => { setEditingWishId(null); await reload(); }} />}
-    {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={async () => { setListModal(null); selectCollection("all"); await reload(); }} />}
+    {listModal && <ListModal list={listModal.id ? listModal : null} listsCount={lists.length} space={activeSpace} onClose={() => setListModal(null)} onSaved={saveProfileList} onDeleted={deleteProfileList} returnFocusRef={listModal.id ? listSettingsTriggerRef : undefined} />}
     {wishModalOpen && <WishModal space={wishModalSpace} initialListId={selectedList?.id} onClose={() => setWishModalOpen(false)} onSaved={() => { setWishModalOpen(false); reload(); }} />}
   </div>;
 

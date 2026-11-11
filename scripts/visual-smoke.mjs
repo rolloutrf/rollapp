@@ -731,7 +731,7 @@ async function expectWishActionsContained(page, label) {
   assert(geometry.hero && geometry.actions, `${label} is missing its page actions`);
   assert(geometry.actions.left >= geometry.hero.left - 1, `${label} actions escape the profile composition on the left`);
   assert(geometry.actions.right <= geometry.hero.right + 1, `${label} actions escape the profile composition on the right`);
-  assert(geometry.buttons.map(({ name }) => name).join("|") === "Настройки списка|Добавить", `${label} selected-list actions have the wrong labels or order`);
+  assert(geometry.buttons.map(({ name }) => name).join("|") === "Добавить", `${label} selected-list actions have the wrong labels or order`);
   for (const button of geometry.buttons) {
     assert(button.left >= geometry.actions.left - 1, `${label} action button escapes its group on the left`);
     assert(button.right <= geometry.actions.right + 1, `${label} action button escapes its group on the right`);
@@ -5448,7 +5448,7 @@ try {
       const mobileListButtons = mobilePage.locator('.wishes-page .list-tabs [data-slot="toggle-group-item"]');
       if ((await mobileListButtons.count()) > 1) {
         await mobileListButtons.nth(1).click();
-        await mobilePage.getByRole("button", { name: "Настройки списка", exact: true }).waitFor({ state: "visible" });
+        await mobilePage.locator('[aria-pressed="true"] + .list-tabs__settings').waitFor({ state: "visible" });
         await expectWishActionsContained(mobilePage, "390px selected-list actions");
         await mobileListButtons.first().click();
       }
@@ -5543,7 +5543,7 @@ try {
     await expectUnifiedPublicCollection(mobilePage, "390px public owner profile", { owner: true, authenticated: true, mobile: true });
     await mobilePage.locator('.list-tabs [data-slot="toggle-group-item"]').filter({ hasText: mobileSourceList.title }).click();
     await mobilePage.waitForURL((url) => url.pathname === `/alisa/lists/${mobileSourceList.id}`);
-    const mobileListOptions = mobilePage.getByRole("button", { name: "Настройки списка", exact: true });
+    const mobileListOptions = mobilePage.getByRole("button", { name: `Настройки списка «${mobileSourceList.title}»`, exact: true });
     assert(await mobileListOptions.isVisible(), "Mobile owner profile does not expose list management");
     await mobileListOptions.click();
     const mobileListDialog = mobilePage.getByRole("dialog", { name: "Изменить список", exact: true });
@@ -5970,7 +5970,7 @@ try {
   await ownerListDialog.waitFor({ state: "detached" });
   await ownerWidePage.waitForURL((url) => url.pathname === `/alisa/lists/${createdList.id}`);
   await ownerWidePage.locator('.list-tabs [data-slot="toggle-group-item"][aria-pressed="true"]').filter({ hasText: "Smoke list" }).waitFor({ state: "visible" });
-  await ownerWidePage.getByRole("button", { name: "Настройки списка", exact: true }).click();
+  await ownerWidePage.getByRole("button", { name: "Настройки списка «Smoke list»", exact: true }).click();
   const editListDialog = ownerWidePage.getByRole("dialog", { name: "Изменить список", exact: true });
   await editListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(editListDialog, "Desktop edit-list modal");
@@ -5993,7 +5993,7 @@ try {
   await ownerWidePage.locator('.list-tabs [data-slot="toggle-group-item"][aria-pressed="true"]').filter({ hasText: "Smoke list edited" }).waitFor({ state: "visible" });
   await ownerWidePage.locator(".wishes-page__topbar-share").click();
   await ownerWidePage.getByText("Приватный список виден только вам", { exact: true }).waitFor({ state: "visible" });
-  await ownerWidePage.getByRole("button", { name: "Настройки списка", exact: true }).click();
+  await ownerWidePage.getByRole("button", { name: "Настройки списка «Smoke list edited»", exact: true }).click();
   const deleteListDialog = ownerWidePage.getByRole("dialog", { name: "Изменить список", exact: true });
   await deleteListDialog.getByRole("heading", { name: "Изменить список" }).waitFor();
   await expectDarkAuthenticatedModal(deleteListDialog, "Desktop delete-list modal");

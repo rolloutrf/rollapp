@@ -29,3 +29,12 @@ export function resolveVisibleListSelection(selectedValue = "all", lists = [], s
   ];
   return visibleValues.includes(selectedValue) ? selectedValue : (visibleValues[0] || "all");
 }
+
+export function wishCountNoun(count) {
+  const absolute = Math.abs(Number(count) || 0);
+  const lastTwo = absolute % 100;
+  const last = absolute % 10;
+  if (last === 1 && lastTwo !== 11) return "желание";
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "желания";
+  return "желаний";
+}

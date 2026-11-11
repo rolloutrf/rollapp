@@ -19,7 +19,7 @@ async function load(page, query = '') {
   const destination = `http://127.0.0.1:${port}/__drag-drop${query}`;
   if (page.url().startsWith(`http://127.0.0.1:${port}/__drag-drop`)) await page.evaluate(query => window.dragTest.reset(query), query);
   else await page.goto(destination);
-  await page.locator('[data-group-wish-id], [data-sortable-card-id], .schedule-event').first().waitFor();
+  await page.locator(query.includes('mode=list-tiles') ? '[data-wish-list-tile]' : '[data-group-wish-id], [data-sortable-card-id], .schedule-event').first().waitFor();
   await page.evaluate(() => document.fonts.ready);
 }
 async function start(page, mode = 'wishes', id = 'w0') {
@@ -41,6 +41,148 @@ async function start(page, mode = 'wishes', id = 'w0') {
   const snapshot = await preview.evaluate(element => ({ width: element.offsetWidth, height: element.offsetHeight, hidden: element.getAttribute('aria-hidden'), inert: element.inert }));
   assert(Math.abs(snapshot.width - sizes.width) <= 1 && Math.abs(snapshot.height - sizes.height) <= 1, 'Preview must retain source dimensions outside page CSS');
   assert(snapshot.inert && snapshot.hidden === 'true', 'Preview is isolated from interaction and accessibility');
+}
+
+const tileStorageKey = 'rollapp:wishlist-list-order:owner:media';
+const tiles = page => page.locator('[data-wish-list-tile]');
+const listOrder = page => tiles(page).evaluateAll(nodes => nodes.map(node => node.dataset.wishListTile));
+const row = page => page.locator('[data-wishlist-list-navigation]');
+const listPreview = page => page.locator('.wish-list-tile--preview');
+async function showListTiles(page) {
+  await page.evaluate(key => localStorage.removeItem(key), tileStorageKey);
+  await load(page, '?mode=list-tiles');
+  await row(page).evaluate(node => node.scrollTo({ left: 138, behavior: 'instant' }));
+}
+async function listPoints(page) {
+  const bounds = await row(page).boundingBox();
+  const source = await tiles(page).nth(0).boundingBox();
+  const target = await tiles(page).nth(1).boundingBox();
+  const x = Math.max(bounds.x + 25, source.x + 48);
+  const y = source.y + 35;
+  return { start: { x, y }, end: { x: x + target.x - source.x, y }, bounds };
+}
+
+const waitForTileShift = page => page.waitForFunction(() =>
+  [...document.querySelectorAll('[data-wish-list-tile]')].some(tile => Number.parseFloat((tile.closest('.list-tabs__editable-tile') ?? tile).style.getPropertyValue('--list-tile-shift')) < 0),
+null, { polling: 50, timeout: 5000 });
+
+async function checkMouseListTiles(page, width) {
+  await showListTiles(page);
+  const initial = await listOrder(page);
+  const { start } = await listPoints(page);
+  await page.mouse.click(start.x, start.y);
+  assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Short click still selects the tile');
+  assert.equal(await listPreview(page).count(), 0);
+  for (const action of ['escape', 'outside', 'capture', 'drop']) {
+    const point = await listPoints(page);
+    await page.mouse.move(point.start.x, point.start.y);
+    await page.mouse.down();
+    await listPreview(page).waitFor();
+    assert.equal(await listPreview(page).evaluate(node => node.inert && node.offsetWidth === 130 && node.offsetHeight === 100), true);
+    await page.mouse.move(point.end.x, point.end.y);
+    await waitForTileShift(page);
+    if (action === 'escape') {
+      await tiles(page).nth(1).evaluate(async node => {
+        await Promise.all(node.getAnimations().map(animation => animation.finished));
+      });
+      await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-list-tiles-lifted.png` });
+      await page.keyboard.press('Escape');
+    }
+    if (action === 'outside') await page.mouse.move(point.end.x, Math.max(0, point.bounds.y - 15));
+    if (action === 'capture') await row(page).evaluate(node => {
+      if (!node.hasPointerCapture(1)) throw new Error('Wishlist row lost its native mouse capture');
+      node.releasePointerCapture(1);
+    });
+    await page.mouse.up();
+    await listPreview(page).waitFor({ state: 'detached' });
+    const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), tileStorageKey);
+    if (action === 'drop') {
+      const moved = [initial[1], initial[0], ...initial.slice(2)];
+      assert.deepEqual(stored, moved);
+      assert.deepEqual(await listOrder(page), moved);
+      assert.equal(await page.locator('[data-wish-list-tile="list0"]').getAttribute('aria-pressed'), 'true');
+    } else {
+      assert.equal(stored, null, `${action} leaves the saved order untouched`);
+      assert.deepEqual(await listOrder(page), initial);
+    }
+  }
+  await page.reload();
+  await tiles(page).first().waitFor();
+  assert.deepEqual(await listOrder(page), [initial[1], initial[0], ...initial.slice(2)]);
+  const movedTile = page.locator('[data-wish-list-tile="list0"]');
+  await movedTile.focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  assert.deepEqual(await listOrder(page), initial);
+  assert.equal(await movedTile.evaluate(node => document.activeElement === node), true);
+  assert.deepEqual(await calls(page), [], 'List navigation is a browser preference');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+}
+
+async function checkTouchListTiles(page, client) {
+  await showListTiles(page);
+  const initial = await listOrder(page);
+  const { start } = await listPoints(page);
+  const touch = (type, point) => client.send('Input.dispatchTouchEvent', { type, touchPoints: point ? [point] : [] });
+  const scrollBefore = await row(page).evaluate(node => node.scrollLeft);
+  await touch('touchStart', { x: start.x + 55, y: start.y });
+  for (const delta of [20, 45, 85]) await touch('touchMove', { x: start.x + 55 - delta, y: start.y });
+  await touch('touchEnd');
+  await page.waitForFunction(before => document.querySelector('[data-wishlist-list-navigation]').scrollLeft > before, scrollBefore);
+  assert.equal(await listPreview(page).count(), 0, 'A swipe before the hold scrolls normally');
+  for (const finish of ['touchCancel', 'touchEnd']) {
+    await showListTiles(page);
+    const { start, end } = await listPoints(page);
+    await touch('touchStart', start);
+    await listPreview(page).waitFor();
+    await touch('touchMove', end);
+    await waitForTileShift(page);
+    await touch(finish);
+    await listPreview(page).waitFor({ state: 'detached' });
+    assert.deepEqual(await listOrder(page), finish === 'touchEnd' ? [initial[1], initial[0], ...initial.slice(2)] : initial);
+    assert.equal(await page.getByRole('button', { name: /Не отсортированные/ }).getAttribute('aria-pressed'), 'true');
+  }
+  assert.deepEqual(await calls(page), []);
+}
+
+async function checkListTileEdgeAndStorage(page) {
+  await showListTiles(page);
+  const initial = await listOrder(page);
+  const { start, bounds } = await listPoints(page);
+  const scrollBefore = await row(page).evaluate(node => node.scrollLeft);
+  await page.mouse.move(bounds.x + 25, start.y);
+  await page.mouse.down();
+  await listPreview(page).waitFor();
+  await page.waitForTimeout(240);
+  assert.equal(await row(page).evaluate(node => node.scrollLeft), scrollBefore, 'A stationary hold at an edge does not auto-scroll');
+  await page.mouse.move(bounds.x + bounds.width - 12, start.y, { steps: 5 });
+  await page.waitForFunction(before => document.querySelector('[data-wishlist-list-navigation]').scrollLeft > before + 138, scrollBefore);
+  await page.mouse.up();
+  await listPreview(page).waitFor({ state: 'detached' });
+  assert((await listOrder(page)).indexOf(initial[0]) > 1, 'Edge scrolling reaches beyond the initial visible tiles');
+
+  await showListTiles(page);
+  await page.evaluate(key => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (name, value) {
+      if (name === key) throw new DOMException('Storage disabled', 'SecurityError');
+      setItem.call(this, name, value);
+    };
+    window.dragTest.restoreStorage = () => { Storage.prototype.setItem = setItem; };
+  }, tileStorageKey);
+  try {
+    const { start, end } = await listPoints(page);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await listPreview(page).waitFor();
+    await page.mouse.move(end.x, end.y);
+    await waitForTileShift(page);
+    await page.mouse.up();
+    assert.deepEqual(await listOrder(page), initial);
+    assert.deepEqual(await page.evaluate(() => window.dragTest.errors), ['Не удалось сохранить порядок списков']);
+    assert.deepEqual(await calls(page), []);
+  } finally {
+    await page.evaluate(() => window.dragTest.restoreStorage());
+  }
 }
 const page = await browser.newPage({ viewport: { width: 320, height: 900 } });
 const touch = await browser.newPage({ viewport: { width: 320, height: 900 }, hasTouch: true, isMobile: true });
@@ -602,6 +744,10 @@ try {
       assert.equal((await calls(touch)).length, 1, `${mode}: native touch drop saves once`);
     }
     console.log(`PASS ${width}: native touch handles/cancellation in Wishlist, collections and public lists`);
+    await checkMouseListTiles(page, width);
+    await checkTouchListTiles(touch, client);
+    if (width === 390) await checkListTileEdgeAndStorage(page);
+    console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
     assert.deepEqual(errors, []);
   }
 } catch (error) {

@@ -653,14 +653,15 @@ assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(w
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = await read("src/components/list-tile-content.jsx");
 assert.doesNotMatch(listTileContentSource, /style=/, "List tile typography belongs to shared CSS, never inline styles");
-for (const file of ["src/App.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx", "src/components/planning-day-ribbon.jsx"]) {
+for (const file of ["src/components/wish-list-navigation.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx", "src/components/planning-day-ribbon.jsx"]) {
   const source = await read(file);
   assert(source.includes('@/components/list-tile-content'), `${file}: reuse shared ListTileContent`);
   assert.doesNotMatch(source, /LIST_TILE_STYLE|function ListTileContent/, `${file}: do not copy list-tile geometry or content`);
 }
 assert(/data-slot="list-tile-label"/.test(listTileContentSource) && /data-slot="list-tile-meta"/.test(listTileContentSource) && /data-slot="list-tile-count"/.test(listTileContentSource), "List tiles must reserve separate title and count rows");
 assert(/data-slot="list-tile-meta"[\s\S]*?<LockKeyhole\b[\s\S]*?data-slot="list-tile-count"/.test(listTileContentSource), "Private-list icon must share the metadata row instead of consuming a third tile row");
-assert((app.match(/<ListTileContent\b/g) || []).length >= 4, "Personal and public collection tiles must share the overlap-safe list-tile composition");
+const wishListNavigation = await read("src/components/wish-list-navigation.jsx");
+assert((app.match(/<WishListNavigation\b/g) || []).length === 2 && (wishListNavigation.match(/<ListTile\b/g) || []).length === 2, "Personal and public collection tiles must share the overlap-safe list-tile composition");
 const catalogBrandAttributionSource = app.slice(app.indexOf("function CatalogBrandAttribution"), app.indexOf("function CatalogWishCard"));
 assert(/const label = String\(brand\?\.label \|\| ""\)\.trim\(\)/.test(catalogBrandAttributionSource), "Catalog attribution must use the product's verified brand label");
 assert(/<AvatarImage src=\{brand\.logoUrl \|\| undefined\}/.test(catalogBrandAttributionSource), "Catalog attribution must use the brand's own logo");

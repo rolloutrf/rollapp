@@ -412,3 +412,7 @@ shadcn Calendar в Popover. `test:dates` проверяет все семь ре
   The `/app/orders` URL opens the same drawer directly. Dismissal restores the
   store history entry when opened from the store and replaces a direct entry
   with `/app/store`. The nested return confirmation dismisses independently.
+
+- Wishlist tile settings open a bottom drawer below 768px and a right-side
+  drawer at wider viewports. Dismissal returns focus to the tile's settings
+  button. New-list creation uses the standard form surface.

@@ -24,7 +24,10 @@ const fixtureGroups = () => params.has('pair')
   : params.has('mixed')
   ? [['w0', 'w3', 'w11'], ['w1', 'w2'], ['w5', 'w9'], ['w6', 'w10'], ['w7', 'w8']].map((wishIds, index) => ({ id: `g${index}`, title: `Группа ${index + 1}`, listId: 'general', space: fixtureSpace(), wishIds }))
   : params.has('groups') ? [{ id: 'g0', title: 'Группа', listId: 'general', space: fixtureSpace(), wishIds: params.has('interleaved') ? ['w2', 'w8'] : ['w2', 'w3'] }] : [];
-const dashboard = { wishes: fixtureWishes(), lists: [{ id: 'general', title: 'Мои желания', description: 'Всё, чему я буду рад' }], groups: fixtureGroups() };
+const generalList = { id: 'general', title: 'Мои желания', description: 'Всё, чему я буду рад' };
+const tileLists = Array.from({ length: 16 }, (_, i) => ({ id: `list${i}`, title: `Список ${i + 1}`, space: 'media', privacy: 'public' }));
+const listsForMode = () => mode === 'list-tiles' ? [generalList, ...tileLists] : [generalList];
+const dashboard = { wishes: fixtureWishes(), lists: listsForMode(), groups: fixtureGroups() };
 // Presentation boundary only. The runner rejects every network API request.
 api.get = async path => {
   if (path === '/dashboard') return structuredClone(dashboard);
@@ -91,6 +94,7 @@ window.dragTest.remount = () => { generation++; flushSync(render); };
 window.dragTest.reset = (query = location.search) => {
   history.replaceState(null, '', `/__drag-drop${query}`);
   params = new URLSearchParams(query); mode = params.get('mode') || 'wishes';
+  dashboard.lists = listsForMode();
   dashboard.groups = fixtureGroups();
   window.dragTest.calls = []; window.dragTest.errors = [];
   dashboard.wishes = fixtureWishes();

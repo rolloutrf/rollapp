@@ -737,6 +737,33 @@
     transform: translateY(1px);
   }
 
+  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-wish-list-tile] {
+    cursor: grab;
+    -webkit-touch-callout: none;
+    user-select: none;
+    transition-property: background-color, color, border-color, box-shadow;
+  }
+
+  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-wish-list-tile]:active {
+    transform: none;
+  }
+
+  .list-tabs[data-list-drag-active] :is(.list-tabs__editable-tile, .list-tabs__track > [data-wish-list-tile]) {
+    translate: var(--list-tile-shift, 0px) 0;
+    transition: translate 210ms cubic-bezier(.2,.78,.25,1);
+    cursor: grabbing;
+  }
+
+  .list-tabs :is([data-list-drag-source], .list-tabs__editable-tile:has(> [data-list-drag-source])) {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .list-tabs[data-list-drag-active] :is(.list-tabs__editable-tile, .list-tabs__track > [data-wish-list-tile]) {
+      transition: none;
+    }
+  }
+
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile])[aria-pressed="true"] {
     color: var(--list-tile-selected-ink, var(--primary-foreground));
     background-color: var(--list-tile-selected-surface, var(--primary));
@@ -772,10 +799,10 @@
       --list-tile-glow-hue: 280;
     }
 
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"]:nth-child(5n + 2) { --list-tile-glow-hue: 55; }
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"]:nth-child(5n + 3) { --list-tile-glow-hue: 333; }
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"]:nth-child(5n + 4) { --list-tile-glow-hue: 207; }
-    [data-wishlist-list-navigation] [data-slot="toggle-group-item"]:nth-child(5n + 5) { --list-tile-glow-hue: 158; }
+    [data-wishlist-list-navigation] .list-tabs__track :is([data-slot="toggle-group-item"]:nth-child(5n + 2), .list-tabs__editable-tile:nth-child(5n + 2) > [data-slot="toggle-group-item"]) { --list-tile-glow-hue: 55; }
+    [data-wishlist-list-navigation] .list-tabs__track :is([data-slot="toggle-group-item"]:nth-child(5n + 3), .list-tabs__editable-tile:nth-child(5n + 3) > [data-slot="toggle-group-item"]) { --list-tile-glow-hue: 333; }
+    [data-wishlist-list-navigation] .list-tabs__track :is([data-slot="toggle-group-item"]:nth-child(5n + 4), .list-tabs__editable-tile:nth-child(5n + 4) > [data-slot="toggle-group-item"]) { --list-tile-glow-hue: 207; }
+    [data-wishlist-list-navigation] .list-tabs__track :is([data-slot="toggle-group-item"]:nth-child(5n + 5), .list-tabs__editable-tile:nth-child(5n + 5) > [data-slot="toggle-group-item"]) { --list-tile-glow-hue: 158; }
 
     [data-wishlist-list-navigation] [data-slot="toggle-group-item"][aria-pressed="true"]::before {
       content: "";
