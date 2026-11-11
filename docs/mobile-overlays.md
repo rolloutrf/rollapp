@@ -72,6 +72,15 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   `npm run test:contacts` verifies layout, dismissal and exports, and
   `npm run test:contact-cards` covers signing and verification in the same drawer.
 
+- Store orders open over the mounted store in a right drawer from 768px and a
+  bottom drawer below 768px. The order list scrolls independently of the header.
+  The `/app/orders` URL opens the same drawer directly. Dismissal restores the
+  store history entry when opened from the store and replaces a direct entry
+  with `/app/store`. The nested return confirmation dismisses independently.
+- Wishlist tile settings open a bottom drawer below 768px and a right-side
+  drawer at wider viewports. Dismissal returns focus to the tile's settings
+  button. New-list creation uses the standard form surface.
+
 ## Verification
 
 Product `DrawerFooter` composes the installed primitive with `ControlBar` and
@@ -407,12 +416,3 @@ shadcn Calendar в Popover. `test:dates` проверяет все семь ре
 переходом. Пункты «Заказы» и «Финансы» блокируются, пока есть несохранённые
 персональные данные, ссылки на вишлисты или активная операция.
 `npm run test:profile` проверяет форму на девяти размерах без запросов к API.
-
-  bottom drawer below 768px. The order list scrolls independently of the header.
-  The `/app/orders` URL opens the same drawer directly. Dismissal restores the
-  store history entry when opened from the store and replaces a direct entry
-  with `/app/store`. The nested return confirmation dismisses independently.
-
-- Wishlist tile settings open a bottom drawer below 768px and a right-side
-  drawer at wider viewports. Dismissal returns focus to the tile's settings
-  button. New-list creation uses the standard form surface.
