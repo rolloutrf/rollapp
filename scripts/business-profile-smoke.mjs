@@ -3,6 +3,7 @@ import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
+import { APP_ORDERS_PATH } from "../src/lib/app-routing.js";
 
 const salesOnly = process.argv.includes("--sales-only");
 const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
@@ -24,7 +25,7 @@ async function checkRolloutStore(width, height) {
   await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
   const fixture = `${smokeOrigin(server)}/__business-profile?store-only`;
   const cats = page.locator(".cat-store-card");
-  const orders = page.getByRole("link", { name: "Заказы", exact: true });
+  const orders = page.getByRole("button", { name: "Заказы", exact: true });
   const checkLayoutAndSource = async () => {
     assert(await page.locator(".cat-store-page").evaluate(node => node.scrollWidth <= node.clientWidth + 1));
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -42,9 +43,14 @@ async function checkRolloutStore(width, height) {
     const checkout = page.getByRole("dialog");
     await checkout.getByRole("button", { name: "Отмена", exact: true }).click();
     await checkout.waitFor({ state: "hidden" });
+    const storeUrl = page.url();
+    const ordersDrawer = page.getByRole("dialog", { name: "Заказы", exact: true });
     await orders.click();
-    await page.getByText("Заказов пока нет", { exact: true }).waitFor();
+    await page.waitForURL(smokeOrigin(server) + APP_ORDERS_PATH);
+    await ordersDrawer.getByText("Заказов пока нет", { exact: true }).waitFor();
     await page.goBack();
+    await page.waitForURL(storeUrl);
+    await ordersDrawer.waitFor({ state: "hidden" });
     await cats.first().waitFor();
     await checkLayoutAndSource();
     await page.screenshot({ path: `/tmp/rollapp-rollout-store-${width}-${height}.png` });
