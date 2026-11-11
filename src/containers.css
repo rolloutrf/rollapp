@@ -25,6 +25,7 @@
   .sphere-tabs__content > section { margin-inline: auto; }
 
   .auth-form { max-width: var(--layout-compact-width); }
+  .identity-checklist,
   .friends-directory { width: 100%; max-width: var(--layout-form-width); margin-inline: auto; }
   .contacts-sphere { width: 100%; max-width: var(--layout-wide-width); }
 

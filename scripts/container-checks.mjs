@@ -9,7 +9,7 @@ export function measureContainers() {
     [".career-content-rail, .cv-builder", "document"],
     [".identity-report-workspace, .wish-grid, .sphere-tabs__content > [class~=\"max-w-(--layout-collection-width)\"]", "collection"],
     [".contacts-sphere", "wide"],
-    [".friends-directory", "form"],
+    [".friends-directory, .identity-checklist", "form"],
     [".auth-form", "compact"],
   ];
   const rails = roles.flatMap(([selector, role]) => [...document.querySelectorAll(selector)].filter((element) => element.getBoundingClientRect().width > 0).map((element) => {

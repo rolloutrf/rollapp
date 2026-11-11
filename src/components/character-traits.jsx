@@ -205,7 +205,7 @@ export function CharacterTraits() {
   };
 
   return (
-    <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-form-width)" aria-busy={characterContent.loading || saving}>
+    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={characterContent.loading || saving}>
       <CareerContentError error={characterContent.error} onRetry={characterContent.retry} />
       {saveError && <Alert variant="destructive"><AlertTitle>Не удалось сохранить черты характера</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
 

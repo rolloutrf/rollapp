@@ -5,13 +5,12 @@ import test from "node:test";
 const root = new URL("../../", import.meta.url);
 
 test("plain sphere pages share one centered content rail", async () => {
-  const [styles, careerContent, aboutMe, fourQuestions, theses, characterTraits, lifeStrategy, developmentPlan, domain, mission, editableLifeStrategy] = await Promise.all([
+  const [styles, careerContent, aboutMe, fourQuestions, theses, lifeStrategy, developmentPlan, domain, mission, editableLifeStrategy] = await Promise.all([
     readFile(new URL("src/styles.css", root), "utf8"),
     readFile(new URL("src/components/career-content.jsx", root), "utf8"),
     readFile(new URL("src/components/about-me.jsx", root), "utf8"),
     readFile(new URL("src/components/four-questions.jsx", root), "utf8"),
     readFile(new URL("src/components/theses.jsx", root), "utf8"),
-    readFile(new URL("src/components/character-traits.jsx", root), "utf8"),
     readFile(new URL("src/components/life-strategy.jsx", root), "utf8"),
     readFile(new URL("src/components/development-plan.jsx", root), "utf8"),
     readFile(new URL("src/components/domain.jsx", root), "utf8"),
@@ -67,17 +66,23 @@ test("plain sphere pages share one centered content rail", async () => {
     assert.match(source, /className="sphere-text-page page-stack"/u, `${label} must use the shared text rail`);
   }
 
-  assert.match(
-    characterTraits,
-    /max-w-\(--layout-form-width\)/u,
-    "Character traits must use the shared To Do/form measure",
-  );
-
   for (const [label, source] of [
     ["Domain", domain],
     ["Mission", mission],
     ["Life strategy", editableLifeStrategy],
   ]) {
     assert.match(source, /<EditableMarkdownDocument/u, `${label} must use the shared editable Markdown page`);
+  }
+});
+test("values and character traits share the centered checklist rail", async () => {
+  const [containers, ...checklists] = await Promise.all([
+    readFile(new URL("src/containers.css", root), "utf8"),
+    readFile(new URL("src/components/values.jsx", root), "utf8"),
+    readFile(new URL("src/components/character-traits.jsx", root), "utf8"),
+  ]);
+  assert.match(containers, /\.identity-checklist[^{}]*\{[^}]*width:\s*100%;[^}]*max-width:\s*var\(--layout-form-width\);[^}]*margin-inline:\s*auto;/su);
+  for (const checklist of checklists) {
+    assert.match(checklist, /className="identity-checklist\b/u);
+    assert.equal([...checklist.matchAll(/<ul role="list" className="flex flex-col gap-3">/gu)].length, 2);
   }
 });

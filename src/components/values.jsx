@@ -137,7 +137,7 @@ export function Values() {
   };
 
   return (
-    <div className="not-typeset rollapp-body page-stack page-stack--sections mx-auto w-full max-w-(--layout-collection-width)" aria-busy={valuesContent.loading || saving}>
+    <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={valuesContent.loading || saving}>
       {!readOnly && <header className="flex flex-wrap items-center justify-end gap-2">
         <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
           {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
@@ -206,7 +206,7 @@ export function Values() {
           <h3 className="m-0 text-xl font-semibold" id="add-value-title">Не нашли нужную ценность?</h3>
           <p className="m-0 text-muted-foreground">Добавьте свою формулировку — она появится в начале страницы и сразу будет выбрана.</p>
         </div>
-        <form className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]" onSubmit={addCustom}>
+        <form className="grid gap-3" onSubmit={addCustom}>
           <Input
             className="h-12 text-base md:text-base"
             disabled={editingDisabled}
@@ -225,7 +225,7 @@ export function Values() {
             onChange={(event) => setCustomDescription(event.target.value)}
             aria-label="Описание своей ценности"
           />
-          <Button className="h-12 px-5 text-base" variant="outline" type="submit" disabled={!customValue.trim() || !customDescription.trim() || editingDisabled}>
+          <Button className="h-12 justify-self-end px-5 text-base" variant="outline" type="submit" disabled={!customValue.trim() || !customDescription.trim() || editingDisabled}>
             <Plus data-icon="inline-start" aria-hidden="true" />
             Добавить
           </Button>
