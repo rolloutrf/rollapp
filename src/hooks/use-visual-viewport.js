@@ -83,7 +83,10 @@ export function useVisualViewport() {
       // Native viewport resizing can reconcile scroll anchoring after resize
       // listeners run. Reveal again after layout and its native settle pass.
       revealFrame = requestAnimationFrame(() => revealOverlayField(measureVisualViewport(window)));
-      settleTimer = setTimeout(() => revealOverlayField(measureVisualViewport(window), true), 350);
+      const keyboardDrawer = metrics.keyboard && document.activeElement?.closest('[data-slot="drawer-popup"]');
+      // The drawer can still finish its native focus scroll after the keyboard
+      // layout change. Apply the correction after its 450ms reveal window.
+      settleTimer = setTimeout(() => revealOverlayField(measureVisualViewport(window), true), keyboardDrawer ? 500 : 350);
     };
     const schedule = () => {
       cancelAnimationFrame(frame);

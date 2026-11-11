@@ -49,8 +49,9 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   hidden (still accessible).
 - The wish editor body disables native scroll anchoring, and its empty image
   placeholder can shrink on phones so focused fields remain reachable. Defer
-  drawer field-reveal correction until the sheet's initial reveal has settled;
-  an immediate scroll write can cancel that motion.
+  drawer field-reveal correction until the sheet's initial reveal and native
+  focus scroll have settled. The shared keyboard correction waits 500 ms for
+  drawers and keeps the focused field within the scroller.
 - `canAutofocusForm()` permits initial field autofocus only on wide screens with
   a fine pointer and hover. Opening a mobile form, including in landscape, does
   not summon the keyboard. Explicit inline rename actions may focus their input.
