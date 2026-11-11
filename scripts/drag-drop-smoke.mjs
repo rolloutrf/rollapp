@@ -216,6 +216,8 @@ for (const target of [page, touch]) await target.route('**/*', route => { const 
 try {
   for (const width of (process.env.DRAG_WIDTHS || '320,390,767,768,820,1024,1440,1920').split(',').map(Number)) {
     await page.setViewportSize({ width, height: width === 820 ? 450 : 900 });
+    errors = [];
+    await touch.setViewportSize({ width, height: width === 820 ? 450 : 900 });
     console.log(`RUN ${width}: drag/drop matrix`);
     await load(page, "?mode=list-tiles");
     await load(touch, "?mode=list-tiles");
@@ -224,8 +226,6 @@ try {
     if (width === 390) await checkListTileEdgeAndStorage(page);
     console.log(`PASS ${width}: list tiles mouse/touch hold, swipe, cancellation, reload and keyboard reorder`);
 
-    errors = [];
-    await touch.setViewportSize({ width, height: width === 820 ? 450 : 900 });
     for (const [target, input] of [[page, 'mouse'], [touch, 'touch']]) {
       await load(target, '?mode=badges');
       for (const dark of [true, false]) {
