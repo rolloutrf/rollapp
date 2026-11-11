@@ -407,3 +407,8 @@ shadcn Calendar в Popover. `test:dates` проверяет все семь ре
 переходом. Пункты «Заказы» и «Финансы» блокируются, пока есть несохранённые
 персональные данные, ссылки на вишлисты или активная операция.
 `npm run test:profile` проверяет форму на девяти размерах без запросов к API.
+
+  bottom drawer below 768px. The order list scrolls independently of the header.
+  The `/app/orders` URL opens the same drawer directly. Dismissal restores the
+  store history entry when opened from the store and replaces a direct entry
+  with `/app/store`. The nested return confirmation dismisses independently.

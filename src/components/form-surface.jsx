@@ -5,14 +5,16 @@ import { ControlBar } from "@/components/control-bar";
 import * as Sheet from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
-// Product composition: native form pages on phones, official Drawer on desktop.
+// Product composition: native form pages on phones with an opt-in bottom drawer.
 const FormMode = createContext(false);
-export function Drawer({ children, onAfterClose, onOpenChangeComplete, ...props }) {
+export function Drawer({ children, mobileDrawer = false, onAfterClose, onOpenChangeComplete, ...props }) {
   const mobile = useIsMobile();
-  return mobile
+  return mobile && !mobileDrawer
     ? <MobileFormScreen open={props.open} onOpenChange={props.onOpenChange} onAfterClose={onAfterClose}><FormMode.Provider value>{children}</FormMode.Provider></MobileFormScreen>
-    : <Sheet.Drawer {...props} swipeDirection="right" showSwipeHandle={false} onOpenChangeComplete={(open) => { onOpenChangeComplete?.(open); if (!open) onAfterClose?.(); }}>{children}</Sheet.Drawer>;
+    : <Sheet.Drawer {...props} swipeDirection={mobile ? "down" : "right"} showSwipeHandle={mobile} onOpenChangeComplete={(open) => { onOpenChangeComplete?.(open); if (!open) onAfterClose?.(); }}>{children}</Sheet.Drawer>;
 }
+export const DrawerTrigger = Sheet.DrawerTrigger;
+
 export function DrawerContent({ children, className, finalFocus, initialFocus, ...props }) {
   const page = useContext(FormMode);
   if (!page) return <Sheet.DrawerContent className={className} finalFocus={finalFocus} initialFocus={initialFocus} {...props}>{children}</Sheet.DrawerContent>;

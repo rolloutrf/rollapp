@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
 import { api } from "@/api";
+import { DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
-import { APP_STORE_PATH } from "@/lib/app-routing";
 import { formatRolls } from "../../shared/rolls.js";
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
@@ -25,7 +24,8 @@ function orderNumber(id) {
 function OrderSkeleton() {
   return <div className="orders-card" aria-hidden="true">
     <Skeleton className="orders-card__image" />
-    <div className="flex min-w-0 flex-1 flex-col gap-3"><Skeleton className="h-5 w-32" /><Skeleton className="h-7 w-3/4" /><Skeleton className="h-16 w-full" /><Skeleton className="h-12 w-full" /></div>
+    <div className="flex min-w-0 flex-col gap-3"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-7 w-full" /><Skeleton className="h-6 w-3/5" /></div>
+    <Skeleton className="col-span-full h-16" />
   </div>;
 }
 
@@ -48,17 +48,32 @@ function OrderCard({ order, product, busy, onRefund }) {
           {refunded ? "Возвращён" : "Оформлен"}
         </Badge>
       </div>
-      <div className="orders-card__price"><Coins aria-hidden="true" /><strong>{formatRolls(order.amount)}</strong>{refunded && <span>возвращены на баланс</span>}</div>
-      {point && <section className="orders-card__delivery" aria-label="Пункт выдачи CDEK">
-        <MapPin aria-hidden="true" />
-        <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
-      </section>}
-      {!refunded && <Button variant="outline" className="orders-card__return" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
+      <div className="orders-card__price">
+        <strong><Coins aria-hidden="true" />{formatRolls(order.amount)}</strong>
+        {refunded && <span>возвращены на баланс</span>}
+      </div>
     </div>
+    {point && <section className="orders-card__delivery" aria-label="Пункт выдачи CDEK">
+      <MapPin aria-hidden="true" />
+      <div className="min-w-0"><strong>CDEK · {point.city}</strong><span>{point.address}</span><small>{point.code}{point.workTime ? ` · ${point.workTime}` : ""}</small></div>
+    </section>}
+    {!refunded && <Button variant="outline" className="col-span-full justify-self-start" disabled={busy} onClick={() => onRefund(order)}><RotateCcw aria-hidden="true" />Вернуть товар</Button>}
   </article>;
 }
 
-export function OrdersPage({ products }) {
+export function OrdersDrawerContent({ products }) {
+  return <DrawerContent className="orders-drawer rollapp-body app-drawer--form">
+    <DrawerHeader className="flex-row items-center justify-between gap-2 border-b p-4">
+      <DrawerTitle className="text-2xl font-semibold">Заказы</DrawerTitle>
+      <DrawerClose render={<Button type="button" variant="outline" size="icon" />} aria-label="Закрыть заказы">
+        <X aria-hidden="true" />
+      </DrawerClose>
+    </DrawerHeader>
+    <OrderList products={products} />
+  </DrawerContent>;
+}
+
+function OrderList({ products }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -87,18 +102,17 @@ export function OrdersPage({ products }) {
     finally { setRefunding(false); }
   }
 
-  const activeCount = orders.filter((order) => order.status !== "refunded").length;
-  return <div className="app-page orders-page rollapp-body">
+  return <div className="orders-drawer__body app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4" role="region" aria-label="Список заказов" tabIndex={0}>
     {error && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center justify-between gap-3">{error}<Button variant="outline" onClick={load}>Попробовать снова</Button></AlertDescription></Alert>}
-    {loading ? <div className="orders-page__list" aria-label="Загрузка заказов"><OrderSkeleton /><OrderSkeleton /></div>
-      : !error && orders.length === 0 ? <Empty className="orders-page__empty border min-h-80">
+    {loading ? <div className="flex flex-col gap-4" role="status" aria-label="Загрузка заказов"><OrderSkeleton /><OrderSkeleton /></div>
+      : !error && orders.length === 0 ? <Empty className="border">
         <EmptyHeader><EmptyMedia variant="icon"><ShoppingBag aria-hidden="true" /></EmptyMedia><EmptyTitle>Заказов пока нет</EmptyTitle><EmptyDescription>Купленные в магазине коты появятся здесь вместе с данными доставки.</EmptyDescription></EmptyHeader>
-        <EmptyContent><Link to={APP_STORE_PATH} className={cn(buttonVariants(), "min-w-44")}><ShoppingBag aria-hidden="true" />В магазин</Link></EmptyContent>
+        <EmptyContent><DrawerClose render={<PageActionButton />}><ShoppingBag aria-hidden="true" />В магазин</DrawerClose></EmptyContent>
       </Empty>
-        : <div className="orders-page__list">{orders.map((order) => <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}</div>}
+        : orders.map((order) => <OrderCard key={order.id} order={order} product={productById.get(order.productId)} busy={refunding} onRefund={(next) => { setRefundError(""); setRefundTarget(next); }} />)}
 
     <AlertDialog open={Boolean(refundTarget)} onOpenChange={(open) => { if (!open && !refunding) setRefundTarget(null); }}>
-      <AlertDialogContent className="rollapp-body">
+      <AlertDialogContent className="rollapp-body w-[calc(100%-2rem)] overflow-y-auto">
         <AlertDialogHeader><AlertDialogTitle>Вернуть «{refundTarget?.productTitle}»?</AlertDialogTitle><AlertDialogDescription>{refundTarget ? `${formatRolls(refundTarget.amount)} вернутся на ваш баланс. Заказ будет отмечен как возвращённый.` : ""}</AlertDialogDescription></AlertDialogHeader>
         {refundError && <Alert variant="destructive"><AlertDescription>{refundError}</AlertDescription></Alert>}
         <AlertDialogFooter><AlertDialogCancel disabled={refunding}>Оставить заказ</AlertDialogCancel><AlertDialogAction disabled={refunding} onClick={refund}>{refunding ? <Spinner /> : <RotateCcw aria-hidden="true" />}{refunding ? "Возвращаем…" : "Вернуть товар"}</AlertDialogAction></AlertDialogFooter>

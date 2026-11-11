@@ -70,6 +70,7 @@
     "test:planning:production": "ROLLAPP_TEST_PLANNING=1 node --test server/planning.integration.test.js server/planning-recurrence.integration.test.js server/calendar-device.integration.test.js",
     "test:visual": "node scripts/visual-smoke.mjs",
     "test:drawers": "DRAWER_REAL_FORMS=1 node scripts/drawer-smoke.mjs",
+    "test:orders": "node scripts/orders-drawer-smoke.mjs",
     "rolls:grant": "node scripts/grant-welcome-rolls.mjs",
     "test:rolls:production": "ROLLAPP_TEST_ROLLS=1 node --test server/rolls.integration.test.js",
     "test:stars:production": "ROLLAPP_TEST_STARS=1 node --test server/roll-stars.integration.test.js",

@@ -79,6 +79,9 @@
     scroll-padding-block: 1rem;
   }
   .app-drawer-body > * { flex-shrink: 0; }
+  .orders-drawer[data-swipe-axis="y"] .orders-drawer__body {
+    padding-block-end: max(var(--layout-item-gap), env(safe-area-inset-bottom), var(--tg-content-safe-area-inset-bottom, 0px));
+  }
   [data-slot="drawer-footer"] {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }

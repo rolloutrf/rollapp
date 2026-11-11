@@ -39,7 +39,7 @@ import { BusinessGiftAction, BusinessGiftCertificates, ProfileGiftCards } from "
 import { RollsWallet } from "@/components/rolls-wallet";
 import { MemberNumberPage } from "@/components/member-number-page";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
-import { OrdersPage } from "@/components/orders-page";
+import { OrdersDrawerContent } from "@/components/orders-drawer";
 import { PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
 import { PlanningSpace, PLANNING_TABS } from "@/components/planning-space";
 import { ProfilePublicationLinks, ProfilePublications } from "@/components/profile-publications";
@@ -100,7 +100,7 @@ import { Principles, Theses } from "@/components/theses";
 import { Values } from "@/components/values";
 import { Workouts } from "@/components/workouts";
 import {
-  Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle,
+  Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger,
 } from "@/components/form-surface";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -2062,9 +2062,8 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   const friendsRoute = friendsContext || isFriendsDirectoryPath(location.pathname);
   const wishesRoute = location.pathname.startsWith("/app/wishes");
   const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
-  const storeRoute = location.pathname === APP_STORE_PATH;
+  const storeRoute = [APP_STORE_PATH, APP_ORDERS_PATH].includes(location.pathname.replace(/\/$/, "").toLowerCase());
   const classifiedsRoute = location.pathname === APP_CLASSIFIEDS_PATH;
-  const ordersRoute = location.pathname === APP_ORDERS_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
@@ -2079,7 +2078,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
         <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !ordersRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3506,7 +3505,7 @@ function PersistentProfileHero({ user }) {
   );
 }
 
-function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action, backTo, backLabel = "В мой вишлист" }) {
+function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action }) {
   const heroTitle = title || `${source === "brands" ? "Бренды" : "Лента"} · ${SPACES.find(space => space.id === selectedSpace)?.label || "Товары"}`;
   return (
     <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
@@ -3591,7 +3590,14 @@ const STORE_CATS = [
 ];
 const STORE_CAT_PRICE = "1 000 ролл";
 
-function StorePage({ user, selectedSpace }) {
+function StorePage({ user, selectedSpace, ordersOpen }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  function changeOrdersOpen(open) {
+    if (open) navigate(APP_ORDERS_PATH, { state: { ordersFromStore: true } });
+    else if (location.state?.ordersFromStore) navigate(-1);
+    else navigate(APP_STORE_PATH, { replace: true });
+  }
   const toast = useToast();
   const isProducts = selectedSpace === "products";
   const storageKey = `rollapp:pending-cat-purchase:${user.id}`;
@@ -3600,11 +3606,14 @@ function StorePage({ user, selectedSpace }) {
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find(space => space.id === selectedSpace)?.label}`} icon={Store} action={isProducts &&
-      <Link to={`${APP_ORDERS_PATH}?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", className: "h-12 !rounded-full px-5" })}>
-        <PackageCheck aria-hidden="true" />Заказы
-      </Link>
-    } />
+    <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
+      <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} icon={Store} action={isProducts && (
+        <DrawerTrigger render={<PageActionButton variant="outline" />}>
+          <PackageCheck aria-hidden="true" />Заказы
+        </DrawerTrigger>
+      )} />
+      <OrdersDrawerContent products={STORE_CATS} />
+    </Drawer>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
       {isProducts ? <div className="wish-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
@@ -3633,7 +3642,7 @@ function StorePage({ user, selectedSpace }) {
         ))}
       </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
     </div>
-    {purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
+    {!ordersOpen && purchase && <CatCheckout key={purchase.idempotencyKey} purchase={purchase} storageKey={storageKey} onClose={() => setPurchase(null)} onSuccess={() => toast(`${purchase.cat.name} кот куплен за 1 000 роллов`, "success")} />}
   </>;
 }
 
@@ -3657,25 +3666,14 @@ function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds
   return <AppShell>{sales ? <WishSalesPage user={user} /> : <WishlistBusinessPage user={user} manager={manager} />}</AppShell>;
 }
 
-function ProtectedStore() {
+function ProtectedStore({ ordersOpen = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
   const tab = new URLSearchParams(location.search).get("tab");
-  const selectedSpace = SPACE_IDS.includes(tab) ? tab : "products";
-  return <AppShell><StorePage key={`${user.id}:${selectedSpace}`} user={user} selectedSpace={selectedSpace} /></AppShell>;
-}
-
-function ProtectedOrders() {
-  const location = useLocation();
-  const { user, loading } = useSession();
-  if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell>
-    <CatalogProfileHero selectedSpace="products" title="Заказы" icon={PackageCheck} backTo={APP_STORE_PATH} backLabel="В магазин" />
-    <OrdersPage products={STORE_CATS} />
-  </AppShell>;
+  const selectedSpace = !ordersOpen && SPACE_IDS.includes(tab) ? tab : "products";
+  return <AppShell><StorePage key={`${user.id}:${selectedSpace}`} user={user} selectedSpace={selectedSpace} ordersOpen={ordersOpen} /></AppShell>;
 }
 
 function PrivateSphereRoute({ children }) {
@@ -8306,7 +8304,7 @@ export default function App() {
             <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
             <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />
-            <Route path={APP_ORDERS_PATH} element={<ProtectedOrders />} />
+            <Route path={APP_ORDERS_PATH} element={<ProtectedStore ordersOpen />} />
             <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
