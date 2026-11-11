@@ -37,7 +37,7 @@ try {
     const open = async mode => {
       await page.goto(`${smokeOrigin(server)}/__fundraising?mode=${mode}`);
       await page.evaluate(() => document.fonts.ready);
-      await page.waitForFunction(() => window.fundraisingReads.length > 0);
+      await page.waitForFunction(() => window.fundraisingReads?.length > 0);
       assert.equal(await drawer.count(), 0);
       assert.equal(await group.getByText("6 желаний", { exact: true }).count(), 0);
       assert.deepEqual(await page.evaluate(() => window.fundraisingReads), [`/wish-groups/fundraising-${mode}/fundraiser?shareToken=fixture%20token`]);

@@ -14,14 +14,14 @@ function Fixture() {
     <BrowserRouter>
       <SessionContext.Provider value={{ user: { id: "purchase-history", username: "purchase-history" } }}>
         <MobileFormPages>
-        <main className="app-layout--dark">
-          <div className="app-page page-stack">
-            <WishesProfileControls selectedSpace="products"
-              importButtonRef={trigger} onImport={() => setOpen(true)} />
-            {open && <PurchaseHistoryImport listId="fixture" listTitle="На потом" space="products"
-              onClose={() => setOpen(false)} onSaved={() => { throw new Error("Fixture cannot save"); }} returnFocusRef={trigger} />}
-          </div>
-        </main>
+          <main className="app-layout--dark">
+            <div className="app-page page-stack">
+              <WishesProfileControls selectedSpace="products"
+                importButtonRef={trigger} onImport={() => setOpen(true)} />
+              {open && <PurchaseHistoryImport listId="fixture" listTitle="На потом" space="products"
+                onClose={() => setOpen(false)} onSaved={() => { throw new Error("Fixture cannot save"); }} returnFocusRef={trigger} />}
+            </div>
+          </main>
         </MobileFormPages>
       </SessionContext.Provider>
     </BrowserRouter>
