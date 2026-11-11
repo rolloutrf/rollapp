@@ -30,6 +30,7 @@ function Fixture() {
   if (name === "coaching-edit") return <CoachingSessionDrawer session={{ id: "unsaved-session", title: "Коучинг-сессия", status: "completed", format: "online", durationMinutes: 60 }} open onOpenChange={setOpen} />;
   if (name === "medication-group") return <MedicationGroupDrawer group={{ id: "unsaved-group", title: "Витамины" }} open onOpenChange={setOpen} />;
   if (name === "conference") return <ConferenceDrawer open onOpenChange={setOpen} />;
+  if (name === "wish-list-new") return <ListModal onClose={close} />;
   if (name === "wish-list-edit") return <ListModal list={{ id: "unsaved-list", title: "Несохранённый список" }} listsCount={2} onClose={close} />;
   if (name === "wish") return <WishModal onClose={close} />;
   if (name === "wish-edit") return <WishModal wish={{ id: "unsaved-wish", title: "Несохранённое желание", url: "https://example.com", listIds: [], participants: [{ id: "participant", name: "Участник совместного желания с длинным именем", username: "participant-with-a-long-username" }] }} onClose={close} />;

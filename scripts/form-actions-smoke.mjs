@@ -72,7 +72,7 @@ async function geometry(page) {
 try {
   for (const width of (process.env.FORM_ACTION_WIDTHS || "320,390,640,767,768,820,1024,1440,1920").split(",").map(Number)) {
     for (const height of width === 390 ? [844, 400] : [844]) {
-      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,wish-list-edit,medication-group,conference,coaching-edit,principle,identity-test").split(",")) {
+      for (const name of (process.env.FORM_ACTION_CASES || "task,task-new,markdown,contact,wish,wish-edit,wish-list-new,wish-list-edit,medication-group,conference,coaching-edit,principle,identity-test").split(",")) {
         const page = await browser.newPage({ viewport: { width, height } }), errors = [];
         page.setDefaultNavigationTimeout(90000);
         page.setDefaultTimeout(10000);
@@ -155,9 +155,14 @@ try {
           await page.getByRole("button", { name: "Отмена", exact: true }).click();
           await page.getByRole("alertdialog").waitFor({ state: "hidden" });
         }
-        if (name === "wish-list-edit") {
-          const trash = page.getByRole("button", { name: "Удалить список", exact: true });
-          const save = page.getByRole("button", { name: "Сохранить изменения", exact: true });
+        const listDrawer = name === "wish-list-edit" ? page.getByRole("dialog", { name: "Изменить список", exact: true }) : null;
+        if (listDrawer) {
+          await listDrawer.waitFor();
+          assert.equal(await listDrawer.getAttribute("data-swipe-direction"), width < 768 ? "down" : "right");
+          const actions = listDrawer.locator('[data-slot="drawer-footer"][data-control-bar]');
+          const trash = actions.getByRole("button", { name: "Удалить список", exact: true });
+          const save = actions.getByRole("button", { name: "Сохранить изменения", exact: true });
+          assert(await save.evaluate(button => button.type === "submit" && button.form === button.closest("form")));
           assert.equal(await trash.evaluate(el => el.previousElementSibling?.type), "submit");
           const trashBox = await trash.boundingBox();
           const saveBox = await save.boundingBox();
@@ -175,7 +180,7 @@ try {
             await page.screenshot({ path: `/tmp/rollapp-wish-list-edit-${width}x${height}.png` });
           }
         }
-        if (width < 768 && name !== "wish-edit") {
+        if (width < 768 && name !== "wish-edit" && !listDrawer) {
           const screen = page.locator('[data-mobile-form-page]:visible'); await screen.waitFor();
           await page.locator('[data-native-form-actions]:visible').waitFor(); await page.evaluate(() => document.fonts.ready);
           const before = await geometry(page);
@@ -283,7 +288,7 @@ try {
           await screen.getByRole("button", { name: "Назад", exact: true }).click(); await screen.waitFor({ state: "hidden" });
         } else {
           await page.locator(name === "wish-edit" ? '.app-fullscreen-dialog' : '[data-slot="drawer-popup"]').waitFor();
-          assert.equal(await page.locator('[data-native-form-actions]').count(), 0, "Desktop footer changed to native action row");
+          assert.equal(await page.locator('[data-native-form-actions]').count(), 0, "Overlay footer changed to native action row");
           const footer = page.locator('.app-form-actions');
           await footer.waitFor();
           await page.evaluate(() => document.fonts.ready);
@@ -314,9 +319,14 @@ try {
             assert.equal(await trash.textContent(), "");
             if (width === 1440) await page.screenshot({ path: "/tmp/rollapp-form-actions-principle-desktop.png" });
           }
+          if (listDrawer) {
+            await listDrawer.getByRole("button", { name: "Закрыть", exact: true }).click();
+            await listDrawer.waitFor({ state: "hidden" });
+          }
         }
         assert.deepEqual(errors, [], `${name}: browser errors`);
-        console.log(`PASS ${width}×${height} ${name}: ${name === "wish-edit" ? "fullscreen footer" : width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer"}`);
+        const surface = name === "wish-edit" ? "fullscreen footer" : listDrawer ? "list settings drawer" : width < 768 ? "one fixed row, scroll, keyboard, form owner, Back" : "desktop Drawer";
+        console.log(`PASS ${width}×${height} ${name}: ${surface}`);
         await page.close();
       }
     }
