@@ -61,6 +61,7 @@ import { getStoredCatalogBrands, getStoredCatalogBrandPage } from "./external-ca
 import {
   canonicalCatalogUrl, catalogActionKey, catalogIdentityKey, externalCatalogReference, groupCatalogRows, preservedCatalogRow,
 } from "./wish-catalog.js";
+import { registerWishHistoryImport } from "./wish-history-import.js";
 import { buildFulfilledWishSuggestions } from "./fulfilled-wish-suggestions.js";
 import { VehicleCatalogUnavailableError, vehicleCatalog } from "./vehicle-catalog.js";
 import { fetchPublicHtml, fetchPublicJson, MetadataFetchError } from "./metadata-fetch.js";
@@ -4185,6 +4186,8 @@ app.post("/api/wishes", requireAuth, asyncRoute(async (req, res) => {
   const result = await getWishes(req.user.id, req.user.id, true);
   res.status(201).json({ wish: result.find((wish) => wish.id === id), reward: outcome.reward });
 }));
+
+registerWishHistoryImport(app, { requireAuth, asyncRoute, transaction });
 
 app.post("/api/wishes/backfill-previews", requireAuth, previewBackfillRateLimit, asyncRoute(async (req, res) => {
   res.json(await deduplicatedPreviewBackfill(req.user.id));

@@ -92,6 +92,7 @@ import { ProfileInvites } from "@/components/profile-invites";
 import { ProfileAccounts } from "@/components/profile-accounts";
 import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
+import { PurchaseHistoryImport } from "@/components/purchase-history-import";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -3534,7 +3535,7 @@ function wishlistPublicationPath(space, publication) {
   return `${APP_HOME}?${search}`;
 }
 
-function WishesProfileControls({ selectedList, selectedSpace, publication, onEditList, onAdd }) {
+function WishesProfileControls({ selectedList, selectedSpace, publication, onEditList, onAdd, onImport, importButtonRef }) {
   const { user } = useSession();
   const { isOwner } = useSphereSharing();
   return (
@@ -3543,6 +3544,7 @@ function WishesProfileControls({ selectedList, selectedSpace, publication, onEdi
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
         {selectedList && <PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" onClick={() => onEditList(selectedList)}>Настройки списка</PageActionButton>}
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
+        {onImport && <PageActionButton ref={importButtonRef} type="button" className="shrink-0" variant="outline" onClick={onImport} aria-label="Импорт покупок">Импорт</PageActionButton>}
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon" })}
@@ -4900,6 +4902,8 @@ function WishesPage({ onAdd, version }) {
   const [selectedWishId, setSelectedWishId] = useState(null);
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
+  const [historyImport, setHistoryImport] = useState(null);
+  const importButtonRef = useRef(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
   const [draggedGroupId, setDraggedGroupId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
@@ -4946,9 +4950,9 @@ function WishesPage({ onAdd, version }) {
   }, [location.search, selectedSpace]);
   const wishOrderKey = (data?.wishes || []).map((wish) => wish.id).join("\0");
   useEffect(() => {
-    if (selectedWishId || editingWishId || listModal || openedGroupId) return undefined;
+    if (selectedWishId || editingWishId || listModal || openedGroupId || historyImport) return undefined;
     return scheduleDocumentScrollUnlock();
-  }, [selectedWishId, editingWishId, listModal, openedGroupId]);
+  }, [selectedWishId, editingWishId, listModal, openedGroupId, historyImport]);
   useEffect(() => {
     if (data?.wishes) {
       const ids = data.wishes.map((wish) => wish.id);
@@ -5059,8 +5063,14 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
+  const canImport = !publication && data?.viewerId === viewerId && ["products", "food"].includes(selectedSpace);
   const profileControls = <WishesProfileControls selectedList={selectedList} selectedSpace={selectedSpace} publication={publication}
-    onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} />;
+    onEditList={setListModal} onAdd={() => onAdd(selectedSpace, selectedList?.id)} importButtonRef={importButtonRef}
+    onImport={canImport ? () => setHistoryImport({
+      listId: selectedList?.id ?? null,
+      listTitle: selectedList ? listDisplayTitle(selectedList) : UNSORTED_LIST_TITLE,
+      space: selectedSpace,
+    }) : null} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
     username={user.username} user={user} returnTo={wishlistPath} />;
@@ -5977,6 +5987,11 @@ function WishesPage({ onAdd, version }) {
 }} aria-label="Списки желаний">{shouldShowUnsortedList(unlistedWishes.length) && <ToggleGroupItem data-list-tile="" value="all" aria-label={listTileAccessibleName(UNSORTED_LIST_TITLE, unlistedWishes.length)}><ListTileContent title={UNSORTED_LIST_TITLE} count={unlistedWishes.length} /></ToggleGroupItem>}{categoryLists.map((list) => { const listWishCount = wishCountForList(list.id); return <ToggleGroupItem data-list-tile="" value={list.id} key={list.id} aria-label={listTileAccessibleName(list.title, listWishCount, list.privacy === "private")}><ListTileContent title={list.title} count={listWishCount} privateList={list.privacy === "private"} /></ToggleGroupItem>; })}</ToggleGroup><ShadcnButton variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={() => setListModal({})}><Plus size={16} /></ShadcnButton></WishListNavigation>}
 {publicationContent || <>
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
+{historyImport && <PurchaseHistoryImport {...historyImport} returnFocusRef={importButtonRef} onClose={() => setHistoryImport(null)} onSaved={({ created, skipped }) => {
+  setHistoryImport(null);
+  toast(created ? `Создано карточек: ${created}${skipped ? ` · Повторов: ${skipped}` : ""}` : "Такие карточки уже есть в этом списке");
+  if (created) void reload({ background: true }).catch(() => toast("Карточки сохранены. Обновите страницу, чтобы увидеть их.", "error"));
+}} />}
 {openedGroup && <WishGroupDialog
   group={openedGroup}
   viewerId={user.id}
@@ -5987,7 +6002,7 @@ function WishesPage({ onAdd, version }) {
   onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)}
   finalFocus={groupOpenerRef}
   busy={Boolean(removingGroupId)}
-  suspended={Boolean(selectedWish || editingWish || listModal)}
+  suspended={Boolean(selectedWish || editingWish || listModal || historyImport)}
   onClose={() => setOpenedGroupId(null)}
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
