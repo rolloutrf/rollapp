@@ -91,6 +91,7 @@ import { ProfileInvites } from "@/components/profile-invites";
 import { ProfileAccounts } from "@/components/profile-accounts";
 import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
+import { DiskProfileSettings } from "@/components/disk-profile-settings";
 import { PurchaseHistoryImport } from "@/components/purchase-history-import";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
@@ -7353,6 +7354,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(null);
   const [yandexDiskBackupEnabled, setYandexDiskBackupEnabled] = useState(false);
+  const [yandexDiskProfileEnabled, setYandexDiskProfileEnabled] = useState(false);
+  const [diskProfileSaving, setDiskProfileSaving] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
   const [accountsBusy, setAccountsBusy] = useState(false);
   const [mcpKeysBusy, setMcpKeysBusy] = useState(false);
@@ -7377,7 +7380,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy || diskProfileSaving;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7395,7 +7398,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const accountReturnPath = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}${location.hash}`);
   const addAccountHref = `/login?${new URLSearchParams({ add_account: "1", next: accountReturnPath })}`;
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
-  const yandexLinkBlocked = changed || loading || imageUploading || loggingOut;
+  const yandexSettingsBlocked = changed || loading || imageUploading || loggingOut;
+  const yandexLinkBlocked = yandexSettingsBlocked || diskProfileSaving;
   useEffect(() => {
     let active = true;
     api.get("/auth/yandex/config")
@@ -7403,6 +7407,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         if (!active) return;
         setYandexEnabled(Boolean(config.enabled));
         setYandexDiskBackupEnabled(Boolean(config.diskBackupEnabled));
+        setYandexDiskProfileEnabled(Boolean(config.diskProfileEnabled));
       })
       .catch(() => { if (active) setYandexEnabled(false); });
     return () => { active = false; };
@@ -7796,6 +7801,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
       )}
     </Card>
     {!yandexLinkBlocked && <PrivateNotesLink onNavigate={leaveSettingsFor} />}
+    {!yandexSettingsBlocked && (yandexDiskProfileEnabled || user.diskProfile) && <DiskProfileSettings ownerId={user.id} onProfileUpdated={onProfileUpdated} onBusyChange={setDiskProfileSaving} />}
   </div> : null;
   const openRouterSection = section === "openrouter" && (
     <OpenRouterSettings

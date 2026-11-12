@@ -406,6 +406,23 @@ try {
     });
     assert.deepEqual(copyGeometry, { height: 48, onScreen: true, fits: true, footer: true });
     if (height === 400 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-yandex-settings-${width}x${height}.png` });
+    await page.goto(`${origin}/__profile-settings?state=disk-profile`);
+    await button("Yandex ID").click();
+    const activateDisk = button("Хранить профиль на Диске");
+    await activateDisk.waitFor();
+    assert(await activateDisk.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return box.width >= 48 && box.height >= 48 && box.left >= 0 && box.right <= innerWidth;
+    }));
+    assert.equal(await page.evaluate(() => window.diskProfileAttempts), undefined);
+    await activateDisk.click();
+    await page.getByRole("alert").filter({ hasText: "Диск временно недоступен" }).waitFor();
+    await activateDisk.click();
+    await page.getByText("Профиль хранится на Яндекс Диске.", { exact: true }).waitFor();
+    assert.equal(await activateDisk.count(), 0);
+    if (width === 390 && height === 844 || width === 1440 && height === 900) {
+      await page.screenshot({ path: `/tmp/rollapp-disk-profile-${width}.png` });
+    }
     await page.goto(`${origin}/__profile-settings?state=save`);
     await personal.click();
     await name.fill("Сохранённое имя");

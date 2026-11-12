@@ -26,7 +26,8 @@ api.get = async (path) => {
     window.backupStatusRequested = true;
     return { status: window.backupReady ? new URLSearchParams(location.search).get("result") : "pending" };
   }
-  if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: mode !== "error" };
+  if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: mode !== "error", diskProfileEnabled: mode === "disk-profile" };
+  if (mode === "disk-profile" && path === "/me/disk-profile") return { enabled: true, connected: true, active: Boolean(window.diskProfileSaved), available: Boolean(window.diskProfileSaved) };
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
   if (path === "/me/openrouter/models") return { models: [{ id: "fixture-model", name: "Fixture model" }] };
@@ -66,6 +67,12 @@ api.get = async (path) => {
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
 const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
+  if (mode === "disk-profile" && path === "/me/disk-profile" && data.ownerId === fixtureUser.id) {
+    window.diskProfileAttempts = (window.diskProfileAttempts || 0) + 1;
+    if (window.diskProfileAttempts === 1) throw new Error("Диск временно недоступен");
+    window.diskProfileSaved = true;
+    return { active: true, available: true, user: { ...fixtureUser, diskProfile: true } };
+  }
   if (path === "/mcp/tokens") {
     window.mcpKeyRequests.push(data.scope);
     const id = window.mcpKeyRequests.length.toString(16).padStart(64, "0");

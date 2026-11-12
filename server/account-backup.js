@@ -16,7 +16,7 @@ const needOfferParticipant = `(t.business_id=$1 OR EXISTS (SELECT 1 FROM reward_
 // are intentionally absent. Each relationship checks its owning endpoint(s).
 const sources = [
   ["users", "t.id=$1", pick("id", "email", "username", "name", "account_type", "business_category", "seller_space",
-    "bio", "birthday", "avatar_url", "created_at")],
+    "bio", "birthday", "avatar_url", "wishlist_links", "member_number", "created_at")],
   ...[
     "profile_username_aliases", "wishes", "wish_book_notes", "catalog_item_likes",
     "education_lists", "education_courses", "education_course_groups", "education_item_groups",

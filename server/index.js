@@ -6,7 +6,8 @@ import { medicationSchema } from "./medication-schema.js";
 import { registerHealthTrackerRoutes } from "./health-trackers.js";
 
 import { registerStoryRoutes } from "./stories.js";
-import { getYandexDiskConfig } from "./yandex-disk.js";
+import { DiskNotesError, getYandexDiskConfig } from "./yandex-disk.js";
+import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./yandex-disk-profile.js";
 import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
@@ -14,7 +15,7 @@ import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
 import { imageIsInUse } from "./image-usage.js";
 import { lockProfileUsernames, preserveProfileUsername, findProfileByUsername } from "./profile-aliases.js";
-import { mergeProfileWishlistLinks, profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
+import { profileWishlistLinksPatchSchema } from "./profile-wishlists.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, externalWishlistLinks } from "../shared/external-wishlists.js";
 import { marketplaceWishlistKey, parseBrowserWishlist } from "./browser-wishlist-import.js";
 import { externalWishlistReaders, insertExternalWishlistItems, WishlistImportError } from "./external-wishlist-import.js";
@@ -743,6 +744,7 @@ function cleanUser(row) {
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
     hasYandex: Boolean(row.has_yandex),
+    ...(row.disk_profile_head && { diskProfile: true }),
     canDiscoverSpheres: Boolean(row.can_discover_spheres),
     createdAt: row.created_at,
   };
@@ -1921,7 +1923,9 @@ app.post("/api/auth/phone/verify", requireLegacySignIn, requireAddAccountSession
 app.get("/api/auth/yandex/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
   const config = getYandexAuthConfig();
-  res.json({ enabled: config.enabled, legacySignInEnabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase });
+  res.json({ enabled: config.enabled, legacySignInEnabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase,
+    ...(profileDiskEnabled() && getYandexDiskConfig().enabled && !isMemoryDatabase && { diskProfileEnabled: true }),
+  });
 });
 
 app.get("/api/me/yandex-backup/:id", requireAuth, (req, res) => {
@@ -2164,6 +2168,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
       privateNotes: getYandexDiskConfig().enabled,
+      ...(profileDiskEnabled() && { diskProfile: getYandexDiskConfig().enabled }),
     },
   });
 }));
@@ -2444,7 +2449,18 @@ app.post("/api/me/telegram/link", requireAuth, authRateLimit, asyncRoute(async (
 app.get("/api/me", asyncRoute(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
   if (!req.user) return res.json({ user: null });
-  res.json({ user: await cleanAuthenticatedUser(req.user) });
+  let row = req.user;
+  let profileStorage;
+  if (row.disk_profile_head) {
+    try {
+      row = await diskProfiles.read(row);
+      profileStorage = { state: "disk" };
+    } catch (error) {
+      if (!(error instanceof DiskNotesError)) throw error;
+      profileStorage = { state: "unavailable", code: error.code };
+    }
+  }
+  res.json({ user: await cleanAuthenticatedUser(row), ...(profileStorage && { profileStorage }) });
 }));
 
 registerPrivateFiles(app, { query, requireAuth, asyncRoute });
@@ -2770,6 +2786,60 @@ app.post("/api/sphere-shares", requireAuth, requireShareOwner, asyncRoute(async 
   return res.json({ granted });
 }));
 
+const diskProfiles = createDiskProfileStorage({ query, transaction, updateProfile: saveProfile });
+
+async function saveProfile(userId, patch, prepare) {
+  return transaction(async (client) => {
+    await lockProfileUsernames(client, isMemoryDatabase);
+    const storage = prepare ? await prepare(client) : null;
+    const previous = storage?.previous || (await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [userId])).rows[0];
+    if (!previous) throw profileDiskConflict();
+    if (!storage && previous.disk_profile_head) throw profileDiskConflict();
+    const next = storage?.next || patchEditableProfile(editableProfile(previous), patch);
+    await preserveProfileUsername(client, userId, previous.username);
+    await preserveProfileUsername(client, userId, next.username);
+    const params = [next.name, next.username, next.bio, next.birthday, next.avatar_url, userId,
+      storage || patch.wishlistLinks ? JSON.stringify(next.wishlist_links) : null];
+    if (storage) params.push(storage.nextHead);
+    return (await client.query(
+      `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5,
+       wishlist_links=COALESCE($7::jsonb,wishlist_links)${storage ? ",disk_profile_head=$8" : ""} WHERE id=$6 RETURNING *`,
+      params,
+    )).rows[0];
+  });
+}
+
+function sendDiskProfileError(res, error) {
+  if (!(error instanceof DiskNotesError)) throw error;
+  const message = error.code === "DISK_RECONNECT"
+    ? "Подключите Яндекс Диск снова, чтобы сохранить профиль."
+    : error.message;
+  return res.status(error.status).json({ error: message, code: error.code });
+}
+
+app.get("/api/me/disk-profile", requireAuth, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  const state = await diskProfiles.state(req.user);
+  let available = state.active;
+  if (state.active) {
+    try { await diskProfiles.read(req.user); }
+    catch (error) {
+      if (!(error instanceof DiskNotesError)) throw error;
+      available = false;
+    }
+  }
+  res.json({ ...state, available });
+}));
+
+app.post("/api/me/disk-profile", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  if (req.body?.ownerId !== req.user.id) return res.status(403).json({ error: "Аккаунт изменился. Откройте настройки заново." });
+  try {
+    const row = await diskProfiles.save(req.user, {}, { activate: true });
+    res.json({ user: await cleanAuthenticatedUser(row), active: true, available: true });
+  } catch (error) { return sendDiskProfileError(res, error); }
+}));
+
 app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
   const parsed = z.object({
     name: z.string().trim().min(2).max(80).optional(),
@@ -2789,26 +2859,11 @@ app.patch("/api/me", requireAuth, asyncRoute(async (req, res) => {
     if (!uploadedAvatar.rowCount) return res.status(400).json({ error: "Загруженное изображение не найдено" });
   }
   try {
-    const result = await transaction(async (client) => {
-      await lockProfileUsernames(client, isMemoryDatabase);
-      const current = await client.query("SELECT * FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
-      const previous = current.rows[0];
-      const username = parsed.data.username ?? previous.username;
-      await preserveProfileUsername(client, req.user.id, previous.username);
-      await preserveProfileUsername(client, req.user.id, username);
-      return client.query(
-        `UPDATE users SET name=$1,username=$2,bio=$3,birthday=$4,avatar_url=$5,
-          wishlist_links=COALESCE($7::jsonb,wishlist_links) WHERE id=$6 RETURNING *`,
-        [parsed.data.name ?? previous.name, username, parsed.data.bio ?? previous.bio,
-          parsed.data.birthday === undefined ? previous.birthday : parsed.data.birthday,
-          parsed.data.avatarUrl ?? previous.avatar_url, req.user.id,
-          parsed.data.wishlistLinks ? JSON.stringify(mergeProfileWishlistLinks(previous.wishlist_links, parsed.data.wishlistLinks)) : null],
-      );
-    });
-    res.json({ user: await cleanAuthenticatedUser(result.rows[0]) });
+    const row = await diskProfiles.save(req.user, parsed.data);
+    res.json({ user: await cleanAuthenticatedUser(row) });
   } catch (error) {
     if (error.code === "23505") return res.status(409).json({ error: "Такое имя профиля уже занято" });
-    throw error;
+    return sendDiskProfileError(res, error);
   }
 }));
 

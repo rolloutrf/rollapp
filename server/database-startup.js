@@ -1,12 +1,14 @@
 import { getYandexDiskConfig } from "./yandex-disk.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { verifyAccountBackupSchema } from "./account-backup.js";
+import { profileDiskEnabled } from "./yandex-disk-profile.js";
 
 // Development reconnects to an existing production database. A reconnect must
 // never run the normal schema/data migration and reservation cleanup routine.
 export async function initializeRuntimeDatabase({ environment = process.env, isMemoryDatabase, transaction, migrate }) {
   const mode = environment.ROLLAPP_DATABASE_INITIALIZATION || "migrate";
   if (!["migrate", "verify"].includes(mode)) throw new Error("ROLLAPP_DATABASE_INITIALIZATION должен быть migrate или verify.");
+  if (profileDiskEnabled(environment) && mode !== "verify") throw new Error("Профиль на Яндекс Диске требует режим базы verify.");
   if (mode === "migrate") { await migrate(); return mode; }
   if (isMemoryDatabase) throw new Error("Проверка существующей базы требует настроенный production PostgreSQL. Демо-база отключена.");
   await transaction(async client => {
@@ -50,6 +52,10 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
       await client.query("SELECT offer_id,content,digest,status,proof,bitcoin_height,bitcoin_hash,verified_at,attempts,next_attempt_at,lease_token,last_error,created_at FROM reward_blockchain_receipts LIMIT 0");
     }
     if (environment.YANDEX_DISK_BACKUP_ENABLED === "true") await verifyAccountBackupSchema(client);
+    if (profileDiskEnabled(environment)) {
+      if (!getYandexDiskConfig(environment).enabled) throw new Error("Хранилище профиля требует настроенное подключение к Яндекс Диску.");
+      await client.query("SELECT disk_profile_head FROM users LIMIT 0");
+    }
     if (getYandexDiskConfig(environment).enabled) {
       await client.query("SELECT user_id,oauth_client_id,folder_id,encrypted_tokens,revision FROM yandex_disk_notes LIMIT 0");
     }

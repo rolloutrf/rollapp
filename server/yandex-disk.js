@@ -120,13 +120,13 @@ export function createYandexDiskClient(config, { fetchImpl = fetch } = {}) {
     return url;
   }
 
-  async function read(token, path) {
+  async function read(token, path, { maxBytes = NOTE_MAX_BYTES, missing = missingNotes } = {}) {
     const link = await resource(token, path, { suffix: "/download" });
-    if (link.status === 404) throw missingNotes();
+    if (link.status === 404) throw missing();
     if (!link.ok) throw diskUnavailable();
     const file = await request(await transferLink(link, "GET"), { method: "GET" });
     if (!file.ok) throw diskUnavailable();
-    return boundedText(file, NOTE_MAX_BYTES);
+    return boundedText(file, maxBytes);
   }
 
   return {
@@ -145,13 +145,13 @@ export function createYandexDiskClient(config, { fetchImpl = fetch } = {}) {
       if (!response.ok) throw diskUnavailable();
     },
     read,
-    async write(token, path, markdown) {
+    async write(token, path, text, { contentType = "text/markdown; charset=utf-8", maxBytes = NOTE_MAX_BYTES } = {}) {
       const link = await resource(token, path, { suffix: "/upload", overwrite: "false" });
       if (!link.ok) throw diskUnavailable();
       const file = await request(await transferLink(link, "PUT"), {
         method: "PUT",
-        headers: { "Content-Type": "text/markdown; charset=utf-8" },
-        body: Buffer.from(markdown),
+        headers: { "Content-Type": contentType },
+        body: Buffer.from(text),
       });
       if (file.status === 507) throw diskFull();
       if (![201, 202].includes(file.status)) throw diskUnavailable();
@@ -160,7 +160,7 @@ export function createYandexDiskClient(config, { fetchImpl = fetch } = {}) {
       for (const wait of [0, 200, 500, 1000]) {
         try {
           if (wait) await delay(wait, undefined, { signal });
-          if (await read(token, path) !== markdown) throw diskUnavailable();
+          if (await read(token, path, { maxBytes }) !== text) throw diskUnavailable();
           return;
         } catch (error) {
           if (error.code !== "DISK_NOTES_MISSING") throw diskUnavailable();

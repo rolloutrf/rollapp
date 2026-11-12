@@ -35,6 +35,20 @@ test("a missing business category column fails read-only startup without running
   await assert.rejects(initializeRuntimeDatabase(options), /Existing schema unavailable/);
   assert(!calls.includes("MIGRATE"));
 });
+test("Disk profile opt-in requires an existing pointer column and OAuth connection schema", async () => {
+  const { calls, options } = fixture({ unavailable: "disk_profile_head" });
+  Object.assign(options.environment, {
+    ROLLAPP_YANDEX_DISK_PROFILE_ENABLED: "true", NODE_ENV: "production", USER_CREDENTIALS_SECRET: "a".repeat(32),
+    YANDEX_DISK_OAUTH_CLIENT_ID: "disk-client", YANDEX_DISK_OAUTH_CLIENT_SECRET: "disk-secret",
+    YANDEX_DISK_OAUTH_REDIRECT_URI: "https://example.com/api/private-notes/connection/callback",
+  });
+  await assert.rejects(initializeRuntimeDatabase(options), /Existing schema unavailable/);
+  assert.equal(calls[0], "SET TRANSACTION READ ONLY");
+  assert(!calls.includes("MIGRATE"));
+  options.environment.ROLLAPP_DATABASE_INITIALIZATION = "migrate";
+  await assert.rejects(initializeRuntimeDatabase(options), /требует режим базы verify/);
+  assert(!calls.includes("MIGRATE"));
+});
 test("existing-database startup preserves the reserved profile-name security guard",async()=>{
   const {calls,options}=fixture({username:"api"});await assert.rejects(initializeRuntimeDatabase(options),/Reserved profile usernames/);assert(!calls.includes("MIGRATE"));
 });

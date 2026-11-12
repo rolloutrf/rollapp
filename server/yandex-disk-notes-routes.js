@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { createYandexAuthorization, readYandexAuthorization } from "./yandex-auth.js";
-import { decryptUserCredential, encryptUserCredential } from "./user-credentials.js";
+import { encryptUserCredential } from "./user-credentials.js";
+import { authorizeYandexDisk, diskNotesFolder as folderPath, diskTokenContext as tokenContext, lockYandexDiskConnection } from "./yandex-disk-connection.js";
 import {
-  createYandexDiskClient, DiskNotesError, diskUnavailable, getYandexDiskConfig, NOTE_MAX_BYTES, reconnectError,
+  createYandexDiskClient, DiskNotesError, diskUnavailable, getYandexDiskConfig, NOTE_MAX_BYTES,
 } from "./yandex-disk.js";
 
 const API = "/api/private-notes";
@@ -11,7 +12,6 @@ const PAGE = "/app/private-notes";
 const PURPOSE = "disk-notes";
 const CALLBACK = `${API}/connection/callback`;
 const COOKIE = "rw_disk_notes_oauth";
-const folderPath = (id) => `app:/rollapp-notes-${id}`;
 const filePath = (id, revision) => `${folderPath(id)}/${revision}.md`;
 const etag = (row, markdown) =>
   `${row.revision || "empty"}:${createHash("sha256").update(row.folder_id).update("\0").update(markdown).digest("hex")}`;
@@ -20,19 +20,9 @@ const patchSchema = z.object({
   revision: z.string().regex(/^(empty|[0-9]{17}-[0-9a-f-]{36}):[0-9a-f]{64}$/),
   markdown: z.string().refine((value) => value.isWellFormed() && Buffer.byteLength(value) <= NOTE_MAX_BYTES),
 }).strict();
-const tokenContext = (userId, clientId) => ({ userId, provider: `${PURPOSE}:${clientId}` });
 
 function noteResponse(row, markdown) {
   return { markdown, revision: etag(row, markdown) };
-}
-
-async function connection(client, userId, clientId) {
-  const result = await client.query(
-    `SELECT folder_id,encrypted_tokens,revision FROM yandex_disk_notes
-     WHERE user_id=$1 AND oauth_client_id=$2 FOR UPDATE`,
-    [userId, clientId],
-  );
-  return result.rows[0];
 }
 
 async function currentMarkdown(disk, token, row) {
@@ -93,19 +83,8 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
   async function withConnection(userId, config, work) {
     requireConfig(config);
     const outcome = await transaction(async (client) => {
-      await client.query("SET LOCAL lock_timeout = '3s'");
-      const row = await connection(client, userId, config.clientId);
-      if (!row) throw reconnectError();
-      let tokens;
-      try { tokens = JSON.parse(decryptUserCredential(row.encrypted_tokens, tokenContext(userId, config.clientId))); }
-      catch { throw diskUnavailable(); }
-      const disk = createYandexDiskClient(config);
-      if (tokens.expiresAt <= Date.now() + 60_000) {
-        tokens = await disk.refresh(tokens.refreshToken);
-        await client.query("UPDATE yandex_disk_notes SET encrypted_tokens=$3 WHERE user_id=$1 AND oauth_client_id=$2",
-          [userId, config.clientId, encryptUserCredential(JSON.stringify(tokens), tokenContext(userId, config.clientId))]);
-      }
-      try { return { value: await work(client, disk, tokens.accessToken, row) }; }
+      const { row, disk, token } = await authorizeYandexDisk(client, userId, config);
+      try { return { value: await work(client, disk, token, row) }; }
       catch (error) {
         if (!(error instanceof DiskNotesError)) throw error;
         return { error };
@@ -160,7 +139,7 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
       await transaction(async (client) => {
         await client.query("SET LOCAL lock_timeout = '3s'");
         await client.query("SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", [userId]);
-        const existing = await connection(client, userId, config.clientId);
+        const existing = await lockYandexDiskConnection(client, userId, config.clientId);
         const disk = createYandexDiskClient(config);
         const folderId = existing?.folder_id || randomUUID();
         if (existing) await currentMarkdown(disk, tokens.accessToken, existing);
