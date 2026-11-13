@@ -3,6 +3,8 @@ import { isPlanningDate } from './planning.js';
 import { scheduleError } from './planning-calendar.js';
 
 export const ASSISTANT_WISH_EXAMPLE = 'Добавь кофемолку за 4 500 ₽ в список «Кухня»';
+export const ASSISTANT_WISH_SORT_PROMPT = 'Разбери «Не отсортированные»: предложи списки для первых 10 товаров и покажи распределение перед переносом.';
+export const ASSISTANT_WISH_SORT_LIMIT = 10;
 export const ASSISTANT_NAME = 'Ассистент Rollapp';
 export const ASSISTANT_MESSAGE_LIMIT = 4000;
 // Four completed turns and the new user message.
@@ -44,7 +46,32 @@ export const assistantActionInputs = {
   draft_note: z.object({ title, content: z.string().trim().min(1).max(5000) }).strict(),
 };
 
+const recordId = z.string().min(1).max(160);
+const hasUniqueIds = rows => new Set(rows.map(({ id }) => id)).size === rows.length;
+const wishSortReview = z.object({
+  items: z.array(z.object({
+    id: recordId, title, listId: recordId.nullable(),
+  }).strict()).min(1).max(ASSISTANT_WISH_SORT_LIMIT).refine(hasUniqueIds),
+  lists: z.array(z.object({
+    id: recordId, title, privacy: z.enum(['public', 'private', 'followers', 'link']),
+  }).strict()).min(1).refine(hasUniqueIds),
+  hasMore: z.boolean(),
+}).strict().refine(({ items, lists }) => {
+  const ids = new Set(lists.map(({ id }) => id));
+  return items.every(({ listId }) => listId === null || ids.has(listId));
+});
+
+export const assistantWishSortApply = z.object({
+  moves: z.array(z.object({ wishId: recordId, listId: recordId }).strict())
+    .min(1).max(ASSISTANT_WISH_SORT_LIMIT)
+    .refine(moves => new Set(moves.map(({ wishId }) => wishId)).size === moves.length),
+}).strict();
+
 export function parseAssistantAction(type, value) {
+  if (type === 'review_wish_sort') {
+    const parsed = wishSortReview.safeParse(value);
+    return parsed.success ? { type, value: parsed.data } : null;
+  }
   if (typeof type !== 'string' || !Object.hasOwn(assistantActionInputs, type)) return null;
   const parsed = assistantActionInputs[type].safeParse(value);
   return parsed.success ? { type, value: parsed.data } : null;

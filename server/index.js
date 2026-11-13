@@ -1,5 +1,6 @@
 import { registerMessengerRoutes } from "./messenger.js";
 import { registerProductSuggestionRoutes } from "./product-suggestions.js";
+import { registerAssistantWishlistSortRoute } from "./assistant-wishlist-sort.js";
 import { registerMessengerAssistantRoute } from "./messenger-assistant.js";
 import { registerWishlistBusinessRoutes } from "./wishlist-business.js";
 import { medicationSchema } from "./medication-schema.js";
@@ -1181,6 +1182,7 @@ registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
+registerAssistantWishlistSortRoute(app, { requireAuth, asyncRoute, transaction });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });

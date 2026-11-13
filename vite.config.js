@@ -10,6 +10,9 @@ const backendPort = /^\d{1,5}$/.test(process.env.PORT || "") ? Number(process.en
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: { include: [
+    "@ui-sdk/core",
+    "@ui-sdk/react/agent",
+    "@ui-sdk/react/primitive",
     "@tiptap/core",
     "@tiptap/extension-blockquote",
     "@tiptap/extension-bold",

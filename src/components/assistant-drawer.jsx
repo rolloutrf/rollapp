@@ -1,10 +1,11 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
-import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, ASSISTANT_WISH_SORT_PROMPT, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { AssistantWishAction } from './assistant-wish-action';
+import { AssistantWishlistSort } from './assistant-wishlist-sort';
 import { ControlBar } from './control-bar';
 import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
 import { Button, buttonVariants } from './ui/button';
@@ -18,6 +19,7 @@ const AssistantContext = createContext(null);
 const assistantStarters = [
   ['Открыть календарь', 'Открой календарь Rollapp.'],
   ['Добавить желание', ASSISTANT_WISH_EXAMPLE],
+  ['Разобрать «Не отсортированные»', ASSISTANT_WISH_SORT_PROMPT],
   ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
   ['Составить план', 'Помоги составить план на неделю.'],
 ];
@@ -43,6 +45,10 @@ function chatTitle(content) {
 function useAssistantChats() {
   const [workspace, setWorkspace] = useState(() => ({ chats: [newChat(1)], selected: '1' }));
   const pending = useRef(new Map());
+  const [sortReviews, setSortReviews] = useState({});
+  function updateSortReview(key, change) {
+    setSortReviews(previous => ({ ...previous, [key]: { ...previous[key], ...change } }));
+  }
 
   useLayoutEffect(() => {
     const requests = pending.current;
@@ -109,7 +115,7 @@ function useAssistantChats() {
   }
 
   return {
-    chats, chat, createChat, selectChat, submit,
+    chats, chat, createChat, selectChat, submit, sortReviews, updateSortReview,
     setDraft: draft => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft })),
   };
 }
@@ -119,7 +125,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions, onReviewWish }) {
+function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -130,6 +136,11 @@ function AssistantActions({ actions, onReviewWish }) {
     const action = parseAssistantAction(candidate?.type, candidate?.value);
     if (!action) return null;
     const { type, value } = action;
+    if (type === 'review_wish_sort') {
+      const key = `${messageKey}:${index}`;
+      return <AssistantWishlistSort key={key} value={value} review={sortReviews[key]}
+        onUpdate={change => updateSortReview(key, change)} onApplied={onWishlistChanged} />;
+    }
     if (type === 'draft_wish') return <AssistantWishAction key={index} value={value} onReview={onReviewWish} />;
     const [section, label] = type === 'open_section'
       ? [value.section, `Открыть: ${ASSISTANT_SECTIONS[value.section].title}`]
@@ -192,7 +203,7 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
@@ -203,12 +214,12 @@ export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish
         <MessageDrawerClose label="Закрыть ассистента" />
         <AssistantChatPicker {...workspace} />
       </ControlBar>
-      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} {...workspace} />
+      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} onWishlistChanged={onWishlistChanged} {...workspace} />
     </section>
   </MessageDrawer>;
 }
 
-function AssistantConversation({ chat, open, setDraft, submit, onReviewWish }) {
+function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onWishlistChanged, sortReviews, updateSortReview }) {
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
   const history = useRef(null);
@@ -236,7 +247,9 @@ function AssistantConversation({ chat, open, setDraft, submit, onReviewWish }) {
         <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
       </div>}
       {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
-        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} /></article>)}
+        data-wish-sort={actions?.some?.(action => action?.type === 'review_wish_sort') || undefined}
+        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish}
+          sortReviews={sortReviews} updateSortReview={updateSortReview} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} /></article>)}
       {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
       {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
     </div>

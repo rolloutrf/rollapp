@@ -62,3 +62,50 @@
     padding-block: var(--layout-inline-gap);
   }
 }
+
+.messenger-assistant-message[data-wish-sort] {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.assistant-wishlist-sort {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--layout-item-gap);
+}
+
+.assistant-wishlist-sort__row {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--layout-inline-gap);
+  padding: var(--layout-item-gap);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.assistant-wishlist-sort__label {
+  display: flex;
+  align-items: center;
+  gap: var(--layout-inline-gap);
+  min-block-size: var(--layout-control-size);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.assistant-wishlist-sort__label [data-slot="checkbox"] {
+  flex: none;
+}
+
+.assistant-wishlist-sort__row [data-slot="select-trigger"] {
+  block-size: auto;
+}
+
+.assistant-wishlist-sort__row [data-slot="select-value"] {
+  display: block;
+  min-inline-size: 0;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}

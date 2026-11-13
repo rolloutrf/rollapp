@@ -209,3 +209,52 @@ test('assistant offers a wish draft and drops unsupported or invalid actions', a
     ]);
   });
 });
+
+test('wishlist sort accepts the preset and typed intent, with ranking fallback and no model-made review actions', async () => {
+  for (const preset of [true, false]) {
+    const providers = [];
+    const queries = [];
+    await withAssistant({
+      env: yandexEnv,
+      resolveCredential: async () => ({ provider: 'openrouter', apiKey: 'personal-key', model: 'personal/model' }),
+      query: async (sql, params) => {
+        assert.equal(params[0], 'owner');
+        queries.push(sql);
+        return { rows: sql.includes('FROM wishes w') ? [{ id: 'wish', title: 'Кофемолка' }] : [{ id: 'list', title: 'Кухня', privacy: 'public' }] };
+      },
+      fetchImpl: async (_url, { body }) => {
+        providers.push('openrouter');
+        const names = JSON.parse(body).tools.map(({ function: fn }) => fn.name);
+        if (names.includes('review_unsorted_wishes')) {
+          assert(!names.includes('review_wish_sort'));
+          assert.deepEqual(queries, []);
+          return completion({ tool_calls: [tool('review_unsorted_wishes', {})] });
+        }
+        assert.deepEqual(names, ['suggest_wish_lists']);
+        return new Response(null, { status: 402 });
+      },
+      yandexRequest: async (_path, { tools }) => {
+        providers.push('yandex');
+        assert.deepEqual(tools.map(({ function: fn }) => fn.name), ['suggest_wish_lists']);
+        return { choices: [{ message: { tool_calls: [tool('suggest_wish_lists', { choices: [{ wish: 1, list: 1 }] })] } }] };
+      },
+    }, async request => {
+      const content = preset
+        ? 'Разбери «Не отсортированные»: предложи списки для первых 10 товаров и покажи распределение перед переносом.'
+        : 'Предложи, куда разложить мои неотсортированные товары';
+      const response = await request({ ...ask(content), includePlanning: preset });
+      assert.equal(response.status, 200);
+      const { actions } = await response.json();
+      assert.deepEqual(actions, [{
+        type: 'review_wish_sort',
+        value: {
+          items: [{ id: 'wish', title: 'Кофемолка', listId: 'list' }],
+          lists: [{ id: 'list', title: 'Кухня', privacy: 'public' }],
+          hasMore: false,
+        },
+      }]);
+    });
+    assert.equal(queries.length, 2);
+    assert.deepEqual(providers, preset ? ['openrouter', 'yandex'] : ['openrouter', 'openrouter', 'yandex']);
+  }
+});

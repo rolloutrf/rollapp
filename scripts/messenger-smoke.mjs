@@ -378,6 +378,10 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await link.click();
   await chat.waitFor({state:'hidden'});
   assert.equal(new URL(page.url()).searchParams.get('tab'),'calendar');
+  await openAssistant();
+  await checkWishlistSort(page, chat, text, send, width, height);
+  await close.click();
+  await chat.waitFor({state:'hidden'});
   if (width===390 && height===844) {
     const planningPath=new URL(page.url()).pathname+new URL(page.url()).search;
     await openAssistant();
@@ -398,6 +402,67 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     assert.equal(await send.isEnabled(),true);
   }
   console.log(`PASS assistant ${width}x${height}: shared drawer, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+}
+
+async function checkWishlistSort(page, chat, text, send, width, height) {
+  const picker = chat.getByRole('button', { name: /^Чаты ассистента/ });
+  const originalChat = (await picker.getAttribute('aria-label')).split('Текущий чат: ')[1];
+  const starter = chat.getByRole('group', { name: 'Примеры запросов' })
+    .getByRole('button', { name: 'Разобрать «Не отсортированные»', exact: true });
+  await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
+  await starter.click();
+  assert.match(await text.inputValue(), /^Разбери «Не отсортированные»/);
+  await send.click();
+  const preview = chat.getByRole('region', { name: 'Разбор желаний' });
+  await preview.getByRole('button', { name: 'Проверить распределение' }).click();
+  const coffee = preview.getByRole('checkbox', { name: 'Кофемолка', exact: true });
+  const light = preview.getByRole('checkbox', { name: 'Лампа', exact: true });
+  const other = preview.getByRole('checkbox', { name: /^Очень длинное название/ });
+  await coffee.waitFor();
+  assert.equal(await coffee.isChecked(), true);
+  assert.equal(await light.isChecked(), true);
+  assert.equal(await other.isChecked(), false);
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.sortWrites), []);
+  const select = preview.getByRole('combobox', { name: 'Список для «Кофемолка»', exact: true });
+  assert.equal(await select.locator('[data-slot="select-value"]').textContent(), 'Кухня');
+  await select.click();
+  await page.getByRole('option', { name: 'Воркспейс · закрытый', exact: true }).click();
+  assert.equal(await select.locator('[data-slot="select-value"]').textContent(), 'Воркспейс · закрытый');
+  await light.click();
+  assert.equal(await light.isChecked(), false);
+  const apply = preview.getByRole('button', { name: 'Перенести выбранные (1)', exact: true });
+  await apply.scrollIntoViewIfNeeded();
+  const geometry = await preview.evaluate(node => {
+    const history = node.closest('[role="log"]');
+    return { history: [history.clientWidth, history.scrollWidth], controls:
+      Array.from(node.querySelectorAll('[role="combobox"],button[type="submit"]'), control =>
+        ({ height: control.offsetHeight, client: control.clientWidth, scroll: control.scrollWidth, text: control.textContent })) };
+  });
+  assert(geometry.history[1] <= geometry.history[0] + 1 &&
+    geometry.controls.every(control => control.height >= 48 && control.scroll <= control.client + 1),
+  `Wishlist sort review must fit the chat at ${width}×${height}: ${JSON.stringify(geometry)}`);
+  if ((width === 1440 || width === 390 || width === 320) && height === 844) {
+    await page.screenshot({ path: `/tmp/rollapp-wishlist-sort-${width}.png` });
+  }
+  await page.evaluate(() => { window.messengerTest.failSort = true; });
+  await apply.click();
+  await preview.getByRole('alert').filter({ hasText: 'Желания или списки изменились' }).waitFor();
+  assert.equal(await coffee.isChecked(), true);
+  assert.equal(await light.isChecked(), false);
+  assert.equal(await select.locator('[data-slot="select-value"]').textContent(), 'Воркспейс · закрытый');
+  const chatName = await chat.getByRole('button', { name: /^Чаты ассистента/ }).getAttribute('aria-label');
+  await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
+  await chat.getByRole('button', { name: /^Чаты ассистента/ }).click();
+  await page.getByRole('menuitemradio', { name: chatName.split('Текущий чат: ')[1], exact: true }).click();
+  await preview.getByRole('alert').filter({ hasText: 'Желания или списки изменились' }).waitFor();
+  await page.evaluate(() => { window.messengerTest.failSort = false; });
+  await apply.click();
+  await preview.getByRole('status').filter({ hasText: 'Перенесено 1 желание.' }).waitFor();
+  const expected = { moves: [{ wishId: 'coffee', listId: 'workspace' }] };
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.sortWrites), [expected, expected]);
+  await picker.click();
+  await page.getByRole('menuitemradio', { name: originalChat, exact: true }).click();
+
 }
 
 async function holdAssistantReplies(page, ...prompts) {
