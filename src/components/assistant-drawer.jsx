@@ -222,7 +222,7 @@ function AssistantConversation({ workspace, open, heading, onReviewWish, canDisc
         const node = event.currentTarget;
         atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
       }}>
-        {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp @container">
+        {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp">
           <p>Помогу найти раздел, составить план или подготовить желание, задачу, событие или заметку.</p>
           {!chat.draft && suggestions}
           <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>

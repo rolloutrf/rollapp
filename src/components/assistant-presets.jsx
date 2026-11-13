@@ -1,7 +1,7 @@
 import { definePrimitive } from '@ui-sdk/core';
 import { usePart, usePrimitive } from '@ui-sdk/react/primitive';
 import { ListChecks } from 'lucide-react';
-import { useId, useRef } from 'react';
+import { useRef } from 'react';
 import { ASSISTANT_MESSAGE_LIMIT, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE } from '../../shared/messenger-assistant.js';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -75,7 +75,6 @@ function appendPrompt(draft, prompt) {
 }
 
 export function AssistantPresets({ draft, disabled, setDraft, inputRef, canDiscoverSpheres, children }) {
-  const labelPrefix = useId();
   const visibleGroups = canDiscoverSpheres ? [...groups, ...sphereGroups] : groups;
   const items = visibleGroups.flatMap(group => group.items);
   const canInsert = prompt => !disabled && appendPrompt(draft, prompt).length <= ASSISTANT_MESSAGE_LIMIT;
@@ -115,20 +114,12 @@ export function AssistantPresets({ draft, disabled, setDraft, inputRef, canDisco
       </DropdownMenuGroup>)}
     </DropdownMenuContent>
   </DropdownMenu>;
-  const suggestions = <div data-not-typeset role="group" aria-label="Примеры запросов" className="grid w-full min-w-0 gap-4 @min-[32rem]:grid-cols-2">
-    {visibleGroups.map(({ label, items }) => {
-      const labelId = `${labelPrefix}-${items[0].id}`;
-      return <div key={label} role="group" aria-labelledby={labelId} className="grid min-w-0 content-start gap-2">
-        <span id={labelId} className="text-xs font-medium text-muted-foreground">{label}</span>
-        <div className="flex flex-wrap gap-2">
-          {items.map(item => <Button key={item.id} type="button" variant="outline"
-            disabled={!canInsert(item.prompt)} className="h-auto min-h-(--layout-control-size) max-w-full rounded-full px-6 py-2 text-start whitespace-normal" onClick={() => {
-              handle.api.insertPreset(item.id);
-              inputRef.current?.focus();
-            }}>{item.label}</Button>)}
-        </div>
-      </div>;
-    })}
+  const suggestions = <div data-not-typeset role="group" aria-label="Примеры запросов" className="flex w-full min-w-0 flex-wrap gap-2">
+    {items.map(item => <Button key={item.id} type="button" variant="outline"
+      disabled={!canInsert(item.prompt)} className="h-auto min-h-(--layout-control-size) max-w-full rounded-full px-6 py-2 text-start whitespace-normal" onClick={() => {
+        handle.api.insertPreset(item.id);
+        inputRef.current?.focus();
+      }}>{item.label}</Button>)}
   </div>;
   return usePart(handle, 'root', {}, {
     className: 'messenger-conversation assistant-drawer',
