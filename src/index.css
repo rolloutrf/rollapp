@@ -10,6 +10,7 @@
 @import "./identity-reports.css";
 @import "./components/health-tracker.css";
 @import "./components/profile-booking-calendar.css";
+@import "./components/wishlist-snippet.css";
 
 @custom-variant dark (&:is(.dark *));
 

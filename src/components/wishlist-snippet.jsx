@@ -3,7 +3,6 @@ import { Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import "./wishlist-snippet.css";
 
 function SnippetImage({ src, fallbackSrc, alt, loading, icon: Icon }) {
   const [failedSources, setFailedSources] = useState([]);
