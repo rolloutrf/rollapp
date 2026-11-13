@@ -108,16 +108,21 @@ async function checkWishSale(width, height) {
       const control = page.getByRole("button", { name: `Опции желания «${name}»` });
       await control.evaluate(node => {
         const box = node.getBoundingClientRect();
-        const header = document.querySelector(".global-app-chrome")?.getBoundingClientRect();
-        const floating = [...document.querySelectorAll(".planning-fab-controls, [data-add-fab]")]
-          .map(item => item.getBoundingClientRect())
-          .filter(item => item.height && item.width);
-        const top = Math.max(0, header?.bottom ?? 0);
-        const bottom = Math.min(innerHeight, ...floating.map(item => item.top));
-        const center = (top + bottom) / 2;
-        if (box.top < top || box.bottom > bottom) window.scrollBy({
-          top: box.top + box.height / 2 - center, behavior: "instant",
-        });
+        const fixedControls = [...document.querySelectorAll(
+          ".global-app-chrome button, .global-app-chrome a, .planning-fab-controls button, [data-add-fab] button",
+        )].map(item => item.getBoundingClientRect())
+          .filter(item => item.height && item.left < box.right && item.right > box.left)
+          .sort((a, b) => a.top - b.top);
+        const gaps = [];
+        let top = 0;
+        for (const fixed of fixedControls) {
+          if (fixed.top - top >= box.height) gaps.push([top, fixed.top]);
+          top = Math.max(top, fixed.bottom);
+        }
+        if (innerHeight - top >= box.height) gaps.push([top, innerHeight]);
+        if (gaps.some(([start, end]) => box.top >= start && box.bottom <= end)) return;
+        const [start, end] = gaps.sort(([a, b], [c, d]) => (d - c) - (b - a))[0];
+        window.scrollBy({ top: box.top + box.height / 2 - (start + end) / 2, behavior: "instant" });
       });
       await control.click();
     };
