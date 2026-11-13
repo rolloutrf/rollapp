@@ -41,3 +41,27 @@ export function productScore(query, productName) {
   const matched = queryWords.filter((word) => productWords.has(word)).length;
   return Math.round((matched / queryWords.length) * 100);
 }
+
+// Imported marketplace titles often append generic search copy after " / ".
+// A shorter title is useful only when the leading segment identifies a model.
+export function marketplaceProductQuery(title) {
+  const full = String(title || "").trim();
+  const leading = full.split(/\s+\/\s+/u, 1)[0];
+  return words(leading).some(isModelCode) ? leading : full;
+}
+
+function isModelCode(word) {
+  return /[a-zа-я]/.test(word) && /[0-9]/.test(word) && !/^\d+(?:w|вт|v|в|g|г|kg|кг|ml|мл|mah|мач|mm|мм|cm|см)$/.test(word);
+}
+
+export function marketplaceProductScore(wish, candidate) {
+  const title = String(wish?.title || "").trim();
+  const score = productScore(title, candidate);
+  if (wish?.space !== "products" || score === 0) return score;
+  const query = marketplaceProductQuery(title);
+  if (query === title) return score;
+  const candidateWords = new Set(words(candidate));
+  const modelCodes = words(query).filter(isModelCode);
+  if (!modelCodes.every(code => candidateWords.has(code))) return 0;
+  return Math.max(score, productScore(query, candidate));
+}

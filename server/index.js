@@ -70,11 +70,12 @@ import { courseLogoHandler } from "./course-logo-resolver.js";
 import { providerLogoHandler } from "./provider-logos.js";
 import { resolveRetailerMetadata } from "./retailer-metadata.js";
 import { OpenRouterOffersError } from "./openrouter-marketplace-offers.js";
-import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers } from "./marketplace-resolvers.js";
+import { fetchMarketplaceResolvedOffers, filterDirectOffersForWish, hasLiveMarketplaceOffer, mergeDirectOffers, sourceOfferForWish } from "./marketplace-resolvers.js";
 import { userCredentialsConfigured } from "./user-credentials.js";
 import { resolveAiCredential, hasAiCredential, sharedAiConfigured } from "./ai-provider.js";
 import { fetchMarketplaceAiOffers } from "./yandex-marketplace-offers.js";
 import { YandexAiError, yandexAiConfig } from "./yandex-ai.js";
+import { fetchIndexedMarketplaceOffers } from "./yandex-marketplace-index.js";
 import { readOpenRouterCredential, registerOpenRouterRoutes } from "./openrouter-routes.js";
 import { createRateLimit } from "./rate-limit.js";
 import { canonicalRetailerProductUrl } from "../shared/retailer-previews.js";
@@ -4047,25 +4048,45 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
         code: openRouterCredential.warning.code,
       });
     }
+    const marketplaceIds = vehicleSearch
+      ? ["auto-ru", "avito-auto", "drom"]
+      : foodSearch
+        ? ["samokat", "lavka", "lenta", "vkusvill"]
+        : ["ozon", "wildberries", "yandex-market", "megamarket", "dns"];
+    const wish = owned.rows[0];
+    const search = { marketplaceIds, signal: controller.signal };
+    let sentPreview = false;
+    const showOffers = (offers) => {
+      if (sentPreview || controller.signal.aborted || !offers.some(offer => !offer.source)) return;
+      sentPreview = true;
+      writeMarketplaceOfferEvent(res, "offers", { offers });
+    };
     const aiTask = hasAiCredential(openRouterCredential)
-      ? fetchMarketplaceAiOffers(owned.rows[0], openRouterCredential, {
-        signal: controller.signal,
-        marketplaceIds: vehicleSearch
-          ? ["auto-ru", "avito-auto", "drom"]
-          : foodSearch
-            ? ["samokat", "lavka", "lenta", "vkusvill"]
-            : ["ozon", "wildberries", "yandex-market", "megamarket", "dns"],
+      ? fetchMarketplaceAiOffers(wish, openRouterCredential, search).then((result) => {
+        const offers = filterDirectOffersForWish(wish, result.offers);
+        showOffers(mergeDirectOffers(offers, [sourceOfferForWish(wish)]));
+        return { ...result, offers };
       })
-      : Promise.resolve({
-        offers: [],
-        summary: "",
-        model: "",
-        usage: null,
-      });
-    const [aiSearch, marketplaceSearch] = await Promise.allSettled([
-      aiTask,
-      fetchMarketplaceResolvedOffers(owned.rows[0], { signal: controller.signal }),
-    ]);
+      : Promise.resolve({ offers: [], summary: "", model: "", usage: null });
+    const marketplaceTask = fetchMarketplaceResolvedOffers(wish, search).then(async (offers) => {
+      if (offers.some(offer => !offer.source) || sentPreview || controller.signal.aborted) {
+        showOffers(offers);
+        return offers;
+      }
+      try {
+        const indexed = await fetchIndexedMarketplaceOffers(wish, search);
+        const results = mergeDirectOffers(offers, indexed);
+        showOffers(results);
+        return results;
+      } catch (error) {
+        if (!controller.signal.aborted) console.warn("Marketplace index search failed", {
+          code: error instanceof YandexAiError ? error.code : "yandex_search_failed",
+        });
+        return offers;
+      }
+    });
+    const [aiSearch, marketplaceSearch] = await Promise.allSettled([aiTask, marketplaceTask]);
+    controller.signal.throwIfAborted();
     const result = aiSearch.status === "fulfilled" ? aiSearch.value : {
       offers: [],
       summary: "",
@@ -4075,7 +4096,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     const resolvedOffers = marketplaceSearch.status === "fulfilled" ? marketplaceSearch.value : [];
     result.offers = mergeDirectOffers(
       resolvedOffers,
-      filterDirectOffersForWish(owned.rows[0], result.offers),
+      result.offers,
     );
     if (!hasLiveMarketplaceOffer(result.offers)) {
       if (aiSearch.status === "rejected") throw aiSearch.reason;
@@ -4086,7 +4107,7 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
     }
     if (!hasAiCredential(openRouterCredential) && !openRouterCredential.warning) {
       writeMarketplaceOfferEvent(res, "warning", {
-        warning: "Нейропоиск не настроен; показаны предложения из прямых каталогов магазинов.",
+        warning: "Нейропоиск не настроен; показаны предложения с прямыми ссылками на магазины.",
         code: "openrouter_not_configured",
       });
     } else if (aiSearch.status === "rejected") {
@@ -4098,13 +4119,13 @@ app.post("/api/wishes/:id/marketplace-offers/refresh", requireAuth, marketplaceO
       });
       writeMarketplaceOfferEvent(res, "warning", {
         warning: knownAiError
-          ? `${aiError.message}; показаны предложения из прямых каталогов магазинов.`
-          : "Нейропоиск временно недоступен; показаны предложения из прямых каталогов магазинов.",
+          ? `${aiError.message}; показаны предложения с прямыми ссылками на магазины.`
+          : "Нейропоиск временно недоступен; показаны предложения с прямыми ссылками на магазины.",
         code: knownAiError ? aiError.code : "openrouter_request_failed",
       });
     }
     if (resolvedOffers.some((offer) => !offer.source)) {
-      result.summary = "Найдены прямые карточки товара. Предложения отсортированы по совпадению, наличию и цене.";
+      result.summary = "Найдены прямые карточки. Цену и наличие можно проверить в магазине.";
     } else if (result.offers.length && result.offers.every((offer) => offer.source)) {
       result.summary = "Новых точных предложений не найдено. Исходная ссылка сохранена.";
     }

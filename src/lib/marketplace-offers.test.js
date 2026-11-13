@@ -173,3 +173,12 @@ test("keeps vehicle offers inside automotive services and matches make with mode
     title: "Модель BMW X5",
   }), false);
 });
+
+test("renders shorter names for the same model from imported product titles", () => {
+  const wish = { space: "products", title: "Осветитель Ulanzi L024 40W RGB / Светодиодный осветитель / Видеосвет для съемки контента" };
+  const card = { marketplaceId: "yandex-market", title: "Осветитель Ulanzi L024 40W RGB" };
+  assert.equal(marketplaceOfferMatchesWish(wish, card), true);
+  assert.equal(marketplaceOfferMatchesWish(wish, { ...card, title: "Осветитель Ulanzi L023 40W RGB" }), false);
+  assert.equal(marketplaceOfferMatchesWish(wish, { ...card, title: "Адаптер Ulanzi L024 40W RGB" }), false);
+  assert.equal(marketplaceOfferMatchesWish({ ...wish, title: wish.title + " красный" }, card), false);
+});

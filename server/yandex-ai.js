@@ -55,10 +55,10 @@ export function createYandexAiTokenLoader({ fetchImpl = fetch, exec = execFileAs
   };
 }
 
-const loadToken = createYandexAiTokenLoader();
+export const loadYandexAiToken = createYandexAiTokenLoader();
 
 export async function fetchYandexAi(path, body, {
-  env = process.env, fetchImpl = fetch, tokenLoader = loadToken, signal,
+  env = process.env, fetchImpl = fetch, tokenLoader = loadYandexAiToken, signal,
 } = {}) {
   if (!['chat/completions', 'responses'].includes(path)) throw new Error('Unsupported Yandex AI endpoint');
   const config = yandexAiConfig(env);

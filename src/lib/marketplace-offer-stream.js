@@ -1,3 +1,5 @@
+import { sessionFetch } from "../api.js";
+
 export const MARKETPLACE_OFFERS_CLIENT_TIMEOUT_MS = 100_000;
 
 function streamMessage(block) {
@@ -53,7 +55,7 @@ function timeoutError() {
 }
 
 export async function refreshMarketplaceOffers(wishId, {
-  fetchImpl = globalThis.fetch,
+  fetchImpl = sessionFetch,
   signal,
   onMessage = () => {},
   timeoutMs = MARKETPLACE_OFFERS_CLIENT_TIMEOUT_MS,

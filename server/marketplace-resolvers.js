@@ -1,4 +1,5 @@
-import { productScore } from "../shared/product-match.js";
+import { marketplaceProductScore } from "../shared/product-match.js";
+import { canonicalCatalogUrl } from "./wish-catalog.js";
 import { vehicleOfferMatchesWish } from "../shared/vehicle-match.js";
 
 const WILDBERRIES_SEARCH_URL = "https://search.wb.ru/exactmatch/ru/common/v18/search";
@@ -90,14 +91,13 @@ function priceIsPlausible(wish, price) {
 
 export function normalizeWildberriesOffers(payload, wish, checkedAt = new Date().toISOString()) {
   return (Array.isArray(payload?.products) ? payload.products : [])
-    .map((product) => ({ product, score: productScore(wish?.title, product?.name) }))
+    .map((product) => ({ product, score: marketplaceProductScore(wish, product?.name) }))
     .filter(({ product, score }) => (
       Number.isInteger(product?.id)
       && score >= 70
       && priceIsPlausible(wish, productPrice(product))
     ))
     .sort((left, right) => right.score - left.score || productPrice(left.product) - productPrice(right.product))
-    .slice(0, 1)
     .map(({ product, score }) => ({
       id: `wildberries:${product.id}`,
       marketplaceId: "wildberries",
@@ -152,7 +152,7 @@ export function normalizeYandexMarketOffers(html, wish, checkedAt = new Date().t
     .map((product) => ({
       product,
       url: yandexMarketUrl(product?.offers?.url || product?.url || product?.["@id"]),
-      score: productScore(wish?.title, product?.name),
+      score: marketplaceProductScore(wish, product?.name),
     }))
     .filter(({ product, url, score }) => (
       url
@@ -163,7 +163,6 @@ export function normalizeYandexMarketOffers(html, wish, checkedAt = new Date().t
       right.score - left.score
       || Number(left.product?.offers?.price || Number.POSITIVE_INFINITY) - Number(right.product?.offers?.price || Number.POSITIVE_INFINITY)
     ))
-    .slice(0, 1)
     .map(({ product, url, score }, index) => {
       const price = Number(product?.offers?.price);
       return {
@@ -262,7 +261,7 @@ export function filterDirectOffersForWish(wish, offers) {
   }
   return (Array.isArray(offers) ? offers : []).filter((offer) => (
     offer?.source || (
-      productScore(wish?.title, offer?.title) >= 70
+      marketplaceProductScore(wish, offer?.title) >= 70
       && priceIsPlausible(wish, offer?.price)
     )
   ));
@@ -272,15 +271,16 @@ export function mergeDirectOffers(...collections) {
   const offersByUrl = new Map();
   for (const offer of collections.flat()) {
     if (!offer?.url) continue;
-    const current = offersByUrl.get(offer.url);
+    const key = canonicalCatalogUrl(offer.url) || offer.url;
+    const current = offersByUrl.get(key);
     if (!current) {
-      offersByUrl.set(offer.url, offer);
+      offersByUrl.set(key, offer);
       continue;
     }
     if (current.source && !offer.source) {
-      offersByUrl.set(offer.url, { ...current, ...offer, source: true, sourceUpdated: true });
+      offersByUrl.set(key, { ...current, ...offer, source: true, sourceUpdated: true });
     } else if (!current.source && offer.source) {
-      offersByUrl.set(offer.url, { ...offer, ...current, source: true, sourceUpdated: true });
+      offersByUrl.set(key, { ...offer, ...current, source: true, sourceUpdated: true });
     }
   }
   const unique = [...offersByUrl.values()];

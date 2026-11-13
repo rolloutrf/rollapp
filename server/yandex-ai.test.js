@@ -161,3 +161,24 @@ test('Yandex domain limit preserves every requested product, grocery and vehicle
     request: async () => { throw Error('Oversized search must not silently omit a marketplace'); },
   }), { code: 'yandex_ai_search_scope_invalid' });
 });
+
+test('Yandex validates citations before dropping candidates from the same marketplace', async () => {
+  const offer = (id, score) => ({
+    marketplace: 'Яндекс Маркет', title: 'Осветитель Ulanzi L024 40W RGB', price: null, currency: 'RUB',
+    url: `https://market.yandex.ru/card/ulanzi-l024/${id}`, available: false, score,
+  });
+  const uncited = offer(100, 100);
+  const cited = offer(200, 95);
+  const alternative = offer(300, 90);
+  const result = await fetchYandexMarketplaceOffers({ title: 'Ulanzi L024' }, {
+    marketplaceIds: ['yandex-market'],
+    request: async () => ({ output: [
+      { type: 'web_search_call', status: 'completed' },
+      { type: 'message', role: 'assistant', content: [{ type: 'output_text',
+        text: JSON.stringify({ offers: [uncited, cited, alternative] }),
+        annotations: [cited, alternative].map(({ url, title }) => ({ type: 'url_citation', url, title })),
+      }] },
+    ] }),
+  });
+  assert.deepEqual(result.offers.map(o => o.url), [cited.url, alternative.url]);
+});

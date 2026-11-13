@@ -85,7 +85,7 @@ function marketplaceForHost(host) {
   ))) || null;
 }
 
-function directProductUrl(value, marketplaceIds) {
+export function directProductUrl(value, marketplaceIds) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password) return null;
@@ -253,7 +253,7 @@ function savedOfferForWish(wish, checkedAt) {
   };
 }
 
-export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOString(), { marketplaceIds } = {}) {
+export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOString(), { marketplaceIds, distinctMarketplaces = true, acceptOffer = () => true } = {}) {
   const raw = parseJsonText(responseText(payload));
   const envelope = responseEnvelope(raw);
   const candidates = [
@@ -275,7 +275,7 @@ export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOS
 
   for (const candidate of parsed.offers) {
     const direct = directProductUrl(candidate.url, marketplaceIds);
-    if (!direct || seenUrls.has(direct.url)) continue;
+    if (!direct || !acceptOffer(direct.url) || seenUrls.has(direct.url)) continue;
     seenUrls.add(direct.url);
     offers.push({
       id: `${direct.marketplace.id}:${offers.length + 1}`,
@@ -301,6 +301,7 @@ export function normalizeOpenRouterOffers(payload, checkedAt = new Date().toISOS
     || (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY)
   ));
 
+  if (!distinctMarketplaces) return { offers, summary: parsed.summary };
   const seenMarketplaces = new Set();
   return {
     offers: offers.filter((offer) => {
@@ -445,7 +446,7 @@ export async function fetchOpenRouterMarketplaceOffers(wish, {
   let normalized;
   const checkedAt = now().toISOString();
   try {
-    normalized = normalizeOpenRouterOffers(payload, checkedAt, { marketplaceIds });
+    normalized = normalizeOpenRouterOffers(payload, checkedAt, { marketplaceIds, distinctMarketplaces: !allowEmpty });
   } catch (cause) {
     throw new OpenRouterOffersError("OpenRouter вернул неполный список предложений", {
       code: "openrouter_invalid_response",
