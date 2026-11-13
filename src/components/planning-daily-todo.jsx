@@ -81,6 +81,7 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const originalById = new Map(expanded.map((task) => [task.id, task]));
   const dayTasks = sortCalendarTasks(calendarTaskSchedules(expanded))
     .map((scheduled) => ({ task: originalById.get(scheduled.id), displayTime: scheduled.startTime }));
+  const undated = tasks.filter(task => !task.dueOn && !task.archived && !task.completed && task.relatedItems?.some(item => item.kind === "note"));
   const active = dayTasks.filter(({ task }) => !task.completed);
   const done = dayTasks.filter(({ task }) => task.completed);
   const controls = <footer className="daily-todo__footer">
@@ -127,7 +128,11 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
         <ul className="daily-todo__list">{done.map(({ task, displayTime }) => <TodoRow key={task.id} task={task} displayTime={displayTime} onSave={onSave} onEdit={onEdit} />)}</ul>
       </section>}
       </div>}
-      {!dayTasks.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
+      {undated.length > 0 && <div className="daily-todo__content"><section className="daily-todo__group" aria-label="Задачи из заметок без даты">
+        <h2 className="text-rollapp-body font-semibold">Задачи из заметок без даты</h2>
+        <ul className="daily-todo__list">{undated.map(task => <TodoRow key={task.id} task={task} onSave={onSave} onEdit={onEdit} />)}</ul>
+      </section></div>}
+      {!dayTasks.length && !undated.length && <div className="daily-todo__content"><div className="daily-todo__empty"><CalendarDays aria-hidden="true" /><p>Свободный день. Добавьте задачу, и она появится здесь и в календаре.</p></div></div>}
       {!mobile && controls}
     </div>
   </div>;

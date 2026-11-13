@@ -258,3 +258,52 @@ test('wishlist sort accepts the preset and typed intent, with ranking fallback a
     assert.deepEqual(providers, preset ? ['openrouter', 'yandex'] : ['openrouter', 'openrouter', 'yandex']);
   }
 });
+
+test('note task preview reads one owned note and keeps only actual source excerpts', async () => {
+  const note = { title: 'Встреча', content: 'Подготовить протокол к пятнице.' };
+  const completion = { choices: [{ message: { tool_calls: [tool('suggest_note_tasks', { tasks: [
+    { title: 'Подготовить протокол', description: '', dueOn: '', excerpt: 'Подготовить протокол' },
+    { title: 'Проверить список', description: '', dueOn: '', excerpt: 'В заметке этого нет' },
+  ] })] } }] };
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex' }),
+    query: async (sql, params) => {
+      assert.match(sql, /FROM planning_notes WHERE id=\$1 AND user_id=\$2/);
+      assert.equal(params[1], 'owner');
+      return { rows: params[0] === 'mine' ? [note] : [] };
+    },
+    yandexRequest: async (_path, body) => {
+      assert.deepEqual(JSON.parse(body.messages[1].content), { today: '2026-11-05', ...note });
+      assert.deepEqual(body.tools.map(entry => entry.function.name), ['suggest_note_tasks']);
+      return completion;
+    },
+  }, async request => {
+    const payload = { ...ask('Выдели задачи'), includePlanning: true };
+    assert.equal((await request({ ...payload, noteId: 'foreign' })).status, 404);
+    const response = await request({ ...payload, noteId: 'mine' });
+    assert.equal(response.status, 200);
+    const [action] = (await response.json()).actions;
+    assert.equal(action.type, 'review_note_tasks');
+    assert.equal(action.value.noteId, 'mine');
+    assert.match(action.value.revision, /^[a-f0-9]{64}$/);
+    assert.deepEqual(action.value.tasks.map(task => task.excerpt), ['Подготовить протокол', '']);
+  });
+});
+
+test('note draft revision restricts changes to submitted row numbers', async () => {
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex' }),
+    yandexRequest: async (_path, body) => {
+      assert.deepEqual(body.tools.map(entry => entry.function.name), ['revise_note_tasks']);
+      return { choices: [{ message: { tool_calls: [tool('revise_note_tasks', { changes: [
+        { row: 2, change: { dueOn: '2026-11-06' } }, { row: 4, change: { checked: false } },
+      ] })] } }] };
+    },
+  }, async request => {
+    const instruction = 'Поставь второй задаче срок на пятницу';
+    const response = await request({ ...ask(instruction), includePlanning: true, noteTaskRevision: {
+      instruction, rows: [{ row: 2, title: 'Встреча', description: '', dueOn: '', checked: true }],
+    } });
+    assert.deepEqual(await response.json(), { changes: [{ row: 2, change: { dueOn: '2026-11-06' } }] });
+  });
+});

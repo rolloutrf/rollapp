@@ -1,0 +1,31 @@
+.assistant-note-tasks {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+  flex: 1;
+  gap: var(--layout-item-gap);
+  padding: var(--layout-item-gap);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.assistant-note-tasks__rows,
+.assistant-note-tasks__row {
+  display: grid;
+  gap: var(--layout-inline-gap);
+  min-inline-size: 0;
+}
+
+.assistant-note-tasks__row {
+  padding: var(--layout-item-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.assistant-note-tasks__excerpt {
+  padding-inline-start: var(--layout-inline-gap);
+  border-inline-start: 2px solid var(--border);
+  color: var(--muted-foreground);
+  white-space: pre-wrap;
+}

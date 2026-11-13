@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, ChevronDown, Columns3, FileText, Link2, ListTodo, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { TaskContactPicker } from "@/components/task-contact-picker";
@@ -20,6 +20,7 @@ import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
 import { RelatedChoiceCard } from "@/components/planning-related-card";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
+import { planningNotePath } from "../../shared/assistant-note-tasks.js";
 import { scheduleError } from "../../shared/planning-calendar.js";
 import { RECURRENCE_OPTIONS, recurrenceError } from "../../shared/planning-recurrence.js";
 import { PlanningKanban } from "@/components/planning-kanban";
@@ -136,6 +137,7 @@ function TaskEditor({ task, columns, onClose, onSave, onDelete, searchContacts }
               <Field><FieldLabel htmlFor={`${id}-actual-result`}>Факт</FieldLabel><Textarea id={`${id}-actual-result`} maxLength={5000} rows={4} placeholder="Что получилось на самом деле?" value={form.actualResult} onChange={(e) => change("actualResult", e.target.value)} /></Field>
               <Field className="planning-related">
                 <FieldLabel>Связанные объекты</FieldLabel>
+                {(task.relatedItems || []).filter(item => item.kind === "note").map(item => <Link key={item.id} className="text-start underline underline-offset-4" to={planningNotePath(item.id)}>Заметка «{item.title}»</Link>)}
                 <Button variant="outline" id={`${id}-related-toggle`} className="planning-related__trigger" type="button" onClick={() => setRelatedOpen(true)}>
                   <span className="planning-related__trigger-icon"><Link2 size={20} aria-hidden="true" /></span>
                   <span className="planning-related__trigger-text"><strong>{(form.relatedItems || []).length ? `Выбрано: ${form.relatedItems.length}` : "Добавить связь"}</strong><small>Вишлист, здоровье, образование, контакты</small></span>

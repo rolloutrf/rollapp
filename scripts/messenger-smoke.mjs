@@ -401,7 +401,87 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await text.fill('Ручной ввод');
     assert.equal(await send.isEnabled(),true);
   }
+  await checkNoteTasks(page, width, height);
   console.log(`PASS assistant ${width}x${height}: shared drawer, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
+}
+
+async function checkNoteTasks(page, width, height) {
+  const notePage = await browser.newPage({ viewport: { width, height } });
+  try {
+    const unexpected = [];
+    await notePage.route('**/api/**', route => {
+      unexpected.push(route.request().url());
+      return route.abort();
+    });
+    await notePage.goto(new URL('/app/planning?tab=notes&note=meeting-note', page.url()).href);
+    const source = notePage.getByRole('button', { name: 'Сделать задачи из заметки' });
+    await source.click();
+    const chat = notePage.getByRole('dialog', { name: 'Ассистент Rollapp' });
+    const review = chat.getByRole('button', { name: 'Проверить задачи (2)', exact: true });
+    await review.click();
+    const first = notePage.getByRole('checkbox', { name: 'Задача 1', exact: true });
+    const secondTitle = notePage.getByRole('textbox', { name: 'Название задачи 2', exact: true });
+    const instruction = notePage.getByRole('textbox', { name: 'Что изменить в черновике?' });
+    const save = notePage.getByRole('button', { name: /^Сохранить выбранные/ });
+    await first.waitFor();
+    assert(await notePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    const saveGeometry = await save.evaluate(button => ({
+      height: button.getBoundingClientRect().height,
+      visible: button.scrollWidth <= button.clientWidth + 1,
+    }));
+    assert(saveGeometry.height >= 48 && saveGeometry.visible, JSON.stringify(saveGeometry));
+    if ((width === 320 || width === 1440) && height === 844) {
+      await notePage.screenshot({ path: `/tmp/rollapp-note-tasks-review-${width}.png` });
+    }
+    assert.deepEqual(await notePage.evaluate(() => window.messengerTest.noteTaskWrites), []);
+    assert.equal(await notePage.getByText('Отправить итог встречи.', { exact: true }).count(), 1);
+    const mobile = width < 768;
+    const close = mobile ? notePage.getByRole('button', { name: 'Назад', exact: true }) :
+      notePage.getByRole('button', { name: 'Закрыть разбор заметки', exact: true });
+    await secondTitle.fill('Отправить протокол');
+    const date = notePage.getByRole('button', { name: /^Срок задачи 2:/ });
+    await date.click();
+    if (mobile) {
+      await notePage.getByRole('heading', { name: 'Срок задачи 2', exact: true }).waitFor();
+      await notePage.goBack();
+      await secondTitle.waitFor();
+    } else {
+      await notePage.getByRole('combobox', { name: 'Месяц', exact: true }).waitFor();
+      await notePage.keyboard.press('Escape');
+    }
+    assert.equal(await secondTitle.inputValue(), 'Отправить протокол');
+    await instruction.fill('У второй задачи поставь срок на пятницу, первую убери');
+    await notePage.getByRole('button', { name: 'Уточнить через ассистента' }).click();
+    await notePage.getByText('Обновлены строки 1, 2.', { exact: true }).waitFor();
+    assert.equal(await first.isChecked(), false);
+    await notePage.getByRole('button', { name: 'Срок задачи 2: 20.11.2026', exact: true }).waitFor();
+    await close.click();
+    await review.click();
+    assert.equal(await secondTitle.inputValue(), 'Отправить протокол');
+    assert.equal(await first.isChecked(), false);
+    await notePage.evaluate(() => { window.messengerTest.failNoteSave = true; });
+    await save.click();
+    await notePage.getByRole('alert').filter({ hasText: 'Ответ о сохранении потерян' }).waitFor();
+    await notePage.evaluate(() => { window.messengerTest.failNoteSave = false; });
+    await notePage.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+    const openTodo = notePage.getByRole('link', { name: 'Открыть To Do', exact: true });
+    await openTodo.waitFor();
+    const requests = await notePage.evaluate(() => window.messengerTest.noteTaskWrites);
+    assert.equal(requests.length, 2);
+    assert.deepEqual(requests[0], requests[1]);
+    assert.deepEqual(requests[0].tasks, [{ row: 2, title: 'Отправить протокол', description: '', dueOn: '2026-11-20' }]);
+    await openTodo.click();
+    await notePage.getByRole('button', { name: 'Редактировать задачу: Отправить протокол', exact: true }).click();
+    await notePage.getByRole('link', { name: 'Заметка «Встреча с Анной»', exact: true }).click();
+    await source.waitFor();
+    assert.deepEqual(unexpected, []);
+    console.log(`PASS note tasks ${width}x${height}: source, review, SDK row actions, date picker, retry, To Do source link`);
+  } catch (error) {
+    console.error('Note tasks state:', await notePage.locator('body').ariaSnapshot());
+    throw error;
+  } finally {
+    await notePage.close();
+  }
 }
 
 async function checkWishlistSort(page, chat, text, send, width, height) {

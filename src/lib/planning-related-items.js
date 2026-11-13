@@ -11,6 +11,7 @@ export const RELATED_KINDS = [
   { id: "conference", label: "Образование · конференции" },
   { id: "coaching", label: "Образование · коучинг" },
   { id: "contact", label: "Контакты" },
+  { id: "note", label: "Заметки" },
 ];
 
 const sources = [
@@ -20,6 +21,7 @@ const sources = [
   ["lab-result", "/health/lab-results", "reports", (item) => `${item.dateLabel || item.date || "Анализы"}${item.lab ? ` · ${item.lab}` : ""}`, (item) => item.note],
   ["course", "/education/courses", "courses", (item) => item.title, (item) => item.description || item.provider, (item) => resolvedCourseLogoUrl(item)],
   ["conference", "/education/conferences", "conferences", (item) => item.title, (item) => item.description || [item.role, item.location].filter(Boolean).join(" · "), (item) => item.logoUrl || siteLogoUrl(item.url)],
+  ["note", "/planning/notes", "notes", (item) => item.title],
   ["coaching", "/education/coaching-sessions", "sessions", (item) => item.title, (item) => item.description || [item.coach, item.location].filter(Boolean).join(" · ")],
 ];
 

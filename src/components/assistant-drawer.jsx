@@ -2,6 +2,8 @@ import { createContext, useContext, useLayoutEffect, useRef, useState } from 're
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
 import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, ASSISTANT_WISH_SORT_PROMPT, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { NOTE_TASKS_PROMPT } from '../../shared/assistant-note-tasks.js';
+import { NoteTasksSource } from './assistant-note-tasks';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { AssistantWishAction } from './assistant-wish-action';
@@ -31,6 +33,7 @@ function newChat(number) {
     title: `Чат ${number}`,
     messages: [],
     draft: '',
+    noteDraftId: null,
     sending: false,
     error: '',
     hasNewReply: false,
@@ -45,7 +48,12 @@ function chatTitle(content) {
 function useAssistantChats() {
   const [workspace, setWorkspace] = useState(() => ({ chats: [newChat(1)], selected: '1' }));
   const pending = useRef(new Map());
+  const nextChatNumber = useRef(2);
   const [sortReviews, setSortReviews] = useState({});
+  const [noteReviews, setNoteReviews] = useState({});
+  function updateNoteReview(batchId, change) {
+    setNoteReviews(previous => ({ ...previous, [batchId]: change(previous[batchId]) }));
+  }
   function updateSortReview(key, change) {
     setSortReviews(previous => ({ ...previous, [key]: { ...previous[key], ...change } }));
   }
@@ -60,20 +68,19 @@ function useAssistantChats() {
 
   const { chats, selected } = workspace;
   const chat = chats.find(item => item.id === selected);
-  const { id, messages, draft } = chat;
+  const { id } = chat;
 
-  function updateChat(change) {
+  function updateChat(change, chatId = id) {
     setWorkspace(previous => ({
       ...previous,
-      chats: previous.chats.map(item => item.id === id ? change(item, previous.selected) : item),
+      chats: previous.chats.map(item => item.id === chatId ? change(item, previous.selected) : item),
     }));
   }
 
-  function createChat() {
-    setWorkspace(previous => {
-      const created = newChat(previous.chats.length + 1);
-      return { ...previous, chats: [...previous.chats, created], selected: created.id };
-    });
+  function createChat(draft = '', noteDraftId = null) {
+    const created = { ...newChat(nextChatNumber.current++), draft, noteDraftId };
+    setWorkspace(previous => ({ ...previous, chats: [...previous.chats, created], selected: created.id }));
+    return created;
   }
 
   function selectChat(selectedId) {
@@ -84,18 +91,21 @@ function useAssistantChats() {
     }));
   }
 
-  async function submit(event) {
-    event.preventDefault();
+  async function submit(event, target = chat) {
+    const { id, draft, messages } = target;
+    event?.preventDefault();
     const content = draft.trim();
-    if (!content || chat.sending || pending.current.has(id)) return;
+    if (!content || target.sending || pending.current.has(id)) return;
+    const noteId = content === NOTE_TASKS_PROMPT ? target.noteDraftId : null;
     const controller = new AbortController();
     pending.current.set(id, controller);
-    updateChat(item => ({ ...item, title: messages.length ? item.title : chatTitle(content), sending: true, error: '' }));
+    updateChat(item => ({ ...item, title: messages.length ? item.title : chatTitle(content), sending: true, error: '' }), id);
     try {
       const context = messages.slice(-(ASSISTANT_CONTEXT_LIMIT - 1)).map(({ role, content }) => ({ role, content }));
       const { reply, actions } = await api.post('/messenger/assistant/reply', {
         messages: [...context, { role: 'user', content }],
-        includePlanning: true,
+        includePlanning: !noteId,
+        ...(noteId && { noteId }),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }, { signal: controller.signal });
       if (controller.signal.aborted) return;
@@ -104,20 +114,30 @@ function useAssistantChats() {
         ...item,
         messages: [...item.messages, { role: 'user', content }, { role: 'assistant', content: reply, actions }],
         draft: '',
+        noteDraftId: null,
         sending: false,
         hasNewReply: selectedId !== id,
-      }));
+      }), id);
     } catch (err) {
-      if (!controller.signal.aborted) updateChat(item => ({ ...item, sending: false, error: err.message }));
+      if (!controller.signal.aborted) updateChat(item => ({ ...item, sending: false, error: err.message }), id);
     } finally {
       if (pending.current.get(id) === controller) pending.current.delete(id);
     }
   }
 
+  async function startNote(noteId) {
+    return submit(null, createChat(NOTE_TASKS_PROMPT, noteId));
+  }
+
   return {
-    chats, chat, createChat, selectChat, submit, sortReviews, updateSortReview,
-    setDraft: draft => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft })),
+    chats, chat, createChat, selectChat, submit, sortReviews, updateSortReview, startNote, noteReviews, updateNoteReview,
+    setDraft: (draft, noteDraftId = null) => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft, noteDraftId })),
   };
+}
+
+export function useAssistantNoteReviews() {
+  const { noteReviews, updateNoteReview } = useContext(AssistantContext);
+  return { noteReviews, updateNoteReview };
 }
 
 export function AssistantProvider({ children }) {
@@ -125,7 +145,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged }) {
+function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged, noteReviews, onReviewNoteTasks }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -136,6 +156,10 @@ function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview
     const action = parseAssistantAction(candidate?.type, candidate?.value);
     if (!action) return null;
     const { type, value } = action;
+    if (type === 'review_note_tasks') {
+      return <NoteTasksSource key={value.batchId} value={value} saved={noteReviews[value.batchId]?.saved}
+        onReview={onReviewNoteTasks ? () => onReviewNoteTasks(value) : undefined} />;
+    }
     if (type === 'review_wish_sort') {
       const key = `${messageKey}:${index}`;
       return <AssistantWishlistSort key={key} value={value} review={sortReviews[key]}
@@ -196,16 +220,22 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-    <Button data-control-icon size="icon" variant="outline" aria-label="Новый чат" title="Новый чат" onClick={createChat}>
+    <Button data-control-icon size="icon" variant="outline" aria-label="Новый чат" title="Новый чат" onClick={() => createChat()}>
       <Plus aria-hidden="true" />
     </Button>
     <span className="sr-only" role="status">{status}</span>
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, noteRequest }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
+  const handledRequest = useRef(null);
+  useLayoutEffect(() => {
+    if (!open || !noteRequest || noteRequest.noteId !== noteId || handledRequest.current === noteRequest) return;
+    handledRequest.current = noteRequest;
+    void workspace.startNote(noteRequest.noteId);
+  }, [open, noteId, noteRequest, workspace]);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
     <section className="messenger-conversation assistant-drawer">
@@ -214,12 +244,12 @@ export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish
         <MessageDrawerClose label="Закрыть ассистента" />
         <AssistantChatPicker {...workspace} />
       </ControlBar>
-      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} onWishlistChanged={onWishlistChanged} {...workspace} />
+      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} onWishlistChanged={onWishlistChanged} noteId={noteId} onReviewNoteTasks={onReviewNoteTasks} {...workspace} />
     </section>
   </MessageDrawer>;
 }
 
-function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onWishlistChanged, sortReviews, updateSortReview }) {
+function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onWishlistChanged, sortReviews, updateSortReview, noteReviews, onReviewNoteTasks, noteId }) {
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
   const history = useRef(null);
@@ -230,6 +260,7 @@ function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onW
       history.current.scrollTop = history.current.scrollHeight;
     }
   }, [chat.messages, chat.sending, chat.error]);
+  const starters = noteId ? [['Задачи из заметки', NOTE_TASKS_PROMPT], ...assistantStarters] : assistantStarters;
   return <>
     <div className="messenger-history" ref={history} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={event => {
       const node = event.currentTarget;
@@ -238,9 +269,9 @@ function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onW
       {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp">
         <p>Помогу найти раздел, составить план или подготовить желание, задачу, событие или заметку.</p>
         {!chat.draft && <div data-not-typeset role="group" aria-label="Примеры запросов" className="flex flex-wrap gap-2">
-          {assistantStarters.map(([label, prompt]) => <Button key={label} type="button" variant="outline"
+          {starters.map(([label, prompt]) => <Button key={label} type="button" variant="outline"
             className="min-h-12 rounded-full px-6" disabled={chat.sending || voice.active} onClick={() => {
-              setDraft(prompt);
+              setDraft(prompt, prompt === NOTE_TASKS_PROMPT ? noteId : null);
               input.current?.focus();
             }}>{label}</Button>)}
         </div>}
@@ -249,7 +280,7 @@ function AssistantConversation({ chat, open, setDraft, submit, onReviewWish, onW
       {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
         data-wish-sort={actions?.some?.(action => action?.type === 'review_wish_sort') || undefined}
         aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish}
-          sortReviews={sortReviews} updateSortReview={updateSortReview} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} /></article>)}
+          sortReviews={sortReviews} updateSortReview={updateSortReview} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} noteReviews={noteReviews} onReviewNoteTasks={onReviewNoteTasks} /></article>)}
       {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
       {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
     </div>

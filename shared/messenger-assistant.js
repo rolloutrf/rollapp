@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { noteTasksReview } from './assistant-note-tasks.js';
 import { isPlanningDate } from './planning.js';
 import { scheduleError } from './planning-calendar.js';
 
@@ -68,6 +69,10 @@ export const assistantWishSortApply = z.object({
 }).strict();
 
 export function parseAssistantAction(type, value) {
+  if (type === 'review_note_tasks') {
+    const parsed = noteTasksReview.safeParse(value);
+    return parsed.success ? { type, value: parsed.data } : null;
+  }
   if (type === 'review_wish_sort') {
     const parsed = wishSortReview.safeParse(value);
     return parsed.success ? { type, value: parsed.data } : null;
