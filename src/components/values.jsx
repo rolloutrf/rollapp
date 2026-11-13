@@ -1,10 +1,12 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PERSONAL_VALUE_GROUPS, PERSONAL_VALUES } from "@/data/personal-values";
@@ -55,6 +57,7 @@ export function Values() {
   const { readOnly } = useSphereSharing();
   const valuesContent = useCareerContent("values", EMPTY_VALUES, "identity");
   const [draft, setDraft] = useState(EMPTY_VALUES);
+  const [addingCustom, setAddingCustom] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -86,6 +89,7 @@ export function Values() {
     const label = customValue.trim().replace(/\s+/g, " ");
     const description = customDescription.trim().replace(/\s+/g, " ");
     if (!label || !description) return;
+    setAddingCustom(false);
     const normalizedLabel = label.toLocaleLowerCase("ru-RU");
     const standardValue = PERSONAL_VALUES.find((value) => value.label.toLocaleLowerCase("ru-RU") === normalizedLabel);
     if (standardValue) {
@@ -138,6 +142,7 @@ export function Values() {
 
   return (
     <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={valuesContent.loading || saving}>
+      {!readOnly && <AddFab actions={[{ label: "Добавить ценность", disabled: editingDisabled, onSelect: () => setAddingCustom(true) }]} />}
       {!readOnly && <header className="flex flex-wrap items-center justify-end gap-2">
         <Button className="h-12 min-w-40 text-base" type="button" disabled={!dirty || editingDisabled} onClick={save}>
           {saving && <Spinner data-icon="inline-start" aria-hidden="true" />}
@@ -201,36 +206,20 @@ export function Values() {
         </section>
       ))}
 
-      {!readOnly && <section className="flex flex-col gap-3 rounded-2xl border bg-card p-5" aria-labelledby="add-value-title">
-        <div className="flex flex-col gap-1">
-          <h3 className="m-0 text-xl font-semibold" id="add-value-title">Не нашли нужную ценность?</h3>
-          <p className="m-0 text-muted-foreground">Добавьте свою формулировку — она появится в начале страницы и сразу будет выбрана.</p>
-        </div>
-        <form className="grid gap-3" onSubmit={addCustom}>
-          <Input
-            className="h-12 text-base md:text-base"
-            disabled={editingDisabled}
-            maxLength={80}
-            placeholder="Название, например «Созидание»"
-            value={customValue}
-            onChange={(event) => setCustomValue(event.target.value)}
-            aria-label="Название своей ценности"
-          />
-          <Input
-            className="h-12 text-base md:text-base"
-            disabled={editingDisabled}
-            maxLength={240}
-            placeholder="Что эта ценность означает для вас"
-            value={customDescription}
-            onChange={(event) => setCustomDescription(event.target.value)}
-            aria-label="Описание своей ценности"
-          />
-          <Button className="h-12 justify-self-end px-5 text-base" variant="outline" type="submit" disabled={!customValue.trim() || !customDescription.trim() || editingDisabled}>
-            <Plus data-icon="inline-start" aria-hidden="true" />
-            Добавить
-          </Button>
-        </form>
-      </section>}
+      {!readOnly && addingCustom && <Drawer open onOpenChange={open => {
+        if (!open) { setAddingCustom(false); setCustomValue(""); setCustomDescription(""); }
+      }}>
+        <DrawerContent className="rollapp-body app-drawer--form">
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={addCustom}>
+            <DrawerHeader><DrawerTitle>Добавить ценность</DrawerTitle><DrawerDescription>Добавьте свою формулировку.</DrawerDescription></DrawerHeader>
+            <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+              <Input aria-label="Название" value={customValue} onChange={event => setCustomValue(event.target.value)} disabled={editingDisabled} required maxLength={80} />
+              <Input aria-label="Описание" value={customDescription} onChange={event => setCustomDescription(event.target.value)} disabled={editingDisabled} required maxLength={240} />
+            </div>
+            <DrawerFooter><Button type="submit" disabled={editingDisabled || !customValue.trim() || !customDescription.trim()}>Добавить</Button></DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { ListTileContent } from "@/components/list-tile-content";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ function ListTile({ id, title, count, privateList, sortable, onSettings }) {
   );
 }
 
-export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onAdd, onSettings, onOrderError }) {
+export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onSettings, onOrderError }) {
   const viewportRef = useRef(null);
   const storageKey = orderScope ? `rollapp:wishlist-list-order:${orderScope}` : null;
   const [preference, setPreference] = useState(() => ({ key: storageKey, order: readOrder(storageKey) }));
@@ -92,7 +92,7 @@ export function WishListNavigation({ value, className, items, leadingItem, order
 
   const suppressDragClick = useWishListDrag(viewportRef, {
     enabled: sortable,
-    orderKey: JSON.stringify([Boolean(leadingItem), ...ordered.map(item => item.id), Boolean(onAdd)]),
+    orderKey: JSON.stringify([Boolean(leadingItem), ...ordered.map(item => item.id)]),
     scope: storageKey,
     value,
     revealTile: revealList,
@@ -144,7 +144,6 @@ export function WishListNavigation({ value, className, items, leadingItem, order
           {leadingItem && <ListTile id="all" {...leadingItem} />}
           {ordered.map(({ id, ...item }) => <ListTile key={id} id={id} {...item} sortable={sortable} onSettings={onSettings} />)}
         </ToggleGroup>
-        {onAdd && <Button variant="ghost" size="icon" className="list-tabs__add" aria-label="Новый список" title="Новый список" onClick={onAdd}><Plus size={16} /></Button>}
       </div>
       {sortable && <span className="visually-hidden" role="status">{announcement}</span>}
     </div>

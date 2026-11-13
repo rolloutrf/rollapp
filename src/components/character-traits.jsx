@@ -1,12 +1,11 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowUp, RotateCcw, Trash2, X } from "lucide-react";
+import { RotateCcw, Trash2, X } from "lucide-react";
 import { useCareerContent, CareerContentError } from "@/components/career-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ControlBar } from "@/components/control-bar";
-import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -113,6 +112,7 @@ export function CharacterTraits() {
   const { readOnly, owner } = useSphereSharing();
   const characterContent = useCareerContent("character", EMPTY_CHARACTER_TRAITS, "identity");
   const [draft, setDraft] = useState(EMPTY_CHARACTER_TRAITS);
+  const [addingCustom, setAddingCustom] = useState(false);
   const [customTrait, setCustomTrait] = useState("");
   const [details, setDetails] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -143,6 +143,7 @@ export function CharacterTraits() {
     if (editingDisabled) return;
     const label = customTrait.trim().replace(/\s+/g, " ");
     if (!label) return;
+    setAddingCustom(false);
     const normalizedLabel = label.toLocaleLowerCase("ru-RU");
     const standardTrait = PERSONAL_CHARACTER_TRAITS.find((trait) => trait.label.toLocaleLowerCase("ru-RU") === normalizedLabel);
     if (standardTrait) {
@@ -206,6 +207,7 @@ export function CharacterTraits() {
 
   return (
     <div className="identity-checklist not-typeset rollapp-body page-stack page-stack--sections" aria-busy={characterContent.loading || saving}>
+      {!readOnly && <AddFab actions={[{ label: "Добавить черту характера", disabled: editingDisabled, onSelect: () => setAddingCustom(true) }]} />}
       <CareerContentError error={characterContent.error} onRetry={characterContent.retry} />
       {saveError && <Alert variant="destructive"><AlertTitle>Не удалось сохранить черты характера</AlertTitle><AlertDescription>{saveError}</AlertDescription></Alert>}
 
@@ -237,21 +239,20 @@ export function CharacterTraits() {
         </section>
       ))}
 
-      {!readOnly && <form className="character-traits__composer" aria-label="Добавить свою черту характера" onSubmit={addCustom}>
-        <InputGroup className="character-traits__composer-input">
-          <InputGroupTextarea className="field-sizing-fixed resize-none" rows={1} disabled={editingDisabled} maxLength={120} placeholder="Черта" value={customTrait} onChange={(event) => setCustomTrait(event.target.value)} aria-label="Название своей черты характера" onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
-              event.preventDefault();
-              event.currentTarget.form.requestSubmit();
-            }
-          }} />
-          <InputGroupAddon align="block-end" className="character-traits__composer-addon">
-            <ControlBar className="character-traits__composer-actions">
-              <Button data-control-icon variant="ghost" type="submit" size="icon" aria-label="Добавить черту" title="Добавить черту" disabled={!customTrait.trim() || editingDisabled}><ArrowUp aria-hidden="true" /></Button>
-            </ControlBar>
-          </InputGroupAddon>
-        </InputGroup>
-      </form>}
+      {!readOnly && addingCustom && <Drawer open onOpenChange={open => {
+        if (!open) { setAddingCustom(false); setCustomTrait("");  }
+      }}>
+        <DrawerContent className="rollapp-body app-drawer--form">
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={addCustom}>
+            <DrawerHeader><DrawerTitle>Добавить черту характера</DrawerTitle><DrawerDescription>Добавьте свою формулировку.</DrawerDescription></DrawerHeader>
+            <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+              <Input aria-label="Название" value={customTrait} onChange={event => setCustomTrait(event.target.value)} disabled={editingDisabled} required maxLength={120} />
+
+            </div>
+            <DrawerFooter><Button type="submit" disabled={editingDisabled || !customTrait.trim()}>Добавить</Button></DrawerFooter>
+          </form>
+        </DrawerContent>
+      </Drawer>}
 
       {details && <CharacterTraitDetails key={details.trait.id} trait={details.trait} readOnly={readOnly} onClose={() => setDetails(null)} onSave={saveDetails} />}
 

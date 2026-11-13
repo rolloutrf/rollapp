@@ -1,5 +1,6 @@
+import { AddFab } from "@/components/add-fab";
 import { useId, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, Megaphone, Plus, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Megaphone, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
@@ -199,11 +200,7 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
         : <>
           {notice && (!notice.error || !form?.open) &&
             <p role={notice.error ? "alert" : "status"} className={notice.error ? "text-destructive" : undefined}>{notice.message}</p>}
-          {owner && <div className="not-typeset">
-            <PageActionButton type="button" disabled={pending} onClick={event => openForm(null, event.currentTarget)}>
-              <Plus className="size-5" aria-hidden="true" />Добавить объявление
-            </PageActionButton>
-          </div>}
+          {owner && <AddFab actions={[{ label: "Добавить объявление", disabled: pending, onSelect: () => openForm(null, document.activeElement) }]} />}
           <Announcements announcements={data.announcements} owner={owner} busy={pending} onEdit={openForm} onRemove={askToRemove} />
         </>)}
     </article>

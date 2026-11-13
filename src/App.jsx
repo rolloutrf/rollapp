@@ -1,5 +1,6 @@
 import { NOTE_TASKS_REQUEST_EVENT } from "@/lib/planning-assistant";
 import { AssistantNoteTasks, createNoteTaskRows } from "@/components/assistant-note-tasks";
+import { AddFab } from "@/components/add-fab";
 import { ProductTitleInput } from "@/components/product-title-input";
 import { AssistantDrawer, AssistantProvider, useAssistantNoteReviews } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
@@ -43,7 +44,7 @@ import { RollsWallet } from "@/components/rolls-wallet";
 import { MemberNumberPage } from "@/components/member-number-page";
 import { CatCheckout, restoreCatPurchase } from "@/components/cat-checkout";
 import { OrdersDrawerContent } from "@/components/orders-drawer";
-import { PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
+import { PlanningSpacesProvider, PlanningSpaceSwitcher } from "@/components/planning-space-switcher";
 import { PlanningSpace, PLANNING_TABS } from "@/components/planning-space";
 import { ProfilePublicationLinks, ProfilePublications } from "@/components/profile-publications";
 import { MakiIcon } from "@/components/maki-icon";
@@ -2813,11 +2814,10 @@ function LegacyContactsRedirect() {
   return <Navigate to={{ pathname: location.pathname.replace("/app/spheres/contacts", "/app/spheres/career"), search: `?${search.toString()}`, hash: location.hash }} replace />;
 }
 
-function ContactsProfileControls({ onAdd }) {
+function ContactsProfileControls() {
   return (
     <section className="page-toolbar w-full justify-center" aria-label="Управление контактами" data-not-typeset>
       <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия с контактами">
-        <PageActionButton className="shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         <SphereBusinessControls sphereId="career" />
       </div>
     </section>
@@ -2909,7 +2909,7 @@ function ContactsSpherePage() {
 
   return (
     <div data-read-only={access.readOnly ? "true" : undefined} className="app-page page-stack sphere-page sphere-page--contacts typeset typeset-rollapp">
-      {!access.readOnly && <ContactsProfileControls onAdd={() => setCreatingContact(true)} />}
+      {!access.readOnly && <><ContactsProfileControls /><AddFab actions={[{ label: "Добавить контакт", onSelect: () => setCreatingContact(true) }]} /></>}
       <section className="contacts-sphere not-typeset" aria-label="Контакты">
         <div className="contacts-sphere__toolbar">
           <InputGroup className="contacts-sphere__search">
@@ -3646,12 +3646,12 @@ function WishlistSectionNavigation({ user }) {
   );
 }
 
-function WishesProfileControls({ selectedSpace, onAdd }) {
+function WishesProfileControls({ selectedSpace }) {
   const { user } = useSession();
+  if (!canManageWishlistSpace(user, selectedSpace)) return null;
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
       </ControlBar>
     </section>
@@ -5172,8 +5172,7 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
-  const profileControls = <WishesProfileControls selectedSpace={selectedSpace}
-    onAdd={() => onAdd(selectedSpace, selectedList?.id)} />;
+  const profileControls = <WishesProfileControls selectedSpace={selectedSpace} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
     username={user.username} user={user} returnTo={wishlistPath} />;
@@ -6098,7 +6097,11 @@ function WishesPage({ onAdd, version }) {
   );
   return <div className="app-page wishes-page">
     {profileControls}{loadError}
-    {!publication && shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
+    {!publication && data && <AddFab actions={[
+      { label: "Добавить желание", onSelect: () => onAdd(selectedSpace, selectedList?.id) },
+      { label: "Новый список", icon: ListPlus, onSelect: () => setListModal({}) },
+    ]} />}
+    {!publication && shouldShowListNavigation({ listCount: categoryLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
       value={selectedValue}
       items={categoryLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: list.privacy === "private" }))}
       leadingItem={shouldShowUnsortedList(unlistedWishes.length) ? { title: UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}
@@ -6106,7 +6109,6 @@ function WishesPage({ onAdd, version }) {
       onSelect={(id) => {
         if (id) { setSelected(id); setOpenedGroupId(null); }
       }}
-      onAdd={() => setListModal({})}
       onSettings={openListSettings}
       onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
     />}
@@ -8343,9 +8345,7 @@ function PublicProfile({ shared = false }) {
         {businessStorefront && data.isOwner ? <>
           {sellerProfile && <PageActionButton to={`/app/wishes/business?tab=${data.profile.sellerSpace || sellerSpace}`} >Управлять товарами</PageActionButton>}
           <PageActionButton variant="outline" to="/app/business/access">Клиенты</PageActionButton>
-        </> : ownerCollection ? <>
-          <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" onClick={() => { setWishModalSpace(activeSpace); setWishModalOpen(true); }}>Добавить</PageActionButton>
-        </> : data.isOwner && shared
+        </> : ownerCollection ? null : data.isOwner && shared
           ? <PageActionButton onClick={() => navigate(publicListPath(data.profile.username, data.list.id))}>Открыть мой список</PageActionButton>
           : <PageActionButton
             variant={data.isFollowing ? "secondary" : "default"}
@@ -8370,7 +8370,11 @@ function PublicProfile({ shared = false }) {
       </section>
     </div>}
 
-    {!publication && !businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
+    {ownerCollection && !publication && !businessStorefront && <AddFab actions={[
+      { label: "Добавить желание", onSelect: () => { setWishModalSpace(activeSpace); setWishModalOpen(true); } },
+      { label: "Новый список", icon: ListPlus, onSelect: () => setListModal({}) },
+    ]} />}
+    {!publication && !businessStorefront && shouldShowListNavigation({ shared, listCount: navigationLists.length, unlistedCount: unlistedWishes.length }) && <WishListNavigation
       value={selectedValue}
       className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
       items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
@@ -8379,7 +8383,6 @@ function PublicProfile({ shared = false }) {
       onSelect={(id) => {
         if (id) selectCollection(id);
       }}
-      onAdd={ownerCollection ? () => setListModal({}) : null}
       onSettings={ownerCollection ? openListSettings : undefined}
       onOrderError={() => toast("Не удалось сохранить порядок списков", "error")}
     />}
@@ -8461,6 +8464,11 @@ function CatalogBusinessDirectoryScope({ children }) {
   return <BusinessCatalogProvider space={space}>{children}</BusinessCatalogProvider>;
 }
 
+function AppPlanningSpaces({ children }) {
+  const { user } = useSession();
+  return <PlanningSpacesProvider enabled={Boolean(user)}>{children}</PlanningSpacesProvider>;
+}
+
 export default function App() {
   useVisualViewport();
   const { pathname, search } = useLocation();
@@ -8472,6 +8480,7 @@ export default function App() {
         <ProfileEditorProvider>
           <CollectionNavigationProvider>
           <CatalogBusinessDirectoryScope>
+          <AppPlanningSpaces>
           {!linkingResult && <GlobalAppChrome />}
           {!linkingResult && <PlanningFab />}
           <Routes>
@@ -8506,6 +8515,7 @@ export default function App() {
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </AppPlanningSpaces>
           </CatalogBusinessDirectoryScope>
           </CollectionNavigationProvider>
         </ProfileEditorProvider>

@@ -1,3 +1,4 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ export function BusinessPersonalOffers({ client = api, user }) {
     {loading && <p role="status">Загружаем товары…</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></AlertDescription></Alert>}
     {!loading && !error && !items.length && <p>У вашего бизнеса пока нет активных товаров или услуг.</p>}
-    {!creatingItem && <div><PageActionButton onClick={() => setCreatingItem(true)}>Добавить товар</PageActionButton></div>}
+    {!creatingItem && <AddFab actions={[{ label: "Добавить товар", disabled: loading || Boolean(error), onSelect: () => setCreatingItem(true) }]} />}
     {creatingItem && <BusinessOfferItemForm spheres={spheres} client={client} onCancel={() => setCreatingItem(false)} onCreated={id => { setSelected(id); setCreatingItem(false); setRevision(value => value + 1); }} />}
     {items.length > 0 && <Field><FieldLabel htmlFor="business-offer-item">Товар или услуга</FieldLabel><Select value={selected} onValueChange={setSelected}><SelectTrigger id="business-offer-item" className="w-full"><SelectValue placeholder="Выберите товар">{() => item?.title || "Выберите товар"}</SelectValue></SelectTrigger><SelectContent>{items.map(value => <SelectItem key={value.id} value={value.id}>{value.title}</SelectItem>)}</SelectContent></Select></Field>}
     {item && <PersonalOfferComposer key={item.id} item={item} client={client} />}

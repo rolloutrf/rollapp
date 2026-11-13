@@ -1,3 +1,4 @@
+import { AddFab } from "@/components/add-fab";
 import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -352,6 +353,7 @@ export function PerformanceReview() {
 
   return (
     <article className="not-typeset rollapp-body career-content-rail page-stack">
+      {!readOnly && <AddFab actions={[{ label: "Импортировать PDF", disabled: careerContent.loading || importing || deleting, onSelect: () => fileInputRef.current?.click() }]} />}
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
           <PageActionButton
@@ -362,16 +364,6 @@ export function PerformanceReview() {
           >
             {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
             {careerContent.loading ? "Загружаем" : "Редактировать"}
-          </PageActionButton>
-          <PageActionButton
-            className="shrink-0"
-            variant="outline"
-            type="button"
-            disabled={careerContent.loading || importing || deleting}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {importing && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {importing ? "Разбираем PDF" : "Импортировать PDF"}
           </PageActionButton>
           <SphereBusinessControls sphereId="career" />
           <input
@@ -452,10 +444,6 @@ export function PerformanceReview() {
         <section className="flex min-w-0 flex-col items-start gap-4" aria-label="Циклов ревью пока нет">
           <h2 className="m-0 font-medium">Циклов ревью пока нет</h2>
           <p className="m-0 text-muted-foreground">{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</p>
-          {!readOnly && <Button variant="outline" type="button" disabled={importing} onClick={() => fileInputRef.current?.click()}>
-            <FileUp data-icon="inline-start" aria-hidden="true" />
-            Выбрать PDF
-          </Button>}
         </section>
       )}
       {!readOnly && activeCycle && <PerformanceEditor

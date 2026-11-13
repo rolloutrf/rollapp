@@ -1,6 +1,7 @@
+import { AddFab } from "@/components/add-fab";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, Folder, FolderPlus, MoreHorizontal, Pencil, Plus, Ungroup } from "lucide-react";
+import { FileText, Folder, FolderPlus, MoreHorizontal, Pencil, Ungroup } from "lucide-react";
 import { CardDragHandle } from "@/components/card-drag-handle";
 import { ControlBar } from "@/components/control-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -173,10 +174,7 @@ export function NotesLibrary({ library, group, loading, error, creating, onCreat
       </NoteActions>
     </header>}
     <div className="notes-grid" ref={drag.listRef}>
-      {!group && <Button type="button" variant="outline" className="notes-tile notes-tile--blank" aria-label="Создать заметку"
-        disabled={actionsDisabled} onClick={onCreate}>
-        <TileContent icon={Plus} title="Пустой документ" caption="С чистого листа" />
-      </Button>}
+      {!group && <AddFab actions={[{ label: "Создать заметку", disabled: actionsDisabled, onSelect: onCreate }]} />}
       {loading ? [0, 1, 2].map(index => <Skeleton key={index} className="notes-grid__skeleton" aria-hidden="true" />) : !error && orderedItems.map((item, index) => {
         const isGroup = Boolean(item.noteIds);
         const targeted = drag.groupTarget === `${isGroup ? "group" : "card"}:${item.id}`;

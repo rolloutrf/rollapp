@@ -26,7 +26,6 @@
   white-space: normal;
 }
 
-.notes-tile--blank { border-style: dashed; }
 .notes-tile__label { display: flex; flex-direction: column; gap: 4px; min-width: 0; width: 100%; }
 .notes-tile__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 

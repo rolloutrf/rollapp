@@ -1055,7 +1055,9 @@ export function Courses() {
         title="Курсы"
         titleId="courses-title"
         selectedList={selectedList}
+        addLabel="Добавить курс"
         onAdd={openNewCourse}
+        onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
         onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
@@ -1104,7 +1106,6 @@ export function Courses() {
           selectedListId={resolvedListId}
           ariaLabel="Списки курсов"
           onSelectList={(listId) => { setOpenedGroupId(""); setSelectedListId(listId); }}
-          onCreateList={() => setListDrawer({ open: true, list: null, moveItem: null })}
         />
       )}
 

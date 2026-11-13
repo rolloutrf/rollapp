@@ -1,3 +1,4 @@
+import { AddFab } from "@/components/add-fab";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useId, useRef, useState } from "react";
@@ -777,10 +778,9 @@ function medicationCountLabel(count) {
   return "препаратов";
 }
 
-function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onValueChange, onCreate }) {
-  const { readOnly } = useSphereSharing();
+function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onValueChange }) {
   const tiles = ungroupedCount > 0 ? [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups] : groups;
-  if (readOnly && !tiles.length) return null;
+  if (!tiles.length) return null;
 
   return (
     <nav className="list-tabs mb-0 w-full" aria-label="Группы препаратов">
@@ -797,9 +797,6 @@ function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onVal
             );
           })}
         </ToggleGroup>
-        {!readOnly && <Button variant="ghost" size="icon" className="list-tabs__add" type="button" aria-label="Новая группа" title="Новая группа" onClick={onCreate}>
-          <Plus aria-hidden="true" />
-        </Button>}
       </div>
     </nav>
   );
@@ -925,6 +922,10 @@ export function Medications() {
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" data-group-navigation aria-labelledby="medications-title">
+      {!readOnly && <AddFab actions={[
+        { label: "Добавить препарат", onSelect: addMedication },
+        !requestState.loading && !requestState.error && { label: "Новая группа", icon: ListPlus, onSelect: () => setGroupDrawerState({ group: null, moveItem: null }) },
+      ]} />}
       {!readOnly && <header className="page-toolbar w-full justify-center">
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
@@ -933,9 +934,6 @@ export function Medications() {
               Настройки группы
             </PageActionButton>
           )}
-          <PageActionButton className="min-w-[180px] max-[560px]:min-w-0" type="button" onClick={addMedication}>
-            Добавить
-          </PageActionButton>
           <SphereBusinessControls sphereId="health" />
         </div>
       </header>}
@@ -978,7 +976,6 @@ export function Medications() {
           ungroupedCount={ungroupedCount}
           value={selectedGroupId}
           onValueChange={setSelectedGroupId}
-          onCreate={() => setGroupDrawerState({ group: null, moveItem: null })}
         />
       )}
 
@@ -989,12 +986,6 @@ export function Medications() {
             <EmptyTitle><h3 className="m-0 text-sm font-medium">Препаратов пока нет</h3></EmptyTitle>
             <EmptyDescription>Добавьте текущее назначение или запланированный курс.</EmptyDescription>
           </EmptyHeader>
-          {!readOnly && <EmptyContent>
-            <Button className="min-h-12 px-4 text-base" type="button" onClick={addMedication}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              Добавить первый препарат
-            </Button>
-          </EmptyContent>}
         </Empty>
       )}
 

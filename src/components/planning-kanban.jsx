@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CalendarDays, Check, ChevronDown, ChevronRight, GripVertical, MoreHorizontal, Pencil, ListPlus, Trash2, X } from "lucide-react";
+import { AddFab } from "@/components/add-fab";
+import { PlanningSpaceCreator } from "@/components/planning-space-switcher";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -23,7 +25,7 @@ function CardTitle({ text }) {
   });
 }
 
-function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
+function CardComposer({ initial, onSave, onCancel, busy }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [error, setError] = useState("");
   const input = useRef(null);
@@ -46,7 +48,6 @@ function CardComposer({ initial, onSave, onCancel, busy, compact = false }) {
     }} />
     {error && <p className="kanban-error" role="alert">{error}</p>}
     <div className="flex items-center gap-2"><Button type="submit" className="min-w-0 flex-1" disabled={busy || !title.trim()}>{initial ? "Сохранить" : "Добавить"}</Button><Button variant="ghost" size="icon" type="button" disabled={busy} onClick={onCancel} aria-label="Отменить ввод"><X /></Button></div>
-    {compact && <span className="kanban-caption">Enter — добавить · Shift+Enter — новая строка</span>}
   </form>;
 }
 
@@ -68,10 +69,9 @@ function ColumnComposer({ initial = "", onSave, onCancel, busy }) {
   </form>;
 }
 
-export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsChange, onSave, onEdit }) {
+export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsChange, onSave, onEdit, onCreate, createSpace }) {
   const mobile = useIsMobile();
   const [addingColumn, setAddingColumn] = useState(false);
-  const [addingCard, setAddingCard] = useState(null);
   const [editingCard, setEditingCard] = useState(null);
   const [renaming, setRenaming] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -269,6 +269,15 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
     </article>;
   };
   return <div className="kanban-workspace" aria-busy={busy}>
+    <AddFab disabled={busy || Boolean(drag)} actions={[
+      onCreate && { label: "Новая карточка", onSelect: () => onCreate(columns.find((column) => !column.complete) || columns[0]) },
+      { label: "Добавить список", icon: ListPlus, onSelect: () => setAddingColumn(true) },
+      createSpace,
+    ]} />
+    {addingColumn && <PlanningSpaceCreator kind="column" onClose={() => setAddingColumn(false)} onCreate={(title) => run(async () => {
+      const result = await api.post("columns", { title });
+      onColumnsChange(result.columns);
+    })} />}
     <span role="status" className="sr-only">{announcement}</span>
     {drag?.kind === "column" && drag.preview && <div ref={dragPreviewRef} className="kanban-column-drag-preview" aria-hidden="true" style={{ width: drag.preview.width, transform: previewTransform(drag.preview.x, drag.preview.y, drag.preview.width) }}><GripVertical /><span>{columns.find((column) => column.id === drag.id)?.title}</span></div>}
     <div ref={boardRef} className="planning-board" aria-label="Kanban-доска" onDragOver={(event) => {
@@ -307,11 +316,10 @@ export function PlanningKanban({ api, tasks, columns, onTasksChange, onColumnsCh
               {columnTasks.map(cardView)}
               {!columnTasks.length && <p className="kanban-empty">Нет карточек</p>}
             </div>
-            {addingCard === column.id ? <CardComposer compact busy={busy} onCancel={() => setAddingCard(null)} onSave={(patch) => run(() => onSave(null, { ...patch, columnId: column.id }, { quiet: true }))} /> : <Button variant="ghost" className="planning-column__add" disabled={busy} onClick={() => setAddingCard(column.id)}><Plus />Добавить карточку</Button>}
           </>}
         </section>;
       })}
-      <div className="kanban-new-column" data-drop-column-end={drag?.kind === "column" && drop && drop.beforeId === null || undefined}>{addingColumn ? <ColumnComposer busy={busy} onCancel={() => setAddingColumn(false)} onSave={(title) => run(async () => { const result = await api.post("columns", { title }); onColumnsChange(result.columns); setAddingColumn(false); })} /> : <Button variant="ghost" className="kanban-new-column__button" disabled={busy} onClick={() => setAddingColumn(true)}><Plus />Добавить список</Button>}</div>
+      {drag?.kind === "column" && drop && drop.beforeId === null && <div className="kanban-new-column" data-drop-column-end="" aria-hidden="true" />}
     </div>
   </div>;
 }

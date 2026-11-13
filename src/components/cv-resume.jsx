@@ -1,6 +1,7 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useState } from "react";
 import {
-  AlertTriangle, Pencil, Plus, X,
+  AlertTriangle, Pencil, X,
 } from "lucide-react";
 import { EditorDeleteAction } from "@/components/editor-delete-action";
 import { CareerIconAction } from "@/components/career-icon-action";
@@ -374,10 +375,13 @@ export function CvResume() {
       <CareerContentError error={careerContent.error} onRetry={careerContent.retry} />
 
       <article className="cv-builder typeset-document rollapp-body" aria-label="CV">
+      {!readOnly && !careerContent.loading && !careerContent.error && <AddFab actions={[
+        { label: "Добавить место работы", onSelect: () => setEditor({ kind: "experience" }) },
+        { label: "Добавить образование", onSelect: () => setEditor({ kind: "education" }) },
+      ]} />}
         <section className="cv-builder__section" aria-labelledby="cv-experience-title">
           <header className="cv-builder__section-header">
             <div data-typeset-group><h2 id="cv-experience-title">Опыт работы</h2></div>
-            {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "experience" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.experiences.length ? (
             <div className="cv-builder__timeline">
@@ -408,7 +412,6 @@ export function CvResume() {
         <section className="cv-builder__section" aria-labelledby="cv-education-title">
           <header className="cv-builder__section-header">
             <div data-typeset-group><h2 id="cv-education-title">Образование</h2></div>
-            {!readOnly && <SectionAction label="Добавить" onClick={() => setEditor({ kind: "education" })}><Plus aria-hidden="true" /></SectionAction>}
           </header>
           {cv.education.length ? (
             <div className="cv-builder__education-list">

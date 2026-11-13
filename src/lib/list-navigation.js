@@ -14,8 +14,8 @@ export function orderWishListsForNavigation(lists) {
   return [lists[lifestyle], ...lists.slice(0, lifestyle), ...lists.slice(lifestyle + 1)];
 }
 
-export function shouldShowListNavigation({ shared = false, canCreateList = false, listCount = 0 } = {}) {
-  return shared || canCreateList || listCount > 0;
+export function shouldShowListNavigation({ shared = false, listCount = 0, unlistedCount = 0 } = {}) {
+  return shared || listCount > 0 || unlistedCount > 0;
 }
 
 export function shouldShowUnsortedList(wishCount = 0) {

@@ -1,3 +1,4 @@
+import { AddFab } from "@/components/add-fab";
 import { ControlBar } from "@/components/control-bar";
 import { CalendarSyncButton } from "@/components/calendar-sync-button";
 import { useDeviceCalendar } from "@/hooks/use-device-calendar";
@@ -53,7 +54,7 @@ function EventButton({ task, compact = false, style, onResize, onMove }) {
 
 function Agenda({ date, tasks, columns, onEdit, onCreate, heading = true }) {
   return <section className="planning-agenda schedule-agenda" aria-label={`Задачи на ${label(date)}`}>
-    {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3><Button variant="ghost" size="icon" aria-label={`Добавить задачу на ${label(date)}`} onClick={() => onCreate({ dueOn: date })}><Plus /></Button></header>}
+    {heading && <header className="schedule-agenda__header"><h3 className="text-lg font-semibold">{label(date, { weekday: "long", day: "numeric", month: "long" })}</h3></header>}
     {tasks.length ? tasks.map((task) => <div className="schedule-agenda__row" key={task.id}><CalendarTaskButton task={task} className="schedule-agenda__task" data-completed={task.completed || undefined}><span>{task.title}</span><span className="schedule-caption">{columns.find((column) => column.id === task.columnId)?.title}</span>{task.relatedItems?.length > 0 && <span className="schedule-caption">{task.relatedItems.map((item) => item.title).join(", ")}</span>}</CalendarTaskButton><span className="schedule-caption schedule-agenda__time">{taskTimeLabel(task)}</span></div>) : <p className="text-muted-foreground">На этот день планов нет.</p>}
   </section>;
 }
@@ -108,7 +109,7 @@ function Timeline({ dates, selected, today, tasks, onSelect, onCreate }) {
     </div><ScrollBar orientation="horizontal" />
   </ScrollArea>;
 }
-export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave, spaceId = "main", subscriptionTransport, deviceSync = false }) {
+export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate, onSave, spaceId = "main", subscriptionTransport, deviceSync = false, createSpace }) {
   const tasks = sourceTasks;
   // Display slots are projections. Editing must always start from stored data.
   const editTask = (task) => onEdit(sourceTasks.find((item) => item.id === (task.sourceId || task.id)) || task);
@@ -188,7 +189,7 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   const periodLabel = label(selected, view === "day" ? { day: "numeric", month: "long" } : { month: "long" });
   const title = view === "year" ? selected.slice(0, 4) : <><strong className="font-semibold">{periodLabel[0].toLocaleUpperCase("ru") + periodLabel.slice(1)}</strong> {selected.slice(0, 4)} г.</>;
   const agendaProps = { columns, onEdit: editTask, onCreate };
-  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>В этом месяце планов нет.</p><Button variant="outline" onClick={() => onCreate({ dueOn: selected })}><Plus />Добавить задачу</Button></div>}</div>;
+  const listContent = <div className="schedule-list">{groupedDates.length ? groupedDates.map((date) => <Agenda key={date} date={date} tasks={listed.filter((task) => task.dueOn === date)} {...agendaProps} />) : <div className="schedule-empty"><CalendarDays className="size-8" /><p>В этом месяце планов нет.</p></div>}</div>;
   const keyboard = (event) => {
     if (event.target.closest('input, textarea, [contenteditable="true"], [data-slot="popover-content"], [data-calendar-sync]') || !(event.metaKey || event.ctrlKey)) return;
     if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); navigate(shiftCalendarDate(selected, view, event.key === "ArrowLeft" ? -1 : 1)); }
@@ -198,11 +199,15 @@ export function PlanningCalendar({ tasks: sourceTasks, columns, onEdit, onCreate
   };
   const navigation = <div className="schedule-navigation"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий период" onClick={() => navigate(shiftCalendarDate(selected, view, -1))}><ChevronLeft /></Button><Button variant="outline" className="schedule-current-date rounded-full" aria-label={`Сегодня. Выбрано: ${label(selected, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Перейти к сегодняшней дате`} title="Перейти к сегодняшней дате" onClick={() => navigate(today)}><span className="hidden xl:inline">{label(selected, { day: "numeric", month: "long", year: "numeric" })}, {label(selected, { weekday: "long" })}</span><span className="xl:hidden">{label(selected, { day: "2-digit", month: "2-digit" })}<span className="schedule-current-date__weekday">, {label(selected, { weekday: "short" })}</span></span></Button><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Следующий период" onClick={() => navigate(shiftCalendarDate(selected, view, 1))}><ChevronRight /></Button></div>;
   return <CalendarActions.Provider value={{ onEdit: editTask, onCreate, columns, busy, saveSchedule, dropTask, allowDrop, startDrag, endDrag, cancelInteractionRef, sourceTasks }}><div className="schedule" aria-busy={busy} data-view={view} onKeyDown={keyboard}>
+    <AddFab disabled={busy} actions={[
+      { label: "Новая задача в календаре", onSelect: () => onCreate({ dueOn: selected }) },
+      createSpace,
+    ]} />
     <Tabs value={view} onValueChange={(value) => navigate(selected, value)} className="schedule-window">
       <ControlBar className="schedule-toolbar">
         {navigation}
         <TabsList className="rounded-full" aria-label="Вид календаря">{CALENDAR_VIEWS.filter((item) => item.id !== "list").map((item, index) => <TabsTrigger className="rounded-full" key={item.id} value={item.id} title={`⌘ / Ctrl + ${index + 1}`}>{item.label}</TabsTrigger>)}</TabsList>
-        <div className="schedule-window-actions"><Button data-control-icon variant="outline" size="icon" className="rounded-full" aria-label="Новая задача в календаре" onClick={() => onCreate({ dueOn: selected })}><Plus aria-hidden="true" /></Button><CalendarSyncButton spaceId={spaceId} transport={subscriptionTransport} onUpdate={deviceCalendar.refresh} /></div>
+        <div className="schedule-window-actions"><CalendarSyncButton spaceId={spaceId} transport={subscriptionTransport} onUpdate={deviceCalendar.refresh} /></div>
       </ControlBar>
       {deviceCalendar.error && <p role="status" className="schedule-caption px-4">Не удалось обновить события устройства: {deviceCalendar.error} <Button variant="outline" onClick={deviceCalendar.refresh}>Повторить</Button></p>}
       <div className="schedule-layout">

@@ -601,7 +601,9 @@ export function Workouts() {
         title="Спорт"
         titleId="workouts-title"
         selectedList={selectedList}
+        addLabel="Добавить тренировку"
         onAdd={openNewWorkout}
+        onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
         onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
@@ -642,7 +644,6 @@ export function Workouts() {
           selectedListId={resolvedListId}
           ariaLabel="Списки тренировок"
           onSelectList={setSelectedListId}
-          onCreateList={() => setListDrawer({ open: true, list: null, moveItem: null })}
         />
       )}
 

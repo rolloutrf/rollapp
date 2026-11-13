@@ -1,6 +1,7 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle, Check, CheckCircle2, FileUp, Plus, RotateCcw, Trash2,
+  AlertTriangle, Check, CheckCircle2, FileUp, RotateCcw, Trash2,
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
@@ -246,16 +247,10 @@ export function LabResults() {
 
   const reports = requestState.data?.reports || [];
   const selectedReport = reports.find((report) => report.id === selectedReportId) || reports[0] || null;
-  const uploadButtonProps = {
-    type: "button",
-    disabled: uploadState.loading || deleteState.busy,
-    "aria-busy": uploadState.loading || undefined,
-    "aria-describedby": "lab-pdf-help",
-    onClick: () => fileInputRef.current?.click(),
-  };
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
+      {!readOnly && <AddFab actions={[{ label: "Добавить анализ", disabled: uploadState.loading || deleteState.busy, onSelect: () => fileInputRef.current?.click() }]} />}
       {!readOnly && (
         <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
           {selectedReport && (
@@ -310,18 +305,6 @@ export function LabResults() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              {!readOnly && (
-                <Button
-                  {...uploadButtonProps}
-                  variant="ghost"
-                  size="icon"
-                  className="list-tabs__add"
-                  aria-label={uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
-                  title={uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
-                >
-                  {uploadState.loading ? <Spinner aria-hidden="true" /> : <Plus aria-hidden="true" />}
-                </Button>
-              )}
             </div>
             {reports.map((report) => (
               <TabsContent className="min-w-0" key={report.id} value={report.id}>
@@ -337,11 +320,6 @@ export function LabResults() {
                 <div className="font-medium">Анализов пока нет</div>
                 <div className="text-sm text-muted-foreground">{readOnly ? "Владелец пока не добавил анализы." : "Добавьте PDF, чтобы показатели появились здесь."}</div>
               </div>
-              {!readOnly && (
-                <PageActionButton {...uploadButtonProps}>
-                  {uploadState.loading ? "Разбираем PDF" : "Добавить анализ"}
-                </PageActionButton>
-              )}
             </CardContent>
           </Card>
         )}

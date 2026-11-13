@@ -658,7 +658,9 @@ export function CoachingSessions() {
         title="Коучинг"
         titleId="coaching-title"
         selectedList={selectedList}
+        addLabel="Добавить сессию"
         onAdd={openCreateDrawer}
+        onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
         onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
@@ -707,7 +709,6 @@ export function CoachingSessions() {
           selectedListId={resolvedListId}
           ariaLabel="Списки коучинг-сессий"
           onSelectList={(listId) => { setOpenedGroupId(""); setSelectedListId(listId); }}
-          onCreateList={() => setListDrawer({ open: true, list: null, moveItem: null })}
         />
       )}
 

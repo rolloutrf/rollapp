@@ -1,3 +1,4 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, CircleCheck, Clock3, Globe2, Link2, Plus, Video, X } from "lucide-react";
 import { ru } from "date-fns/locale";
@@ -518,11 +519,11 @@ export function ProfileBookingCalendar({ profile, slots, owner, user, busy, noti
   }
 
   return <div className="not-typeset rollapp-body booking-flow">
-    {owner && <div className="flex flex-wrap gap-2">
-      {!editing && !preview && <PageActionButton ref={addButton} type="button" disabled={busy || slots.length >= 200} onClick={() => {
-        clearNotice();
-        setEditing(true);
-      }}><Plus aria-hidden="true" />Добавить слот</PageActionButton>}
+    {owner && !editing && !preview && <AddFab triggerRef={addButton} actions={[{
+      label: "Добавить слот", disabled: busy || slots.length >= 200,
+      onSelect: () => { clearNotice(); setEditing(true); },
+    }]} />}
+    {owner && !editing && <div className="flex flex-wrap gap-2">
       {!editing && <PageActionButton type="button" variant="outline" disabled={busy} onClick={() => { setPreview(!preview); setTypeId(null); }}>
         {preview ? "К управлению слотами" : "Предпросмотр"}
       </PageActionButton>}

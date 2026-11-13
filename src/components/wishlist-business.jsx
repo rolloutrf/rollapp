@@ -1,6 +1,7 @@
+import { AddFab } from "@/components/add-fab";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Plus } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
@@ -150,7 +151,7 @@ export function WishlistBusinessManager({user,space}) {
  <Field><FieldLabel htmlFor="seller-page-description">Описание</FieldLabel><Textarea id="seller-page-description" maxLength={4000} value={page.description} disabled={busy} onChange={e=>setPage({...page,description:e.target.value})}/></Field>
  <label className="flex items-center gap-2"><Checkbox checked={page.published} disabled={busy} onCheckedChange={published=>setPage({...page,published:Boolean(published)})}/>Опубликовать витрину</label>
  <ErrorMessage message={error}/><ControlBar className="flex gap-2"><Button type="submit" disabled={busy}>{busy?"Сохраняем…":"Сохранить страницу"}</Button></ControlBar></form>
- <div className="page-actions page-toolbar horizontal-action-scroller"><PageActionButton type="button" disabled={busy} onClick={() => setEditor({})}><Plus aria-hidden="true" />{isProduct ? "Добавить товар" : "Добавить позицию"}</PageActionButton></div>
+ <AddFab actions={[{ label: isProduct ? "Добавить товар" : "Добавить позицию", disabled: busy, onSelect: () => setEditor({}) }]} />
  {items.length ? (
    <div className="wish-grid catalog-wish-grid">{items.map((item) => <BusinessItem key={item.id} item={item} onOpen={setSelected} />)}</div>
  ) : (
@@ -216,11 +217,7 @@ function WishSalesManager({ user, space, wishId }) {
  };
  return <>
    <Status state={state}>
-     <div className="page-actions page-toolbar horizontal-action-scroller">
-       <PageActionButton type="button" onClick={() => openEditor({ space, active: false })}>
-         <Plus aria-hidden="true" />{space === "products" ? "Добавить товар" : "Добавить позицию"}
-       </PageActionButton>
-     </div>
+     <AddFab actions={[{ label: space === "products" ? "Добавить товар" : "Добавить позицию", onSelect: () => openEditor({ space, active: false }) }]} />
      {state.data?.items.length ? (
        <div className="wish-grid catalog-wish-grid">
          {state.data.items.map(item => <BusinessItem key={item.id} item={item} onOpen={openEditor} />)}

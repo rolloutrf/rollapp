@@ -16,6 +16,11 @@
     --layout-control-size: 3rem;
     --layout-control-icon-size: 1.25rem;
     --layout-navigation-bottom: calc(var(--app-visual-bottom, 0px) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
+    --layout-planning-navigation-bottom: calc(var(--layout-navigation-bottom) + var(--layout-inline-gap));
+    --layout-planning-navigation-side: max(1.5rem, env(safe-area-inset-right));
+    /* Planning, messages, and assistant keep their existing positions below creation. */
+    --layout-add-fab-bottom: calc(var(--layout-planning-navigation-bottom) + (var(--layout-control-size) + var(--layout-inline-gap)) * 3);
+    --layout-add-fab-tail: calc(var(--layout-add-fab-bottom) - var(--app-visual-bottom, 0px) + var(--layout-control-size) + var(--layout-item-gap));
     --layout-chrome-top: 1.5rem;
     --layout-chrome-tail: 1.5rem;
     --app-chrome-overlay-height: calc(var(--layout-chrome-top) + 3rem + var(--layout-chrome-tail) + var(--layout-safe-top));
@@ -47,6 +52,19 @@
 }
 
 @layer utilities {
+  .add-fab {
+    position: fixed;
+    z-index: 39;
+    inset-inline-end: var(--layout-planning-navigation-side);
+    inset-block-end: var(--layout-add-fab-bottom);
+  }
+  .app-layout--dark:not(.app-layout--planning) .app-page:has([data-add-fab]),
+  .app-page.planning-notes:has([data-add-fab]) {
+    padding-block-end: max(var(--layout-page-end), var(--layout-add-fab-tail));
+  }
+  .schedule-month-panel, .schedule-year, .schedule-list, .schedule-timegrid__body {
+    padding-block-end: var(--layout-add-fab-tail);
+  }
   /* Product visibility must outrank the primitive's inline-flex utility. */
   .education-card > [data-card-drag-handle] { display: none; }
   @media (hover: none), (any-pointer: coarse) {
@@ -108,6 +126,10 @@
   }
 
   @media (max-width: 767px) {
+    :root {
+      --layout-planning-navigation-bottom: var(--layout-navigation-bottom);
+      --layout-planning-navigation-side: max(var(--layout-page-inset), env(safe-area-inset-right));
+    }
     :root[data-overlay-keyboard] { --layout-navigation-bottom: calc(var(--app-visual-bottom, 0px) + var(--layout-item-gap)); }
     .mobile-content-page__nav {
       position: fixed;
@@ -185,7 +207,8 @@
     }
     .planning-fab-controls[data-has-back] {
       left: max(var(--layout-page-inset), env(safe-area-inset-left));
-      right: max(var(--layout-page-inset), env(safe-area-inset-right));
+      right: var(--layout-planning-navigation-side);
+      bottom: var(--layout-planning-navigation-bottom);
     }
     .app-layout--dark:not(.app-layout--planning) .app-page {
       padding-block-end: max(var(--layout-page-end), calc(var(--layout-control-size) + var(--layout-item-gap) * 2 + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px))));

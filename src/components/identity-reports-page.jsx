@@ -1,6 +1,7 @@
+import { AddFab } from "@/components/add-fab";
 import { useEffect, useId, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Plus, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/api";
 import { useSphereSharing } from "@/lib/sphere-sharing";
@@ -98,7 +99,7 @@ export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSav
   </>;
 }
 
-export function IdentityReportNavigation({ tests, onAddTest, disabled = false }) {
+export function IdentityReportNavigation({ tests }) {
   return <div className="min-w-0 not-typeset" data-report-navigation>
     <div className="list-tabs horizontal-tile-scroller" data-tab-scroller>
       <TabsList className="contents" aria-label="Отчёт о личности">
@@ -106,12 +107,11 @@ export function IdentityReportNavigation({ tests, onAddTest, disabled = false })
           <ListTileContent title={test.title} detail={test.detail || "Личностный тест"} />
         </TabsTrigger>)}
       </TabsList>
-      {onAddTest && <Button className="list-tabs__add" type="button" variant="ghost" size="icon" aria-label="Новый тест" title="Новый тест" disabled={disabled} onClick={onAddTest}><Plus className="size-5" aria-hidden="true" /></Button>}
     </div>
   </div>;
 }
 
-function SelectedIdentityReport({ section, label, navigation, renderBuiltin, test, canManage, onSaved, onDeleted, client }) {
+function SelectedIdentityReport({ section, label, navigation, creationDisabled, renderBuiltin, test, canManage, onSaved, onDeleted, client }) {
   const reportState = useIdentityReport(section, client);
   const [form, setForm] = useState(null);
   const { state, error, load, uploading, uploadDisabled, upload } = reportState;
@@ -125,7 +125,8 @@ function SelectedIdentityReport({ section, label, navigation, renderBuiltin, tes
           </PageActionButton>
         </div>
       )}
-      {navigation(uploading, () => setForm({ mode: "create", open: true }))}
+      {navigation}
+      {canManage && <AddFab actions={[{ label: "Добавить тест", disabled: uploading || creationDisabled, onSelect: () => setForm({ mode: "create", open: true }) }]} />}
     </section>
     <TabsContent value={section} className="min-w-0">
       {renderBuiltin ? renderBuiltin(reportState) : state.mode === "loading" || state.mode === "error"
@@ -172,7 +173,7 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
     navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true });
   }
   const canManage = !readOnly && !sharingLoading;
-  const navigation = (uploading, addTest) => <IdentityReportNavigation tests={tests} onAddTest={canManage ? addTest : undefined} disabled={uploading || loading || Boolean(error)} />;
+  const navigation = <IdentityReportNavigation tests={tests} />;
   const onSaved = (test) => {
     setTests(value => value.some(item => item.id === test.id) ? value.map(item => item.id === test.id ? test : item) : [...value, test]);
     selectReport(test.id);
@@ -183,7 +184,7 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
   };
   return <Tabs className="identity-reports-page identity-report-workspace" value={selected} onValueChange={selectReport}>
     {error && <Alert variant="destructive"><AlertTitle>Не удалось загрузить тесты</AlertTitle><AlertDescription>{error}</AlertDescription><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></Alert>}
-    {loading && requested.startsWith("custom-") ? <IdentityReportStatus mode="loading" /> : <SelectedIdentityReport client={client} key={selected} section={selected} label={current?.title || (selected === "hogan" ? "Hogan" : "Gallup")} navigation={navigation}
+    {loading && requested.startsWith("custom-") ? <IdentityReportStatus mode="loading" /> : <SelectedIdentityReport client={client} key={selected} section={selected} label={current?.title || (selected === "hogan" ? "Hogan" : "Gallup")} navigation={navigation} creationDisabled={loading || Boolean(error)}
       renderBuiltin={selected === "gallup" ? renderGallup : selected === "hogan" ? renderHogan : null}
       test={current} canManage={canManage} onSaved={onSaved} onDeleted={onDeleted} />}
   </Tabs>;

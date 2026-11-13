@@ -26,7 +26,8 @@ import { RECURRENCE_OPTIONS, recurrenceError } from "../../shared/planning-recur
 import { PlanningKanban } from "@/components/planning-kanban";
 import { PlanningNotes } from "@/components/planning-notes";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { usePlanningSpaces } from "@/hooks/use-planning-spaces";
+import { usePlanningSpaceSelection } from "@/components/planning-space-switcher";
+import { AddFab } from "@/components/add-fab";
 import "./planning-space.css";
 
 export const PLANNING_TABS = [
@@ -184,7 +185,7 @@ export function PlanningSpace() {
 
 function PlanningBoardStart() {
   const [, setSearch] = useSearchParams();
-  const { spaces, loading, error, reload } = usePlanningSpaces("kanban");
+  const { spaces = [], loading = true, error, reload, createAction } = usePlanningSpaceSelection() || {};
   const firstBoardId = spaces[0]?.id;
   useEffect(() => {
     if (loading || error || !firstBoardId) return;
@@ -196,13 +197,15 @@ function PlanningBoardStart() {
   }, [loading, error, firstBoardId, setSearch]);
   return <section className="app-page planning-space typeset typeset-rollapp planning-space--kanban">
     <h1 className="sr-only">Kanban-доска</h1>
+    {!loading && !error && !firstBoardId && <AddFab actions={[createAction]} />}
     <div className="not-typeset planning-tools rollapp-body">
-      {error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={reload}>Повторить</Button></AlertDescription></Alert> : loading || firstBoardId ? <div className="planning-space__status" role="status"><Spinner />Загружаем доски…</div> : <div className="planning-space__status"><p>Пока нет досок. Создайте первую через меню выбора доски вверху.</p></div>}
+      {error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={reload}>Повторить</Button></AlertDescription></Alert> : loading || firstBoardId ? <div className="planning-space__status" role="status"><Spinner />Загружаем доски…</div> : <div className="planning-space__status"><p>Пока нет досок. Нажмите «+», чтобы создать первую.</p></div>}
     </div>
   </section>;
 }
 
 function PlanningSpaceContent({ spaceId, activeTab }) {
+  const createSpace = usePlanningSpaceSelection()?.createAction;
   const api = planningApi(spaceId);
   const [tasks, setTasks] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -241,11 +244,11 @@ function PlanningSpaceContent({ spaceId, activeTab }) {
     <h1 className="sr-only">{activeTab === "calendar" ? "Календарь планирования" : activeTab === "todo" ? "To Do на каждый день" : "Kanban-доска"}</h1>
     <div className="not-typeset planning-tools rollapp-body">
       {loading ? <div className="planning-space__status" role="status"><Spinner />Загружаем задачи…</div> : error ? <Alert variant="destructive"><AlertDescription>{error}<Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Повторить</Button></AlertDescription></Alert> : activeTab === "kanban" ? (
-        <PlanningKanban api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
+        <PlanningKanban createSpace={createSpace} onCreate={(column) => setEditor({ ...EMPTY_TASK, unscheduled: true, columnId: column?.id, completed: column?.complete || false })} api={api} tasks={tasks} columns={columns} onTasksChange={setTasks} onColumnsChange={setColumns} onSave={save} onEdit={setEditor} />
       ) : activeTab === "calendar" ? (
-        <PlanningCalendar deviceSync spaceId={spaceId} onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
+        <PlanningCalendar createSpace={createSpace} deviceSync spaceId={spaceId} onSave={save} tasks={tasks} columns={columns} onEdit={edit} onCreate={(schedule) => setEditor({ ...EMPTY_TASK, columnId: columns[0]?.id, completed: columns[0]?.complete || false, ...schedule })} />
       ) : (
-        <PlanningDailyTodo tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
+        <PlanningDailyTodo createSpace={createSpace} tasks={tasks} columns={columns} onSave={save} onEdit={edit} onCreate={(dueOn, startTime, draft = {}) => setEditor({ ...EMPTY_TASK, ...draft, dueOn, startTime: startTime || "", unscheduled: !startTime, durationMinutes: 30, columnId: columns.find((column) => !column.complete)?.id || columns[0]?.id, completed: false })} />
       )}
     </div>
     {task && <TaskEditor task={task} columns={columns} onClose={() => { setEditor(null); clearAssistantDraft(); }} onSave={save} onDelete={remove} />}

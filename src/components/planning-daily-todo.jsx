@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { AddFab } from "@/components/add-fab";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,7 +41,7 @@ function TodoRow({ task, displayTime, onSave, onEdit }) {
   </li>;
 }
 
-export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) {
+export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate, createSpace }) {
   const mobile = useIsMobile();
   const [search, setSearch] = useSearchParams();
   const today = localDateKey(new Date());
@@ -86,11 +87,10 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
   const done = dayTasks.filter(({ task }) => task.completed);
   const controls = <footer className="daily-todo__footer">
       <div className="daily-todo__content">
-        {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="День и добавление задачи">
+        {mobile ? <ControlBar className="daily-todo__toolbar" role="group" aria-label="Выбор дня">
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Предыдущий день" onClick={() => setDate(addCalendarDays(selected, -1))}><ChevronLeft aria-hidden="true" /></Button>
           <PlanningDatePicker value={selected} onChange={setDate} label="Выбрать дату" className="w-full"><span className="truncate">{compactDateLabel(selected)}</span></PlanningDatePicker>
           <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Следующий день" onClick={() => setDate(addCalendarDays(selected, 1))}><ChevronRight aria-hidden="true" /></Button>
-          <Button data-control-icon type="button" variant="outline" size="icon" className="rounded-full" aria-label="Добавить задачу" onClick={() => onCreate(selected, nextCalendarTaskStart(expanded, selected))}><Plus aria-hidden="true" /></Button>
         </ControlBar> : <>
         {error && <p className="daily-todo__error" role="alert">{error}</p>}
         <form className="daily-todo__composer" onSubmit={add}>
@@ -116,6 +116,10 @@ export function PlanningDailyTodo({ tasks, columns, onSave, onEdit, onCreate }) 
       </div>
     </footer>;
   return <div className="daily-todo">
+    <AddFab actions={[
+      { label: "Новая задача", onSelect: () => onCreate(selected, nextCalendarTaskStart(expanded, selected)) },
+      createSpace,
+    ]} />
     {mobile && controls}
     <div className="daily-todo__scroll">
       {!mobile && <PlanningDayRibbon selected={selected} today={today} onChange={setDate} />}

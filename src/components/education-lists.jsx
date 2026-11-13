@@ -1,7 +1,8 @@
+import { AddFab } from "@/components/add-fab";
 import { ListTileContent } from "@/components/list-tile-content";
 import { PageActionButton } from "@/components/page-action-button";
 import { useEffect, useId, useState } from "react";
-import { FolderInput, ListPlus, MoreHorizontal, Plus, Trash2, Ungroup, X } from "lucide-react";
+import { FolderInput, ListPlus, MoreHorizontal, Trash2, Ungroup, X } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
 import {
@@ -151,10 +152,12 @@ export function EducationItemListMenu({
   );
 }
 
-export function EducationSectionHeader({ title, titleId, selectedList, onAdd, onEditList, sphereId = "education" }) {
+export function EducationSectionHeader({ title, titleId, selectedList, addLabel, onAdd, onCreateList, onEditList, sphereId = "education" }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
+    <>
+    <AddFab actions={[{ label: addLabel, onSelect: onAdd }, onCreateList && { label: "Новый список", icon: ListPlus, onSelect: onCreateList }]} />
     <header className="page-toolbar w-full justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
       <div className="page-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
@@ -168,16 +171,10 @@ export function EducationSectionHeader({ title, titleId, selectedList, onAdd, on
             Настройки списка
           </PageActionButton>
         )}
-        <PageActionButton
-          className="shrink-0 min-w-[180px] max-[560px]:min-w-0"
-          type="button"
-          onClick={onAdd}
-        >
-          Добавить
-        </PageActionButton>
         <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
+    </>
   );
 }
 
@@ -187,10 +184,8 @@ export function EducationListNavigation({
   selectedListId,
   unlistedTitle = "Не отсортированные",
   ariaLabel,
-  onCreateList,
   onSelectList,
 }) {
-  const { readOnly } = useSphereSharing();
   const unlistedCount = educationListItemCount(items, UNLISTED_EDUCATION_LIST_ID);
   const showUnlisted = unlistedCount > 0 || lists.length === 0;
   return (
@@ -226,17 +221,6 @@ export function EducationListNavigation({
               );
             })}
           </ToggleGroup>
-          {!readOnly && <Button
-            variant="ghost"
-            size="icon"
-            className="list-tabs__add"
-            aria-label="Новый список"
-            title="Новый список"
-            type="button"
-            onClick={onCreateList}
-          >
-            <Plus size={16} />
-          </Button>}
         </div>
       </div>
     </div>
