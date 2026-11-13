@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import express from "express";
 import { MOOD_LEVELS } from "../shared/profile-mood.js";
-import { moodQuerySchema, moodSaveSchema, publicMood, verifyProfileMoodAvailability } from "./profile-mood.js";
+import { moodQuerySchema, moodSaveSchema, publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./profile-mood.js";
 
 test("only an explicitly published, valid level is exposed to visitors", () => {
   for (const { level } of MOOD_LEVELS) {
@@ -46,4 +47,49 @@ test("missing mood schema is explicit in development and prevents production sta
   assert.equal(warnings, 1);
   await assert.rejects(verifyProfileMoodAvailability(unavailable, { required: true }), missing);
   await assert.rejects(verifyProfileMoodAvailability(async () => { throw new Error("connection lost"); }, { required: false }), /connection lost/);
+});
+
+test("journal routes reject guests and forged owner parameters before opening a transaction", async () => {
+  const app = express();
+  let available = true;
+  let transactions = 0;
+  app.use(express.json());
+  registerProfileMoodRoutes(app, {
+    requireAuth(req, res, next) {
+      if (req.get("X-Test-Session") !== "owner") return res.sendStatus(401);
+      req.user = { id: "owner" };
+      next();
+    },
+    asyncRoute: (handler) => (req, res, next) => handler(req, res).catch(next),
+    available: () => available,
+    async transaction() {
+      transactions++;
+      throw new Error("Invalid requests must not reach PostgreSQL");
+    },
+  });
+  const server = await new Promise((resolve, reject) => {
+    const listener = app.listen(0, "127.0.0.1", () => resolve(listener));
+    listener.once("error", reject);
+  });
+  try {
+    const endpoint = `http://127.0.0.1:${server.address().port}/api/me/mood`;
+    const options = { signal: AbortSignal.timeout(5000) };
+    const session = { ...options, headers: { "X-Test-Session": "owner", "Content-Type": "application/json" } };
+    const requests = await Promise.all([
+      fetch(endpoint, options),
+      fetch(endpoint, { ...options, method: "PATCH" }),
+      fetch(`${endpoint}?owner=another-user`, session),
+      fetch(endpoint, { ...session, method: "PATCH", body: JSON.stringify({ published: true, userId: "another-user" }) }),
+    ]);
+    assert.deepEqual(requests.map((response) => response.status), [401, 401, 400, 400]);
+    await Promise.all(requests.map((response) => response.text()));
+    available = false;
+    const unavailable = await fetch(endpoint, session);
+    assert.equal(unavailable.status, 503);
+    assert.equal(unavailable.headers.get("cache-control"), "private, no-store");
+    assert.match((await unavailable.json()).error, /схема базы данных не установлена/);
+    assert.equal(transactions, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
