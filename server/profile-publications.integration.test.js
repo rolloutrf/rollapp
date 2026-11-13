@@ -111,6 +111,23 @@ test("profile publications and booking ownership on production PostgreSQL", {
     assert.equal((await request("DELETE", slotPath, host)).status, 200);
     assert.deepEqual((await request("GET", calendar)).data.slots, []);
 
+    const nextDay = hours => ({
+      ...slot, id: randomUUID(),
+      startsAt: new Date(+starts_at + hours * 3_600_000).toISOString(),
+    });
+    const pair = [nextDay(24), nextDay(25)];
+    const batch = { slots: pair };
+    const ids = pair.map(item => item.id);
+    assert.equal((await request("POST", calendar, other, batch)).status, 403);
+    const overlapping = { ...pair[0], id: randomUUID(), startsAt: new Date(Date.parse(pair[0].startsAt) + 30 * 60_000).toISOString() };
+    assert.equal((await request("POST", calendar, host, { slots: [...pair, overlapping] })).status, 409);
+    assert.deepEqual((await request("GET", calendar)).data.slots, []);
+    assert.deepEqual((await request("POST", calendar, host, batch)).data, { ids });
+    assert.deepEqual((await request("POST", calendar, host, batch)).data, { ids });
+    assert.equal((await request("POST", calendar, host, { slots: [overlapping, nextDay(26)] })).status, 409);
+    assert.deepEqual((await request("GET", calendar)).data.slots.map(item => item.id), ids);
+    assert.equal((await request("POST", calendar, host, { slots: [pair[0], pair[0]] })).status, 400);
+
     const item = { id: randomUUID(), title: "Board announcement", body: "Meeting at 18:00" };
     const itemPath = `${board}/${item.id}`;
     assert.equal((await request("POST", board, other, item)).status, 403);

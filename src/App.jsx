@@ -167,7 +167,7 @@ import { isVideoUrl, isVkVideoUrl, isYouTubeUrl } from "../shared/video-links.js
 import { requestBrowserWishlist, requestRetailerBrowserMetadata } from "./lib/retailer-browser-import.js";
 import { initializeTelegramWebApp } from "./telegram.js";
 
-import { publicProfilePath, publicSpacePath, publicListPath, publicWishPath, publicPublicationPath, profilePublicationSection, publicProfileRoute, renamedProfileLocation } from "../shared/profile-links.js";
+import { publicProfilePath, publicSpacePath, publicListPath, publicWishPath, publicPublicationPath, publicBookingPath, profilePublicationSection, publicProfileRoute, renamedProfileLocation } from "../shared/profile-links.js";
 
 const CollectionNavigationContext = createContext(null);
 function CollectionNavigationProvider({ children }) {
@@ -5072,7 +5072,7 @@ function WishesPage({ onAdd, version }) {
   if (data && data.viewerId !== viewerId) return <LoadingScreen compact />;
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(`${window.location.origin}${publicPublicationPath(user.username, publication)}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${publication === "calendar" ? publicBookingPath(user.username) : publicPublicationPath(user.username, publication)}`);
       toast("Ссылка скопирована");
       return;
     }
@@ -8110,7 +8110,7 @@ function PublicProfile({ shared = false }) {
 
   const share = async () => {
     if (publication) {
-      await navigator.clipboard.writeText(`${window.location.origin}${publicPublicationPath(data.profile.username, publication)}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${publication === "calendar" ? publicBookingPath(data.profile.username) : publicPublicationPath(data.profile.username, publication)}`);
       toast("Ссылка скопирована");
       return;
     }
@@ -8295,6 +8295,13 @@ function PublicProfile({ shared = false }) {
 
 function NotFound() { return <div className="not-found rollapp-body"><Gift /><h1>Похоже, эта мечта потерялась</h1><p>Страница не существует или ссылка устарела.</p><Link to={APP_HOME} className={buttonVariants()}>В приложение</Link></div>; }
 
+function PublicBookingPage() {
+  const { username } = useParams();
+  const { user, loading } = useSession();
+  if (loading) return <LoadingScreen />;
+  return <ProfilePublicationsPage key={`${username}:${user?.id || ""}`} section="calendar" username={username} user={user} />;
+}
+
 function ProfilePublicationsPage({ section, username, user, returnTo }) {
   const location = useLocation();
   const endpoint = `/profile/${encodeURIComponent(username)}/${section}`;
@@ -8360,6 +8367,7 @@ export default function App() {
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/users/:username/*" element={<LegacyProfileRedirect />} />
             <Route path="/:username" element={<PublicProfile />} />
+            <Route path="/:username/calendar/book" element={<PublicBookingPage />} />
             <Route path="/:username/:space" element={<PublicProfile />} />
             <Route path="/:username/lists/:listId" element={<PublicProfile />} />
             <Route path={PUBLIC_WISH_ROUTE_PATH} element={<PublicProfile />} />

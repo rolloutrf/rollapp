@@ -34,6 +34,7 @@ const slotInput = z.object({
 const announcement = z.object({ title, body: z.string().trim().min(1).max(4000) }).strict();
 const slotUnavailable = "Это время больше недоступно. Выберите другой слот.";
 const maxPublications = 200;
+const slotBatchInput = z.object({ slots: z.array(slotInput).min(1).max(maxPublications) }).strict();
 
 class PublicationError extends Error {
   constructor(status, message) {
@@ -103,33 +104,57 @@ export function registerProfilePublicationRoutes(app, { requireAuth, query, tran
   }));
 
   app.post(calendar, requireAuth, route(async (req, res, { owner }) => {
-    const slot = slotInput.parse(req.body);
-    const starts = new Date(slot.startsAt);
-    const ends = new Date(starts.getTime() + slot.duration * 60_000);
+    const batch = Object.hasOwn(req.body ?? {}, "slots");
+    const slots = batch ? slotBatchInput.parse(req.body).slots : [slotInput.parse(req.body)];
+    if (new Set(slots.map(slot => slot.id)).size !== slots.length) {
+      throw new PublicationError(400, "Каждый слот должен иметь свой идентификатор");
+    }
+    const proposed = slots.map(slot => ({
+      ...slot,
+      start: Date.parse(slot.startsAt),
+      end: Date.parse(slot.startsAt) + slot.duration * 60_000,
+    }));
     await transaction(async client => {
       await lockOwner(client, owner.id);
-      const existing = await client.query(
-        "SELECT 1 FROM profile_session_slots WHERE id=$1 AND owner_id=$2 AND starts_at=$3 AND ends_at=$4 AND title=$5",
-        [slot.id, owner.id, starts, ends, slot.title],
+      const { rows: existing } = await client.query(
+        `SELECT id,title,starts_at,ends_at,starts_at>clock_timestamp() AS upcoming
+         FROM profile_session_slots
+         WHERE owner_id=$1 AND (id=ANY($2::uuid[]) OR ends_at>clock_timestamp())`,
+        [owner.id, slots.map(slot => slot.id)],
       );
-      if (existing.rowCount) return;
-      const { rows: [state] } = await client.query(
-        `SELECT $2::timestamptz > clock_timestamp() AND $2::timestamptz < clock_timestamp() + interval '365 days' AS future,
-                COUNT(*) FILTER (WHERE starts_at > clock_timestamp()) AS upcoming,
-                COALESCE(bool_or(starts_at < $3 AND ends_at > $2), FALSE) AS overlaps
-         FROM profile_session_slots WHERE owner_id=$1`,
-        [owner.id, starts, ends],
-      );
-      if (!state.future) throw new PublicationError(400, "Выберите время в пределах ближайших 365 дней");
-      if (Number(state.upcoming) >= maxPublications) throw new PublicationError(409, "В календаре уже 200 предстоящих слотов");
-      if (state.overlaps) throw new PublicationError(409, "Это время пересекается с другим слотом");
+      const byId = new Map(existing.map(row => [row.id, row]));
+      const additions = proposed.filter(slot => {
+        const saved = byId.get(slot.id);
+        if (!saved) return true;
+        if (saved.title !== slot.title || +saved.starts_at !== slot.start || +saved.ends_at !== slot.end) {
+          throw new PublicationError(409, "Обновите форму и повторите публикацию");
+        }
+        return false;
+      });
+      if (!additions.length) return;
+      const { rows: [{ now }] } = await client.query("SELECT clock_timestamp() AS now");
+      if (additions.some(slot => slot.start <= +now || slot.start >= +now + 365 * 86_400_000)) {
+        throw new PublicationError(400, "Выберите время в пределах ближайших 365 дней");
+      }
+      if (existing.filter(row => row.upcoming).length + additions.length > maxPublications) {
+        throw new PublicationError(409, "В календаре может быть до 200 предстоящих слотов");
+      }
+      const ordered = additions.toSorted((a, b) => a.start - b.start);
+      if (ordered.some((slot, index) => (index > 0 && ordered[index - 1].end > slot.start)
+        || existing.some(row => +row.starts_at < slot.end && +row.ends_at > slot.start))) {
+        throw new PublicationError(409, "Это время пересекается с другим слотом");
+      }
       const inserted = await client.query(
-        "INSERT INTO profile_session_slots (id,owner_id,starts_at,ends_at,title) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
-        [slot.id, owner.id, starts, ends, slot.title],
+        `INSERT INTO profile_session_slots (id,owner_id,starts_at,ends_at,title)
+         SELECT id,$1,starts_at,ends_at,title
+         FROM unnest($2::uuid[],$3::timestamptz[],$4::timestamptz[],$5::text[]) AS slots(id,starts_at,ends_at,title)
+         ON CONFLICT DO NOTHING`,
+        [owner.id, additions.map(slot => slot.id), additions.map(slot => new Date(slot.start)),
+          additions.map(slot => new Date(slot.end)), additions.map(slot => slot.title)],
       );
-      if (!inserted.rowCount) throw new PublicationError(409, "Обновите форму и повторите публикацию");
+      if (inserted.rowCount !== additions.length) throw new PublicationError(409, "Обновите форму и повторите публикацию");
     });
-    res.status(201).json({ id: slot.id });
+    res.status(201).json(batch ? { ids: slots.map(slot => slot.id) } : { id: slots[0].id });
   }, { ownerOnly: true }));
 
   app.post(`${calendar}/:slotId/book`, requireAuth, route(async (req, res, { owner, viewerId, isOwner }) => {

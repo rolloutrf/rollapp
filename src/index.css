@@ -9,6 +9,7 @@
 @import "./overlays.css";
 @import "./identity-reports.css";
 @import "./components/health-tracker.css";
+@import "./components/profile-booking-calendar.css";
 
 @custom-variant dark (&:is(.dark *));
 

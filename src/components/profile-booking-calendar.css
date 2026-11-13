@@ -1,0 +1,223 @@
+@layer utilities {
+  .booking-flow {
+    display: grid;
+    min-width: 0;
+    gap: var(--layout-page-gap);
+  }
+
+  .booking-card[data-slot="card"] {
+    display: grid;
+    min-width: 0;
+    gap: 0;
+    padding-block: 0;
+    border-radius: var(--radius-xl);
+  }
+
+  .booking-flow .booking-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    align-content: start;
+    gap: var(--layout-item-gap);
+    padding: var(--layout-page-gap);
+  }
+
+  .booking-card > .booking-panel + .booking-panel {
+    border-block-start: 1px solid var(--border);
+  }
+
+  .booking-details { background: var(--muted); }
+
+  .booking-meta {
+    display: grid;
+    gap: var(--layout-inline-gap);
+    color: var(--muted-foreground);
+  }
+
+  .booking-meta > * {
+    display: flex;
+    align-items: baseline;
+    gap: var(--layout-inline-gap);
+    overflow-wrap: anywhere;
+  }
+
+  .booking-meta svg {
+    width: var(--layout-control-icon-size);
+    height: var(--layout-control-icon-size);
+    flex: none;
+    align-self: flex-start;
+    margin-block-start: .25rem;
+  }
+
+  .booking-event-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--layout-menu-wide-width)), 1fr));
+    gap: var(--layout-page-gap);
+  }
+
+  .booking-flow .booking-event-list .booking-details {
+    padding: 0;
+    background: transparent;
+  }
+
+  .booking-month[data-slot="calendar"] {
+    --cell-radius: 9999px;
+    --cell-size: 0px;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  .booking-month .rdp-month_caption {
+    height: var(--layout-control-size);
+    padding-inline: 0;
+    padding-inline-end: calc(2 * var(--layout-control-size) + 2 * var(--layout-inline-gap));
+    justify-content: flex-start;
+  }
+
+  .booking-month .rdp-caption_label {
+    font: inherit;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .booking-month-nav {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: 0;
+    display: flex;
+    gap: var(--layout-inline-gap);
+  }
+
+  .booking-month :is(.rdp-week, .rdp-weekdays) { gap: .25rem; }
+
+  .booking-month .rdp-day { min-width: 0; }
+
+  .booking-month .rdp-day button {
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    border-radius: var(--cell-radius);
+  }
+
+  .booking-month .rdp-today { background: transparent; }
+
+  .booking-month .rdp-today button::after {
+    position: absolute;
+    inset-block-end: .3rem;
+    width: .25rem;
+    height: .25rem;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+  }
+
+  .booking-month .booking-day-available button:not([data-selected-single="true"]) {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    font-weight: 600;
+  }
+
+  .booking-month .booking-day-available button:hover:not([data-selected-single="true"]) {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .booking-time-row { display: grid; gap: var(--layout-inline-gap); }
+
+
+  .booking-time-row--selected {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .booking-host-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: var(--layout-page-gap);
+    align-items: start;
+  }
+
+  .booking-host-times {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr));
+    gap: var(--layout-inline-gap);
+  }
+
+  .booking-host-times button { min-height: var(--layout-control-size); }
+
+  .booking-host-week-grid button { min-inline-size: 0; }
+
+  .booking-host-week-grid [aria-pressed] {
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+  }
+
+  .booking-host-week { display: none; }
+
+  .booking-host-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--layout-inline-gap);
+    max-block-size: min(26rem, 58dvh);
+    overflow: auto;
+    padding: var(--layout-inline-gap);
+  }
+
+  .booking-host-grid-wrap {
+    min-width: 0;
+    overflow: visible;
+    padding-block-start: var(--layout-item-gap);
+  }
+
+  .booking-host-grid-wrap > div { min-width: 0; height: auto; }
+
+  .booking-status-row[data-slot="card"] {
+    display: grid;
+    align-items: center;
+    justify-items: start;
+    gap: var(--layout-item-gap);
+    padding: var(--layout-item-gap);
+  }
+
+  @media (min-width: 640px) {
+    .booking-status-row[data-slot="card"] { grid-template-columns: minmax(0, 1fr) auto; }
+  }
+
+  @media (min-width: 768px) {
+    .booking-card { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .booking-card--picker { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+    .booking-card--picker.booking-card--with-times .booking-times { grid-column: 2; }
+    .booking-card--picker.booking-card--with-times .booking-details { grid-row: span 2; }
+
+    .booking-card > .booking-details + .booking-panel {
+      border-block-start: 0;
+      border-inline-start: 1px solid var(--border);
+    }
+
+    .booking-card--with-times .booking-times { border-inline-start: 1px solid var(--border); }
+  }
+
+  @media (max-width: 767px) {
+    .booking-host-manual [data-slot="accordion-trigger"] { display: none; }
+  }
+
+  @media (min-width: 1024px) {
+    .booking-card.booking-card--host { grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); }
+
+    .booking-card--picker.booking-card--with-times {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) minmax(0, 2fr);
+    }
+
+    .booking-card--picker.booking-card--with-times .booking-times { grid-column: auto; }
+    .booking-card--picker.booking-card--with-times .booking-details { grid-row: auto; }
+    .booking-card--picker.booking-card--with-times > .booking-times { border-block-start: 0; }
+    .booking-host-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+    .booking-host-week { display: grid; gap: var(--layout-inline-gap); }
+  }
+
+  @media (max-width: 639px) {
+    .booking-flow .booking-panel { padding: var(--layout-item-gap); }
+  }
+}

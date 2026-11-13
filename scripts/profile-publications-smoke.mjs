@@ -6,6 +6,7 @@ import { listenSmokeServer, smokePort, smokeOrigin } from "./smoke-server.mjs";
 
 const server = await createServer({
   cacheDir: "node_modules/.vite-profile-publications-smoke",
+  optimizeDeps: { entries: ["scripts/fixtures/profile-publications.jsx"] },
   server: { host: "127.0.0.1", port: smokePort(), strictPort: true, hmr: false, watch: null },
   plugins: [{
     name: "profile-publications-fixture", configureServer(vite) {
@@ -20,15 +21,19 @@ const server = await createServer({
 await listenSmokeServer(server);
 const origin = smokeOrigin(server);
 const browser = await chromium.launch(browserLaunchOptions());
+const viewports = [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,900],[1920,900]];
+const selectedViewport = process.env.ROLLAPP_PUBLICATION_VIEWPORT;
 try {
-  for (const [width, height] of [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,900],[1920,900]]) {
+  for (const [width, height] of viewports) {
+    if (selectedViewport && selectedViewport !== `${width}x${height}`) continue;
     const page = await browser.newPage({ viewport: { width, height }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
     page.setDefaultTimeout(30_000);
+    page.setDefaultNavigationTimeout(60_000);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
-    async function open(section, mode) {
-      await page.goto(`${origin}/__profile-publications?section=${section}&mode=${mode}`);
+    async function open(section, mode, query = "") {
+      await page.goto(`${origin}/__profile-publications?section=${section}&mode=${mode}${query}`);
       await page.getByRole("heading", { name: section === "calendar" ? "Календарь" : "Доска объявлений", exact: true }).waitFor();
     }
     async function geometry() {
@@ -38,40 +43,72 @@ try {
           const rect = element.getBoundingClientRect();
           return rect.width > 0 && (rect.left < -1 || rect.right > innerWidth + 1 || element.scrollWidth > element.clientWidth + 1 && ["ARTICLE", "P", "H1", "H2", "H3"].includes(element.tagName));
         });
-        const badControls = [...main.querySelectorAll("[data-slot=button]")].filter(element => {
+        const badControls = [...main.querySelectorAll("[data-page-action], .booking-month-nav [data-control-icon]")].filter(element => {
           const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
-          return rect.width > 0 && (rect.height < 48 || (element.textContent.trim() && !element.getAttribute("aria-label")?.startsWith("Дата сессии:") && (style.paddingLeft !== "24px" || style.paddingRight !== "24px")));
+          if (element.hasAttribute("data-control-icon")) return rect.width !== 48 || rect.height !== 48;
+          return rect.width > 0 && (rect.height < 48 || style.paddingLeft !== "24px" || style.paddingRight !== "24px");
         });
-        return { root: document.documentElement.scrollWidth, overflow: overflow.map(el => el.tagName), badControls: badControls.map(el => ({name: el.textContent, height: el.getBoundingClientRect().height, left: getComputedStyle(el).paddingLeft, right: getComputedStyle(el).paddingRight, minHeight: getComputedStyle(el).minHeight, css: el.className})) };
+        return { root: document.documentElement.scrollWidth, overflow: overflow.map(el => [el.tagName, el.textContent.trim().slice(0, 60), el.getBoundingClientRect().right]), badControls: badControls.map(el => ({name: el.textContent, height: el.getBoundingClientRect().height, left: getComputedStyle(el).paddingLeft, right: getComputedStyle(el).paddingRight, minHeight: getComputedStyle(el).minHeight, css: el.className})) };
       });
       assert(result.root <= width + 1 && !result.overflow.length && !result.badControls.length, JSON.stringify(result));
     }
 
+    const availableDay = page.locator(".booking-day-available button").first();
+    const time = label => page.getByRole("button", { name: `Выбрать время ${label}`, exact: true });
+    const next = page.getByRole("button", { name: "Далее", exact: true });
+    const confirm = page.getByRole("button", { name: "Подтвердить запись", exact: true });
+    const book = async () => {
+      await availableDay.click();
+      await time("12:00").click();
+      await next.click();
+    };
+    const screenshot = async stage => {
+      if ((width === 390 && height === 844) || width === 1440) {
+        await page.screenshot({ path: `/tmp/rollapp-booking-${stage}-${width}.png`, animations: "disabled", fullPage: true });
+      }
+    };
+
     await open("calendar", "guest");
-    assert.equal(await page.getByText("Войти для записи").getAttribute("href"), "/login?next=%2Fhost%2Fcalendar");
     assert.equal(await page.getByText("Встреча по итогам недели").count(), 0);
+    assert.equal(await page.getByRole("link", { name: "Войти для записи" }).count(), 0);
+    const zone = page.getByRole("combobox", { name: "Часовой пояс" });
+    await zone.click();
+    await page.getByRole("option", { name: "UTC", exact: true }).click();
+    await availableDay.click();
+    await time("09:00").waitFor();
+    await geometry();
+    await screenshot("times");
+    await time("09:00").click();
+    await next.click();
+    assert.equal(await page.getByRole("link", { name: "Войти для записи" }).getAttribute("href"), "/login?next=%2Fhost%2Fcalendar%2Fbook%3Fslot%3Dopen%26zone%3DUTC");
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
+    await open("calendar", "visitor", "&slot=open");
+    await page.getByRole("heading", { name: "Данные участника" }).waitFor();
+    await page.getByText("member@example.test").waitFor();
+    await page.getByRole("button", { name: "Вернуться к выбору времени" }).click();
+    await time("12:00").waitFor();
     await geometry();
 
     await open("calendar", "visitor");
-    await page.getByRole("button", { name: /Записаться: Первая встреча/ }).waitFor();
     await page.getByText("Вы записаны", { exact: true }).waitFor();
     await page.getByRole("button", { name: /Отменить запись: Встреча/ }).click();
     await page.getByRole("alertdialog").getByRole("heading", { name: "Отменить запись?" }).waitFor();
     await page.getByRole("alertdialog").getByRole("button", { name: "Назад" }).click();
     await page.getByRole("alertdialog").waitFor({ state: "hidden" });
+    await book();
     assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
-    const book = page.getByRole("button", { name: /Записаться: Первая встреча/ });
-    const booked = page.getByRole("button", { name: /Отменить запись: Первая встреча/ });
-    await book.click();
+    await screenshot("details");
+    await confirm.click();
     await page.getByRole("status").getByText("Вы записаны на сессию").waitFor();
-    await booked.click();
+    await screenshot("confirmed");
+    await page.getByRole("button", { name: /Отменить запись: Первая встреча/ }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Отменить запись" }).click();
     await page.getByRole("status").getByText("Запись отменена").waitFor();
-    await book.waitFor();
     await page.evaluate(() => { window.publicationTransport.conflictNextBooking = true; });
-    await book.click();
+    await book();
+    await confirm.click();
     await page.getByRole("alert").getByText("Это время больше недоступно. Выберите другой слот.").waitFor();
-    await book.waitFor({ state: "detached" });
+    await page.getByText("Сейчас нет доступных слотов.").waitFor();
     assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), [
       ["POST", "/profile/host/calendar/open/book", {}],
       ["DELETE", "/profile/host/calendar/open/bookings/open-booking"],
@@ -81,24 +118,49 @@ try {
 
     await open("calendar", "owner");
     await page.getByText("Записался участник: Светлана").waitFor();
+    await page.getByRole("button", { name: "Предпросмотр", exact: true }).click();
+    await book();
+    await page.getByText("Предпросмотр страницы записи").waitFor();
+    assert.equal(await confirm.count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
+    await page.getByRole("button", { name: "К управлению слотами", exact: true }).click();
     await page.getByRole("button", { name: "Добавить слот" }).click();
+    const editorSlot = page.locator("[data-host-slot-editor]");
+    const month = editorSlot.getByRole("grid");
+    assert(await next.isDisabled());
+    let times;
+    if (width >= 1024) {
+      const week = editorSlot.locator("[data-booking-host-week]");
+      await week.getByRole("button", { name: "Следующая неделя" }).click();
+      times = week.locator("section").first();
+    } else {
+      if (width >= 768) await editorSlot.getByText("Выбрать другую дату или время", { exact: true }).click();
+      await month.getByRole("button").filter({ visible: true }).last().click();
+      times = editorSlot.getByRole("region", { name: "Время начала" });
+    }
+    await times.getByRole("button", { name: "09:00", exact: true }).click();
+    await times.getByRole("button", { name: "09:30", exact: true }).click();
+    await geometry();
+    await screenshot("host");
+    await next.click();
     await page.getByLabel("Название сессии").fill("Планирование");
-    await page.getByRole("button", { name: /Дата сессии/ }).click();
-    await page.getByRole("grid").waitFor();
-    await page.getByRole("grid").getByRole("button").filter({ visible: true }).first().click();
-    await page.getByRole("grid").waitFor({ state: "hidden" });
-    await page.locator("button[type=submit]:enabled").waitFor();
+    const publishSlots = page.getByRole("button", { name: "Опубликовать", exact: true });
+    await page.evaluate(() => { window.publicationTransport.loseNextSlotResponse = true; });
+    await publishSlots.click();
+    await page.getByRole("alert").getByText("Ответ сервера потерян").waitFor();
     assert.equal(await page.getByLabel("Название сессии").inputValue(), "Планирование");
-    await page.getByRole("button", { name: "Опубликовать", exact: true }).click();
-    await page.getByRole("status").getByText("Слот опубликован").waitFor();
-    await page.getByRole("heading", { name: "Планирование", exact: true }).waitFor();
-    const [[slotMethod, slotPath, slotPayload]] = await page.evaluate(() => window.publicationTransport.calls);
-    assert.equal(slotMethod, "POST");
-    assert.equal(slotPath, "/profile/host/calendar");
-    assert.match(slotPayload.id, /^[0-9a-f-]{36}$/);
-    assert.equal(slotPayload.duration, 60);
-    assert.equal(slotPayload.title, "Планирование");
-    assert.match(slotPayload.startsAt, /T06:00:00.000Z$/); // 09:00 Europe/Moscow
+    await publishSlots.click();
+    await page.getByRole("status").getByText("Слоты опубликованы").waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Планирование", exact: true }).count(), 2);
+    const [firstWrite, retry] = await page.evaluate(() => window.publicationTransport.calls);
+    assert.deepEqual(firstWrite, retry);
+    assert.deepEqual(firstWrite.slice(0, 2), ["POST", "/profile/host/calendar"]);
+    const [{ id, title, duration, startsAt }, secondSlot] = firstWrite[2].slots;
+    assert.match(id, /^[0-9a-f-]{36}$/);
+    assert.equal(title, "Планирование");
+    assert.equal(duration, 30);
+    assert.match(startsAt, /T06:00:00.000Z$/);
+    assert.match(secondSlot.startsAt, /T06:30:00.000Z$/);
     await geometry();
 
     await open("announcements", "owner");
@@ -214,8 +276,15 @@ try {
     await page.getByText("Объявлений пока нет.").waitFor();
     await open("calendar", "empty");
     await page.getByText("Сейчас нет доступных слотов.").waitFor();
+    await open("calendar", "error");
+    await page.getByRole("alert").getByText("Раздел пока недоступен").waitFor();
     await open("calendar", "loading");
     await page.getByRole("status").getByText("Загрузка…").waitFor();
+    await page.goto(`${origin}/__profile-publications?routing=booking&section=calendar&mode=guest`);
+    await page.getByRole("heading", { name: "Данные участника" }).waitFor();
+    assert.match(await page.getByRole("link", { name: "Войти для записи" }).getAttribute("href"), /zone%3DUTC$/);
+    assert.equal(await page.getByRole("group", { name: "Действия со списком желаний" }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     for (const routing of ["wishlist", "public"]) {
       await page.goto(`${origin}/__profile-publications?routing=${routing}`);
       const rail = page.getByRole("group", { name: "Действия со списком желаний" });
@@ -264,7 +333,7 @@ try {
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     }
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height} · booking, cancellation, conflict, publications, guest, date picker, overflow`);
+    console.log(`PASS ${width}×${height} · booking, confirmation, conflict, batch retry, preview, announcements, responsive geometry`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

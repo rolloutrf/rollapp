@@ -17,18 +17,22 @@ const owner = mode === "owner";
 const guest = mode === "guest";
 const empty = mode === "empty";
 const loading = mode === "loading";
+const failed = mode === "error";
 const profile = { username: "host", name: "Участник" };
-const baseSlot = { startsAt: "2026-11-15T09:00:00Z", endsAt: "2026-11-15T10:00:00Z" };
+const future = new Date();
+future.setUTCDate(future.getUTCDate() + 2);
+const date = future.toISOString().slice(0, 10);
+const baseSlot = { startsAt: `${date}T09:00:00Z`, endsAt: `${date}T10:00:00Z` };
 const open = { ...baseSlot, id: "open", title: "Первая встреча" };
 const booked = {
-  ...baseSlot, id: "booked", bookingId: "booking", title: "Встреча по итогам недели",
+  startsAt: `${date}T10:00:00Z`, endsAt: `${date}T11:00:00Z`, id: "booked", bookingId: "booking", title: "Встреча по итогам недели",
   bookedByMe: !owner, ...(owner && { guestName: "Светлана" }),
 };
 const announcement = {
   id: "announcement", createdAt: baseSlot.startsAt, title: "Открыта запись на ноябрь",
   body: `Доступные даты\n${"длинноесловобезпробелов".repeat(35)}`,
 };
-let snapshot = loading ? null : {
+let snapshot = loading || failed ? null : {
   profile,
   isOwner: owner,
   slots: empty ? [] : guest ? [open] : [open, booked],
@@ -37,7 +41,7 @@ let snapshot = loading ? null : {
 
 // Simulate UI responses through the fixture transport. The browser forbids all
 // network API requests, and the PostgreSQL lifecycle has a separate test.
-const transport = window.publicationTransport = { calls: [], conflictNextBooking: false, loseNextAnnouncementResponse: false };
+const transport = window.publicationTransport = { calls: [], conflictNextBooking: false, loseNextAnnouncementResponse: false, loseNextSlotResponse: false };
 const endpoint = `/profile/host/${section}`;
 const openBooking = `${endpoint}/open/bookings/open-booking`;
 if (routing) {
@@ -52,14 +56,15 @@ if (routing) {
     groups: [], isOwner: true, followersCount: 0, followingCount: 0,
   };
   api.get = async path => {
-    if (path === "/me") return { user: account };
+    if (path === "/me") return { user: routing === "booking" ? null : account };
     if (path === "/sphere-shares/incoming") return { shares: [] };
     if (path === "/dashboard" || path === "/profile/host") return collection;
     if (path === "/gift-suggestions") return { items: [] };
-    if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: true };
+    if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: routing !== "booking" };
     throw new Error(`Unexpected GET ${path}`);
   };
-  history.replaceState({}, "", routing === "wishlist" ? "/app/wishes?tab=media" : "/host/lists/media-list");
+  const path = { wishlist: "/app/wishes?tab=media", public: "/host/lists/media-list", booking: "/host/calendar/book?slot=open&zone=UTC" };
+  history.replaceState({}, "", path[routing]);
 }
 api.post = async (path, body) => {
   if (routing && path === "/wishes/backfill-previews") return { updated: 0 };
@@ -77,9 +82,16 @@ api.post = async (path, body) => {
     return { bookingId: "open-booking" };
   }
   if (owner && path === endpoint && section === "calendar") {
-    const endsAt = new Date(Date.parse(body.startsAt) + body.duration * 60_000).toISOString();
-    snapshot = { ...snapshot, slots: [...snapshot.slots, { ...body, endsAt }] };
-    return { id: body.id };
+    const newSlots = body.slots.filter(slot => !snapshot.slots.some(saved => saved.id === slot.id)).map(slot => ({
+      ...slot,
+      endsAt: new Date(Date.parse(slot.startsAt) + slot.duration * 60_000).toISOString(),
+    }));
+    snapshot = { ...snapshot, slots: [...snapshot.slots, ...newSlots] };
+    if (transport.loseNextSlotResponse) {
+      transport.loseNextSlotResponse = false;
+      throw new Error("Ответ сервера потерян");
+    }
+    return { ids: body.slots.map(slot => slot.id) };
   }
   if (owner && path === endpoint && section === "announcements") {
     if (!snapshot.announcements.some(item => item.id === body.id)) {
@@ -121,9 +133,10 @@ function Fixture() {
         section={section}
         username="host"
         endpoint={endpoint}
-        user={guest ? null : { id: owner ? "owner" : "visitor" }}
+        user={guest ? null : { id: owner ? "owner" : "visitor", name: owner ? "Организатор" : "Алексей", email: "member@example.test" }}
         data={data}
         loading={loading}
+        error={failed ? new Error("Раздел пока недоступен") : null}
         reload={async () => { setData(snapshot); return snapshot; }}
       />
     </main>
