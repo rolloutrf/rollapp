@@ -44,7 +44,7 @@ function hasChatContent(chat) {
 export function useAssistantChats(open) {
   const [workspace, setWorkspace] = useState({ chats: [], selected: null });
   const pending = useRef(new Map());
-  const nextChatNumber = useRef(2);
+  const nextChatNumber = useRef(1);
   const [sortReviews, setSortReviews] = useState({});
   const [noteReviews, setNoteReviews] = useState({});
   function updateNoteReview(batchId, change) {

@@ -562,40 +562,18 @@
 }
 
 @layer utilities {
-  [data-wishlist-chrome] {
-    --wishlist-navigation-height: var(--layout-control-size);
-  }
-
-  [data-wishlist-chrome] > .app-shell-chrome-spacer {
-    height: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset) + var(--layout-inline-gap) + var(--wishlist-navigation-height));
-    flex-basis: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset) + var(--layout-inline-gap) + var(--wishlist-navigation-height));
-  }
-
   .wishlist-section-navigation {
-    position: fixed;
-    z-index: 45;
-    inset-block-start: calc(var(--layout-chrome-top) + var(--layout-safe-top) + var(--layout-control-size) + var(--layout-inline-gap));
-    inset-inline: 0;
-    inline-size: max-content;
-    margin-inline: auto;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: var(--layout-inline-gap);
-    pointer-events: none;
-  }
-
-  .wishlist-section-navigation > a {
-    pointer-events: auto;
+    max-inline-size: 100%;
+    margin-block-start: var(--layout-inline-gap);
   }
 
   @media (width < 472px) {
-    [data-wishlist-chrome] {
-      --wishlist-navigation-height: calc(2 * var(--layout-control-size) + var(--layout-inline-gap));
-    }
-
     .wishlist-section-navigation {
-      max-inline-size: calc(4 * var(--layout-control-size) + 3 * var(--layout-inline-gap));
+      max-inline-size: min(100%, calc(4 * var(--layout-control-size) + 3 * var(--layout-inline-gap)));
     }
   }
 

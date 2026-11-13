@@ -12,3 +12,8 @@ export function developmentFrontendPort(environment) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("ROLLAPP_DEV_FRONTEND_PORT должен быть портом от 1 до 65535.");
   return port;
 }
+
+export function developmentStartTimeout(environment, fallback) {
+  const timeout = Number(environment.ROLLAPP_DEV_START_TIMEOUT_MS || fallback);
+  return Number.isFinite(timeout) ? Math.min(Math.max(timeout, 1_000), 300_000) : fallback;
+}

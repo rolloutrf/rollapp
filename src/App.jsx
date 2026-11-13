@@ -2059,12 +2059,9 @@ function AppShell({ children, friendsContext = false, collectionChrome = false, 
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
-        <main data-wishlist-chrome={wishlistChrome || undefined} className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
+        <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {wishlistChrome ? <>
-            <WishlistSectionNavigation user={user} />
-            <PersistentProfileHero user={user} wishlistChrome />
-          </> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {wishlistChrome ? <PersistentProfileHero user={user} wishlistChrome /> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3414,33 +3411,6 @@ function SphereSharePicker({ open, onOpenChange }) {
   );
 }
 
-function ExternalWishlistLinks({ links }) {
-  const connected = EXTERNAL_WISHLIST_PROVIDERS.flatMap((provider) => {
-    const url = externalWishlistUrl(provider, links?.[provider.id]);
-    return url ? [{ ...provider, url }] : [];
-  });
-  if (!connected.length) return null;
-  return (
-    <nav className="grid max-w-full gap-2" aria-label="Внешние вишлисты">
-      <span className="text-xs text-muted-foreground" aria-hidden="true">Внешние вишлисты</span>
-      <div className="flex flex-wrap justify-center gap-2">
-        {connected.map(({ id, label, url }) => (
-          <a
-            key={id}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Открыть вишлист ${label} (в новой вкладке)`}
-            className={cn(buttonVariants({ variant: "outline" }), "rounded-full gap-2 px-4")}
-          >
-            {label}<ExternalLink aria-hidden="true" />
-          </a>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 function PersistentProfileHero({ user, wishlistChrome = false }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
@@ -3479,10 +3449,10 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
           <h1 id="persistent-profile-name">{profile.name}</h1>
           {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink memberNumber={profile.memberNumber} />}
           <ProfileMoodCaption level={moodLevel} />
+          {wishlistChrome && <WishlistSectionNavigation user={user} />}
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
-      {(wishlistChrome || location.pathname.startsWith("/app/wishes")) && <ExternalWishlistLinks links={profile.wishlistLinks} />}
     </section>
   );
 }
@@ -7748,8 +7718,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       <section className="grid min-w-0 gap-6 p-4" aria-label={sectionTitle}>
         <section className="grid min-w-0 gap-4" aria-labelledby="settings-wishlist-links-heading">
           <header className="typeset typeset-rollapp">
-            <h3 id="settings-wishlist-links-heading">Ссылки в профиле</h3>
-            <p className="text-muted-foreground">Вставьте ссылки из меню «Поделиться». Они будут видны в публичном профиле.</p>
+            <h3 id="settings-wishlist-links-heading">Ссылки на вишлисты</h3>
+            <p className="text-muted-foreground">Вставьте ссылки из меню «Поделиться».</p>
           </header>
           <FieldGroup className="gap-4">
             {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
@@ -8314,7 +8284,6 @@ function PublicProfile({ shared = false }) {
           toSection={section => `${publicPublicationPath(data.profile.username, section)}?${new URLSearchParams({ tab: activeSpace })}`}
           state={{ publicationListId: routeSelectedList?.id }} />}
       </ControlBar>
-      {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
     {businessStorefront && !publication && <div className="page-stack">

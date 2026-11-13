@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { developmentFrontendPort, productionConnectionMode } from "./production-dev-config.mjs";
+import { developmentFrontendPort, developmentStartTimeout, productionConnectionMode } from "./production-dev-config.mjs";
 import { launchAgentPlist, serviceLabel } from "./dev-keepalive.mjs";
 
 test("development requires production PostgreSQL and uses direct access by default", () => {
@@ -15,6 +15,16 @@ test("development and its health check agree on the frontend port", () => {
   assert.equal(developmentFrontendPort({ ROLLAPP_DEV_FRONTEND_PORT: "5179" }), 5179);
   assert.throws(() => developmentFrontendPort({ ROLLAPP_DEV_FRONTEND_PORT: "65536" }));
   assert.throws(() => developmentFrontendPort({ ROLLAPP_DEV_FRONTEND_PORT: "invalid" }));
+});
+
+test("a longer startup timeout applies to the backend and the service controller", () => {
+  assert.equal(developmentStartTimeout({}, 60_000), 60_000);
+  assert.equal(developmentStartTimeout({}, 75_000), 75_000);
+  const env = { ROLLAPP_DEV_START_TIMEOUT_MS: "150000" };
+  assert.equal(developmentStartTimeout(env, 60_000), 150_000);
+  assert.equal(developmentStartTimeout(env, 75_000), 150_000);
+  assert.equal(developmentStartTimeout({ ROLLAPP_DEV_START_TIMEOUT_MS: "invalid" }, 60_000), 60_000);
+  assert.equal(developmentStartTimeout({ ROLLAPP_DEV_START_TIMEOUT_MS: "900000" }, 60_000), 300_000);
 });
 
 test("the launch agent survives exits, starts on login, and escapes workspace paths", () => {

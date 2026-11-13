@@ -157,8 +157,12 @@ try {
       }
       await page.goto(`${origin}/__detail-actions?kind=product&marketplaceSearch=1${width >= 768 ? "&drawer=1" : ""}`);
       await page.getByRole("link", { name: "Открыть карточку" }).click();
-      await page.getByRole("button", { name: "Найти лучшие", exact: true }).click();
       const section = page.getByRole("region", { name: "Предложения" });
+      const savedOffer = section.getByRole("listitem", { name: "Открыть предложение на Ozon" });
+      await savedOffer.waitFor();
+      assert.equal(await savedOffer.getAttribute("href"), "https://ozon.ru/product/123/");
+      assert.equal(await savedOffer.getByText("Сохранённая карточка", { exact: true }).count(), 0);
+      await page.getByRole("button", { name: "Найти лучшие", exact: true }).click();
       const offer = section.getByRole("listitem", { name: "Открыть предложение на Яндекс Маркет" });
       await offer.waitFor();
       assert.equal(await offer.getAttribute("href"), "https://market.yandex.ru/card/ulanzi-l024/123");
@@ -177,6 +181,9 @@ try {
       if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-marketplace-results-${width}x${height}.png` });
       await page.evaluate(() => window.finishMarketplaceSearch());
       await section.getByText("Предложения обновлены", { exact: true }).waitFor();
+      assert.equal(await savedOffer.count(), 1);
+      assert.equal(await section.getByText("Исходная ссылка", { exact: true }).count(), 0);
+      assert(await offer.getByText("Лучшее", { exact: true }).isVisible());
       await page.evaluate(() => window.finishMarketplaceRead());
       await page.getByRole("button", { name: "Обновить", exact: true }).click();
       await section.getByText("Показываем найденные предложения. Поиск продолжается…").waitFor();

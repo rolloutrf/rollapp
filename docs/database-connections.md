@@ -17,6 +17,11 @@ PORT/frontend port, direct TLS, production target и startup `verify`; не ме
 или удалить PID-файл. Не завершать сессии PostgreSQL, не менять managed user pool,
 схему и пользовательские данные ради освобождения соединений.
 
+Переменные из `.env` имеют приоритет над `.env.local`. Чтобы задать свои
+`PORT` и `APP_ORIGIN` в `.env.local`, уберите их из копии `.env` этого
+checkout. Если загрузка Lockbox и проверка базы не укладываются в окно запуска,
+`ROLLAPP_DEV_START_TIMEOUT_MS` увеличивает его для dev-процесса и контроллера.
+
 Для emergency config-only rollout сохранять текущие image/APP_VERSION и остальные
 поля Compose, менять только PG_POOL_SIZE через штатный metadata guard. Следующий
 обычный выпуск использует то же ограничение из template. См. [случай 25 октября](wishlist-pool-recovery-2026-10-25.md).

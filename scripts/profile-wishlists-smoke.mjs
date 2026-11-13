@@ -248,33 +248,17 @@ try {
       await backToMenu();
     }
     await closeSettings();
-    const nav = page.getByRole('navigation', { name: 'Внешние вишлисты' });
-    const waitForNavLinks = count => page.waitForFunction(expected =>
-      document.querySelector('nav[aria-label="Внешние вишлисты"]')?.querySelectorAll('a').length === expected,
-    count);
-    await nav.waitFor();
+    const badges = page.locator('nav[aria-label="Внешние вишлисты"], a[aria-label^="Открыть вишлист "]');
+    assert.equal(await badges.count(), 0, 'Saved external links must stay out of the profile');
     await page.getByText('Айтем из ohmywishes', { exact: true }).waitFor();
     if (width === 320 || width === 1440) await page.getByText('Айтем из yandex-market', { exact: true }).waitFor();
-    const links = await nav.getByRole('link').all();
-    assert.equal(links.length, urls.length);
-    for (const [index, link] of links.entries()) {
-      assert.equal(await link.getAttribute('href'), urls[index]);
-      assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
-      assert.equal(await link.getAttribute('target'), '_blank');
-      const box = await link.boundingBox();
-      assert(box.x >= 0 && box.x + box.width <= width && box.height >= 47.5);
-      assert.equal(await link.evaluate(el => getComputedStyle(el).fontSize), '18px');
-      assert(await link.evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius) >= 24));
-    }
     await openWishlists();
     assert.equal(await inputs[1].inputValue(), urls[1]);
     await inputs[1].clear();
     await saveWishlists();
     await backToMenu();
     await closeSettings();
-    await nav.waitFor();
-    await nav.getByRole('link', { name: /Ozon/ }).waitFor({ state: 'detached' });
-    assert.equal(await nav.getByRole('link').count(), urls.length - 1);
+    assert.equal(await badges.count(), 0);
     assert.deepEqual(await page.evaluate(() => window.profilePatches.at(-1)), { wishlistLinks: { ozon: null } });
     await openWishlists();
     await inputs[0].clear();
@@ -283,8 +267,7 @@ try {
     assert.equal(await inputs[0].inputValue(), '');
     await backToMenu();
     await closeSettings();
-    await nav.waitFor();
-    assert.equal(await nav.getByRole('link').count(), urls.length - 1);
+    assert.equal(await badges.count(), 0);
     if (width === 320 || width === 1440) {
       await open.click();
       await personalEntry.click();
@@ -293,32 +276,28 @@ try {
       await address.press('Enter');
       await page.waitForURL(origin + '/fixture-renamed');
       await page.locator('.profile-settings-dialog').waitFor({ state: 'detached' });
-      await waitForNavLinks(urls.length - 1);
-      await nav.getByRole('link').nth(urls.length - 2).waitFor();
-      assert.equal(await nav.getByRole('link').count(), urls.length - 1);
+      await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true });
+      assert.equal(await badges.count(), 0);
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     await page.goto(origin + '/fixture?guest');
     await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: false });
-    await waitForNavLinks(urls.length);
-    assert.equal(await nav.getByRole('link').count(), urls.length);
+    assert.equal(await badges.count(), 0, 'Guests must not see external wishlist badges');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     assert.deepEqual(errors, []);
     if ([320,390,820,1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-profile-wishlists-guest-${width}.png` });
     if (width === 320 || width === 1440) {
       await page.goto(origin + '/app/wishes?tab=products');
-      await waitForNavLinks(urls.length);
-      assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls);
+      await page.locator('[data-persistent-profile]').getByRole('heading', { name: 'Профиль', exact: true }).waitFor();
+      assert.equal(await badges.count(), 0, 'The private wishlist must not render provider badges');
       await openWishlists();
       assert.equal(await inputs[3].inputValue(), urls[3]);
       await inputs[3].clear();
       await saveWishlists();
       await backToMenu();
       await closeSettings();
-      await nav.waitFor();
-      await nav.getByRole('link', { name: /Яндекс Маркет/ }).waitFor({ state: 'detached' });
-      assert.deepEqual(await nav.getByRole('link').evaluateAll(anchors => anchors.map(anchor => anchor.href)), urls.slice(0, -1));
+      assert.equal(await badges.count(), 0);
       assert.deepEqual(await page.evaluate(() => window.profilePatches), [{ wishlistLinks: { 'yandex-market': null } }]);
       assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
       assert.deepEqual(errors, []);
@@ -339,7 +318,7 @@ try {
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     assert.deepEqual(errors, []);
     await page.close();
-    console.log(`PASS ${width}×${height}: validation, error/retry, save, remove, cancel, guest links, control geometry, Wishlist owner controls`);
+    console.log(`PASS ${width}×${height}: validation, error/retry, save, remove, cancel, hidden profile badges, control geometry, Wishlist owner controls`);
   }
 } finally {
   await browser.close();

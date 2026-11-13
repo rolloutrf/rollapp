@@ -5,7 +5,7 @@ import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { developmentFrontendPort } from "./production-dev-config.mjs";
+import { developmentFrontendPort, developmentStartTimeout } from "./production-dev-config.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectDirectory = path.resolve(scriptDirectory, "..");
@@ -15,10 +15,7 @@ const pidFilePath = path.join(projectDirectory, ".dev-server.pid");
 const logFilePath = path.join(projectDirectory, ".dev-server.log");
 const backendUrl = process.env.ROLLAPP_DEV_BACKEND_URL || `http://127.0.0.1:${process.env.PORT || 8080}/api/healthz`;
 const frontendUrl = process.env.ROLLAPP_DEV_FRONTEND_URL || `http://127.0.0.1:${developmentFrontendPort(process.env)}/login`;
-const configuredStartTimeout = Number(process.env.ROLLAPP_DEV_START_TIMEOUT_MS || 75_000);
-const startTimeoutMs = Number.isFinite(configuredStartTimeout)
-  ? Math.min(Math.max(configuredStartTimeout, 1_000), 300_000)
-  : 75_000;
+const startTimeoutMs = developmentStartTimeout(process.env, 75_000);
 const pollIntervalMs = 400;
 
 const wait = (duration) => new Promise((resolve) => setTimeout(resolve, duration));

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import { createProductionDatabaseEnvironment, startTunnel } from "./production-db-tunnel.mjs";
-import { developmentFrontendPort, productionConnectionMode } from "./production-dev-config.mjs";
+import { developmentFrontendPort, developmentStartTimeout, productionConnectionMode } from "./production-dev-config.mjs";
 
 const managedToken = process.argv[2] === "--managed" ? process.argv[3] : "";
 if (managedToken) {
@@ -66,7 +66,8 @@ const backend = start(process.execPath, ["server/start.js"]);
 let backendExitCode;
 backend.once("exit", (code) => { backendExitCode = code ?? 1; });
 
-const deadline = Date.now() + 60_000;
+const startupTimeout = developmentStartTimeout(process.env, 60_000);
+const deadline = Date.now() + startupTimeout;
 let backendReady = false;
 while (Date.now() < deadline && backendExitCode === undefined) {
   try {
@@ -89,7 +90,7 @@ if (backendExitCode !== undefined) {
 }
 
 if (!backendReady) {
-  console.error("Backend did not become ready within 60 seconds. Frontend was not started.");
+  console.error(`Backend did not become ready within ${startupTimeout / 1000} seconds. Frontend was not started.`);
   stop();
   process.exit(1);
 }

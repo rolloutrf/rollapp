@@ -302,7 +302,7 @@ try {
       assert.equal(await list.getAttribute("aria-pressed"), "true");
       const original = await rail.elementHandle();
       const avatar = await profileHeading.elementHandle();
-      const railTop = await rail.evaluate(node => node.getBoundingClientRect().top);
+
       const assertShell = async (publication = false) => {
         assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
         assert.equal(await profileHeading.count(), 1);
@@ -380,7 +380,7 @@ try {
           assert(await original.evaluate(node => node.isConnected), `${name}: navigation was replaced`);
           assert(await avatar.evaluate(node => node.isConnected), `${name}: profile was replaced`);
           assert.deepEqual(await rail.locator('[aria-current="page"]').evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [name]);
-          assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top), railTop);
+          assert(await rail.evaluate(node => node.closest("[data-persistent-profile]")?.contains(node)));
           assert(await link.evaluate(node => {
             const control = node.getBoundingClientRect();
             const row = node.parentElement.getBoundingClientRect();
@@ -394,13 +394,17 @@ try {
             const box = link.getBoundingClientRect();
             const glyph = link.querySelector("svg").getBoundingClientRect();
             return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius,
-              box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight];
+              box.left >= 0 && box.right <= innerWidth];
           }),
         }));
-        assert.equal(metrics.position, "fixed");
+        assert.equal(metrics.position, "static");
         for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px", true]);
+        await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
+        const beforeScroll = await rail.evaluate(node => node.getBoundingClientRect().top);
         await page.evaluate(() => scrollTo({ top: 180, behavior: "instant" }));
-        assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top), railTop);
+        const scrolled = await page.evaluate(() => window.scrollY);
+        assert(scrolled > 0);
+        assert(Math.abs(await rail.evaluate(node => node.getBoundingClientRect().top) - (beforeScroll - scrolled)) <= 1);
         await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
         if ((width === 390 && height === 844) || width === 1440) {
           await page.screenshot({ path: `/tmp/rollapp-wishlist-sections-${width}.png`, animations: "disabled" });
