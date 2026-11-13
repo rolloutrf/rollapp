@@ -502,7 +502,7 @@ function ProfileEditorProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [wishlistImportVersion, setWishlistImportVersion] = useState(0);
+  const [wishlistVersion, setWishlistVersion] = useState(0);
   const returnFocusRef = useRef(null);
   const openProfileEditor = useCallback((event) => {
     const trigger = event?.currentTarget;
@@ -510,7 +510,8 @@ function ProfileEditorProvider({ children }) {
     setOpen(true);
   }, []);
   const closeProfileEditor = useCallback(() => setOpen(false), []);
-  const value = useMemo(() => ({ openProfileEditor, wishlistImportVersion }), [openProfileEditor, wishlistImportVersion]);
+  const refreshWishlist = useCallback(() => setWishlistVersion(version => version + 1), []);
+  const value = useMemo(() => ({ openProfileEditor, wishlistVersion, refreshWishlist }), [openProfileEditor, wishlistVersion, refreshWishlist]);
   return (
     <ProfileEditorContext.Provider value={value}>
       {children}
@@ -520,7 +521,7 @@ function ProfileEditorProvider({ children }) {
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
         onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
-        onWishlistsImported={() => setWishlistImportVersion((version) => version + 1)}
+        onWishlistsImported={refreshWishlist}
         onSaved={async (savedUser) => {
           const target = renamedProfileLocation(location, user.username, savedUser.username);
           setSession({ user: savedUser, loading: false, error: null });
@@ -742,6 +743,7 @@ function PlanningControls({ user }) {
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const profileEditor = useProfileEditor();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
   const [assistantWish, setAssistantWish] = useState(null);
@@ -805,7 +807,7 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer canDiscoverSpheres={canAccessPrivateSpheres(user)} open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onReviewWish={(draft) => {
+      <AssistantDrawer canDiscoverSpheres={canAccessPrivateSpheres(user)} open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onWishlistChanged={profileEditor?.refreshWishlist} onReviewWish={(draft) => {
         if (pendingAssistantWish.current || assistantWishActive.current) return;
         pendingAssistantWish.current = draft;
         setAssistantDrawerOpen(false);
@@ -4792,7 +4794,7 @@ function GiftSuggestionsPanel({ items = [], onOpenWish }) {
 function WishesPage({ onAdd, version }) {
   const { user } = useSession();
   const { isOwner } = useSphereSharing();
-  const { wishlistImportVersion } = useProfileEditor();
+  const { wishlistVersion } = useProfileEditor();
   const location = useLocation();
   const navigate = useNavigate();
   const publication = isOwner && user?.username ? profilePublicationSection(new URLSearchParams(location.search).get("publication")) : null;
@@ -4802,7 +4804,7 @@ function WishesPage({ onAdd, version }) {
   const viewerId = user?.id;
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
     ...await api.get("/dashboard"), viewerId,
-  }), [version, wishlistImportVersion, viewerId]);
+  }), [version, wishlistVersion, viewerId]);
   const { data: giftSuggestionData, reload: reloadGiftSuggestions } = useAsync(() => api.get("/gift-suggestions"), [version]);
   const [selected, setSelected] = useState("all");
   const [selectedSpace, setSelectedSpace] = useState(() => {
@@ -7884,7 +7886,7 @@ function PublicProfile({ shared = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: sessionLoading } = useSession();
-  const { openProfileEditor, wishlistImportVersion } = useProfileEditor();
+  const { openProfileEditor, wishlistVersion } = useProfileEditor();
   const toast = useToast();
   const globalShareRef = useGlobalShareHandler();
   const { setCollection } = useContext(CollectionNavigationContext);
@@ -7892,7 +7894,7 @@ function PublicProfile({ shared = false }) {
   const viewerId = user?.id;
   const { data, loading, error, reload, updateData } = useAsync(async () => ({
     ...await api.get(endpoint), requestEndpoint: endpoint, viewerId,
-  }), [endpoint, user, wishlistImportVersion]);
+  }), [endpoint, user, wishlistVersion]);
   const publication = profilePublicationSection(params.space);
   const publicationListId = publication ? location.state?.publicationListId : null;
   const selected = shared ? "all" : params.listId || publicationListId || (params.wishId ? location.state?.listId : null) || "all";

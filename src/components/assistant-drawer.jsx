@@ -6,6 +6,7 @@ import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { AssistantPresets } from './assistant-presets';
 import { AssistantWishAction } from './assistant-wish-action';
+import { AssistantWishlistSort } from './assistant-wishlist-sort';
 import { ControlBar } from './control-bar';
 import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
 import { Button, buttonVariants } from './ui/button';
@@ -38,6 +39,10 @@ function chatTitle(content) {
 function useAssistantChats() {
   const [workspace, setWorkspace] = useState(() => ({ chats: [newChat(1)], selected: '1' }));
   const pending = useRef(new Map());
+  const [sortReviews, setSortReviews] = useState({});
+  function updateSortReview(key, change) {
+    setSortReviews(previous => ({ ...previous, [key]: { ...previous[key], ...change } }));
+  }
 
   useLayoutEffect(() => {
     const requests = pending.current;
@@ -104,7 +109,7 @@ function useAssistantChats() {
   }
 
   return {
-    chats, chat, createChat, selectChat, submit,
+    chats, chat, createChat, selectChat, submit, sortReviews, updateSortReview,
     setDraft: draft => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft })),
   };
 }
@@ -114,7 +119,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions, onReviewWish, canDiscoverSpheres }) {
+function AssistantActions({ actions, onReviewWish, canDiscoverSpheres, workspace, messageKey, onWishlistChanged }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -126,6 +131,11 @@ function AssistantActions({ actions, onReviewWish, canDiscoverSpheres }) {
     if (!action) return null;
     const { type, value } = action;
     if (type === 'open_section' && ASSISTANT_SECTIONS[value.section].private && !canDiscoverSpheres) return null;
+    if (type === 'review_wish_sort') {
+      const key = `${messageKey}:${index}`;
+      return <AssistantWishlistSort key={key} value={value} review={workspace.sortReviews[key]}
+        onUpdate={change => workspace.updateSortReview(key, change)} onApplied={onWishlistChanged} />;
+    }
     if (type === 'draft_wish') return <AssistantWishAction key={index} value={value} onReview={onReviewWish} />;
     const [section, label] = type === 'open_section'
       ? [value.section, `Открыть: ${ASSISTANT_SECTIONS[value.section].title}`]
@@ -189,16 +199,16 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat, presetMenu }
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, canDiscoverSpheres }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, canDiscoverSpheres }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
-    <AssistantConversation open={open} heading={heading} onReviewWish={onReviewWish} workspace={workspace} canDiscoverSpheres={canDiscoverSpheres} />
+    <AssistantConversation open={open} heading={heading} onReviewWish={onReviewWish} onWishlistChanged={onWishlistChanged} workspace={workspace} canDiscoverSpheres={canDiscoverSpheres} />
   </MessageDrawer>;
 }
 
-function AssistantConversation({ workspace, open, heading, onReviewWish, canDiscoverSpheres }) {
+function AssistantConversation({ workspace, open, heading, onReviewWish, onWishlistChanged, canDiscoverSpheres }) {
   const { chat, setDraft, submit } = workspace;
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft, chatId: chat.id });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
@@ -228,7 +238,9 @@ function AssistantConversation({ workspace, open, heading, onReviewWish, canDisc
           <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
         </div>}
         {chat.messages.map(({ role, content, actions }, index) => <article key={`${chat.id}:${index}`} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
-          aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} canDiscoverSpheres={canDiscoverSpheres} /></article>)}
+          data-wish-sort={actions?.some?.(action => action?.type === 'review_wish_sort') || undefined}
+          aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} canDiscoverSpheres={canDiscoverSpheres}
+            workspace={workspace} messageKey={`${chat.id}:${index}`} onWishlistChanged={onWishlistChanged} /></article>)}
         {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
         {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
       </div>

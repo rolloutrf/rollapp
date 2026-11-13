@@ -2,7 +2,7 @@ import { definePrimitive } from '@ui-sdk/core';
 import { usePart, usePrimitive } from '@ui-sdk/react/primitive';
 import { ListChecks } from 'lucide-react';
 import { useRef } from 'react';
-import { ASSISTANT_MESSAGE_LIMIT, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE } from '../../shared/messenger-assistant.js';
+import { ASSISTANT_MESSAGE_LIMIT, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, ASSISTANT_WISH_SORT_PROMPT } from '../../shared/messenger-assistant.js';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
 
@@ -11,6 +11,7 @@ const groups = [
     { id: 'wish', label: 'Добавить желание', prompt: ASSISTANT_WISH_EXAMPLE },
     { id: 'wish-link', label: 'Добавить товар по ссылке', prompt: 'Подготовь желание по ссылке на товар. Заполни название, цену, валюту и список, если я их укажу. Остальные данные подставь из карточки товара, когда я открою форму. Если ссылки пока нет, попроси её.' },
     { id: 'wish-batch', label: 'Добавить несколько желаний', prompt: 'Подготовь отдельные черновики для трёх желаний: весы за 1 800 ₽ в «Кухню», коврик за 2 500 ₽ в «Спорт» и настольная лампа за 3 500 ₽ в «Воркспейс».' },
+    { id: 'wish-sort', label: 'Разобрать «Не отсортированные»', prompt: ASSISTANT_WISH_SORT_PROMPT },
   ] },
   { label: 'Планирование', items: [
     { id: 'task', label: 'Разбить цель на задачи', prompt: 'Разбей цель «Подготовить презентацию к пятнице» на три конкретных шага. Подготовь отдельный черновик задачи для каждого шага с описанием результата и сроком.' },
