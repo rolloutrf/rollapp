@@ -803,6 +803,8 @@ async function checkParallelChats(page, chat, text, close, openAssistant, width,
 }
 
 async function checkAssistantAccountSwitch(page, chat) {
+  await assertAssistantDirectory(chat, 1);
+  await assistantRow(chat, 'Новый чат').click();
   await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
   const presets = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
   const spherePresets = [['Здоровье', 'Поставить тренировки в календарь'], ['Образование', 'Разложить курс по календарю'], ['Карьера', 'Превратить пункт ИПР в задачи']];
