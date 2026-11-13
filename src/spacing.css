@@ -284,6 +284,10 @@
     gap: var(--layout-profile-gap);
   }
 
+  .app-layout--dark .wishlist-section-navigation {
+    padding-block-end: var(--layout-page-gap);
+  }
+
   .wishes-page__profile-controls {
     padding-block-end: var(--layout-page-gap);
     gap: var(--layout-page-gap);
