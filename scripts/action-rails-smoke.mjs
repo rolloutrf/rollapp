@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
-  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, ProfileEditorProvider, SessionContext, ToastContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
     res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/action-rails.jsx"></script></body></html>'));
@@ -37,14 +37,6 @@ try{
    if(variant==='wishlist-real'){
     assert.equal(textActions.length,1,'Wishlist Add uses the shared text action');
     assert.equal(await rail.getByRole('button',{name:/импорт/i}).count(),0,'Purchase import belongs in profile finances');
-    for(const [name,path] of [['Календарь','calendar'],['Доска объявлений','announcements']]){
-     const link=rail.getByRole('link',{name,exact:true});
-     assert.equal(await link.getAttribute('href'),`/app/wishes?tab=products&publication=${path}`);
-     assert.deepEqual(await link.evaluate(element=>{
-      const {width,height}=element.getBoundingClientRect(),glyph=element.querySelector('svg').getBoundingClientRect();
-      return [element.parentElement.matches('.horizontal-action-scroller[data-control-bar]'),width,height,glyph.width,glyph.height,getComputedStyle(element).borderRadius];
-     }),[true,48,48,20,20,'24px'],`${name} belongs directly to the common row`);
-    }
    }
    if(variant==='contacts-real')assert.equal(textActions.length,1);
    if(['collection','wishlist-real'].includes(variant)){
@@ -137,7 +129,7 @@ try{
   }
   await page.goto(`${origin}/__action-rails?variant=wishlist-error`);
   await page.getByText('Не удалось загрузить Вишлист',{exact:true}).waitFor();
-  assert.equal(await page.locator('.horizontal-action-scroller').getByRole('link',{name:'Календарь',exact:true}).count(),1,'Publication links remain available when the Wishlist fails to load');
+  assert.equal(await page.getByRole('navigation',{name:'Разделы Вишлиста'}).getByRole('link',{name:'Календарь',exact:true}).count(),1,'Publication links remain available when the Wishlist fails to load');
   assert.equal(await page.getByRole('heading',{name:'В этом списке пока пусто',exact:true}).count(),0,'Connection failure must never pretend the Wishlist is empty');
   await page.getByRole('button',{name:'Повторить',exact:true}).click();
   await page.waitForFunction(()=>window.wishlistLoadAttempts===2);
