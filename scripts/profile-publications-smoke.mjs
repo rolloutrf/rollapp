@@ -301,14 +301,15 @@ try {
       assert.equal(await list.getAttribute("aria-pressed"), "true");
       const original = await rail.elementHandle();
       const avatar = await profileHeading.elementHandle();
-      const railTop = await rail.evaluate(node => node.getBoundingClientRect().top + scrollY);
+      const railTop = await rail.evaluate(node => node.getBoundingClientRect().top);
       const assertShell = async () => {
         assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
         assert.equal(await profileHeading.count(), 1);
         assert(await avatar.evaluate(node => node.isConnected), `${routing}: profile hero was replaced`);
         assert.equal(await actions.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
         assert.match(await space.innerText(), /Медиа/);
-        assert(await rail.evaluate(node => [...node.children].every(child => child.getBoundingClientRect().top === node.firstElementChild.getBoundingClientRect().top)));
+        const rows = await rail.evaluate(node => new Set([...node.children].map(child => child.getBoundingClientRect().top)).size);
+        assert.equal(rows, routing === "wishlist" && width < 416 ? 2 : 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       };
       const assertPublication = async () => {
@@ -370,7 +371,7 @@ try {
           assert(await original.evaluate(node => node.isConnected), `${name}: navigation was replaced`);
           assert(await avatar.evaluate(node => node.isConnected), `${name}: profile was replaced`);
           assert.deepEqual(await rail.locator('[aria-current="page"]').evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [name]);
-          assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top + scrollY), railTop);
+          assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top), railTop);
           assert(await link.evaluate(node => {
             const control = node.getBoundingClientRect();
             const row = node.parentElement.getBoundingClientRect();
@@ -378,37 +379,20 @@ try {
           }), `${name}: selected icon is clipped`);
           assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
         }
-        const gap = await rail.evaluate(node => {
-          const next = node.parentElement.nextElementSibling;
-          return next.getBoundingClientRect().top - node.getBoundingClientRect().bottom;
-        });
-        assert.equal(gap, 24, "Wishlist navigation uses the shared page gap");
-        const metrics = await rail.evaluate(node => {
-          const rect = node.getBoundingClientRect();
-          const links = [...node.querySelectorAll("a")];
-          return {
-            left: rect.left, right: rect.right, position: getComputedStyle(node).position,
-            icons: links.map(link => {
-              const glyph = link.querySelector("svg").getBoundingClientRect();
-              return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius];
-            }),
-          };
-        });
-        assert.equal(metrics.position, "static");
-        assert(Math.abs(metrics.left) <= 1 && Math.abs(metrics.right - width) <= 1, JSON.stringify(metrics));
-        for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px"]);
-        await rail.evaluate(node => { node.scrollLeft = 0; });
-        const edges = await rail.evaluate(node => {
-          const first = node.firstElementChild.getBoundingClientRect().left;
-          node.scrollLeft = node.scrollWidth;
-          const last = node.lastElementChild.getBoundingClientRect().right;
-          return { first, last, scrollLeft: node.scrollLeft };
-        });
-        if (edges.scrollLeft > 0) {
-          const inset = width <= 640 ? 16 : 24;
-          assert.equal(edges.first, inset);
-          assert.equal(width - edges.last, inset);
-        }
+        const metrics = await rail.evaluate(node => ({
+          position: getComputedStyle(node).position,
+          icons: [...node.querySelectorAll("a")].map(link => {
+            const box = link.getBoundingClientRect();
+            const glyph = link.querySelector("svg").getBoundingClientRect();
+            return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius,
+              box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight];
+          }),
+        }));
+        assert.equal(metrics.position, "fixed");
+        for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px", true]);
+        await page.evaluate(() => scrollTo({ top: 180, behavior: "instant" }));
+        assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top), railTop);
+        await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
         if ((width === 390 && height === 844) || width === 1440) {
           await page.screenshot({ path: `/tmp/rollapp-wishlist-sections-${width}.png`, animations: "disabled" });
         }

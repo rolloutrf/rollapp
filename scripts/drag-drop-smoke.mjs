@@ -74,6 +74,20 @@ async function checkMouseListTiles(page, width) {
   assert.equal(await tiles(page).first().getAttribute('aria-pressed'), 'true', 'Short click still selects the tile');
   assert.equal(await listPreview(page).count(), 0);
   const settings = page.getByRole('button', { name: 'Настройки списка «Список 2»', exact: true });
+  const selectedSettings = row(page).locator('.list-tabs__editable-tile').first().getByRole('button', { name: /Настройки списка/ });
+  for (const dark of [false, true]) {
+    await page.evaluate(value => document.documentElement.classList.toggle('dark', value), dark);
+    for (const trigger of [selectedSettings, settings]) {
+      await trigger.hover();
+      assert.deepEqual(await trigger.evaluate(async button => {
+        await Promise.all(button.getAnimations().map(animation => animation.finished));
+        const style = getComputedStyle(button);
+        const tile = button.closest('.list-tabs__editable-tile').querySelector('[data-list-tile]');
+        return [style.backgroundColor, style.borderWidth, style.boxShadow,
+          tile.getAttribute('aria-pressed') !== 'true' || style.color === getComputedStyle(tile).color];
+      }), ['rgba(0, 0, 0, 0)', '0px', 'none', true], 'Only the dots are painted, including on hover and on the selected tile');
+    }
+  }
   await settings.scrollIntoViewIfNeeded();
   assert.deepEqual(await settings.evaluate(button => {
     const box = button.getBoundingClientRect();
@@ -82,6 +96,10 @@ async function checkMouseListTiles(page, width) {
     const title = tile.querySelector('[data-slot="list-tile-label"]').getBoundingClientRect();
     return [box.width, box.height, glyph.width, glyph.height, title.right <= box.left];
   }), [48, 48, 20, 20, true]);
+  if ([390, 1440].includes(width)) {
+    await page.mouse.move(0, 0);
+    await row(page).screenshot({ path: `/tmp/rollapp-drag-drop/${width}-list-settings.png` });
+  }
   await settings.press('Enter');
   const dialog = page.getByRole('dialog', { name: 'Изменить список' });
   await dialog.waitFor();
@@ -92,6 +110,8 @@ async function checkMouseListTiles(page, width) {
   await dialog.waitFor({ state: 'hidden' });
   await settings.evaluate(button => {
     if (document.activeElement !== button) throw new Error('List settings did not restore focus');
+    const glyph = getComputedStyle(button.querySelector('svg'));
+    if (glyph.outlineStyle !== 'solid' || glyph.outlineWidth !== '2px') throw new Error('List settings lost its keyboard focus cue');
   });
   await row(page).evaluate(node => node.scrollTo({ left: 138, behavior: 'instant' }));
   for (const action of ['escape', 'outside', 'capture', 'drop']) {
@@ -162,6 +182,13 @@ async function checkTouchListTiles(page, client) {
     assert.deepEqual(await listOrder(page), finish === 'touchEnd' ? [initial[1], initial[0], ...initial.slice(2)] : initial);
     assert.equal(await page.getByRole('button', { name: /Не отсортированные/ }).getAttribute('aria-pressed'), 'true');
   }
+  await showListTiles(page);
+  await page.getByRole('button', { name: 'Настройки списка «Список 2»', exact: true }).tap();
+  const dialog = page.getByRole('dialog', { name: 'Изменить список' });
+  await dialog.getByRole('textbox', { name: 'Название' }).waitFor();
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('button', { name: /Не отсортированные/ }).getAttribute('aria-pressed'), 'true');
   assert.deepEqual(await calls(page), []);
 }
 

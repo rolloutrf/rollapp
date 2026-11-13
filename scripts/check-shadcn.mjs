@@ -383,14 +383,13 @@ assert(
 );
 const friendsLinkSource = app.slice(app.indexOf("function AppFriendsLink"), app.indexOf("function AppProfileButton"));
 assert.equal([...friendsLinkSource.matchAll(/<Link\b/g)].length, 1, "Profile relationships must expose a single link");
-assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<Users aria-hidden="true"\s*\/>\s*Друзья\s*<\/Link>/, "The profile Friends link must point to the Friends section and keep its decorative icon");
+assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<Users aria-hidden="true"\s*\/>\s*<span>Друзья<\/span>\s*<\/Link>/, "The profile Friends link must point to the Friends section and keep its decorative icon");
 const relationshipHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function CatalogPageHeader"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public"]]) {
-  assert.match(source, /<div className="wishes-page__hero-copy">\s*<h1\b[^>]*>[^<]*<\/h1>\s*\{[^\n]*<AppFriendsLink\s*\/>\}/, `The ${label} profile must render its shared Friends link directly under the name`);
-  assert.doesNotMatch(source, /ID #/, `The ${label} profile must omit the member ID from its header`);
+  assert.match(source, /<div className="wishes-page__hero-copy">\s*<h1\b[^>]*>[^<]*<\/h1>\s*\{[^\n]*<AppFriendsLink\s+memberNumber=\{[^}]+\}\s*\/>\}/, `The ${label} profile must render its shared Friends link directly under the name`);
 }
-assert.equal([...app.matchAll(/<AppFriendsLink\s*\/>/g)].length, 2, "The Friends link belongs to the two profile headers");
+assert.equal([...app.matchAll(/<AppFriendsLink\s+memberNumber=\{[^}]+\}\s*\/>/g)].length, 2, "The Friends link belongs to the two profile headers");
 assert(
   /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*\{[^}]*\bgap:\s*8px;/s.test(legacyStyles)
     && /\.app-layout--dark\s+\.wishes-page__friend-links\s*>\s*a\s*>\s*svg\s*\{[^}]*\bwidth:\s*20px;[^}]*\bheight:\s*20px;/s.test(legacyStyles),

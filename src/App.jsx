@@ -2052,14 +2052,15 @@ function SignInPage({ yandexEnabled, legacySignInEnabled }) {
   );
 }
 
-function AppFriendsLink() {
+function AppFriendsLink({ memberNumber }) {
   return (
-    <nav className="wishes-page__friend-links" aria-label="Связи профиля">
-      <Link to="/app/friends" className="wishes-page__friend-link">
+    <ControlBar as="nav" aria-label="Связи профиля" className="flex items-center justify-center gap-2 whitespace-nowrap text-rollapp-body font-normal text-muted-foreground">
+      {memberNumber && <span>{`ID #${memberNumber}`}</span>}
+      <Link to="/app/friends" className={cn(buttonVariants({ variant: "ghost" }), "gap-2 px-2 text-rollapp-body font-normal text-muted-foreground")}>
         <Users aria-hidden="true" />
-        Друзья
+        <span>Друзья</span>
       </Link>
-    </nav>
+    </ControlBar>
   );
 }
 
@@ -2106,11 +2107,11 @@ function AppShell({ children, friendsContext = false, collectionChrome = false, 
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
-        <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
+        <main data-wishlist-chrome={wishlistChrome || undefined} className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
           {wishlistChrome ? <>
-            <PersistentProfileHero user={user} wishlistChrome />
             <WishlistSectionNavigation user={user} />
+            <PersistentProfileHero user={user} wishlistChrome />
           </> : !collectionChrome && !catalogRoute && !classifiedsRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
@@ -3528,7 +3529,7 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
-          {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink />}
+          {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink memberNumber={profile.memberNumber} />}
           <ProfileMoodCaption level={profile.publicMood} />
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
@@ -3566,16 +3567,6 @@ function WishlistSectionNavigation({ user }) {
   const tab = new URLSearchParams({ tab: space });
   const brands = isBrandCatalogSearch(search);
   const publication = path === APP_HOME ? profilePublicationSection(new URLSearchParams(search).get("publication")) : null;
-  const navigationRef = useRef(null);
-  useLayoutEffect(() => {
-    const navigation = navigationRef.current;
-    const active = navigation?.querySelector('[aria-current="page"]');
-    if (!active || navigation.scrollWidth <= navigation.clientWidth) return;
-    const rail = navigation.getBoundingClientRect();
-    const control = active.getBoundingClientRect();
-    if (control.left < rail.left) navigation.scrollLeft += control.left - rail.left;
-    else if (control.right > rail.right) navigation.scrollLeft += control.right - rail.right;
-  }, [path, brands, publication, space]);
   const links = [
     { to: `${APP_WISH_CATALOG_PATH}?${tab}`, active: path === APP_WISH_CATALOG_PATH && !brands, label: "Открыть ленту", title: "Лента", icon: Newspaper },
     { to: brandCatalogPath(space), active: path === APP_WISH_CATALOG_PATH && brands, label: "Открыть каталог брендов", title: "Каталог брендов", icon: ShoppingBag },
@@ -3586,19 +3577,17 @@ function WishlistSectionNavigation({ user }) {
     links.push({ to: wishSalesPath(space), active: path === APP_WISH_SALES_PATH, label: "Мои продажи", title: "Мои продажи", icon: Tag });
   }
   return (
-    <div className="app-page wishes-page wishlist-section-navigation">
-      <ControlBar as="nav" ref={navigationRef} className="page-actions wishes-page__hero-actions horizontal-action-scroller" aria-label="Разделы Вишлиста">
-        {links.map(({ to, active, label, title, icon: Icon }) => (
-          <Link key={title} to={to} aria-current={active ? "page" : undefined}
-            className={buttonVariants({ variant: active ? "default" : "outline", size: "icon" })}
-            data-control-icon aria-label={label} title={title}>
-            <Icon aria-hidden="true" />
-          </Link>
-        ))}
-        {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
-          toSection={section => wishlistPublicationPath(space, section)} />}
-      </ControlBar>
-    </div>
+    <ControlBar as="nav" className="wishlist-section-navigation" aria-label="Разделы Вишлиста">
+      {links.map(({ to, active, label, title, icon: Icon }) => (
+        <Link key={title} to={to} aria-current={active ? "page" : undefined}
+          className={buttonVariants({ variant: active ? "default" : "outline", size: "icon" })}
+          data-control-icon aria-label={label} title={title}>
+          <Icon aria-hidden="true" />
+        </Link>
+      ))}
+      {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
+        toSection={section => wishlistPublicationPath(space, section)} />}
+    </ControlBar>
   );
 }
 
@@ -8280,7 +8269,7 @@ function PublicProfile({ shared = false }) {
       {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
-        {data.isOwner && <AppFriendsLink />}
+        {data.isOwner && <AppFriendsLink memberNumber={data.profile.memberNumber} />}
         <ProfileMoodCaption level={portrait.publicMood} />
         {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
       </div>

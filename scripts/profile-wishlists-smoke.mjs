@@ -7,7 +7,7 @@ import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 async function assertProfileHeading(hero, { owner }) {
   const heading = hero.getByRole('heading', { name: 'Профиль', exact: true, level: 1 });
   await heading.waitFor();
-  assert.equal(await hero.getByText(/ID\s*#?12345/).count(), 0);
+  assert.equal(await hero.getByText("ID #12345", { exact: true }).count(), owner ? 1 : 0);
   assert(await heading.evaluate(element => !element.closest('a, button')));
   const friends = hero.getByRole('link', { name: 'Друзья', exact: true });
   assert.equal(await friends.count(), owner ? 1 : 0);
@@ -17,12 +17,21 @@ async function assertProfileHeading(hero, { owner }) {
     const nav = link.parentElement;
     const name = nav.previousElementSibling;
     const linkBox = link.getBoundingClientRect();
+    const rowBox = nav.getBoundingClientRect();
+    const id = nav.querySelector(':scope > span');
+    const label = link.querySelector('span');
+    const textStyle = element => {
+      const style = getComputedStyle(element);
+      return [style.fontSize, style.lineHeight, style.fontWeight, style.color];
+    };
     const nameBox = name.getBoundingClientRect();
     const icon = link.querySelector('svg[aria-hidden="true"]').getBoundingClientRect();
     return {
       nameTag: name.tagName,
       gap: linkBox.top - nameBox.bottom,
-      centerOffset: linkBox.left + linkBox.width / 2 - nameBox.left - nameBox.width / 2,
+      centerOffset: rowBox.left + rowBox.width / 2 - nameBox.left - nameBox.width / 2,
+      sameStyle: JSON.stringify(textStyle(id)) === JSON.stringify(textStyle(label)),
+      sameLine: Math.abs(id.getBoundingClientRect().top - label.getBoundingClientRect().top) < 1,
       icon: [icon.width, icon.height],
     };
   });
@@ -30,6 +39,7 @@ async function assertProfileHeading(hero, { owner }) {
   assert(Math.abs(geometry.gap) <= 1, 'Friends should sit directly below the profile name');
   assert(Math.abs(geometry.centerOffset) <= 1, 'Friends and the profile name should share a center');
   assert.deepEqual(geometry.icon, [20, 20]);
+  assert(geometry.sameStyle && geometry.sameLine);
 }
 
 const server = await createServer({

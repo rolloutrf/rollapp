@@ -52,7 +52,6 @@ function ListTile({ id, title, count, privateList, sortable, onSettings }) {
           type="button"
           variant="ghost"
           size="icon"
-          data-control-icon
           className="list-tabs__settings"
           aria-label={`Настройки списка «${title}»`}
           aria-haspopup="dialog"

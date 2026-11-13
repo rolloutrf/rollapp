@@ -4560,29 +4560,8 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   z-index: 11;
   display: grid;
   place-items: center;
-  width: var(--layout-control-size);
-  min-width: var(--layout-control-size);
-  height: var(--layout-control-size);
-  min-height: var(--layout-control-size);
+  inline-size: var(--layout-control-size);
   padding: 0;
-  border-radius: 50%;
-  color: var(--secondary-foreground);
-  background: transparent;
-}
-.app-layout--dark .wishes-page .list-tabs .list-tabs__editable-tile:has(> [aria-pressed="true"]) .list-tabs__settings {
-  color: var(--list-tile-selected-ink, var(--primary-foreground));
-  forced-color-adjust: none;
-}
-.app-layout--dark .wishes-page .list-tabs .list-tabs__settings:hover {
-  background: color-mix(in oklch, currentColor 10%, transparent);
-}
-.app-layout--dark .wishes-page .list-tabs .list-tabs__settings:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: -5px;
-}
-.app-layout--dark .wishes-page .list-tabs .list-tabs__settings > svg {
-  width: 1.25rem;
-  height: 1.25rem;
 }
 .app-layout--dark .wishes-page .list-tabs__add {
   position: relative;

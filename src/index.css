@@ -731,6 +731,24 @@
     color: var(--muted-foreground);
   }
 
+  .list-tabs .list-tabs__editable-tile .list-tabs__settings {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--secondary-foreground);
+  }
+
+  .list-tabs .list-tabs__editable-tile:has(> [aria-pressed="true"]) .list-tabs__settings {
+    color: var(--list-tile-selected-ink, var(--primary-foreground));
+    forced-color-adjust: none;
+  }
+
+  .list-tabs .list-tabs__settings:focus-visible > svg {
+    border-radius: var(--radius-xs);
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
   :is(:is(.wishes-page, [data-group-navigation]) .list-tabs [data-slot="toggle-group-item"], [data-list-tile]):hover {
     background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
   }

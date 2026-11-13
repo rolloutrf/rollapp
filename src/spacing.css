@@ -56,7 +56,7 @@
   /* Shared chrome must stay clear even when a local variant adds paint. */
   :is(
     .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
-    .mobile-app-navigation, .mobile-content-page__nav, [data-content-page-actions],
+    .mobile-app-navigation, .wishlist-section-navigation, .mobile-content-page__nav, [data-content-page-actions],
     .planning-fab-controls,
     .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
@@ -518,8 +518,41 @@
 }
 
 @layer utilities {
-  .app-layout--dark .app-page.wishlist-section-navigation {
-    padding-block-end: var(--layout-page-gap);
+  [data-wishlist-chrome] {
+    --wishlist-navigation-height: var(--layout-control-size);
+  }
+
+  [data-wishlist-chrome] > .app-shell-chrome-spacer {
+    height: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset) + var(--layout-inline-gap) + var(--wishlist-navigation-height));
+    flex-basis: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset) + var(--layout-inline-gap) + var(--wishlist-navigation-height));
+  }
+
+  .wishlist-section-navigation {
+    position: fixed;
+    z-index: 45;
+    inset-block-start: calc(var(--layout-chrome-top) + var(--layout-safe-top) + var(--layout-control-size) + var(--layout-inline-gap));
+    inset-inline: 0;
+    inline-size: max-content;
+    margin-inline: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--layout-inline-gap);
+    pointer-events: none;
+  }
+
+  .wishlist-section-navigation > a {
+    pointer-events: auto;
+  }
+
+  @media (width < 416px) {
+    [data-wishlist-chrome] {
+      --wishlist-navigation-height: calc(2 * var(--layout-control-size) + var(--layout-inline-gap));
+    }
+
+    .wishlist-section-navigation {
+      max-inline-size: calc(4 * var(--layout-control-size) + 3 * var(--layout-inline-gap));
+    }
   }
 
   /* One action rail across spheres. Safe centering keeps the first action
