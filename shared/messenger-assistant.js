@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isPlanningDate } from './planning.js';
 import { scheduleError } from './planning-calendar.js';
 
+export const ASSISTANT_WISH_EXAMPLE = 'Добавь кофемолку за 4 500 ₽ в список «Кухня»';
 export const ASSISTANT_NAME = 'Ассистент Rollapp';
 export const ASSISTANT_MESSAGE_LIMIT = 4000;
 // Four completed turns and the new user message.
@@ -33,6 +34,13 @@ export const assistantActionInputs = {
     startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).describe('Местное время HH:MM'),
     durationMinutes: z.number().int().min(15).max(1440),
   }).strict().refine(event => !scheduleError(event)),
+  draft_wish: z.object({
+    title: z.string().trim().min(1).max(160),
+    description: z.string().trim().max(1000).default(''),
+    price: z.number().min(0).max(999999999).nullable().default(null),
+    currency: z.enum(['RUB', 'USD', 'EUR', 'KZT', 'BYN']).default('RUB'),
+    listName: z.string().trim().min(1).max(160).nullable().default(null),
+  }).strict(),
   draft_note: z.object({ title, content: z.string().trim().min(1).max(5000) }).strict(),
 };
 

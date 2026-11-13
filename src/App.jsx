@@ -92,7 +92,6 @@ import { ProfileAccounts } from "@/components/profile-accounts";
 import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
 import { DiskProfileSettings } from "@/components/disk-profile-settings";
-import { PurchaseHistoryImport } from "@/components/purchase-history-import";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -744,7 +743,37 @@ function PlanningControls({ user }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
+  const [assistantWish, setAssistantWish] = useState(null);
+  const assistantWishSource = useRef(null);
+  const pendingAssistantWish = useRef(null);
+  const assistantWishActive = useRef(false);
+  const assistantWishResult = useRef(null);
+  const navigate = useNavigate();
+  const finishAssistantWish = () => {
+    if (!assistantWishActive.current) return;
+    assistantWishActive.current = false;
+    const saved = assistantWishResult.current;
+    assistantWishResult.current = null;
+    const source = assistantWishSource.current;
+    assistantWishSource.current = null;
+    if (saved?.id) navigate(publicWishPath(user.username, saved.id));
+    else if (source === location.pathname) setAssistantOpen(true);
+  };
+  const closeAssistantWish = (saved) => {
+    if (!assistantWishActive.current) return;
+    assistantWishResult.current = saved || null;
+    setAssistantWish(null);
+    if (!isMobile) finishAssistantWish();
+  };
   useLayoutEffect(() => {
+    if (assistantWishActive.current && assistantWishSource.current === location.pathname) return;
+    if (assistantWishActive.current) {
+      assistantWishActive.current = false;
+      assistantWishResult.current = null;
+      assistantWishSource.current = null;
+      setAssistantWish(null);
+    }
+    pendingAssistantWish.current = null;
     const showMessages = Boolean(location.state?.messengerOpen);
     setOpen(false);
     setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
@@ -775,7 +804,19 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} />
+      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onReviewWish={(draft) => {
+        if (pendingAssistantWish.current || assistantWishActive.current) return;
+        pendingAssistantWish.current = draft;
+        setAssistantDrawerOpen(false);
+      }} onAfterClose={() => {
+        if (!pendingAssistantWish.current) return;
+        assistantWishActive.current = true;
+        assistantWishSource.current = location.pathname;
+        setAssistantWish(pendingAssistantWish.current);
+        pendingAssistantWish.current = null;
+      }} />
+      {assistantWish && <WishModal initialDraft={assistantWish} onClose={() => closeAssistantWish()}
+        onSaved={closeAssistantWish} onAfterClose={finishAssistantWish} />}
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon
@@ -3526,7 +3567,7 @@ function wishlistPublicationPath(space, publication) {
   return `${APP_HOME}?${search}`;
 }
 
-function WishesProfileControls({ selectedSpace, publication, onAdd, onImport, importButtonRef }) {
+function WishesProfileControls({ selectedSpace, publication, onAdd }) {
   const { user } = useSession();
   const { isOwner } = useSphereSharing();
   return (
@@ -3534,7 +3575,6 @@ function WishesProfileControls({ selectedSpace, publication, onAdd, onImport, im
       <AppFriendsLink />
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
-        {onImport && <PageActionButton ref={importButtonRef} type="button" className="shrink-0" variant="outline" onClick={onImport} aria-label="Импорт покупок">Импорт</PageActionButton>}
         <Link
           to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
           className={buttonVariants({ variant: "outline", size: "icon" })}
@@ -4893,8 +4933,6 @@ function WishesPage({ onAdd, version }) {
   const [editingWishId, setEditingWishId] = useState(null);
   const [listModal, setListModal] = useState(null);
   const listSettingsTriggerRef = useRef(null);
-  const [historyImport, setHistoryImport] = useState(null);
-  const importButtonRef = useRef(null);
   const [draggedWishId, setDraggedWishId] = useState(null);
   const [draggedGroupId, setDraggedGroupId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
@@ -4941,9 +4979,9 @@ function WishesPage({ onAdd, version }) {
   }, [location.search, selectedSpace]);
   const wishOrderKey = (data?.wishes || []).map((wish) => wish.id).join("\0");
   useEffect(() => {
-    if (selectedWishId || editingWishId || listModal || openedGroupId || historyImport) return undefined;
+    if (selectedWishId || editingWishId || listModal || openedGroupId) return undefined;
     return scheduleDocumentScrollUnlock();
-  }, [selectedWishId, editingWishId, listModal, openedGroupId, historyImport]);
+  }, [selectedWishId, editingWishId, listModal, openedGroupId]);
   useEffect(() => {
     if (data?.wishes) {
       const ids = data.wishes.map((wish) => wish.id);
@@ -5054,14 +5092,8 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
-  const canImport = !publication && Boolean(data && viewerId && data.viewerId === viewerId) && ["products", "food"].includes(selectedSpace);
   const profileControls = <WishesProfileControls selectedSpace={selectedSpace} publication={publication}
-    onAdd={() => onAdd(selectedSpace, selectedList?.id)} importButtonRef={importButtonRef}
-    onImport={canImport ? () => setHistoryImport({
-      listId: selectedList?.id ?? null,
-      listTitle: selectedList ? listDisplayTitle(selectedList) : UNSORTED_LIST_TITLE,
-      space: selectedSpace,
-    }) : null} />;
+    onAdd={() => onAdd(selectedSpace, selectedList?.id)} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
     username={user.username} user={user} returnTo={wishlistPath} />;
@@ -5986,13 +6018,12 @@ function WishesPage({ onAdd, version }) {
   );
   return <div className="app-page wishes-page">
     {profileControls}{loadError}
-    {shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
+    {!publication && shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
       value={selectedValue}
       items={categoryLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: list.privacy === "private" }))}
       leadingItem={shouldShowUnsortedList(unlistedWishes.length) ? { title: UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}
       orderScope={viewerId ? `${viewerId}:${selectedSpace}` : null}
       onSelect={(id) => {
-        if (publication) navigate(wishlistPath);
         if (id) { setSelected(id); setOpenedGroupId(null); }
       }}
       onAdd={() => setListModal({})}
@@ -6001,11 +6032,6 @@ function WishesPage({ onAdd, version }) {
     />}
 {publicationContent || <>
 <GiftSuggestionsPanel items={giftSuggestions} onOpenWish={setSelectedWishId} />
-{historyImport && <PurchaseHistoryImport {...historyImport} returnFocusRef={importButtonRef} onClose={() => setHistoryImport(null)} onSaved={({ created, skipped }) => {
-  setHistoryImport(null);
-  toast(created ? `Создано карточек: ${created}${skipped ? ` · Повторов: ${skipped}` : ""}` : "Такие карточки уже есть в этом списке");
-  if (created) void reload({ background: true }).catch(() => toast("Карточки сохранены. Обновите страницу, чтобы увидеть их.", "error"));
-}} />}
 {openedGroup && <WishGroupDialog
   group={openedGroup}
   viewerId={user.id}
@@ -6016,7 +6042,7 @@ function WishesPage({ onAdd, version }) {
   onDisband={() => disbandGroup(openedGroup.id, openedGroup.listId)}
   finalFocus={groupOpenerRef}
   busy={Boolean(removingGroupId)}
-  suspended={Boolean(selectedWish || editingWish || listModal || historyImport)}
+  suspended={Boolean(selectedWish || editingWish || listModal)}
   onClose={() => setOpenedGroupId(null)}
 ><div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{openedGroupWishes.map((wish) => renderWish(wish, openedGroup))}</div></WishGroupDialog>}
 {wishes.length ? <div className="wish-grid" onLostPointerCapture={cancelPointerDrag}>{gridItems.map(renderGridItem)}</div> : !spaceSharedWishes.length && <EmptyState icon={Heart} title="В этом списке пока пусто" text="Добавьте то, что действительно порадует." />}
@@ -6587,11 +6613,11 @@ function ListModal({ list = null, listsCount = 0, space = "products", onClose, o
   </>;
 }
 
-function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products", initialListId = "" }) {
+function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, space = "products", initialListId = "", initialDraft = null }) {
   const isMobile = useIsMobile();
   const editing = Boolean(wish?.id);
   const toast = useToast();
-  const { data, loading: listsLoading, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
+  const { data, loading: listsLoading, error: listsError, reload: reloadDashboard } = useAsync(() => api.get("/dashboard"), []);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -6601,7 +6627,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const [listCreatorOpen, setListCreatorOpen] = useState(false);
   const [metadata, setMetadata] = useState({ status: "idle", message: "" });
   const [vehicleCatalog, setVehicleCatalog] = useState({ status: "idle", makes: [], models: [], modelsStatus: "idle" });
-  const [form, setForm] = useState(() => wishFormFrom(wish, initialListId));
+  const [form, setForm] = useState(() => wishFormFrom(wish || initialDraft, initialListId));
   const [initialParticipants] = useState(() => wish?.participants || []);
   const [participants, setParticipants] = useState(initialParticipants);
   const autoTimerRef = useRef(null);
@@ -6613,7 +6639,19 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   const deleteTriggerRef = useRef(null);
   const listCreatorTriggerRef = useRef(null);
   const selectableLists = data?.lists?.filter((list) => !isGeneralList(list)) || [];
+  const requestedListName = initialDraft?.listName;
+  const normalizeListName = (name) => String(name ?? "").normalize("NFKC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("ru").replaceAll("ё", "е");
+  const matchingLists = requestedListName ? selectableLists.filter((list) => normalizeListName(listDisplayTitle(list)) === normalizeListName(requestedListName)) : [];
+  const matchedList = matchingLists.length === 1 ? matchingLists[0] : null;
+  const [assistantListResolved, setAssistantListResolved] = useState(false);
+  useEffect(() => {
+    if (!requestedListName || !data || assistantListResolved) return;
+    if (matchedList) setForm((current) => ({ ...current, listIds: initialWishListIds(current, matchedList.id) }));
+    setAssistantListResolved(true);
+  }, [data, matchedList, requestedListName, assistantListResolved]);
+  const assistantListPending = Boolean(requestedListName && (listsLoading || listsError || !assistantListResolved));
   const effectiveSpace = (() => {
+    if (matchedList) return listSpace(matchedList);
     if (editing) {
       if (SPACE_IDS.includes(wish?.space)) return wish.space;
       if (data?.lists) {
@@ -6847,7 +6885,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (mutationRef.current || deleting || imageUploading) return;
+    if (mutationRef.current || deleting || imageUploading || assistantListPending) return;
     mutationRef.current = "save";
     setLoading(true);
     try {
@@ -6927,6 +6965,13 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           <p id={fieldId("dialog-description")} className="sr-only">{editing ? "Обновите информацию, изображение и списки желания." : "Добавьте изображение и заполните основную информацию о желании."}</p>
 
           <div className="wish-editor-screen__content px-4" aria-label="Поля желания">
+            {requestedListName && listsError && <Alert variant="destructive" role="alert">
+              <AlertDescription>Не удалось загрузить списки.</AlertDescription>
+              <ShadcnButton type="button" variant="outline" onClick={() => void reloadDashboard().catch(() => {})}>Повторить</ShadcnButton>
+            </Alert>}
+            {requestedListName && data && !matchedList && <p className="m-0" role="status">
+              {matchingLists.length ? `Есть несколько списков «${requestedListName}».` : `Список «${requestedListName}» не найден.`} Выберите список в форме или оставьте желание без списка.
+            </p>}
             <div className="wish-editor__layout m-0 flex h-auto w-full flex-col gap-4 overflow-visible p-0 pr-3 max-[820px]:pr-0">
           <section className="wish-editor__media h-auto w-full gap-2" aria-label="Фотография желания">
             <div
@@ -7066,7 +7111,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
 
               <Field className="wish-editor__field wish-editor__field--price grid grid-cols-[minmax(0,1fr)_84px] grid-rows-[auto_auto] items-center gap-2">
                 <FieldLabel className="col-span-2 row-start-1" htmlFor={fieldId("price")}>Цена</FieldLabel>
-                <Input className="col-start-1 row-start-2" id={fieldId("price")} type="number" min="0" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
+                <Input className="col-start-1 row-start-2" id={fieldId("price")} type="number" min="0" step="0.01" value={form.price} placeholder="0" onChange={(event) => updateMetadataField("price", event.target.value)} />
                 <Select value={form.currency} onValueChange={(currency) => updateMetadataField("currency", currency)}>
                   <SelectTrigger className="wish-editor__currency col-start-2 row-start-2 w-full" aria-label="Валюта">
                     <SelectValue>{(currency) => WISH_CURRENCY_SYMBOLS[currency] || ""}</SelectValue>
@@ -7123,7 +7168,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
           </div>
 
           <MobileFormFooter className="wish-editor-screen__footer">
-            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
+            <ShadcnButton type="submit" disabled={loading || deleting || imageUploading || assistantListPending} aria-busy={loading || undefined} aria-label={editing ? "Обновить" : "Загадать желание"}>
               {loading && <Spinner />}{editing ? "Обновить" : "Загадать желание"}
             </ShadcnButton>
             {editing && <ShadcnButton ref={deleteTriggerRef} type="button" variant="destructive" size="icon" data-control-icon aria-label="Удалить желание" title="Удалить желание" disabled={loading || deleting || imageUploading} onClick={() => { if (!mutationRef.current && !loading && !deleting) setDeleteConfirm(true); }}><Trash2 aria-hidden="true" /></ShadcnButton>}
@@ -7142,6 +7187,7 @@ function WishModal({ onClose, onSaved, onDeleted, wish = null, space = "products
     {editorContent}
   </FullscreenDialog> : <Drawer
     open
+    onAfterClose={onAfterClose}
     modal={!listCreatorOpen}
     disablePointerDismissal={listCreatorOpen}
     showSwipeHandle={!isMobile}
@@ -7780,7 +7826,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
         blocked={loading || importingWishlist || imageUploading || loggingOut || openRouterBusy}
         onBusyChange={setAccountsBusy} />
     </div>
-  ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded />
+  ) : section === "rolls" ? <RollsWallet key={user.id} user={user} embedded onWishlistsImported={onWishlistsImported} />
     : section === "gift-cards" ? <ProfileGiftCards key={user.id} user={user} onNavigate={leaveSettingsFor} />
     : section === "invites" ? <ProfileInvites /> : section === "yandex" ? <div className="grid gap-3 px-4 pt-4">
     <Card className="grid gap-3 p-3">
@@ -8239,7 +8285,7 @@ function PublicProfile({ shared = false }) {
       </section>
     </div>}
 
-    {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
+    {!publication && !businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
       value={selectedValue}
       className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
       items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
@@ -8247,7 +8293,6 @@ function PublicProfile({ shared = false }) {
       orderScope={ownerCollection && user?.id && data.profile.id === user.id ? `${user.id}:${activeSpace}` : null}
       onSelect={(id) => {
         if (id) selectCollection(id);
-        else if (publication) navigate(currentCollectionPath);
       }}
       onAdd={ownerCollection ? () => setListModal({}) : null}
       onSettings={ownerCollection ? openListSettings : undefined}

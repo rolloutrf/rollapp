@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { api } from "@/api.js";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
   const savedOffers = useMemo(() => marketplaceOffersForWish(wish), [wish]);
   const [aiConfigured, setAiConfigured] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState("");
@@ -55,23 +56,36 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
   const [retryAt, setRetryAt] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
   const refreshControllerRef = useRef(null);
+  const resultsRef = useRef(null);
+  const initialLoadRef = useRef(null);
+  const revealResultsRef = useRef(false);
 
   useEffect(() => {
-    if (!owner) return undefined;
-    let active = true;
     setAiConfigured(null);
+    setSnapshot(null);
+    setPreview(null);
+    setLoading(false);
     setStatusMessage("");
     setWarning("");
-    api.get(`/wishes/${wish.id}/marketplace-offers`).then((payload) => {
+    setError("");
+    setErrorCode("");
+    setRetryAt(0);
+    if (!owner) return undefined;
+    let active = true;
+    const initialLoad = { superseded: false };
+    initialLoadRef.current = initialLoad;
+    api.get(`/wishes/${encodeURIComponent(wish.id)}/marketplace-offers`).then((payload) => {
       if (!active) return;
       setAiConfigured(Boolean(payload.aiConfigured ?? payload.configured));
-      setSnapshot(payload.snapshot || null);
+      if (!initialLoad.superseded) setSnapshot(payload.snapshot || null);
     }).catch((loadError) => {
-      if (active) setError(loadError.message || "Не удалось загрузить предложения");
+      if (active && !initialLoad.superseded) setError(loadError.message || "Не удалось загрузить предложения");
     });
     return () => {
       active = false;
       refreshControllerRef.current?.abort();
+      refreshControllerRef.current = null;
+      revealResultsRef.current = false;
     };
   }, [owner, wish.id]);
 
@@ -91,12 +105,33 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
     return () => window.clearInterval(timer);
   }, [retryAt]);
 
+  useLayoutEffect(() => {
+    if (!revealResultsRef.current || (!preview && loading)) return;
+    revealResultsRef.current = false;
+    resultsRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [preview, loading]);
+
+  useEffect(() => {
+    if (!loading) return undefined;
+    const cancelReveal = () => { revealResultsRef.current = false; };
+    window.addEventListener("wheel", cancelReveal, { passive: true });
+    window.addEventListener("touchmove", cancelReveal, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", cancelReveal);
+      window.removeEventListener("touchmove", cancelReveal);
+    };
+  }, [loading]);
+
   const refresh = async () => {
+    if (initialLoadRef.current) initialLoadRef.current.superseded = true;
     refreshControllerRef.current?.abort();
     const controller = new AbortController();
     refreshControllerRef.current = controller;
+    revealResultsRef.current = true;
     setLoading(true);
-    setStatusMessage("");
+    setPreview(null);
+    setStatusMessage("Ищем предложения…");
+    if (compactAction) resultsRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
     setError("");
     setErrorCode("");
     setWarning("");
@@ -104,16 +139,22 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
       await refreshMarketplaceOffers(wish.id, {
         signal: controller.signal,
         onMessage: ({ event, data }) => {
+          if (refreshControllerRef.current !== controller) return;
           if (event === "status") {
             setStatusMessage(data.message || "Ищем актуальные предложения…");
           }
+          if (event === "offers") {
+            setPreview(data.offers);
+            setStatusMessage("Показываем найденные предложения. Поиск продолжается…");
+          }
           if (event === "done") {
+            setPreview(null);
             setSnapshot(data.snapshot || null);
             setRetryAt(0);
             setStatusMessage("Предложения обновлены");
           }
           if (event === "warning") {
-            setWarning(data.warning || "Нейропоиск не сработал; показаны предложения из каталогов магазинов.");
+            setWarning(data.warning || "Нейропоиск недоступен. Найденные карточки можно открыть в магазинах.");
           }
           if (event === "error") {
             const streamError = new Error(data.error || "Не удалось обновить предложения");
@@ -123,7 +164,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
         },
       });
     } catch (refreshError) {
-      if (refreshError.name !== "AbortError") {
+      if (refreshControllerRef.current === controller && refreshError.name !== "AbortError") {
         setStatusMessage("");
         setError(refreshError.message || "Не удалось обновить предложения");
         setErrorCode(refreshError.code || "");
@@ -133,16 +174,19 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
         }
       }
     } finally {
-      if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
-      setLoading(false);
+      if (refreshControllerRef.current === controller) {
+        refreshControllerRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
-  const aiOffers = (Array.isArray(snapshot?.offers) ? snapshot.offers : [])
+  const latestOffers = preview ?? snapshot?.offers;
+  const aiOffers = (Array.isArray(latestOffers) ? latestOffers : [])
     .filter((offer) => marketplaceOfferMatchesWish(wish, offer));
   const offers = mergeMarketplaceOffers(aiOffers, savedOffers);
   if (!offers.length && !owner) return null;
-  const bestLiveOfferIndex = offers.findIndex((offer) => !offer.source);
+  const bestLiveOfferIndex = preview ? -1 : offers.findIndex((offer) => !offer.source);
   const retrySeconds = retryAt ? Math.max(0, Math.ceil((retryAt - clock) / 1_000)) : 0;
   const visibleError = errorCode === "marketplace_offers_rate_limited" && retrySeconds > 0
     ? `Для этого товара поиск запускался слишком часто. Повторить можно через ${retryAfterLabel(retrySeconds)}.`
@@ -156,7 +200,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
   </Button>;
 
   return (
-    <section className="mx-auto grid min-w-0 w-full max-w-(--layout-compact-width) grid-cols-1 gap-3" aria-label="Предложения">
+    <section ref={resultsRef} className="mx-auto grid min-w-0 w-full max-w-(--layout-compact-width) grid-cols-1 gap-3" aria-label="Предложения">
 
       {visibleError && <p className={`text-sm ${errorCode === "marketplace_offers_not_found" ? "text-muted-foreground" : "text-destructive"}`} role={errorCode === "marketplace_offers_not_found" ? "status" : "alert"}>{visibleError}</p>}
       {statusMessage && !visibleError && <p className="text-sm text-muted-foreground" role="status">{statusMessage}</p>}
@@ -183,7 +227,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
                 <strong className="truncate text-sm font-semibold">{offer.marketplace}</strong>
                 {aiOffers.length > 0 && (offer.source || index === bestLiveOfferIndex) && <Badge variant="secondary" className="shrink-0">{offer.source ? "Исходная ссылка" : "Лучшее"}</Badge>}
               </span>
-              <small className="block truncate text-sm text-muted-foreground">
+              <small className="block break-words text-sm text-muted-foreground">
                 {aiOffers.length ? offer.title : "Сохранённая карточка"}
               </small>
               {aiOffers.length > 0 && (offer.delivery || offer.seller) && <small className="block truncate text-muted-foreground">{[offer.seller, offer.delivery].filter(Boolean).join(" · ")}</small>}

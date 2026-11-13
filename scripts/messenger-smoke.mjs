@@ -6,7 +6,7 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 const cid='4a0effb1-352d-4bc4-9f1f-6ee126840d01';
-const server=await createServer({optimizeDeps:{entries:['scripts/fixtures/messenger.jsx'],include:['react','react-dom','react-dom/client','react/jsx-runtime','react-router-dom','class-variance-authority','clsx','lucide-react','tailwind-merge','qrcode','sonner','zod',...smokeBaseUiDependencies,'date-fns/locale','next-themes','react-day-picker']},cacheDir:process.env.MESSENGER_CACHE_DIR || 'node_modules/.vite-messenger-smoke',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{
+const server=await createServer({optimizeDeps:{entries:['scripts/fixtures/messenger.jsx'],include:['react','react-dom','react-dom/client','react/jsx-runtime','react-router-dom','class-variance-authority','clsx','lucide-react','tailwind-merge','qrcode','sonner','zod',...smokeBaseUiDependencies,'date-fns/locale','next-themes','react-day-picker','@ui-sdk/core','@ui-sdk/react/agent','@ui-sdk/react/primitive']},cacheDir:process.env.MESSENGER_CACHE_DIR || 'node_modules/.vite-messenger-smoke',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{
   name:'messenger-fixture',enforce:'pre',transform(source,id){if(id.endsWith('/src/App.jsx?messenger-smoke'))return `${source}\nexport { GlobalAppChrome, PlanningFab, MessengerRoute, AssistantRoute, AppShell, SessionContext, ToastContext, CollectionNavigationContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/app/'))return next();
     res.setHeader('Content-Type','text/html');res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/messenger.jsx"></script></body></html>'));
@@ -300,6 +300,62 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await trigger.waitFor();
   } else await closeForm('Закрыть задачу');
   await openAssistant();
+  {
+    const wishPage = await browser.newPage({ viewport: { width, height } });
+    const wishErrors = [];
+    wishPage.setDefaultTimeout(8000);
+    wishPage.on('pageerror', error => wishErrors.push(error.message));
+    await wishPage.route('**/api/**', route => {
+      wishErrors.push('Unexpected production API request');
+      return route.abort();
+    });
+    await wishPage.goto(`${smokeOrigin(server)}/app/wishes`, { waitUntil: 'networkidle' });
+    await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).click();
+    const assistantChat = wishPage.getByRole('dialog', { name: 'Ассистент Rollapp', exact: true });
+    await assistantChat.getByRole('button', { name: 'Добавить желание', exact: true }).click();
+    const composer = assistantChat.getByRole('textbox', { name: 'Сообщение', exact: true });
+    assert.match(await composer.inputValue(), /Кухня/);
+    await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+    const review = assistantChat.getByRole('button', { name: 'Проверить желание', exact: true });
+    await review.click();
+    const title = wishPage.getByRole('combobox', { name: 'Название', exact: true });
+    await title.waitFor();
+    assert.equal(await title.inputValue(), 'Кофемолка');
+    assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '4500');
+    const kitchen = wishPage.getByRole('switch', { name: 'Кухня', exact: true });
+    await kitchen.waitFor();
+    assert.equal(await kitchen.getAttribute('aria-checked'), 'true');
+    assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+    if (width < 768) await wishPage.goBack();
+    else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await review.waitFor();
+    assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+    if (width === 390 && height === 400) {
+      await composer.fill('Добавь кофемолку в список «Несуществующий»');
+      await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+      const missingReview = assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка' })
+        .filter({ hasText: 'Несуществующий' }).getByRole('button', { name: 'Проверить желание' });
+      await missingReview.click();
+      await wishPage.getByText('Список «Несуществующий» не найден.', { exact: false }).waitFor();
+      assert.equal(await kitchen.getAttribute('aria-checked'), 'false');
+      await wishPage.getByRole('button', { name: 'Назад', exact: true }).click();
+      await missingReview.waitFor();
+    }
+    await assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка' })
+      .filter({ hasText: 'Кухня' }).getByRole('button', { name: 'Проверить желание' }).click();
+    await title.fill('Кофемолка для кухни');
+    await title.press('Escape');
+    await wishPage.getByRole('button', { name: 'Загадать желание', exact: true }).click();
+    await wishPage.getByText('Сохранённое желание', { exact: true }).waitFor();
+    const writes = await wishPage.evaluate(() => window.messengerTest.wishWrites);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].title, 'Кофемолка для кухни');
+    assert.equal(writes[0].price, 4500);
+    assert.deepEqual(writes[0].listIds, ['kitchen']);
+    assert.deepEqual(wishErrors, []);
+    await wishPage.close();
+  }
+
   await chat.getByRole('link',{name:'Проверить заметку',exact:true}).click();
   await title.waitFor();
   assert.equal(await title.inputValue(),'Идеи встречи');

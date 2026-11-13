@@ -35,7 +35,8 @@ try{
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
    if(variant==='collection')assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
    if(variant==='wishlist-real'){
-    assert.equal(textActions.length,2,'Wishlist Import and Add use shared text actions');
+    assert.equal(textActions.length,1,'Wishlist Add uses the shared text action');
+    assert.equal(await rail.getByRole('button',{name:/импорт/i}).count(),0,'Purchase import belongs in profile finances');
     for(const [name,path] of [['Календарь','calendar'],['Доска объявлений','announcements']]){
      const link=rail.getByRole('link',{name,exact:true});
      assert.equal(await link.getAttribute('href'),`/app/wishes?tab=products&publication=${path}`);

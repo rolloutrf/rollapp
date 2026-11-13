@@ -1,4 +1,4 @@
-import { buildOpenRouterMarketplaceRequest, fetchOpenRouterMarketplaceOffers, normalizeOpenRouterOffers } from './openrouter-marketplace-offers.js';
+import { buildOpenRouterMarketplaceRequest, directProductUrl, fetchOpenRouterMarketplaceOffers, normalizeOpenRouterOffers } from './openrouter-marketplace-offers.js';
 import { fetchYandexAi, yandexAiConfig, YandexAiError } from './yandex-ai.js';
 
 export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signal, request = fetchYandexAi, now = () => new Date() } = {}) {
@@ -23,13 +23,12 @@ export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signa
   const checkedAt = now().toISOString();
   let result;
   try {
-    result = normalizeOpenRouterOffers({ choices: [{ message: { content: parts.map(part => part.text).join('\n') } }] }, checkedAt, { marketplaceIds });
-    // Normalize each citation individually: the shared parser returns only one
-    // offer per marketplace, while the model may select a different cited card.
-    const citedUrls = new Set(annotations.flatMap(item => normalizeOpenRouterOffers({ choices: [{ message: {
-      content: '{"offers":[]}', annotations: [{ type: 'url_citation', url_citation: { ...item, title: item.title || 'Источник' } }],
-    } }] }, checkedAt, { marketplaceIds }).offers.map(offer => offer.url)));
-    result.offers = result.offers.filter(offer => citedUrls.has(offer.url));
+    const citedUrls = new Set(annotations.map(item => directProductUrl(item.url, marketplaceIds)?.url).filter(Boolean));
+    result = normalizeOpenRouterOffers({ choices: [{ message: { content: parts.map(part => part.text).join('\n') } }] }, checkedAt, {
+      marketplaceIds,
+      distinctMarketplaces: false,
+      acceptOffer: url => citedUrls.has(url),
+    });
   } catch {
     throw new YandexAiError('Базовая модель вернула неполный список предложений.', { code: 'yandex_ai_invalid_response' });
   }

@@ -1,9 +1,10 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
-import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
+import { AssistantWishAction } from './assistant-wish-action';
 import { ControlBar } from './control-bar';
 import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
 import { Button, buttonVariants } from './ui/button';
@@ -16,6 +17,7 @@ import './assistant-drawer.css';
 const AssistantContext = createContext(null);
 const assistantStarters = [
   ['Открыть календарь', 'Открой календарь Rollapp.'],
+  ['Добавить желание', ASSISTANT_WISH_EXAMPLE],
   ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
   ['Составить план', 'Помоги составить план на неделю.'],
 ];
@@ -117,7 +119,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions }) {
+function AssistantActions({ actions, onReviewWish }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -128,6 +130,7 @@ function AssistantActions({ actions }) {
     const action = parseAssistantAction(candidate?.type, candidate?.value);
     if (!action) return null;
     const { type, value } = action;
+    if (type === 'draft_wish') return <AssistantWishAction key={index} value={value} onReview={onReviewWish} />;
     const [section, label] = type === 'open_section'
       ? [value.section, `Открыть: ${ASSISTANT_SECTIONS[value.section].title}`]
       : targets[type];
@@ -189,23 +192,23 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
-    triggerClassName="assistant-fab" initialFocus={heading}>
+    triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
     <section className="messenger-conversation assistant-drawer">
       <ControlBar as="header" className="messenger-heading assistant-drawer__header">
         <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
         <MessageDrawerClose label="Закрыть ассистента" />
         <AssistantChatPicker {...workspace} />
       </ControlBar>
-      <AssistantConversation key={workspace.chat.id} open={open} {...workspace} />
+      <AssistantConversation key={workspace.chat.id} open={open} onReviewWish={onReviewWish} {...workspace} />
     </section>
   </MessageDrawer>;
 }
 
-function AssistantConversation({ chat, open, setDraft, submit }) {
+function AssistantConversation({ chat, open, setDraft, submit, onReviewWish }) {
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
   const history = useRef(null);
@@ -222,7 +225,7 @@ function AssistantConversation({ chat, open, setDraft, submit }) {
       atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
     }}>
       {!chat.messages.length && <div className="assistant-drawer__welcome typeset typeset-rollapp">
-        <p>Помогу найти раздел, составить план или подготовить задачу, событие и заметку.</p>
+        <p>Помогу найти раздел, составить план или подготовить желание, задачу, событие или заметку.</p>
         {!chat.draft && <div data-not-typeset role="group" aria-label="Примеры запросов" className="flex flex-wrap gap-2">
           {assistantStarters.map(([label, prompt]) => <Button key={label} type="button" variant="outline"
             className="min-h-12 rounded-full px-6" disabled={chat.sending || voice.active} onClick={() => {
@@ -233,7 +236,7 @@ function AssistantConversation({ chat, open, setDraft, submit }) {
         <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
       </div>}
       {chat.messages.map(({ role, content, actions }, index) => <article key={index} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
-        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} /></article>)}
+        aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} /></article>)}
       {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
       {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
     </div>

@@ -36,9 +36,10 @@ export function MessengerDrawer({ user, open, onOpenChange, initialConversationI
   </MessageDrawer>;
 }
 
-export function MessageDrawer({ open, onOpenChange, triggerClassName, title, triggerLabel = title, icon: Icon, initialFocus, children }) {
+export function MessageDrawer({ open, onOpenChange, triggerClassName, title, triggerLabel = title, icon: Icon, initialFocus, onAfterClose, children }) {
   const isMobile = useIsMobile();
-  return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}>
+  return <Drawer open={open} swipeDirection={isMobile ? 'down' : 'right'} onOpenChange={onOpenChange}
+    onOpenChangeComplete={nextOpen => { if (!nextOpen) onAfterClose?.(); }}>
     <DrawerTrigger render={<Button data-control-icon variant="outline" size="icon" className={triggerClassName} />} aria-label={triggerLabel} title={title}>
       <Icon aria-hidden="true" />
     </DrawerTrigger>

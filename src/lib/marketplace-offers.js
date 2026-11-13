@@ -1,4 +1,4 @@
-import { productScore } from "../../shared/product-match.js";
+import { marketplaceProductScore } from "../../shared/product-match.js";
 import { isVehicleMarketplaceId, vehicleOfferMatchesWish } from "../../shared/vehicle-match.js";
 
 const MARKETPLACES = [
@@ -117,7 +117,7 @@ export function marketplaceOfferMatchesWish(wish, offer) {
   if (isVehicleMarketplaceId(offer?.marketplaceId)) return false;
   const foodWish = wish?.space === "food";
   if (foodWish !== FOOD_MARKETPLACE_IDS.has(offer?.marketplaceId)) return false;
-  return productScore(wish?.title, offer?.title) >= 70;
+  return marketplaceProductScore(wish, offer?.title) >= 70;
 }
 
 export function mergeMarketplaceOffers(snapshotOffers, savedOffers) {

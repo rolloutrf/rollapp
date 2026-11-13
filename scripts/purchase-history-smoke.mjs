@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { chromium } from "playwright-core";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
+import { smokeBaseUiDependencies } from "./smoke-dependencies.mjs";
 import { listenSmokeServer, smokeOrigin, smokePort } from "./smoke-server.mjs";
 
 const fixture = "/__purchase-history-smoke";
 const server = await createServer({
+  optimizeDeps: { include: [...smokeBaseUiDependencies, "read-excel-file/universal"] },
   cacheDir: "node_modules/.vite-purchase-history-smoke",
   server: { host: "127.0.0.1", port: smokePort(), strictPort: true, hmr: false, watch: null },
   plugins: [{
     name: "purchase-history-fixture",
     enforce: "pre",
     transform(source, id) {
-      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { SessionContext, WishesProfileControls };`;
+      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext, WishesProfileControls };`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {
@@ -32,12 +34,22 @@ try {
   const pdf = await generator.pdf();
   await generator.close();
   const csv = "Дата операции;Статус;Сумма операции;Валюта операции;Категория;Описание\n09.11.2026;OK;-1279,95;RUB;Книги;Книжный магазин\n08.11.2026;OK;-400;RUB;Переводы;Перевод";
-  for (const [width, height] of [[320, 700], [390, 844], [768, 800], [820, 450], [1024, 800], [1440, 900], [1920, 1000]]) {
+  for (const [width, height] of [[320, 700], [390, 844], [390, 400], [768, 800], [820, 450], [1024, 800], [1440, 900], [1920, 1000]]) {
     const page = await browser.newPage({ viewport: { width, height }, reducedMotion: "reduce" });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push("Unexpected API request from fixture"); return route.abort(); });
-    await page.goto(smokeOrigin(server) + fixture);
+    await page.goto(smokeOrigin(server) + fixture, { waitUntil: "commit" });
+    const shortMobile = width === 390 && height === 400;
+    if (shortMobile) await page.evaluate(() => {
+      window.rejectDestinationLoad = true;
+      window.rejectPurchaseSave = true;
+    });
+    const wishlist = page.getByRole("group", { name: "Действия со списком желаний" });
+    await wishlist.getByRole("button", { name: "Добавить" }).waitFor({ timeout: 90_000 });
+    assert.equal(await wishlist.getByRole("button", { name: /импорт/i }).count(), 0);
+    await page.getByRole("button", { name: "Профиль", exact: true }).click();
+    await page.getByRole("button", { name: "Финансы", exact: true }).click();
     const open = page.getByRole("button", { name: "Импорт покупок" });
     const trigger = await open.evaluate((node) => {
       const css = getComputedStyle(node);
@@ -48,16 +60,38 @@ try {
     assert(await open.evaluate((node) => {
       const box = node.querySelector("span")?.getBoundingClientRect() ?? node.getBoundingClientRect();
       return box.left < innerWidth - 25 && box.right > 25;
-    }), "Import action should be discoverable at the leading edge of the toolbar");
+    }), "Import action should be visible within the finance surface");
     await open.click();
     const heading = page.getByRole("heading", { name: "Импорт покупок" });
     await heading.waitFor();
-    const file = page.locator("input[type=file]");
+    const surface = heading.locator("xpath=ancestor::*[contains(@class, 'app-drawer--form')][1]");
+    const destination = surface.getByRole("combobox", { name: "Список в Вишлисте" });
+    if (shortMobile) {
+      await surface.getByRole("alert").filter({ hasText: "Списки временно недоступны" }).waitFor();
+      assert(await destination.isDisabled());
+      await surface.getByRole("button", { name: "Повторить загрузку списков" }).click();
+    }
+    await page.waitForFunction((id) => document.getElementById(id)?.disabled === false, await destination.getAttribute("id"));
+    const selectDestination = async (group, name) => {
+      await destination.click();
+      const option = page.getByRole("group", { name: group }).getByRole("option", { name, exact: true });
+      await option.click();
+      assert.equal(await destination.innerText(), `${group} · ${name}`);
+    };
+    await destination.click();
+    const picker = page.getByRole("listbox");
+    await picker.getByRole("option", { name: "Книги" }).waitFor();
+    assert.deepEqual(await picker.getByRole("group").allTextContents(), [
+      "ТоварыНе отсортированныеКниги", "ЕдаНе отсортированныеПерекусы",
+    ]);
+    await page.keyboard.press("Escape");
+    await picker.waitFor({ state: "hidden" });
+    const file = surface.locator("input[type=file]");
     const upload = page.getByRole("button", { name: "Выбрать файл" });
     const uploadBox = await upload.boundingBox();
     assert.equal(uploadBox.height, 48);
-    if (width < 768) assert.equal(await page.locator("[data-native-form-actions]").count(), 1);
-    else assert.equal(await page.locator("[data-slot=drawer-popup][data-swipe-direction=right]").count(), 1);
+    if (width < 768) assert.equal(await surface.locator("[data-native-form-actions]").count(), 1);
+    else assert.equal(await surface.evaluate((node) => node.matches("[data-slot=drawer-popup][data-swipe-direction=right]")), true);
 
     await file.setInputFiles({ name: "broken.csv", mimeType: "text/csv", buffer: Buffer.from("invalid;file") });
     await page.getByRole("alert").filter({ hasText: "Не удалось найти колонки" }).waitFor();
@@ -76,11 +110,21 @@ try {
     await purchase.check();
     assert(await create.isDisabled(), "The operation description is not a product name");
     await page.getByRole("textbox", { name: /Название товара/ }).fill("Роман в твёрдом переплёте");
+    assert(await create.isDisabled(), "A destination is required before creating cards");
+    await selectDestination("Товары", "Книги");
     assert(await create.isEnabled());
     assert.equal((await create.boundingBox()).height, 48);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert(await page.locator(".app-drawer-body").evaluate((node) => node.scrollWidth <= node.clientWidth + 1));
-    if ([390, 820, 1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-purchase-history-${width}.png` });
+    const summary = surface.getByRole("status").filter({ hasText: "Карточки будут видны только вам" });
+    assert(await summary.evaluate((node, mobile) => {
+      const scroller = mobile ? document.scrollingElement : node.closest(".app-drawer-body");
+      const footer = node.closest("form").querySelector("[data-native-form-actions], [data-slot=drawer-footer]");
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "instant" });
+      const box = node.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= footer.getBoundingClientRect().top + 1;
+    }, width < 768), "Review content must be able to scroll fully above the footer");
+    await page.screenshot({ path: `/tmp/rollapp-purchase-history-${width}x${height}.png` });
 
     await page.getByRole("button", { name: "Изменить источник" }).click();
     await page.getByRole("button", { name: "Заказы и чеки" }).click();
@@ -89,12 +133,38 @@ try {
     await page.getByRole("heading", { name: "Найденные товары: 2" }).waitFor();
     await page.getByRole("checkbox", { name: /Шоколад/ }).uncheck();
     await page.getByRole("button", { name: "Создать карточки · 1" }).waitFor();
-    if (width === 320) await page.goBack();
-    else await page.getByRole("button", { name: width < 768 ? /^Назад/ : "Закрыть импорт" }).click();
+    if (shortMobile || width === 1440 || width === 820) {
+      if (width === 1440) await selectDestination("Еда", "Перекусы");
+      if (width === 820) await selectDestination("Товары", "Не отсортированные");
+      const expected = { listId: width === 1440 ? "snacks" : width === 820 ? null : "books",
+        space: width === 1440 ? "food" : "products",
+        items: [{ title: "Чай зелёный", price: 249, currency: "RUB" }] };
+      await create.click();
+      if (shortMobile) {
+        await surface.getByRole("alert").filter({ hasText: "Список для импорта больше недоступен" }).waitFor();
+        assert(await create.isDisabled());
+        await destination.click();
+        assert.equal(await picker.getByRole("option", { name: "Книги" }).count(), 0);
+        await picker.getByRole("group", { name: "Еда" }).getByRole("option", { name: "Не отсортированные" }).click();
+        await create.click();
+        assert.deepEqual(await page.evaluate(() => window.purchaseImportRequests), [
+          expected, { ...expected, listId: null, space: "food" },
+        ]);
+      } else {
+        assert.deepEqual(await page.evaluate(() => window.purchaseImportRequests), [expected]);
+      }
+      assert.equal(await page.evaluate(() => window.wishlistRefreshes), 1);
+    } else {
+      if (width === 320) await page.goBack();
+      else await surface.getByRole("button", { name: width < 768 ? /^Назад/ : "Закрыть импорт" }).click();
+      assert.deepEqual(await page.evaluate(() => window.purchaseImportRequests), []);
+      assert.equal(await page.evaluate(() => window.wishlistRefreshes), 0);
+    }
     await heading.waitFor({ state: "hidden" });
     await open.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Импорт покупок");
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}×${height}: file, invalid format, selected-only review, receipts, 48px controls, cancel without writes`);
+    console.log(`PASS ${width}×${height}: profile finances, file parsing, destination, review, shared controls, save or cancel`);
     await page.close();
   }
 } finally {

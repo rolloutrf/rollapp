@@ -253,3 +253,13 @@ test("does not treat unchanged source-only offers as a live marketplace refresh"
     { id: "wildberries:1", marketplaceId: "wildberries", url: "https://www.wildberries.ru/catalog/1/detail.aspx" },
   ]), true);
 });
+
+test("keeps an alternate card when the highest-ranked catalog result is the saved source", () => {
+  const wish = { space: "products", title: "Осветитель Ulanzi L024 40W RGB / Светодиодный осветитель / Видеосвет для съемки контента", url: "https://www.wildberries.ru/catalog/10/detail.aspx?utm_source=share" };
+  const light = { ...headphones, name: "Осветитель Ulanzi L024 40W RGB" };
+  const catalog = normalizeWildberriesOffers({ products: [{ ...light, id: 10 }, { ...light, id: 11 }] }, wish);
+  const offers = mergeDirectOffers(catalog, [sourceOfferForWish(wish)]);
+  assert.equal(offers.length, 1);
+  assert.equal(offers[0].source, undefined);
+  assert.match(offers[0].url, /\/11\//);
+});

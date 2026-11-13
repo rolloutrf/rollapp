@@ -15,13 +15,14 @@ const contacts=Array.from({length:53},(_,index)=>({id:`contact-${index+1}`,name:
 const contactCid='68251116-acd9-480a-8831-38c3de344025';
 const cid='4a0effb1-352d-4bc4-9f1f-6ee126840d01';
 const messages=Array.from({length:75},(_,index)=>({id:String(index+1),senderId:index%2 ? 'alice' : 'bob',clientId:String(index),body:index===74 ? 'Привет! Давай обсудим планы на неделю. '+ 'Длинноеслово'.repeat(15) : `Сообщение ${index+1}\nВторая строка`,createdAt:'2026-11-01T12:00:00Z'}));
-window.messengerTest={requests:[],failSend:false,failHistory:false,failList:false,failSubscriptions:false,opened:[],holdSearch:false, sends:[],sendDelay:100,delivered:[], assistant:[], failAssistant:false, assistantHolds:new Map(), planningWrites:[]};
+window.messengerTest={requests:[],failSend:false,failHistory:false,failList:false,failSubscriptions:false,opened:[],holdSearch:false, sends:[],sendDelay:100,delivered:[], assistant:[], failAssistant:false, assistantHolds:new Map(), planningWrites:[], wishWrites:[], wishLists:[{ id: "kitchen", title: "Кухня", space: "products", privacy: "public" }]};
 const planningTasks=[];
 const planningNotes=[];
 const transport={
   async get(path) {
     window.messengerTest.requests.push(path);
     await new Promise(resolve=>setTimeout(resolve,30));
+    if(path==='/dashboard') return { lists: window.messengerTest.wishLists, wishes: [] };
     if(path.startsWith('/planning/tasks?')) return {tasks:[...planningTasks],columns:defaultPlanningColumns()};
     if(path.startsWith('/planning/spaces?')) return {spaces:[{id:'main',title:'Основной список'}]};
     if(path.startsWith('/planning/calendar-device/events?')) return {events:[]};
@@ -49,6 +50,11 @@ const transport={
     return {conversations:[{id:cid,peer,unread:2,lastMessage:messages.at(-1)},...window.messengerTest.opened]};
   },
   async post(path,body,{signal}={}) {
+    if(path==='/catalog/product-suggestions') return {items: []};
+    if(path==='/wishes') {
+      window.messengerTest.wishWrites.push(body);
+      return {wish:{id:'saved-wish',...body}};
+    }
     if(path.endsWith('/assistant/reply')) {
       window.messengerTest.assistant.push(body);
       const content=body.messages.at(-1).content;
@@ -56,6 +62,9 @@ const transport={
       if(hold) return new Promise((resolve,reject)=>Object.assign(hold,{resolve,reject,signal}));
       await new Promise(resolve=>setTimeout(resolve,80));
       if(window.messengerTest.failAssistant) throw Error('Ассистент временно недоступен');
+      if(content.startsWith('Добавь кофемолку')) return {reply:'Подготовил желание.',actions:[
+        {type:'draft_wish',value:{title:'Кофемолка',price:4500,currency:'RUB',listName:content.includes('Несуществующий') ? 'Несуществующий' : 'Кухня'}},
+      ]};
       if(content==='Подготовь черновики') return {reply:'Вот черновики. <img src=x>',actions:[
         {type:'draft_task',value:{title:'Подготовить встречу',description:'Собрать вопросы',dueOn:'2026-11-08'}},
         {type:'draft_event',value:{title:'Встреча команды',dueOn:'2026-11-09',startTime:'14:30',durationMinutes:45}},
@@ -102,5 +111,5 @@ window.SpeechRecognition = class {
   stop() { this.stopRequested = true; }
   abort() { this.aborted = true; }
 };
-function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
+function Fixture(){useVisualViewport();const [id,setId]=React.useState('alice');window.messengerTest.switchAccount=setId;return <SessionContext.Provider value={{user:{id,name:'Алиса',username:id,accountType:'personal'}}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}><MobileFormPages><GlobalAppChrome/><PlanningFab/><Routes><Route path="/app/assistant" element={<AssistantRoute/>}/><Route path="/app/messenger/:conversationId?" element={<AppShell><MessengerRoute user={{id:'alice'}}/></AppShell>}/><Route path="/app/planning" element={<AppShell><PlanningSpace/></AppShell>}/><Route path="/:username/wishes/:wishId" element={<div>Сохранённое желание</div>}/><Route path="/app/wishes" element={<div className="app-layout app-layout--dark"><p>Исходная страница</p></div>}/></Routes></MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;}
 createRoot(document.getElementById('root')).render(<BrowserRouter><Fixture/></BrowserRouter>);

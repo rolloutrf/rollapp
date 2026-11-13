@@ -12,6 +12,8 @@ import { DrawerFooter } from "@/components/form-surface";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { MakiIcon } from "@/components/maki-icon";
+import { PageActionButton } from "@/components/page-action-button";
+import { PurchaseHistoryImport } from "@/components/purchase-history-import";
 import { RollsTopup } from "@/components/rolls-topup";
 import { PersonalOffers } from "@/components/personal-offers";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,7 +47,7 @@ function restoredTransfer(storageKey) {
   } catch { return null; }
 }
 
-export function RollsWallet({ user, embedded = false }) {
+export function RollsWallet({ user, embedded = false, onWishlistsImported }) {
   const transferFormId = useId();
   const storageKey = `rollapp:pending-roll-transfer:${user.id}`;
   const [pending, setPending] = useState(() => restoredTransfer(storageKey));
@@ -62,6 +64,8 @@ export function RollsWallet({ user, embedded = false }) {
   const [confirmOpen, setConfirmOpen] = useState(Boolean(pending));
   const [transferView, setTransferView] = useState(() => Boolean(pending));
   const [topupView, setTopupView] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const importOpener = useRef(null);
   const [busy, setBusy] = useState(false);
   const [transferError, setTransferError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -261,6 +265,12 @@ export function RollsWallet({ user, embedded = false }) {
             </div>
           </section>
 
+          {embedded && <div className="flex justify-center">
+            <PageActionButton ref={importOpener} type="button" variant="outline" onClick={() => setImportOpen(true)}>
+              Импорт покупок
+            </PageActionButton>
+          </div>}
+
           <FinanceFundraiserCards key={user.id} ownerId={user.id} />
           <PersonalOffers user={user} onPaid={() => refresh({ quiet: true })} />
 
@@ -294,6 +304,20 @@ export function RollsWallet({ user, embedded = false }) {
           </section>
         </>}
     </div>
+
+    {importOpen && <PurchaseHistoryImport
+      returnFocusRef={importOpener}
+      onClose={() => setImportOpen(false)}
+      onSaved={({ created, skipped }) => {
+        setImportOpen(false);
+        if (created) {
+          onWishlistsImported?.();
+          toast.success(`Создано карточек: ${created}${skipped ? ` · Повторов: ${skipped}` : ""}`);
+        } else {
+          toast("Такие карточки уже есть в этом списке");
+        }
+      }}
+    />}
 
     <AlertDialog open={confirmOpen} onOpenChange={(open) => { if (!busy) setConfirmOpen(open); }}>
       <AlertDialogContent className="rollapp-body">

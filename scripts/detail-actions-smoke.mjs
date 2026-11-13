@@ -142,6 +142,35 @@ try {
         }
         console.log(`PASS ${width}x${height}: desktop drawer footers, independent scroll and compact delete`);
       }
+      await page.goto(`${origin}/__detail-actions?kind=product&marketplaceSearch=1${width >= 768 ? "&drawer=1" : ""}`);
+      await page.getByRole("link", { name: "Открыть карточку" }).click();
+      await page.getByRole("button", { name: "Найти лучшие", exact: true }).click();
+      const section = page.getByRole("region", { name: "Предложения" });
+      const offer = section.getByRole("listitem", { name: "Открыть предложение на Яндекс Маркет" });
+      await offer.waitFor();
+      assert.equal(await offer.getAttribute("href"), "https://market.yandex.ru/card/ulanzi-l024/123");
+      assert(await section.getByText("Осветитель Ulanzi L024 40W RGB", { exact: true }).isVisible());
+      const geometry = await offer.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        const boundary = element.closest(".app-drawer-body")?.getBoundingClientRect();
+        const footer = document.querySelector(".mobile-content-page__nav")?.getBoundingClientRect();
+        return {
+          offerTop: box.top, offerBottom: box.bottom, bodyTop: boundary?.top, bodyBottom: boundary?.bottom, footerTop: footer?.top, scrollY,
+          visible: box.y >= Math.max(0, boundary?.top || 0) && box.bottom <= Math.min(innerHeight, boundary?.bottom || innerHeight, footer?.top || innerHeight),
+          overflow: document.documentElement.scrollWidth > innerWidth + 1 || element.scrollWidth > element.clientWidth + 1,
+        };
+      });
+      assert(geometry.visible && !geometry.overflow, `The search result is visible after the click: ${JSON.stringify(geometry)}`);
+      if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-marketplace-results-${width}x${height}.png` });
+      await page.evaluate(() => window.finishMarketplaceSearch());
+      await section.getByText("Предложения обновлены", { exact: true }).waitFor();
+      await page.evaluate(() => window.finishMarketplaceRead());
+      await page.getByRole("button", { name: "Обновить", exact: true }).click();
+      await section.getByText("Показываем найденные предложения. Поиск продолжается…").waitFor();
+      await page.evaluate(() => window.finishMarketplaceSearch(true));
+      await section.getByText("Новые карточки товара не найдены", { exact: true }).waitFor();
+      assert.equal(await offer.count(), 1, "An unsuccessful retry preserves the last usable result");
+      console.log(`PASS ${width}x${height}: marketplace streaming, visible result, delayed read and retry`);
       assert.deepEqual(errors, []); await page.close();
     }
   }
