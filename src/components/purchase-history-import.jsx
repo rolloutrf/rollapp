@@ -1,22 +1,29 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { FileUp, LockKeyhole, X } from "lucide-react";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PURCHASE_HISTORY_MAX_CHARS, PURCHASE_HISTORY_MAX_ITEMS, parsePurchaseHistory } from "../../shared/purchase-history.js";
+import { isGeneralList, UNSORTED_LIST_TITLE } from "@/lib/list-navigation";
 import { parsePurchaseHistoryFile } from "@/lib/purchase-history-file";
 import { api } from "../api.js";
 
+const DESTINATION_SPACES = [{ id: "products", label: "Товары" }, { id: "food", label: "Еда" }];
 const BANK_HELP = "https://www.tbank.ru/bank/help/debit-cards/tinkoff-black/get-statement/reference/";
 const formatAmount = (amount, currency) => new Intl.NumberFormat("ru-RU", currency ? { style: "currency", currency } : {}).format(amount);
 
-export function PurchaseHistoryImport({ listId, listTitle, space, onClose, onSaved, returnFocusRef }) {
+export function PurchaseHistoryImport({ onClose, onSaved, returnFocusRef }) {
   const id = useId();
+  const [lists, setLists] = useState(null);
+  const [destinationError, setDestinationError] = useState("");
+  const [destinationAttempt, setDestinationAttempt] = useState(0);
+  const [destinationKey, setDestinationKey] = useState("");
   const [source, setSource] = useState("bank");
   const [text, setText] = useState("");
   const [review, setReview] = useState(null);
@@ -28,11 +35,34 @@ export function PurchaseHistoryImport({ listId, listTitle, space, onClose, onSav
   const fileInput = useRef(null);
   const reviewTitle = useRef(null);
   const errorNotice = useRef(null);
+  const destinations = DESTINATION_SPACES.map(({ id: space, label }) => ({
+    space,
+    label,
+    options: [
+      { id: null, title: UNSORTED_LIST_TITLE },
+      ...(lists ?? []).filter((list) => !isGeneralList(list) && (list.space ?? "products") === space),
+    ].map(({ id, title }) => ({ key: `${space}:${id ?? ""}`, listId: id, space, title, label: `${label} · ${title}` })),
+  }));
+  const destination = destinations.flatMap(({ options }) => options).find(({ key }) => key === destinationKey);
   const isBank = source === "bank";
   const selected = review?.rows.filter((row) => row.checked) ?? [];
   const missingTitle = selected.some((row) => !row.title.trim());
   const exceedsLimit = selected.length > PURCHASE_HISTORY_MAX_ITEMS;
   const accept = isBank ? ".csv,.xlsx,.tsv,.pdf" : ".txt,.csv,.tsv,.json,.pdf";
+
+  useEffect(() => {
+    let current = true;
+    api.get("/dashboard")
+      .then(({ lists }) => { if (current) setLists(lists); })
+      .catch((failure) => { if (current) setDestinationError(failure.message); });
+    return () => { current = false; };
+  }, [destinationAttempt]);
+
+  function reloadDestinations() {
+    setLists(null);
+    setDestinationError("");
+    setDestinationAttempt((attempt) => attempt + 1);
+  }
 
   const reviewing = Boolean(review);
   useLayoutEffect(() => {
@@ -85,16 +115,21 @@ export function PurchaseHistoryImport({ listId, listTitle, space, onClose, onSav
       }
       return;
     }
-    if (!selected.length || missingTitle || exceedsLimit) return;
+    if (!lists || !destination || !selected.length || missingTitle || exceedsLimit) return;
     busyRef.current = "save";
     setSaving(true);
     let result;
     try {
       result = await api.post("/wishes/import-history", {
-        listId, space,
+        listId: destination.listId,
+        space: destination.space,
         items: selected.map(({ title, price, currency }) => ({ title: title.trim(), price, currency })),
       });
     } catch (failure) {
+      if (failure.status === 404) {
+        setDestinationKey("");
+        reloadDestinations();
+      }
       setError(failure.message);
     } finally {
       busyRef.current = null;
@@ -118,12 +153,36 @@ export function PurchaseHistoryImport({ listId, listTitle, space, onClose, onSav
         </DrawerClose>
         <DrawerHeader className="md:pr-16">
           <DrawerTitle id={`${id}-title`} className="text-2xl">Импорт покупок</DrawerTitle>
-          <DrawerDescription className="wrap-anywhere">В список «{listTitle}»</DrawerDescription>
+          <DrawerDescription>Из банковской выписки, заказов или чеков в Вишлист.</DrawerDescription>
         </DrawerHeader>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <Input ref={fileInput} type="file" accept={accept} hidden onChange={readFile} />
             {error && <p ref={errorNotice} tabIndex={-1} role="alert" className="wrap-anywhere text-destructive">{error}</p>}
+            <Field>
+              <FieldLabel htmlFor={`${id}-destination`}>Список в Вишлисте</FieldLabel>
+              <Select value={destinationKey || null} onValueChange={(key) => setDestinationKey(key ?? "")} disabled={!lists || saving}>
+                <SelectTrigger id={`${id}-destination`} className="w-full min-w-0">
+                  <SelectValue className="min-w-0">
+                    <span className="min-w-0 truncate">{destination?.label ?? (lists ? "Выберите список" : destinationError ? "Списки недоступны" : "Загружаем списки…")}</span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  {lists && destinations.map(({ space, label, options }) => (
+                    <SelectGroup key={space}>
+                      <SelectLabel>{label}</SelectLabel>
+                      {options.map(({ key, title }) => (
+                        <SelectItem key={key} value={key}><span className="min-w-0 whitespace-normal wrap-anywhere">{title}</span></SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+              {destinationError && <>
+                <p role="alert" className="wrap-anywhere text-destructive">{destinationError}</p>
+                <Button type="button" variant="outline" className="min-h-12 self-start rounded-full" onClick={reloadDestinations}>Повторить загрузку списков</Button>
+              </>}
+            </Field>
             {!review ? <>
               <ToggleGroup value={[source]} disabled={reading} onValueChange={([next]) => {
                 if (next && !busyRef.current) { setSource(next); setError(""); }
@@ -190,7 +249,7 @@ export function PurchaseHistoryImport({ listId, listTitle, space, onClose, onSav
             </>}
           </div>
           <DrawerFooter>
-            {review || !isBank ? <Button type="submit" disabled={reading || saving || (review ? !selected.length || missingTitle || exceedsLimit : !text.trim())} aria-busy={saving || undefined}>
+            {review || !isBank ? <Button type="submit" disabled={reading || saving || (review ? !destination || !lists || !selected.length || missingTitle || exceedsLimit : !text.trim())} aria-busy={saving || undefined}>
               {saving && <Spinner />}
               {review ? `Создать карточки${selected.length ? ` · ${selected.length}` : ""}` : "Найти товары"}
             </Button> : <Button type="button" disabled={reading} onClick={() => fileInput.current?.click()}>
