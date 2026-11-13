@@ -27,14 +27,15 @@ try {
     const control = await page.locator(".schedule-toolbar").evaluate(toolbar => {
       const rect = element => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
       const buttons = [...toolbar.querySelectorAll("button")].filter(element => element.getBoundingClientRect().width);
-      const actions = [...toolbar.querySelectorAll(".schedule-window-actions > button")];
+      const actions = [...toolbar.querySelectorAll(".schedule-window-actions > button"), ...document.querySelectorAll("[data-add-fab] > button")];
       return { overflow: document.documentElement.scrollWidth > innerWidth, buttons: buttons.map(rect), actions: actions.map(element => ({ ...rect(element), icon: rect(element.querySelector("svg")), radius: getComputedStyle(element).borderRadius })) };
     });
     assert(!control.overflow, `Root overflow ${width}x${height}`);
     for (const b of control.buttons) assert(b.x >= -0.5 && b.right <= width + 0.5 && b.height === 48, `Toolbar bounds ${width}: ${JSON.stringify(b)}`);
     assert.equal(control.actions.length, 2);
     for (const b of control.actions) { assert.equal(b.width, 48); assert.equal(b.height, 48); assert.equal(b.icon.width, 20); assert(parseFloat(b.radius) >= 24); }
-    assert.equal(control.actions[1].x - control.actions[0].right, 8); assert.equal(control.actions[0].y, control.actions[1].y);
+    assert(control.actions[1].y >= control.actions[0].bottom);
+    assert(control.actions[1].right <= width && control.actions[1].bottom <= height);
     for (let a = 0; a < control.buttons.length; a++) for (let b = a + 1; b < control.buttons.length; b++) {
       const one = control.buttons[a], two = control.buttons[b];
       assert(!(one.x < two.right - 0.5 && two.x < one.right - 0.5 && one.y < two.bottom - 0.5 && two.y < one.bottom - 0.5), `Overlapping controls ${width}`);
@@ -101,7 +102,11 @@ try {
     await link.waitFor({ state: "hidden" }); assert.equal((await state()).writes.length, 2);
     await close();
     assert(!new URL(page.url()).searchParams.has("form"));
-    await page.getByRole("button", { name: "Новая задача в календаре", exact: true }).click(); assert.equal((await state()).created, 1);
+    const createTask = page.getByRole("button", { name: "Новая задача в календаре", exact: true });
+    await page.mouse.move(0, 0);
+    await page.locator("[data-sonner-toast]").first().waitFor({ state: "hidden" });
+    await createTask.click();
+    assert.equal((await state()).created, 1);
     assert.deepEqual(errors, []);
     console.log(`PASS calendar-sync ${width}x${height}`);
     await context.close();
