@@ -4,6 +4,34 @@ import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 import { listenSmokeServer, smokeOrigin } from './smoke-server.mjs';
 
+async function assertProfileHeading(hero, { owner }) {
+  const heading = hero.getByRole('heading', { name: 'Профиль', exact: true, level: 1 });
+  await heading.waitFor();
+  assert.equal(await hero.getByText(/ID\s*#?12345/).count(), 0);
+  assert(await heading.evaluate(element => !element.closest('a, button')));
+  const friends = hero.getByRole('link', { name: 'Друзья', exact: true });
+  assert.equal(await friends.count(), owner ? 1 : 0);
+  if (!owner) return;
+  assert.equal(await friends.getAttribute('href'), '/app/friends');
+  const geometry = await friends.evaluate(link => {
+    const nav = link.parentElement;
+    const name = nav.previousElementSibling;
+    const linkBox = link.getBoundingClientRect();
+    const nameBox = name.getBoundingClientRect();
+    const icon = link.querySelector('svg[aria-hidden="true"]').getBoundingClientRect();
+    return {
+      nameTag: name.tagName,
+      gap: linkBox.top - nameBox.bottom,
+      centerOffset: linkBox.left + linkBox.width / 2 - nameBox.left - nameBox.width / 2,
+      icon: [icon.width, icon.height],
+    };
+  });
+  assert.equal(geometry.nameTag, 'H1');
+  assert(Math.abs(geometry.gap) <= 1, 'Friends should sit directly below the profile name');
+  assert(Math.abs(geometry.centerOffset) <= 1, 'Friends and the profile name should share a center');
+  assert.deepEqual(geometry.icon, [20, 20]);
+}
+
 const server = await createServer({
   cacheDir: 'node_modules/.vite-profile-wishlists-smoke',
   server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null },
@@ -28,6 +56,7 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', route => { errors.push('Unexpected network API request'); return route.abort(); });
     await page.goto(origin + '/fixture');
+    await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: true });
     const open = page.getByRole('button', { name: 'Редактировать профиль Профиль', exact: true });
     const wishlistEntry = page.getByRole('button', { name: 'Внешние вишлисты', exact: true });
     const personalEntry = page.getByRole('button', { name: 'Персональная информация', exact: true });
@@ -260,6 +289,7 @@ try {
     }
     assert.deepEqual(await page.evaluate(() => window.unexpectedRequests), []);
     await page.goto(origin + '/fixture?guest');
+    await assertProfileHeading(page.locator('.public-collection-page__hero'), { owner: false });
     await waitForNavLinks(urls.length);
     assert.equal(await nav.getByRole('link').count(), urls.length);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -285,6 +315,7 @@ try {
     }
     await page.goto(origin + '/app/wishes?tab=products&sharing-fixture');
     const hero = page.locator('[data-persistent-profile]');
+    await assertProfileHeading(hero, { owner: true });
     await page.getByRole('region', { name: 'Запросы доступа к пространству' }).getByRole('button', { name: 'Открыть доступ', exact: true }).waitFor();
     assert.equal(await hero.getByRole('button', { name: /Открыть доступ/ }).count(), 0);
     assert.equal(await hero.getByRole('button', { name: /QR-код/ }).count(), 0);

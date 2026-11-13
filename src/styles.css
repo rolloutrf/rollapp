@@ -4354,7 +4354,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   align-items: center;
   gap: 12px;
 }
-.app-layout--dark .wishes-page__profile-controls .wishes-page__friend-links { margin-top: 0; }
 .app-layout--dark .sphere-business-controls {
   display: contents;
 }
@@ -4677,7 +4676,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 .app-layout--dark .wishes-page__friend-links {
   width: 100%;
-  margin-top: -12px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -4801,7 +4799,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   .app-layout--dark .sphere-share-avatars__person { display: none; }
   .app-layout--dark .sphere-share-avatars__add { margin-left: 0; }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 36px; }
-  .app-layout--dark .wishes-page__friend-links { margin-top: -8px; }
   .app-layout--dark .wishes-page__friend-links > a { font-size: 16px; line-height: 21px; }
   .app-layout--dark .friend-profile-page__stats > div { font-size: 16px; line-height: 21px; }
 }

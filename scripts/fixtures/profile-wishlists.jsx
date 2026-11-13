@@ -15,7 +15,7 @@ const sharedLinks = {
 const params = new URLSearchParams(location.search);
 const guest = params.has("guest");
 const sharingFixture = params.has("sharing-fixture");
-let profile = { id: "fixture", name: "Профиль", username: "fixture", wishlistLinks: guest || location.pathname === "/app/wishes" ? sharedLinks : {} };
+let profile = { id: "fixture", name: "Профиль", username: "fixture", memberNumber: 12345, wishlistLinks: guest || location.pathname === "/app/wishes" ? sharedLinks : {} };
 if (sharingFixture) profile.accountType = "personal";
 const importedWishes = new Map();
 window.profilePatches = [];
