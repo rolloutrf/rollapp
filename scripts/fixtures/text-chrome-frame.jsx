@@ -1,9 +1,9 @@
-import { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext } from '@/App.jsx?text-chrome';
+import { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext, TabbedSpherePage, IDENTITY_TABS } from '@/App.jsx?text-chrome';
 // Real application chrome, supplied presentation context; API requests remain forbidden.
-export default function TextChromeFrame({children}){
+export default function TextChromeFrame({children, identity}){
  const user={canDiscoverSpheres:true,accountType:'personal'};
  return <SessionContext.Provider value={{user}}><ToastContext.Provider value={()=>{}}><CollectionNavigationContext.Provider value={{collection:null}}>
   <GlobalAppChrome/>
-  <div className="app-layout app-layout--dark"><main className="app-main"><div className="app-shell-chrome-spacer"/><section className="app-page">{children}</section></main></div>
+  <div className="app-layout app-layout--dark"><main className="app-main"><div className="app-shell-chrome-spacer"/>{identity ? <TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /> : <section className="app-page">{children}</section>}</main></div>
  </CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;
 }

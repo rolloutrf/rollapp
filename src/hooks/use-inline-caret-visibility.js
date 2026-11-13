@@ -3,6 +3,36 @@ import { useEffect } from "react";
 import { TextSelection } from "@tiptap/pm/state";
 import { measureVisualViewport } from "@/hooks/use-visual-viewport";
 
+export function handleVisualViewportCaretScroll(view) {
+  const root = view.dom;
+  const browser = root.ownerDocument.defaultView;
+  const viewport = browser.visualViewport;
+  const selection = view.state.selection;
+  if (!viewport || Math.abs(viewport.scale - 1) > 0.01 || !(selection instanceof TextSelection)) return false;
+  const { keyboard, offsetTop } = measureVisualViewport(browser);
+  if (!keyboard && !offsetTop) return false;
+  // Leave active IME positioning to the browser. The observer checks the
+  // final caret after compositionend.
+  if (view.composing && view.hasFocus()) return true;
+  if (!requestInlineCaretReveal(view)) return false;
+
+  // ProseMirror measures from y=0 and omits the fixed navigation over the
+  // keyboard. Use one page reveal with both constraints, and keep the
+  // horizontal reveal local to tables and code blocks.
+  const native = root.ownerDocument.getSelection();
+  const node = native?.focusNode;
+  let element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  for (; element && element !== root && root.contains(element); element = element.parentElement) {
+    if (element.scrollWidth <= element.clientWidth || !/^(auto|scroll)$/.test(getComputedStyle(element).overflowX)) continue;
+    const caret = view.coordsAtPos(selection.head);
+    const left = element.getBoundingClientRect().left + element.clientLeft;
+    const right = left + element.clientWidth;
+    if (caret.left < left) element.scrollLeft -= left - caret.left;
+    else if (caret.right > right) element.scrollLeft += caret.right - right;
+  }
+  return true;
+}
+
 function nativeCaretRect(root, selection, fallback) {
   const range = root.ownerDocument.createRange();
   range.setStart(selection.focusNode, selection.focusOffset); range.collapse(true);

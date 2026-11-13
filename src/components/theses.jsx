@@ -169,6 +169,6 @@ function IdentityStatements({ section }) {
     {!careerContent.loading && !careerContent.error && <InlineDocument key={`${section}:${sharing.owner?.id || "self"}`}
       documentKey={`identity:${section}`} value={content} onSave={careerContent.save} label={labels.title}
       readOnly={sharing.readOnly || sharing.loading || Boolean(sharing.error)}
-      placeholder={labels.description} className="theses-source" />}
+      placeholder={labels.description} className="theses-source" focusOnEntry />}
   </div>;
 }

@@ -10,7 +10,7 @@ import { InlineTableHandles } from "@/components/inline-table-handles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { closeHistory } from "@tiptap/pm/history";
-import { TextSelection } from "@tiptap/pm/state";
+import { Selection, TextSelection } from "@tiptap/pm/state";
 import { DOMParser as ProseMirrorDOMParser, Fragment, Slice } from "@tiptap/pm/model";
 import { columnResizingPluginKey } from "@tiptap/pm/tables";
 import { FloatingMenu } from "@tiptap/react/menus";
@@ -23,7 +23,8 @@ import { blockTypes, filterBlockTypes, applyBlockType } from "@/lib/inline-block
 import { insertTextBlock, selectedBlockPosition } from "@/lib/inline-blocks";
 import { InlineBlockControls } from "@/components/inline-block-controls";
 import { cn } from "@/lib/utils";
-import { useInlineCaretVisibility } from "@/hooks/use-inline-caret-visibility";
+import { handleVisualViewportCaretScroll, useInlineCaretVisibility } from "@/hooks/use-inline-caret-visibility";
+import { requestInlineCaretReveal } from "@/lib/inline-caret-intent";
 import { useInlineMenuPortal } from "@/hooks/use-inline-menu-portal";
 import { inlineEditorExtensions } from "@/lib/inline-editor-extensions";
 import { nextSlashSuggestion, applySlashCommand } from "@/lib/inline-slash-commands";
@@ -42,7 +43,7 @@ const pickerCollision = { side: "shift", align: "shift" };
 const safeLink = safeInlineLink;
 const symbolHints = { "Жирный": "**текст** или __текст__", "Курсив": "*текст* или _текст_", "Ссылка": "[текст](https://…)" };
 
-export default function InlineRichTextEditor({ value = "", onChange, onBlur, disabled = false, readOnly = false, label, className, placeholder, editorRef, contentAdapter, allowImages = true }) {
+export default function InlineRichTextEditor({ value = "", onChange, onBlur, disabled = false, readOnly = false, label, className, placeholder, editorRef, contentAdapter, allowImages = true, focusOnEntry = false }) {
   const externalValue = useRef(value);
   const [initialContent] = useState(() => contentAdapter ? contentAdapter.parse(value) : value);
   const serializedContent = current => contentAdapter ? contentAdapter.serialize(current.state.doc) : current.getMarkdown();
@@ -86,11 +87,13 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     updateMenu(null); setLink(current.getAttributes("link").href || ""); setLinkError(""); setLinkOpen(true);
   };
   const instance = useRef(null);
+  const focusedOnEntry = useRef(false);
   const blockActions = useRef(null);
   const extensions = useMemo(() => [...inlineEditorExtensions(placeholder, contentAdapter?.documentExtension, { allowImages }), ...(contentAdapter?.extensions || [])], [placeholder, contentAdapter, allowImages]);
   const viewportBoundary = useVisualViewportBoundary(Boolean(picker));
   const editorProps = useMemo(() => ({
       attributes: { class: "inline-editor__content typeset typeset-rollapp typeset-document", role: "textbox", "aria-label": label, "aria-multiline": "true", spellcheck: "true" },
+      handleScrollToSelection: handleVisualViewportCaretScroll,
       clipboardParser: { parseSlice(dom,options={}) {
         const internal='[data-pm-slice], [data-block-color], [data-inline-color], [data-inline-background], [data-inline-rich]';
         const preserve=dom.matches?.(internal)||dom.querySelector(internal);
@@ -254,6 +257,24 @@ export default function InlineRichTextEditor({ value = "", onChange, onBlur, dis
     externalValue.current = value;
     if (editor && JSON.stringify(value) !== JSON.stringify(serializedContent(editor))) editor.commands.setContent(contentAdapter ? contentAdapter.parse(value) : value, { contentType: contentAdapter ? "json" : "markdown", emitUpdate: false });
   }, [value, editor, contentAdapter]);
+  useEffect(() => {
+    if (!focusOnEntry || !editable || focusedOnEntry.current || !editor) return;
+    // Wait for the attached editor, any restored draft and the section menu's
+    // focus return. Focus once, without scrolling the whole editable element.
+    const frame = requestAnimationFrame(() => {
+      if (editor.isDestroyed || !editor.isEditable) return;
+      const view = editor.view;
+      if (!view.dom.isConnected || view.composing) return;
+      focusedOnEntry.current = true;
+      if (view.hasFocus()) return;
+      const firstText = Selection.findFrom(view.state.doc.resolve(0), 1, true);
+      if (!firstText) return;
+      if (!firstText.eq(view.state.selection)) view.dispatch(view.state.tr.setSelection(firstText));
+      view.focus();
+      requestInlineCaretReveal(view);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editor, editable, focusOnEntry]);
   useEffect(() => {
     if (editorRef) editorRef.current = editor;
     return () => { if (editorRef) editorRef.current = null; };

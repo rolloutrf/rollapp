@@ -42,8 +42,9 @@ import { checkTextBlockBoundaries } from "./text-block-boundary-checks.mjs";
 import { checkTextSparseBlocks } from "./text-sparse-block-checks.mjs";
 import assert from "node:assert/strict";
 import { access } from "node:fs/promises";
-import { chromium, webkit } from "playwright-core";
+import { chromium, devices, webkit } from "playwright-core";
 import { createServer } from "vite";
+import { checkStatementEntry } from "./text-statement-entry-checks.mjs";
 
 import { checkTextBasicBlocks } from "./text-basic-blocks-checks.mjs";
 import { checkTextBlockSelection } from "./text-block-selection-checks.mjs";
@@ -60,7 +61,7 @@ import { checkTextSelectionPosition } from "./text-selection-position-checks.mjs
 import { checkTextSymbolShortcuts } from "./text-symbol-shortcuts-checks.mjs";
 import { browserLaunchOptions } from "./browser-runtime.mjs";
 const port = smokePort(process.env.TEXT_EDIT_PORT);
-const only = smokeMode(process.argv.slice(2), ["--mobile-enter-webkit", "--mobile-enter-only", "--image-captions-only", "--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
+const only = smokeMode(process.argv.slice(2), ["--statement-entry-only", "--mobile-enter-webkit", "--mobile-enter-only", "--image-captions-only", "--image-alignment-only", "--paste-history-diagnostic", "--quote-styles-only", "--links-only", "--surface-only", "--image-resize-only", "--image-resize-diagnostic", "--image-context-only", "--image-context-diagnostic", "--image-reader-only", "--image-reader-diagnostic", "--image-layout-only", "--image-layout-diagnostic", "--images-only", "--images-diagnostic", "--cell-clipboard-only", "--partial-cross-clipboard-only", "--cross-clipboard-only", "--insert-ownership-only", "--cut-history-only", "--gutter-alignment-only", "--symbols-only", "--selection-only", "--basic-blocks-only", "--block-selection-only", "--styles-only", "--code-paste-only", "--four-document-only", "--tables-only", "--slash-only", "--block-colors-only", "--block-menu-only", "--conversion-only", "--paint-only", "--sparse-only", "--boundaries-only", "--nesting-only", "--deep-lists-only", "--native-caret-only", "--long-answers-only", "--question-moves-only", "--first-selection-only", "--list-moves-only", "--list-drag-only", "--drag-guards-only", "--mod-enter-only", "--relocation-depth-only", "--table-handles-only", "--table-axis-guards-only", "--table-wide-only", "--table-chrome-only", "--caret-scroll-only", "--table-duplicate-only", "--table-growth-only", "--table-growth-guards-only", "--plain-caret-only", "--table-growth-contexts-only", "--table-insert-caret-only", "--columns-only", "--column-contexts-only", "--column-persistence-only", "--native-page-keys-only"]);
 const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/text-edit.jsx", "scripts/fixtures/text-chrome-frame.jsx"], include: ["zod", ...smokeBaseUiDependencies, "date-fns/locale", "next-themes", "react-day-picker", "qrcode"] }, cacheDir: process.env.TEXT_EDIT_CACHE_DIR || "node_modules/.vite-text-edit", server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null }, plugins: [{
   name: "text-edit-fixture", enforce: "pre",
   transform(source, id) {
@@ -78,19 +79,30 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
       return source.replace('delete: (path) => request(path, { method: "DELETE" }),',`delete: path => {if(window.inlineImageFixture&&path.startsWith('/uploads/images/')){window.inlineImageFixture.releases.push(path);return Promise.resolve({ok:true});}return request(path,{method:'DELETE'});},`);
     }
 
-    if (id.endsWith("/src/App.jsx?text-chrome")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext };`;
+    if (id.endsWith("/src/App.jsx?text-chrome")) return `${source}\nexport { GlobalAppChrome, SessionContext, ToastContext, CollectionNavigationContext, TabbedSpherePage, IDENTITY_TABS };`;
     if (id.endsWith("/src/components/career-content.jsx")) {
       const start = source.indexOf("export function useCareerContent(");
       const end = source.indexOf("export function CareerContentError", start);
       return source.slice(0, start) + `export function useCareerContent(section, fallback) {
-        const [content, setContent] = useState(() => window.inlineFixtureCareerContent?.[section] ?? fallback);
-        return { content, loading: false, error: "", retry() {}, save: async value => { window.inlineTest.saves.push(value); window.inlineTest.saved = value; setContent(value); return value; } };
+        const params = new URLSearchParams(location.search);
+        const [content, setContent] = useState(() => (params.get("statement") === section ? window.inlineFixtureSource : window.inlineFixtureCareerContent?.[section]) ?? fallback);
+        const delay = params.has("statement-loading");
+        const [loading, setLoading] = useState(delay);
+        useEffect(() => {
+          if (!delay) return;
+          const timer = setTimeout(() => setLoading(false), 250);
+          return () => clearTimeout(timer);
+        }, [delay]);
+        return { content, loading, error: "", retry() {}, save: async value => { window.inlineTest.saves.push(value); window.inlineTest.saved = value; setContent(value); return value; } };
       }\n` + source.slice(end);
     }
-    if (id.endsWith("/src/lib/sphere-sharing.jsx")) return source.replace("owner: null,", 'owner: { id: "inline-fixture" },'); if (id.endsWith("/src/components/four-questions.jsx?text-edit")) return `${source}\nexport { FourQuestionDocument };`; },
+    if (id.endsWith("/src/lib/sphere-sharing.jsx")) return source
+      .replace("owner: null,", 'owner: { id: "inline-fixture" },')
+      .replace("readOnly: false,", 'readOnly: new URLSearchParams(location.search).has("statement-readonly"),');
+    if (id.endsWith("/src/components/four-questions.jsx?text-edit")) return `${source}\nexport { FourQuestionDocument };`; },
   configureServer(vite) { vite.middlewares.use(async (req, res, next) => {
     if (req.url === "/__inline-image.png") { res.setHeader("Content-Type","image/png");res.end(imageFixturePNG);return; }
-    if (!req.url.startsWith("/__text-edit") && !(req.url.startsWith("/app/spheres/career?") && new URL(req.url,"http://127.0.0.1").searchParams.has("__text_fixture"))) return next();
+    if (!req.url.startsWith("/__text-edit") && !(/^\/app\/spheres\/(?:career|identity)\?/.test(req.url) && new URL(req.url,"http://127.0.0.1").searchParams.has("__text_fixture"))) return next();
     res.setHeader("Content-Type", "text/html");
     const theme = new URL(req.url, "http://127.0.0.1").searchParams.has("light") ? "" : "dark";
     res.end(await vite.transformIndexHtml(req.url, `<!doctype html><html class="${theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/text-edit.jsx"></script></body></html>`));
@@ -101,6 +113,15 @@ const origin = smokeOrigin(server);
 const mobileEnterWebkit = only === "--mobile-enter-webkit";
 const browser = instrumentSmokeBrowser(await (mobileEnterWebkit ? webkit.launch() : chromium.launch(browserLaunchOptions())));
 try {
+  if (!only || only === "--statement-entry-only") {
+    await checkStatementEntry(browser, origin, [[320, 844], [390, 844], [390, 400], [768, 844], [820, 844], [1024, 844], [1440, 844], [1920, 844]]);
+    const mobileBrowser = await webkit.launch();
+    try {
+      await checkStatementEntry(mobileBrowser, origin, [[320, 844], [390, 844], [390, 400]], devices["iPhone 13"]);
+    } finally {
+      await mobileBrowser.close();
+    }
+  }
   if (!only || only === "--mobile-enter-only" || mobileEnterWebkit) await checkMobileEnter(browser, origin, mobileEnterWebkit ? {
     isMobile: true, hasTouch: true,
     userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",

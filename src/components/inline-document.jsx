@@ -19,7 +19,7 @@ export function useDocumentDraft(value, onSave, documentKey, enabled = true) {
   return useInlineAutosave({ value, onSave, enabled, storageKey: owner?.id ? `rollapp:text:${owner.id}:${documentKey}` : undefined });
 }
 
-export function InlineDocument({ value, onSave, label, documentKey, scope = "identity", readOnly = false, disabled = false, addBlock, placeholder, className = "", showBusinessControls = true }) {
+export function InlineDocument({ value, onSave, label, documentKey, scope = "identity", readOnly = false, disabled = false, addBlock, placeholder, className = "", showBusinessControls = true, focusOnEntry = false }) {
   const autosave = useDocumentDraft(value, onSave, documentKey, !readOnly && !disabled);
   const editorRef = useRef(null);
   const editable = !readOnly && !disabled;
@@ -38,7 +38,7 @@ export function InlineDocument({ value, onSave, label, documentKey, scope = "ide
       </div>
     </header>}
     <EditableTextBlock value={editable ? autosave.draft : value} onChange={editable ? autosave.change : undefined} onBlur={autosave.flush}
-      readOnly={readOnly} disabled={disabled} label={label} placeholder={placeholder} className={className} editorRef={editorRef} />
+      readOnly={readOnly} disabled={disabled} label={label} placeholder={placeholder} className={className} editorRef={editorRef} focusOnEntry={focusOnEntry} />
     {editable && <InlineSaveStatus autosave={autosave} />}
   </>;
 }

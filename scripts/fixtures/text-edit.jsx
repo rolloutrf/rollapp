@@ -48,6 +48,6 @@ function Fixture() {
       <InlineDocument documentKey="fixture" value={content} onSave={save} label="О себе" readOnly={accessReadOnly} disabled={params.has("loading")} showBusinessControls={params.has("add")} addBlock={[{ type: "heading", attrs: { level: 3 } }, { type: "paragraph" }]} />}
     {params.has("twins")&&<InlineDocument documentKey="fixture-secondary" value={params.get("secondSource") || "Второй документ"} onSave={async value=>{window.inlineTest.secondSaved=value;}} label="Второй документ"/>}
   </ContentRoot>;
-  return params.has("chrome") ? <Suspense fallback={null}><TextChromeFrame>{document}</TextChromeFrame></Suspense> : document;
+  return params.has("chrome") ? <Suspense fallback={null}><TextChromeFrame identity={params.has("identity")}>{document}</TextChromeFrame></Suspense> : document;
 }
 createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);
