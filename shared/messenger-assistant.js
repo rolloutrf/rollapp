@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isPlanningDate } from './planning.js';
 import { scheduleError } from './planning-calendar.js';
+import { SPHERE_TABS } from './sphere-tabs.js';
 
 export const ASSISTANT_WISH_EXAMPLE = 'Добавь кофемолку за 4 500 ₽ в список «Кухня»';
 export const ASSISTANT_NAME = 'Ассистент Rollapp';
@@ -8,7 +9,7 @@ export const ASSISTANT_MESSAGE_LIMIT = 4000;
 // Four completed turns and the new user message.
 export const ASSISTANT_CONTEXT_LIMIT = 9;
 
-export const ASSISTANT_SECTIONS = {
+const mainSections = {
   todo: { title: 'To Do', path: '/app/planning?tab=todo' },
   calendar: { title: 'Календарь', path: '/app/planning?tab=calendar' },
   kanban: { title: 'Kanban-доска', path: '/app/planning?tab=kanban' },
@@ -19,6 +20,21 @@ export const ASSISTANT_SECTIONS = {
   education: { title: 'Образование', path: '/app/spheres/education', private: true },
   career: { title: 'Карьера', path: '/app/spheres/career', private: true },
 };
+
+export const ASSISTANT_SECTIONS = {
+  ...mainSections,
+  ...Object.fromEntries(Object.entries(SPHERE_TABS).flatMap(([sphere, tabs]) => {
+    const parent = mainSections[sphere];
+    return tabs.map(({ id, label }) => [
+      `${sphere}:${id}`,
+      { title: label, path: `${parent.path}?tab=${id}`, private: parent.private },
+    ]);
+  })),
+};
+
+export function assistantSectionKeys(canDiscoverSpheres) {
+  return Object.keys(ASSISTANT_SECTIONS).filter(key => canDiscoverSpheres === true || !ASSISTANT_SECTIONS[key].private);
+}
 
 const title = z.string().trim().min(1).max(200);
 const description = z.string().trim().max(3000).default('');

@@ -114,7 +114,7 @@ export function AssistantProvider({ children }) {
   return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
-function AssistantActions({ actions, onReviewWish }) {
+function AssistantActions({ actions, onReviewWish, canDiscoverSpheres }) {
   if (!Array.isArray(actions)) return null;
   const targets = {
     draft_task: ['todo', 'Проверить задачу'],
@@ -125,6 +125,7 @@ function AssistantActions({ actions, onReviewWish }) {
     const action = parseAssistantAction(candidate?.type, candidate?.value);
     if (!action) return null;
     const { type, value } = action;
+    if (type === 'open_section' && ASSISTANT_SECTIONS[value.section].private && !canDiscoverSpheres) return null;
     if (type === 'draft_wish') return <AssistantWishAction key={index} value={value} onReview={onReviewWish} />;
     const [section, label] = type === 'open_section'
       ? [value.section, `Открыть: ${ASSISTANT_SECTIONS[value.section].title}`]
@@ -188,16 +189,16 @@ function AssistantChatPicker({ chats, chat, createChat, selectChat, presetMenu }
   </ControlBar>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish }) {
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, canDiscoverSpheres }) {
   const workspace = useContext(AssistantContext);
   const heading = useRef(null);
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
-    <AssistantConversation open={open} heading={heading} onReviewWish={onReviewWish} workspace={workspace} />
+    <AssistantConversation open={open} heading={heading} onReviewWish={onReviewWish} workspace={workspace} canDiscoverSpheres={canDiscoverSpheres} />
   </MessageDrawer>;
 }
 
-function AssistantConversation({ workspace, open, heading, onReviewWish }) {
+function AssistantConversation({ workspace, open, heading, onReviewWish, canDiscoverSpheres }) {
   const { chat, setDraft, submit } = workspace;
   const voice = useAssistantDictation({ disabled: !open || chat.sending, setDraft, chatId: chat.id });
   const voiceStatus = voice.status || (voice.supported ? '' : 'Диктовка недоступна в этом браузере');
@@ -210,7 +211,7 @@ function AssistantConversation({ workspace, open, heading, onReviewWish }) {
       history.current.scrollTop = chat.messages.length || chat.sending || chat.error ? history.current.scrollHeight : 0;
     }
   }, [chat.id, chat.messages, chat.sending, chat.error]);
-  return <AssistantPresets draft={chat.draft} disabled={!open || chat.sending || voice.active} setDraft={setDraft} inputRef={input}>
+  return <AssistantPresets draft={chat.draft} disabled={!open || chat.sending || voice.active} setDraft={setDraft} inputRef={input} canDiscoverSpheres={canDiscoverSpheres}>
     {({ menu, suggestions }) => <>
       <ControlBar as="header" className="messenger-heading assistant-drawer__header">
         <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
@@ -227,7 +228,7 @@ function AssistantConversation({ workspace, open, heading, onReviewWish }) {
           <small className="text-muted-foreground">Сообщения обрабатывает модель Rollapp в Yandex Cloud или ваша модель OpenRouter.</small>
         </div>}
         {chat.messages.map(({ role, content, actions }, index) => <article key={`${chat.id}:${index}`} className="messenger-message messenger-assistant-message" data-own={role === 'user' || undefined}
-          aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} /></article>)}
+          aria-label={role === 'user' ? 'Ваше сообщение' : 'Ответ ассистента'}><p>{content}</p><AssistantActions actions={actions} onReviewWish={onReviewWish} canDiscoverSpheres={canDiscoverSpheres} /></article>)}
         {chat.sending && <p className="messenger-note" role="status">Ассистент готовит ответ…</p>}
         {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
       </div>

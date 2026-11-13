@@ -399,6 +399,25 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await text.fill('Ручной ввод');
     assert.equal(await send.isEnabled(),true);
   }
+  if (width === 1440 && height === 844) {
+    await openAssistant();
+    await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
+    await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Идентичность', exact: true }).press('ArrowRight');
+    await page.getByRole('menuitem', { name: 'Открыть «Ценности»', exact: true }).press('Enter');
+    await send.click();
+    const values = chat.getByRole('link', { name: 'Открыть: Ценности', exact: true });
+    await values.waitFor();
+    assert.equal(await values.getAttribute('href'), '/app/spheres/identity?tab=values');
+    await values.click();
+    await chat.waitFor({ state: 'hidden' });
+    assert.equal(new URL(page.url()).searchParams.get('tab'), 'values');
+    await openAssistant();
+    await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
+    const examples = chat.getByRole('group', { name: 'Примеры запросов' });
+    await examples.getByRole('button', { name: 'Подготовить вопросы о ценностях', exact: true }).waitFor();
+    await examples.getByRole('button', { name: 'Открыть «Ценности»', exact: true }).waitFor();
+  }
   console.log(`PASS assistant ${width}x${height}: shared drawer, editable presets, keyboard/focus, dictation, parallel replies, scoped context, safe draft review, navigation`);
 }
 
@@ -412,7 +431,7 @@ async function checkAssistantPresets(page, chat, text, width, height) {
   await trigger.press('Enter');
   await menu.waitFor();
   await settlePopup(menu);
-  assert.equal(await menu.getByRole('menuitem').count(), 8);
+  assert.equal(await menu.getByRole('menuitem').count(), 12);
   const bounds = await menu.boundingBox();
   assert(bounds.x >= 0 && bounds.x + bounds.width <= width + 1 && bounds.y >= 0 && bounds.y + bounds.height <= height + 1);
   if ((width === 390 && height === 400) || (width === 1440 && height === 844)) {
@@ -422,6 +441,20 @@ async function checkAssistantPresets(page, chat, text, width, height) {
   await menu.waitFor({ state: 'hidden' });
   assert(await chat.isVisible());
   assert.equal(await text.inputValue(), 'Заметки встречи');
+  await trigger.press('Enter');
+  const identity = menu.getByRole('menuitem', { name: 'Идентичность', exact: true });
+  await identity.press('ArrowRight');
+  const sphereMenu = page.getByRole('menu', { name: 'Идентичность', exact: true });
+  await sphereMenu.waitFor();
+  await settlePopup(sphereMenu);
+  const sphereBounds = await sphereMenu.boundingBox();
+  assert(sphereBounds.x >= 0 && sphereBounds.x + sphereBounds.width <= width + 1 &&
+    sphereBounds.y >= 0 && sphereBounds.y + sphereBounds.height <= height + 1);
+  await sphereMenu.getByRole('menuitem', { name: 'Открыть «Ценности»', exact: true }).press('Enter');
+  await menu.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => document.activeElement?.id === 'messenger-text');
+  assert.equal(await text.inputValue(), 'Заметки встречи\n\nОткрой вкладку «Ценности» в сфере «Идентичность».');
+  await text.fill('Заметки встречи');
   await trigger.press('Enter');
   await menu.getByRole('menuitem', { name: 'Подготовить заметку', exact: true }).press('Space');
   await menu.waitFor({ state: 'hidden' });
@@ -555,6 +588,17 @@ async function checkParallelChats(page, chat, text, close, openAssistant, width,
 }
 
 async function checkAssistantAccountSwitch(page, chat) {
+  await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
+  const presets = page.getByRole('menu', { name: 'Пресеты запросов', exact: true });
+  for (const [sphere, tab] of [['Здоровье', 'Сон'], ['Образование', 'Курсы'], ['Карьера', 'ИПР']]) {
+    await presets.getByRole('menuitem', { name: sphere, exact: true }).press('ArrowRight');
+    const submenu = page.getByRole('menu', { name: sphere, exact: true });
+    await submenu.getByRole('menuitem', { name: `Открыть «${tab}»`, exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await submenu.waitFor({ state: 'hidden' });
+  }
+  await page.keyboard.press('Escape');
+  await presets.waitFor({ state: 'hidden' });
   const prompts=['Первый незавершённый запрос','Второй незавершённый запрос'];
   await holdAssistantReplies(page,...prompts);
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
@@ -575,6 +619,11 @@ async function checkAssistantAccountSwitch(page, chat) {
   await list.getByRole('menuitemradio',{name:'Чат 1',exact:true}).waitFor();
   assert.equal(await list.getByRole('menuitemradio').count(),1);
   assert.equal(await chat.getByText('Поздний ответ другого аккаунта').count(),0);
+  await page.keyboard.press('Escape');
+  await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
+  await presets.waitFor();
+  assert.equal(await presets.getByRole('menuitem').count(), 8);
+  assert.equal(await presets.getByText('Сферы', { exact: true }).count(), 0);
   await page.keyboard.press('Escape');
 }
 

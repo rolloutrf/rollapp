@@ -73,13 +73,13 @@ test('assistant reports insufficient credits when Yandex is unconfigured', async
   });
 });
 
-async function withAssistant(options, run) {
+async function withAssistant({ canDiscoverSpheres = false, ...options }, run) {
   const app = express();
   app.use(express.json());
   registerMessengerAssistantRoute(app, {
     requireAuth: (req, res, next) => {
       if (!req.get('X-Test-Session')) return res.sendStatus(401);
-      req.user = { id: 'owner', can_discover_spheres: false };
+      req.user = { id: 'owner', can_discover_spheres: canDiscoverSpheres };
       next();
     },
     asyncRoute: handler => (req, res, next) => Promise.resolve(handler(req, res)).catch(next),
@@ -102,6 +102,31 @@ async function withAssistant(options, run) {
     await new Promise(resolve => server.close(resolve));
   }
 }
+
+test('assistant offers exact sphere tabs only to accounts with sphere access', async () => {
+  const sections = ['identity:values', 'health:sleep', 'education:courses', 'career:development-plan'];
+  for (const canDiscoverSpheres of [false, true]) {
+    await withAssistant({
+      canDiscoverSpheres,
+      resolveCredential: async () => ({ provider: 'yandex' }),
+      yandexRequest: async (_path, body) => {
+        const allowed = body.tools.find(({ function: fn }) => fn.name === 'open_section').function.parameters.properties.section.enum;
+        for (const section of sections) assert.equal(allowed.includes(section), canDiscoverSpheres);
+        assert.equal(body.messages[0].content.includes('identity:values — Ценности'), canDiscoverSpheres);
+        return { choices: [{ message: { tool_calls: [
+          tool('open_section', { section: sections[0] }),
+          tool('open_section', { section: 'identity:unknown' }),
+          tool('open_section', { section: 'calendar' }),
+        ] } }] };
+      },
+    }, async request => {
+      const response = await request(ask('Открой мои ценности'));
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).actions.map(action => action.value.section),
+        canDiscoverSpheres ? ['identity:values', 'calendar'] : ['calendar']);
+    });
+  }
+});
 
 test('assistant rejects anonymous access, spoofed model/system instructions and invalid input before the provider', async () => {
   await withAssistant({}, async request => {
