@@ -3,7 +3,7 @@ import { NOTE_TASKS_REQUEST_EVENT } from "@/lib/planning-assistant";
 import { AssistantNoteTasks, createNoteTaskRows } from "@/components/assistant-note-tasks";
 import { AddFab } from "@/components/add-fab";
 import { ProductTitleInput } from "@/components/product-title-input";
-import { AssistantDrawer, AssistantProvider, useAssistantNoteReviews } from "@/components/assistant-drawer";
+import { AssistantDrawer, useAssistantChats } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
 import { WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
@@ -736,7 +736,7 @@ function AppBrand({ showSwitcher = true }) {
 
 function PlanningFab() {
   const { user } = useSession();
-  return user ? <AssistantProvider key={user.id}><PlanningControls user={user} /></AssistantProvider> : null;
+  return user ? <PlanningControls key={user.id} user={user} /> : null;
 }
 
 function PlanningControls({ user }) {
@@ -750,8 +750,10 @@ function PlanningControls({ user }) {
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const assistant = useAssistantChats(assistantOpen);
+  const { showList: showAssistantList } = assistant;
   const profileEditor = useProfileEditor();
-  const { noteReviews, updateNoteReview } = useAssistantNoteReviews();
+  const { noteReviews, updateNoteReview } = assistant;
   const [noteRequest, setNoteRequest] = useState(null);
   const [noteTaskReview, setNoteTaskReview] = useState(null);
   const pendingNoteReview = useRef(null);
@@ -803,11 +805,13 @@ function PlanningControls({ user }) {
     pendingNoteReview.current = null;
     setNoteRequest(null);
     const showMessages = Boolean(location.state?.messengerOpen);
+    const showAssistant = !showMessages && Boolean(location.state?.assistantOpen);
     setOpen(false);
-    setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
+    if (showAssistant) showAssistantList();
+    setAssistantOpen(showAssistant);
     setMessagesOpen(showMessages);
     setInitialConversationId(location.state?.messengerConversationId || null);
-  }, [location]);
+  }, [location, showAssistantList]);
   const setMessengerDrawerOpen = (value) => {
     setMessagesOpen(value);
     if (value) {
@@ -819,6 +823,7 @@ function PlanningControls({ user }) {
   const setAssistantDrawerOpen = (value) => {
     setAssistantOpen(value);
     if (value) {
+      showAssistantList();
       setOpen(false);
       setMessengerDrawerOpen(false);
     }
@@ -848,7 +853,7 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer canDiscoverSpheres={canAccessPrivateSpheres(user)} noteId={openNoteId} noteRequest={noteRequest}
+      <AssistantDrawer workspace={assistant} canDiscoverSpheres={canAccessPrivateSpheres(user)} noteId={openNoteId} noteRequest={noteRequest}
         onReviewNoteTasks={draft => {
           if (pendingNoteReview.current || pendingAssistantWish.current || noteTaskReview) return;
           pendingNoteReview.current = draft;
@@ -879,7 +884,7 @@ function PlanningControls({ user }) {
           noteReviewReturning.current = false;
           noteReviewLocation.current = null;
           setNoteTaskReview(null);
-          setAssistantDrawerOpen(true);
+          setAssistantOpen(true);
         }} />}
       {assistantWish && <WishModal initialDraft={assistantWish} onClose={() => closeAssistantWish()}
         onSaved={closeAssistantWish} onAfterClose={finishAssistantWish} />}

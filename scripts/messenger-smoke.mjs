@@ -20,7 +20,8 @@ try{
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/api/**',route=>{errors.push('Unexpected production API request');return route.abort();});
   await page.route('https://example.invalid/**',route=>{errors.push('Assistant note loaded unconfirmed remote media');return route.abort();});
-  await page.goto(`${smokeOrigin(server)}/app/wishes`,{waitUntil:'networkidle'});
+  // The first AppShell load compiles the full module graph on a cold Vite server.
+  await page.goto(`${smokeOrigin(server)}/app/wishes`,{waitUntil:'networkidle',timeout:120_000});
   const launcher=await page.getByRole('button',{name:'Открыть сообщения',exact:true}).boundingBox();
   const planning=await page.getByRole('button',{name:'Открыть планирование',exact:true}).boundingBox();
   const assistant=await page.getByRole('button',{name:'Ассистент Rollapp',exact:true}).boundingBox();
@@ -148,7 +149,7 @@ try{
   if(width===1440 && height===844){
     await page.goto(`${smokeOrigin(server)}/app/assistant`);
     const direct=page.getByRole('dialog',{name:'Ассистент Rollapp',exact:true});
-    await direct.getByRole('textbox',{name:'Сообщение'}).waitFor();
+    await assertAssistantDirectory(direct, 1);
     assert.equal(new URL(page.url()).pathname,'/app/wishes');
     await checkAssistantAccountSwitch(page, direct);
     await direct.getByRole('button',{name:'Закрыть ассистента',exact:true}).click();
@@ -174,9 +175,14 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   const close=chat.getByRole('button',{name:'Закрыть ассистента',exact:true});
   const openAssistant=async()=>{
     await entry.click();
-    await chat.waitFor();
+    await assertAssistantDirectory(chat);
     await settlePopup(chat);
   };
+  const resume=async name=>{
+    await openAssistant();
+    await assistantRow(chat, name).click();
+  };
+  const first=/^Что у меня в планах\?/;
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
   const send=chat.getByRole('button',{name:'Отправить сообщение',exact:true});
   const writes=()=>page.evaluate(()=>window.messengerTest.planningWrites);
@@ -200,19 +206,31 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await entry.press('Enter');
   await chat.waitFor();
   assert.equal(new URL(page.url()).pathname,'/app/wishes');
-  await page.waitForFunction(() => document.querySelector('.assistant-drawer__header h2') === document.activeElement);
+  await page.waitForFunction(() => document.querySelector('[data-slot="drawer-popup"] .messenger-heading h2') === document.activeElement);
   assert(await heading.evaluate(node=>node===document.activeElement),'Keyboard focus did not move to the assistant heading');
   assert.equal(await drawer.count(),0,'Assistant and contacts must not open two drawers');
   await settlePopup(chat);
   const assistantBounds=await chat.boundingBox();
   assert.deepEqual(assistantBounds,contactBounds,'Assistant must use the same drawer geometry as contacts');
   assert.equal(await chat.getAttribute('data-swipe-direction'),width<768?'down':'right');
+  await assertAssistantDirectory(chat, 1);
+  await assistantRow(chat, 'Новый чат').press('Enter');
+  await chat.getByRole('heading',{name:'Чат 1',exact:true}).waitFor();
+  const back=chat.getByRole('button',{name:'Все диалоги',exact:true});
+  const backBox=await back.boundingBox();
+  assert.equal(backBox.width,48);
+  assert.equal(backBox.height,48);
+  await back.click();
+  await assertAssistantDirectory(chat, 1);
+  await assistantRow(chat, 'Новый чат').click();
+  const conversationHeading=chat.getByRole('heading',{name:'Чат 1',exact:true});
+  assert(await conversationHeading.evaluate(node=>node===document.activeElement));
   assert.equal(await chat.getByText('Диктовка: микрофон или пробел вне поля ввода',{exact:true}).count(),0);
   assert.equal(await chat.getByText(/Ctrl\/⌘ \+ Enter — отправить/).count(),0);
   assert.equal(await chat.getByRole('checkbox').count(),0);
   assert.equal(await chat.getByText('Учесть моё планирование',{exact:true}).count(),0);
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
-  await checkDictation(page, chat, text, send, heading, close, openAssistant);
+  await checkDictation(page, chat, text, send, conversationHeading, close, resume);
   assert.equal(await send.isDisabled(),true);
   const example = 'Найди кофемолку на Ozon до 4500 ₽ в «Кухню»';
   assert.equal(await text.getAttribute('placeholder'), example);
@@ -262,7 +280,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await close.click();
   await chat.waitFor({state:'hidden'});
   await page.waitForFunction(()=>document.activeElement?.classList.contains('assistant-fab'));
-  await openAssistant();
+  await resume(first);
   await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
   await chat.getByRole('button',{name:'Диктовка',exact:true}).click();
   await page.evaluate(()=>{
@@ -283,11 +301,14 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   ]);
   assert.deepEqual(await writes(),[],'An assistant reply must not save anything');
   const metrics=await chat.evaluate(node=>{
-    const b=node.querySelector('button[type="submit"]').getBoundingClientRect(), history=node.querySelector('.messenger-history'), name=node.querySelector('[data-slot="drawer-title"]');
+    const b=node.querySelector('button[type="submit"]').getBoundingClientRect(), history=node.querySelector('.messenger-history'), name=node.querySelector('.messenger-heading h2:not(.sr-only)');
+    const heading=name.getBoundingClientRect(), close=node.querySelector('[data-slot="drawer-close"]').getBoundingClientRect();
     return { overflow:document.documentElement.scrollWidth>innerWidth || history.scrollWidth>history.clientWidth+1,
-      width:b.width,height:b.height,y:b.y,bottom:b.bottom,historyHeight:history.clientHeight, titleClipped:name.scrollWidth>name.clientWidth+1 };
+      width:b.width,height:b.height,y:b.y,bottom:b.bottom,historyHeight:history.clientHeight,
+      titleFits:heading.width>0 && heading.right+8<=close.left+.5, fullTitle:name.title };
   });
-  assert.equal(metrics.overflow,false);assert.equal(metrics.titleClipped,false);assert.equal(metrics.width,48);assert.equal(metrics.height,48);
+  assert.equal(metrics.overflow,false);assert.equal(metrics.titleFits,true);assert.equal(metrics.fullTitle,'Что у меня в планах?');
+  assert.equal(metrics.width,48);assert.equal(metrics.height,48);
   assert(metrics.y>=0 && metrics.bottom<=height && metrics.historyHeight>0);
   if(width===390 && height===400) {
     await text.fill('Многострочный черновик\n'.repeat(12));
@@ -318,7 +339,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   assert.equal(await page.locator('input[type=time]:visible').inputValue(),'','An untimed task must stay untimed');
   assert.deepEqual(await writes(),[]);
   await closeForm('Закрыть задачу');
-  await openAssistant();
+  await resume(first);
   await chat.getByRole('link',{name:'Проверить событие',exact:true}).click();
   await title.waitFor();
   assert.equal(await title.inputValue(),'Встреча команды');
@@ -332,7 +353,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     assert.equal(record.body.dueOn,'2026-11-09');
     await trigger.waitFor();
   } else await closeForm('Закрыть задачу');
-  await openAssistant();
+  await resume(first);
   {
     const wishPage = await browser.newPage({ viewport: { width, height } });
     const wishErrors = [];
@@ -346,6 +367,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).waitFor({ timeout: 20_000 });
     await wishPage.getByRole('button', { name: 'Ассистент Rollapp', exact: true }).click();
     const assistantChat = wishPage.getByRole('dialog', { name: 'Ассистент Rollapp', exact: true });
+    await assistantRow(assistantChat, 'Новый чат').click();
     await assistantChat.getByRole('button', { name: 'Добавить желание', exact: true }).click();
     const composer = assistantChat.getByRole('textbox', { name: 'Сообщение', exact: true });
     assert.match(await composer.inputValue(), /Кухня/);
@@ -437,7 +459,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     assert.equal(note.body.title,'Идеи встречи');
     assert.match(note.body.content,/!\\\[Внешнее изображение\\\]/);
   } else await closeForm('Закрыть заметку');
-  await openAssistant();
+  await resume(first);
   await text.fill('Открой календарь');
   await send.click();
   const link=chat.getByRole('link',{name:'Открыть: Календарь',exact:true});
@@ -464,7 +486,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await page.getByRole('link',{name:'Назад в приложение',exact:true}).click();
     assert.equal(new URL(page.url()).pathname,'/app/wishes','Assistant must not replace planning’s return path');
     await page.evaluate(()=>{delete window.SpeechRecognition; delete window.webkitSpeechRecognition;});
-    await openAssistant();
+    await resume(first);
     assert.equal(await chat.getByRole('button',{name:'Диктовка',exact:true}).isDisabled(),true);
     await chat.getByText('Диктовка недоступна в этом браузере',{exact:true}).waitFor();
     await text.fill('Ручной ввод');
@@ -604,11 +626,12 @@ async function checkNoteTasks(page, width, height) {
 }
 
 async function checkWishlistSort(page, chat, text, send, width, height) {
-  const picker = chat.getByRole('button', { name: /^Чаты ассистента/ });
-  const originalChat = (await picker.getAttribute('aria-label')).split('Текущий чат: ')[1];
+  const back = chat.getByRole('button', { name: 'Все диалоги', exact: true });
+  const originalChat = await chat.locator('.messenger-heading h2:visible').textContent();
   const starter = chat.getByRole('group', { name: 'Примеры запросов' })
     .getByRole('button', { name: 'Разобрать «Не отсортированные»', exact: true });
-  await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
+  await back.click();
+  await assistantRow(chat, 'Новый чат').click();
   await starter.click();
   assert.match(await text.inputValue(), /^Разбери «Не отсортированные»/);
   await send.click();
@@ -649,18 +672,19 @@ async function checkWishlistSort(page, chat, text, send, width, height) {
   assert.equal(await coffee.isChecked(), true);
   assert.equal(await light.isChecked(), false);
   assert.equal(await select.locator('[data-slot="select-value"]').textContent(), 'Воркспейс · закрытый');
-  const chatName = await chat.getByRole('button', { name: /^Чаты ассистента/ }).getAttribute('aria-label');
-  await chat.getByRole('button', { name: 'Новый чат', exact: true }).click();
-  await chat.getByRole('button', { name: /^Чаты ассистента/ }).click();
-  await page.getByRole('menuitemradio', { name: chatName.split('Текущий чат: ')[1], exact: true }).click();
+  const chatName = await chat.locator('.messenger-heading h2:visible').textContent();
+  await back.click();
+  await assistantRow(chat, 'Новый чат').click();
+  await back.click();
+  await assistantRow(chat, new RegExp('^' + chatName)).click();
   await preview.getByRole('alert').filter({ hasText: 'Желания или списки изменились' }).waitFor();
   await page.evaluate(() => { window.messengerTest.failSort = false; });
   await apply.click();
   await preview.getByRole('status').filter({ hasText: 'Перенесено 1 желание.' }).waitFor();
   const expected = { moves: [{ wishId: 'coffee', listId: 'workspace' }] };
   assert.deepEqual(await page.evaluate(() => window.messengerTest.sortWrites), [expected, expected]);
-  await picker.click();
-  await page.getByRole('menuitemradio', { name: originalChat, exact: true }).click();
+  await back.click();
+  await assistantRow(chat, new RegExp('^' + originalChat)).click();
 
 }
 
@@ -687,52 +711,57 @@ async function finishAssistantReply(page, prompt, { reply, error }) {
   },{prompt,reply,error});
 }
 
+function assistantRow(chat, name) {
+  return chat.getByRole('group',{name:'Чаты ассистента'}).getByRole('button',{name,exact:typeof name==='string'});
+}
+
+async function assertAssistantDirectory(chat, count) {
+  const list=chat.getByRole('group',{name:'Чаты ассистента'});
+  await list.waitFor();
+  assert.equal(await list.getByRole('button').first().innerText(),'Новый чат');
+  if(count!==undefined) assert.equal(await list.getByRole('button').count(),count);
+  assert.equal(await chat.getByRole('textbox',{name:'Сообщение'}).count(),0);
+  assert.equal(await chat.getByRole('menu').count(),0);
+}
+
 async function checkParallelChats(page, chat, text, close, openAssistant, width, height) {
-  const picker=chat.getByRole('button',{name:/^Чаты ассистента/});
-  const create=chat.getByRole('button',{name:'Новый чат',exact:true});
-  const list=page.getByRole('menu',{name:/^Чаты ассистента/});
+  const back=chat.getByRole('button',{name:'Все диалоги',exact:true});
+  const create=assistantRow(chat,'Новый чат');
   const send=chat.getByRole('button',{name:'Отправить сообщение',exact:true});
   const mic=chat.getByRole('button',{name:'Диктовка',exact:true});
   const history=chat.getByRole('log',{name:'История сообщений'});
-  const select=async name=>{
-    await picker.click();
-    await list.getByRole('menuitemradio',{name}).click();
-    await list.waitFor({state:'hidden'});
-  };
-  const first='Что у меня в планах?';
+  const first=/^Что у меня в планах\?/;
   const slow='Длинный план отдельной встречи '.repeat(4).trim();
   const fast='Короткий ответ в третьем чате';
   const initialRequests=await page.evaluate(()=>window.messengerTest.assistant.length);
   await holdAssistantReplies(page,slow,fast);
 
-  const [pickerBox,createBox]=await Promise.all([picker.boundingBox(),create.boundingBox()]);
-  assert.equal(pickerBox.height,48);
-  assert.equal(createBox.height,48);
-  assert.equal(createBox.width,48);
-  assert.equal(createBox.y,pickerBox.y);
-  assert.equal(createBox.x-pickerBox.x-pickerBox.width,8);
-  assert(createBox.x+createBox.width<=width && createBox.y+createBox.height<=height);
+  await back.click();
+  await assertAssistantDirectory(chat,2);
   await create.click();
   assert.equal(await history.locator('article').count(),0);
   assert.equal(await text.inputValue(),'');
   await text.fill(slow);
   await mic.click();
-  await create.click();
+  await back.click();
   assert.equal(await page.evaluate(()=>window.messengerTest.speech.aborted),true);
   await page.evaluate(()=>{
     const result=Object.assign([{transcript:'Поздняя диктовка'}],{isFinal:true});
     window.messengerTest.speech.onresult({resultIndex:0,results:[result]});
   });
+  await create.click();
   assert.equal(await text.inputValue(),'');
   await text.fill(fast);
-  await select('Чат 2');
+  await back.click();
+  await assistantRow(chat,/^Чат 2 Черновик:/).click();
   assert.equal(await text.inputValue(),slow);
   await text.press('Control+Enter');
   await history.getByText('Ассистент готовит ответ…').waitFor();
   assert.equal(await text.getAttribute('readonly'),'');
   await text.press('Control+Enter');
 
-  await select('Чат 3');
+  await back.click();
+  await assistantRow(chat,/^Чат 3 Черновик:/).click();
   assert.equal(await text.inputValue(),fast);
   await send.click();
   await history.getByText('Ассистент готовит ответ…').waitFor();
@@ -741,45 +770,40 @@ async function checkParallelChats(page, chat, text, close, openAssistant, width,
     [{role:'user',content:slow}],
     [{role:'user',content:fast}],
   ]);
-  await select(first);
-  await chat.getByRole('button',{name:/Готовятся ответы: 2/}).waitFor();
+  await back.click();
+  await assertAssistantDirectory(chat,4);
+  await assistantRow(chat,/^Длинный план.*Готовится ответ$/).waitFor();
+  await assistantRow(chat,/^Короткий ответ.*Готовится ответ$/).click();
   await close.click();
   await chat.waitFor({state:'hidden'});
   assert.equal(await page.evaluate(()=>[...window.messengerTest.assistantHolds.values()].some(hold=>hold.signal.aborted)),false);
   await finishAssistantReply(page,fast,{reply:'Третий чат ответил первым'});
   await openAssistant();
-  await chat.getByRole('button',{name:/Новые ответы: 1.*Готовятся ответы: 1/}).waitFor();
-  assert.equal(await history.getByText('Третий чат ответил первым',{exact:true}).count(),0);
-  await picker.press('Enter');
-  const slowItem=list.getByRole('menuitemradio',{name:/^Длинный план.*Готовится ответ$/});
-  await slowItem.waitFor();
-  const fastItem=list.getByRole('menuitemradio',{name:/^Короткий ответ.*Новый ответ$/});
+  const list=chat.getByRole('group',{name:'Чаты ассистента'});
+  const slowItem=assistantRow(chat,/^Длинный план.*Готовится ответ$/);
+  const fastItem=assistantRow(chat,/^Короткий ответ.*Новый ответ$/);
   await fastItem.waitFor();
-  await settlePopup(list);
-  const popup=await list.boundingBox();
-  assert(popup.x>=0 && popup.x+popup.width<=width && popup.y>=0 && popup.y+popup.height<=height,
-    `Chat picker escaped viewport: ${JSON.stringify(popup)}`);
+  const box=await list.boundingBox();
+  assert(box.x>=0 && box.x+box.width<=width && box.y>=0 && box.y+box.height<=height,
+    `Chat list escaped viewport: ${JSON.stringify(box)}`);
   assert.equal(await slowItem.evaluate(node=>node.scrollWidth>node.clientWidth),false);
   if(width===1440 || width===390 || width===320) await page.screenshot({path:`/tmp/rollapp-assistant-chats-${width}-${height}.png`,animations:'disabled'});
-  await page.keyboard.press('Escape');
-  await list.waitFor({state:'hidden'});
-  assert.equal(await chat.isVisible(),true,'Escape in the picker closed the assistant drawer');
-  await picker.press('Enter');
   await fastItem.press('Space');
   await history.getByText('Третий чат ответил первым',{exact:true}).waitFor();
   assert.equal(await mic.getAttribute('aria-pressed'),'false','Selecting a chat with Space started dictation');
-  assert.equal(await chat.getByRole('button',{name:/Новые ответы/}).count(),0);
   await finishAssistantReply(page,slow,{error:'Ошибка медленного запроса'});
-  await chat.getByRole('button',{name:/Ошибки отправки: 1/}).waitFor();
   assert.equal(await chat.getByRole('alert').count(),0);
-  await select(/^Длинный план.*Ошибка отправки$/);
+  await back.click();
+  await assistantRow(chat,/^Короткий ответ.*Третий чат ответил первым$/).waitFor();
+  await assistantRow(chat,/^Длинный план.*Ошибка отправки$/).click();
   await chat.getByRole('alert').filter({hasText:'Ошибка медленного запроса'}).waitFor();
   assert.equal(await text.inputValue(),slow);
   await send.click();
   await history.getByText('Личный ответ о планировании',{exact:true}).waitFor();
   assert.equal(await history.locator('article').count(),2);
   assert.equal(await text.inputValue(),'');
-  await select(first);
+  await back.click();
+  await assistantRow(chat,first).click();
   assert.equal(await history.getByText('Третий чат ответил первым',{exact:true}).count(),0);
 }
 
@@ -796,23 +820,20 @@ async function checkAssistantAccountSwitch(page, chat) {
   await holdAssistantReplies(page,...prompts);
   const text=chat.getByRole('textbox',{name:'Сообщение',exact:true});
   for(const prompt of prompts){
+    await assistantRow(chat,'Новый чат').click();
     await text.fill(prompt);
     await text.press('Control+Enter');
     await chat.getByText('Ассистент готовит ответ…').waitFor();
-    await chat.getByRole('button',{name:'Новый чат',exact:true}).click();
+    await chat.getByRole('button',{name:'Все диалоги',exact:true}).click();
   }
+  await assistantRow(chat,'Новый чат').click();
   await text.fill('Черновик другого аккаунта');
   await page.evaluate(()=>window.messengerTest.switchAccount('other'));
-  await chat.getByRole('button',{name:'Чаты ассистента. Текущий чат: Чат 1',exact:true}).waitFor();
-  assert.equal(await text.inputValue(),'');
-  const starters = chat.getByRole('group', { name: 'Примеры запросов' });
-  assert.equal(await starters.locator(':scope > button').count(), 9);
+  await assertAssistantDirectory(chat,1);
   assert.equal(await page.evaluate(()=>[...window.messengerTest.assistantHolds.values()].every(hold=>hold.signal.aborted)),true);
   for(const prompt of prompts) await finishAssistantReply(page,prompt,{reply:'Поздний ответ другого аккаунта'});
-  await chat.getByRole('button',{name:/^Чаты ассистента/}).click();
-  const list=page.getByRole('menu',{name:'Чаты ассистента'});
-  await list.getByRole('menuitemradio',{name:'Чат 1',exact:true}).waitFor();
-  assert.equal(await list.getByRole('menuitemradio').count(),1);
+  await assistantRow(chat,'Новый чат').click();
+  assert.equal(await text.inputValue(),'');
   assert.equal(await chat.getByText('Поздний ответ другого аккаунта').count(),0);
   await page.keyboard.press('Escape');
   await chat.getByRole('button', { name: 'Пресеты запросов', exact: true }).click();
@@ -824,7 +845,7 @@ async function checkAssistantAccountSwitch(page, chat) {
   await page.keyboard.press('Escape');
 }
 
-async function checkDictation(page, chat, text, send, heading, close, openAssistant) {
+async function checkDictation(page, chat, text, send, conversationHeading, close, resume) {
   const mic=chat.getByRole('button',{name:'Диктовка',exact:true});
   const micBounds=await mic.boundingBox();
   const sendBounds=await send.boundingBox();
@@ -848,7 +869,7 @@ async function checkDictation(page, chat, text, send, heading, close, openAssist
   await text.press('Control+Enter');
   assert.equal(await send.isDisabled(),true);
   assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Dictation must not submit the draft');
-  await heading.focus();
+  await conversationHeading.focus();
   await page.keyboard.press('Space');
   assert.equal(await page.evaluate(()=>window.messengerTest.speech.stopRequested),true);
   await page.evaluate(()=>window.messengerTest.speech.onend());
@@ -871,7 +892,7 @@ async function checkDictation(page, chat, text, send, heading, close, openAssist
     const result=Object.assign([{transcript:'поздняя реплика'}],{isFinal:true});
     window.messengerTest.speech.onresult({resultIndex:0,results:[result]});
   });
-  await openAssistant();
+  await resume(/^Чат 1 Черновик:/);
   assert.equal(await text.inputValue(),'Напомни про встречу');
   await text.fill('');
 }

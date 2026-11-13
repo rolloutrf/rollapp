@@ -1,6 +1,6 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
+import { ArrowUpRight, Bot, Mic, Plus, Square } from 'lucide-react';
 import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_PRODUCT_EXAMPLE, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { NOTE_TASKS_PROMPT } from '../../shared/assistant-note-tasks.js';
 import { NoteTasksSource } from './assistant-note-tasks';
@@ -10,15 +10,13 @@ import { AssistantPresets } from './assistant-presets';
 import { AssistantWishAction } from './assistant-wish-action';
 import { AssistantWishlistSort } from './assistant-wishlist-sort';
 import { ControlBar } from './control-bar';
-import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
+import { MessageComposer, MessageDrawer, MessageDrawerBack, MessageDrawerClose, MessageListRow, MessengerAvatar } from './messenger';
 import { Button, buttonVariants } from './ui/button';
 import { DrawerTitle } from './ui/drawer';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useAssistantDictation } from '@/hooks/use-assistant-dictation';
 import './assistant-drawer.css';
 
-const AssistantContext = createContext(null);
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
 function newChat(number) {
@@ -39,8 +37,12 @@ function chatTitle(content) {
   return characters.length > 64 ? `${characters.slice(0, 63).join('')}…` : characters.join('');
 }
 
-function useAssistantChats() {
-  const [workspace, setWorkspace] = useState(() => ({ chats: [newChat(1)], selected: '1' }));
+function hasChatContent(chat) {
+  return Boolean(chat.messages.length || chat.draft.trim() || chat.sending || chat.error);
+}
+
+export function useAssistantChats(open) {
+  const [workspace, setWorkspace] = useState({ chats: [], selected: null });
   const pending = useRef(new Map());
   const nextChatNumber = useRef(2);
   const [sortReviews, setSortReviews] = useState({});
@@ -51,6 +53,11 @@ function useAssistantChats() {
   function updateSortReview(key, change) {
     setSortReviews(previous => ({ ...previous, [key]: { ...previous[key], ...change } }));
   }
+  const visible = useRef(open);
+
+  useLayoutEffect(() => {
+    visible.current = open;
+  }, [open]);
 
   useLayoutEffect(() => {
     const requests = pending.current;
@@ -62,7 +69,7 @@ function useAssistantChats() {
 
   const { chats, selected } = workspace;
   const chat = chats.find(item => item.id === selected);
-  const { id } = chat;
+  const id = chat?.id;
 
   function updateChat(change, chatId = id) {
     setWorkspace(previous => ({
@@ -73,9 +80,13 @@ function useAssistantChats() {
 
   function createChat(draft = '', noteDraftId = null) {
     const created = { ...newChat(nextChatNumber.current++), draft, noteDraftId };
-    setWorkspace(previous => ({ ...previous, chats: [...previous.chats, created], selected: created.id }));
+    setWorkspace(previous => ({ ...previous, chats: [created, ...previous.chats.filter(hasChatContent)], selected: created.id }));
     return created;
   }
+
+  const showList = useCallback(() => {
+    setWorkspace(previous => previous.selected === null ? previous : { ...previous, selected: null });
+  }, []);
 
   function selectChat(selectedId) {
     setWorkspace(previous => ({
@@ -104,13 +115,14 @@ function useAssistantChats() {
       }, { signal: controller.signal });
       if (controller.signal.aborted) return;
       if (typeof reply !== 'string' || !reply.trim()) throw new Error('Ассистент не вернул ответ.');
+      const wasVisible = visible.current;
       updateChat((item, selectedId) => ({
         ...item,
         messages: [...item.messages, { role: 'user', content }, { role: 'assistant', content: reply, actions }],
         draft: '',
         noteDraftId: null,
         sending: false,
-        hasNewReply: selectedId !== id,
+        hasNewReply: !wasVisible || selectedId !== id,
       }), id);
     } catch (err) {
       if (!controller.signal.aborted) updateChat(item => ({ ...item, sending: false, error: err.message }), id);
@@ -124,19 +136,9 @@ function useAssistantChats() {
   }
 
   return {
-    chats, chat, createChat, selectChat, submit, sortReviews, updateSortReview, startNote, noteReviews, updateNoteReview,
+    chats, chat, createChat, selectChat, showList, submit, sortReviews, updateSortReview, startNote, noteReviews, updateNoteReview,
     setDraft: (draft, noteDraftId = null) => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft, noteDraftId })),
   };
-}
-
-export function useAssistantNoteReviews() {
-  const { noteReviews, updateNoteReview } = useContext(AssistantContext);
-  return { noteReviews, updateNoteReview };
-}
-
-export function AssistantProvider({ children }) {
-  const workspace = useAssistantChats();
-  return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
 function AssistantActions({ actions, onReviewWish, sortReviews, updateSortReview, messageKey, onWishlistChanged, noteReviews, onReviewNoteTasks, canDiscoverSpheres }) {
@@ -184,59 +186,46 @@ function chatStatus(chat) {
   return '';
 }
 
-function AssistantChatPicker({ chats, chat, createChat, selectChat, presetMenu }) {
-  const background = chats.filter(item => item.id !== chat.id);
-  const ready = background.filter(item => item.hasNewReply).length;
-  const sending = background.filter(item => item.sending).length;
-  const failed = background.filter(item => item.error).length;
-  const status = [ready && `Новые ответы: ${ready}`, sending && `Готовятся ответы: ${sending}`, failed && `Ошибки отправки: ${failed}`].filter(Boolean).join('. ');
-
-  return <ControlBar as="nav" className="assistant-drawer__chats" aria-label="Чаты ассистента">
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="assistant-drawer__chat-trigger" />}
-        aria-label={`Чаты ассистента. Текущий чат: ${chat.title}${status ? `. ${status}` : ''}`} title={chat.title}>
-        <span className="min-w-0 flex-1 truncate text-start">{chat.title}</span>
-        {ready ? <span className="assistant-drawer__unread" aria-hidden="true" />
-          : failed ? <CircleAlert aria-hidden="true" className="text-destructive" />
-            : sending ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : null}
-        <ChevronDown aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent sideOffset={8}>
-        <DropdownMenuRadioGroup value={chat.id} onValueChange={selectChat}>
-          {chats.map(item => {
-            const caption = chatStatus(item);
-            return <DropdownMenuRadioItem key={item.id} value={item.id} title={item.title} closeOnClick>
-              <span className="min-w-0">
-                <span className="block truncate">{item.title}</span>
-                {caption && <span className="block text-xs text-muted-foreground">{caption}</span>}
-              </span>
-            </DropdownMenuRadioItem>;
-          })}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <Button data-control-icon size="icon" variant="outline" aria-label="Новый чат" title="Новый чат" onClick={() => createChat()}>
-      <Plus aria-hidden="true" />
-    </Button>
-    {presetMenu}
-    <span className="sr-only" role="status">{status}</span>
-  </ControlBar>;
+function AssistantChatList({ chats, createChat, selectChat }) {
+  return <div className="messenger-directory-scroll" aria-label="Чаты ассистента" role="group">
+    <MessageListRow title="Новый чат" avatar={<MessengerAvatar icon={Plus} />} onClick={() => createChat()} />
+    {chats.filter(hasChatContent).map(item => {
+      const status = chatStatus(item);
+      const preview = status || (item.draft.trim() ? `Черновик: ${item.draft}` : item.messages.at(-1)?.content);
+      return <MessageListRow key={item.id} title={item.title} avatar={<MessengerAvatar icon={Bot} />} onClick={() => selectChat(item.id)}
+        badge={item.hasNewReply && <span className="messenger-unread" aria-hidden="true">1</span>}>
+        {preview && <span>{preview}</span>}
+      </MessageListRow>;
+    })}
+  </div>;
 }
 
-export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, noteRequest, canDiscoverSpheres }) {
-  const workspace = useContext(AssistantContext);
+export function AssistantDrawer({ open, onOpenChange, onAfterClose, onReviewWish, onWishlistChanged, onReviewNoteTasks, noteId, noteRequest, canDiscoverSpheres, workspace }) {
+  const { chat } = workspace;
   const heading = useRef(null);
+  const wasOpen = useRef(false);
   const handledRequest = useRef(null);
+  useLayoutEffect(() => {
+    if (open && wasOpen.current) heading.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [chat?.id, open]);
   useLayoutEffect(() => {
     if (!open || !noteRequest || noteRequest.noteId !== noteId || handledRequest.current === noteRequest) return;
     handledRequest.current = noteRequest;
     void workspace.startNote(noteRequest.noteId);
   }, [open, noteId, noteRequest, workspace]);
+
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading} onAfterClose={onAfterClose}>
-    <AssistantConversation key={workspace.chat.id} open={open} heading={heading} onReviewWish={onReviewWish}
+    {chat ? <AssistantConversation key={chat.id} open={open} heading={heading} onReviewWish={onReviewWish}
       onWishlistChanged={onWishlistChanged} noteId={noteId} onReviewNoteTasks={onReviewNoteTasks}
-      canDiscoverSpheres={canDiscoverSpheres} workspace={workspace} />
+      canDiscoverSpheres={canDiscoverSpheres} workspace={workspace} /> : <section className="messenger-directory">
+      <ControlBar as="header" className="messenger-heading">
+        <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
+        <MessageDrawerClose label="Закрыть ассистента" />
+      </ControlBar>
+      <AssistantChatList {...workspace} />
+    </section>}
   </MessageDrawer>;
 }
 
@@ -256,9 +245,11 @@ function AssistantConversation({ workspace, open, heading, onReviewWish, onWishl
     canDiscoverSpheres={canDiscoverSpheres} noteId={noteId}>
     {({ menu, suggestions }) => <>
       <ControlBar as="header" className="messenger-heading assistant-drawer__header">
-        <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
+        <DrawerTitle className="sr-only">{ASSISTANT_NAME}</DrawerTitle>
+        <MessageDrawerBack onClick={workspace.showList} />
+        <h2 ref={heading} tabIndex={-1} title={chat.title} className="min-w-0 flex-1 truncate text-lg font-semibold outline-none">{chat.title}</h2>
+        {menu}
         <MessageDrawerClose label="Закрыть ассистента" />
-        <AssistantChatPicker {...workspace} presetMenu={menu} />
       </ControlBar>
       <div className="messenger-history" ref={history} role="log" aria-live="polite" tabIndex={0} aria-label="История сообщений" onScroll={event => {
         const node = event.currentTarget;

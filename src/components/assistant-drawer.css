@@ -1,28 +1,3 @@
-.assistant-drawer__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.assistant-drawer__chats {
-  display: flex;
-  grid-column: 1 / -1;
-  gap: var(--layout-inline-gap);
-  min-width: 0;
-}
-
-.assistant-drawer__chat-trigger {
-  flex: 1;
-  min-width: 0;
-}
-
-.assistant-drawer__unread {
-  flex: none;
-  inline-size: var(--layout-inline-gap);
-  block-size: var(--layout-inline-gap);
-  border-radius: 50%;
-  background-color: var(--primary);
-}
-
 .assistant-drawer .messenger-history { overflow-wrap: anywhere; }
 .assistant-drawer .messenger-history > :is(.messenger-note, .messenger-send-error) { flex-shrink: 0; }
 
@@ -46,18 +21,6 @@
 }
 
 @media (max-width: 767px) {
-  :root[data-overlay-keyboard] .assistant-drawer__header [data-slot="drawer-title"] {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  :root[data-overlay-keyboard] .assistant-drawer__header [data-slot="drawer-close"] { grid-area: 1 / 2; }
-  :root[data-overlay-keyboard] .assistant-drawer__chats { grid-area: 1 / 1; }
-
   :root[data-overlay-keyboard] .assistant-drawer .messenger-composer { padding-block-end: var(--layout-inline-gap); }
 
   :root[data-overlay-keyboard] .assistant-drawer .messenger-composer textarea {

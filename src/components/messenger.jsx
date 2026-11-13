@@ -13,11 +13,11 @@ import './messenger.css';
 const base = '/messenger';
 const time = value => new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 const date = value => new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-function MessengerAvatar({ user }) {
+export function MessengerAvatar({ user, icon: Icon = MessageCircle }) {
   const [failed, setFailed] = useState(false);
   return <span className="messenger-avatar" aria-hidden="true">{user?.avatarUrl && !failed
     ? <img src={user.avatarUrl} alt="" onError={() => setFailed(true)} />
-    : user?.name?.trim().slice(0, 1).toUpperCase() || <MessageCircle />}</span>;
+    : user?.name?.trim().slice(0, 1).toUpperCase() || <Icon />}</span>;
 }
 function ErrorNotice({ error, retry }) {
   return <div className="messenger-error" role="alert"><p>{error}</p>{retry && <Button variant="outline" onClick={retry}>Повторить</Button>}</div>;
@@ -53,11 +53,22 @@ export function MessageDrawerClose({ label = 'Закрыть сообщения'
   return <DrawerClose render={<Button data-control-icon variant="outline" size="icon" className="ml-auto" />} aria-label={label}><X aria-hidden="true" /></DrawerClose>;
 }
 
-function ParticipantEntry({ peer, disabled, onSelect }) {
-  return <Button variant="ghost" className="messenger-person" disabled={disabled} onClick={() => onSelect(peer)}>
-    <MessengerAvatar user={peer} />
-    <span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span>
+export function MessageDrawerBack({ onClick }) {
+  return <Button data-control-icon variant="outline" size="icon" onClick={onClick} aria-label="Все диалоги"><ArrowLeft aria-hidden="true" /></Button>;
+}
+
+export function MessageListRow({ avatar, title, children, badge, ...props }) {
+  return <Button variant="ghost" className="messenger-person" {...props}>
+    {avatar}
+    <span className="messenger-person-copy"><strong>{title}</strong>{children}</span>
+    {badge}
   </Button>;
+}
+
+function ParticipantEntry({ peer, disabled, onSelect }) {
+  return <MessageListRow avatar={<MessengerAvatar user={peer} />} title={peer.name} disabled={disabled} onClick={() => onSelect(peer)}>
+    <small>@{peer.username}</small>
+  </MessageListRow>;
 }
 
 function Messenger({ user, transport = api, initialConversationId = null }) {
@@ -154,10 +165,11 @@ function Messenger({ user, transport = api, initialConversationId = null }) {
           </> : <>
             {error && <ErrorNotice error={error} retry={refresh} />}
             {loading && <p className="messenger-note" role="status">Загружаем диалоги…</p>}
-            {conversations.map(item => <Button variant="ghost" className="messenger-person" key={item.id} disabled={opening} onClick={() => { setOpenError(''); setSelectedId(item.id); }}>
-              <MessengerAvatar user={item.peer} /><span className="messenger-person-copy"><strong>{item.peer.name}</strong><span>{item.lastMessage?.body || 'Пока нет сообщений'}</span></span>
-              {item.unread > 0 && <span className="messenger-unread" aria-label={`${item.unread} непрочитанных`}>{item.unread > 99 ? '99+' : item.unread}</span>}
-            </Button>)}
+            {conversations.map(item => <MessageListRow key={item.id} avatar={<MessengerAvatar user={item.peer} />} title={item.peer.name}
+              disabled={opening} onClick={() => { setOpenError(''); setSelectedId(item.id); }}
+              badge={item.unread > 0 && <span className="messenger-unread" aria-label={`${item.unread} непрочитанных`}>{item.unread > 99 ? '99+' : item.unread}</span>}>
+              <span>{item.lastMessage?.body || 'Пока нет сообщений'}</span>
+            </MessageListRow>)}
             {subscriptionsError && <ErrorNotice error={subscriptionsError} retry={() => setSubscriptionsReload(value => value + 1)} />}
             {!subscriptions && !subscriptionsError && <p className="messenger-note" role="status">Загружаем подписки…</p>}
             {!loading && contacts.length > 0 && <section aria-labelledby="messenger-subscriptions">
@@ -258,7 +270,7 @@ function Conversation({ id, user, peer: initialPeer, transport, drafts, onChange
   }
   return <section className="messenger-conversation" aria-label={peer ? `Переписка с ${peer.name}` : 'Переписка'}>
     <ControlBar as="header" className="messenger-heading">
-      <Button data-control-icon variant="outline" size="icon" onClick={onBack} aria-label="Все диалоги"><ArrowLeft aria-hidden="true" /></Button>
+      <MessageDrawerBack onClick={onBack} />
       {peer && <><MessengerAvatar user={peer} /><span className="messenger-person-copy"><strong>{peer.name}</strong><small>@{peer.username}</small></span></>}
       <MessageDrawerClose />
     </ControlBar>
