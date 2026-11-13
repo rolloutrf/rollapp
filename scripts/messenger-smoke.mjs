@@ -670,11 +670,10 @@ async function checkWishlistSort(page, chat, text, send, width, height) {
   assert.equal(await coffee.isChecked(), true);
   assert.equal(await light.isChecked(), false);
   assert.equal(await select.locator('[data-slot="select-value"]').textContent(), 'Воркспейс · закрытый');
-  const chatName = await chat.locator('.messenger-heading h2:visible').textContent();
   await back.click();
   await assistantRow(chat, 'Новый чат').click();
   await back.click();
-  await assistantRow(chat, new RegExp('^' + chatName)).click();
+  await assistantRow(chat, /^Разбери «Не отсортированные»/).click();
   await preview.getByRole('alert').filter({ hasText: 'Желания или списки изменились' }).waitFor();
   await page.evaluate(() => { window.messengerTest.failSort = false; });
   await apply.click();
