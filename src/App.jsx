@@ -18,7 +18,7 @@ import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, externalWishlistUrl } from "../shared/external-wishlists.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
@@ -3492,6 +3492,7 @@ function ExternalWishlistLinks({ links }) {
 function PersistentProfileHero({ user }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
+  const wishlistPage = useMatch(APP_HOME);
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const profile = access.active ? (access.owner || user) : user;
@@ -3525,7 +3526,7 @@ function PersistentProfileHero({ user }) {
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
-          {profile.memberNumber && <span className="eyebrow">ID #{profile.memberNumber}</span>}
+          {wishlistPage && editable && <AppFriendsLink />}
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
@@ -3572,7 +3573,6 @@ function WishesProfileControls({ selectedSpace, publication, onAdd }) {
   const { isOwner } = useSphereSharing();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
-      <AppFriendsLink />
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
         <Link
@@ -8216,35 +8216,34 @@ function PublicProfile({ shared = false }) {
   };
 
   const profileVisitor = !data.isOwner;
-  const relationshipBlock = data.isOwner
-    ? <AppFriendsLink />
-    : !shared ? <dl className="wishes-page__friend-links friend-profile-page__stats" aria-label="Связи профиля">
+  const relationshipBlock = profileVisitor && !shared && <dl className="wishes-page__friend-links friend-profile-page__stats" aria-label="Связи профиля">
       <div><dt>Подписки</dt><dd>{data.followingCount}</dd></div>
       <div><dt>Подписчики</dt><dd>{data.followersCount}</dd></div>
-    </dl> : null;
+    </dl>;
   const businessProfile = !shared && data.profile.accountType === "business";
   const businessStorefront = businessProfile && !params.listId && !params.wishId;
   const sellerProfile = businessStorefront && data.profile.businessCategory === "seller";
   const sellerSpace = activeSpace;
-  const identity = businessProfile
-    ? <div className="wishes-page__identity friend-profile-page__identity">
-      {data.isOwner ? <ShadcnButton type="button" variant="ghost" className="h-auto min-h-0 rounded-full p-0" aria-label={`Редактировать профиль ${data.profile.name}`} onClick={openProfileEditor}><ProfilePortrait user={data.profile} /></ShadcnButton> : <ProfilePortrait user={data.profile} />}
-      <BusinessGiftAction business={data.profile} user={user} />
-      <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1><span className="text-muted-foreground">Бизнес-аккаунт</span>{data.profile.memberNumber && <span className="eyebrow">ID #{data.profile.memberNumber}</span>}</span>
+  const identity = (
+    <div className="wishes-page__identity friend-profile-page__identity">
+      {data.isOwner ? <ShadcnButton
+        type="button"
+        variant="ghost"
+        className={cn("h-auto min-h-0 rounded-full p-0", !businessProfile && "persistent-profile-hero__avatar-button hover:bg-transparent dark:hover:bg-transparent active:translate-y-0")}
+        aria-label={`Редактировать профиль ${data.profile.name}`}
+        title={businessProfile ? undefined : "Редактировать профиль"}
+        onClick={openProfileEditor}
+      >
+        <ProfilePortrait user={data.profile} />
+      </ShadcnButton> : <ProfilePortrait user={data.profile} />}
+      {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
+      <div className="wishes-page__hero-copy">
+        <h1 id="public-profile-name">{data.profile.name}</h1>
+        {data.isOwner && <AppFriendsLink />}
+        {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
+      </div>
     </div>
-    : <div className="wishes-page__identity friend-profile-page__identity">
-    {data.isOwner ? <ShadcnButton
-      type="button"
-      variant="ghost"
-      className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0"
-      aria-label={`Редактировать профиль ${data.profile.name}`}
-      title="Редактировать профиль"
-      onClick={openProfileEditor}
-    >
-      <ProfilePortrait user={data.profile} />
-    </ShadcnButton> : <ProfilePortrait user={data.profile} />}
-    <span className="wishes-page__hero-copy"><h1 id="public-profile-name">{data.profile.name}</h1>{data.profile.memberNumber && <span className="eyebrow">ID #{data.profile.memberNumber}</span>}</span>
-  </div>;
+  );
   if (isMobile && selectedWish && !editingWish) {
     return <WishDetailsModal screen wish={selectedWish} owner={data.isOwner && !selectedWish.sharedBy} profile={data.profile} lists={lists} wishes={data.wishes} shareToken={shared ? params.token : ""} onChanged={() => reload({ background: true })} onEdit={ownerCollection ? () => editWish(selectedWish.id) : undefined} onCreateList={ownerCollection ? () => createListForWish(selectedWish.id) : undefined} onClose={closeWish} />;
   }
