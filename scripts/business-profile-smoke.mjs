@@ -104,11 +104,28 @@ async function checkWishSale(width, height) {
     assert.equal(reference.card[0], "rgba(0, 0, 0, 0)");
     assert.equal(reference.cover[0], "236 / 286");
     const sale = page.getByRole("menuitem", { name: "Выставить на продажу" });
-    await page.getByRole("button", { name: "Опции желания «Кофеварка»" }).click();
+    const wishOptions = async (name) => {
+      const control = page.getByRole("button", { name: `Опции желания «${name}»` });
+      await control.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        const header = document.querySelector(".global-app-chrome")?.getBoundingClientRect();
+        const floating = [...document.querySelectorAll(".planning-fab-controls, [data-add-fab]")]
+          .map(item => item.getBoundingClientRect())
+          .filter(item => item.height && item.width);
+        const top = Math.max(0, header?.bottom ?? 0);
+        const bottom = Math.min(innerHeight, ...floating.map(item => item.top));
+        const center = (top + bottom) / 2;
+        if (box.top < top || box.bottom > bottom) window.scrollBy({
+          top: box.top + box.height / 2 - center, behavior: "instant",
+        });
+      });
+      await control.click();
+    };
+    await wishOptions("Кофеварка");
     await page.getByRole("menuitem", { name: "Исполнено", exact: true }).waitFor();
     assert.equal(await sale.count(), 0);
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Опции желания «Кофемолка»" }).click();
+    await wishOptions("Кофемолка");
     await sale.click();
 
     const editor = page.locator("[data-wishlist-item-editor]");
