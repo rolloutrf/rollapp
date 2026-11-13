@@ -25,6 +25,7 @@ export async function runNotesProductionChecks({ origin, token }) {
           catch (cause) { if (!/Route is already handled|Target page, context or browser has been closed/.test(cause.message)) throw cause; }
         });
         const page = await context.newPage();
+        page.setDefaultTimeout(45_000);
         page.on("pageerror", error => errors.push(error.message));
         await page.goto(`${baseUrl}/app/planning?tab=notes`);
         const grid = page.locator(".notes-grid");
@@ -72,6 +73,12 @@ export async function runNotesProductionChecks({ origin, token }) {
         assert.equal(await editor.locator('[data-type="taskItem"]').count(), 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
         await page.locator(".planning-fab-controls").getByRole("link", { name: "Назад к заметкам", exact: true }).click();
+        await page.getByRole("button", { name: `Действия: ${name}`, exact: true }).click();
+        await page.getByRole("menuitem", { name: "Создать группу", exact: true }).click();
+        const group = page.getByRole("link", { name: "Новая группа", exact: true });
+        await group.waitFor();
+        await page.reload();
+        await group.click();
         await page.getByRole("link", { name, exact: true }).click();
         await editor.waitFor();
         await page.getByRole("button", { name: "Удалить заметку", exact: true }).click();
@@ -84,7 +91,7 @@ export async function runNotesProductionChecks({ origin, token }) {
         await grid.locator("[data-slot=skeleton]").first().waitFor({ state: "hidden" });
         assert.equal(await grid.getByRole("link").count(), 0);
         assert.deepEqual(errors, []);
-        console.log(`PASS notes production UI ${width}×${height}: real app/authenticated HTTP/PostgreSQL, native edit/format/checklist, save/reload/reopen/delete`);
+        console.log(`PASS notes production UI ${width}×${height}: authenticated PostgreSQL, native edit, group, reload/reopen/delete`);
       } finally { await context.close(); }
     }
   } finally { await browser.close(); }

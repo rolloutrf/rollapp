@@ -10,13 +10,135 @@ const server=await createServer({cacheDir:'node_modules/.vite-notes-smoke',optim
 }]});
 await listenSmokeServer(server);const origin=smokeOrigin(server),browser=await chromium.launch(browserLaunchOptions());
 const sizes=[[320,740],[390,844],[768,1024],[820,414],[1024,768],[1440,900],[1920,1080],[390,400]];
+
+async function checkGroups(browser, origin, width, height, errors) {
+ const touch = width < 768;
+ const page = await browser.newPage({viewport:{width,height}, hasTouch:touch, isMobile:touch});
+ page.setDefaultTimeout(60_000);
+ page.setDefaultNavigationTimeout(60_000);
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/api/**',route=>{errors.push('Unexpected API');return route.abort();});
+ try {
+  await page.goto(`${origin}/app/planning?tab=notes&grouping=1`,{waitUntil:'domcontentloaded'});
+  const note = title => page.getByRole('link',{name:title,exact:true});
+  const menu = title => page.getByRole('button',{name:`Действия: ${title}`,exact:true});
+  const item = name => page.getByRole('menuitem',{name,exact:true});
+  const activate = locator => touch ? locator.tap() : locator.click();
+  const order = () => page.locator('.notes-grid .notes-tile').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')));
+  const first = 'Мысли и идеи', second = 'Другая заметка';
+  await note(first).waitFor();
+  const cdp = touch ? await page.context().newCDPSession(page) : null;
+  const finger = (type, point) => cdp.send('Input.dispatchTouchEvent',{type,touchPoints:point ? [point] : []});
+  const dragTo = async (target, { source = first, wait = 0, cancel = false, edge = false } = {}) => {
+   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+   await page.locator('.notes-grid').evaluate(async grid => {
+    await Promise.all(grid.getAnimations({subtree:true}).map(animation => animation.finished.catch(()=>{})));
+   });
+   const trigger = touch ? note(source).locator('..').getByRole('button',{name:`Перетащить «${source}»`}) : note(source);
+   const from = await trigger.boundingBox(), to = await note(target).boundingBox();
+   const start = {x:from.x + from.width/2,y:from.y + from.height/2};
+   const end = {x:to.x + to.width*(edge ? .09 : .5),y:to.y + to.height*(edge ? .58 : .54)};
+   if (touch) { await finger('touchStart',start); await finger('touchMove',end); }
+   else { await page.mouse.move(start.x,start.y); await page.mouse.down(); await page.mouse.move(end.x,end.y); }
+   if (wait) {
+    await page.locator('.notes-card.is-group-target').waitFor({timeout:5000}).catch(async cause => {
+     const state = await page.evaluate(({start,end}) => ({
+      startHit:document.elementFromPoint(start.x,start.y)?.outerHTML.slice(0,180),
+      endHit:document.elementFromPoint(end.x,end.y)?.outerHTML.slice(0,180),
+      dragging:document.querySelector('.notes-card.is-dragging')?.dataset.sortableCardId,
+      tiles:[...document.querySelectorAll('.notes-card')].map(card=>[card.dataset.sortableCardId,card.getBoundingClientRect().toJSON()]),
+     }),{start,end});
+     throw new Error(`Note group target was not highlighted at ${width}×${height}: ${JSON.stringify(state)}`,{cause});
+    });
+   }
+   if (cancel) await page.keyboard.press('Escape');
+   if (touch) await finger('touchEnd');
+   else await page.mouse.up();
+  };
+  const initial = await order();
+  await dragTo(second,{wait:1,cancel:true});
+  assert.deepEqual(await order(),initial);
+  assert.equal(await page.evaluate(()=>window.notesTest.layoutWrites),0);
+  await dragTo(second,{edge:true});
+  await page.waitForFunction(([a,b]) => {
+   const ids=[...document.querySelectorAll('.notes-card .notes-tile')].map(node=>node.getAttribute('aria-label'));
+   return window.notesTest.layoutWrites===1 && ids.indexOf(a)>ids.indexOf(b);
+  },[first,second]);
+  await menu(first).focus();
+  await page.keyboard.press('Enter');
+  await item('Переместить раньше').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(expected => window.notesTest.layoutWrites===2 &&
+   JSON.stringify([...document.querySelectorAll('.notes-grid .notes-tile')].map(node=>node.getAttribute('aria-label')))===JSON.stringify(expected),initial);
+  await dragTo(second,{wait:1});
+  const group = note('Новая группа');
+  await group.waitFor();
+  assert.equal(await page.evaluate(()=>window.notesTest.layoutWrites),3);
+  assert.match(await group.innerText(),/2 заметки/);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await group.waitFor();
+  await dragTo('Третья заметка',{source:'Новая группа',edge:true});
+  await page.waitForFunction(()=>window.notesTest.layoutWrites===1 &&
+   document.querySelector('.notes-grid .notes-card:last-child').classList.contains('notes-card--group'));
+  await dragTo('Новая группа',{source:'Третья заметка',wait:1});
+  await page.waitForFunction(()=>document.querySelector('.notes-card--group').textContent.includes('3 заметки'));
+  await menu('Новая группа').focus();
+  await page.keyboard.press('Enter');
+  await activate(item('Переименовать'));
+  const title = 'Заметки семьи — очень длинное название тематической группы';
+  await page.getByRole('textbox',{name:'Название группы'}).fill(title);
+   await page.getByRole('button',{name:'Сохранить',exact:true}).click();
+  await note(title).waitFor();
+  const groupBox = await note(title).boundingBox();
+  const menuBox = await menu(title).boundingBox();
+  assert.equal(menuBox.width,48);
+  assert.equal(menuBox.height,48);
+  assert(groupBox.x>=0 && groupBox.x+groupBox.width<=width+1);
+  const label = note(title).locator('.notes-tile__title');
+  assert.equal(await label.getAttribute('title'),title);
+  assert(await label.evaluate(node=>node.scrollWidth>node.clientWidth && getComputedStyle(node).textOverflow==='ellipsis'));
+  if (width===390 || width===1440) await page.screenshot({path:`/tmp/rollapp-note-groups-${width}x${height}.png`});
+  await note(title).click();
+  await note(first).click();
+  await page.getByRole('textbox',{name:'Название заметки'}).waitFor();
+  await page.getByRole('link',{name:'Назад к заметкам',exact:true}).click();
+  await note(first).waitFor();
+  assert(new URL(page.url()).searchParams.get('noteGroup'));
+  await page.evaluate(()=>{window.notesTest.layoutFail=true;});
+  await activate(menu(first));
+  await activate(item('Убрать из группы'));
+  await page.getByRole('alert').filter({hasText:'Не удалось сохранить группы.'}).waitFor();
+  assert(await note(first).isVisible());
+  await page.evaluate(()=>{window.notesTest.layoutFail=false;});
+  await activate(menu(first));
+  await activate(item('Убрать из группы'));
+  await note(first).waitFor({state:'detached'});
+  await page.getByRole('link',{name:'Назад к заметкам',exact:true}).click();
+  await activate(menu(first));
+  await activate(item(`Добавить в «${title}»`));
+  await note(first).waitFor({state:'detached'});
+  await activate(menu(title));
+  await activate(item('Расформировать'));
+  await page.getByRole('button',{name:'Отмена',exact:true}).click();
+  assert(await note(title).isVisible());
+  await activate(menu(title));
+  await activate(item('Расформировать'));
+  await page.getByRole('button',{name:'Расформировать',exact:true}).click();
+  await note(first).waitFor();
+  await note(second).waitFor();
+  await note(title).waitFor({state:'detached'});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ } finally { await page.close(); }
+}
+
 try{for(const [width,height] of sizes){
  const page=await browser.newPage({viewport:{width,height}}),errors=[];
+ page.setDefaultTimeout(60_000);page.setDefaultNavigationTimeout(60_000);
  page.on('pageerror',error=>errors.push(error.message));await page.route('**/api/**',route=>{errors.push('Unexpected API');return route.abort();});
  await page.goto(`${origin}/app/planning?tab=notes`,{waitUntil:"domcontentloaded"});
  await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
  await page.evaluate(()=>document.fonts.ready);
- const grid=page.locator('.notes-grid'),noteTiles=grid.getByRole('link'),createTiles=grid.getByRole('button');
+ const grid=page.locator('.notes-grid'),noteTiles=grid.getByRole('link'),createTiles=grid.getByRole('button',{name:'Создать заметку'});
  const checkScreenStart=async(content)=>{
   const layout=await content.evaluate(el=>({
    top:el.getBoundingClientRect().top,
@@ -29,7 +151,7 @@ try{for(const [width,height] of sizes){
  await checkScreenStart(grid);
  assert.equal(await createTiles.count(),1);
  assert.equal(await noteTiles.count(),2);
- assert.deepEqual(await grid.locator(':scope > *').evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('aria-label'))),['Создать заметку','Мысли и идеи','Другая заметка']);
+ assert.deepEqual(await grid.locator('.notes-tile').evaluateAll(tiles=>tiles.map(tile=>tile.getAttribute('aria-label'))),['Создать заметку','Мысли и идеи','Другая заметка']);
  assert.equal(await grid.evaluate(el=>el.parentElement.firstElementChild===el),true,'Library must start with the grid');
  const geometry=await grid.evaluate(el=>{
   const tiles=[...el.children].map(tile=>tile.getBoundingClientRect());
@@ -134,5 +256,7 @@ try{for(const [width,height] of sizes){
  await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
  const lastTile=await noteTiles.last().boundingBox(),bottomDock=await page.locator('.planning-fab-controls').boundingBox();assert(lastTile.y>=0&&lastTile.y+lastTile.height<=bottomDock.y,`Last tile is hidden ${width}x${height}`);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  await page.goto(`${origin}/app/planning?tab=notes&error=1`,{waitUntil:"domcontentloaded"});await page.getByRole('button',{name:'Повторить',exact:true}).waitFor();assert.equal(await page.locator('.ProseMirror').count(),0);await page.evaluate(()=>{window.notesTest.loadFail=false;});await page.getByRole('button',{name:'Повторить',exact:true}).click();await page.getByRole('link',{name:'Мысли и идеи',exact:true}).waitFor();
- assert.deepEqual(errors,[]);console.log(`PASS notes ${width}x${height}: navigation, edit/title/save/reopen/retry, delete/cancel, empty/create/error, scroll, controls`);await page.close();
+ await page.close();
+ await checkGroups(browser,origin,width,height,errors);
+ assert.deepEqual(errors,[]);console.log(`PASS notes ${width}x${height}: navigation, edit/title/save/reopen/retry, delete/cancel, empty/create/error, scroll, controls, grouping and reordering`);
 }}finally{await browser.close();await server.close();}

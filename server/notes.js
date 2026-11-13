@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { loadNoteLibrary, noteLayoutInput, saveNoteLayout } from "./note-groups.js";
 
 // Applied separately from ordinary startup/releases; verify mode never runs DDL.
 export const notesSchema = `
@@ -22,9 +23,19 @@ const fields = 'id,title,content,created_at AS "createdAt",updated_at AS "update
 
 export function registerNotesRoutes(app, { requireAuth, query, asyncRoute }) {
   app.get("/api/planning/notes", requireAuth, asyncRoute(async (req, res) => {
-    const result = await query('SELECT id,title,created_at AS "createdAt",updated_at AS "updatedAt" FROM planning_notes WHERE user_id=$1 ORDER BY created_at DESC,id DESC', [req.user.id]);
     res.set("Cache-Control", "private, no-store");
-    res.json({ notes: result.rows });
+    res.json(await loadNoteLibrary(query, req.user.id));
+  }));
+  app.patch("/api/planning/notes/layout", requireAuth, asyncRoute(async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
+    const parsed = noteLayoutInput.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Проверьте состав и порядок групп заметок." });
+    const result = await saveNoteLayout(query, req.user.id, parsed.data);
+    if (!result.valid || !result.revision) return res.status(409).json({
+      code: "NOTE_LAYOUT_CHANGED",
+      error: "Список заметок изменился. Проверьте текущий порядок и повторите действие.",
+    });
+    res.json({ layout: { ...parsed.data, revision: result.revision } });
   }));
   app.post("/api/planning/notes", requireAuth, asyncRoute(async (req, res) => {
     const parsed = noteInputSchema.safeParse(req.body);

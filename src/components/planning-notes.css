@@ -36,3 +36,34 @@
     gap: var(--layout-page-gap);
   }
 }
+
+.notes-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.notes-card .notes-tile { cursor: grab; user-select: none; }
+.notes-card .notes-tile:active { cursor: grabbing; }
+.notes-card--group .notes-tile { background: var(--accent); }
+.notes-card.is-dragging { opacity: .2; }
+.notes-card.is-group-target .notes-tile { outline: 2px solid var(--foreground); outline-offset: 2px; }
+.notes-card > .notes-card__actions,
+.notes-card > .education-card__drag-handle {
+  position: absolute;
+  inset-block-start: var(--layout-inline-gap);
+}
+.notes-card > .notes-card__actions { inset-inline-end: var(--layout-inline-gap); }
+.notes-card > .education-card__drag-handle {
+  display: none;
+  inset-inline: var(--layout-inline-gap) auto;
+  border-radius: 50%;
+}
+.notes-card--group .notes-tile__title { display: block; white-space: nowrap; text-overflow: ellipsis; }
+.notes-card.education-card--drag-preview .notes-card__actions { visibility: hidden; }
+.notes-group-header { display: flex; align-items: center; justify-content: space-between; gap: var(--layout-inline-gap); }
+
+@media (pointer: coarse) {
+  .notes-card > .education-card__drag-handle { display: inline-flex; }
+  .notes-card .notes-tile { touch-action: pan-y; }
+  .notes-card .notes-tile > svg { visibility: hidden; }
+}

@@ -24,7 +24,7 @@ const sources = [
     "health_medication_groups", "health_medications", "lab_report_deletions",
     "contact_overrides", "contact_favorites", "career_content", "identity_content",
     "identity_generated_reports", "planning_tasks", "planning_spaces", "planning_boards",
-    "reservations", "roll_wallets", "roll_wish_rewards", "planning_notes",
+    "reservations", "roll_wallets", "roll_wish_rewards", "planning_notes", "planning_note_layouts",
     "health_lab_content", "health_tracker_entries", "reward_need_entries", "messenger_reads",
   ].map((table) => [table, owned]),
   ["wishlists", owned, pick("id", "user_id", "title", "description", "privacy", "occasion_date", "color", "created_at", "space")],

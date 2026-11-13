@@ -16,6 +16,7 @@ import { giftCardsSchema } from "./gift-cards-schema.js";
 import { planningSchema } from "./planning.js";
 import { profileWishlistLinksColumn } from "./profile-wishlists.js";
 import { notesSchema } from "./notes.js";
+import { noteGroupsSchema } from "./note-groups.js";
 import { privateDataSchema } from "./private-data-schema.js";
 import { businessCategorySchema } from "./business-accounts.js";
 
@@ -50,6 +51,7 @@ const schema = `
 
   ${planningSchema}
   ${notesSchema}
+  ${noteGroupsSchema}
 
   ${inviteSchema}
 

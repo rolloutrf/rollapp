@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { Trash2, X } from "lucide-react";
 import { api } from "@/api";
@@ -10,12 +10,15 @@ import { EditableTextBlock } from "@/components/editable-text-block";
 import { InlineTextField } from "@/components/inline-text-field";
 import { InlineSaveStatus, useDocumentDraft } from "@/components/inline-document";
 import { NotesLibrary } from "@/components/notes-library";
+import { buildNoteLibrary } from "@/lib/note-layout";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { usePlanningAssistantDraft } from "@/lib/planning-assistant";
 import "./planning-notes.css";
+
+const emptyLayout = { revision: 0, groups: [], order: [] };
 
 function NoteError({ error, retry }) {
   return error && <Alert variant="destructive" className="not-typeset rollapp-body"><AlertDescription>{error}</AlertDescription>{retry && <Button variant="outline" onClick={retry}>Повторить</Button>}</Alert>;
@@ -27,7 +30,12 @@ export function PlanningNotes({ client = api }) {
   const navigation = useRef({ key: location.key, revision: 0 });
   if (navigation.current.key !== location.key) navigation.current = { key: location.key, revision: navigation.current.revision + 1 };
   const noteId = search.get("note");
+  const groupId = search.get("noteGroup");
   const [notes, setNotes] = useState([]);
+  const [layout, setLayout] = useState(emptyLayout);
+  const library = useMemo(() => buildNoteLibrary(notes, layout), [notes, layout]);
+  const group = library.layout.groups.find(group => group.id === groupId);
+  const layoutWrite = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
@@ -39,11 +47,41 @@ export function PlanningNotes({ client = api }) {
     if (noteId) return;
     let current = true;
     setLoading(true); setError("");
-    client.get("/planning/notes").then(result => { if (current) setNotes(result.notes); })
+    client.get("/planning/notes").then(result => {
+      if (!current) return;
+      setNotes(result.notes);
+      const next = result.layout || emptyLayout;
+      setLayout(current => next.revision >= current.revision ? next : current);
+    })
       .catch(cause => { if (current) setError(cause.message); })
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [client, noteId, version]);
+  useEffect(() => {
+    if (!noteId && groupId && !group && !loading && !error) {
+      setSearch({ tab: "notes" }, { replace: true });
+    }
+  }, [noteId, groupId, group, loading, error, setSearch]);
+  const saveLayout = async next => {
+    if (layoutWrite.current) throw new Error("Дождитесь сохранения предыдущего изменения.");
+    const sourceRevision = navigation.current.revision;
+    layoutWrite.current = true;
+    try {
+      const result = await client.patch("/planning/notes/layout", next);
+      if (mounted.current) setLayout(current => result.layout.revision >= current.revision ? result.layout : current);
+    } catch (cause) {
+      if (cause.code === "NOTE_LAYOUT_CHANGED" && mounted.current && navigation.current.revision === sourceRevision) {
+        const latest = await client.get("/planning/notes").catch(() => null);
+        if (latest && mounted.current && navigation.current.revision === sourceRevision) {
+          setNotes(latest.notes);
+          setLayout(latest.layout);
+        }
+      }
+      throw cause;
+    } finally {
+      layoutWrite.current = false;
+    }
+  };
   const open = id => setSearch(current => {
     const next = new URLSearchParams(current);
     next.set("tab", "notes"); next.set("note", id);
@@ -62,7 +100,7 @@ export function PlanningNotes({ client = api }) {
     finally { if (mounted.current) setCreating(false); }
   };
   return <section className={`app-page planning-notes page-stack ${noteId ? "typeset typeset-rollapp" : "rollapp-body planning-notes--library"}`} aria-label="Заметки">
-    {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <NotesLibrary notes={notes} loading={loading} error={error} creating={creating} onCreate={create} errorContent={<NoteError error={error} retry={() => setVersion(v => v + 1)} />} />}
+    {noteId ? <NoteLoader key={noteId} noteId={noteId} client={client} /> : <NotesLibrary key={groupId || ""} library={library} group={group} onSaveLayout={saveLayout} loading={loading} error={error} creating={creating} onCreate={create} errorContent={<NoteError error={error} retry={() => setVersion(v => v + 1)} />} />}
     {!noteId && assistantDraft && <AssistantNoteForm draft={assistantDraft} client={client} onClose={clearAssistantDraft} onCreated={open} />}
   </section>;
 }
@@ -146,7 +184,11 @@ function NoteEditor({ note, client }) {
     try {
       if (!await autosave.flush(true)) throw new Error("Сначала сохраните изменения заметки.");
       await client.delete(`/planning/notes/${encodeURIComponent(note.id)}`);
-      if (mounted.current) setSearch({ tab: "notes" }, { replace: true });
+      if (mounted.current) setSearch(current => {
+        const next = new URLSearchParams({ tab: "notes" });
+        if (current.has("noteGroup")) next.set("noteGroup", current.get("noteGroup"));
+        return next;
+      }, { replace: true });
     } catch (cause) { if (mounted.current) setError(cause.message); }
     finally { if (mounted.current) { setBusy(false); setConfirmDelete(false); } }
   };

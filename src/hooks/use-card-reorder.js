@@ -12,6 +12,7 @@ import { createCardDragPreview, guardDragClick } from "@/lib/card-drag-preview";
 
 const TOUCH_HOLD_DELAY_MS = 260;
 const POINTER_DRAG_THRESHOLD_PX = 9;
+const REORDER_INTENT_DELAY_MS = 120;
 
 export function useCardReorder({
   items,
@@ -21,6 +22,7 @@ export function useCardReorder({
   collectionLabel,
   movedVerb = "перемещён",
   groupingEnabled = false,
+  sortGroupTiles = false,
   onAddToGroup,
   onCreateGroup,
   disabled = false,
@@ -42,6 +44,7 @@ export function useCardReorder({
   const autoScrollFrameRef = useRef(null);
   const autoScrollTimeRef = useRef(null);
   const groupTimerRef = useRef(null);
+  const reorderTimerRef = useRef(null);
   const groupIntentTargetRef = useRef("");
   const armedGroupTargetRef = useRef("");
   const ghostRef = useRef(null);
@@ -124,16 +127,16 @@ export function useCardReorder({
 
   const clearPointerListeners = () => {
     stopAutoScroll();
+    clearTimeout(reorderTimerRef.current);
     pointerCleanupRef.current?.();
     pointerCleanupRef.current = null;
   };
 
-  const clearGroupIntent = (drag = null) => {
+  const clearGroupIntent = () => {
     clearTimeout(groupTimerRef.current);
     groupTimerRef.current = null;
     groupIntentTargetRef.current = "";
     armedGroupTargetRef.current = "";
-    if (drag) drag.groupTarget = "";
     setGroupTarget("");
   };
 
@@ -142,13 +145,11 @@ export function useCardReorder({
     clearTimeout(groupTimerRef.current);
     groupIntentTargetRef.current = target;
     armedGroupTargetRef.current = "";
-    drag.groupTarget = "";
     setGroupTarget("");
     groupTimerRef.current = window.setTimeout(() => {
       groupTimerRef.current = null;
       if (pointerDragRef.current !== drag || !drag.active || groupIntentTargetRef.current !== target) return;
       armedGroupTargetRef.current = target;
-      drag.groupTarget = target;
       setGroupTarget(target);
       navigator.vibrate?.(12);
     }, GROUP_INTENT_DELAY_MS);
@@ -163,11 +164,11 @@ export function useCardReorder({
     let card = pointerCard && list?.contains(pointerCard) ? pointerCard : null;
     let overlapGroupTarget = false;
 
-    if (groupingEnabled && !group && (!card || card.dataset.sortableCardId === drag.cardId)) {
+    if (groupingEnabled && !drag.source.dataset.sortableGroupId && !group && (!card || card.dataset.sortableCardId === drag.cardId)) {
       const draggedRect = ghostRef.current?.getBoundingClientRect();
       let bestOverlap = 0.36;
       list?.querySelectorAll("[data-sortable-card-id]").forEach((candidate) => {
-        if (candidate.dataset.sortableCardId === drag.cardId) return;
+        if (candidate.dataset.sortableCardId === drag.cardId || candidate.dataset.sortableGroupId) return;
         const overlap = cardRectOverlapRatio(draggedRect, candidate.getBoundingClientRect());
         if (overlap < bestOverlap) return;
         bestOverlap = overlap;
@@ -186,43 +187,65 @@ export function useCardReorder({
     } catch {}
   };
 
-  const updateDragPosition = (drag, clientX, clientY) => {
-    moveGhost(clientX, clientY);
+  const resolveDragIntent = (drag, clientX, clientY) => {
     const { card, group, overlapGroupTarget } = resolvePointerTarget(drag, clientX, clientY);
     const groupId = group?.dataset.sortableGroupId || "";
-    if (groupId) {
-      drag.lastTargetId = "";
-      armGroupIntent(drag, `group:${groupId}`);
-      return;
+    const canGroup = groupingEnabled && !drag.source.dataset.sortableGroupId;
+    const hoverMode = overlapGroupTarget ? "group" : resolveCardHoverMode({
+      groupingEnabled: canGroup,
+      rect: (group || card)?.getBoundingClientRect(),
+      clientX,
+      clientY,
+    });
+    const cardId = card?.dataset.sortableCardId || "";
+    if (canGroup && groupId && (!group.dataset.sortableCardId || hoverMode === "group")) {
+      return { groupTarget: `group:${groupId}` };
     }
-    const targetId = card?.dataset.sortableCardId || "";
-    if (!targetId || targetId === drag.cardId) {
-      drag.lastTargetId = "";
-      clearGroupIntent(drag);
-      return;
-    }
-    const hoverMode = overlapGroupTarget
-      ? "group"
-      : resolveCardHoverMode({
-        groupingEnabled,
-        rect: card.getBoundingClientRect(),
-        clientX,
-        clientY,
-      });
-    if (hoverMode === "group") {
-      drag.lastTargetId = "";
-      armGroupIntent(drag, `card:${targetId}`);
-      return;
-    }
-    clearGroupIntent(drag);
+    if (!cardId || cardId === drag.cardId) return {};
+    return hoverMode === "group" ? { groupTarget: `card:${cardId}` } : { targetId: cardId };
+  };
+
+  const reorderTo = (drag, targetId, clientX, clientY) => {
     if (drag.lastTargetId === targetId) return;
     const nextItems = reorderCardToTarget(itemsRef.current, drag.cardId, targetId);
     if (nextItems === itemsRef.current) return;
     drag.lastTargetId = targetId;
+    // The same pointer position may hit a different card once the grid animates.
+    if (sortGroupTiles) drag.reorderPoint = { x: clientX, y: clientY };
     drag.dirty = true;
     itemsRef.current = nextItems;
     capturePositions();
     onItemsChangeRef.current(nextItems);
+  };
+
+  const updateDragPosition = (drag, clientX, clientY, releasing = false) => {
+    moveGhost(clientX, clientY);
+    if (drag.reorderPoint && Math.hypot(clientX - drag.reorderPoint.x, clientY - drag.reorderPoint.y) < POINTER_DRAG_THRESHOLD_PX) return;
+    const { targetId, groupTarget } = resolveDragIntent(drag, clientX, clientY);
+    if (drag.pendingTargetId !== targetId || releasing) clearTimeout(reorderTimerRef.current);
+    if (groupTarget) {
+      drag.pendingTargetId = undefined;
+      drag.lastTargetId = "";
+      armGroupIntent(drag, groupTarget);
+      return;
+    }
+    clearGroupIntent();
+    if (!targetId) {
+      drag.pendingTargetId = undefined;
+      drag.lastTargetId = "";
+      return;
+    }
+    if (!sortGroupTiles || releasing) {
+      reorderTo(drag, targetId, clientX, clientY);
+    } else if (drag.pendingTargetId !== targetId) {
+      // Passing across the edge on the way to the centre should leave the target in place.
+      drag.pendingTargetId = targetId;
+      reorderTimerRef.current = window.setTimeout(() => {
+        if (pointerDragRef.current === drag && resolveDragIntent(drag, drag.clientX, drag.clientY).targetId === targetId) {
+          reorderTo(drag, targetId, drag.clientX, drag.clientY);
+        }
+      }, REORDER_INTENT_DELAY_MS);
+    }
   };
 
   const startAutoScroll = (drag) => {
@@ -263,6 +286,7 @@ export function useCardReorder({
         autoScrollTimeRef.current = null;
         return;
       }
+      drag.reorderPoint = null;
       updateDragPosition(drag, drag.clientX, drag.clientY);
       autoScrollFrameRef.current = requestAnimationFrame(tick);
     };
@@ -292,7 +316,7 @@ export function useCardReorder({
 
   const finishDrag = (drag, { persist = true, restore = true } = {}) => {
     const nextItems = itemsRef.current;
-    const shouldPersist = persist && drag.dirty;
+    const shouldPersist = persist && drag.dirty && nextItems.some((item, index) => item.id !== drag.initialItems[index]?.id);
     if (drag.source.contains(document.activeElement)) document.activeElement?.blur?.();
     if (!persist && restore && drag.dirty) {
       itemsRef.current = drag.initialItems;
@@ -353,17 +377,19 @@ export function useCardReorder({
     releasePointerCapture(drag);
     if (!drag.active) return;
     event.preventDefault();
-    if (drag.clientX !== event.clientX || drag.clientY !== event.clientY) updateDragPosition(drag, event.clientX, event.clientY);
     const element = document.elementFromPoint(event.clientX, event.clientY);
     if (!element || !listRef.current?.contains(element)) {
       finishDrag(drag, { persist: false });
 
       return;
     }
+    if (drag.pendingTargetId || drag.clientX !== event.clientX || drag.clientY !== event.clientY) {
+      updateDragPosition(drag, event.clientX, event.clientY, true);
+    }
     const confirmedGroupTarget = resolveConfirmedGroupDrop({
       groupingEnabled,
       armedTarget: armedGroupTargetRef.current,
-      dragTarget: drag.groupTarget,
+      dragTarget: resolveDragIntent(drag, event.clientX, event.clientY).groupTarget,
     });
     if (groupingEnabled && confirmedGroupTarget) {
       const [targetType, targetId] = confirmedGroupTarget.split(":");
@@ -373,9 +399,7 @@ export function useCardReorder({
 
       return;
     }
-    const { card } = resolvePointerTarget(drag, event.clientX, event.clientY);
-    const droppedInsideList = Boolean(card);
-    finishDrag(drag, { persist: droppedInsideList });
+    finishDrag(drag);
 
   };
 
@@ -418,6 +442,7 @@ export function useCardReorder({
   const beginPointerDrag = (event, cardId) => {
     if (disabled || savingRef.current || !event.isPrimary || event.button !== 0) return;
     if (!event.target.closest?.("[data-card-drag-trigger]")) return;
+    if (event.target.closest?.("[data-card-drag-mouse-only]") && event.pointerType !== "mouse") return;
     if (event.pointerType === "mouse") event.preventDefault();
     if (pointerDragRef.current) return;
     suppressClickRef.current = false;
@@ -433,7 +458,6 @@ export function useCardReorder({
       clientY: event.clientY,
       active: false,
       dirty: false,
-      groupTarget: "",
       lastTargetId: "",
       initialItems: [...itemsRef.current],
       source: event.currentTarget,

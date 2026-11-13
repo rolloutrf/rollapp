@@ -225,6 +225,8 @@ Ctrl/Cmd+S from portalled editor controls prevents the browser Save Page action 
 
 - When changing Wishlist grouping or reordering, verify both in the same stateful session: reorder, reorder back, then group without resetting the page. Include the minimal two-tile grid (one single-item group and one loose wish), both directions, stationary edge release and drops into real grid gaps. A previewed pointer reorder released inside its source grid commits even when no card is under the pointer; outside/Escape/capture/access cancellation and failed-save rollback still restore the original order.
 
+- Planning notes groups use the shared card drag and 48px touch handle. Require the centre-hover confirmation, retain keyboard menu alternatives and keep the note's group in its route for Back. Persist the owner-scoped layout separately from note content, reject stale revisions and verify its existing schema read-only. Run the complete `test:notes` and `test:drag-drop` matrices. See `docs/planning-notes.md`.
+
 ## Stories
 
 - Expose avatar stories only within `/app/friends` and its nested routes, through the shared `StoryAvatar` / `form-surface` flow. Elsewhere the owner avatar opens profile editing; public profiles do not expose stories. Recordings stop at 60 seconds; the server independently decodes, trims and verifies the video with FFmpeg/FFprobe. Publishing requires explicit preview confirmation. Active stories have the shared orange ring and expire 24 hours after server publication; list and direct media endpoints must both enforce expiry with no-store responses.

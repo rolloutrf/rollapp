@@ -59,11 +59,12 @@ download API. Реальный перенос выполняется отдел�
 verify startup проверяет их через LIMIT0, не создаёт и не изменяет записи.
 
 Заметки: [planning-notes.md](planning-notes.md). `npm run test:notes` проверяет
-единую сетку и редактор на восьми размерах и входит в `check:release`. До первого
-запуска требуется отдельно разрешённая миграция `planning_notes`; read-only
-проверка — `node scripts/migrate-planning-notes.mjs`, применение после разрешения —
-та же команда с `--apply`. Обычный verify startup таблицу не создаёт.
-После миграции выполнить `npm run test:notes:production`: HTTP CRUD, owner isolation,
+сетку, группы и редактор на восьми размерах и входит в `check:release`.
+`node scripts/migrate-planning-notes.mjs` проверяет `planning_notes`,
+`node scripts/migrate-planning-note-layouts.mjs` — `planning_note_layouts`.
+Флаг `--apply` применяется после отдельного разрешения для нужной таблицы.
+Обычный verify startup только проверяет схему.
+После миграции выполнить `npm run test:notes:production`: HTTP CRUD, owner isolation, ревизии групп,
 Unicode payload и media guards на production PostgreSQL с обязательным ROLLBACK,
 без DDL и инициализации схемы.
 `npm run test:notes:production:ui` дополнительно открывает настоящий dev frontend

@@ -5,6 +5,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { hashToken } from "./security.js";
 import { registerNotesRoutes } from "./notes.js";
+import { verifyNoteGroupsSql } from "./note-groups.js";
 import { imageIsInUse } from "./image-usage.js";
 
 // Explicit production check only. Never creates a schema or commits test records.
@@ -27,8 +28,9 @@ test("notes HTTP CRUD, rich storage, ownership and media guards on production Po
       await query("BEGIN");
       await query("SET LOCAL lock_timeout='5s'");
       await query("SET LOCAL statement_timeout='10s'");
-      await query("SET LOCAL idle_in_transaction_session_timeout='60s'");
+      await query("SET LOCAL idle_in_transaction_session_timeout='120s'");
       await query("SELECT id,user_id,title,content,created_at,updated_at FROM planning_notes LIMIT 0");
+      await query(verifyNoteGroupsSql);
       for (const [index, id] of ids.entries()) {
         await query("INSERT INTO users (id,email,username,name,password_hash) VALUES ($1,$2,$3,$4,$5)", [id, `${id}@notes-test.invalid`, `notes-${id}`, "Notes rollback check", "unusable"]);
         await query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ($1,$2,$3)", [hashToken(tokens[index]), id, new Date(Date.now() + 600_000)]);
@@ -77,6 +79,18 @@ test("notes HTTP CRUD, rich storage, ownership and media guards on production Po
       assert.equal(list.body.notes[0].id, id);
       assert.equal("content" in list.body.notes[0], false);
       assert.equal(list.cache, "private, no-store");
+      const groupId = randomUUID();
+      const groupLayout = { revision: list.body.layout.revision, groups: [{ id: groupId, title: "Группа", noteIds: [id] }], order: [groupId] };
+      const firstRevision = groupLayout.revision + 1;
+      assert.equal((await request("PATCH", "/layout", groupLayout, "invalid")).status, 401);
+      assert.equal((await request("PATCH", "/layout?owner=" + ids[0], groupLayout, tokens[1])).status, 409);
+      assert.deepEqual((await request("PATCH", "/layout", groupLayout)).body.layout, { ...groupLayout, revision: firstRevision });
+      assert.equal((await request("PATCH", "/layout", groupLayout)).status, 409);
+      const renamed = { ...groupLayout, revision: firstRevision, groups: [{ ...groupLayout.groups[0], title: "Переименовано" }] };
+      assert.deepEqual((await request("PATCH", "/layout", renamed)).body.layout, { ...renamed, revision: firstRevision + 1 });
+      assert.deepEqual((await request("GET")).body.layout, { ...renamed, revision: firstRevision + 1 });
+      assert.deepEqual((await request("GET", "", undefined, tokens[1])).body.layout, { revision: 0, groups: [], order: [] });
+      assert.equal((await request("GET", `/${id}`)).body.note.content, content);
       assert.deepEqual((await request("GET", `?owner=${ids[0]}`, undefined, tokens[1])).body.notes, []);
       for (const [method, body] of [["GET"], ["PATCH", { title: "Чужая", content: "Подмена" }], ["DELETE"]]) {
         assert.equal((await request(method, `/${id}?owner=${ids[0]}`, body, tokens[1])).status, 404);
@@ -101,6 +115,7 @@ test("notes HTTP CRUD, rich storage, ownership and media guards on production Po
       assert.equal((await request("PATCH", `/${id}`, { title: "Не воскрешать", content })).status, 404);
       assert.equal((await request("DELETE", `/${id}`)).status, 404);
       assert.deepEqual((await request("GET")).body.notes, []);
+      assert.deepEqual((await request("GET")).body.layout, { revision: firstRevision + 1, groups: [], order: [] });
     } finally {
       if (server) await new Promise(resolve => server.close(resolve));
       try { await pending; await client.query("ROLLBACK"); }
@@ -109,5 +124,6 @@ test("notes HTTP CRUD, rich storage, ownership and media guards on production Po
     // Queries after the transaction confirm that no fixture records were committed.
     assert.equal((await db.query("SELECT id FROM users WHERE id=ANY($1::text[])", [ids])).rowCount, 0);
     assert.equal((await db.query("SELECT id FROM planning_notes WHERE user_id=ANY($1::text[])", [ids])).rowCount, 0);
+    assert.equal((await db.query("SELECT user_id FROM planning_note_layouts WHERE user_id=ANY($1::text[])", [ids])).rowCount, 0);
   } finally { await db.pool.end(); }
 });

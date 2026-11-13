@@ -2,6 +2,7 @@ import { getYandexDiskConfig } from "./yandex-disk.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { verifyAccountBackupSchema } from "./account-backup.js";
 import { profileDiskEnabled } from "./yandex-disk-profile.js";
+import { verifyNoteGroupsSql } from "./note-groups.js";
 
 // Development reconnects to an existing production database. A reconnect must
 // never run the normal schema/data migration and reservation cleanup routine.
@@ -30,6 +31,7 @@ export async function initializeRuntimeDatabase({ environment = process.env, isM
     await client.query("SELECT wishlist_links FROM users LIMIT 0");
     await client.query("SELECT id,user_id,image_url FROM health_medications LIMIT 0");
     await client.query("SELECT id,user_id,title,content,created_at,updated_at FROM planning_notes LIMIT 0");
+    await client.query(verifyNoteGroupsSql);
     await client.query("SELECT id,user_id,tracker,entry_on,data_json,created_at,updated_at FROM health_tracker_entries LIMIT 0");
     await client.query("SELECT user_id,contact_id,source_order FROM contact_overrides LIMIT 0");
     await client.query("SELECT user_id,content_json FROM health_lab_content LIMIT 0");

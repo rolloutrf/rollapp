@@ -795,7 +795,10 @@ function PlanningControls({ user }) {
   const search = new URLSearchParams(location.search);
   const requestedTab = search.get("tab");
   const currentTab = PLANNING_TABS.some(({ id }) => id === requestedTab) ? requestedTab : "kanban";
-  const backToNotes = inPlanning && currentTab === "notes" && Boolean(search.get("note"));
+  const noteGroupId = search.get("noteGroup");
+  const backToNotes = inPlanning && currentTab === "notes" && Boolean(search.get("note") || noteGroupId);
+  const backNotesSearch = new URLSearchParams({ tab: "notes" });
+  if (search.get("note") && noteGroupId) backNotesSearch.set("noteGroup", noteGroupId);
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
@@ -815,7 +818,7 @@ function PlanningControls({ user }) {
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon
-        to={backToNotes ? `${PLANNING_SERVICE.path}?tab=notes` : returnPath.current}
+        to={backToNotes ? `${PLANNING_SERVICE.path}?${backNotesSearch}` : returnPath.current}
         className={cn(buttonVariants({ variant: "outline", size: "icon" }), "planning-fab planning-fab--back rounded-full")}
         aria-label={backLabel}
         title={backLabel}
