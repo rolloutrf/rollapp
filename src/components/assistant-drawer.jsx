@@ -79,7 +79,8 @@ export function useAssistantChats(open) {
   }
 
   function createChat(draft = '', noteDraftId = null) {
-    const created = { ...newChat(nextChatNumber.current++), draft, noteDraftId };
+    const blank = !draft && !noteDraftId && chats.find(item => !hasChatContent(item));
+    const created = blank || { ...newChat(nextChatNumber.current++), draft, noteDraftId };
     setWorkspace(previous => ({ ...previous, chats: [created, ...previous.chats.filter(hasChatContent)], selected: created.id }));
     return created;
   }
