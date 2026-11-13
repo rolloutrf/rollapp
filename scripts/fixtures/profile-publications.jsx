@@ -60,6 +60,10 @@ if (routing) {
     if (path === "/sphere-shares/incoming") return { shares: [] };
     if (path === "/dashboard" || path === "/profile/host") return collection;
     if (path === "/gift-suggestions") return { items: [] };
+    if (path.startsWith("/sphere-shares/context?")) return { isOwner: true, requests: [] };
+    if (path.startsWith("/catalog?")) return { items: [], total: 0 };
+    if (path === "/wishlist-business/media/accounts") return { accounts: [] };
+    if (path === "/wishlist-business/media/offers" || path === "/wishlist-business/media/sales") return { items: [] };
     if (path === "/profile/host/calendar" || path === "/profile/host/announcements") return { ...snapshot, isOwner: routing !== "booking" };
     throw new Error(`Unexpected GET ${path}`);
   };

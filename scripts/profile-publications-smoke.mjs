@@ -33,7 +33,7 @@ try {
     page.on("pageerror", error => errors.push(error.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
     async function open(section, mode, query = "") {
-      await page.goto(`${origin}/__profile-publications?section=${section}&mode=${mode}${query}`);
+      await page.goto(`${origin}/__profile-publications?section=${section}&mode=${mode}${query}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
       await page.getByRole("heading", { name: section === "calendar" ? "Календарь" : "Доска объявлений", exact: true }).waitFor();
     }
     async function geometry() {
@@ -286,8 +286,9 @@ try {
     assert.equal(await page.getByRole("group", { name: "Действия со списком желаний" }).count(), 0);
     assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     for (const routing of ["wishlist", "public"]) {
-      await page.goto(`${origin}/__profile-publications?routing=${routing}`);
-      const rail = page.getByRole("group", { name: "Действия со списком желаний" });
+      await page.goto(`${origin}/__profile-publications?routing=${routing}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      const actions = page.getByRole("group", { name: "Действия со списком желаний" });
+      const rail = routing === "wishlist" ? page.getByRole("navigation", { name: "Разделы Вишлиста" }) : actions;
       const calendarLink = rail.getByRole("link", { name: "Календарь", exact: true });
       const boardLink = rail.getByRole("link", { name: "Доска объявлений", exact: true });
       const profileHeading = page.getByRole("heading", { name: "Участник", exact: true });
@@ -299,10 +300,13 @@ try {
       await wish.waitFor();
       assert.equal(await list.getAttribute("aria-pressed"), "true");
       const original = await rail.elementHandle();
+      const avatar = await profileHeading.elementHandle();
+      const railTop = await rail.evaluate(node => node.getBoundingClientRect().top + scrollY);
       const assertShell = async () => {
         assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
         assert.equal(await profileHeading.count(), 1);
-        assert.equal(await rail.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
+        assert(await avatar.evaluate(node => node.isConnected), `${routing}: profile hero was replaced`);
+        assert.equal(await actions.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
         assert.match(await space.innerText(), /Медиа/);
         assert(await rail.evaluate(node => [...node.children].every(child => child.getBoundingClientRect().top === node.firstElementChild.getBoundingClientRect().top)));
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
@@ -317,8 +321,9 @@ try {
       await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
       assert.equal(await calendarLink.getAttribute("aria-current"), "page");
       await page.waitForFunction(() => {
-        const row = document.querySelector('[aria-label="Действия со списком желаний"]');
-        const active = row.querySelector('[aria-current="page"]');
+        const row = [...document.querySelectorAll("[data-control-bar]")].find(node => node.querySelector('[aria-label="Календарь"][aria-current="page"]'));
+        const active = row?.querySelector('[aria-current="page"]');
+        if (!active) return false;
         const inactive = row.querySelector('[aria-label="Доска объявлений"]');
         return getComputedStyle(active).backgroundColor !== getComputedStyle(inactive).backgroundColor;
       });
@@ -345,6 +350,72 @@ try {
       await assertShell();
       assert.equal(await listNavigation.count(), 1);
       assert.equal(await list.getAttribute("aria-pressed"), "true");
+      if (routing === "wishlist") {
+        const names = ["Открыть ленту", "Открыть каталог брендов", "Открыть магазин", "Открыть предложения", "Мои продажи", "Календарь", "Доска объявлений"];
+        assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), names);
+        for (const [name, path, content] of [
+          [names[0], "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "Лента · Медиа" })],
+          [names[1], "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "Бренды · Медиа" })],
+          [names[2], "/app/store?tab=media", page.getByText("В этом разделе магазина пока пусто", { exact: true })],
+          [names[3], "/app/wishes/offers?tab=media", page.getByText("Предложений пока нет", { exact: true })],
+          [names[4], "/app/wishes/sales?tab=media", page.getByText("Объявлений пока нет", { exact: true })],
+          [names[5], "/app/wishes?tab=media&publication=calendar", page.getByRole("heading", { name: "Первая встреча" })],
+          [names[6], "/app/wishes?tab=media&publication=announcements", page.getByRole("heading", { name: "Открыта запись на ноябрь" })],
+        ]) {
+          const link = rail.getByRole("link", { name, exact: true });
+          assert.equal(await link.getAttribute("href"), path);
+          await link.click();
+          await page.waitForURL(origin + path);
+          await content.waitFor();
+          assert(await original.evaluate(node => node.isConnected), `${name}: navigation was replaced`);
+          assert(await avatar.evaluate(node => node.isConnected), `${name}: profile was replaced`);
+          assert.deepEqual(await rail.locator('[aria-current="page"]').evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), [name]);
+          assert.equal(await rail.evaluate(node => node.getBoundingClientRect().top + scrollY), railTop);
+          assert(await link.evaluate(node => {
+            const control = node.getBoundingClientRect();
+            const row = node.parentElement.getBoundingClientRect();
+            return control.left >= row.left - 1 && control.right <= row.right + 1;
+          }), `${name}: selected icon is clipped`);
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+        }
+        const gap = await rail.evaluate(node => {
+          const next = node.parentElement.nextElementSibling;
+          return next.getBoundingClientRect().top - node.getBoundingClientRect().bottom;
+        });
+        assert.equal(gap, 24, "Wishlist navigation uses the shared page gap");
+        const metrics = await rail.evaluate(node => {
+          const rect = node.getBoundingClientRect();
+          const links = [...node.querySelectorAll("a")];
+          return {
+            left: rect.left, right: rect.right, position: getComputedStyle(node).position,
+            icons: links.map(link => {
+              const glyph = link.querySelector("svg").getBoundingClientRect();
+              return [link.offsetWidth, link.offsetHeight, glyph.width, glyph.height, getComputedStyle(link).borderRadius];
+            }),
+          };
+        });
+        assert.equal(metrics.position, "static");
+        assert(Math.abs(metrics.left) <= 1 && Math.abs(metrics.right - width) <= 1, JSON.stringify(metrics));
+        for (const icon of metrics.icons) assert.deepEqual(icon, [48, 48, 20, 20, "24px"]);
+        await rail.evaluate(node => { node.scrollLeft = 0; });
+        const edges = await rail.evaluate(node => {
+          const first = node.firstElementChild.getBoundingClientRect().left;
+          node.scrollLeft = node.scrollWidth;
+          const last = node.lastElementChild.getBoundingClientRect().right;
+          return { first, last, scrollLeft: node.scrollLeft };
+        });
+        if (edges.scrollLeft > 0) {
+          const inset = width <= 640 ? 16 : 24;
+          assert.equal(edges.first, inset);
+          assert.equal(width - edges.last, inset);
+        }
+        if ((width === 390 && height === 844) || width === 1440) {
+          await page.screenshot({ path: `/tmp/rollapp-wishlist-sections-${width}.png`, animations: "disabled" });
+        }
+        await page.goBack();
+        await page.getByRole("heading", { name: "Первая встреча" }).waitFor();
+        assert(await original.evaluate(node => node.isConnected));
+      }
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     }
     assert.deepEqual(errors, []);

@@ -384,7 +384,7 @@ assert(
 const friendsLinkSource = app.slice(app.indexOf("function AppFriendsLink"), app.indexOf("function AppProfileButton"));
 assert.equal([...friendsLinkSource.matchAll(/<Link\b/g)].length, 1, "Profile relationships must expose a single link");
 assert.match(friendsLinkSource, /<Link to="\/app\/friends"[^>]*>\s*<Users aria-hidden="true"\s*\/>\s*Друзья\s*<\/Link>/, "The profile Friends link must point to the Friends section and keep its decorative icon");
-const relationshipHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function CatalogProfileHero"));
+const relationshipHeroSource = app.slice(app.indexOf("function PersistentProfileHero"), app.indexOf("function CatalogPageHeader"));
 const relationshipPublicSource = app.slice(app.indexOf("function PublicProfile"), app.indexOf("function NotFound"));
 for (const [source, label] of [[relationshipHeroSource, "personal"], [relationshipPublicSource, "public"]]) {
   assert.match(source, /<div className="wishes-page__hero-copy">\s*<h1\b[^>]*>[^<]*<\/h1>\s*\{[^\n]*<AppFriendsLink\s*\/>\}/, `The ${label} profile must render its shared Friends link directly under the name`);
@@ -750,8 +750,8 @@ assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
-const catalogProfileHeroSource = app.slice(app.indexOf("function CatalogProfileHero"), app.indexOf("function WishesProfileControls"));
-assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
+const catalogPageHeaderSource = app.slice(app.indexOf("function CatalogPageHeader"), app.indexOf("function WishesProfileControls"));
+assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogPageHeaderSource), "External storefronts must use a neutral Brands identity");
 const brandSelectSource = read("src/components/catalog-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));

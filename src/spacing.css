@@ -518,6 +518,10 @@
 }
 
 @layer utilities {
+  .app-layout--dark .app-page.wishlist-section-navigation {
+    padding-block-end: var(--layout-page-gap);
+  }
+
   /* One action rail across spheres. Safe centering keeps the first action
      reachable when the controls need horizontal scrolling. */
   .app-layout--dark :is(.page-actions, .identity-report-manager__actions).horizontal-action-scroller {

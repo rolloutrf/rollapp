@@ -20,7 +20,7 @@ import { isBrandCatalogSearch } from "../shared/catalog-links.js";
 import { merchantProductUrl } from "../shared/product-links.js";
 import { EXTERNAL_WISHLIST_PROVIDERS, EXTERNAL_WISHLIST_URL_MAX_LENGTH, externalWishlistUrl } from "../shared/external-wishlists.js";
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, Outlet, Route, Routes, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
@@ -137,7 +137,7 @@ import {
   shouldShowUnsortedList, UNSORTED_LIST_TITLE, wishCountNoun,
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
-import { businessMarketplacePath, isPublicWishDetailPath, APP_ASSISTANT_PATH, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
+import { businessMarketplacePath, isPublicWishDetailPath, APP_ASSISTANT_PATH, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, APP_WISH_OFFERS_PATH, APP_WISH_SALES_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
 import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
@@ -2082,14 +2082,13 @@ function FriendsTopbar({ user }) {
   );
 }
 
-function AppShell({ children, friendsContext = false, collectionChrome = false }) {
+function AppShell({ children, friendsContext = false, collectionChrome = false, wishlistChrome = false }) {
   const { user } = useSession();
   const location = useLocation();
   const friendsRoute = friendsContext || isFriendsDirectoryPath(location.pathname);
   const wishesRoute = location.pathname.startsWith("/app/wishes");
-  const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
-  const storeRoute = [APP_STORE_PATH, APP_ORDERS_PATH].includes(location.pathname.replace(/\/$/, "").toLowerCase());
   const classifiedsRoute = location.pathname === APP_CLASSIFIEDS_PATH;
+  const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
   const planningRoute = location.pathname === "/app/planning";
@@ -2102,9 +2101,12 @@ function AppShell({ children, friendsContext = false, collectionChrome = false }
   return (
     <SphereSharingProvider currentUser={user} scope={sphereScope} search={location.search}>
       <div className={`app-layout app-layout--dark ${planningLayout} ${friendsRoute ? "app-layout--friends" : ""}`}>
-        <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome ? "app-main--wishes" : ""}`}>
+        <main className={`app-main ${(!friendsRoute && !diskNotesRoute) || collectionChrome ? "app-main--with-profile" : ""} ${wishesRoute || collectionChrome || wishlistChrome ? "app-main--wishes" : ""}`}>
           {!collectionChrome && !planningRoute && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-          {!collectionChrome && !catalogRoute && !storeRoute && !classifiedsRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          {wishlistChrome ? <>
+            <PersistentProfileHero user={user} wishlistChrome />
+            <WishlistSectionNavigation user={user} />
+          </> : !collectionChrome && !catalogRoute && !classifiedsRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3482,13 +3484,13 @@ function ExternalWishlistLinks({ links }) {
   );
 }
 
-function PersistentProfileHero({ user }) {
+function PersistentProfileHero({ user, wishlistChrome = false }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
   const wishlistPage = useMatch(APP_HOME);
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
-  const profile = access.active && access.owner
+  const profile = !wishlistChrome && access.active && access.owner
     ? { ...access.owner, publicMood: access.isOwner ? user.publicMood : access.owner.publicMood }
     : user;
   const editable = !access.active || access.isOwner;
@@ -3521,12 +3523,12 @@ function PersistentProfileHero({ user }) {
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
-          {wishlistPage && editable && <AppFriendsLink />}
+          {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink />}
           <ProfileMoodCaption level={profile.publicMood} />
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
-      {location.pathname.startsWith("/app/wishes") && <ExternalWishlistLinks links={profile.wishlistLinks} />}
+      {(wishlistChrome || location.pathname.startsWith("/app/wishes")) && <ExternalWishlistLinks links={profile.wishlistLinks} />}
       {canManageSharing && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
@@ -3535,26 +3537,13 @@ function PersistentProfileHero({ user }) {
   );
 }
 
-function CatalogProfileHero({ selectedSpace, source, title, icon: HeroIcon, action }) {
-  const heroTitle = title || `${source === "brands" ? "Бренды" : "Лента"} · ${SPACES.find(space => space.id === selectedSpace)?.label || "Товары"}`;
+function CatalogPageHeader({ selectedSpace, source, title, action }) {
+  const heading = title || `${source === "brands" ? "Бренды" : "Лента"} · ${SPACES.find(space => space.id === selectedSpace)?.label || "Товары"}`;
   return (
-    <section className="wishes-page__hero persistent-profile-hero catalog-profile-hero" aria-labelledby="catalog-profile-name">
-      <div className="wishes-page__identity wishes-page__identity--readonly">
-        <div className="sphere-share-avatars" aria-hidden="true">
-          <ShadcnAvatar size="lg" className="wishes-page__hero-avatar !size-[var(--avatar-xl-size)]">
-            <AvatarFallback className="bg-transparent text-foreground">
-              {HeroIcon ? <HeroIcon className="size-3/5" /> : source === "brands" ? <ShoppingBag className="size-3/5" /> : <Newspaper className="size-3/5" />}
-            </AvatarFallback>
-          </ShadcnAvatar>
-        </div>
-        <div className="wishes-page__hero-copy">
-          <h1 id="catalog-profile-name">{heroTitle}</h1>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {action}
-      </div>
-    </section>
+    <header className="typeset typeset-rollapp flex flex-wrap items-center justify-between gap-2">
+      <h2>{heading}</h2>
+      {action}
+    </header>
   );
 }
 
@@ -3564,45 +3553,57 @@ function wishlistPublicationPath(space, publication) {
   return `${APP_HOME}?${search}`;
 }
 
-function WishesProfileControls({ selectedSpace, publication, onAdd }) {
-  const { user } = useSession();
+function WishlistSectionNavigation({ user }) {
+  const { pathname, search } = useLocation();
   const { isOwner } = useSphereSharing();
+  const path = pathname.replace(/\/+$/, "").toLowerCase();
+  const space = wishlistSpace(search);
+  const tab = new URLSearchParams({ tab: space });
+  const brands = isBrandCatalogSearch(search);
+  const publication = path === APP_HOME ? profilePublicationSection(new URLSearchParams(search).get("publication")) : null;
+  const navigationRef = useRef(null);
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    const active = navigation?.querySelector('[aria-current="page"]');
+    if (!active || navigation.scrollWidth <= navigation.clientWidth) return;
+    const rail = navigation.getBoundingClientRect();
+    const control = active.getBoundingClientRect();
+    if (control.left < rail.left) navigation.scrollLeft += control.left - rail.left;
+    else if (control.right > rail.right) navigation.scrollLeft += control.right - rail.right;
+  }, [path, brands, publication, space]);
+  const links = [
+    { to: `${APP_WISH_CATALOG_PATH}?${tab}`, active: path === APP_WISH_CATALOG_PATH && !brands, label: "Открыть ленту", title: "Лента", icon: Newspaper },
+    { to: brandCatalogPath(space), active: path === APP_WISH_CATALOG_PATH && brands, label: "Открыть каталог брендов", title: "Каталог брендов", icon: ShoppingBag },
+    { to: `${APP_STORE_PATH}?${tab}`, active: path === APP_STORE_PATH || path === APP_ORDERS_PATH, label: "Открыть магазин", title: "Магазин", icon: Store },
+    { to: `${APP_WISH_OFFERS_PATH}?${tab}`, active: path === APP_WISH_OFFERS_PATH, label: "Открыть предложения", title: "Предложения", icon: Send },
+  ];
+  if (canManageWishSales(user, space)) {
+    links.push({ to: wishSalesPath(space), active: path === APP_WISH_SALES_PATH, label: "Мои продажи", title: "Мои продажи", icon: Tag });
+  }
+  return (
+    <div className="app-page wishes-page wishlist-section-navigation">
+      <ControlBar as="nav" ref={navigationRef} className="page-actions wishes-page__hero-actions horizontal-action-scroller" aria-label="Разделы Вишлиста">
+        {links.map(({ to, active, label, title, icon: Icon }) => (
+          <Link key={title} to={to} aria-current={active ? "page" : undefined}
+            className={buttonVariants({ variant: active ? "default" : "outline", size: "icon" })}
+            data-control-icon aria-label={label} title={title}>
+            <Icon aria-hidden="true" />
+          </Link>
+        ))}
+        {isOwner && user.username && <ProfilePublicationLinks activeSection={publication}
+          toSection={section => wishlistPublicationPath(space, section)} />}
+      </ControlBar>
+    </div>
+  );
+}
+
+function WishesProfileControls({ selectedSpace, onAdd }) {
+  const { user } = useSession();
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
         <PageActionButton className="min-w-[180px] shrink-0 whitespace-nowrap" onClick={onAdd}>Добавить</PageActionButton>
-        <Link
-          to={`${APP_WISH_CATALOG_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
-          className={buttonVariants({ variant: "outline", size: "icon" })}
-          data-control-icon
-          aria-label="Открыть ленту"
-          title="Лента"
-        >
-          <Newspaper aria-hidden="true" />
-        </Link>
-        <Link
-          to={brandCatalogPath(selectedSpace)}
-          className={buttonVariants({ variant: "outline", size: "icon" })}
-          data-control-icon
-          aria-label="Открыть каталог брендов"
-          title="Каталог брендов"
-        >
-          <ShoppingBag aria-hidden="true" />
-        </Link>
-        <Link
-          to={`${APP_STORE_PATH}?tab=${encodeURIComponent(selectedSpace)}`}
-          className={buttonVariants({ variant: "outline", size: "icon" })}
-          data-control-icon
-          aria-label="Открыть магазин"
-          title="Магазин"
-        >
-          <Store aria-hidden="true" />
-        </Link>
-        <Link to={`/app/wishes/offers?tab=${selectedSpace}`} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Открыть предложения" title="Предложения"><Send aria-hidden="true" /></Link>
-        {canManageWishSales(user, selectedSpace) && <Link to={wishSalesPath(selectedSpace)} className={buttonVariants({ variant: "outline", size: "icon" })} data-control-icon aria-label="Мои продажи" title="Мои продажи"><Tag aria-hidden="true" /></Link>}
         {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
-        {isOwner && user?.username && <ProfilePublicationLinks activeSection={publication}
-          toSection={section => wishlistPublicationPath(selectedSpace, section)} />}
       </ControlBar>
     </section>
   );
@@ -3634,15 +3635,15 @@ function StorePage({ user, selectedSpace, ordersOpen }) {
     setPurchase(restoreCatPurchase(storageKey, STORE_CATS) || { cat, idempotencyKey: crypto.randomUUID() });
   };
   return <>
-    <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
-      <CatalogProfileHero selectedSpace={selectedSpace} title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} icon={Store} action={isProducts && (
-        <DrawerTrigger render={<PageActionButton variant="outline" />}>
-          <PackageCheck aria-hidden="true" />Заказы
-        </DrawerTrigger>
-      )} />
-      <OrdersDrawerContent products={STORE_CATS} />
-    </Drawer>
     <div className="app-page wish-catalog-page cat-store-page page-stack">
+      <Drawer mobileDrawer open={ordersOpen} onOpenChange={changeOrdersOpen}>
+        <CatalogPageHeader title={`Магазин · ${SPACES.find((space) => space.id === selectedSpace)?.label}`} action={isProducts && (
+          <DrawerTrigger render={<PageActionButton variant="outline" />}>
+            <PackageCheck aria-hidden="true" />Заказы
+          </DrawerTrigger>
+        )} />
+        <OrdersDrawerContent products={STORE_CATS} />
+      </Drawer>
       {isProducts ? <div className="wish-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
           <WishlistSnippet
@@ -3674,7 +3675,7 @@ function StorePage({ user, selectedSpace, ordersOpen }) {
   </>;
 }
 
-function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds = false, listings = false }) {
+function ProtectedWishlistBusiness({ classifieds = false, listings = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
@@ -3691,17 +3692,50 @@ function ProtectedWishlistBusiness({ manager = false, sales = false, classifieds
       <WishlistBusinessListing key={`${user.id}:${space}:${business}`} space={space} business={business} viewerId={user.id} />
     </section></AppShell>;
   }
-  return <AppShell>{sales ? <WishSalesPage user={user} /> : <WishlistBusinessPage user={user} manager={manager} />}</AppShell>;
+  return <AppShell><WishlistBusinessPage user={user} manager /></AppShell>;
 }
 
-function ProtectedStore({ ordersOpen = false }) {
+function WishlistSectionLayout() {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  const tab = new URLSearchParams(location.search).get("tab");
-  const selectedSpace = !ordersOpen && SPACE_IDS.includes(tab) ? tab : "products";
-  return <AppShell><StorePage key={`${user.id}:${selectedSpace}`} user={user} selectedSpace={selectedSpace} ordersOpen={ordersOpen} /></AppShell>;
+  return <AppShell wishlistChrome><Outlet /></AppShell>;
+}
+
+function WishlistHomeRoute() {
+  const { search } = useLocation();
+  const { user } = useSession();
+  const [wishModal, setWishModal] = useState(null);
+  const [version, setVersion] = useState(0);
+  if (user.accountType === "business") {
+    const requestedSpace = new URLSearchParams(search).get("tab");
+    return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
+  }
+  return <>
+    <WishesPage version={version} onAdd={(space, listId) => setWishModal({ space, listId })} />
+    {wishModal && <WishModal space={wishModal.space} initialListId={wishModal.listId} onClose={() => setWishModal(null)} onSaved={() => {
+      setWishModal(null);
+      setVersion(value => value + 1);
+    }} />}
+  </>;
+}
+
+function WishlistStoreRoute({ ordersOpen = false }) {
+  const { search } = useLocation();
+  const { user } = useSession();
+  const space = ordersOpen ? "products" : wishlistSpace(search);
+  return <StorePage key={`${user.id}:${space}`} user={user} selectedSpace={space} ordersOpen={ordersOpen} />;
+}
+
+function WishlistOffersRoute() {
+  const { user } = useSession();
+  return <WishlistBusinessPage user={user} />;
+}
+
+function WishlistSalesRoute() {
+  const { user } = useSession();
+  return <WishSalesPage user={user} />;
 }
 
 function PrivateSphereRoute({ children }) {
@@ -3724,14 +3758,6 @@ function PrivateSphereRoute({ children }) {
   }
   if (!canAccessPrivateSpheres(user) && !access.readOnly) return <Navigate to={APP_HOME} replace />;
   return children;
-}
-
-function ProtectedWishCatalog() {
-  const location = useLocation();
-  const { user, loading } = useSession();
-  if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><WishCatalogPage /></AppShell>;
 }
 
 function BusinessMarketplaceRoute() {
@@ -3767,14 +3793,10 @@ function MessengerRoute({ user }) {
 
 function ProtectedApp() {
   const location = useLocation();
-  const { user, loading, refresh } = useSession(); const [wishModal, setWishModal] = useState(false); const [wishModalSpace, setWishModalSpace] = useState("products"); const [wishModalListId, setWishModalListId] = useState(""); const [version, setVersion] = useState(0);
+  const { user, loading, refresh } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  if (user.accountType === "business" && location.pathname === APP_HOME) {
-    const requestedSpace = new URLSearchParams(location.search).get("tab");
-    return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
-  }
-  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="wishes" element={<WishesPage onAdd={(space, listId) => { setWishModalSpace(SPACE_IDS.includes(space) ? space : "products"); setWishModalListId(listId || ""); setWishModal(true); }} version={version} />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes>{wishModal && <WishModal space={wishModalSpace} initialListId={wishModalListId} onClose={() => setWishModal(false)} onSaved={() => { setWishModal(false); setVersion((v) => v + 1); }} />}</AppShell>;
+  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes></AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -4578,10 +4600,12 @@ function WishCatalogPage() {
     navigate({ pathname: location.pathname, search: `?${search}` }, { replace: true });
   }, [location.pathname, location.search, navigate]);
 
-  if (source === "brands" && !selectedBrand) return <>
-    <CatalogProfileHero selectedSpace={selectedSpace} source={source} />
-    <div className="app-page wish-catalog-page page-stack"><BusinessCatalogList /></div>
-  </>;
+  if (source === "brands" && !selectedBrand) return (
+    <div className="app-page wish-catalog-page page-stack">
+      <CatalogPageHeader selectedSpace={selectedSpace} source={source} />
+      <BusinessCatalogList />
+    </div>
+  );
   return <CatalogItemFeed source={source} selectedSpace={selectedSpace} selectedBrand={selectedBrand} />;
 }
 
@@ -4829,51 +4853,49 @@ function CatalogItemFeed({ source, selectedSpace, selectedBrand }) {
     </div>
   );
   return (
-    <>
-      <CatalogProfileHero selectedSpace={selectedSpace} source={source} title={brand?.label} />
-      <div className="app-page wish-catalog-page page-stack">
-        {certificates.length > 0 && <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-certificates">
-          <h2 id="catalog-brand-certificates" className="text-2xl font-semibold">Сертификаты</h2>
-          {renderCards(certificates)}
-        </section>}
-        {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
-          <>
-            {certificates.length ? <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-products">
-              <h2 id="catalog-brand-products" className="text-2xl font-semibold">Товары</h2>
-              {renderCards(catalog.items)}
-            </section> : renderCards(catalog.items)}
-            {hasMore && (
-              <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
-                {showManualLoad ? (
-                  <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
-                    {loadingMore && <Spinner data-icon="inline-start" />}
-                    {catalog.error ? "Повторить" : "Показать ещё"}
-                  </ShadcnButton>
-                ) : loadingMore && (
-                  <div role="status">
-                    <Spinner aria-hidden="true" />
-                    <span className="sr-only">Загружаем карточки каталога</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        ) : certificates.length ? null : (
-          <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Выберите бизнес-аккаунт в меню." : "Здесь появятся публичные желания участников."} />
-        )}
-        {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
-        {selectedCatalogItem && (
-          <CatalogWishDetailsDrawer
-            item={selectedCatalogItem}
-            wishlistDisabled={pendingWishlistIds.size > 0 || catalog.loadingMore}
-            wishlistPending={pendingWishlistIds.has(selectedCatalogItem.id)}
-            onToggleWishlist={toggleCatalogWishlist}
-            onClose={closeCatalogItem}
-            returnFocusRef={lastCatalogOpenerRef}
-          />
-        )}
-      </div>
-    </>
+    <div className="app-page wish-catalog-page page-stack">
+      <CatalogPageHeader selectedSpace={selectedSpace} source={source} title={brand?.label} />
+      {certificates.length > 0 && <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-certificates">
+        <h2 id="catalog-brand-certificates" className="text-2xl font-semibold">Сертификаты</h2>
+        {renderCards(certificates)}
+      </section>}
+      {catalog.loading ? <LoadingScreen compact /> : catalog.error && !catalog.items.length ? null : catalog.items.length ? (
+        <>
+          {certificates.length ? <section className="flex min-w-0 flex-col gap-4" aria-labelledby="catalog-brand-products">
+            <h2 id="catalog-brand-products" className="text-2xl font-semibold">Товары</h2>
+            {renderCards(catalog.items)}
+          </section> : renderCards(catalog.items)}
+          {hasMore && (
+            <div ref={loadMoreRef} className={showManualLoad || loadingMore ? "wish-catalog-page__more" : "h-px"}>
+              {showManualLoad ? (
+                <ShadcnButton type="button" variant="outline" disabled={loadingMore || pendingWishlistIds.size > 0} onClick={loadMore}>
+                  {loadingMore && <Spinner data-icon="inline-start" />}
+                  {catalog.error ? "Повторить" : "Показать ещё"}
+                </ShadcnButton>
+              ) : loadingMore && (
+                <div role="status">
+                  <Spinner aria-hidden="true" />
+                  <span className="sr-only">Загружаем карточки каталога</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : certificates.length ? null : (
+        <EmptyState icon={source === "brands" ? Gift : LayoutGrid} title={source === "brands" ? "У этого бренда пока нет товаров" : `В разделе «${space.label}» пока пусто`} text={source === "brands" ? "Выберите бизнес-аккаунт в меню." : "Здесь появятся публичные желания участников."} />
+      )}
+      {catalog.error && !catalog.loading && <Alert variant="destructive" className="wish-catalog-page__error"><AlertTitle>Не удалось загрузить каталог</AlertTitle><AlertDescription>{catalog.error.message}</AlertDescription></Alert>}
+      {selectedCatalogItem && (
+        <CatalogWishDetailsDrawer
+          item={selectedCatalogItem}
+          wishlistDisabled={pendingWishlistIds.size > 0 || catalog.loadingMore}
+          wishlistPending={pendingWishlistIds.has(selectedCatalogItem.id)}
+          onToggleWishlist={toggleCatalogWishlist}
+          onClose={closeCatalogItem}
+          returnFocusRef={lastCatalogOpenerRef}
+        />
+      )}
+    </div>
   );
 }
 
@@ -5101,7 +5123,7 @@ function WishesPage({ onAdd, version }) {
       setOpenedGroupId(null);
     }
   }, [openedGroupId, openedGroup?.id]);
-  const profileControls = <WishesProfileControls selectedSpace={selectedSpace} publication={publication}
+  const profileControls = <WishesProfileControls selectedSpace={selectedSpace}
     onAdd={() => onAdd(selectedSpace, selectedList?.id)} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
@@ -8413,14 +8435,17 @@ export default function App() {
             <Route path="/s/:token/wishes/:wishId" element={<PublicProfile shared />} />
             <Route path="/s/:token" element={<PublicProfile shared />} />
             <Route path={APP_CATALOG_ITEM_ROUTE_PATH} element={<CatalogItemPage />} />
-            <Route path={APP_WISH_CATALOG_PATH} element={<ProtectedWishCatalog />} />
-            <Route path={APP_STORE_PATH} element={<ProtectedStore />} />
+            <Route element={<WishlistSectionLayout />}>
+              <Route path={APP_HOME} element={<WishlistHomeRoute />} />
+              <Route path={APP_WISH_CATALOG_PATH} element={<WishCatalogPage />} />
+              <Route path={APP_STORE_PATH} element={<WishlistStoreRoute />} />
+              <Route path={APP_ORDERS_PATH} element={<WishlistStoreRoute ordersOpen />} />
+              <Route path={APP_WISH_OFFERS_PATH} element={<WishlistOffersRoute />} />
+              <Route path={APP_WISH_SALES_PATH} element={<WishlistSalesRoute />} />
+            </Route>
             <Route path={APP_CLASSIFIEDS_PATH} element={<ProtectedWishlistBusiness classifieds />} />
             <Route path={APP_WISH_LISTINGS_PATH} element={<ProtectedWishlistBusiness listings />} />
-            <Route path="/app/wishes/offers" element={<ProtectedWishlistBusiness />} />
-            <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness manager />} />
-            <Route path="/app/wishes/sales" element={<ProtectedWishlistBusiness sales />} />
-            <Route path={APP_ORDERS_PATH} element={<ProtectedStore ordersOpen />} />
+            <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness />} />
             <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />
             <Route path={APP_SHELL_ROUTE_PATH} element={<ProtectedApp />} />
             <Route path="/u/:username/*" element={<LegacyProfileRedirect />} />

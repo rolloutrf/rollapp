@@ -6,7 +6,7 @@ import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
 import { formatRolls } from "../../shared/rolls.js";
 import { api } from "@/api";
-import { APP_WISH_LISTINGS_PATH } from "@/lib/app-routing";
+import { APP_WISH_LISTINGS_PATH, APP_WISH_SALES_PATH } from "@/lib/app-routing";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { WISHLIST_SPACES, canManageWishSales, canManageWishlistSpace } from "../../shared/wishlist-business.js";
 import { PageActionButton } from "@/components/page-action-button";
@@ -28,7 +28,7 @@ export function wishlistSpace(search) { return WISHLIST_SPACES.find(item => item
 export function wishSalesPath(space, wishId) {
  const params = new URLSearchParams({ tab: space });
  if (wishId) params.set("wish", wishId);
- return `/app/wishes/sales?${params}`;
+ return `${APP_WISH_SALES_PATH}?${params}`;
 }
 const labelFor = space => WISHLIST_SPACES.find(item => item.id === space)?.label;
 function useBusinessData(endpoint) {
