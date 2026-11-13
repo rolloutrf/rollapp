@@ -44,7 +44,7 @@ function Fixture() {
   };
   const statement = params.get("statement");
   const StatementSection = { theses: Theses, principles: Principles }[statement];
-  if (StatementSection) {
+  if (StatementSection && !params.has("chrome")) {
     window.inlineFixtureCareerContent[statement] = content;
     return <main className="app-page typeset typeset-rollapp"><StatementSection /></main>;
   }
