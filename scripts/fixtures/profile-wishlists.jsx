@@ -59,8 +59,10 @@ api.post = async (path, body) => {
     window.wishlistImports.push(provider);
     if (provider === "yandex-market" && window.rejectMarketImport) throw new Error("Не удалось прочитать список Маркета");
     if (importedWishes.has(provider)) return { added: 0, skipped: 1 };
+    const isMarket = provider === "yandex-market";
     importedWishes.set(provider, {
-      id: `imported-${provider}`, userId: profile.id, title: `Айтем из ${provider}`, description: "", url: "", imageUrl: "",
+      id: `imported-${provider}`, userId: profile.id, title: isMarket ? "Беспроводные наушники" : "Настольная лампа",
+      description: "", url: isMarket ? "https://market.yandex.ru/card/headphones/123" : "https://ohmywishes.com/users/example/lists/example/wishes/lamp", imageUrl: "",
       price: null, currency: "RUB", priority: 2, privacy: "private", status: "active", sortOrder: 0, space: "products", listIds: [],
     });
     return { added: 1, skipped: 0, partial: provider === "yandex-market" };

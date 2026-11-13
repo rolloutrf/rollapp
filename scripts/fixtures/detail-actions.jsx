@@ -60,6 +60,7 @@ function Detail() {
   const kind = params.get("kind");
   const drawer = params.has("drawer");
   const item = { id: "fixture", title: params.has("marketplaceSearch") ? marketplaceTitle : wishTitle, space: kind === "product" ? "products" : "places", status: params.get("fulfilled") ? "fulfilled" : "active", description: Array(40).fill("Описание карточки с обычной прокруткой документа.").join(" "), listIds: [], owners: [], price: 100, currency: "RUB", reservationCount: params.has("reserved") ? 1 : 0, reservedByMe: params.has("mine"), addedByMe: params.has("added") };
+  if (params.has("marketplaceSearch")) item.url = "https://ozon.ru/product/123/";
   if (kind === "shared") item.sharedBy = sharedBy;
   return <SessionContext.Provider value={{ user: viewer }}><ToastContext.Provider value={() => {}}>
     {kind === "catalog" ? drawer

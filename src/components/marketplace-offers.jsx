@@ -225,11 +225,9 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
             <span className="min-w-0 flex-1">
               <span className="flex min-w-0 items-center gap-1.5">
                 <strong className="truncate text-sm font-semibold">{offer.marketplace}</strong>
-                {aiOffers.length > 0 && (offer.source || index === bestLiveOfferIndex) && <Badge variant="secondary" className="shrink-0">{offer.source ? "Исходная ссылка" : "Лучшее"}</Badge>}
+                {aiOffers.length > 0 && index === bestLiveOfferIndex && <Badge variant="secondary" className="shrink-0">Лучшее</Badge>}
               </span>
-              <small className="block break-words text-sm text-muted-foreground">
-                {aiOffers.length ? offer.title : "Сохранённая карточка"}
-              </small>
+              {aiOffers.length > 0 && <small className="block break-words text-sm text-muted-foreground">{offer.title}</small>}
               {aiOffers.length > 0 && (offer.delivery || offer.seller) && <small className="block truncate text-muted-foreground">{[offer.seller, offer.delivery].filter(Boolean).join(" · ")}</small>}
             </span>
             <span className="shrink-0 text-right">
