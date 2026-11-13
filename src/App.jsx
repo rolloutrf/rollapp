@@ -5986,13 +5986,12 @@ function WishesPage({ onAdd, version }) {
   );
   return <div className="app-page wishes-page">
     {profileControls}{loadError}
-    {shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
+    {!publication && shouldShowListNavigation({ canCreateList: true, listCount: categoryLists.length }) && <WishListNavigation
       value={selectedValue}
       items={categoryLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: list.privacy === "private" }))}
       leadingItem={shouldShowUnsortedList(unlistedWishes.length) ? { title: UNSORTED_LIST_TITLE, count: unlistedWishes.length } : null}
       orderScope={viewerId ? `${viewerId}:${selectedSpace}` : null}
       onSelect={(id) => {
-        if (publication) navigate(wishlistPath);
         if (id) { setSelected(id); setOpenedGroupId(null); }
       }}
       onAdd={() => setListModal({})}
@@ -8239,7 +8238,7 @@ function PublicProfile({ shared = false }) {
       </section>
     </div>}
 
-    {!businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
+    {!publication && !businessStorefront && shouldShowListNavigation({ shared, canCreateList: ownerCollection, listCount: navigationLists.length }) && <WishListNavigation
       value={selectedValue}
       className={`public-collection-tabs ${profileVisitor ? "friend-profile-tabs" : ""}`}
       items={shared ? [] : navigationLists.map((list) => ({ id: list.id, title: listDisplayTitle(list), count: wishCountForList(list.id), privateList: ownerCollection && list.privacy === "private" }))}
@@ -8247,7 +8246,6 @@ function PublicProfile({ shared = false }) {
       orderScope={ownerCollection && user?.id && data.profile.id === user.id ? `${user.id}:${activeSpace}` : null}
       onSelect={(id) => {
         if (id) selectCollection(id);
-        else if (publication) navigate(currentCollectionPath);
       }}
       onAdd={ownerCollection ? () => setListModal({}) : null}
       onSettings={ownerCollection ? openListSettings : undefined}

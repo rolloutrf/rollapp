@@ -45,8 +45,8 @@ if (routing) {
   const collection = {
     profile: account,
     lists: [
-      { id: "media-list", title: "Медиатека", space: "media", privacy: "public" },
       { id: "archive", title: "Архив", space: "media", privacy: "public" },
+      { id: "media-list", title: "Медиатека", space: "media", privacy: "public" },
     ],
     wishes: [{ id: "film", title: "Фильм для вечера", space: "media", listIds: ["media-list"], status: "active", userId: account.id }],
     groups: [], isOwner: true, followersCount: 0, followingCount: 0,
