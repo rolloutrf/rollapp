@@ -214,7 +214,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
-  const example = 'Добавь кофемолку за 4 500 ₽ в список «Кухня»';
+  const example = 'Найди кофемолку на Ozon до 4500 ₽ в «Кухню»';
   assert.equal(await text.getAttribute('placeholder'), example);
   assert.equal(await text.inputValue(), '');
   assert(await text.evaluate(node => node.scrollHeight <= node.clientHeight + 1), 'The full suggestion must fit in the composer');
@@ -365,6 +365,19 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
     await review.waitFor();
     assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
     if ((width === 390 || width === 1440) && height === 844) {
+      await composer.fill('Найди кофемолку на Ozon до 4500 ₽ в «Кухню»');
+      await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+      const productReview = assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка Bosch' })
+        .getByRole('button', { name: 'Проверить желание' });
+      await productReview.click();
+      assert.equal(await title.inputValue(), 'Кофемолка Bosch');
+      assert.equal(await wishPage.getByRole('textbox', { name: 'Ссылка', exact: true }).inputValue(), 'https://www.ozon.ru/product/coffee-123/');
+      assert.equal(await wishPage.getByRole('spinbutton', { name: 'Цена', exact: true }).inputValue(), '3290');
+      assert.equal(await kitchen.getAttribute('aria-checked'), 'true');
+      assert.deepEqual(await wishPage.evaluate(() => window.messengerTest.wishWrites), []);
+      if (width < 768) await wishPage.goBack();
+      else await wishPage.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await productReview.waitFor();
       await composer.fill('Добавь в «Кухню» за 4 500 ₽ https://example.invalid/coffee');
       await assistantChat.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
       const linkDraft = assistantChat.getByRole('group', { name: 'Черновик желания: Желание по ссылке' });
@@ -392,7 +405,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
       await wishPage.getByRole('button', { name: 'Назад', exact: true }).click();
       await missingReview.waitFor();
     }
-    await assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка' })
+    await assistantChat.getByRole('group', { name: 'Черновик желания: Кофемолка', exact: true })
       .filter({ hasText: 'Кухня' }).getByRole('button', { name: 'Проверить желание' }).click();
     await title.fill('Кофемолка для кухни');
     await title.press('Escape');

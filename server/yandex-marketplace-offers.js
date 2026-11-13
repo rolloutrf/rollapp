@@ -37,14 +37,14 @@ export async function fetchYandexMarketplaceOffers(wish, { marketplaceIds, signa
 }
 
 export async function fetchMarketplaceAiOffers(wish, credential, {
-  marketplaceIds, signal, env = process.env,
+  marketplaceIds, requireCitations, signal, env = process.env,
   fetchOpenRouter = fetchOpenRouterMarketplaceOffers, fetchYandex = fetchYandexMarketplaceOffers,
 } = {}) {
   const search = { marketplaceIds, signal };
   if (credential.provider === 'yandex') return fetchYandex(wish, search);
   try {
     return await fetchOpenRouter(wish, {
-      ...search, apiKey: credential.apiKey, model: credential.model, allowEmpty: true,
+      ...search, apiKey: credential.apiKey, model: credential.model, allowEmpty: true, requireCitations,
     });
   } catch (error) {
     if (error?.code !== 'openrouter_credits_missing' || signal?.aborted || !yandexAiConfig(env).enabled) throw error;

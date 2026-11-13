@@ -6713,6 +6713,7 @@ function WishModal({ onClose, onSaved, onDeleted, onAfterClose, wish = null, spa
     metadataRequestRef.current += 1;
     const url = form.url.trim();
     if (!url || !isProductUrl(url)) { setMetadata({ status: "idle", message: "" }); return undefined; }
+    if (initialDraft?.searchResult && url === initialDraft.url) { setMetadata({ status: "idle", message: "" }); return undefined; }
     if (isPlaces && !isYandexMapsUrl(url)) { setMetadata({ status: "error", message: "Вставьте ссылку на место из Яндекс Карт" }); return undefined; }
     const kinopoiskUrlError = isMedia ? kinopoiskContentUrlError(url) : "";
     if (kinopoiskUrlError) {

@@ -44,6 +44,7 @@ export function AssistantWishAction({ value, onReview }) {
     <p><strong>{title}</strong></p>
     {value.url && <p>{new URL(value.url).hostname}</p>}
     {value.price !== null && <p>{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: value.currency, maximumFractionDigits: 2 }).format(value.price)}</p>}
+    {value.searchResult && value.price === null && <p>Цена требует проверки в магазине</p>}
     {value.listName && <p>Список «{value.listName}»</p>}
     <PageActionButton type="button" variant="outline" disabled={busy} onClick={review}>
       Проверить желание <ArrowUpRight aria-hidden="true" />

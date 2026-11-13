@@ -1,6 +1,7 @@
 import { marketplaceProductScore } from "../shared/product-match.js";
 import { canonicalCatalogUrl } from "./wish-catalog.js";
 import { vehicleOfferMatchesWish } from "../shared/vehicle-match.js";
+import { resolveImageUrl } from "./metadata.js";
 
 const WILDBERRIES_SEARCH_URL = "https://search.wb.ru/exactmatch/ru/common/v18/search";
 const YANDEX_MARKET_SEARCH_URL = "https://market.yandex.ru/search";
@@ -165,6 +166,7 @@ export function normalizeYandexMarketOffers(html, wish, checkedAt = new Date().t
     ))
     .map(({ product, url, score }, index) => {
       const price = Number(product?.offers?.price);
+      const imageUrl = resolveImageUrl(Array.isArray(product.image) ? product.image[0] : product.image, url);
       return {
         id: `yandex-market:${product?.sku || index + 1}`,
         marketplaceId: "yandex-market",
@@ -173,6 +175,7 @@ export function normalizeYandexMarketOffers(html, wish, checkedAt = new Date().t
         price: Number.isFinite(price) && price > 0 ? price : null,
         currency: String(product?.offers?.priceCurrency || "RUB").toUpperCase(),
         url,
+        ...(imageUrl && { imageUrl }),
         seller: "",
         delivery: "",
         available: /InStock$/i.test(String(product?.offers?.availability || "")),
@@ -231,28 +234,27 @@ export async function fetchMarketplaceResolvedOffers(wish, {
   signal,
   now = () => new Date(),
   providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
+  marketplaceIds,
+  distinctMarketplaces = true,
 } = {}) {
   const query = String(wish?.title || "").trim();
   const checkedAt = now().toISOString();
   const source = sourceOfferForWish(wish, checkedAt);
   if (!query) return source ? [source] : [];
   if (["food", "transport"].includes(wish?.space)) return source ? [source] : [];
-  const results = await Promise.allSettled([
-    fetchWildberriesOffers({ ...wish, title: query }, {
+  const providers = [
+    ['wildberries', fetchWildberriesOffers],
+    ['yandex-market', fetchYandexMarketOffers],
+  ].filter(([id]) => !marketplaceIds || marketplaceIds.includes(id));
+  const results = await Promise.allSettled(providers.map(([, search]) =>
+    search({ ...wish, title: query }, {
       fetchImpl,
       signal: providerSignal(signal, providerTimeoutMs),
       checkedAt,
-    }),
-    fetchYandexMarketOffers({ ...wish, title: query }, {
-      fetchImpl,
-      signal: providerSignal(signal, providerTimeoutMs),
-      checkedAt,
-    }),
-  ]);
-  return mergeDirectOffers(
-    ...results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []),
-    source ? [source] : [],
-  );
+    })));
+  const offers = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
+  if (source) offers.push(source);
+  return distinctMarketplaces ? mergeDirectOffers(offers) : offers;
 }
 
 export function filterDirectOffersForWish(wish, offers) {

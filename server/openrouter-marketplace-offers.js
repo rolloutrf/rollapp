@@ -396,6 +396,7 @@ export async function fetchOpenRouterMarketplaceOffers(wish, {
   model,
   now = () => new Date(),
   allowEmpty = false,
+  requireCitations = false,
   marketplaceIds,
 } = {}) {
   if (!apiKey) {
@@ -446,7 +447,11 @@ export async function fetchOpenRouterMarketplaceOffers(wish, {
   let normalized;
   const checkedAt = now().toISOString();
   try {
-    normalized = normalizeOpenRouterOffers(payload, checkedAt, { marketplaceIds, distinctMarketplaces: !allowEmpty });
+    const citedUrls = requireCitations && new Set(annotationCandidates(payload).map(item => directProductUrl(item.url, marketplaceIds)?.url));
+    normalized = normalizeOpenRouterOffers(payload, checkedAt, {
+      marketplaceIds, distinctMarketplaces: !allowEmpty,
+      acceptOffer: url => !citedUrls || citedUrls.has(url),
+    });
   } catch (cause) {
     throw new OpenRouterOffersError("OpenRouter вернул неполный список предложений", {
       code: "openrouter_invalid_response",

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import express from 'express';
 import { registerMessengerAssistantRoute } from './messenger-assistant.js';
+import { searchAssistantProduct } from './assistant-product-search.js';
 
 const ask = content => ({ messages: [{ role: 'user', content }] });
 const tool = (name, args) => ({ type: 'function', function: { name, arguments: JSON.stringify(args) } });
@@ -251,4 +252,110 @@ test('assistant keeps user-provided wish links and drops invented or unsafe link
       title: '', description: '', url, price: null, currency: 'RUB', listName: 'Кухня',
     } }]);
   });
+});
+
+test('assistant searches only the requested store and drafts a matching offer within budget', async () => {
+  const search = { query: 'Кофемолка', site: 'yandex-market', maxPrice: 4500, listName: 'Кухня' };
+  const offer = { title: 'Кофемолка Bosch', price: 3290, currency: 'RUB', available: true, score: 95 };
+  const found = 'https://market.yandex.ru/card/coffee/123';
+  const image = 'https://images.example.com/coffee.jpg';
+  const examined = [];
+  await withAssistant({
+    resolveCredential: async () => ({ provider: 'yandex' }),
+    yandexRequest: async (_path, { tools }) => {
+      assert.ok(tools.some(({ function: fn }) => fn.name === 'search_wish_product'));
+      assert.equal(tools.find(({ function: fn }) => fn.name === 'draft_wish').function.parameters.properties.searchResult, undefined);
+      return { choices: [{ message: { content: 'Цена 4500 ₽', tool_calls: [
+        tool('search_wish_product', search), tool('search_wish_product', { ...search, site: 'ozon' }),
+        tool('draft_wish', { title: 'Кофемолка', price: 4500 }),
+      ] } }] };
+    },
+    searchProduct: (input, messages, credential, options) => searchAssistantProduct(input, messages, credential, {
+      ...options,
+      directSearch: async (_wish, { marketplaceIds }) => {
+        assert.deepEqual(marketplaceIds, ['yandex-market']);
+        return [
+          { ...offer, url: 'https://www.ozon.ru/product/coffee-999/' },
+          { ...offer, price: 6500, url: 'https://market.yandex.ru/card/coffee/345' },
+          { ...offer, title: 'Нож для кофемолки', url: 'https://market.yandex.ru/card/knife/678' },
+          { ...offer, url: found },
+        ];
+      },
+      readPage: async (url, { allowRedirect }) => {
+        examined.push(url);
+        assert.equal(allowRedirect(new URL('https://www.ozon.ru/product/coffee-999/')), false);
+        return { url, html: `<script type="application/ld+json">{"@type":"Product","name":"Кофемолка Bosch","image":"${image}","offers":{"@type":"Offer","price":3190,"priceCurrency":"RUB"}}</script>` };
+      },
+      indexSearch: async () => assert.fail('An eligible live listing is already available'),
+      aiSearch: async () => assert.fail('An eligible live listing is already available'),
+      resolveImageHost: async url => assert.equal(url.href, image),
+    }),
+  }, async request => {
+    const response = await request(ask('Найди на Яндексе кофемолку до 4 500 ₽ в список «Кухня»'));
+    assert.equal(response.status, 200);
+    const { reply, actions } = await response.json();
+    assert.match(reply, /Яндекс Маркет/);
+    assert.deepEqual(actions, [{ type: 'draft_wish', value: {
+      title: 'Кофемолка Bosch', price: 3190, currency: 'RUB', listName: 'Кухня', description: '',
+      imageUrl: image, url: found, searchResult: true,
+    } }]);
+    assert.deepEqual(examined, [found]);
+  });
+});
+
+test('assistant retains an indexed direct card with unknown price and rejects an unrequested domain', async () => {
+  const input = { query: 'Кофемолка', site: 'ozon', maxPrice: 4500, currency: 'RUB', listName: null };
+  const url = 'https://www.ozon.ru/product/coffee-123/';
+  const options = {
+    directSearch: async () => [],
+    indexSearch: async (_query, { domains }) => {
+      assert.deepEqual(domains, ['ozon.ru']);
+      return [{ url: 'https://www.ozon.ru/category/coffee/', title: 'Кофемолка' }, { url, title: 'Кофемолка' }];
+    },
+    readPage: async () => { throw new Error('Page unavailable'); },
+    aiSearch: async () => ({ offers: [] }),
+  };
+  const credential = { provider: 'yandex' };
+  const result = await searchAssistantProduct(input, ask('Найди кофемолку на Озоне').messages, credential, options);
+  assert.match(result.reply, /соответствие бюджету пока неизвестно/);
+  assert.equal(result.wish.url, url);
+  assert.equal(result.wish.price, null);
+  const rejected = await searchAssistantProduct(input, ask('Найди кофемолку на Wildberries').messages, credential, {
+    directSearch: async () => assert.fail('The user did not ask for Ozon'),
+  });
+  assert.equal(rejected.wish, undefined);
+});
+
+test('assistant can use another explicit store domain and requires product metadata there', async () => {
+  const input = { query: 'Кофемолка', site: 'shop.example.com', maxPrice: 4500, currency: 'RUB', listName: 'Кухня' };
+  const url = 'https://shop.example.com/catalog/coffee';
+  const checked = [];
+  const result = await searchAssistantProduct(input, ask('Найди кофемолку на shop.example.com').messages, { provider: 'yandex' }, {
+    directSearch: async () => [],
+    indexSearch: async (_query, { domains }) => {
+      assert.deepEqual(domains, ['shop.example.com']);
+      return [{ title: 'Кофемолка', url: 'https://shop.example.com.evil.example/catalog/coffee' },
+        { title: 'Кофемолка', url: 'https://shop.example.com/category/coffee' }, { title: 'Кофемолка', url }];
+    },
+    readPage: async address => {
+      checked.push(address);
+      return { url: address, html: address === url ? '<script type="application/ld+json">{"@type":"Product","name":"Кофемолка","offers":{"@type":"Offer","price":2100,"priceCurrency":"RUB"}}</script>' : '' };
+    },
+  });
+  assert.equal(result.wish.url, url);
+  assert.equal(result.wish.price, 2100);
+  assert.equal(checked.length, 2);
+});
+
+test('assistant omits a price supplied only by the search model', async () => {
+  const url = 'https://www.ozon.ru/product/coffee-123/';
+  const result = await searchAssistantProduct({ query: 'Кофемолка', site: 'ozon', maxPrice: 4500, currency: 'RUB' },
+    ask('Найди кофемолку на Ozon').messages, { provider: 'yandex' }, {
+      directSearch: async () => [],
+      indexSearch: async () => [],
+      aiSearch: async () => ({ offers: [{ title: 'Кофемолка', url, price: 4000, currency: 'RUB' }] }),
+      readPage: async () => { throw new Error('Price unavailable'); },
+    });
+  assert.equal(result.wish?.url, url, result.reply);
+  assert.equal(result.wish.price, null);
 });

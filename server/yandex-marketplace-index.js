@@ -14,7 +14,7 @@ const parser = new XMLParser({
   ].includes(path),
 });
 
-function indexedCards(xml, wish, marketplaceIds, checkedAt) {
+function indexedDocuments(xml) {
   const invalidResponse = () => new YandexAiError("Поисковый индекс вернул неполный ответ.", { code: "yandex_search_invalid_response" });
   if (/<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) throw invalidResponse();
   const response = parser.parse(xml.replace(/<\/?hlword>/g, "")).yandexsearch?.response;
@@ -26,8 +26,17 @@ function indexedCards(xml, wish, marketplaceIds, checkedAt) {
   }
   const groups = response.results?.grouping?.group;
   if (groups != null && !Array.isArray(groups)) throw invalidResponse();
+  return (groups || []).flatMap(group => Array.isArray(group.doc) ? group.doc : []);
+}
+
+export async function fetchIndexedMarketplaceOffers(wish, { marketplaceIds, ...options } = {}) {
+  if (wish?.space !== "products") return [];
+  const { body } = buildOpenRouterMarketplaceRequest(wish, { marketplaceIds });
+  const domains = body.tools[0].parameters.allowed_domains;
+  const documents = await fetchMarketplaceIndex(wish.title, { ...options, domains });
   const sourceKey = canonicalCatalogUrl(wish.url);
-  return (groups || []).flatMap(group => Array.isArray(group.doc) ? group.doc : []).flatMap((doc, index) => {
+  const checkedAt = (options.now?.() || new Date()).toISOString();
+  return documents.flatMap((doc, index) => {
     const direct = directProductUrl(doc.url, marketplaceIds);
     const title = typeof doc.title === "string" ? doc.title.split(/\s+[—–]\s+купить/iu, 1)[0].slice(0, 300) : "";
     const score = marketplaceProductScore(wish, title);
@@ -51,16 +60,14 @@ function indexedCards(xml, wish, marketplaceIds, checkedAt) {
   });
 }
 
-export async function fetchIndexedMarketplaceOffers(wish, {
-  env = process.env, signal, marketplaceIds, fetchImpl = fetch,
-  tokenLoader = loadYandexAiToken, now = () => new Date(),
+export async function fetchMarketplaceIndex(productTitle, {
+  domains, env = process.env, signal, fetchImpl = fetch, tokenLoader = loadYandexAiToken,
 } = {}) {
   const config = yandexAiConfig(env);
-  if (!config.enabled || wish?.space !== "products") return [];
-  const title = marketplaceProductQuery(wish.title).replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 280);
+  if (!config.enabled || !domains?.length) return [];
+  const title = marketplaceProductQuery(productTitle).replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 280);
   if (!title) return [];
-  const { body } = buildOpenRouterMarketplaceRequest(wish, { marketplaceIds });
-  const domains = body.tools[0].parameters.allowed_domains.map(domain => `site:${domain}`).join(" | ");
+  const scope = domains.map(domain => `site:${domain}`).join(" | ");
   const timeout = AbortSignal.timeout(12_000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   requestSignal.throwIfAborted();
@@ -71,7 +78,7 @@ export async function fetchIndexedMarketplaceOffers(wish, {
     redirect: "error",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      query: { searchType: "SEARCH_TYPE_RU", queryText: `${title} (${domains})` },
+      query: { searchType: "SEARCH_TYPE_RU", queryText: `${title} (${scope})` },
       groupSpec: { groupMode: "GROUP_MODE_DEEP", groupsOnPage: "10", docsInGroup: "3" },
       region: "225",
       folderId: config.folderId,
@@ -89,5 +96,5 @@ export async function fetchIndexedMarketplaceOffers(wish, {
   if (typeof payload.rawData !== "string" || payload.rawData.length > 1_000_000) {
     throw new YandexAiError("Поисковый индекс вернул неполный ответ.", { code: "yandex_search_invalid_response" });
   }
-  return indexedCards(Buffer.from(payload.rawData, "base64").toString("utf8"), wish, marketplaceIds, now().toISOString());
+  return indexedDocuments(Buffer.from(payload.rawData, "base64").toString("utf8"));
 }
