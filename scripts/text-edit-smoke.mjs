@@ -85,7 +85,7 @@ const server = await createServer({ optimizeDeps: { entries: ["scripts/fixtures/
       const end = source.indexOf("export function CareerContentError", start);
       return source.slice(0, start) + `export function useCareerContent(section, fallback) {
         const params = new URLSearchParams(location.search);
-        const [content, setContent] = useState(() => (params.get("statement") === section ? window.inlineFixtureSource : window.inlineFixtureCareerContent?.[section]) ?? fallback);
+        const [content, setContent] = useState(() => (params.get("statement") === section ? window.inlineFixtureSource : undefined) ?? window.inlineFixtureCareerContent?.[section] ?? fallback);
         const delay = params.has("statement-loading");
         const [loading, setLoading] = useState(delay);
         useEffect(() => {
