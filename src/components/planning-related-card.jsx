@@ -1,8 +1,8 @@
-import { Check, Dumbbell, FlaskConical, Gift, GraduationCap, Link2, MessagesSquare, Pill, Plus, TicketCheck, UserRound, X } from "lucide-react";
+import { Check, Dumbbell, FileText, FlaskConical, Gift, GraduationCap, Link2, MessagesSquare, Pill, Plus, TicketCheck, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { relatedKindLabel } from "@/lib/planning-related-items";
 
-const RELATED_ICONS = { wishlist: Gift, workout: Dumbbell, medication: Pill, "lab-result": FlaskConical, course: GraduationCap, conference: TicketCheck, coaching: MessagesSquare, contact: UserRound };
+const RELATED_ICONS = { wishlist: Gift, workout: Dumbbell, medication: Pill, "lab-result": FlaskConical, course: GraduationCap, conference: TicketCheck, coaching: MessagesSquare, contact: UserRound, note: FileText };
 
 export function RelatedChoiceCard({ item, selected, onToggle, removable = false, disabled = false, preview = false }) {
   const Icon = RELATED_ICONS[item.kind] || Link2;

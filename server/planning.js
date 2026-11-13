@@ -1,5 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { noteTasksApply } from "../shared/assistant-note-tasks.js";
+import { readAssistantNote } from "./assistant-note-tasks.js";
 import { defaultPlanningColumns, isPlanningDate, movePlanningTask, orderPlanningTasks, PLANNING_STATUSES } from "../shared/planning.js";
 import { scheduleError, timeMinutes } from "../shared/planning-calendar.js";
 import { planningContacts, withPlanningContacts } from "./planning-contacts.js";
@@ -66,7 +68,7 @@ const taskFields = z.object({
     until: z.string().refine((value) => value === "" || isPlanningDate(value)).default(""),
   }).strict().nullable(),
   relatedItems: z.array(z.object({
-    kind: z.enum(["wishlist", "workout", "medication", "lab-result", "course", "conference", "coaching", "contact"]),
+    kind: z.enum(["wishlist", "workout", "medication", "lab-result", "course", "conference", "coaching", "contact", "note"]),
     id: z.string().min(1).max(200),
     title: z.string().trim().min(1).max(200),
   }).strict()).max(30).refine((items) => new Set(items.map(({ kind, id }) => `${kind}:${id}`)).size === items.length),
@@ -158,15 +160,43 @@ export function registerPlanningRoutes(app, { requireAuth, query, transaction, a
       throw error;
     }
   }));
+  const insertTask = (q, userId, board, column, task, id = randomUUID()) => {
+    return q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence,related_items,contact_ids,expected_result,actual_result)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${taskColumns}`,
+    [id, userId, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null, JSON.stringify(task.relatedItems), JSON.stringify(task.contactIds), task.expectedResult, task.actualResult]);
+  };
+  app.post("/api/planning/tasks/from-note", requireAuth, mutate(async (req, q, board) => {
+    const parsed = noteTasksApply.safeParse(req.body);
+    if (!parsed.success) throw fail(400, "Проверьте выбранные задачи.");
+    if (board.spaceId !== "main") throw fail(400, "Выберите основной To Do-лист.");
+    const { noteId, revision, batchId, tasks } = parsed.data;
+    const note = await readAssistantNote(q, req.user.id, noteId, true);
+    if (!note) throw fail(404, "Заметка не найдена.");
+    const rows = tasks.map(({ row, ...fields }) => ({
+      id: "note-task:" + createHash("sha256").update(JSON.stringify([req.user.id, noteId, batchId, row])).digest("hex"),
+      fields,
+    }));
+    const { rows: existing } = await q("SELECT id FROM planning_tasks WHERE user_id=$1 AND id=ANY($2::text[])", [req.user.id, rows.map(({ id }) => id)]);
+    const saved = new Set(existing.map(({ id }) => id));
+    const missing = rows.filter(({ id }) => !saved.has(id));
+    if (missing.length && note.revision !== revision) throw fail(409, "Заметка изменилась. Подготовьте задачи заново.");
+    const column = board.columns.find(item => !item.complete);
+    if (missing.length && !column) throw fail(409, "В основном To Do-листе нет списка для открытых задач.");
+    const source = { kind: "note", id: noteId, title: note.title };
+    for (const { id, fields } of missing) {
+      await insertTask(q, req.user.id, board, column, {
+        ...fields, expectedResult: "", actualResult: "", relatedItems: [source], contactIds: [],
+      }, id);
+    }
+    return { saved: rows.length };
+  }));
   app.post("/api/planning/tasks", requireAuth, mutate(async (req, q, board) => {
     const task = planningTaskSchema.parse(req.body);
     const error = scheduleError(task) || recurrenceError(task);
     if (error) throw fail(400, error);
     await planningContacts(q, req.user.id, task.contactIds, { validate: true });
     const column = ownedColumn(board, task.columnId || task.status);
-    const result = await q(`INSERT INTO planning_tasks (id,user_id,title,description,status,due_on,column_id,completed,start_time,duration_minutes,space_id,recurrence,related_items,contact_ids,expected_result,actual_result)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING ${taskColumns}`,
-    [randomUUID(), req.user.id, task.title, task.description, columnStatus(column), task.dueOn || null, column.id, task.completed ?? column.complete, task.startTime || null, task.durationMinutes ?? 60, board.spaceId, task.recurrence ? JSON.stringify(task.recurrence) : null, JSON.stringify(task.relatedItems), JSON.stringify(task.contactIds), task.expectedResult, task.actualResult]);
+    const result = await insertTask(q, req.user.id, board, column, task);
     return { task: (await withPlanningContacts(q, req.user.id, result.rows))[0] };
   }));
   app.patch("/api/planning/tasks/:id/move", requireAuth, mutate(async (req, q, board) => {

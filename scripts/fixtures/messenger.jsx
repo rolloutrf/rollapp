@@ -15,9 +15,14 @@ const contacts=Array.from({length:53},(_,index)=>({id:`contact-${index+1}`,name:
 const contactCid='68251116-acd9-480a-8831-38c3de344025';
 const cid='4a0effb1-352d-4bc4-9f1f-6ee126840d01';
 const messages=Array.from({length:75},(_,index)=>({id:String(index+1),senderId:index%2 ? 'alice' : 'bob',clientId:String(index),body:index===74 ? 'Привет! Давай обсудим планы на неделю. '+ 'Длинноеслово'.repeat(15) : `Сообщение ${index+1}\nВторая строка`,createdAt:'2026-11-01T12:00:00Z'}));
-window.messengerTest={requests:[],failSend:false,failHistory:false,failList:false,failSubscriptions:false,opened:[],holdSearch:false, sends:[],sendDelay:100,delivered:[], assistant:[], failAssistant:false, assistantHolds:new Map(), planningWrites:[], wishWrites:[], sortWrites:[], failSort:false, wishLists:[{ id: "kitchen", title: "Кухня", space: "products", privacy: "public" }]};
+window.messengerTest={requests:[],failSend:false,failHistory:false,failList:false,failSubscriptions:false,opened:[],holdSearch:false, sends:[],sendDelay:100,delivered:[], assistant:[], failAssistant:false, assistantHolds:new Map(), planningWrites:[], wishWrites:[], sortWrites:[], failSort:false, noteTaskWrites:[], failNoteSave:false, wishLists:[{ id: "kitchen", title: "Кухня", space: "products", privacy: "public" }]};
 const planningTasks=[];
-const planningNotes=[];
+const sourceNote = {
+  id: 'meeting-note', title: 'Встреча с Анной',
+  content: 'Подготовить расчёт. Отправить итог встречи.',
+  createdAt: '2026-11-06T12:00:00Z', updatedAt: '2026-11-06T12:00:00Z',
+};
+const planningNotes=[sourceNote];
 const transport={
   async get(path) {
     window.messengerTest.requests.push(path);
@@ -60,6 +65,15 @@ const transport={
       if(window.messengerTest.failSort) throw Error('Желания или списки изменились. Запросите распределение заново.');
       return {moved: body.moves.length};
     }
+    if(path==='/planning/tasks/from-note') {
+      window.messengerTest.noteTaskWrites.push(body);
+      if(window.messengerTest.failNoteSave) throw Error('Ответ о сохранении потерян');
+      planningTasks.push(...body.tasks.map(task => ({
+        ...task, id: `note-task-${task.row}`, columnId:'todo', completed:false,
+        relatedItems:[{kind:'note', id:sourceNote.id, title:sourceNote.title}],
+      })));
+      return {saved:body.tasks.length};
+    }
     if(path.endsWith('/assistant/reply')) {
       window.messengerTest.assistant.push(body);
       const content=body.messages.at(-1).content;
@@ -67,6 +81,20 @@ const transport={
       if(hold) return new Promise((resolve,reject)=>Object.assign(hold,{resolve,reject,signal}));
       await new Promise(resolve=>setTimeout(resolve,80));
       if(window.messengerTest.failAssistant) throw Error('Ассистент временно недоступен');
+      if(body.noteTaskRevision) return {changes:[
+        {row:1,change:{checked:false}},
+        {row:2,change:{dueOn:'2026-11-20'}},
+      ]};
+      if(body.noteId === sourceNote.id) return {reply:'Подготовил задачи из заметки.',actions:[{
+        type:'review_note_tasks',value:{
+          noteId:sourceNote.id,title:sourceNote.title,revision:'a'.repeat(64),
+          batchId:'d9322ed5-4d25-4356-86a0-258aac712332',truncated:false,
+          tasks:[
+            {title:'Подготовить расчёт',description:'',dueOn:'',excerpt:'Подготовить расчёт.'},
+            {title:'Отправить итог',description:'',dueOn:'',excerpt:'Отправить итог встречи.'},
+          ],
+        },
+      }]};
       if(content.startsWith('Разбери «Не отсортированные»')) return {reply:'Подобрал списки для желаний.',actions:[
         {type:'review_wish_sort',value:{
           items:[

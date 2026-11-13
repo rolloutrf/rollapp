@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { parseAssistantAction } from '../../shared/messenger-assistant.js';
 
+export const NOTE_TASKS_REQUEST_EVENT = "rollapp:assistant-note-tasks";
+
 export function usePlanningAssistantDraft(type) {
   const location = useLocation();
   const navigate = useNavigate();

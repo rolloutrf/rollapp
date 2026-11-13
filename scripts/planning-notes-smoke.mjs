@@ -222,7 +222,8 @@ try{for(const [width,height] of sizes){
  await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
  await page.getByRole('button',{name:'Удалить заметку',exact:true}).click();await page.getByRole('button',{name:'Отмена',exact:true}).click();await page.getByRole('alertdialog').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.notesTest.deleted.length),0);
  const controls=await page.locator('.planning-notes [data-control-bar] button,.planning-fab--back').evaluateAll(nodes=>nodes.map(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return{width:r.width,height:r.height,radius:s.borderTopLeftRadius};}));
- assert.equal(controls.length,2);
+ assert.equal(controls.length,3);
+ assert.equal(await page.getByRole("button",{name:"Сделать задачи из заметки",exact:true}).count(),1);
  for(const control of controls){assert.equal(control.width,48);assert.equal(control.height,48);assert.equal(control.radius,'24px');}
  if(width===390&&height===844||width===1440)await page.screenshot({path:`/tmp/rollapp-notes-${width}.png`,fullPage:true});
  await page.getByRole('button',{name:'Удалить заметку',exact:true}).click();await page.getByRole('button',{name:'Удалить',exact:true}).click();await grid.waitFor();assert.deepEqual(await page.evaluate(()=>window.notesTest.deleted),['first']);

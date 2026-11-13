@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
-import { Trash2, X } from "lucide-react";
+import { ListTodo, Trash2, X } from "lucide-react";
 import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, Dr
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { usePlanningAssistantDraft } from "@/lib/planning-assistant";
+import { NOTE_TASKS_REQUEST_EVENT, usePlanningAssistantDraft } from "@/lib/planning-assistant";
 import "./planning-notes.css";
 
 const emptyLayout = { revision: 0, groups: [], order: [] };
@@ -178,6 +178,15 @@ function NoteEditor({ note, client }) {
     await client.patch(`/planning/notes/${encodeURIComponent(note.id)}`, draft);
     setSaved(draft);
   }, `planning:notes:${note.id}`);
+  const prepareTasks = async () => {
+    if (busy || !autosave.draft.content.trim()) return;
+    setBusy(true); setError("");
+    try {
+      if (!await autosave.flush(true)) throw new Error("Сначала сохраните изменения заметки.");
+      if (mounted.current) window.dispatchEvent(new CustomEvent(NOTE_TASKS_REQUEST_EVENT, { detail: { noteId: note.id } }));
+    } catch (cause) { if (mounted.current) setError(cause.message); }
+    finally { if (mounted.current) setBusy(false); }
+  };
   const remove = async () => {
     if (busy) return;
     setBusy(true); setError("");
@@ -197,6 +206,8 @@ function NoteEditor({ note, client }) {
     <article className="typeset typeset-rollapp typeset-document planning-notes__document page-stack">
       <ControlBar as="header" className="page-toolbar flex-nowrap">
         <h1 className="min-w-0"><InlineTextField value={autosave.draft.title} onChange={title => autosave.change(current => ({ ...current, title: title.slice(0, 200) }))} onBlur={autosave.flush} label="Название заметки" singleLine placeholder="Без названия" disabled={busy} /></h1>
+        <Button className="not-typeset" data-control-icon variant="outline" size="icon" aria-label="Сделать задачи из заметки"
+          title="Сделать задачи из заметки" disabled={busy || !autosave.draft.content.trim()} onClick={prepareTasks}><ListTodo aria-hidden="true" /></Button>
         <Button className="not-typeset" data-control-icon variant="destructive" size="icon" aria-label="Удалить заметку" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash2 aria-hidden="true" /></Button>
       </ControlBar>
       <EditableTextBlock value={autosave.draft.content} onChange={content => autosave.change(current => ({ ...current, content }))} onBlur={autosave.flush} label="Текст заметки" placeholder="Напишите что-нибудь или введите / для выбора блока…" disabled={busy} />

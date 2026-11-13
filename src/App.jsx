@@ -1,5 +1,7 @@
+import { NOTE_TASKS_REQUEST_EVENT } from "@/lib/planning-assistant";
+import { AssistantNoteTasks, createNoteTaskRows } from "@/components/assistant-note-tasks";
 import { ProductTitleInput } from "@/components/product-title-input";
-import { AssistantDrawer, AssistantProvider } from "@/components/assistant-drawer";
+import { AssistantDrawer, AssistantProvider, useAssistantNoteReviews } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
 import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
@@ -736,6 +738,16 @@ function PlanningControls({ user }) {
   const [open, setOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const profileEditor = useProfileEditor();
+  const { noteReviews, updateNoteReview } = useAssistantNoteReviews();
+  const [noteRequest, setNoteRequest] = useState(null);
+  const [noteTaskReview, setNoteTaskReview] = useState(null);
+  const pendingNoteReview = useRef(null);
+  const noteReviewLocation = useRef(null);
+  const noteReviewReturning = useRef(false);
+  const pageParams = new URLSearchParams(location.search);
+  pageParams.delete("formScreen");
+  const pageLocation = `${location.pathname}?${pageParams}`;
+  const openNoteId = location.pathname === PLANNING_SERVICE.path && pageParams.get("tab") === "notes" ? pageParams.get("note") : null;
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
   const [assistantWish, setAssistantWish] = useState(null);
@@ -761,6 +773,12 @@ function PlanningControls({ user }) {
     if (!isMobile) finishAssistantWish();
   };
   useLayoutEffect(() => {
+    if (noteTaskReview && noteReviewLocation.current === pageLocation) return;
+    if (noteTaskReview) {
+      noteReviewLocation.current = null;
+      noteReviewReturning.current = false;
+      setNoteTaskReview(null);
+    }
     if (assistantWishActive.current && assistantWishSource.current === location.pathname) return;
     if (assistantWishActive.current) {
       assistantWishActive.current = false;
@@ -769,6 +787,8 @@ function PlanningControls({ user }) {
       setAssistantWish(null);
     }
     pendingAssistantWish.current = null;
+    pendingNoteReview.current = null;
+    setNoteRequest(null);
     const showMessages = Boolean(location.state?.messengerOpen);
     setOpen(false);
     setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
@@ -790,6 +810,19 @@ function PlanningControls({ user }) {
       setMessengerDrawerOpen(false);
     }
   };
+  useEffect(() => {
+    if (!openNoteId) return;
+    const openTasks = event => {
+      if (event.detail?.noteId !== openNoteId) return;
+      setNoteRequest(event.detail);
+      setOpen(false);
+      setMessagesOpen(false);
+      setInitialConversationId(null);
+      setAssistantOpen(true);
+    };
+    window.addEventListener(NOTE_TASKS_REQUEST_EVENT, openTasks);
+    return () => window.removeEventListener(NOTE_TASKS_REQUEST_EVENT, openTasks);
+  }, [openNoteId]);
   if (isAssistantPath(location.pathname) || location.pathname.startsWith("/app/messenger") || location.pathname.startsWith(`${APP_WISH_CATALOG_PATH}/item/`) || (isMobile && isPublicWishDetailPath(location.pathname))) return null;
   const inPlanning = location.pathname === PLANNING_SERVICE.path;
   const search = new URLSearchParams(location.search);
@@ -802,17 +835,39 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onWishlistChanged={profileEditor?.refreshWishlist} onReviewWish={(draft) => {
+      <AssistantDrawer noteId={openNoteId} noteRequest={noteRequest}
+        onReviewNoteTasks={draft => {
+          if (pendingNoteReview.current || pendingAssistantWish.current || noteTaskReview) return;
+          pendingNoteReview.current = draft;
+          setAssistantDrawerOpen(false);
+        }} open={assistantOpen} onOpenChange={setAssistantDrawerOpen} onWishlistChanged={profileEditor?.refreshWishlist} onReviewWish={(draft) => {
         if (pendingAssistantWish.current || assistantWishActive.current) return;
         pendingAssistantWish.current = draft;
         setAssistantDrawerOpen(false);
       }} onAfterClose={() => {
+        if (pendingNoteReview.current) {
+          const draft = pendingNoteReview.current;
+          pendingNoteReview.current = null;
+          noteReviewLocation.current = pageLocation;
+          noteReviewReturning.current = true;
+          updateNoteReview(draft.batchId, current => current ?? { rows: createNoteTaskRows(draft.tasks) });
+          setNoteTaskReview(draft);
+          return;
+        }
         if (!pendingAssistantWish.current) return;
         assistantWishActive.current = true;
         assistantWishSource.current = location.pathname;
         setAssistantWish(pendingAssistantWish.current);
         pendingAssistantWish.current = null;
       }} />
+      {noteTaskReview && <AssistantNoteTasks key={noteTaskReview.batchId} value={noteTaskReview} review={noteReviews[noteTaskReview.batchId]}
+        onUpdate={change => updateNoteReview(noteTaskReview.batchId, change)} onAfterClose={() => {
+          if (!noteReviewReturning.current) return;
+          noteReviewReturning.current = false;
+          noteReviewLocation.current = null;
+          setNoteTaskReview(null);
+          setAssistantDrawerOpen(true);
+        }} />}
       {assistantWish && <WishModal initialDraft={assistantWish} onClose={() => closeAssistantWish()}
         onSaved={closeAssistantWish} onAfterClose={finishAssistantWish} />}
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />

@@ -5,6 +5,8 @@ import { expandRecurringTasks } from '../shared/planning-recurrence.js';
 import { openRouterFetch } from './openrouter-fetch.js';
 import { createRateLimit } from './rate-limit.js';
 import { fetchYandexAi, yandexAiConfig, YandexAiError } from './yandex-ai.js';
+import { noteTaskId, noteTaskRevisionRequest } from '../shared/assistant-note-tasks.js';
+import { prepareNoteTasks, readAssistantNote, reviseNoteTasks } from './assistant-note-tasks.js';
 import { hasAiCredential } from './ai-provider.js';
 
 import { prepareAssistantWishlistSort } from './assistant-wishlist-sort.js';
@@ -27,11 +29,13 @@ const assistantInput = z.object({
     messages.every(({ role }, index) => role === (index % 2 ? 'assistant' : 'user'))
   ),
   includePlanning: z.boolean().default(false),
+  noteId: noteTaskId.optional(),
+  noteTaskRevision: noteTaskRevisionRequest.optional(),
   timeZone: z.string().min(1).max(100).refine(value => {
     try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; }
     catch { return false; }
   }).default('UTC'),
-}).strict();
+}).strict().refine(({ noteId, noteTaskRevision }) => !noteId || !noteTaskRevision);
 
 const instructions = [
   'Ты — ассистент Rollapp. Отвечай на языке пользователя простым текстом с короткими абзацами.',
@@ -122,11 +126,11 @@ export function registerMessengerAssistantRoute(app, {
     const credential = await resolveCredential(req.user.id);
     const { apiKey, model } = credential;
     if (!hasAiCredential(credential)) return res.status(503).json({ error: 'Подключите OpenRouter в настройках профиля, чтобы написать ассистенту.' });
-    const { includePlanning, messages, timeZone } = parsed.data;
+    const { includePlanning, messages, timeZone, noteId, noteTaskRevision } = parsed.data;
     const latest = messages.at(-1).content;
     const presetSort = latest === ASSISTANT_WISH_SORT_PROMPT;
     const today = localDay(timeZone, now());
-    const planning = includePlanning && !presetSort ? await readAssistantPlanningContext(query, req.user.id, today) : null;
+    const planning = includePlanning && !presetSort && !noteId && !noteTaskRevision ? await readAssistantPlanningContext(query, req.user.id, today) : null;
     const allowed = Object.keys(ASSISTANT_SECTIONS).filter(key => req.user.can_discover_spheres || !ASSISTANT_SECTIONS[key].private);
     if (res.destroyed) return;
 
@@ -165,6 +169,18 @@ export function registerMessengerAssistantRoute(app, {
         if (!response.ok) throw new AssistantProviderError('Ассистент временно недоступен.', 502);
         return payload;
       }
+      if (noteId || noteTaskRevision) {
+        const note = noteId && await readAssistantNote(query, req.user.id, noteId);
+        if (noteId && !note) return res.status(404).json({ error: 'Заметка не найдена.' });
+        signal.throwIfAborted();
+        const result = noteId
+          ? await prepareNoteTasks(note, noteId, today, complete)
+          : await reviseNoteTasks(noteTaskRevision, today, complete);
+        signal.throwIfAborted();
+        if (!result) return res.status(502).json({ error: 'Ассистент не вернул черновик. Попробуйте ещё раз.' });
+        return res.json(result);
+      }
+
       const prepareSort = () => prepareAssistantWishlistSort(query, req.user.id, latest, complete, signal);
       if (presetSort) return res.json(await prepareSort());
 
