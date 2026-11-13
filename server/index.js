@@ -10,6 +10,7 @@ import { DiskNotesError, getYandexDiskConfig } from "./yandex-disk.js";
 import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./yandex-disk-profile.js";
 import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
+import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./profile-mood.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
 import { registerPrivateFiles } from "./private-files.js";
 import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
@@ -164,6 +165,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
+let profileMoodAvailable = false;
+const moodColumns = () => profileMoodAvailable ? ",u.mood_level,u.mood_public" : "";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const mcpHttp = createRollappMcpHttp({ query, trustedOrigins: trustedAppOrigins, publicHost: process.env.PUBLIC_HOST });
 let memberAnchor = { kick() {} };
@@ -741,6 +744,7 @@ function cleanUser(row) {
     bio: row.bio,
     birthday: row.birthday,
     avatarUrl: row.avatar_url,
+    publicMood: profileMoodAvailable ? publicMood(row) : null,
     wishlistLinks: externalWishlistLinks(row.wishlist_links),
     hasPhone: Boolean(row.phone_hash && row.phone_verified_at),
     phoneMasked: row.phone_hash && row.phone_verified_at ? maskPhone(row.phone_last4) : null,
@@ -1064,6 +1068,7 @@ function shareUser(row) {
     username: row.username,
     name: row.name,
     avatarUrl: row.avatar_url,
+    publicMood: profileMoodAvailable ? publicMood(row) : null,
     accountType: row.account_type || "personal",
     businessCategory: row.business_category ?? null,
     sellerSpace: row.seller_space ?? null,
@@ -1174,6 +1179,7 @@ registerWishlistBusinessRoutes(app, { requireAuth, query, transaction });
 registerProductSuggestionRoutes(app, { requireAuth });
 registerNeedRewardsRoutes(app, { requireAuth, transaction });
 registerPlanningRoutes(app, { requireAuth, query, transaction, asyncRoute });
+registerProfileMoodRoutes(app, { requireAuth, transaction, asyncRoute, available: () => profileMoodAvailable });
 registerMessengerAssistantRoute(app, { requireAuth, asyncRoute, query, resolveCredential: resolveOpenRouterApiKey });
 registerMessengerRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerNotesRoutes(app, { requireAuth, query, asyncRoute });
@@ -4591,7 +4597,7 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
   res.vary("Cookie");
   const found = await query(
-    `SELECT l.*,u.username,u.name,u.bio,u.avatar_url,u.birthday,u.member_number FROM wishlists l JOIN users u ON u.id=l.user_id WHERE l.share_token=$1`,
+    `SELECT l.*,u.username,u.name,u.bio,u.avatar_url,u.birthday,u.member_number${moodColumns()} FROM wishlists l JOIN users u ON u.id=l.user_id WHERE l.share_token=$1`,
     [req.params.token],
   );
   if (!found.rowCount) return res.status(404).json({ error: "Список не найден" });
@@ -4614,7 +4620,7 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
     .filter((wish) => wish.listIds.includes(row.id))
     .filter((wish) => isOwner || wish.status === "active")
     .map((wish) => ({ ...wish, listIds: isOwner ? wish.listIds : [row.id], shareToken: req.params.token }));
-  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, memberNumber: formatMemberNumber(row.member_number), bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday }, list, wishes, groups: await getVisibleWishGroups(row.user_id, [list], wishes), isOwner, isFollowing: Boolean(follows.rowCount) });
+  res.json({ profile: { id: row.user_id, username: row.username, name: row.name, memberNumber: formatMemberNumber(row.member_number), bio: row.bio, avatarUrl: row.avatar_url, birthday: row.birthday, publicMood: publicMood(row) }, list, wishes, groups: await getVisibleWishGroups(row.user_id, [list], wishes), isOwner, isFollowing: Boolean(follows.rowCount) });
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
@@ -6856,6 +6862,8 @@ app.delete("/api/contacts/:contactId", requireAuth, requirePrivateSphereOwner, a
 }));
 
 app.get("/api/people", asyncRoute(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  res.vary("Cookie");
   const search = String(req.query.search || "").trim().slice(0, 80);
   const scope = String(req.query.scope || "discover");
   if (!["discover", "subscriptions", "followers"].includes(scope)) {
@@ -6868,7 +6876,7 @@ app.get("/api/people", asyncRoute(async (req, res) => {
   let result;
   if (scope === "subscriptions") {
     result = await query(
-      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday${moodColumns()}
        FROM follows f JOIN users u ON u.id=f.following_id
        WHERE f.follower_id=$2 AND (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
        ORDER BY f.created_at DESC LIMIT 48`,
@@ -6876,7 +6884,7 @@ app.get("/api/people", asyncRoute(async (req, res) => {
     );
   } else if (scope === "followers") {
     result = await query(
-      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday${moodColumns()}
        FROM follows f JOIN users u ON u.id=f.follower_id
        WHERE f.following_id=$2 AND (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
        ORDER BY f.created_at DESC LIMIT 48`,
@@ -6884,7 +6892,7 @@ app.get("/api/people", asyncRoute(async (req, res) => {
     );
   } else {
     result = await query(
-      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday
+      `SELECT u.id,u.username,u.name,u.bio,u.avatar_url,u.birthday${moodColumns()}
        FROM users u
        WHERE (LOWER(u.name) LIKE $1 OR LOWER(u.username) LIKE $1)
          AND ($2::text IS NULL OR u.id<>$2)
@@ -6945,6 +6953,7 @@ app.get("/api/people", asyncRoute(async (req, res) => {
       bio: row.bio,
       avatarUrl: row.avatar_url,
       birthday: row.birthday,
+      publicMood: publicMood(row),
       wishCount: wishCounts.get(row.id) || 0,
       isFollowing: relationship?.isFollowing || false,
       isFollower: relationship?.isFollower || false,
@@ -6997,6 +7006,10 @@ app.use((error, req, res, _next) => {
 });
 
 const databaseInitialization = await initializeRuntimeDatabase({ environment: process.env, isMemoryDatabase, transaction, migrate: initializeDatabase });
+profileMoodAvailable = databaseInitialization !== "verify" || await verifyProfileMoodAvailability(transaction, {
+  required: isProduction,
+  onMissing: () => console.warn("Profile mood is unavailable: the production journal schema has not been installed."),
+});
 const runtimeSettings = await query("SELECT value_text FROM application_settings WHERE key=$1", ["telegram_payment_support_url"]);
 if (!process.env.TELEGRAM_PAYMENT_SUPPORT_URL && runtimeSettings.rowCount) process.env.TELEGRAM_PAYMENT_SUPPORT_URL = runtimeSettings.rows[0].value_text;
 await checkRewardProofRuntime();

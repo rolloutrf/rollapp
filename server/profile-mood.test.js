@@ -1,0 +1,49 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+import { MOOD_LEVELS } from "../shared/profile-mood.js";
+import { moodQuerySchema, moodSaveSchema, publicMood, verifyProfileMoodAvailability } from "./profile-mood.js";
+
+test("only an explicitly published, valid level is exposed to visitors", () => {
+  for (const { level } of MOOD_LEVELS) {
+    assert.equal(publicMood({ mood_level: level, mood_public: true, entries: [{ level }] }), level);
+    assert.equal(publicMood({ mood_level: level, mood_public: false }), null);
+  }
+  for (const mood_level of [null, 0, 6, "5", undefined]) {
+    assert.equal(publicMood({ mood_level, mood_public: true }), null);
+  }
+  assert.equal(publicMood({ mood_level: 5, mood_public: "true" }), null);
+});
+
+test("journal requests cannot select or submit another owner or an authored timestamp", () => {
+  const entry = { requestId: randomUUID(), level: 5 };
+  assert(moodSaveSchema.safeParse({ published: false, entry }).success);
+  assert(moodSaveSchema.safeParse({ published: true }).success);
+  for (const body of [
+    { published: true, userId: "another-user" },
+    { published: false, entry: { ...entry, userId: "another-user" } },
+    { published: false, entry: { ...entry, recordedAt: "2026-11-13" } },
+    { published: "true", entry },
+    ...[0, 6, "5", 1.5, null].map((level) => ({ published: true, entry: { ...entry, level } })),
+  ]) assert.equal(moodSaveSchema.safeParse(body).success, false);
+  assert.equal(moodQuerySchema.safeParse({ owner: "another-user" }).success, false);
+  assert(moodQuerySchema.safeParse({ before: "9223372036854775807" }).success);
+  for (const before of ["9223372036854775808", "0", "-1", "1.5", "abc", ["1", "2"]]) {
+    assert.equal(moodQuerySchema.safeParse({ before }).success, false);
+  }
+});
+
+test("missing mood schema is explicit in development and prevents production startup", async () => {
+  const checks = [];
+  const transaction = (fn) => fn({ query: async (sql) => { checks.push(sql); } });
+  assert.equal(await verifyProfileMoodAvailability(transaction, { required: true }), true);
+  assert.equal(checks[0], "SET TRANSACTION READ ONLY");
+  assert(checks.slice(1).every((sql) => /^SELECT .+ LIMIT 0$/.test(sql)));
+  const missing = Object.assign(new Error("journal missing"), { code: "42P01" });
+  const unavailable = async () => { throw missing; };
+  let warnings = 0;
+  assert.equal(await verifyProfileMoodAvailability(unavailable, { required: false, onMissing: () => warnings++ }), false);
+  assert.equal(warnings, 1);
+  await assert.rejects(verifyProfileMoodAvailability(unavailable, { required: true }), missing);
+  await assert.rejects(verifyProfileMoodAvailability(async () => { throw new Error("connection lost"); }, { required: false }), /connection lost/);
+});

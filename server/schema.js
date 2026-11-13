@@ -1,6 +1,7 @@
 import { wishlistBusinessSchema } from "./wishlist-business.js";
 import { profileAliasesSchema } from "./profile-aliases.js";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { backfillDefaultFriend } from "./default-friend.js";
 import { isReservedProfileUsername } from "./profile-paths.js";
 import { hashPassword } from "./security.js";
@@ -846,6 +847,7 @@ export async function initializeDatabase() {
   if (reservedConflicts.length) {
     throw new Error(`Reserved profile usernames already exist: ${reservedConflicts.join(", ")}`);
   }
+  await query(await readFile(new URL("./migrations/2026-11-13-profile-mood.sql", import.meta.url), "utf8"));
   const exclusiveReservations = await query(
     `SELECT id,wish_id FROM reservations
      WHERE status='reserved' ORDER BY wish_id,created_at,id`,

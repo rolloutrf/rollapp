@@ -8,6 +8,8 @@ import { PlanningDatePicker } from "@/components/planning-date-picker";
 import { HealthTracker } from "@/components/health-tracker";
 import { IdentityReportsPage as CustomIdentityReportsPage } from "@/components/identity-reports-page";
 
+import { Avatar, ProfileMoodCaption } from "@/components/profile-avatar";
+import { ProfileMoodSettings } from "@/components/profile-mood-settings";
 import { StoryAvatar } from "@/components/story-avatar";
 import { ContactMeetingNotes } from "@/components/contact-meeting-notes";
 import { WishParticipantField } from "@/components/wish-participant-field";
@@ -23,7 +25,7 @@ import {
   Archive, ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, CalendarDays, Car, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleUserRound, Clapperboard, Coins, Columns3, ContactRound, ExternalLink, Eye, EyeOff, Fingerprint, FolderInput, Gift, GraduationCap, GripVertical, Hand, Heart, HeartPulse, Image, Link2, ListPlus,
   MessageCircle, LayoutGrid, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, MoreHorizontal, Newspaper, NotebookText, PackageCheck, PackagePlus, Pencil, Phone, Plus, QrCode,
-  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Sparkles, Star, Store, Tag, Trash2, UserPlus,
+  Quote, RotateCcw, Search, Send, Share2, ShoppingBag, Smile, Sparkles, Star, Store, Tag, Trash2, UserPlus,
   Ungroup, Users, UtensilsCrossed, X,
 } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -253,7 +255,6 @@ const scheduleDocumentScrollUnlock = () => {
 };
 
 const formatMoney = (value, currency = "RUB") => value == null ? "" : new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-const initials = (name = "?") => name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 const isRussianMobilePhone = (value = "") => {
   let digits = String(value).replace(/\D/g, "");
   if (digits.length === 10) digits = `7${digits}`;
@@ -519,6 +520,9 @@ function ProfileEditorProvider({ children }) {
         user={user}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
+        onMoodSaved={(publicMood) => setSession((current) => current.user?.id === user.id
+          ? { ...current, user: { ...current.user, publicMood } }
+          : current)}
         onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
         onWishlistsImported={() => setWishlistImportVersion((version) => version + 1)}
         onSaved={async (savedUser) => {
@@ -558,18 +562,6 @@ function Logo({ className = "" }) {
     <Link to={APP_HOME} className={`logo ${className}`} aria-label="Rollapp — в приложение">
       <LogoMark />
     </Link>
-  );
-}
-
-function Avatar({ user, size = "md", className = "", ...props }) {
-  const avatarUrl = user?.avatarUrl || user?.avatar_url || "";
-  const shadcnSize = size === "sm" ? "sm" : ["lg", "xl"].includes(size) ? "lg" : "default";
-  const appSizeClass = { sm: "!size-9", md: "!size-12", lg: "!size-[var(--avatar-lg-size)]", xl: "!size-[var(--avatar-xl-size)]" }[size] || "";
-  return (
-    <ShadcnAvatar size={shadcnSize} className={`avatar avatar--${size} ${appSizeClass} ${className}`} {...props}>
-      {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
-      <AvatarFallback className="avatar--fallback">{initials(user?.name)}</AvatarFallback>
-    </ShadcnAvatar>
   );
 }
 
@@ -3496,7 +3488,9 @@ function PersistentProfileHero({ user }) {
   const wishlistPage = useMatch(APP_HOME);
   const access = useSphereSharing();
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
-  const profile = access.active ? (access.owner || user) : user;
+  const profile = access.active && access.owner
+    ? { ...access.owner, publicMood: access.isOwner ? user.publicMood : access.owner.publicMood }
+    : user;
   const editable = !access.active || access.isOwner;
   const canManageSharing = access.active && access.isOwner && access.sphere !== "wishlist";
   return (
@@ -3528,6 +3522,7 @@ function PersistentProfileHero({ user }) {
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
           {wishlistPage && editable && <AppFriendsLink />}
+          <ProfileMoodCaption level={profile.publicMood} />
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
@@ -7348,6 +7343,7 @@ function FriendsPage() {
                     <Avatar user={person} size="md" aria-hidden="true" />
                     <span className="friend-row__identity">
                       <strong>{person.name}</strong>
+                      <ProfileMoodCaption level={person.publicMood} />
                       <small>@{person.username} · {person.wishCount} {person.wishCount === 1 ? "желание" : "желаний"}</small>
                     </span>
                   </Link>
@@ -7386,7 +7382,7 @@ function FriendsPage() {
 
 const BROWSER_WISHLIST_PROVIDERS = EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl);
 
-function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
+function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -7419,6 +7415,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
   const [accountsBusy, setAccountsBusy] = useState(false);
   const [mcpKeysBusy, setMcpKeysBusy] = useState(false);
+  const [moodBusy, setMoodBusy] = useState(false);
   const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
   const [section, setSection] = useState(null);
   const [rootOpen, setRootOpen] = useState(true);
@@ -7429,6 +7426,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   const sections = [
     { id: "accounts", title: "Аккаунты", icon: Users },
     { id: "personal", title: "Персональная информация", icon: CircleUserRound },
+    { id: "mood", title: "Настроение", icon: Smile },
     { id: "contact-card", title: "Визитка и QR-код", icon: QrCode },
     { id: "wishlists", title: "Внешние вишлисты", icon: Heart },
     ...(user.canInvite ? [{ id: "invites", title: "Инвайты", icon: UserPlus }] : []),
@@ -7440,7 +7438,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy || diskProfileSaving;
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy || diskProfileSaving || moodBusy;
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7912,6 +7910,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onProfileUpdated, onWish
   );
   const desktopSection = !isMobile && section;
   const fullSection = openRouterSection
+    || (section === "mood" && <ProfileMoodSettings user={user} onSaved={onMoodSaved} onBusyChange={setMoodBusy} />)
     || (section === "mcp" && <ProfileMcpKeys key={user.id} onBusyChange={setMcpKeysBusy} />)
     || (section === "contact-card" && <ContactCardContent key={user.username} profile={user} canSign />);
   const sectionOwnsScroll = Boolean(desktopSection && (fullSection || desktopSection === "rolls"));
@@ -8238,6 +8237,7 @@ function PublicProfile({ shared = false }) {
   const businessStorefront = businessProfile && !params.listId && !params.wishId;
   const sellerProfile = businessStorefront && data.profile.businessCategory === "seller";
   const sellerSpace = activeSpace;
+  const portrait = data.isOwner && data.profile.id === user?.id ? { ...data.profile, publicMood: user.publicMood } : data.profile;
   const identity = (
     <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton
@@ -8248,12 +8248,13 @@ function PublicProfile({ shared = false }) {
         title={businessProfile ? undefined : "Редактировать профиль"}
         onClick={openProfileEditor}
       >
-        <ProfilePortrait user={data.profile} />
-      </ShadcnButton> : <ProfilePortrait user={data.profile} />}
+        <ProfilePortrait user={portrait} />
+      </ShadcnButton> : <ProfilePortrait user={portrait} />}
       {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
         {data.isOwner && <AppFriendsLink />}
+        <ProfileMoodCaption level={portrait.publicMood} />
         {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
       </div>
     </div>

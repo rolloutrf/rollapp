@@ -358,7 +358,7 @@ const healthPlaceholderSource = app.slice(app.indexOf('sphere.id === "health"'),
 for (const component of ["Empty", "EmptyHeader", "EmptyMedia", "EmptyTitle", "EmptyDescription", "EmptyContent", "Badge"]) {
   assert(new RegExp(`<${component}\\b`).test(healthPlaceholderSource), `Health placeholders must compose the official shadcn ${component}`);
 }
-const logoSource = app.slice(app.indexOf("function Logo"), app.indexOf("function Avatar"));
+const logoSource = app.slice(app.indexOf("function Logo"), app.indexOf("function ProfilePortrait"));
 assert.match(logoSource, /aria-label="Rollapp — в приложение"/, "The mark-only logo must keep its accessible name");
 assert.match(logoSource, /function LogoMark\(\{ className = "logo__mark" \}\)[\s\S]*<svg\s+className=\{className\}/, "The reusable vector mark must render inline SVG with the navigation logo class by default");
 assert.match(logoSource, /function Logo\([\s\S]*<LogoMark\s*\/>/, "The navigation logo must use the shared vector mark");

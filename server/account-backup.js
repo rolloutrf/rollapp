@@ -77,16 +77,27 @@ const sources = [
   ["roll_star_orders", owned, strip("idempotency_key", "invoice_url", "checkout_query_id", "telegram_payment_charge_id", "telegram_user_id")],
 ];
 
+async function accountBackupSources(client) {
+  const { rows: [schema] } = await client.query("SELECT to_regclass('user_mood_entries') IS NOT NULL AS mood_ready");
+  if (!schema.mood_ready) return sources;
+  const [userSource, ...remaining] = sources;
+  return [
+    [userSource[0], userSource[1], `${userSource[2]} || ${pick("mood_level", "mood_public")}`],
+    ["user_mood_entries", owned, pick("user_id", "id", "level", "recorded_at")],
+    ...remaining,
+  ];
+}
+
 // Check the same projections in production without reading any account rows.
 export async function verifyAccountBackupSchema(client) {
-  for (const [table, filter, projection = "to_jsonb(t)"] of sources) {
+  for (const [table, filter, projection = "to_jsonb(t)"] of await accountBackupSources(client)) {
     await client.query(`SELECT (${projection})::text AS record FROM ${table} t WHERE ${filter} LIMIT 0`, [""]);
   }
 }
 
 async function* accountJson(client, userId, createdAt, signal) {
   yield `{"format":"rollapp-account-backup","version":1,"createdAt":${JSON.stringify(createdAt)},"tables":{`;
-  for (const [index, [table, filter, projection = "to_jsonb(t)", batchSize = 100]] of sources.entries()) {
+  for (const [index, [table, filter, projection = "to_jsonb(t)", batchSize = 100]] of (await accountBackupSources(client)).entries()) {
     signal.throwIfAborted();
     yield `${index ? "," : ""}"${table}":[`;
     await client.query(`DECLARE rollapp_backup NO SCROLL CURSOR FOR

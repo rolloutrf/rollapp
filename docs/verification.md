@@ -20,6 +20,14 @@ download API. Реальный перенос выполняется отдел�
 `test:product-suggestions` входит в `check:release`; проверяет общий компонент
 обеих форм на восьми размерах без обращений к API/БД.
 
+Настроение проверяется `npm run test:profile-mood` в `check:release`. Матрица
+охватывает шкалу, приватные записи и гостевой профиль с опубликованной и скрытой
+отметкой. `node scripts/profile-mood-schema.mjs` проверяет production-схему
+в режиме READ ONLY. Отдельно разрешённая команда с `--apply` добавляет два поля
+в `users` и таблицу личного журнала. После применения повторите READ ONLY проверку
+и запустите `npm run test:profile-mood:production` с полным откатом. Обычный выпуск
+использует `verify`.
+
 ## Источники UI-контрактов
 
 Фото препаратов: [medication-photos.md](medication-photos.md).

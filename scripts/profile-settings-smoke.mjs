@@ -42,7 +42,7 @@ try {
     const mobile = width < 768;
     await menu.waitFor();
     assert.deepEqual((await menu.getByRole("button").allTextContents()).map(text => text.trim()), [
-      "Аккаунты", "Персональная информация", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Ключи MCP", "Yandex ID", "Финансы", "Подарочные карты", "Заказы",
+      "Аккаунты", "Персональная информация", "Настроение", "Визитка и QR-код", "Внешние вишлисты", "Инвайты", "OpenRouter", "Ключи MCP", "Yandex ID", "Финансы", "Подарочные карты", "Заказы",
     ]);
     assert.equal(await menu.locator("[aria-expanded]").count(), 0);
     const photoBox = await photo.boundingBox();

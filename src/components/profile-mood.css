@@ -1,0 +1,100 @@
+.avatar[data-profile-mood] {
+  --mood-halo-blur: 8px;
+  border-color: var(--profile-mood-color);
+  box-shadow: 0 0 0 1px var(--profile-mood-color), 0 0 var(--mood-halo-blur) 1px color-mix(in oklch, var(--profile-mood-color) 55%, transparent);
+}
+
+.avatar[data-profile-mood]:is(.wishes-page__hero-avatar, .mood-settings__portrait) {
+  --mood-halo-blur: 20px;
+  border-color: var(--profile-mood-color);
+  box-shadow: 0 0 0 1px var(--profile-mood-color), 0 0 var(--mood-halo-blur) 3px color-mix(in oklch, var(--profile-mood-color) 55%, transparent);
+}
+
+.profile-mood-caption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--layout-item-gap);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 400;
+  text-align: center;
+}
+
+.profile-mood-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--profile-mood-color);
+}
+
+.friend-row__identity > .profile-mood-caption { justify-content: flex-start; text-align: start; }
+
+.mood-settings__preview {
+  min-height: 9rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: radial-gradient(ellipse at 12% 52%, color-mix(in oklch, var(--profile-mood-color, var(--muted)) 21%, transparent), transparent 65%), var(--card);
+}
+
+.mood-settings__scale {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(var(--layout-control-size), 1fr));
+  gap: 0;
+  justify-items: center;
+  align-items: center;
+}
+
+.mood-settings__scale::before {
+  position: absolute;
+  content: "";
+  height: 2px;
+  inset-inline: 10%;
+  inset-block-start: calc(50% - 1px);
+  background: var(--mood-spectrum);
+  pointer-events: none;
+}
+
+.mood-settings__scale [data-slot="radio-group-item"] {
+  width: var(--layout-control-size);
+  height: var(--layout-control-size);
+  display: grid;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+}
+
+.mood-settings__scale [data-slot="radio-group-item"]::after {
+  inset: 0;
+}
+
+.mood-settings__scale [data-slot="radio-group-item"]::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--profile-mood-color);
+  box-shadow: 0 0 0 4px var(--popover);
+}
+
+.mood-settings__scale [data-slot="radio-group-item"][data-checked]::before {
+  box-shadow: 0 0 0 4px var(--popover), 0 0 0 6px var(--profile-mood-color);
+}
+
+@media (hover: hover) {
+  .mood-settings__scale [data-slot="radio-group-item"]:hover:not([data-checked])::before {
+    box-shadow: 0 0 0 4px var(--popover), 0 0 0 5px var(--muted-foreground);
+  }
+}
+
+.mood-settings__scale [data-slot="radio-group-indicator"] { display: none; }
+.mood-settings__history > li + li { border-block-start: 1px solid var(--border); }

@@ -17,6 +17,7 @@ test("saves a complete gzip snapshot under a unique root ROLLAPP path and keeps 
       let remaining = [];
       return read({
         async query(sql, params) {
+          if (sql.includes("AS mood_ready")) return { rows: [{ mood_ready: false }] };
           if (sql.startsWith("DECLARE")) {
             assert.deepEqual(params, ["owner"]);
             remaining = sql.includes("FROM users t") ? [sample] : sql.includes("FROM wish_images t") ? [attachment] : [];
