@@ -194,7 +194,7 @@ export function InlineBlockControls({ editor, actionsRef, onCreateBlock, childre
   const actionAllowed = id => Boolean(block && (["indent", "outdent"].includes(id) ? depthTransactions[id] : (["up", "down"].includes(id) ? canMoveTextBlock(editor.state.doc, position, editor.state.selection, id === "up" ? -1 : 1) : true)));
   const words = query.trim().toLocaleLowerCase().split(/\s+/);
   const commandItems = [...filterSlashCommands(query).filter(item => {
-    if (item.id === "image") return Boolean(editor.schema.nodes.image);
+    if (item.id === "image") return Boolean(editor.state.schema.nodes.image);
     if (item.kind === "action") return actionAllowed(item.id);
     return item.kind !== "color" || colorAllowed;
   }), ...menuActions.filter(item => actionAllowed(item.id) && words.every(word => `${item.label} ${item.aliases}`.toLocaleLowerCase().includes(word)))];
