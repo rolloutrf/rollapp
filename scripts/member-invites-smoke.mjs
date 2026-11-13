@@ -27,16 +27,15 @@ try {
         const page = await browser.newPage({ viewport: { width, height } });
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
-        // These are presentation checks. API calls are rejected; no fake user
-        // records, email delivery or number assignment reaches a database.
+        // Presentation checks run with all API traffic blocked.
         await page.route("**/api/**", route => route.abort());
         await page.goto(`${origin}/member-fixture?screen=1${variant}`, { waitUntil: "domcontentloaded" });
-        await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-number-wheel").waitFor();
+        await page.locator(variant.includes("profile") ? ".profile-settings-dialog" : variant.includes("invites") ? "#account-invite-email" : variant.includes("auth") ? ".auth-form" : ".member-flip-board").waitFor();
         if (variant.includes("auth")) {
           const submit = page.getByRole("button", { name: "Зарегистрироваться с Яндекс ID" });
           assert(await submit.isVisible());
           assert.equal(await page.locator("form button[type=submit]").count(), 1);
-          assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-number-wheel").count(), 0);
+          assert.equal(await page.locator("form input[type=password], form input[type=email], .or, .member-flip-board").count(), 0);
           assert(await page.getByText("invited@example.com").isVisible());
           const seller = width === 390 && height === 844;
           if (seller) {
@@ -67,8 +66,27 @@ try {
         if (variant.includes("profile")) await page.getByRole("button", { name: "Инвайты", exact: true }).click();
         await page.evaluate(() => document.fonts.ready);
         if (variant.includes("profile")) await page.locator("#account-invite-email").scrollIntoViewIfNeeded();
+        if (!variant || variant.includes("assigned")) {
+          const board = page.locator(".member-flip-board");
+          const digits = board.locator(".member-flip-digit");
+          assert.equal(await board.getAttribute("aria-hidden"), "true");
+          assert.equal(await page.locator(".member-number-confetti").count(), 0);
+          assert.equal(await digits.count(), 5);
+          const faces = digits.locator(".member-flip-face--top");
+          assert.equal((await faces.allTextContents()).join(""), variant ? "30000" : "–––––");
+          const boxes = await digits.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
+          assert(boxes.every((box, index) => box.width >= 32 && box.top === boxes[0].top && (!index || box.left > boxes[index - 1].right)));
+          const actions = page.locator(".member-number-page [data-page-action]");
+          for (const action of await actions.all()) {
+            const geometry = await action.evaluate(node => {
+              const style = getComputedStyle(node);
+              return [node.getBoundingClientRect().height, style.paddingInlineStart, style.paddingInlineEnd];
+            });
+            assert.deepEqual(geometry, [48, "24px", "24px"]);
+          }
+        }
         const measured = await page.evaluate(() => {
-          const controls = [...document.querySelectorAll("button, input, .member-number-wheel")].filter(node => getComputedStyle(node).display !== "none").map(node => {
+          const controls = [...document.querySelectorAll("button, input, .member-flip-board, .member-flip-digit")].filter(node => getComputedStyle(node).display !== "none").map(node => {
             const box = node.getBoundingClientRect();
             return { name: node.textContent || node.getAttribute("aria-label") || node.tagName, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
           }).filter(box => box.bottom >= 0 && box.top <= innerHeight);
@@ -86,5 +104,67 @@ try {
         await page.close();
       }
     }
+  }
+  for (const reducedMotion of ["no-preference", "reduce"]) {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion });
+    const board = page.locator(".member-flip-board");
+    const confetti = page.locator(".member-number-confetti");
+    const status = page.getByRole("status");
+    const submit = page.getByRole("button", { name: "Получить номер", exact: true });
+    const pending = page.getByRole("button", { name: "Подбираем номер…", exact: true });
+    const result = { number: "00217", receiptHash: "a".repeat(64), chainStatus: "pending" };
+    let requests = 0;
+    await page.route("**/api/**", route => route.abort());
+    // Fulfill this one browser request inside the fixture. All other API calls are blocked.
+    await page.route("**/api/me/member-number/draw", async route => {
+      requests++;
+      assert.equal(route.request().method(), "POST");
+      assert.deepEqual(route.request().postDataJSON(), {});
+      await pending.waitFor();
+      assert(await pending.isDisabled());
+      assert.equal(await confetti.count(), 0);
+      if (reducedMotion === "no-preference") await board.locator(".member-flip-face--out").first().waitFor();
+      else assert.equal(await board.locator(".member-flip-face--out").count(), 0);
+      if (requests === 1 && reducedMotion === "no-preference") {
+        await route.fulfill({ status: 409, json: { error: "Свободных номеров больше нет" } });
+      } else {
+        await route.fulfill({ json: result });
+      }
+    });
+    await page.goto(`${origin}/member-fixture?screen=1`);
+    await submit.press("Enter");
+    if (reducedMotion === "no-preference") {
+      await page.getByRole("alert").getByText("Свободных номеров больше нет").waitFor();
+      assert.equal(await status.textContent(), "");
+      assert.equal(await confetti.count(), 0);
+      await submit.click();
+      await page.waitForFunction(() => {
+        const digits = document.querySelectorAll(".member-flip-digit");
+        return digits[0]?.textContent === "00"
+          && digits[4]?.querySelector(".member-flip-face--out")?.getAnimations().length > 0;
+      });
+    }
+    await status.getByText(`#${result.number}`).waitFor();
+    if (reducedMotion === "no-preference") {
+      await confetti.waitFor({ state: "visible" });
+      assert(await confetti.locator("span").evaluateAll(pieces => pieces.some(piece => piece.getAnimations().length > 0)));
+      const edges = await confetti.evaluate(layer => {
+        const { left, right } = layer.getBoundingClientRect();
+        const [fromLeft, fromRight] = layer.children;
+        return [left, right, fromLeft.offsetLeft, fromRight.offsetLeft + fromRight.offsetWidth];
+      });
+      assert.deepEqual(edges, [0, 390, 0, 390]);
+    } else {
+      assert.equal(await confetti.count(), 0);
+    }
+    const faces = await board.locator(".member-flip-face--top").allTextContents();
+    assert.equal(faces.join(""), result.number);
+    assert.equal(await board.locator(".member-flip-face--out").count(), 0);
+    assert.equal(requests, reducedMotion === "no-preference" ? 2 : 1);
+    assert(await page.getByText(result.receiptHash).isVisible());
+    await confetti.waitFor({ state: "detached" });
+    await page.screenshot({ path: `/tmp/rollapp-member-invites/390-revealed-${reducedMotion}.png`, fullPage: true });
+    console.log(`PASS draw ${reducedMotion}`);
+    await page.close();
   }
 } finally { await browser.close(); await server.close(); }
