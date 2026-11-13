@@ -3518,33 +3518,6 @@ function SphereSharePicker({ open, onOpenChange }) {
   );
 }
 
-function ExternalWishlistLinks({ links }) {
-  const connected = EXTERNAL_WISHLIST_PROVIDERS.flatMap((provider) => {
-    const url = externalWishlistUrl(provider, links?.[provider.id]);
-    return url ? [{ ...provider, url }] : [];
-  });
-  if (!connected.length) return null;
-  return (
-    <nav className="grid max-w-full gap-2" aria-label="Внешние вишлисты">
-      <span className="text-xs text-muted-foreground" aria-hidden="true">Внешние вишлисты</span>
-      <div className="flex flex-wrap justify-center gap-2">
-        {connected.map(({ id, label, url }) => (
-          <a
-            key={id}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Открыть вишлист ${label} (в новой вкладке)`}
-            className={cn(buttonVariants({ variant: "outline" }), "rounded-full gap-2 px-4")}
-          >
-            {label}<ExternalLink aria-hidden="true" />
-          </a>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
 function PersistentProfileHero({ user, wishlistChrome = false }) {
   const { openProfileEditor } = useProfileEditor();
   const location = useLocation();
@@ -3589,7 +3562,6 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
-      {(wishlistChrome || location.pathname.startsWith("/app/wishes")) && <ExternalWishlistLinks links={profile.wishlistLinks} />}
       {canManageSharing && <SphereSharePicker
         open={sharePickerOpen}
         onOpenChange={setSharePickerOpen}
@@ -7797,8 +7769,8 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       <section className="grid min-w-0 gap-6 p-4" aria-label={sectionTitle}>
         <section className="grid min-w-0 gap-4" aria-labelledby="settings-wishlist-links-heading">
           <header className="typeset typeset-rollapp">
-            <h3 id="settings-wishlist-links-heading">Ссылки в профиле</h3>
-            <p className="text-muted-foreground">Вставьте ссылки из меню «Поделиться». Они будут видны в публичном профиле.</p>
+            <h3 id="settings-wishlist-links-heading">Ссылки на списки</h3>
+            <p className="text-muted-foreground">Вставьте ссылки из меню «Поделиться» на нужных сервисах.</p>
           </header>
           <FieldGroup className="gap-4">
             {EXTERNAL_WISHLIST_PROVIDERS.map((provider) => {
@@ -8359,7 +8331,6 @@ function PublicProfile({ shared = false }) {
           toSection={section => `${publicPublicationPath(data.profile.username, section)}?${new URLSearchParams({ tab: activeSpace })}`}
           state={{ publicationListId: routeSelectedList?.id }} />}
       </ControlBar>
-      {!shared && !params.listId && !params.wishId && <ExternalWishlistLinks links={data.profile.wishlistLinks} />}
     </section>
 
     {businessStorefront && !publication && <div className="page-stack">
