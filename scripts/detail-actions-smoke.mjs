@@ -39,7 +39,7 @@ async function mobileGeometry(page, count) {
     if (index > 0) assert(Math.abs(control.x - row[index - 1].x - row[index - 1].width - 8) < 0.1, "Controls must have 8px gaps");
     if (index === 0 || index === 2) assert.equal(control.width, 48, "Icon control must be a 48px circle");
   }
-  assert.notEqual(row[1].background, row[0].background, "Primary action lost its accent");
+  assert.notEqual(row[1].background, row[0].background, "Main action must be visually distinct from Back");
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Document overflow");
   assert(await page.evaluate(() => getComputedStyle(document.documentElement).overflow !== "hidden"), "Document scroll locked");
   return row;
@@ -67,6 +67,19 @@ try {
         await page.locator('[data-slot="wish-actions"]').waitFor();
         await page.evaluate(() => document.fonts.ready);
         const catalog = variant.includes("catalog");
+        const marketplaceSearch = variant === "kind=product";
+        if (marketplaceSearch) {
+          const search = page.getByRole("button", { name: "Найти лучшие", exact: true });
+          const colors = await search.evaluate(button => {
+            const sample = document.createElement("span");
+            sample.style.backgroundColor = "var(--secondary)";
+            button.parentElement.append(sample);
+            const colors = [getComputedStyle(button).backgroundColor, getComputedStyle(sample).backgroundColor];
+            sample.remove();
+            return colors;
+          });
+          assert.equal(colors[0], colors[1], "Marketplace search must use the secondary surface");
+        }
         if (shared) {
           await page.getByText("Совместное желание · Автор желания").waitFor();
           const leave = page.getByRole("button", { name: "Убрать с доски" });
@@ -97,7 +110,7 @@ try {
             await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Опции желания"));
             assert(await page.getByRole("button", { name: /^Опции желания/ }).evaluate(element => document.activeElement === element), "Menu did not return focus to overflow");
           }
-          if (variant === "kind=product") {
+          if (marketplaceSearch) {
             assert.equal(await page.getByRole("button", { name: /Отметить исполненным/ }).count(), 0, "Duplicate primary action remains outside overflow");
             await page.evaluate(() => { Object.defineProperty(visualViewport, "height", { configurable: true, value: 280 }); visualViewport.dispatchEvent(new Event("resize")); });
             await page.waitForFunction(() => document.documentElement.hasAttribute("data-overlay-keyboard"));

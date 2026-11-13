@@ -194,7 +194,7 @@ export function MarketplaceOffers({ wish, owner = false, formatPrice, renderActi
   const actionLabel = loading ? (aiConfigured === false ? "Ищем в магазинах" : "Ищем") : retrySeconds > 0 ? `Через ${retryAfterLabel(retrySeconds)}` : aiConfigured === false ? (aiOffers.length ? "Обновить из магазинов" : "Найти в магазинах") : aiOffers.length ? "Обновить" : "Найти лучшие";
   const actionText = compactAction && !loading && !retrySeconds ? (aiOffers.length ? "Обновить" : "Найти лучшие") : compactAction && loading ? "Ищем" : actionLabel;
   const accessibleActionLabel = compactAction && aiConfigured === false && !loading && !retrySeconds ? `${actionText} предложения в магазинах` : actionLabel;
-  const refreshAction = <Button className="w-full min-w-0 flex-1" type="button" size="sm" disabled={loading || retrySeconds > 0} aria-label={accessibleActionLabel} aria-busy={loading || undefined} onClick={refresh}>
+  const refreshAction = <Button className="w-full min-w-0 flex-1" type="button" size="sm" variant="secondary" disabled={loading || retrySeconds > 0} aria-label={accessibleActionLabel} aria-busy={loading || undefined} onClick={refresh}>
     {loading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
     {actionText}
   </Button>;

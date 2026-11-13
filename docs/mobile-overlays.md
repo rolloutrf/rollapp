@@ -238,11 +238,12 @@ and viewport panning at 320–1920px, including short viewports.
 
 Detail pages use
 `ContentPageActions` to move the original controls through `ScreenPortal` into
-the same fixed row as Back: 48px Back, flexible accent action, 48px overflow,
+the same fixed row as Back: 48px Back, flexible main action, 48px overflow,
 with 8px gaps. Catalog details without overflow use Back and the accent action.
-Owner product details put marketplace search in the primary slot; fulfillment
-remains available in overflow. Other details keep their primary action there,
-with compact visible labels and complete accessible names. The document tail
+Owner product details put the neutral `secondary` marketplace search in the
+primary slot. Fulfillment remains available in overflow. Other details keep
+their primary action in the row with compact visible labels and complete
+accessible names. The document tail
 lets the final content scroll above the row; no top navigation row is reserved.
 The action row preserves its position with visual-viewport/keyboard changes,
 has no background slab, and retains opaque individual surfaces. Desktop actions
