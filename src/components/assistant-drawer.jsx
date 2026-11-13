@@ -1,7 +1,7 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
-import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, parseAssistantAction } from '../../shared/messenger-assistant.js';
+import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { AssistantPresets } from './assistant-presets';
@@ -233,6 +233,7 @@ function AssistantConversation({ workspace, open, heading, onReviewWish, canDisc
         {chat.error && <div className="messenger-send-error" role="alert">{chat.error} Черновик остался в поле ввода.</div>}
       </div>
       <MessageComposer inputRef={input} placeholder="Сообщение…" draft={chat.draft} onDraftChange={setDraft}
+        suggestedDraft={open && !chat.messages.length ? ASSISTANT_WISH_EXAMPLE : undefined}
         sending={chat.sending} disabled={voice.active} onSubmit={submit}
         extraAction={<Button type="button" data-control-icon size="icon" variant={voice.active ? 'default' : 'outline'}
           aria-label="Диктовка" aria-pressed={voice.active} aria-keyshortcuts={voice.supported ? 'Space' : undefined}

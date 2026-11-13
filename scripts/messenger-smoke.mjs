@@ -214,6 +214,22 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   if (width===320 || width===1440) await page.screenshot({path:`/tmp/rollapp-assistant-empty-${width}-${height}.png`});
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
+  const example = 'Добавь кофемолку за 4 500 ₽ в список «Кухня»';
+  assert.equal(await text.getAttribute('placeholder'), example);
+  assert.equal(await text.inputValue(), '');
+  assert(await text.evaluate(node => node.scrollHeight <= node.clientHeight + 1), 'The full suggestion must fit in the composer');
+  await text.press('Shift+Tab');
+  assert.equal(await text.inputValue(), '');
+  assert(await text.evaluate(node => node !== document.activeElement), 'Shift+Tab must move focus');
+  await text.press('Tab');
+  assert.equal(await text.inputValue(), example);
+  assert(await text.evaluate(node => node === document.activeElement && node.selectionStart === node.value.length),
+    'Accepting a suggestion must keep the composer focused with the caret after the text');
+  assert.equal(await send.isEnabled(), true);
+  await page.keyboard.press('Tab');
+  assert(await text.evaluate(node => node !== document.activeElement), 'Tab must move focus after accepting the suggestion');
+  assert.deepEqual(await page.evaluate(() => window.messengerTest.assistant), [], 'Accepting a suggestion must not send it');
+  await text.fill('');
   await checkAssistantPresets(page, chat, text, width, height);
   const starters = chat.getByRole('group', { name: 'Примеры запросов' });
   assert.equal(await starters.locator(':scope > button').count(), 16);
@@ -242,6 +258,7 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await page.evaluate(()=>{window.messengerTest.failAssistant=false;window.messengerTest.failList=false;});
   await text.press('Control+Enter');
   await chat.getByText('Личный ответ о планировании',{exact:true}).waitFor();
+  assert.equal(await text.getAttribute('placeholder'), 'Сообщение…');
   await close.click();
   await chat.waitFor({state:'hidden'});
   await page.waitForFunction(()=>document.activeElement?.classList.contains('assistant-fab'));

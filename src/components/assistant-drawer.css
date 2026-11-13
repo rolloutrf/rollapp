@@ -35,6 +35,9 @@
 }
 
 .assistant-drawer .messenger-composer textarea { background-color: var(--card); }
+.assistant-drawer .messenger-composer textarea[aria-keyshortcuts="Tab"] {
+  max-height: calc(112px + var(--text-rollapp-body--line-height));
+}
 .assistant-drawer__voice-status {
   grid-column: 1 / -1;
   color: var(--muted-foreground);
