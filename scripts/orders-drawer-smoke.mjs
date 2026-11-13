@@ -97,6 +97,13 @@ try {
       assert(box.x >= -1 && box.y >= -1 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
       assert.equal(Math.round(box.x + box.width), width);
       assert.equal(Math.round(box.y + box.height), height);
+      const heading = drawer.getByRole("heading", { name: "Заказы", exact: true });
+      assert.deepEqual(await heading.evaluate((node) => {
+        const title = getComputedStyle(node);
+        const header = getComputedStyle(node.parentElement);
+        return [title.fontSize, title.fontWeight, header.paddingInlineStart, header.borderBottomWidth, header.backgroundColor];
+      }), ["24px", "600", "16px", "1px", "rgba(0, 0, 0, 0)"]);
+      assert((await heading.boundingBox()).x < (await close.boundingBox()).x);
       assert.deepEqual(await close.evaluate((el) => {
         const style = getComputedStyle(el);
         const icon = el.querySelector("svg");

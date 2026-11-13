@@ -439,7 +439,6 @@ export function CoachingSessions() {
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, sessions: [], lists: [], groups: [], error: null });
   const resolvedListId = educationListSelection(selectedListId, requestState.lists, requestState.sessions);
-  const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleSessions = educationItemsInList(requestState.sessions, resolvedListId);
   const visibleListId = educationApiListId(resolvedListId) || null;
   const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
@@ -517,7 +516,7 @@ export function CoachingSessions() {
         ? state.lists.map((current) => current.id === list.id ? list : current)
         : [...state.lists, list],
     }));
-    setSelectedListId(list.id);
+    if (!listDrawer.list) setSelectedListId(list.id);
     if (listDrawer.moveItem) void moveSessionToList(listDrawer.moveItem, list.id, list.title);
   };
 
@@ -529,8 +528,10 @@ export function CoachingSessions() {
       sessions: state.sessions.map((session) => session.listId === deletedListId ? { ...session, listId: null } : session),
       groups: state.groups.filter((group) => group.listId !== deletedListId),
     }));
-    setOpenedGroupId("");
-    setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
+    if (deletedListId === resolvedListId) {
+      setOpenedGroupId("");
+      setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
+    }
   };
 
   const moveSessionToList = async (session, targetListId, targetTitleOverride = "") => {
@@ -657,11 +658,9 @@ export function CoachingSessions() {
       <EducationSectionHeader
         title="Коучинг"
         titleId="coaching-title"
-        selectedList={selectedList}
         addLabel="Добавить сессию"
         onAdd={openCreateDrawer}
         onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
-        onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
       {requestState.error && (
@@ -708,6 +707,8 @@ export function CoachingSessions() {
           lists={requestState.lists}
           selectedListId={resolvedListId}
           ariaLabel="Списки коучинг-сессий"
+          section="coaching"
+          onEditList={(list, opener) => setListDrawer({ open: true, list, opener, moveItem: null })}
           onSelectList={(listId) => { setOpenedGroupId(""); setSelectedListId(listId); }}
         />
       )}
@@ -789,11 +790,12 @@ export function CoachingSessions() {
       {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
+        opener={listDrawer.opener}
         section="coaching"
         itemPlural="коучинг-сессии"
         onOpenChange={(open) => setListDrawer((current) => open
           ? { ...current, open: true }
-          : { open: false, list: null, moveItem: null })}
+          : { ...current, open: false })}
         onSaved={saveList}
         onDeleted={deleteList}
       />}

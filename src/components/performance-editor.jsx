@@ -279,7 +279,7 @@ function ProjectEditor({ idPrefix, onChange, onRemove, project }) {
   );
 }
 
-export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChange, onSave, open }) {
+export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChange, onSave, open, opener }) {
   const isMobile = useIsMobile();
   const formId = useId();
   const [draft, setDraft] = useState(content);
@@ -289,13 +289,13 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !content.cycles.some(cycle => cycle.id === activeCycleId)) return;
     setDraft(structuredClone(content));
     setSaving(false);
     setError("");
-  }, [content, open]);
+  }, [activeCycleId, content, open]);
 
-  const cycleIndex = Math.max(0, draft.cycles.findIndex((cycle) => cycle.id === activeCycleId));
+  const cycleIndex = draft.cycles.findIndex((cycle) => cycle.id === activeCycleId);
   const cycle = draft.cycles[cycleIndex];
   const savedCycle = content.cycles.find((item) => item.id === activeCycleId);
   const updateCycle = (nextCycle) => setDraft((value) => ({
@@ -334,8 +334,9 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
 
   return (
     <Drawer open={open} showSwipeHandle swipeDirection={isMobile ? "down" : "right"} onOpenChange={changeOpen}>
-      <DrawerContent
+      {cycle && <DrawerContent
         className="rollapp-body app-drawer--wide"
+        finalFocus={() => opener?.isConnected ? opener : true}
       >
         <DrawerClose
           render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
@@ -489,7 +490,7 @@ export function PerformanceEditor({ activeCycleId, content, onDelete, onOpenChan
               : <DrawerClose render={<Button className="min-h-12 text-base" variant="outline" type="button" disabled={busy} />}>Отмена</DrawerClose>}
           </DrawerFooter>
         </form>
-      </DrawerContent>
+      </DrawerContent>}
     </Drawer>
   );
 }

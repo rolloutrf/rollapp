@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Coins, MapPin, PackageOpen, RotateCcw, ShoppingBag, Truck, X } from "lucide-react";
 import { api } from "@/api";
-import { DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { DrawerClose, DrawerContent, DrawerSectionHeader } from "@/components/form-surface";
 import { PageActionButton } from "@/components/page-action-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -63,12 +63,11 @@ function OrderCard({ order, product, busy, onRefund }) {
 
 export function OrdersDrawerContent({ products }) {
   return <DrawerContent className="orders-drawer rollapp-body app-drawer--form">
-    <DrawerHeader className="flex-row items-center justify-between gap-2 border-b p-4">
-      <DrawerTitle className="text-2xl font-semibold">Заказы</DrawerTitle>
+    <DrawerSectionHeader title="Заказы" endAction={
       <DrawerClose render={<Button type="button" variant="outline" size="icon" />} aria-label="Закрыть заказы">
         <X aria-hidden="true" />
       </DrawerClose>
-    </DrawerHeader>
+    } />
     <OrderList products={products} />
   </DrawerContent>;
 }

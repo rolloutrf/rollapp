@@ -63,7 +63,7 @@ async function geometry(page, label) {
 }
 async function transparentChrome(page, label) {
   const rails = page.locator([
-    ".global-app-chrome", ".mobile-app-navigation", ".planning-fab-controls",
+    ".global-app-chrome", ".mobile-app-navigation", ".planning-fab-controls", ".add-fab",
     ".daily-todo__header", ".daily-todo__footer",
     ".mobile-form-page__header", "[data-native-form-actions]",
   ].join(", "));
@@ -79,6 +79,42 @@ async function transparentChrome(page, label) {
     })
   ));
   assert.deepEqual(painted, [], `${label}: shared chrome must be transparent`);
+}
+async function spaceSelectorStyle(page, label) {
+  const selector = page.locator('[data-control-bar] .space-select');
+  assert.equal(await selector.count(), 1, `${label}: expected one navigation selector`);
+  return selector.evaluate(async node => {
+    await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => {})));
+    const style = getComputedStyle(node);
+    return {
+      background: style.backgroundColor, border: style.borderTopColor,
+      borderWidth: style.borderTopWidth, borderStyle: style.borderTopStyle,
+      radius: style.borderTopLeftRadius, height: style.height,
+      paddingStart: style.paddingInlineStart, paddingEnd: style.paddingInlineEnd,
+      fontSize: style.fontSize, lineHeight: style.lineHeight, weight: style.fontWeight,
+    };
+  });
+}
+async function floatingControls(page, label) {
+  const controls = await page.evaluate(() => {
+    const measure = button => {
+      if (!button) return null;
+      const rect = button.getBoundingClientRect(), style = getComputedStyle(button);
+      return { right: rect.right, top: rect.top, bottom: rect.bottom, background: style.backgroundColor, border: style.borderTopColor };
+    };
+    return [".assistant-fab", ".messenger-fab", ".planning-fab--launcher", "[data-add-fab] button"]
+      .map(selector => measure(document.querySelector(selector)));
+  });
+  const [assistant, messages, planner, add] = controls;
+  assert(assistant && messages && planner, `${label}: floating shortcuts are missing`);
+  assert.equal(planner.background, messages.background, `${label}: planning should share the neutral surface`);
+  assert.equal(planner.border, messages.border, `${label}: planning should share the neutral outline`);
+  const stack = controls.filter(Boolean);
+  for (let index = 1; index < stack.length; index++) {
+    assert.equal(stack[index].right, stack[0].right, `${label}: floating controls do not share a right edge`);
+    assert.equal(stack[index].top - stack[index - 1].bottom, 8, `${label}: floating controls must follow the same order and gap`);
+  }
+  if (add) assert.notEqual(add.background, planner.background, `${label}: creation should retain the accent`);
 }
 async function paintedHeight(button, label) {
   const box = await button.boundingBox();
@@ -112,6 +148,7 @@ try {
       page.setDefaultTimeout(90_000);
       page.on("pageerror", error => errors.push(error.message));
       await page.route("**/api/**", route => { errors.push("Unexpected API request in control fixture"); return route.abort(); });
+      let wishlistSelectorStyles;
       for (const route of routes) {
         await page.goto(`${origin}${route}`, { waitUntil: "domcontentloaded" });
         await page.locator("[data-control-bar]").first().waitFor();
@@ -119,9 +156,27 @@ try {
         const label = `${width}x${height} ${route}`;
         await geometry(page, label);
         await transparentChrome(page, label);
+        const compareSelector = route === "/app/wishes?tab=products" || route.includes("tab=calendar&view=day");
+        const darkSelector = compareSelector ? await spaceSelectorStyle(page, label) : null;
         await page.evaluate(() => document.documentElement.classList.remove("dark"));
         await transparentChrome(page, `${label} light`);
+        if (compareSelector) {
+          const styles = [darkSelector, await spaceSelectorStyle(page, `${label} light`)];
+          for (const style of styles) {
+            assert(![style.border, style.background].includes("rgba(0, 0, 0, 0)"), `${label}: selector needs a visible surface and border`);
+            assert.equal(style.borderWidth, "1px");
+            assert.equal(style.borderStyle, "solid");
+            assert.equal(style.radius, "24px");
+          }
+          if (route.includes("view=day")) assert.deepEqual(styles, wishlistSelectorStyles, `${label}: Wishlist and calendar selector styles differ`);
+          else {
+            wishlistSelectorStyles = styles;
+            assert.equal(await page.locator('.space-select [data-slot="select-value"] .lucide-shopping-bag').count(), 1);
+          }
+        }
+        if (!route.includes("guest=1")) await floatingControls(page, `${label} light`);
         await page.evaluate(() => document.documentElement.classList.add("dark"));
+        if (!route.includes("guest=1")) await floatingControls(page, label);
         if (!route.includes("/planning")) {
           const pair = page.locator('[aria-label="Единый стиль кнопок"] button');
           const styles = await pair.evaluateAll(buttons => buttons.map(button => {
@@ -173,7 +228,8 @@ try {
           await page.getByLabel('Название', { exact: true }).waitFor({ state: 'hidden' });
         }
         if (!route.includes("/planning")) await paintedHeight(page.getByRole("button", { name: "Добавить", exact: true }), label);
-        if (!route.includes("guest=1")) await paintedHeight(page.getByRole("button", { name: "Открыть планирование", exact: true }), `${label} lower circular control`);
+        const addFab = page.locator("[data-add-fab] button");
+        if (await addFab.count()) await paintedHeight(addFab, `${label} lower circular control`);
         const scrolled = await page.evaluate(() => {
           window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
           const owners = [...document.querySelectorAll('.app-main,.daily-todo,.daily-todo__scroll,.planning-board,.schedule-month-panel,[data-slot="scroll-area-viewport"]')];
@@ -183,6 +239,10 @@ try {
         if (!["view=month", "view=year", "view=list"].some((view) => route.includes(view))) assert(scrolled, `${label}: scrolling check did not move a scroll owner`);
         await geometry(page, `${label} scrolled`);
         await transparentChrome(page, `${label} scrolled`);
+        if (!route.includes("guest=1")) await floatingControls(page, `${label} scrolled`);
+        if ((width === 390 || width === 1440) && height === 844 && route === "/app/wishes?tab=products") {
+          await page.screenshot({ path: `/tmp/rollapp-control-sizes/floating-${width}.png` });
+        }
         if (route.includes("view=day") || route.includes("/career") || route.includes("tab=todo")) await page.screenshot({ path: `/tmp/rollapp-control-sizes/${width}x${height}-${route.includes("view=day") ? "calendar" : route.includes("tab=todo") ? "todo" : "application"}.png` });
         if (width < 768 && route.includes("view=day")) {
           await page.getByRole("button", { name: "Новая задача в календаре", exact: true }).click();

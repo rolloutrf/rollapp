@@ -3,10 +3,12 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MoreHorizontal, Plus, X } from "lucide-react";
 import { GlobalAppChrome, PlanningFab, SessionContext, ToastContext, CollectionNavigationContext, WishGroupDialog } from "@/App.jsx?controls-smoke";
+import { AddFab } from "@/components/add-fab";
 import { ControlBar } from "@/components/control-bar";
 import { PlanningCalendar } from "@/components/planning-calendar";
 import { PlanningDailyTodo } from "@/components/planning-daily-todo";
 import { PlanningKanban } from "@/components/planning-kanban";
+import { PlanningSpacesProvider } from "@/components/planning-space-switcher";
 import { TaskEditor } from "@/components/planning-space.jsx?controls-smoke";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { Button } from "@/components/ui/button";
@@ -33,7 +35,7 @@ function Fixture() {
   const create = (value = {}) => setEditor({ title: "", dueOn: typeof value === "string" ? value : "2026-10-15", columnId: "todo" });
   // Presentation props only: the fixture never authenticates or writes records.
   const user = search.has("guest") ? null : { canDiscoverSpheres: true, accountType: "personal" };
-  return <SessionContext.Provider value={{ user }}><ToastContext.Provider value={() => {}}><CollectionNavigationContext.Provider value={{ collection: null }}><MobileFormPages>
+  return <SessionContext.Provider value={{ user }}><ToastContext.Provider value={() => {}}><CollectionNavigationContext.Provider value={{ collection: null }}><PlanningSpacesProvider enabled={Boolean(user)}><MobileFormPages>
     <GlobalAppChrome /><PlanningFab />
     <div className={`app-layout app-layout--dark ${planning ? "app-layout--planning" : ""}`}><main className="app-main">
       {!planning && <div className="app-shell-chrome-spacer" />}
@@ -44,6 +46,7 @@ function Fixture() {
               : <PlanningKanban tasks={tasks} columns={columns} onEdit={setEditor} onCreate={create} onSave={async () => {}} />}
         </div> : <>
           <h1>Контролы приложения</h1>
+          {user && location.pathname === "/app/wishes" && <AddFab actions={[{ label: "Создать запись", onSelect: create }]} />}
           <div className="page-toolbar"><PageActionButton onClick={create}>Добавить</PageActionButton><PageActionButton variant="outline">Редактировать</PageActionButton></div>
           <ControlBar className="flex gap-2" aria-label="Единый стиль кнопок">
             <Button data-control-icon variant="secondary" size="icon" aria-label="Единый стиль: меню"><MoreHorizontal /></Button>
@@ -59,6 +62,6 @@ function Fixture() {
     </main></div>
     {editor && <TaskEditor task={editor} columns={columns} onClose={() => setEditor(null)} onSave={async () => {}} />}
     {groupOpen && <WishGroupDialog group={{ id: 'group', title: 'Проверка меню' }} count={0} moveTargets={[]} busy={search.has('busy-group')} onClose={() => setGroupOpen(false)} onRename={() => { throw new Error('Group must not save'); }} onMove={() => { throw new Error('Group must not move'); }} onDisband={() => { throw new Error('Group must not dissolve'); }}><p>Содержимое группы</p></WishGroupDialog>}
-  </MobileFormPages></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;
+  </MobileFormPages></PlanningSpacesProvider></CollectionNavigationContext.Provider></ToastContext.Provider></SessionContext.Provider>;
 }
 createRoot(document.getElementById("root")).render(<BrowserRouter><Fixture /></BrowserRouter>);

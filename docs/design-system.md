@@ -24,7 +24,8 @@ Base Nova на Base UI, Tailwind v4, Lucide, neutral CSS variables. Конфиг
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md`; затронутые полные UI-матрицы |
 | Текстовые действия панели страницы | `PageActionButton` | 48px минимум, капсула, padding-inline 24px; `test:action-rails` |
 | Плитка списка/дня, подпись/счётчик/приватность | `ListTileContent`, `data-list-tile`, `src/index.css` | `docs/typography.md`, `docs/spacing-system.md`; `test:action-rails`, `test:todo` |
-| Создание/настройки коллекций | `EducationSectionHeader`, `WishListNavigation`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:ui` |
+| Подсветка настроения у аватара | `Avatar`, `src/components/profile-mood.css` | Мягкий ореол позади фото или инициалов, цвет текущей отметки, спокойная пульсация. При `prefers-reduced-motion: reduce` ореол статичен. `test:profile-mood` |
+| Создание/настройки коллекций | `WishListNavigation`, `AddFab`, общие action rails | `test:action-rails`, `test:wish-groups`, `test:identity-reports`, `test:lab-results`, `test:ui` |
 | Формы и их действия | `form-surface`, `MobileFormPages`, `MobileFormFooter` | `docs/mobile-overlays.md`; `test:form-pages`, `test:form-actions`, `test:drawers` |
 | Название товара с внешними подсказками | `ProductTitleInput`, shadcn `Combobox` | `docs/product-suggestions.md`; `test:product-suggestions`, `test:business-accounts`, формы |
 | Действия страниц деталей | `ContentPageActions` | `test:details` |
@@ -94,12 +95,16 @@ registry menu/RTL placeholders разрешены конфигурацией neu
 
 Шапка приложения и публичного профиля всегда прозрачная: без собственной фоновой подложки, градиента, blur/backdrop-filter, рамки и тени на всю панель. Это правило действует на всех экранах, размерах, темах и при прокрутке. Отдельные кнопки и селекторы сохраняют собственные непрозрачные поверхности.
 
+Селекторы разделов, бизнес-аккаунтов и пространств планирования используют общую роль `.space-select` в `ControlBar`. `Select` отвечает за выбор раздела, `DropdownMenu` — за выбор пространства планирования. Размеры, контур и фокус задаёт `src/spacing.css`, поверхности состояний — `src/index.css`.
+
 Теги статуса медиа-карточек используют общий `CollectionSnippetBadge`: иконка не сжимается, текст переносится целиком в узкой карточке. Когда показана touch-ручка, тег расположен внизу изображения и не пересекается с её 48px областью; правило учитывает широкие сенсорные устройства, а не только ширину экрана. Без ручки прежнее верхнее положение сохраняется. `test:drag-drop` проверяет реальные WorkoutCard со всеми статусами, owner/read-only, мышь/touch и обе темы на полной матрице.
 
-Каталог принадлежит только Wishlist (`/app/wishes/catalog` и его item routes/API).
-В Идентичности нет ни каталога, ни магазина, ни пустых панелей бизнес-действий. В остальных сферах `SphereBusinessControls` содержит только магазин за роллы;
-режима business/catalog нет ни в навигации, ни в React/API routes. Внутренние
-справочники парсеров не являются пользовательской сущностью каталога.
+Товарная лента и карточки каталога принадлежат Вишлисту (`/app/wishes/catalog`).
+Каталоги бизнес-аккаунтов Вишлиста и личных сфер используют общий
+`BusinessCatalogList`. Вход в каталог сферы находится рядом с аватаром.
+Панель каталога использует `ControlBar` для возврата в сферу и перехода к
+предложениям. Магазин за роллы открывается через `SphereBusinessControls` там,
+где он доступен. В Идентичности доступны каталог и предложения.
 
 Дневные плитки To Do/питания также используют ListTileContent. Их геометрия, подписи и приглушённый цвет числа (включая выбранное состояние) совпадают с главной Wishlist. Общий horizontal-tile-scroller владеет flex/gap8 и нулевыми вертикальными полями: одна строка стандартных плиток имеет высоту100px. Семантика выбора дня/центрирования и точка «сегодня» остаются в PlanningDayRibbon.
 

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { api } from "../../src/api.js";
 import { MobileFormPages } from "../../src/components/mobile-form-pages.jsx";
-import { ProfileSettingsModal, SessionContext, ToastContext, WishesProfileControls } from "../../src/App.jsx?purchase-history-smoke";
+import { ProfileSettingsModal, SessionContext, ToastContext, WishlistSectionNavigation } from "../../src/App.jsx?purchase-history-smoke";
 import "../../src/styles.css";
 import "../../src/index.css";
 
@@ -47,7 +47,7 @@ function Fixture() {
           <MobileFormPages>
             <main className="app-layout--dark">
               <div className="app-page page-stack">
-                <WishesProfileControls selectedSpace="products" />
+                <WishlistSectionNavigation user={user} />
                 <button type="button" onClick={() => setOpen(true)}>Профиль</button>
                 {open && <ProfileSettingsModal user={user} onClose={() => setOpen(false)}
                   onWishlistsImported={() => { window.wishlistRefreshes += 1; }} />}

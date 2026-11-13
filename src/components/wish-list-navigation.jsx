@@ -30,41 +30,46 @@ function readOrder(key) {
   }
 }
 
-function ListTile({ id, title, count, privateList, sortable, onSettings }) {
-  const label = `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}`;
+function ListTile({ id, title, displayTitle = title, count, detail, privateList, sortable, onSettings, settingsLabel, renderSettings, accessibleName, settingsDisabled }) {
+  const label = accessibleName ?? (detail == null ? `${title}, ${count} ${wishCountNoun(count)}${privateList ? ", приватный список" : ""}` : title);
   const tile = (
     <ToggleGroupItem
       data-list-tile
       value={id}
       data-wish-list-tile={sortable ? id : undefined}
       aria-label={label}
+      title={detail == null ? undefined : title}
       aria-keyshortcuts={sortable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
     >
-      <ListTileContent title={title} count={count} privateList={privateList} />
+      <ListTileContent title={displayTitle} count={count} detail={detail} privateList={privateList} />
     </ToggleGroupItem>
   );
-  if (!onSettings) return tile;
+  if (!onSettings && !renderSettings) return tile;
+  const trigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="list-tabs__settings"
+      aria-label={settingsLabel(title)}
+      aria-haspopup={renderSettings ? "menu" : "dialog"}
+      disabled={settingsDisabled}
+      onClick={onSettings ? event => onSettings(id, event.currentTarget) : undefined}
+    >
+      <MoreHorizontal aria-hidden="true" />
+    </Button>
+  );
   return (
     <div className="list-tabs__editable-tile">
       {tile}
       <ControlBar className="contents">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="list-tabs__settings"
-          aria-label={`Настройки списка «${title}»`}
-          aria-haspopup="dialog"
-          onClick={(event) => onSettings(id, event.currentTarget)}
-        >
-          <MoreHorizontal aria-hidden="true" />
-        </Button>
+        {renderSettings ? renderSettings(id, trigger) : trigger}
       </ControlBar>
     </div>
   );
 }
 
-export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onSettings, onOrderError }) {
+export function WishListNavigation({ value, className, items, leadingItem, orderScope, onSelect, onSettings, onOrderError, label = "Списки желаний", settingsLabel = title => `Настройки списка «${title}»`, settingsDisabled, renderSettings }) {
   const viewportRef = useRef(null);
   const storageKey = orderScope ? `rollapp:wishlist-list-order:${orderScope}` : null;
   const [preference, setPreference] = useState(() => ({ key: storageKey, order: readOrder(storageKey) }));
@@ -129,7 +134,7 @@ export function WishListNavigation({ value, className, items, leadingItem, order
       ref={viewportRef}
       className={cn("list-tabs horizontal-tile-scroller", className)}
       data-wishlist-list-navigation
-      aria-label="Списки желаний"
+      aria-label={label}
       onClickCapture={suppressDragClick}
       onFocusCapture={(event) => {
         const button = event.target.closest("button");
@@ -140,9 +145,9 @@ export function WishListNavigation({ value, className, items, leadingItem, order
       }}
     >
       <div className="list-tabs__track">
-        <ToggleGroup className="contents" value={[value]} onValueChange={(values) => { onSelect?.(values[0]); }} aria-label="Списки желаний">
-          {leadingItem && <ListTile id="all" {...leadingItem} />}
-          {ordered.map(({ id, ...item }) => <ListTile key={id} id={id} {...item} sortable={sortable} onSettings={onSettings} />)}
+        <ToggleGroup className="contents" value={[value]} onValueChange={(values) => { onSelect?.(values[0]); }} aria-label={label}>
+          {leadingItem && <ListTile {...leadingItem} id={leadingItem.id ?? "all"} />}
+          {ordered.map(({ id, ...item }) => <ListTile key={id} id={id} {...item} sortable={sortable} onSettings={onSettings} settingsLabel={settingsLabel} settingsDisabled={settingsDisabled} renderSettings={renderSettings} />)}
         </ToggleGroup>
       </div>
       {sortable && <span className="visually-hidden" role="status">{announcement}</span>}

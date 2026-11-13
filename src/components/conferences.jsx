@@ -571,7 +571,6 @@ export function Conferences() {
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, conferences: [], lists: [], groups: [], error: null });
   const resolvedListId = educationListSelection(selectedListId, requestState.lists, requestState.conferences);
-  const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleConferences = educationItemsInList(requestState.conferences, resolvedListId);
   const visibleListId = educationApiListId(resolvedListId) || null;
   const visibleConferenceIds = new Set(visibleConferences.map((conference) => conference.id));
@@ -653,7 +652,7 @@ export function Conferences() {
         ? state.lists.map((current) => current.id === list.id ? list : current)
         : [...state.lists, list],
     }));
-    setSelectedListId(list.id);
+    if (!listDrawer.list) setSelectedListId(list.id);
     if (listDrawer.moveItem) void moveConferenceToList(listDrawer.moveItem, list.id, list.title);
   };
 
@@ -665,8 +664,10 @@ export function Conferences() {
       conferences: state.conferences.map((conference) => conference.listId === deletedListId ? { ...conference, listId: null } : conference),
       groups: state.groups.filter((group) => group.listId !== deletedListId),
     }));
-    setOpenedGroupId("");
-    setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
+    if (deletedListId === resolvedListId) {
+      setOpenedGroupId("");
+      setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
+    }
   };
 
   const moveConferenceToList = async (conference, targetListId, targetTitleOverride = "") => {
@@ -793,11 +794,9 @@ export function Conferences() {
       <EducationSectionHeader
         title="Конференции"
         titleId="conferences-title"
-        selectedList={selectedList}
         addLabel="Добавить конференцию"
         onAdd={openCreateDrawer}
         onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
-        onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
       {requestState.error && (
@@ -844,6 +843,8 @@ export function Conferences() {
           lists={requestState.lists}
           selectedListId={resolvedListId}
           ariaLabel="Списки конференций"
+          section="conferences"
+          onEditList={(list, opener) => setListDrawer({ open: true, list, opener, moveItem: null })}
           onSelectList={(listId) => { setOpenedGroupId(""); setSelectedListId(listId); }}
         />
       )}
@@ -928,11 +929,12 @@ export function Conferences() {
       {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
+        opener={listDrawer.opener}
         section="conferences"
         itemPlural="конференции"
         onOpenChange={(open) => setListDrawer((current) => open
           ? { ...current, open: true }
-          : { open: false, list: null, moveItem: null })}
+          : { ...current, open: false })}
         onSaved={saveList}
         onDeleted={deleteList}
       />}

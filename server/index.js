@@ -10,6 +10,7 @@ import { registerStoryRoutes } from "./stories.js";
 import { DiskNotesError, getYandexDiskConfig } from "./yandex-disk.js";
 import { createDiskProfileStorage, editableProfile, patchEditableProfile, profileDiskConflict, profileDiskEnabled } from "./yandex-disk-profile.js";
 import { registerYandexDiskNotesRoutes } from "./yandex-disk-notes-routes.js";
+import { registerYandexDiskSyncRoutes, startYandexDiskSync, verifyYandexDiskSyncSchema } from "./yandex-disk-sync.js";
 import { initializeRuntimeDatabase } from "./database-startup.js";
 import { publicMood, registerProfileMoodRoutes, verifyProfileMoodAvailability } from "./profile-mood.js";
 import { normalizeWaitlistTelegram, TELEGRAM_WAITLIST_ENABLED } from "../shared/telegram-waitlist.js";
@@ -138,7 +139,7 @@ import { createSessionToken, hashPassword, hashToken, slugify, verifyPassword } 
 import { createAccountSessions, requireExpectedAccount, savedSessionsCookie, sessionCookie } from "./account-sessions.js";
 import { configuredTrustedOrigins, isTrustedRequestOrigin } from "./trusted-origins.js";
 import { canonicalSphereSection, isSphereSection, sphereSectionStorageScope } from "../shared/sphere-sharing.js";
-import { businessCategoryForSection, canBusinessAccessSection } from "../shared/business-accounts.js";
+import { BUSINESS_CATEGORIES, BUSINESS_OFFER_SPHERES, businessCategoryForSection, canBusinessAccessSection } from "../shared/business-accounts.js";
 import { registrationAccountSchema } from "./business-accounts.js";
 import { readBusinessAccessSnapshot } from "./business-access.js";
 import { wishlistProfileGrant, wishlistWishVisibility } from "./wishlist-profile-access.js";
@@ -167,6 +168,9 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const isProduction = process.env.NODE_ENV === "production";
 let profileMoodAvailable = false;
+let diskSyncAvailable = false;
+let diskSyncWorker;
+const wakeDiskSync = () => diskSyncWorker?.wake();
 const moodColumns = () => profileMoodAvailable ? ",u.mood_level,u.mood_public" : "";
 const trustedAppOrigins = configuredTrustedOrigins(process.env.APP_ORIGIN);
 const mcpHttp = createRollappMcpHttp({ query, trustedOrigins: trustedAppOrigins, publicHost: process.env.PUBLIC_HOST });
@@ -758,16 +762,17 @@ function cleanUser(row) {
 
 async function cleanAuthenticatedUser(row) {
   if (!row) return null;
+  const moodLevel = profileMoodAvailable ? row.mood_level ?? null : null;
   const hasCapabilities = ["has_yandex", "can_discover_spheres"]
     .every((property) => Object.prototype.hasOwnProperty.call(row, property));
-  if (hasCapabilities) return cleanUser(row);
+  if (hasCapabilities) return { ...cleanUser(row), moodLevel };
   const capabilities = await query(
     `SELECT
        EXISTS(SELECT 1 FROM yandex_identities WHERE user_id=$1) AS has_yandex,
        EXISTS(SELECT 1 FROM default_follow_targets WHERE user_id=$1) AS can_discover_spheres`,
     [row.id],
   );
-  return cleanUser({ ...row, ...capabilities.rows[0] });
+  return { ...cleanUser({ ...row, ...capabilities.rows[0] }), moodLevel };
 }
 
 function mapList(row) {
@@ -1188,7 +1193,12 @@ registerNotesRoutes(app, { requireAuth, query, asyncRoute });
 registerHealthTrackerRoutes(app, { query, requireAuth, requireSphereReadAccess, requirePrivateSphereOwner, asyncRoute });
 registerCalendarDeviceRoutes(app, { requireAuth, query, transaction, asyncRoute });
 registerProfilePublicationRoutes(app, { requireAuth, query, transaction, asyncRoute });
-registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction });
+registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction,
+  syncAvailable: () => diskSyncAvailable, wakeSync: wakeDiskSync,
+});
+registerYandexDiskSyncRoutes(app, { requireAuth, asyncRoute, query, transaction,
+  available: () => diskSyncAvailable, wake: wakeDiskSync,
+});
 
 registerStoryRoutes(app, { requireAuth, query, asyncRoute });
 
@@ -1932,8 +1942,10 @@ app.post("/api/auth/phone/verify", requireLegacySignIn, requireAddAccountSession
 app.get("/api/auth/yandex/config", (_req, res) => {
   res.set("Cache-Control", "no-store");
   const config = getYandexAuthConfig();
-  res.json({ enabled: config.enabled, legacySignInEnabled, diskBackupEnabled: config.enabled && config.diskBackupEnabled && !isMemoryDatabase,
-    ...(profileDiskEnabled() && getYandexDiskConfig().enabled && !isMemoryDatabase && { diskProfileEnabled: true }),
+  res.json({ enabled: config.enabled, legacySignInEnabled,
+    diskBackupEnabled: !diskSyncAvailable && config.enabled && config.diskBackupEnabled && !isMemoryDatabase,
+    ...(diskSyncAvailable && { diskSyncEnabled: true }),
+    ...(!diskSyncAvailable && profileDiskEnabled() && getYandexDiskConfig().enabled && !isMemoryDatabase && { diskProfileEnabled: true }),
   });
 });
 
@@ -1968,7 +1980,7 @@ const startYandexLogin = asyncRoute(async (req, res) => {
     return res.redirect(303, yandexLoginRedirect(nextPath, "YANDEX_LINK_LOGIN_REQUIRED"));
   }
   await cleanupExpiredAuthData();
-  const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: config.diskBackupEnabled && !isMemoryDatabase }, {
+  const authorization = createYandexAuthorization({ ...config, diskBackupEnabled: !diskSyncAvailable && config.diskBackupEnabled && !isMemoryDatabase }, {
     nextPath,
     linkUserId: wantsLink ? req.user.id : null,
     addUserId: wantsAdd ? req.user.id : null,
@@ -2073,7 +2085,7 @@ app.get("/api/auth/yandex/callback", asyncRoute(async (req, res) => {
     await setAuthenticatedSession(req, res, result.session, result.user.id, { addAccount: addingAccount });
     if (purpose === "link") {
       let backup;
-      if (wantsBackup && config.diskBackupEnabled && !isMemoryDatabase) {
+      if (wantsBackup && !diskSyncAvailable && config.diskBackupEnabled && !isMemoryDatabase) {
         const job = yandexBackupJobs.start({ userId: result.user.id, accessToken });
         if (job.task) trackBackgroundTask(job.task);
         backup = job.id || "busy";
@@ -2177,6 +2189,7 @@ app.get("/api/healthz", asyncRoute(async (_req, res) => {
       defaultAiProvider: yandexAiConfig().enabled ? "yandex" : process.env.OPENROUTER_API_KEY ? "openrouter" : null,
       personalAiCredentials: userCredentialsConfigured(),
       privateNotes: getYandexDiskConfig().enabled,
+      ...(diskSyncAvailable && { diskSync: true }),
       ...(profileDiskEnabled() && { diskProfile: getYandexDiskConfig().enabled }),
     },
   });
@@ -2544,6 +2557,22 @@ app.get("/api/sphere-shares/context", requireAuth, asyncRoute(async (req, res) =
   return res.json({ owner: shareUser(access.owner), people, requests, isOwner: access.isOwner, ...canonicalSphereSection(sphere, section) });
 }));
 
+app.get("/api/business-catalog/:sphere", requireAuth, requirePrivateSphereOwner, asyncRoute(async (req, res) => {
+  const { sphere } = req.params;
+  if (req.user.account_type !== "personal") return res.status(403).json({ error: "Каталог доступен личным аккаунтам" });
+  if (!BUSINESS_OFFER_SPHERES.includes(sphere)) return res.status(404).json({ error: "Каталог не найден" });
+  const category = BUSINESS_CATEGORIES.find(item => item.sphere === sphere);
+  const { rows } = await query(
+    `SELECT u.username,u.name,u.avatar_url AS "avatarUrl", (f.follower_id IS NOT NULL) AS "isFollowing"
+     FROM users u
+     LEFT JOIN follows f ON f.follower_id=$1 AND f.following_id=u.id
+     WHERE u.account_type='business' AND u.business_category=$2 AND u.id<>$1
+     ORDER BY lower(u.name),u.username`,
+    [req.user.id, category.id],
+  );
+  res.set("Cache-Control", "private, no-store").json({ accounts: rows });
+}));
+
 app.get("/api/sphere-shares/candidates", requireAuth, requireShareOwner, asyncRoute(async (req, res) => {
   const { sphere, section } = sphereSectionStorageScope(String(req.query.sphere || ""), String(req.query.section || ""));
   if (!isSphereSection(sphere, section)) return res.status(404).json({ error: "Раздел не найден" });
@@ -2837,12 +2866,13 @@ app.get("/api/me/disk-profile", requireAuth, asyncRoute(async (req, res) => {
       available = false;
     }
   }
-  res.json({ ...state, available });
+  res.json({ ...state, enabled: state.enabled && !diskSyncAvailable, available });
 }));
 
 app.post("/api/me/disk-profile", requireAuth, authRateLimit, asyncRoute(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
   if (req.body?.ownerId !== req.user.id) return res.status(403).json({ error: "Аккаунт изменился. Откройте настройки заново." });
+  if (diskSyncAvailable) return res.status(409).json({ error: "Настройте синхронизацию полной копии в разделе Yandex ID." });
   try {
     const row = await diskProfiles.save(req.user, {}, { activate: true });
     res.json({ user: await cleanAuthenticatedUser(row), active: true, available: true });
@@ -4626,6 +4656,8 @@ app.get("/api/shared/:token", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, res) => {
+  const intent = req.body?.following;
+  if (intent !== undefined && typeof intent !== "boolean") return res.status(400).json({ error: "Укажите состояние подписки" });
   const found = await findProfileByUsername({ query }, req.params.username);
   if (!found.rowCount) return res.status(404).json({ error: "Профиль не найден" });
   const target = found.rows[0];
@@ -4636,7 +4668,9 @@ app.post("/api/profile/:username/follow", requireAuth, asyncRoute(async (req, re
       "SELECT 1 FROM follows WHERE follower_id=$1 AND following_id=$2 FOR UPDATE",
       [req.user.id, target.id],
     );
-    if (existing.rowCount) {
+    const isFollowing = Boolean(existing.rowCount);
+    if (intent === isFollowing) return isFollowing;
+    if (isFollowing) {
       await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2", [req.user.id, target.id]);
       await client.query(
         `DELETE FROM reservations
@@ -7008,6 +7042,7 @@ app.use((error, req, res, _next) => {
 });
 
 const databaseInitialization = await initializeRuntimeDatabase({ environment: process.env, isMemoryDatabase, transaction, migrate: initializeDatabase });
+diskSyncAvailable = !isMemoryDatabase && getYandexDiskConfig().enabled && await verifyYandexDiskSyncSchema(transaction);
 profileMoodAvailable = databaseInitialization !== "verify" || await verifyProfileMoodAvailability(transaction, {
   required: isProduction,
   onMissing: () => console.warn("Profile mood is unavailable: the production journal schema has not been installed."),
@@ -7022,6 +7057,7 @@ const telegramPoller = startTelegramBotPolling(getTelegramBotRuntimeConfig(), { 
 const tonPaymentPoller = startTonPaymentPolling({ query, transaction });
 const rewardProofWorker = startRewardProofWorker({ transaction });
 const needRewardExpiryWorker = startNeedRewardExpiryWorker({ query, transaction });
+if (isProduction && diskSyncAvailable) diskSyncWorker = startYandexDiskSync({ query, transaction, track: trackBackgroundTask });
 
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`Rollapp server listening on ${port}`);
@@ -7033,6 +7069,7 @@ async function shutdown() {
   tonPaymentPoller.stop();
   rewardProofWorker.stop();
   needRewardExpiryWorker.stop();
+  diskSyncWorker?.stop();
   server.close(async () => {
     if (backgroundTasks.size) {
       await Promise.race([

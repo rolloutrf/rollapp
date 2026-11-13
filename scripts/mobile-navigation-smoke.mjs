@@ -125,7 +125,27 @@ try{
      assert.equal(await page.locator('.mobile-app-navigation:visible,.planning-fab-controls:visible').count(),0,'Navigation remains above native form');
      await page.getByRole('button',{name:'Назад',exact:true}).click();await page.locator('.mobile-app-navigation').waitFor();
     }
-   }else assert(s.y<100&&c.y<100,`${route}: desktop navigation moved`);
+   }else {
+    assert(s.y<100&&c.y<100,`${route}: desktop navigation moved`);
+    if (route === '/app/wishes?tab=products') {
+     await page.keyboard.press('Tab');
+     while (!(await select.evaluate(node => node === document.activeElement))) {
+      const focused = await page.evaluate(() => document.activeElement.closest('.global-app-chrome') !== null);
+      assert(focused, 'Tab skipped the section selector');
+      await page.keyboard.press('Tab');
+     }
+     assert(await select.evaluate(node => getComputedStyle(node).boxShadow !== 'none'), 'Keyboard focus ring missing');
+     await page.screenshot({ path: `/tmp/rollapp-wishlist-select-focus-${width}.png` });
+     await page.keyboard.press('Space');
+     const popup = page.getByRole('listbox');
+     await popup.waitFor(); await settle(popup);
+     assert((await popup.boundingBox()).y >= c.y + c.height - 1, 'Desktop section menu must open down');
+     await page.keyboard.press('End'); await page.keyboard.press('Enter');
+     await page.waitForURL('**/app/wishes?tab=transport');
+     await select.getByText('Транспорт', { exact: true }).waitFor();
+     await select.locator('[data-slot="select-value"] svg').waitFor();
+    }
+   }
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${route}: horizontal overflow`);
    console.log(`PASS ${width} ${route}: ${width<768?'bottom navigation, menus, scroll tail':'desktop header'}`);
   }

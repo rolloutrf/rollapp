@@ -5,7 +5,7 @@ import { AddFab } from "@/components/add-fab";
 import { ProductTitleInput } from "@/components/product-title-input";
 import { AssistantDrawer, AssistantProvider, useAssistantNoteReviews } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
-import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
+import { WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
 import { localDateKey } from "../shared/planning.js";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
@@ -61,7 +61,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar as ShadcnAvatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AboutMe } from "@/components/about-me";
-import { BusinessPersonalOffers } from "@/components/personal-offers";
+import { BusinessPersonalOffers, PersonalOffers } from "@/components/personal-offers";
 import { BusinessMarketplacePage, SphereBusinessControls } from "@/components/business-marketplace-page";
 import { RegistrationAccountFields } from "@/components/registration-account-fields";
 import { BusinessRequestScopeFields } from "@/components/business-request-scope-fields";
@@ -99,6 +99,7 @@ import { ProfileAccounts } from "@/components/profile-accounts";
 import { ProfileMcpKeys } from "@/components/profile-mcp-keys";
 import { PrivateNotes, PrivateNotesLink, PRIVATE_NOTES_PATH } from "@/components/private-notes";
 import { DiskProfileSettings } from "@/components/disk-profile-settings";
+import { useDiskSyncSettings } from "@/components/disk-sync-settings";
 import { WishListNavigation } from "@/components/wish-list-navigation";
 import { BusinessCatalogList, BusinessCatalogProvider, BusinessCatalogSelect, brandCatalogPath } from "@/components/catalog-brands";
 import { MarketplaceOffers } from "@/components/marketplace-offers";
@@ -107,7 +108,7 @@ import { Principles, Theses } from "@/components/theses";
 import { Values } from "@/components/values";
 import { Workouts } from "@/components/workouts";
 import {
-  Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger,
+  Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerSectionHeader, DrawerTitle, DrawerTrigger,
 } from "@/components/form-surface";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -142,7 +143,7 @@ import {
 } from "./lib/list-navigation.js";
 import { canAccessPrivateSpheres, serviceSwitcherItemsForUser } from "./lib/service-navigation.js";
 import { businessMarketplacePath, isPublicWishDetailPath, APP_ASSISTANT_PATH, APP_CATALOG_ITEM_ROUTE_PATH, APP_CLASSIFIEDS_PATH, APP_ORDERS_PATH, APP_SHELL_ROUTE_PATH, APP_STORE_PATH, APP_WISH_CATALOG_PATH, APP_WISH_LISTINGS_PATH, APP_WISH_OFFERS_PATH, APP_WISH_SALES_PATH, PUBLIC_WISH_ROUTE_PATH } from "./lib/app-routing.js";
-import { businessCategoryFor, businessRequestSpheres } from "../shared/business-accounts.js";
+import { businessCategoryFor, businessRequestSpheres, sphereBusinessCatalogPath } from "../shared/business-accounts.js";
 import { SphereSharingProvider, sphereScopeFromLocation, useSphereSharing } from "./lib/sphere-sharing.jsx";
 import { SPHERE_SECTIONS, SPHERE_SECTION_LABELS, sphereSectionPath } from "../shared/sphere-sharing.js";
 import {
@@ -507,13 +508,26 @@ function ProfileEditorProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [diskSyncCallback, setDiskSyncCallback] = useState(null);
   const [wishlistVersion, setWishlistVersion] = useState(0);
   const returnFocusRef = useRef(null);
   const openProfileEditor = useCallback((event) => {
     const trigger = event?.currentTarget;
     returnFocusRef.current = trigger instanceof HTMLElement ? trigger : null;
+    setDiskSyncCallback(null);
     setOpen(true);
   }, []);
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(location.search);
+    const result = params.get("diskSync");
+    if (!["connected", "cancelled", "missing", "failed"].includes(result)) return;
+    returnFocusRef.current = null;
+    setDiskSyncCallback(result);
+    setOpen(true);
+    params.delete("diskSync");
+    navigate({ pathname: location.pathname, search: params.toString(), hash: location.hash }, { replace: true, state: location.state });
+  }, [user, location, navigate]);
   const closeProfileEditor = useCallback(() => setOpen(false), []);
   const refreshWishlist = useCallback(() => setWishlistVersion(version => version + 1), []);
   const value = useMemo(() => ({ openProfileEditor, wishlistVersion, refreshWishlist }), [openProfileEditor, wishlistVersion, refreshWishlist]);
@@ -523,10 +537,11 @@ function ProfileEditorProvider({ children }) {
       {open && user && <ProfileSettingsModal
         key={user.id}
         user={user}
+        diskSyncCallback={diskSyncCallback}
         finalFocus={returnFocusRef}
         onClose={closeProfileEditor}
-        onMoodSaved={(publicMood) => setSession((current) => current.user?.id === user.id
-          ? { ...current, user: { ...current.user, publicMood } }
+        onMoodSaved={({ level, publicMood }) => setSession((current) => current.user?.id === user.id
+          ? { ...current, user: { ...current.user, moodLevel: level, publicMood } }
           : current)}
         onProfileUpdated={(savedUser) => setSession({ user: savedUser, loading: false, error: null })}
         onWishlistsImported={refreshWishlist}
@@ -570,10 +585,10 @@ function Logo({ className = "" }) {
   );
 }
 
-function ProfilePortrait({ user }) {
+function ProfilePortrait({ user, moodLevel }) {
   return (
     <span className="profile-portrait">
-      <Avatar user={user} size="xl" className="wishes-page__hero-avatar" />
+      <Avatar user={user} moodLevel={moodLevel} size="xl" className="wishes-page__hero-avatar" />
     </span>
   );
 }
@@ -596,7 +611,6 @@ function isFriendsDirectoryPath(pathname) {
 }
 
 function activeServiceFromPath(pathname) {
-  if (pathname === APP_CLASSIFIEDS_PATH) return "classifieds";
   if (pathname.startsWith("/app/rolls")) return "rolls";
   if (pathname === "/app/planning") return "planning";
   if (pathname.startsWith("/app/business")) return "business-access";
@@ -621,9 +635,6 @@ function SphereSwitcher({ docked = false }) {
   const sharedOwner = new URLSearchParams(location.search).get("owner");
   const visibleServices = [
     ...serviceSwitcherItemsForUser(SERVICE_SWITCHER_ITEMS, user),
-    ...(canManageWishSales(user, user?.sellerSpace ?? "products")
-      ? [{ id: "classifieds", label: "Объявления о продаже", path: APP_CLASSIFIEDS_PATH, icon: Newspaper }]
-      : []),
     ...(user?.accountType === "business"
       ? [{ id: "business-access", label: "Клиенты", path: "/app/business/access", icon: Building2, color: "#8b7cf6" }]
       : []),
@@ -889,7 +900,7 @@ function PlanningControls({ user }) {
       }
     }}>
       <PopoverTrigger
-        render={<ShadcnButton data-control-icon className="planning-fab rounded-full" size="icon" type="button" />}
+        render={<ShadcnButton data-control-icon className="planning-fab planning-fab--launcher" variant="outline" size="icon" type="button" />}
         aria-label="Открыть планирование"
         title="Планирование"
       >
@@ -977,10 +988,11 @@ function GlobalAppChrome() {
     ? <div className="planning-fab-space global-service-select"><PlanningSpaceSwitcher /></div>
     : brandCatalog && user ? <BusinessCatalogSelect side={isMobile ? "top" : "bottom"} fullWidth={isMobile} /> : current && (
         <Select value={current.id} onValueChange={selectTab}>
-          <SelectTrigger className="space-select global-service-select rounded-full" data-service-section-trigger aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
+          <SelectTrigger className="space-select global-service-select" aria-label={`Раздел сервиса ${service.label}`} title={`Разделы: ${service.label}`}>
             <SelectValue>{(selected) => {
               const option = options.find((item) => item.id === selected) || current;
-              return <span className="space-select__label">{option.label}</span>;
+              const Icon = option.icon;
+              return <>{Icon && <Icon aria-hidden="true" />}<span className="space-select__label">{option.label}</span></>;
             }}</SelectValue>
           </SelectTrigger>
           <SelectContent className={cn("space-select__content global-service-select__content w-max min-w-(--anchor-width) max-w-(--available-width)", isMobile && "app-navigation-popup")} side={isMobile ? "top" : "bottom"} align={isMobile && !user ? "end" : "center"} alignItemWithTrigger={false}>
@@ -1992,7 +2004,7 @@ function AppFriendsLink({ memberNumber }) {
   return (
     <ControlBar as="nav" aria-label="Связи профиля" className="flex items-center justify-center gap-2 whitespace-nowrap text-rollapp-body font-normal text-muted-foreground">
       {memberNumber && <span>{`ID #${memberNumber}`}</span>}
-      <Link to="/app/friends" className={cn(buttonVariants({ variant: "ghost" }), "gap-2 px-2 text-rollapp-body font-normal text-muted-foreground")}>
+      <Link to="/app/friends" className={cn(buttonVariants({ variant: "link" }), "gap-2 px-2 text-rollapp-body font-normal text-muted-foreground hover:text-foreground hover:no-underline")}>
         <Users aria-hidden="true" />
         <span>Друзья</span>
       </Link>
@@ -2029,7 +2041,6 @@ function AppShell({ children, friendsContext = false, collectionChrome = false, 
   const location = useLocation();
   const friendsRoute = friendsContext || isFriendsDirectoryPath(location.pathname);
   const wishesRoute = location.pathname.startsWith("/app/wishes");
-  const classifiedsRoute = location.pathname === APP_CLASSIFIEDS_PATH;
   const catalogRoute = location.pathname === APP_WISH_CATALOG_PATH;
   const businessRoute = location.pathname.startsWith("/app/business");
   const rollsRoute = location.pathname.startsWith("/app/rolls");
@@ -2048,7 +2059,7 @@ function AppShell({ children, friendsContext = false, collectionChrome = false, 
           {wishlistChrome ? <>
             <WishlistSectionNavigation user={user} />
             <PersistentProfileHero user={user} wishlistChrome />
-          </> : !collectionChrome && !catalogRoute && !classifiedsRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
+          </> : !collectionChrome && !catalogRoute && !businessRoute && !rollsRoute && !planningRoute && !messengerRoute && !diskNotesRoute && <PersistentProfileHero key={sphereScope ? `${sphereScope.sphere}:${sphereScope.section}` : "profile"} user={user} />}
           <SphereAccessRequestBanner />
           {children}
         </main>
@@ -3430,50 +3441,43 @@ function PersistentProfileHero({ user, wishlistChrome = false }) {
   const location = useLocation();
   const wishlistPage = useMatch(APP_HOME);
   const access = useSphereSharing();
-  const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const profile = !wishlistChrome && access.active && access.owner
-    ? { ...access.owner, publicMood: access.isOwner ? user.publicMood : access.owner.publicMood }
+    ? access.owner
     : user;
+  const moodLevel = profile.id === user.id ? user.moodLevel ?? user.publicMood : profile.publicMood;
   const editable = !access.active || access.isOwner;
-  const canManageSharing = access.active && access.isOwner && access.sphere !== "wishlist";
+  const params = new URLSearchParams(location.search);
+  const identityReports = location.pathname === "/app/spheres/identity" && params.get("tab") === "identity-reports";
+  const catalogPath = editable && !access.error && user.accountType === "personal" && canAccessPrivateSpheres(user) &&
+    !params.has("owner") && !location.pathname.includes("/business/")
+    ? identityReports ? sphereBusinessCatalogPath("identity", "identity-reports") : sphereBusinessCatalogPath(access.sphere, access.section)
+    : null;
   return (
     <section className="wishes-page__hero persistent-profile-hero" data-persistent-profile aria-labelledby="persistent-profile-name">
       <div className="wishes-page__identity wishes-page__identity--readonly">
         <div className="sphere-share-avatars">
           {/^\/app\/friends(?:\/|$)/.test(location.pathname) ? <StoryAvatar user={profile} own={editable} onEditProfile={openProfileEditor}>
-            <ProfilePortrait user={profile} />
+            <ProfilePortrait user={profile} moodLevel={moodLevel} />
           </StoryAvatar> : editable ? <ShadcnButton type="button" variant="ghost" className="persistent-profile-hero__avatar-button h-auto min-h-0 rounded-full p-0 active:translate-y-0" aria-label={`Редактировать профиль ${profile.name}`} title="Редактировать профиль" onClick={openProfileEditor}>
-            <ProfilePortrait user={profile} />
-          </ShadcnButton> : <ProfilePortrait user={profile} />}
-          {canManageSharing && (
-            <div className="sphere-share-avatars__people" aria-label="Доступ к разделу">
-              {access.people.slice(0, 3).map((person) => <Avatar key={person.id} user={person} size="sm" className="sphere-share-avatars__person !size-12" title={person.name} />)}
-              <ShadcnButton
-                type="button"
-                variant="outline"
-                size="icon"
-                className="sphere-share-avatars__add !size-12 rounded-full"
-                aria-label={`Открыть доступ к разделу «${SPHERE_SECTION_LABELS[access.section] || access.section}»`}
-                title="Открыть доступ"
-                onClick={() => setSharePickerOpen(true)}
-              >
-                <Plus aria-hidden="true" />
-              </ShadcnButton>
-            </div>
+            <ProfilePortrait user={profile} moodLevel={moodLevel} />
+          </ShadcnButton> : <ProfilePortrait user={profile} moodLevel={moodLevel} />}
+          {catalogPath && (
+            <ControlBar as="nav" className="sphere-share-avatars__people" aria-label="Бизнес-каталог">
+              <Link to={catalogPath} data-control-icon aria-label="Открыть каталог брендов" title="Каталог брендов"
+                className={buttonVariants({ variant: "outline", size: "icon" })}>
+                <ShoppingBag aria-hidden="true" />
+              </Link>
+            </ControlBar>
           )}
         </div>
         <div className="wishes-page__hero-copy">
           <h1 id="persistent-profile-name">{profile.name}</h1>
           {(wishlistChrome || wishlistPage) && editable && <AppFriendsLink memberNumber={profile.memberNumber} />}
-          <ProfileMoodCaption level={profile.publicMood} />
+          <ProfileMoodCaption level={moodLevel} />
         </div>
         {access.readOnly && <Badge variant="secondary" className="sphere-share-readonly-badge"><Eye aria-hidden="true" />Только чтение</Badge>}
       </div>
       {(wishlistChrome || location.pathname.startsWith("/app/wishes")) && <ExternalWishlistLinks links={profile.wishlistLinks} />}
-      {canManageSharing && <SphereSharePicker
-        open={sharePickerOpen}
-        onOpenChange={setSharePickerOpen}
-      />}
     </section>
   );
 }
@@ -3503,6 +3507,7 @@ function WishlistSectionNavigation({ user }) {
   const brands = isBrandCatalogSearch(search);
   const publication = path === APP_HOME ? profilePublicationSection(new URLSearchParams(search).get("publication")) : null;
   const links = [
+    { to: wishlistPublicationPath(space), active: path === APP_HOME && !publication, label: "Вишлист", title: "Вишлист", icon: Gift },
     { to: `${APP_WISH_CATALOG_PATH}?${tab}`, active: path === APP_WISH_CATALOG_PATH && !brands, label: "Открыть ленту", title: "Лента", icon: Newspaper },
     { to: brandCatalogPath(space), active: path === APP_WISH_CATALOG_PATH && brands, label: "Открыть каталог брендов", title: "Каталог брендов", icon: ShoppingBag },
     { to: `${APP_STORE_PATH}?${tab}`, active: path === APP_STORE_PATH || path === APP_ORDERS_PATH, label: "Открыть магазин", title: "Магазин", icon: Store },
@@ -3532,7 +3537,7 @@ function WishesProfileControls({ selectedSpace }) {
   return (
     <section className="wishes-page__profile-controls" aria-label="Управление Вишлистом">
       <ControlBar className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия со списком желаний">
-        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" render={<Link to={`/app/wishes/business?tab=${selectedSpace}`} />}>Моя страница</PageActionButton>}
+        {canManageWishlistSpace(user, selectedSpace) && <PageActionButton variant="outline" to={`/app/wishes/business?tab=${selectedSpace}`}>Моя страница</PageActionButton>}
       </ControlBar>
     </section>
   );
@@ -3604,15 +3609,20 @@ function StorePage({ user, selectedSpace, ordersOpen }) {
   </>;
 }
 
-function ProtectedWishlistBusiness({ classifieds = false, listings = false }) {
+function LegacyClassifiedsRedirect() {
+  const { search } = useLocation();
+  const requestedSpace = new URLSearchParams(search).get("tab");
+  const query = new URLSearchParams();
+  if (SPACE_IDS.includes(requestedSpace)) query.set("tab", requestedSpace);
+  query.set("publication", "announcements");
+  return <Navigate to={`${APP_HOME}?${query}`} replace />;
+}
+
+function ProtectedWishlistBusiness({ listings = false }) {
   const location = useLocation();
   const { user, loading } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  if (classifieds) {
-    if (!canManageWishSales(user, user.sellerSpace ?? "products")) return <Navigate to={APP_HOME} replace />;
-    return <AppShell><ClassifiedsPage key={user.id} user={user} /></AppShell>;
-  }
   if (listings) {
     const space = wishlistSpace(location.search);
     const business = new URLSearchParams(location.search).get("business") || "";
@@ -3638,8 +3648,14 @@ function WishlistHomeRoute() {
   const [wishModal, setWishModal] = useState(null);
   const [version, setVersion] = useState(0);
   if (user.accountType === "business") {
-    const requestedSpace = new URLSearchParams(search).get("tab");
-    return <Navigate to={publicSpacePath(user.username, SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products")} replace />;
+    const query = new URLSearchParams(search);
+    const requestedSpace = query.get("tab");
+    const space = SPACE_IDS.includes(requestedSpace) ? requestedSpace : user.sellerSpace || "products";
+    const publication = profilePublicationSection(query.get("publication"));
+    const destination = publication
+      ? `${publicPublicationPath(user.username, publication)}?${new URLSearchParams({ tab: space })}`
+      : publicSpacePath(user.username, space);
+    return <Navigate to={destination} replace />;
   }
   return <>
     <WishesPage version={version} onAdd={(space, listId) => setWishModal({ space, listId })} />
@@ -3698,6 +3714,47 @@ function BusinessMarketplaceRoute() {
   return <BusinessMarketplacePage key={`${user?.id}:${sphere.id}`} user={user} sphere={sphere} />;
 }
 
+function SphereBusinessCatalogRoute() {
+  const { user } = useSession();
+  const { sphereId } = useParams();
+  const { search } = useLocation();
+  const access = useSphereSharing();
+  const [sharePickerOpen, setSharePickerOpen] = useState(false);
+  const sphere = sphereId === "contacts" ? "career" : sphereId;
+  const query = new URLSearchParams(search);
+  const identityReports = sphere === "identity" && query.get("tab") === "identity-reports";
+  const section = sphereId === "contacts" ? "contacts" : identityReports ? "identity-reports" : access.section;
+  const catalogPath = sphereBusinessCatalogPath(sphere, section);
+  if (!catalogPath) return <Navigate to={APP_HOME} replace />;
+  if (sphereId === "contacts") return <Navigate to={catalogPath} replace />;
+  const home = sphereSectionPath({ sphere, section });
+  if (user.accountType !== "personal" || !access.isOwner || access.readOnly || query.has("owner")) return <Navigate to={APP_HOME} replace />;
+  const offers = query.get("view") === "offers";
+  const offerSearch = new URLSearchParams({ tab: section, view: "offers" });
+  const title = SPHERE_SERVICES.find(item => item.id === sphere)?.label;
+  return <div className="app-page page-stack rollapp-body">
+    <ControlBar as="nav" className="page-actions horizontal-action-scroller" aria-label={`Разделы сферы «${title}»`}>
+      <Link to={home} data-control-icon className={buttonVariants({ variant: "outline", size: "icon" })} aria-label={`К сфере «${title}»`} title={`К сфере «${title}»`}><ArrowLeft aria-hidden="true" /></Link>
+      <Link to={catalogPath} data-control-icon className={buttonVariants({ variant: offers ? "outline" : "default", size: "icon" })} aria-current={!offers ? "page" : undefined} aria-label="Каталог брендов" title="Каталог брендов"><ShoppingBag aria-hidden="true" /></Link>
+      <Link to={`${catalogPath.split("?")[0]}?${offerSearch}`} data-control-icon className={buttonVariants({ variant: offers ? "default" : "outline", size: "icon" })} aria-current={offers ? "page" : undefined} aria-label="Предложения" title="Предложения"><Send aria-hidden="true" /></Link>
+    </ControlBar>
+    <section className="page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label={offers ? "Предложения сферы" : "Каталог брендов"}>
+      {offers ? <PersonalOffers key={sphere} user={user} sphere={sphere} /> : <>
+        <header className="typeset typeset-rollapp">
+          <h2>Бренды · {title}</h2>
+          <p>Подпишитесь на бизнес, чтобы получать от него предложения.</p>
+        </header>
+        <BusinessCatalogProvider sphere={sphere}><BusinessCatalogList /></BusinessCatalogProvider>
+        {access.active && <><div><PageActionButton type="button" variant="outline" onClick={event => {
+          event.currentTarget.focus({ preventScroll: true });
+          setSharePickerOpen(true);
+        }}>Доступ к личному разделу</PageActionButton></div>
+        <SphereSharePicker open={sharePickerOpen} onOpenChange={setSharePickerOpen} /></>}
+      </>}
+    </section>
+  </div>;
+}
+
 function isAssistantPath(pathname) {
   return pathname.replace(/\/$/, "").toLowerCase() === APP_ASSISTANT_PATH;
 }
@@ -3725,7 +3782,7 @@ function ProtectedApp() {
   const { user, loading, refresh } = useSession();
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(safeNextPath(`${location.pathname}${location.search}`))}`} replace />;
-  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes></AppShell>;
+  return <AppShell><Routes><Route path="messenger/:conversationId?" element={<MessengerRoute user={user} />} /><Route index element={<Navigate to={APP_HOME} replace />} /><Route path="planning" element={<PlanningSpace key={user.id} />} /><Route path="private-notes" element={<PrivateNotes key={user.id} ownerId={user.id} />} /><Route path="rolls" element={<RollsWallet key={user.id} user={user} />} /><Route path="member-number" element={<MemberNumberPage key={user.id} user={user} onDrawn={refresh} />} /><Route path="business/access" element={<BusinessAccessPage />} /><Route path="ideas" element={<Navigate to={APP_HOME} replace />} /><Route path="friends" element={<Navigate to="/app/friends/subscriptions" replace />} /><Route path="friends/:section" element={<FriendsPage />} /><Route path="spheres/:sphereId/business/catalog" element={<PrivateSphereRoute><SphereBusinessCatalogRoute /></PrivateSphereRoute>} /><Route path="spheres/:sphereId/business/store" element={<PrivateSphereRoute><BusinessMarketplaceRoute /></PrivateSphereRoute>} /><Route path="spheres/identity" element={<PrivateSphereRoute><TabbedSpherePage sphereId="identity" tabs={IDENTITY_TABS} /></PrivateSphereRoute>} /><Route path="spheres/career" element={<PrivateSphereRoute><CareerSpherePage /></PrivateSphereRoute>} /><Route path="spheres/education" element={<PrivateSphereRoute><TabbedSpherePage sphereId="education" tabs={EDUCATION_TABS} /></PrivateSphereRoute>} /><Route path="spheres/health" element={<PrivateSphereRoute><TabbedSpherePage sphereId="health" tabs={HEALTH_TABS} /></PrivateSphereRoute>} /><Route path="spheres/contacts" element={<LegacyContactsRedirect />} /><Route path="gifts" element={<Navigate to={APP_HOME} replace />} /><Route path="notifications" element={<Navigate to={APP_HOME} replace />} /><Route path="settings" element={<Navigate to={APP_HOME} replace />} /><Route path="*" element={<Navigate to={APP_HOME} replace />} /></Routes></AppShell>;
 }
 
 function useWishActions({ wish, profile, lists = [], shareToken = "", onChanged, onDeleted }) {
@@ -5055,7 +5112,7 @@ function WishesPage({ onAdd, version }) {
   const profileControls = <WishesProfileControls selectedSpace={selectedSpace} />;
   const wishlistPath = wishlistPublicationPath(selectedSpace);
   const publicationContent = publication && <ProfilePublicationsPage key={`${user.id}:${user.username}:${publication}`} section={publication}
-    username={user.username} user={user} returnTo={wishlistPath} />;
+    username={user.username} user={user} returnTo={wishlistPath} showIntro={publication !== "calendar"} />;
   const loadError = error && <Alert variant="destructive" className="not-typeset rollapp-body">
     <AlertTitle>Не удалось загрузить Вишлист</AlertTitle>
     <AlertDescription className="grid gap-3">{error.message}<ShadcnButton type="button" variant="outline" onClick={() => reload({ background: Boolean(data) }).catch(() => {})}>Повторить</ShadcnButton></AlertDescription>
@@ -7337,7 +7394,7 @@ function FriendsPage() {
 
 const BROWSER_WISHLIST_PROVIDERS = EXTERNAL_WISHLIST_PROVIDERS.filter(({ browserFavoritesUrl }) => browserFavoritesUrl);
 
-function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUpdated, onWishlistsImported, finalFocus }) {
+function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUpdated, onWishlistsImported, finalFocus, diskSyncCallback }) {
   const isMobile = useIsMobile();
   const location = useLocation();
   const navigate = useNavigate();
@@ -7365,6 +7422,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   const [imageError, setImageError] = useState("");
   const [yandexEnabled, setYandexEnabled] = useState(null);
   const [yandexDiskBackupEnabled, setYandexDiskBackupEnabled] = useState(false);
+  const [yandexDiskSyncEnabled, setYandexDiskSyncEnabled] = useState(false);
   const [yandexDiskProfileEnabled, setYandexDiskProfileEnabled] = useState(false);
   const [diskProfileSaving, setDiskProfileSaving] = useState(false);
   const [openRouterBusy, setOpenRouterBusy] = useState(false);
@@ -7372,7 +7430,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   const [mcpKeysBusy, setMcpKeysBusy] = useState(false);
   const [moodBusy, setMoodBusy] = useState(false);
   const [openRouterDraft, setOpenRouterDraft] = useState({ apiKey: "", modelId: null });
-  const [section, setSection] = useState(null);
+  const [section, setSection] = useState(diskSyncCallback ? "yandex" : null);
   const [rootOpen, setRootOpen] = useState(true);
   const pendingExit = useRef(null);
   const sectionTrigger = useRef(null);
@@ -7393,7 +7451,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
     { id: "orders", title: "Заказы", icon: PackageCheck, path: APP_ORDERS_PATH },
   ];
   const sectionTitle = sections.find(({ id }) => id === section)?.title;
-  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy || diskProfileSaving || moodBusy;
+  const yandexSettingsBlocked = Boolean(loading || imageUploading || loggingOut);
   useLayoutEffect(() => {
     if (isMobile) return;
     if (section) {
@@ -7407,12 +7465,17 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
   const changed = profileChanged || changedWishlists.length > 0;
   const sourceParams = new URLSearchParams(location.search);
   sourceParams.delete("formScreen");
+  sourceParams.delete("diskSync");
   const yandexLinkNext = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}`);
   const accountReturnPath = safeNextPath(`${location.pathname}${sourceParams.size ? `?${sourceParams}` : ""}${location.hash}`);
   const addAccountHref = `/login?${new URLSearchParams({ add_account: "1", next: accountReturnPath })}`;
   const yandexLinkHref = yandexAuthStartPath(yandexLinkNext, { link: true });
-  const yandexSettingsBlocked = changed || loading || imageUploading || loggingOut;
-  const yandexLinkBlocked = yandexSettingsBlocked || diskProfileSaving;
+  const diskSync = useDiskSyncSettings({
+    active: section === "yandex" && yandexDiskSyncEnabled && !yandexSettingsBlocked && !changed,
+    ownerId: user.id, next: yandexLinkNext, callback: diskSyncCallback, onNavigate: (path) => leaveSettingsFor(path),
+  });
+  const busy = loading || importingWishlist || imageUploading || loggingOut || openRouterBusy || accountsBusy || mcpKeysBusy || diskProfileSaving || moodBusy || diskSync.busy;
+  const yandexLinkBlocked = changed || yandexSettingsBlocked || diskProfileSaving || diskSync.busy;
   useEffect(() => {
     let active = true;
     api.get("/auth/yandex/config")
@@ -7420,6 +7483,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
         if (!active) return;
         setYandexEnabled(Boolean(config.enabled));
         setYandexDiskBackupEnabled(Boolean(config.diskBackupEnabled));
+        setYandexDiskSyncEnabled(Boolean(config.diskSyncEnabled));
         setYandexDiskProfileEnabled(Boolean(config.diskProfileEnabled));
       })
       .catch(() => { if (active) setYandexEnabled(false); });
@@ -7806,6 +7870,10 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       {!user.hasYandex && yandexEnabled === null && <p className="text-sm text-muted-foreground" role="status">Проверяем доступность Yandex ID…</p>}
       {!user.hasYandex && yandexEnabled === false && <p className="text-sm text-muted-foreground">Подключение Yandex ID сейчас недоступно.</p>}
       {!user.hasYandex && yandexEnabled && yandexLinkBlocked && <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед подключением.</p>}
+      {!user.hasYandex && yandexEnabled && yandexDiskSyncEnabled && !yandexLinkBlocked &&
+        <a href={yandexLinkHref} className="underline underline-offset-4">Подключить Яндекс ID для входа</a>}
+      {user.hasYandex && yandexDiskSyncEnabled && changed &&
+        <p className="text-sm text-muted-foreground">Сохраните или отмените изменения профиля перед настройкой синхронизации.</p>}
       {yandexDiskBackupEnabled && (
         <p className="rollapp-body">Если вы разрешите доступ к Диску, Rollapp сохранит копию данных и загруженных файлов в папку ROLLAPP.</p>
       )}
@@ -7813,8 +7881,10 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
         <p className="rollapp-body">Сохраните или отмените изменения профиля перед копированием.</p>
       )}
     </Card>
-    {!yandexLinkBlocked && <PrivateNotesLink onNavigate={leaveSettingsFor} />}
-    {!yandexSettingsBlocked && (yandexDiskProfileEnabled || user.diskProfile) && <DiskProfileSettings ownerId={user.id} onProfileUpdated={onProfileUpdated} onBusyChange={setDiskProfileSaving} />}
+    {yandexDiskSyncEnabled
+      ? !changed && diskSync.body
+      : !yandexLinkBlocked && <PrivateNotesLink onNavigate={leaveSettingsFor} />}
+    {!changed && !yandexSettingsBlocked && (yandexDiskProfileEnabled || user.diskProfile) && <DiskProfileSettings ownerId={user.id} onProfileUpdated={onProfileUpdated} onBusyChange={setDiskProfileSaving} />}
   </div> : null;
   const openRouterSection = section === "openrouter" && (
     <OpenRouterSettings
@@ -7856,11 +7926,12 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       </ShadcnButton>
     </DrawerFooter>
   );
-  const yandexFooter = section === "yandex" && yandexEnabled && !yandexLinkBlocked && (!user.hasYandex || yandexDiskBackupEnabled) && (
+  const yandexFooter = section === "yandex" && (
     <DrawerFooter>
-      {user.hasYandex
+      {!yandexDiskSyncEnabled && yandexEnabled && !yandexLinkBlocked && (!user.hasYandex || yandexDiskBackupEnabled) && (user.hasYandex
         ? <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Создать резервную копию на Яндекс Диске">Сделать копию</a>
-        : <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>}
+        : <a data-slot="button" className={buttonVariants()} href={yandexLinkHref} aria-label="Войти с Яндекс ID и подключить его к аккаунту">Подключить Яндекс ID</a>)}
+      {yandexDiskSyncEnabled && !changed && !yandexSettingsBlocked && !diskProfileSaving && diskSync.actions}
     </DrawerFooter>
   );
   const desktopSection = !isMobile && section;
@@ -7887,14 +7958,11 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
           <X />
           <span className="sr-only">Закрыть</span>
         </DrawerClose>}
-        {desktopSection ? <DrawerHeader className="mx-auto w-full max-w-full flex-row items-center gap-2 p-4">
-          <ControlBar>
-            <ShadcnButton data-control-icon="" type="button" variant="outline" size="icon" aria-label="Назад" disabled={busy} onClick={backToSections}>
-              <ArrowLeft aria-hidden="true" />
-            </ShadcnButton>
-          </ControlBar>
-          <DrawerTitle ref={sectionHeading} tabIndex={-1}>{sectionTitle}</DrawerTitle>
-        </DrawerHeader> : <DrawerHeader className={cn("mx-auto w-full max-w-full", !isMobile && "h-14 p-0")}>
+        {desktopSection ? <DrawerSectionHeader title={sectionTitle} titleRef={sectionHeading} startAction={
+          <ShadcnButton data-control-icon="" type="button" variant="outline" size="icon" aria-label="Назад" disabled={busy} onClick={backToSections}>
+            <ArrowLeft aria-hidden="true" />
+          </ShadcnButton>
+        } /> : <DrawerHeader className={cn("mx-auto w-full max-w-full", !isMobile && "h-14 p-0")}>
           {isMobile ? <DrawerTitle>Настройки профиля</DrawerTitle> : <DrawerTitle className="sr-only">Изменить профиль</DrawerTitle>}
           <DrawerDescription className="sr-only">Редактирование данных профиля.</DrawerDescription>
         </DrawerHeader>}
@@ -7913,7 +7981,7 @@ function ProfileSettingsModal({ user, onClose, onSaved, onMoodSaved, onProfileUp
       });
     }}>
       <DrawerContent className="rollapp-body app-drawer--form">
-        <DrawerHeader><DrawerTitle>{sectionTitle}</DrawerTitle></DrawerHeader>
+        <DrawerSectionHeader title={sectionTitle} />
         {fullSection || <>
           {sectionBody}
           {section !== "wishlists" && section !== "rolls" && (personalFooter || yandexFooter || <DrawerFooter />)}
@@ -8192,7 +8260,7 @@ function PublicProfile({ shared = false }) {
   const businessStorefront = businessProfile && !params.listId && !params.wishId;
   const sellerProfile = businessStorefront && data.profile.businessCategory === "seller";
   const sellerSpace = activeSpace;
-  const portrait = data.isOwner && data.profile.id === user?.id ? { ...data.profile, publicMood: user.publicMood } : data.profile;
+  const moodLevel = data.isOwner && data.profile.id === user?.id ? user.moodLevel ?? user.publicMood : data.profile.publicMood;
   const identity = (
     <div className="wishes-page__identity friend-profile-page__identity">
       {data.isOwner ? <ShadcnButton
@@ -8203,13 +8271,13 @@ function PublicProfile({ shared = false }) {
         title={businessProfile ? undefined : "Редактировать профиль"}
         onClick={openProfileEditor}
       >
-        <ProfilePortrait user={portrait} />
-      </ShadcnButton> : <ProfilePortrait user={portrait} />}
+        <ProfilePortrait user={data.profile} moodLevel={moodLevel} />
+      </ShadcnButton> : <ProfilePortrait user={data.profile} moodLevel={moodLevel} />}
       {businessProfile && <BusinessGiftAction business={data.profile} user={user} />}
       <div className="wishes-page__hero-copy">
         <h1 id="public-profile-name">{data.profile.name}</h1>
         {data.isOwner && <AppFriendsLink memberNumber={data.profile.memberNumber} />}
-        <ProfileMoodCaption level={portrait.publicMood} />
+        <ProfileMoodCaption level={moodLevel} />
         {businessProfile && <span className="text-muted-foreground">Бизнес-аккаунт</span>}
       </div>
     </div>
@@ -8317,14 +8385,14 @@ function PublicBookingPage() {
   return <ProfilePublicationsPage key={`${username}:${user?.id || ""}`} section="calendar" username={username} user={user} />;
 }
 
-function ProfilePublicationsPage({ section, username, user, returnTo }) {
+function ProfilePublicationsPage({ section, username, user, returnTo, showIntro }) {
   const location = useLocation();
   const endpoint = `/profile/${encodeURIComponent(username)}/${section}`;
   const { data, loading, error, reload } = useAsync(() => api.get(endpoint), [endpoint]);
   if (data && data.profile.username !== username && !returnTo) {
     return <Navigate to={renamedProfileLocation(location, username, data.profile.username)} replace />;
   }
-  const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload, returnTo }} />;
+  const page = <ProfilePublications {...{ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro }} />;
   if (returnTo) return page;
   return user
     ? <AppShell friendsContext={!data?.isOwner} collectionChrome>{page}</AppShell>
@@ -8383,7 +8451,7 @@ export default function App() {
               <Route path={APP_WISH_OFFERS_PATH} element={<WishlistOffersRoute />} />
               <Route path={APP_WISH_SALES_PATH} element={<WishlistSalesRoute />} />
             </Route>
-            <Route path={APP_CLASSIFIEDS_PATH} element={<ProtectedWishlistBusiness classifieds />} />
+            <Route path={APP_CLASSIFIEDS_PATH} element={<LegacyClassifiedsRedirect />} />
             <Route path={APP_WISH_LISTINGS_PATH} element={<ProtectedWishlistBusiness listings />} />
             <Route path="/app/wishes/business" element={<ProtectedWishlistBusiness />} />
             <Route path={APP_ASSISTANT_PATH} element={<AssistantRoute />} />

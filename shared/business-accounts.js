@@ -10,6 +10,13 @@ export const BUSINESS_CATEGORIES = [
 ];
 
 export const BUSINESS_CATEGORY_IDS = BUSINESS_CATEGORIES.map(({ id }) => id);
+export const BUSINESS_OFFER_SPHERES = BUSINESS_CATEGORIES.filter(({ sphere }) => sphere !== "wishlist").map(({ sphere }) => sphere);
+
+export function sphereBusinessCatalogPath(sphere, section) {
+  if (!BUSINESS_OFFER_SPHERES.includes(sphere)) return null;
+  const search = section ? `?${new URLSearchParams({ tab: section })}` : "";
+  return `/app/spheres/${sphere}/business/catalog${search}`;
+}
 
 export function businessCategoryFor(account) {
   return BUSINESS_CATEGORIES.find(({ id }) => id === (account?.businessCategory ?? account?.business_category)) || null;

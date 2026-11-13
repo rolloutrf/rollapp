@@ -75,7 +75,7 @@ export function createYandexDiskClient(config, { fetchImpl = fetch } = {}) {
   // Bound the whole provider interaction, including response bodies and retries.
   const signal = AbortSignal.timeout(15_000);
   async function request(url, options) {
-    try { return await fetchImpl(url, { ...options, signal, redirect: "error" }); }
+    try { return await fetchImpl(url, { redirect: "error", ...options, signal }); }
     catch { throw diskUnavailable(); }
   }
 
@@ -124,7 +124,17 @@ export function createYandexDiskClient(config, { fetchImpl = fetch } = {}) {
     const link = await resource(token, path, { suffix: "/download" });
     if (link.status === 404) throw missing();
     if (!link.ok) throw diskUnavailable();
-    const file = await request(await transferLink(link, "GET"), { method: "GET" });
+    let file = await request(await transferLink(link, "GET"), { method: "GET", redirect: "manual" });
+    if ([301, 302, 303, 307, 308].includes(file.status)) {
+      const location = file.headers.get("location");
+      await file.body?.cancel();
+      let destination;
+      try { destination = new URL(location); } catch { throw diskUnavailable(); }
+      // Download links can redirect to Yandex's storage backend. Neither hop carries OAuth.
+      if (destination.origin !== "https://mds.storage.yandex.net" ||
+        destination.username || destination.password) throw diskUnavailable();
+      file = await request(destination, { method: "GET" });
+    }
     if (!file.ok) throw diskUnavailable();
     return boundedText(file, maxBytes);
   }

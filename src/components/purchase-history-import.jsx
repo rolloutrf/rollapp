@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { FileUp, LockKeyhole, X } from "lucide-react";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { FileUp, LockKeyhole } from "lucide-react";
+import { Drawer, DrawerBack, DrawerContent, DrawerFooter, DrawerSectionHeader } from "@/components/form-surface";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -148,13 +148,9 @@ export function PurchaseHistoryImport({ onClose, onSaved, returnFocusRef }) {
       else if (!open) onClose();
     }}>
       <DrawerContent className="app-drawer--form rollapp-body" finalFocus={returnFocusRef} aria-labelledby={`${id}-title`}>
-        <DrawerClose render={<Button className="absolute top-2 right-2 z-10" variant="outline" size="icon" type="button" disabled={saving} />} aria-label="Закрыть импорт">
-          <X aria-hidden="true" />
-        </DrawerClose>
-        <DrawerHeader className="md:pr-16">
-          <DrawerTitle id={`${id}-title`} className="text-2xl">Импорт покупок</DrawerTitle>
-          <DrawerDescription>Из банковской выписки, заказов или чеков в Вишлист.</DrawerDescription>
-        </DrawerHeader>
+        <DrawerSectionHeader title="Импорт покупок" titleId={`${id}-title`}
+          description="Из банковской выписки, заказов или чеков в Вишлист."
+          startAction={<DrawerBack disabled={saving} />} />
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
           <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
             <Input ref={fileInput} type="file" accept={accept} hidden onChange={readFile} />

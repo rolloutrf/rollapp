@@ -29,6 +29,8 @@ const sources = [
   ].map((table) => [table, owned]),
   ["wishlists", owned, pick("id", "user_id", "title", "description", "privacy", "occasion_date", "color", "created_at", "space")],
   ["wish_participants", `(${owned} OR ${ownedWish})`, pick("wish_id", "user_id", "created_at")],
+  ["account_invites", "t.created_by=$1", pick("id", "recipient_email", "created_at", "expires_at", "delivery_status", "consumed_by", "consumed_at")],
+  ["membership_receipts", owned, pick("user_id", "member_number", "nonce", "receipt_hash", "created_at", "chain", "chain_transaction", "chain_status")],
   ["wish_groups", ownedList],
   ["wishlist_wishes", `${ownedList} AND ${ownedWish}`],
   ["wish_group_members", `${ownedList} AND ${ownedWish}
@@ -48,6 +50,7 @@ const sources = [
     "source_path", "filename", "mime_type", "size_bytes", "file_sha256", "created_at"), 1],
   ["stories", `${owned} AND t.expires_at>CURRENT_TIMESTAMP`,
     bytes("video_data", "id", "user_id", "size_bytes", "duration_seconds", "created_at", "expires_at"), 1],
+  // Catalog subscriptions reuse follows. Export only rows involving this account.
   ["follows", "(t.follower_id=$1 OR t.following_id=$1)"],
   ["sphere_section_shares", "t.owner_user_id=$1"],
   ["sphere_access_requests", "(t.requester_user_id=$1 OR t.owner_user_id=$1)"],
@@ -78,12 +81,21 @@ const sources = [
 ];
 
 async function accountBackupSources(client) {
-  const { rows: [schema] } = await client.query("SELECT to_regclass('user_mood_entries') IS NOT NULL AS mood_ready");
-  if (!schema.mood_ready) return sources;
+  const { rows: [schema] } = await client.query(`SELECT to_regclass('user_mood_entries') IS NOT NULL AS mood_ready,
+    to_regclass('profile_session_slots') IS NOT NULL AS slots_ready,
+    to_regclass('profile_announcements') IS NOT NULL AS announcements_ready`);
   const [userSource, ...remaining] = sources;
+  const bookings = schema.slots_ready ? [
+    ["profile_session_slots", `(t.owner_id=$1 OR EXISTS (SELECT 1 FROM profile_session_bookings b
+      WHERE b.slot_id=t.id AND b.guest_id=$1))`, pick("id", "owner_id", "starts_at", "ends_at", "title")],
+    ["profile_session_bookings", `(t.guest_id=$1 OR EXISTS (SELECT 1 FROM profile_session_slots s
+      WHERE s.id=t.slot_id AND s.owner_id=$1))`, pick("id", "slot_id", "guest_id")],
+  ] : [];
   return [
-    [userSource[0], userSource[1], `${userSource[2]} || ${pick("mood_level", "mood_public")}`],
-    ["user_mood_entries", owned, pick("user_id", "id", "level", "recorded_at")],
+    schema.mood_ready ? [userSource[0], userSource[1], `${userSource[2]} || ${pick("mood_level", "mood_public")}`] : userSource,
+    ...(schema.mood_ready ? [["user_mood_entries", owned, pick("user_id", "id", "level", "recorded_at")]] : []),
+    ...bookings,
+    ...(schema.announcements_ready ? [["profile_announcements", "t.owner_id=$1", pick("id", "owner_id", "title", "body", "created_at")]] : []),
     ...remaining,
   ];
 }
@@ -95,7 +107,7 @@ export async function verifyAccountBackupSchema(client) {
   }
 }
 
-async function* accountJson(client, userId, createdAt, signal) {
+async function* accountJson(client, userId, createdAt, signal, privateNotes) {
   yield `{"format":"rollapp-account-backup","version":1,"createdAt":${JSON.stringify(createdAt)},"tables":{`;
   for (const [index, [table, filter, projection = "to_jsonb(t)", batchSize = 100]] of (await accountBackupSources(client)).entries()) {
     signal.throwIfAborted();
@@ -117,14 +129,16 @@ async function* accountJson(client, userId, createdAt, signal) {
     if (table === "users" && first) throw new Error("Backup account no longer exists");
     yield "]";
   }
-  yield "}}\n";
+  yield "}";
+  if (privateNotes !== undefined) yield `,"privateNotes":${JSON.stringify({ markdown: privateNotes })}`;
+  yield "}\n";
 }
 
-export function writeAccountBackup({ transaction, userId, createdAt, output, signal }) {
+export function writeAccountBackup({ transaction, userId, createdAt, output, signal, privateNotes }) {
   return transaction(async (client) => {
     await client.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
     await client.query("SET LOCAL statement_timeout = '20s'");
     await client.query("SET LOCAL lock_timeout = '3s'");
-    await pipeline(Readable.from(accountJson(client, userId, createdAt, signal)), createGzip(), output, { signal });
+    await pipeline(Readable.from(accountJson(client, userId, createdAt, signal, privateNotes)), createGzip(), output, { signal });
   });
 }

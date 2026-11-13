@@ -58,7 +58,11 @@ assert.match(dailyTodo, /<PlanningDayRibbon\b/, "To Do must use the shared day r
 assert.match(dayRibbon, /<div\b[^>]*className="daily-todo__ribbon horizontal-tile-scroller"/, "Desktop date content tiles must stay outside 48px ControlBar geometry");
 assert.match(dayRibbon, /data-list-tile="" className="daily-todo__day"/, "Desktop dates must use the shared standard tile styling");
 assert.match(await read("src/components/wish-list-navigation.jsx"), /list-tabs horizontal-tile-scroller/, "Wishlist must share tile-rail edges with day ribbons");
-assert.match(await read("src/components/education-lists.jsx"), /list-tabs horizontal-tile-scroller/, "Group rails must share the main page edge contract");
+for (const file of ["education-lists", "medications", "identity-reports-page", "lab-results", "performance-review"]) {
+  const source = await read(`src/components/${file}.jsx`);
+  assert.match(source, /<WishListNavigation\b/, `${file}: reuse the Wishlist tile rail and per-tile actions`);
+  assert.doesNotMatch(source, />\s*Настрой(?:ки|ть) (?:списка|список|группы)\s*<\//, `${file}: keep list settings on the tile`);
+}
 assert.doesNotMatch(await read("src/components/planning-daily-todo.css"), /mask(?:-image)?\s*:/, "Day rails cannot add a local fading mask");
 assert.match(agents, /Use `PageActionButton`/, "Workspace instructions must document the shared text-action button contract");
 const config = JSON.parse(configText);
@@ -311,9 +315,10 @@ for (const token of ["--muted", "--radius", "--radius-sm", "--radius-lg"]) {
   );
 }
 assert.doesNotMatch(legacyStyles, /--brand-logo-(?:left|right|center):/, "The retired multicolor CSS logo tokens must not return");
-for (const component of ["Alert", "Badge", "Button", "Card", "Accordion", "Input", "Spinner", "Tabs"]) {
+for (const component of ["Alert", "Badge", "Button", "Card", "Accordion", "Input", "Spinner", "DropdownMenu", "AlertDialog"]) {
   assert(new RegExp(`<${component}\\b`).test(labResultsSource), `LabResults must compose the official shadcn ${component}`);
 }
+assert.match(labResultsSource, /<WishListNavigation\b/, "LabResults must use the shared list tile navigation");
 const snippetMediaSource = await read("src/components/collection-snippet-media.jsx");
 assert.match(snippetMediaSource, /import \{ Badge \} from "@\/components\/ui\/badge"/, "CollectionSnippetBadge must use the official Badge primitive");
 assert.match(snippetMediaSource, /<Badge\b/, "CollectionSnippetBadge must compose the official Badge");
@@ -654,7 +659,7 @@ assert(/<ShadcnButton\b/.test(wishesProfileHeroSource) && /type="button"/.test(w
 assert(/onClick=\{openProfileEditor\}/.test(wishesProfileHeroSource), "PersistentProfileHero must open profile editing in place");
 const listTileContentSource = await read("src/components/list-tile-content.jsx");
 assert.doesNotMatch(listTileContentSource, /style=/, "List tile typography belongs to shared CSS, never inline styles");
-for (const file of ["src/components/wish-list-navigation.jsx", "src/components/education-lists.jsx", "src/components/medications.jsx", "src/components/planning-day-ribbon.jsx"]) {
+for (const file of ["src/components/wish-list-navigation.jsx", "src/components/planning-day-ribbon.jsx"]) {
   const source = await read(file);
   assert(source.includes('@/components/list-tile-content'), `${file}: reuse shared ListTileContent`);
   assert.doesNotMatch(source, /LIST_TILE_STYLE|function ListTileContent/, `${file}: do not copy list-tile geometry or content`);

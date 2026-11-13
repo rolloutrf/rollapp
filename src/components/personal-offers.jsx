@@ -10,12 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ControlBar } from "@/components/control-bar";
-import { canBusinessAccessSection } from "../../shared/business-accounts.js";
+import { BUSINESS_CATEGORIES, canBusinessAccessSection } from "../../shared/business-accounts.js";
 import { SPHERE_SECTIONS } from "../../shared/sphere-sharing.js";
 import { formatRolls } from "../../shared/rolls.js";
 
 export const durations = [["1", "1 час"], ["24", "24 часа"], ["72", "3 дня"], ["168", "7 дней"], ["720", "30 дней"]];
-const itemSpheres = [["career", "Карьера"], ["education", "Образование"], ["health", "Здоровье"], ["contacts", "Контакты"]];
+const itemSpheres = BUSINESS_CATEGORIES.filter(({ sphere }) => sphere !== "wishlist").map(({ sphere, sphereLabel }) => [sphere, sphereLabel]);
 
 export function PersonalOfferComposer({ item, client = api }) {
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ export function PersonalOfferComposer({ item, client = api }) {
     if (!open || recipient) return;
     let active = true;
     const timer = setTimeout(() => {
-      client.get(`/business-access/users?search=${encodeURIComponent(search)}`).then(result => {
+      client.get(`/personal-offers/recipients?search=${encodeURIComponent(search)}`).then(result => {
         if (active) { setPeople(result.people || []); setError(""); }
       }).catch(e => { if (active) setError(e.message); });
     }, 250);
@@ -57,6 +57,7 @@ export function PersonalOfferComposer({ item, client = api }) {
       {recipient ? <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="min-w-0 wrap-anywhere">{recipient.name} · @{recipient.username}</span><Button type="button" variant="outline" disabled={busy} onClick={() => setRecipient(null)}>Изменить</Button></div> : <>
         <Input id={`offer-person-${item.id}`} placeholder="Имя или username" value={search} onChange={e => { setSearch(e.target.value); setPeople([]); }} />
         <div className="flex max-h-60 min-w-0 flex-col gap-2 overflow-y-auto" aria-label="Пользователи">{people.map(person => <Button type="button" className="h-auto min-w-0 whitespace-normal wrap-anywhere" variant="outline" key={person.id} onClick={() => setRecipient(person)}>{person.name} · @{person.username}</Button>)}</div>
+        {!people.length && !error && <p className="text-muted-foreground">Предложения можно отправить подписчикам вашего бизнеса.</p>}
       </>}
     </Field>
     <Field><FieldLabel htmlFor={`offer-price-${item.id}`}>Цена в роллах</FieldLabel><Input id={`offer-price-${item.id}`} type="number" inputMode="numeric" min="1" max="1000000" step="1" required disabled={busy} value={price} onChange={e => setPrice(e.target.value)} /></Field>
@@ -127,7 +128,7 @@ export function BusinessPersonalOffers({ client = api, user }) {
   </section>;
 }
 
-export function PersonalOffers({ user, onPaid, client = api }) {
+export function PersonalOffers({ user, sphere, onPaid, client = api }) {
   const [offers, setOffers] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -144,6 +145,12 @@ export function PersonalOffers({ user, onPaid, client = api }) {
   const mounted = useRef(false);
   const owner = useRef(user.id);
   owner.current = user.id;
+  const offerPath = (offset) => {
+    const query = new URLSearchParams();
+    if (sphere) query.set("sphere", sphere);
+    if (offset != null) query.set("offset", offset);
+    return query.size ? `/personal-offers?${query}` : "/personal-offers";
+  };
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
@@ -151,7 +158,7 @@ export function PersonalOffers({ user, onPaid, client = api }) {
   useEffect(() => {
     if (paginated.current) return;
     let active = true;
-    client.get("/personal-offers").then(result => {
+    client.get(offerPath()).then(result => {
       if (active && !paginated.current) {
         setOffers(result.offers);
         setNextOffset(result.nextOffset ?? null);
@@ -159,7 +166,7 @@ export function PersonalOffers({ user, onPaid, client = api }) {
       }
     }).catch(e => { if (active) setError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [revision, user.id, client]);
+  }, [revision, user.id, sphere, client]);
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(Date.now());
@@ -173,7 +180,7 @@ export function PersonalOffers({ user, onPaid, client = api }) {
     paginated.current = true;
     moreLock.current = true; setLoadingMore(true);
     try {
-      const result = await client.get(`/personal-offers?offset=${nextOffset}`);
+      const result = await client.get(offerPath(nextOffset));
       if (!mounted.current || owner.current !== sourceUser) return;
       setOffers(previous => [...new Map([...previous, ...result.offers].map(offer => [offer.id, offer])).values()]);
       setNextOffset(result.nextOffset ?? null);

@@ -21,6 +21,8 @@ test("personal offers on existing production schema: every test write is rolled 
     }
     const product = await createPersonalOfferItem(client, seller, { title: "Frozen title", priceRolls: 70, sphere: "education", itemType: "service", idempotencyKey: itemId });
     const data = { itemId: product.id, recipientId: buyer, priceRolls: 40, durationHours: 24, idempotencyKey: randomUUID() };
+    await assert.rejects(createPersonalOffer(client, seller, data), error => error.code === "OFFER_CONSENT_REQUIRED");
+    await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [buyer,seller]);
     const offer = await createPersonalOffer(client, seller, data);
     const balances = async () => (await client.query("SELECT user_id,balance::text FROM roll_wallets WHERE user_id=ANY($1::text[]) ORDER BY user_id", [[seller,buyer,other]])).rows;
     const reject = async (operation, code) => {
@@ -62,6 +64,16 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal(body.offers.length, userId === other ? 0 : 1);
           if (body.offers.length) { assert.equal(body.offers[0].id, offer.id); assert.equal(body.offers[0].idempotencyKey, undefined); }
         }
+        for (const [sphere, count] of [["education", 1], ["health", 0]]) {
+          const response = await fetch(`http://127.0.0.1:${server.address().port}/api/personal-offers?sphere=${sphere}`, { headers: { "x-test-user": buyer } });
+          assert.equal(response.status, 200);
+          assert.equal((await response.json()).offers.length, count);
+        }
+        const recipientsUrl = `http://127.0.0.1:${server.address().port}/api/personal-offers/recipients`;
+        const listRecipients = await fetch(recipientsUrl, { headers: { "x-test-user": seller } });
+        assert.equal(listRecipients.status, 200);
+        assert.deepEqual((await listRecipients.json()).people.map(person => person.id), [buyer]);
+        assert.equal((await fetch(recipientsUrl, { headers: { "x-test-user": other } })).status, 403);
         await client.query("SAVEPOINT invoice_pagination");
         try {
           const ids = Array.from({ length: 101 }, () => randomUUID());
@@ -127,6 +139,7 @@ test("personal offers on existing production schema: every test write is rolled 
           const request=async(path,body,userId=buyer)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api${path}`,{method:body?"POST":"GET",headers:{"x-test-user":userId,"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,body:await response.json()};};
           const terms={buyerId:buyer,priceRolls:40,durationHours:24,idempotencyKey:randomUUID()};
           const path=`/wishlist-business/products/items/${wishlistItem}/recommend`;
+          await client.query("DELETE FROM follows WHERE follower_id=$1 AND following_id=$2",[buyer,seller]);
           const recommendation=await request(path,terms,seller);
           assert.equal(recommendation.status,200,JSON.stringify(recommendation.body));
           const paymentId=recommendation.body.personalOfferId;
@@ -138,11 +151,15 @@ test("personal offers on existing production schema: every test write is rolled 
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].title,'Original wishlist item');
           await client.query("DELETE FROM sphere_section_shares WHERE owner_user_id=$1 AND viewer_user_id=$2 AND sphere='wishlist'",[buyer,seller]);
           const denied=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(denied.status,403);assert.equal(denied.body.code,'OFFER_ACCESS_REVOKED');
-          await grant();
+          await client.query("INSERT INTO follows (follower_id,following_id) VALUES ($1,$2)", [buyer,seller]);
+          const buyers = await request('/wishlist-business/products/buyers',null,seller);
+          assert.deepEqual(buyers.body.buyers.map(person => person.id), [buyer]);
           const paid=await request(`/personal-offers/${paymentId}/pay`,{});assert.equal(paid.status,201,JSON.stringify(paid.body));
           assert.equal((await request(`/personal-offers/${paymentId}/pay`,{})).status,200);
           assert.equal((await client.query("SELECT balance::text FROM roll_wallets WHERE user_id=$1",[buyer])).rows[0].balance,'60');
           assert.equal((await request('/wishlist-business/products/offers')).body.items[0].personalOffer.status,'paid');
+          const subscribed = await request(path, {...terms, idempotencyKey: randomUUID()},seller);
+          assert.equal(subscribed.status,200);
         } finally { await client.query("ROLLBACK TO SAVEPOINT wishlist_checkout"); }
       } finally { await new Promise(resolve => server.close(resolve)); }
     });

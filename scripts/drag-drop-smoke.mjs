@@ -129,7 +129,10 @@ async function checkMouseListTiles(page, width) {
       await page.screenshot({ path: `/tmp/rollapp-drag-drop/${width}-list-tiles-lifted.png` });
       await page.keyboard.press('Escape');
     }
-    if (action === 'outside') await page.mouse.move(point.end.x, Math.max(0, point.bounds.y - 15));
+    if (action === 'outside') {
+      const outsideY = point.bounds.y >= 15 ? point.bounds.y - 15 : point.bounds.y + point.bounds.height + 15;
+      await page.mouse.move(point.end.x, outsideY);
+    }
     if (action === 'capture') await row(page).evaluate(node => {
       if (!node.hasPointerCapture(1)) throw new Error('Wishlist row lost its native mouse capture');
       node.releasePointerCapture(1);

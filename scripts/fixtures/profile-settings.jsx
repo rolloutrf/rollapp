@@ -17,6 +17,10 @@ sessionStorage.setItem(`rollapp:virtual-card-sandbox:${fixtureUser.id}:legacy-fu
 let openRouter = { available: true, configured: true, model: "fixture-model", keyHint: "…fixture" };
 let invites = [];
 let mcpKeys = [];
+let diskSync = { connected: true, hasNotes: true, enabled: false, pending: false, running: false, lastCompletedAt: null, error: null };
+window.completeDiskSync = () => {
+  diskSync = { ...diskSync, pending: false, running: false, lastCompletedAt: "2026-11-13T22:00:00Z" };
+};
 window.mcpKeyRequests = [];
 // Explicit component-only transport; no API requests or database writes.
 api.get = async (path) => {
@@ -26,7 +30,9 @@ api.get = async (path) => {
     window.backupStatusRequested = true;
     return { status: window.backupReady ? new URLSearchParams(location.search).get("result") : "pending" };
   }
-  if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: mode !== "error", diskProfileEnabled: mode === "disk-profile" };
+  if (path === "/auth/yandex/config") return { enabled: mode !== "error", diskBackupEnabled: !["error", "disk-sync"].includes(mode),
+    diskProfileEnabled: mode === "disk-profile", diskSyncEnabled: mode === "disk-sync" };
+  if (mode === "disk-sync" && path === "/me/disk-sync") return diskSync;
   if (mode === "disk-profile" && path === "/me/disk-profile") return { enabled: true, connected: true, active: Boolean(window.diskProfileSaved), available: Boolean(window.diskProfileSaved) };
   if (path === "/me/openrouter" && mode === "error") throw new Error("Fixture settings unavailable");
   if (path === "/me/openrouter") return openRouter;
@@ -67,6 +73,11 @@ api.get = async (path) => {
 const avatarId = "01234567-89ab-4cde-8fab-0123456789ab";
 const avatarUrl = `/api/media/${avatarId}`;
 api.post = async (path, data) => {
+  if (mode === "disk-sync" && path === "/me/disk-sync" && data.ownerId === fixtureUser.id) {
+    window.diskSyncActions = [...(window.diskSyncActions ?? []), data.action];
+    diskSync = { ...diskSync, enabled: data.action !== "disable", pending: data.action !== "disable", running: data.action !== "disable" };
+    return diskSync;
+  }
   if (mode === "disk-profile" && path === "/me/disk-profile" && data.ownerId === fixtureUser.id) {
     window.diskProfileAttempts = (window.diskProfileAttempts || 0) + 1;
     if (window.diskProfileAttempts === 1) throw new Error("Диск временно недоступен");

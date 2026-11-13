@@ -214,7 +214,7 @@ try {
     if (mobile) await page.goBack();
     else await page.keyboard.press("Escape");
     await waitForClose();
-    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Добавить объявление");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Добавить объявление");
     assert.equal(await page.evaluate(() => window.publicationTransport.calls.length), 2);
 
     await add.click();
@@ -291,6 +291,7 @@ try {
       const rail = routing === "wishlist" ? page.getByRole("navigation", { name: "Разделы Вишлиста" }) : actions;
       const calendarLink = rail.getByRole("link", { name: "Календарь", exact: true });
       const boardLink = rail.getByRole("link", { name: "Доска объявлений", exact: true });
+      const publicationBack = page.getByRole("link", { name: "К Вишлисту", exact: true });
       const profileHeading = page.getByRole("heading", { name: "Участник", exact: true });
       const space = page.getByRole("combobox", { name: "Раздел сервиса Вишлист" });
       const listNavigation = page.locator("[data-wishlist-list-navigation]");
@@ -302,24 +303,27 @@ try {
       const original = await rail.elementHandle();
       const avatar = await profileHeading.elementHandle();
       const railTop = await rail.evaluate(node => node.getBoundingClientRect().top);
-      const assertShell = async () => {
+      const assertShell = async (publication = false) => {
         assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
         assert.equal(await profileHeading.count(), 1);
         assert(await avatar.evaluate(node => node.isConnected), `${routing}: profile hero was replaced`);
-        assert.equal(await actions.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
+        assert.equal(await page.locator("[data-add-fab]").getByRole("button", { name: "Добавить", exact: true }).count(), publication ? 0 : 1);
         assert.match(await space.innerText(), /Медиа/);
         const rows = await rail.evaluate(node => new Set([...node.children].map(child => child.getBoundingClientRect().top)).size);
-        assert.equal(rows, routing === "wishlist" && width < 416 ? 2 : 1);
+        assert.equal(rows, routing === "wishlist" && width < 472 ? 2 : 1);
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
       };
       const assertPublication = async () => {
-        await assertShell();
+        await assertShell(true);
         assert.equal(await listNavigation.count(), 0, `${routing}: publication must not render Wishlist tiles`);
         assert.equal(await wish.count(), 0);
       };
       await calendarLink.click();
-      await page.getByRole("heading", { name: "Календарь", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
+      const calendarHeading = page.getByRole("heading", { name: "Календарь", exact: true });
+      const introCount = routing === "wishlist" ? 0 : 1;
+      assert.equal(await calendarHeading.count(), introCount);
+      assert.equal(await publicationBack.count(), introCount);
       assert.equal(await calendarLink.getAttribute("aria-current"), "page");
       await page.waitForFunction(() => {
         const row = [...document.querySelectorAll("[data-control-bar]")].find(node => node.querySelector('[aria-label="Календарь"][aria-current="page"]'));
@@ -329,6 +333,9 @@ try {
         return getComputedStyle(active).backgroundColor !== getComputedStyle(inactive).backgroundColor;
       });
       await assertPublication();
+      if (routing === "wishlist" && ((width === 390 && height === 844) || width === 1440)) {
+        await page.screenshot({ path: `/tmp/rollapp-wishlist-calendar-${width}.png`, animations: "disabled" });
+      }
       await boardLink.click();
       await page.getByRole("heading", { name: "Открыта запись на ноябрь", exact: true }).waitFor();
       assert.equal(await boardLink.getAttribute("aria-current"), "page");
@@ -346,23 +353,25 @@ try {
       await page.goForward();
       await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
       await assertPublication();
-      await page.getByRole("link", { name: "К Вишлисту", exact: true }).click();
+      const wishlistLink = routing === "wishlist" ? rail.getByRole("link", { name: "Вишлист", exact: true }) : publicationBack;
+      await wishlistLink.click();
       await wish.waitFor();
       await assertShell();
       assert.equal(await listNavigation.count(), 1);
       assert.equal(await list.getAttribute("aria-pressed"), "true");
       if (routing === "wishlist") {
-        const names = ["Открыть ленту", "Открыть каталог брендов", "Открыть магазин", "Открыть предложения", "Мои продажи", "Календарь", "Доска объявлений"];
-        assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), names);
-        for (const [name, path, content] of [
-          [names[0], "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "Лента · Медиа" })],
-          [names[1], "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "Бренды · Медиа" })],
-          [names[2], "/app/store?tab=media", page.getByText("В этом разделе магазина пока пусто", { exact: true })],
-          [names[3], "/app/wishes/offers?tab=media", page.getByText("Предложений пока нет", { exact: true })],
-          [names[4], "/app/wishes/sales?tab=media", page.getByText("Объявлений пока нет", { exact: true })],
-          [names[5], "/app/wishes?tab=media&publication=calendar", page.getByRole("heading", { name: "Первая встреча" })],
-          [names[6], "/app/wishes?tab=media&publication=announcements", page.getByRole("heading", { name: "Открыта запись на ноябрь" })],
-        ]) {
+        const destinations = [
+          ["Вишлист", "/app/wishes?tab=media", listNavigation],
+          ["Открыть ленту", "/app/wishes/catalog?tab=media", page.getByRole("heading", { name: "Лента · Медиа" })],
+          ["Открыть каталог брендов", "/app/wishes/catalog?source=brands&tab=media", page.getByRole("heading", { name: "Бренды · Медиа" })],
+          ["Открыть магазин", "/app/store?tab=media", page.getByText("В этом разделе магазина пока пусто", { exact: true })],
+          ["Открыть предложения", "/app/wishes/offers?tab=media", page.getByText("Предложений пока нет", { exact: true })],
+          ["Мои продажи", "/app/wishes/sales?tab=media", page.getByText("Объявлений пока нет", { exact: true })],
+          ["Календарь", "/app/wishes?tab=media&publication=calendar", page.getByRole("heading", { name: "Первая встреча" })],
+          ["Доска объявлений", "/app/wishes?tab=media&publication=announcements", page.getByRole("heading", { name: "Открыта запись на ноябрь" })],
+        ];
+        assert.deepEqual(await rail.getByRole("link").evaluateAll(links => links.map(link => link.getAttribute("aria-label"))), destinations.map(([name]) => name));
+        for (const [name, path, content] of [...destinations.slice(1), destinations[0]]) {
           const link = rail.getByRole("link", { name, exact: true });
           assert.equal(await link.getAttribute("href"), path);
           await link.click();
@@ -396,8 +405,21 @@ try {
         if ((width === 390 && height === 844) || width === 1440) {
           await page.screenshot({ path: `/tmp/rollapp-wishlist-sections-${width}.png`, animations: "disabled" });
         }
+        if (width === 390 && height === 844) {
+          for (const [boundary, expectedRows] of [[471, 2], [472, 1]]) {
+            await page.setViewportSize({ width: boundary, height });
+            const boxes = await rail.getByRole("link").evaluateAll(links => links.map(link => {
+              const { top, left, right } = link.getBoundingClientRect();
+              return { top, left, right };
+            }));
+            assert.equal(new Set(boxes.map(box => box.top)).size, expectedRows);
+            assert(boxes.every(box => box.left >= 16 && box.right <= boundary - 16));
+          }
+          await page.setViewportSize({ width, height });
+        }
         await page.goBack();
-        await page.getByRole("heading", { name: "Первая встреча" }).waitFor();
+        await page.getByRole("heading", { name: "Открыта запись на ноябрь" }).waitFor();
+        assert.equal(await boardLink.getAttribute("aria-current"), "page");
         assert(await original.evaluate(node => node.isConnected));
       }
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);

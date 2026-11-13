@@ -9,12 +9,39 @@ await fs.mkdir(output, { recursive: true });
 const server = await createServer({ cacheDir: "node_modules/.vite-personal-offers-smoke", server: { host: "127.0.0.1", port: smokePort(), strictPort: true, hmr: false, watch: null }, plugins: [{ name: "personal-offers-fixture", enforce: "pre", transform(source, id) { if (id.includes("/src/App.jsx?personal-offers-test-export")) return `${source}\nexport { BusinessAccessPage, SessionContext, ToastContext };`; }, configureServer(vite) { vite.middlewares.use(async (req, res, next) => { if (!req.url.startsWith("/__offers-smoke")) return next(); res.setHeader("Content-Type", "text/html"); res.end(await vite.transformIndexHtml(req.url, '<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/personal-offers.jsx"></script></body></html>')); }); } }] });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+async function checkSphereCatalog(page, sphere, section) {
+  await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=sphere-catalog&sphere=${sphere}`);
+  const catalog = page.getByRole("link", { name: "Открыть каталог брендов" });
+  await catalog.waitFor();
+  assert.deepEqual(await catalog.evaluate(link => [link.offsetWidth, link.offsetHeight]), [48, 48]);
+  await catalog.click();
+  await page.waitForURL(url => url.pathname.endsWith("/business/catalog") && url.searchParams.get("tab") === section);
+  const subscribe = page.getByRole("button", { name: "Подписаться · Партнёр сферы" });
+  const unsubscribe = page.getByRole("button", { name: "Отписаться · Партнёр сферы" });
+  await subscribe.click();
+  await page.getByText("Повторите подписку").waitFor();
+  await subscribe.click();
+  await unsubscribe.waitFor();
+  await page.getByRole("link", { name: "Предложения", exact: true }).click();
+  await page.getByRole("heading", { name: "Предложение партнёра" }).waitFor();
+  await page.getByRole("link", { name: "Каталог брендов", exact: true }).click();
+  await unsubscribe.click();
+  await subscribe.waitFor();
+  assert.deepEqual(await page.evaluate(() => window.offerCalls), [true, true, false].map(following => ({ path: "/profile/brand/follow", body: { following } })));
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.getByRole("link", { name: /^К сфере/ }).click();
+  await page.waitForURL(url => url.pathname.endsWith(`/${sphere}`) && url.searchParams.get("tab") === section);
+}
 try {
   for (const [width, height] of [[320,844],[390,844],[768,844],[820,844],[1024,844],[1440,900],[1920,1080],[390,400]]) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+    for (const [sphere, section] of [["health", "sport"], ["education", "courses"], ["career", "contacts"], ["identity", "identity-reports"]]) {
+      await checkSphereCatalog(page, sphere, section);
+    }
+    console.log(`PASS ${width}x${height}: sphere catalogs, subscriptions, offers and return to section`);
     await page.goto(`${smokeOrigin(server)}/__offers-smoke`);
     await page.getByRole("heading", { name: "Активный оффер" }).waitFor();
     await page.evaluate(() => document.fonts.ready);
@@ -58,7 +85,7 @@ try {
     }
     await page.goto(`${smokeOrigin(server)}/__offers-smoke?case=business`);
     await page.getByText("У вашего бизнеса пока нет активных товаров или услуг.").waitFor();
-    assert.deepEqual(await page.getByRole("button", { name: "Добавить товар" }).evaluate(button => { const style = getComputedStyle(button); return [style.paddingLeft, style.paddingRight]; }), ["24px", "24px"]);
+    assert.deepEqual(await page.getByRole("button", { name: "Добавить товар" }).evaluate(button => [button.offsetWidth, button.offsetHeight]), [48, 48]);
     await page.getByRole("button", { name: "Добавить товар" }).click();
     await page.getByLabel("Название", { exact: true }).fill("Моя услуга");
     await page.getByLabel("Цена магазина в роллах").fill("70");

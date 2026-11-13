@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
-import { createYandexAuthorization, readYandexAuthorization } from "./yandex-auth.js";
+import { createYandexAuthorization, readYandexAuthorization, safeOauthReturnPath } from "./yandex-auth.js";
 import { encryptUserCredential } from "./user-credentials.js";
-import { authorizeYandexDisk, diskNotesFolder as folderPath, diskTokenContext as tokenContext, lockYandexDiskConnection } from "./yandex-disk-connection.js";
+import { authorizeYandexDisk, diskNotesFolder as folderPath, diskTokenContext as tokenContext, lockYandexDiskConnection, readDiskNotes } from "./yandex-disk-connection.js";
+import { enableDiskSync } from "./yandex-disk-sync.js";
 import {
   createYandexDiskClient, DiskNotesError, diskUnavailable, getYandexDiskConfig, NOTE_MAX_BYTES,
 } from "./yandex-disk.js";
@@ -25,14 +26,16 @@ function noteResponse(row, markdown) {
   return { markdown, revision: etag(row, markdown) };
 }
 
-async function currentMarkdown(disk, token, row) {
-  if (row.revision) return disk.read(token, filePath(row.folder_id, row.revision));
-  await disk.checkFolder(token, folderPath(row.folder_id));
-  return "";
+function syncReturnPath(value, status) {
+  const url = new URL(safeOauthReturnPath(value), "https://rollapp.invalid");
+    if (!url.pathname.startsWith("/app/")) return `/app/wishes?diskSync=${status}`;
+  url.searchParams.delete("formScreen");
+  url.searchParams.set("diskSync", status);
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 export async function writeDiskNote(disk, token, row, { revision, markdown }) {
-  const current = await currentMarkdown(disk, token, row);
+  const current = await readDiskNotes(disk, token, row);
   // A response can be lost after commit. Retrying the same snapshot is safe.
   if (current === markdown) return { head: row.revision, note: noteResponse(row, current) };
   if (revision !== etag(row, current)) {
@@ -47,7 +50,9 @@ export async function writeDiskNote(disk, token, row, { revision, markdown }) {
   return { head, note: noteResponse({ ...row, revision: head }, markdown) };
 }
 
-export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction }) {
+export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit, query, transaction,
+  syncAvailable = () => false, wakeSync = () => {},
+}) {
   const cookieOptions = {
     httpOnly: true, sameSite: "lax", path: CALLBACK,
     secure: process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false",
@@ -103,19 +108,23 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
   app.post(`${API}/connection/start`, requireAuth, authRateLimit, route(async (req, res, config) => {
     requireConfig(config);
     requireOwner(req, req.body?.ownerId);
-    const authorization = createYandexAuthorization(config, { nextPath: PAGE, linkUserId: req.user.id });
+    const syncing = req.body?.sync === true;
+    if (syncing && !syncAvailable()) return res.status(503).json({ error: "Синхронизация пока недоступна." });
+    const nextPath = syncing ? syncReturnPath(req.body.next, "pending") : PAGE;
+    const authorization = createYandexAuthorization(config, { nextPath, linkUserId: req.user.id });
     await query("DELETE FROM yandex_oauth_attempts WHERE purpose=$1 AND expires_at<=CURRENT_TIMESTAMP", [PURPOSE]);
     await query(
       `INSERT INTO yandex_oauth_attempts (state_hash,code_verifier,next_path,purpose,user_id,expires_at)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [authorization.attempt.stateHash, authorization.attempt.verifier, PAGE, PURPOSE, req.user.id, authorization.expiresAt],
+      [authorization.attempt.stateHash, authorization.attempt.verifier, nextPath, PURPOSE, req.user.id, authorization.expiresAt],
     );
     res.cookie(COOKIE, authorization.state, { ...cookieOptions, expires: authorization.expiresAt });
     res.json({ authorizationUrl: authorization.authorizationUrl });
   }));
 
   app.get(CALLBACK, route(async (req, res, config) => {
-    const finish = (status) => res.redirect(303, `${PAGE}?disk=${status}`);
+    let syncNext;
+    const finish = (status) => res.redirect(303, syncNext ? syncReturnPath(syncNext, status) : `${PAGE}?disk=${status}`);
     const cookieState = req.cookies[COOKIE];
     // A stale tab must not clear a more recent connection attempt.
     if (cookieState === req.query.state) res.clearCookie(COOKIE, cookieOptions);
@@ -126,10 +135,13 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
     const attempt = await query(
       `DELETE FROM yandex_oauth_attempts
        WHERE state_hash=$1 AND purpose=$2 AND user_id=$3 AND expires_at>CURRENT_TIMESTAMP
-       RETURNING code_verifier`,
+       RETURNING code_verifier,next_path`,
       [stateHash, PURPOSE, req.user.id],
     );
     if (!attempt.rowCount) return finish("failed");
+    const nextPath = attempt.rows[0].next_path;
+    if (new URL(safeOauthReturnPath(nextPath), "https://rollapp.invalid").searchParams.get("diskSync") === "pending") syncNext = nextPath;
+    if (syncNext && !syncAvailable()) return finish("failed");
     if (req.query.error === "access_denied") return finish("cancelled");
     const code = req.query.code;
     if (typeof code !== "string" || code.length < 1 || code.length > 4096) return finish("failed");
@@ -142,14 +154,16 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
         const existing = await lockYandexDiskConnection(client, userId, config.clientId);
         const disk = createYandexDiskClient(config);
         const folderId = existing?.folder_id || randomUUID();
-        if (existing) await currentMarkdown(disk, tokens.accessToken, existing);
+        if (existing) await readDiskNotes(disk, tokens.accessToken, existing);
         else await disk.createFolder(tokens.accessToken, folderPath(folderId));
         await client.query(
           `INSERT INTO yandex_disk_notes (user_id,oauth_client_id,folder_id,encrypted_tokens) VALUES ($1,$2,$3,$4)
            ON CONFLICT (user_id,oauth_client_id) DO UPDATE SET encrypted_tokens=EXCLUDED.encrypted_tokens`,
           [userId, config.clientId, folderId, encryptUserCredential(JSON.stringify(tokens), tokenContext(userId, config.clientId))],
         );
+        if (syncNext) await enableDiskSync(client, userId, config.clientId, { reconnect: true });
       });
+      if (syncNext) wakeSync();
       return finish("connected");
     } catch (error) {
       if (["DISK_WRONG_ACCOUNT", "DISK_NOTES_MISSING"].includes(error.code)) return finish("missing");
@@ -161,7 +175,7 @@ export function registerYandexDiskNotesRoutes(app, { requireAuth, authRateLimit,
   app.get(API, requireAuth, route(async (req, res, config) => {
     requireOwner(req, req.query.ownerId);
     res.json(await withConnection(req.user.id, config, async (_client, disk, token, row) => (
-      noteResponse(row, await currentMarkdown(disk, token, row))
+      noteResponse(row, await readDiskNotes(disk, token, row))
     )));
   }));
 

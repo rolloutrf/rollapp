@@ -78,6 +78,11 @@ popup positioning; page action buttons keep their existing ControlBar geometry.
   The `/app/orders` URL opens the same drawer directly. Dismissal restores the
   store history entry when opened from the store and replaces a direct entry
   with `/app/store`. The nested return confirmation dismisses independently.
+- Profile settings sections and store orders use `DrawerSectionHeader`. It
+  shares a 24px semibold title, 16px inset and 8px gap. Drawers add a bottom divider.
+  Back sits before the title for a nested section in a desktop drawer. Close
+  sits after the title for orders. On native profile pages, Back is in the
+  shared bottom row. The header stays transparent and outside the drawer body.
 - Wishlist tile settings open a bottom drawer below 768px and a right-side
   drawer at wider viewports. Dismissal returns focus to the tile's settings
   button. New-list creation uses the standard form surface.
@@ -414,6 +419,9 @@ shadcn Calendar в Popover. `test:dates` проверяет все семь ре
 к балансу. «К кошельку» возвращает фокус на «Отправить роллы» при смене
 содержимого шторы. Escape или «Назад» затем возвращают фокус на «Финансы».
 Прямой адрес кошелька `/app/rolls` доступен отдельно.
+Во вложенных шторах «Импорт покупок» и «Подарочная карта» стрелка «Назад»
+стоит слева от заголовка. На телефоне её показывает общий нижний ряд формы.
+При возврате фокус восстанавливается на кнопке в предыдущем разделе профиля.
 «Заказы» и ссылка на магазин подарочной карты закрывают настройки перед
 переходом. Пункты «Заказы» и «Финансы» блокируются, пока есть несохранённые
 персональные данные, ссылки на вишлисты или активная операция.

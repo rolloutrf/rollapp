@@ -1,5 +1,5 @@
 import { AddFab } from "@/components/add-fab";
-import { PageActionButton } from "@/components/page-action-button";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -20,8 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CareerContentError, useCareerContent } from "@/components/career-content";
 import { PerformanceEditor } from "@/components/performance-editor";
-import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
 const DEFAULT_PERFORMANCE_CONTENT = {
@@ -274,9 +272,9 @@ function orderPerformanceCycles(cycles) {
 }
 
 export function PerformanceReview() {
-  const { readOnly } = useSphereSharing();
+  const { readOnly, loading: sharingLoading } = useSphereSharing();
   const [activeCycleId, setActiveCycleId] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editor, setEditor] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState(null);
@@ -287,6 +285,8 @@ export function PerformanceReview() {
     : DEFAULT_PERFORMANCE_CONTENT;
   const cycles = performanceContent.cycles;
   const activeCycle = cycles.find((cycle) => cycle.id === activeCycleId) || cycles[0];
+  const editingCycle = cycles.find(cycle => cycle.id === editor?.id);
+  const mutationBusy = careerContent.loading || importing || deleting;
 
   useEffect(() => {
     if (activeCycle && activeCycle.id !== activeCycleId) setActiveCycleId(activeCycle.id);
@@ -334,18 +334,17 @@ export function PerformanceReview() {
     }
   };
 
-  const deleteActiveCycle = async () => {
-    if (!activeCycle || deleting || importing || careerContent.loading) return;
-    const activeIndex = cycles.findIndex((cycle) => cycle.id === activeCycle.id);
-    const remainingCycles = cycles.filter((cycle) => cycle.id !== activeCycle.id);
-    const nextCycle = remainingCycles[Math.min(activeIndex, remainingCycles.length - 1)] || null;
+  const deleteEditingCycle = async () => {
+    if (!editingCycle || mutationBusy) return;
+    const index = cycles.indexOf(editingCycle);
+    const remainingCycles = cycles.filter(cycle => cycle.id !== editingCycle.id);
+    const nextCycle = remainingCycles[Math.min(index, remainingCycles.length - 1)];
     setDeleting(true);
     setActionFeedback(null);
     try {
       await careerContent.save({ ...performanceContent, cycles: remainingCycles });
-      setActiveCycleId(nextCycle?.id || "");
-      setEditorOpen(false);
-      setActionFeedback({ tone: "success", message: `Цикл «${activeCycle.season} ${activeCycle.year}» удалён.` });
+      if (activeCycleId === editingCycle.id) setActiveCycleId(nextCycle?.id || "");
+      setActionFeedback({ tone: "success", message: `Цикл «${editingCycle.season} ${editingCycle.year}» удалён.` });
     } finally {
       setDeleting(false);
     }
@@ -353,18 +352,9 @@ export function PerformanceReview() {
 
   return (
     <article className="not-typeset rollapp-body career-content-rail page-stack">
-      {!readOnly && <AddFab actions={[{ label: "Импортировать PDF", disabled: careerContent.loading || importing || deleting, onSelect: () => fileInputRef.current?.click() }]} />}
+      {!readOnly && <AddFab actions={[{ label: "Импортировать PDF", disabled: mutationBusy, onSelect: () => fileInputRef.current?.click() }]} />}
       {!readOnly && <header className="flex min-h-12 w-full items-center justify-center">
         <div className="page-actions horizontal-action-scroller" role="group" aria-label="Действия с перфоманс-ревью">
-          <PageActionButton
-            className="shrink-0 min-w-[180px] max-[560px]:min-w-0"
-            type="button"
-            disabled={!activeCycle || careerContent.loading || importing || deleting}
-            onClick={() => setEditorOpen(true)}
-          >
-            {careerContent.loading && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {careerContent.loading ? "Загружаем" : "Редактировать"}
-          </PageActionButton>
           <SphereBusinessControls sphereId="career" />
           <input
             ref={fileInputRef}
@@ -383,31 +373,26 @@ export function PerformanceReview() {
           <AlertDescription>{actionFeedback.message}</AlertDescription>
         </Alert>
       )}
-      {activeCycle ? <Tabs className="min-w-0 gap-6" value={activeCycle.id} onValueChange={setActiveCycleId}>
-        <div className="min-w-0" data-report-navigation>
-          <TabsList
-            className="list-tabs h-auto! min-w-0 w-full flex-nowrap bg-transparent p-0"
-            data-tab-scroller
-            aria-label="Циклы перфоманс-ревью"
-          >
-            {cycles.map((cycle) => (
-              <TabsTrigger
-                data-list-tile
-                data-report-tile
-                key={cycle.id}
-                value={cycle.id}
-                aria-label={`${cycle.season} ${cycle.year}, результатов: ${cycle.projects.length}`}
-              >
-                <span data-slot="list-tile-label">{cycle.season} {cycle.year}</span>
-                <span data-slot="list-tile-meta" aria-hidden="true">
-                  <span data-slot="list-tile-count">{cycle.projects.length}</span>
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        <TabsContent className="flex min-w-0 flex-col gap-6" value={activeCycle.id}>
+      {activeCycle ? <>
+        <WishListNavigation
+          label="Циклы перфоманс-ревью"
+          settingsLabel={title => `Редактировать цикл «${title}»`}
+          value={activeCycle.id}
+          items={cycles.map(cycle => ({
+            id: cycle.id,
+            title: `${cycle.season} ${cycle.year}`,
+            count: cycle.projects.length,
+            accessibleName: `${cycle.season} ${cycle.year}, результатов: ${cycle.projects.length}`,
+          }))}
+          onSelect={id => { if (id) setActiveCycleId(id); }}
+          onSettings={!readOnly && !sharingLoading ? (id, opener) => {
+            if (mutationBusy) return;
+            opener.focus({ preventScroll: true });
+            setEditor({ id, opener, open: true });
+          } : undefined}
+          settingsDisabled={mutationBusy}
+        />
+        <div className="flex min-w-0 flex-col gap-6">
           <section className="flex min-w-0 flex-col gap-6" aria-labelledby="performance-cycle-summary">
             <header className="flex flex-col gap-2">
               <h2 id="performance-cycle-summary" className="m-0 scroll-m-20 text-lg leading-7 font-semibold tracking-tight">Ключевые результаты</h2>
@@ -439,19 +424,21 @@ export function PerformanceReview() {
               </div>
             </section>
           )}
-        </TabsContent>
-      </Tabs> : (
+        </div>
+      </> : (
         <section className="flex min-w-0 flex-col items-start gap-4" aria-label="Циклов ревью пока нет">
           <h2 className="m-0 font-medium">Циклов ревью пока нет</h2>
           <p className="m-0 text-muted-foreground">{readOnly ? "Владелец пока не добавил циклы ревью." : "Импортируйте PDF, и его проекты, результаты и отзывы появятся на этой странице."}</p>
         </section>
       )}
-      {!readOnly && activeCycle && <PerformanceEditor
-        activeCycleId={activeCycle.id}
+      {!readOnly && editor && <PerformanceEditor
+        key={editor.id}
+        activeCycleId={editor.id}
         content={performanceContent}
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        onDelete={deleteActiveCycle}
+        opener={editor.opener}
+        open={editor.open}
+        onOpenChange={open => setEditor(current => ({ ...current, open }))}
+        onDelete={deleteEditingCycle}
         onSave={careerContent.save}
       />}
     </article>

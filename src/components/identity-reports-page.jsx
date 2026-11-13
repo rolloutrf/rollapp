@@ -6,32 +6,27 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { api } from "@/api";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import { Button } from "@/components/ui/button";
-import { PageActionButton } from "@/components/page-action-button";
 import { Spinner } from "@/components/ui/spinner";
 import { Input } from "@/components/ui/input";
-import { ListTileContent } from "@/components/list-tile-content";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { IdentityGeneratedDocuments, IdentityReportEmpty, IdentityReportStatus, useIdentityReport } from "@/components/identity-report-manager";
 
-export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSaved, onDeleted, remove = (id) => api.delete(`/identity/reports/${id}/test`), save = (value) => test ? api.patch(`/identity/reports/${test.id}`, value) : api.post("/identity/reports", value) }) {
+const BUILTIN_TESTS = [
+  { id: "gallup", title: "Gallup", detail: "CliftonStrengths" },
+  { id: "hogan", title: "Hogan", detail: "HPI · HDS · MVPI" },
+];
+
+export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSaved, onDeleted, onAfterClose, finalFocus, remove = (id) => api.delete(`/identity/reports/${id}/test`), save = (value) => test ? api.patch(`/identity/reports/${test.id}`, value) : api.post("/identity/reports", value) }) {
   const id = useId();
   const uploadId = `${id}-pdf`;
   const builtInSettings = Boolean(reportUpload && !test);
   const FormBody = builtInSettings ? "div" : "form";
   const mobile = useIsMobile();
-  const location = useLocation();
   const pendingResult = useRef(null);
-  useEffect(() => {
-    if (!open && !new URLSearchParams(location.search).has("formScreen") && pendingResult.current) {
-      const saved = pendingResult.current;
-      pendingResult.current = null;
-      if (saved.deleted) onDeleted(saved.id); else onSaved(saved.test);
-    }
-  }, [open, location.search, onSaved, onDeleted]);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -40,10 +35,15 @@ export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSav
   const [error, setError] = useState("");
   useEffect(() => { if (open) { setTitle(test?.title || ""); setError(""); setDeleteOpen(false); } }, [open, test]);
   function finish(result) {
-    if (mobile) pendingResult.current = result;
-    else if (result.deleted) onDeleted(result.id);
-    else onSaved(result.test);
+    pendingResult.current = result;
     onOpenChange(false);
+  }
+  function applyResult() {
+    const result = pendingResult.current;
+    pendingResult.current = null;
+    if (result?.deleted) onDeleted(result.id);
+    else if (result) onSaved(result.test);
+    onAfterClose?.();
   }
   async function submit(event) {
     event.preventDefault();
@@ -61,13 +61,13 @@ export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSav
     catch (cause) { setError(cause.message); setDeleteOpen(false); }
     finally { setDeleting(false); }
   }
-  return <><Drawer open={open} onOpenChange={value => !working && onOpenChange(value)}>
-    <DrawerContent className="rollapp-body app-drawer--form">
+  return <><Drawer open={open} onOpenChange={value => !working && onOpenChange(value)} onAfterClose={applyResult}>
+    <DrawerContent className="rollapp-body app-drawer--form" finalFocus={finalFocus}>
       <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" disabled={working} />} aria-label="Закрыть настройки теста"><X /></DrawerClose>
       <FormBody className="flex min-h-0 min-w-0 flex-1 flex-col" onSubmit={builtInSettings ? undefined : submit}>
         <DrawerHeader className="pr-16">
-          <DrawerTitle>{builtInSettings ? "Настройки списка" : test ? "Изменить тест" : "Добавить тест"}</DrawerTitle>
-          <DrawerDescription>{builtInSettings ? `Загрузите PDF с результатами ${reportUpload.label}.` : test ? "Измените название теста или загрузите PDF с результатами." : "Укажите название, затем загрузите PDF в настройках списка."}</DrawerDescription>
+          <DrawerTitle>{builtInSettings ? `Результаты ${reportUpload.label}` : test ? "Изменить тест" : "Добавить тест"}</DrawerTitle>
+          <DrawerDescription>{builtInSettings ? `Загрузите PDF с результатами ${reportUpload.label}.` : test ? "Измените название теста или загрузите PDF с результатами." : "Укажите название. PDF можно загрузить через кнопку «⋯» на плитке теста."}</DrawerDescription>
         </DrawerHeader>
         <div className="app-drawer-body flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           {error && <Alert variant="destructive"><AlertTitle>{test ? "Не удалось изменить тест" : "Не удалось сохранить тест"}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
@@ -99,50 +99,45 @@ export function IdentityTestForm({ test, reportUpload, open, onOpenChange, onSav
   </>;
 }
 
-export function IdentityReportNavigation({ tests }) {
-  return <div className="min-w-0 not-typeset" data-report-navigation>
-    <div className="list-tabs horizontal-tile-scroller" data-tab-scroller>
-      <TabsList className="contents" aria-label="Отчёт о личности">
-        {[{ id: "gallup", title: "Gallup", detail: "CliftonStrengths" }, { id: "hogan", title: "Hogan", detail: "HPI · HDS · MVPI" }, ...tests].map(test => <TabsTrigger key={test.id} data-list-tile data-report-tile value={test.id} title={test.title} aria-label={test.title}>
-          <ListTileContent title={test.title} detail={test.detail || "Личностный тест"} />
-        </TabsTrigger>)}
-      </TabsList>
-    </div>
-  </div>;
+export function IdentityReportNavigation({ tests, selected, onSelect, onSettings }) {
+  return <WishListNavigation
+    className="not-typeset"
+    label="Отчёт о личности"
+    settingsLabel={title => `Настройки теста «${title}»`}
+    value={selected}
+    items={[...BUILTIN_TESTS, ...tests.map(test => ({ ...test, detail: "Личностный тест" }))]}
+    onSelect={onSelect}
+    onSettings={onSettings}
+  />;
 }
 
-function SelectedIdentityReport({ section, label, navigation, creationDisabled, renderBuiltin, test, canManage, onSaved, onDeleted, client }) {
-  const reportState = useIdentityReport(section, client);
-  const [form, setForm] = useState(null);
-  const { state, error, load, uploading, uploadDisabled, upload } = reportState;
-  const settings = form?.mode === "settings";
+function IdentityReportSettings({ target, reportState, client, ...formProps }) {
+  const { uploading, uploadDisabled, upload } = reportState;
+  const test = BUILTIN_TESTS.some(item => item.id === target.id) ? null : target;
+  return <IdentityTestForm
+    {...formProps}
+    test={test}
+    reportUpload={{ label: target.title, busy: uploading, disabled: uploadDisabled, onChange: upload }}
+    remove={id => client.delete(`/identity/reports/${id}/test`)}
+    save={value => client.patch(`/identity/reports/${target.id}`, value)}
+  />;
+}
+
+function InactiveReportSettings({ target, client, ...formProps }) {
+  const reportState = useIdentityReport(target.id, client);
+  return <IdentityReportSettings {...formProps} target={target} reportState={reportState} client={client} />;
+}
+
+function SelectedIdentityReport({ report, renderBuiltin, settings, client }) {
+  const reportState = useIdentityReport(report.id, client);
+  const { state, error, load } = reportState;
   return <>
-    <section className="identity-report-manager not-typeset rollapp-body" aria-label={`Управление отчётом ${label}`}>
-      {canManage && (
-        <div className="identity-report-manager__actions horizontal-action-scroller">
-          <PageActionButton type="button" variant="outline" disabled={uploading} onClick={() => setForm({ mode: "settings", open: true })}>
-            Настроить список
-          </PageActionButton>
-        </div>
-      )}
-      {navigation}
-      {canManage && <AddFab actions={[{ label: "Добавить тест", disabled: uploading || creationDisabled, onSelect: () => setForm({ mode: "create", open: true }) }]} />}
-    </section>
-    <TabsContent value={section} className="min-w-0">
+    <div className="min-w-0">
       {renderBuiltin ? renderBuiltin(reportState) : state.mode === "loading" || state.mode === "error"
         ? <IdentityReportStatus mode={state.mode} error={error} onRetry={load} />
-        : state.mode === "generated" ? <IdentityGeneratedDocuments report={state.report} /> : <IdentityReportEmpty label={label} />}
-    </TabsContent>
-    {canManage && <IdentityTestForm
-      test={settings ? test : null}
-      reportUpload={settings ? { label, busy: uploading, disabled: uploadDisabled, onChange: upload } : null}
-      open={Boolean(form?.open)}
-      onOpenChange={open => !open && setForm(current => current && { ...current, open: false })}
-      remove={id => client.delete(`/identity/reports/${id}/test`)}
-      save={value => settings && test ? client.patch(`/identity/reports/${test.id}`, value) : client.post("/identity/reports", value)}
-      onSaved={onSaved}
-      onDeleted={onDeleted}
-    />}
+        : state.mode === "generated" ? <IdentityGeneratedDocuments report={state.report} /> : <IdentityReportEmpty label={report.title} />}
+    </div>
+    {settings && <IdentityReportSettings {...settings} reportState={reportState} client={client} />}
   </>;
 }
 
@@ -154,6 +149,8 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [form, setForm] = useState(null);
+  const addTrigger = useRef(null);
   useEffect(() => {
     let active = true;
     if (sharingLoading) return () => { active = false; };
@@ -165,27 +162,46 @@ export function IdentityReportsPage({ renderGallup, renderHogan, client = api })
   }, [readOnly, sharingLoading, location.pathname, revision, client]);
   const search = new URLSearchParams(location.search);
   const requested = search.get("report") || (search.get("tab") === "hogan" ? "hogan" : "gallup");
-  const selected = ["hogan", "gallup"].includes(requested) || tests.some(test => test.id === requested) ? requested : "gallup";
-  const current = tests.find(test => test.id === selected);
+  const reports = [...BUILTIN_TESTS, ...tests];
+  const current = reports.find(test => test.id === requested) ?? BUILTIN_TESTS[0];
+  const selected = current.id;
   function selectReport(id) {
+    if (!id) return;
     const params = new URLSearchParams(location.search);
     params.set("tab", "identity-reports"); params.set("report", id);
     navigate({ pathname: location.pathname, search: `?${params}`, hash: location.hash }, { replace: true });
   }
   const canManage = !readOnly && !sharingLoading;
-  const navigation = <IdentityReportNavigation tests={tests} />;
-  const onSaved = (test) => {
-    setTests(value => value.some(item => item.id === test.id) ? value.map(item => item.id === test.id ? test : item) : [...value, test]);
-    selectReport(test.id);
+  const openSettings = (id, opener) => {
+    const target = reports.find(test => test.id === id);
+    if (!target) return;
+    opener.focus({ preventScroll: true });
+    setForm({ target, opener, open: true });
   };
-  const onDeleted = (id) => {
-    setTests(value => value.filter(test => test.id !== id));
-    selectReport("gallup");
-  };
-  return <Tabs className="identity-reports-page identity-report-workspace" value={selected} onValueChange={selectReport}>
+  const formProps = canManage && form ? {
+    open: form.open,
+    finalFocus: () => form.opener,
+    onOpenChange: open => setForm(value => ({ ...value, open })),
+    onAfterClose: () => setForm(value => value === form ? null : value),
+    onSaved(test) {
+      setTests(value => form.target ? value.map(item => item.id === test.id ? test : item) : [...value, test]);
+      if (!form.target) selectReport(test.id);
+    },
+    onDeleted(id) {
+      setTests(value => value.filter(test => test.id !== id));
+      if (id === selected) selectReport("gallup");
+    },
+  } : null;
+  const settings = formProps && form.target ? { ...formProps, target: form.target } : null;
+  const loadingRequestedReport = loading && requested.startsWith("custom-") && selected !== requested;
+  return <div className="identity-reports-page identity-report-workspace">
     {error && <Alert variant="destructive"><AlertTitle>Не удалось загрузить тесты</AlertTitle><AlertDescription>{error}</AlertDescription><Button variant="outline" onClick={() => setRevision(value => value + 1)}>Повторить</Button></Alert>}
-    {loading && requested.startsWith("custom-") ? <IdentityReportStatus mode="loading" /> : <SelectedIdentityReport client={client} key={selected} section={selected} label={current?.title || (selected === "hogan" ? "Hogan" : "Gallup")} navigation={navigation} creationDisabled={loading || Boolean(error)}
+    {canManage && <AddFab triggerRef={addTrigger} actions={[{ label: "Добавить тест", disabled: loading || Boolean(error) || Boolean(settings?.open), onSelect: () => setForm({ opener: addTrigger.current, open: true }) }]} />}
+    <IdentityReportNavigation tests={tests} selected={selected} onSelect={selectReport} onSettings={canManage ? openSettings : undefined} />
+    {loadingRequestedReport ? <IdentityReportStatus mode="loading" /> : <SelectedIdentityReport client={client} key={selected} report={current}
       renderBuiltin={selected === "gallup" ? renderGallup : selected === "hogan" ? renderHogan : null}
-      test={current} canManage={canManage} onSaved={onSaved} onDeleted={onDeleted} />}
-  </Tabs>;
+      settings={settings?.target.id === selected ? settings : null} />}
+    {settings && settings.target.id !== selected && <InactiveReportSettings key={settings.target.id} {...settings} client={client} />}
+    {formProps && !form.target && <IdentityTestForm {...formProps} save={value => client.post("/identity/reports", value)} />}
+  </div>;
 }

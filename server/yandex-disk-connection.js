@@ -4,6 +4,13 @@ import { createYandexDiskClient, diskUnavailable, reconnectError } from "./yande
 export const diskNotesFolder = (id) => `app:/rollapp-notes-${id}`;
 export const diskTokenContext = (userId, clientId) => ({ userId, provider: `disk-notes:${clientId}` });
 
+export async function readDiskNotes(disk, token, row) {
+  const folder = diskNotesFolder(row.folder_id);
+  if (row.revision) return disk.read(token, `${folder}/${row.revision}.md`);
+  await disk.checkFolder(token, folder);
+  return "";
+}
+
 export async function lockYandexDiskConnection(client, userId, clientId) {
   const result = await client.query(
     `SELECT folder_id,encrypted_tokens,revision FROM yandex_disk_notes
@@ -13,7 +20,7 @@ export async function lockYandexDiskConnection(client, userId, clientId) {
   return result.rows[0];
 }
 
-export async function authorizeYandexDisk(client, userId, config) {
+export async function authorizeYandexDisk(client, userId, config, { minimumValidityMs = 60_000 } = {}) {
   await client.query("SET LOCAL lock_timeout = '3s'");
   const row = await lockYandexDiskConnection(client, userId, config.clientId);
   if (!row) throw reconnectError();
@@ -22,7 +29,7 @@ export async function authorizeYandexDisk(client, userId, config) {
   try { tokens = JSON.parse(decryptUserCredential(row.encrypted_tokens, context)); }
   catch { throw diskUnavailable(); }
   const disk = createYandexDiskClient(config);
-  if (tokens.expiresAt <= Date.now() + 60_000) {
+  if (tokens.expiresAt <= Date.now() + minimumValidityMs) {
     tokens = await disk.refresh(tokens.refreshToken);
     await client.query("UPDATE yandex_disk_notes SET encrypted_tokens=$3 WHERE user_id=$1 AND oauth_client_id=$2",
       [userId, config.clientId, encryptUserCredential(JSON.stringify(tokens), context)]);

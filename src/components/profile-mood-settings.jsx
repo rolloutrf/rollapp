@@ -64,7 +64,7 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
       setLevel(null);
       setPublished(result.published);
       setStatus(level === null ? "Видимость обновлена" : "Отметка добавлена в журнал");
-      onSaved?.(result.publicMood);
+      onSaved?.(result);
     } catch (failure) {
       if (alive.current) setError({ operation: "save", message: failure.message || "Не удалось сохранить отметку. Попробуйте снова." });
     } finally {
@@ -101,7 +101,7 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
         </div> : <p className="flex items-center gap-2" role="status"><Spinner aria-hidden="true" />Загружаем настроение…</p> : <>
           <section className="grid gap-4" aria-labelledby="profile-mood-question">
             <div className="mood-settings__preview" style={preview ? { "--profile-mood-color": preview.color } : undefined}>
-              <Avatar user={{ ...user, publicMood: preview?.level }} size="lg" className="mood-settings__portrait !size-16" aria-hidden="true" />
+              <Avatar user={user} moodLevel={preview?.level ?? null} size="lg" className="mood-settings__portrait !size-16" aria-hidden="true" />
               <div className="grid min-w-0 gap-1">
                 <h2 id="profile-mood-question" className="font-heading text-xl font-semibold">Как вы сейчас?</h2>
                 <p className="text-xs text-muted-foreground" aria-live="polite">{level !== null ? `Новая отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : preview ? `Последняя отметка: ${preview.label.toLocaleLowerCase("ru-RU")}` : "Выберите отметку на шкале"}</p>
@@ -123,10 +123,10 @@ export function ProfileMoodSettings({ user, onSaved, onBusyChange, transport = m
             </div>
             <div className="grid gap-1 rounded-xl border p-3">
               <label className="flex min-h-(--layout-control-size) cursor-pointer items-center justify-between gap-2">
-                <span>Показывать в профиле</span>
+                <span>Показывать посетителям профиля</span>
                 <Switch checked={published} onCheckedChange={(checked) => { setPublished(checked); setStatus(""); }} aria-describedby="profile-mood-visibility" disabled={!!busy || (!preview && !published)} />
               </label>
-              <p id="profile-mood-visibility" className="text-xs text-muted-foreground">Посетители увидят последнюю отметку по цвету аватара и подписи. Журнал доступен только вам.</p>
+              <p id="profile-mood-visibility" className="text-xs text-muted-foreground">Вы всегда видите свою последнюю отметку. Если включить настройку, посетители увидят её по цвету аватара и подписи. Журнал доступен только вам.</p>
             </div>
             {error?.operation === "save" && <Alert variant="destructive"><AlertDescription>{error.message}</AlertDescription></Alert>}
             <div className="sr-only" role="status">{status}</div>

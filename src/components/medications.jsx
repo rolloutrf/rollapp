@@ -1,6 +1,6 @@
 import { AddFab } from "@/components/add-fab";
 import { PlanningDatePicker } from "@/components/planning-date-picker";
-import { PageActionButton } from "@/components/page-action-button";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   AlertTriangle, CalendarDays, CheckCircle2, CirclePause, Clock3, Folder,
@@ -9,7 +9,6 @@ import {
 import { api } from "@/api";
 import { CollectionSnippetBadge, CollectionSnippetMedia } from "@/components/collection-snippet-media";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
-import { ListTileContent } from "@/components/list-tile-content";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -28,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { localDateInputValue } from "@/lib/workouts";
 import { normalizeMedicationTimes, sortMedications } from "@/lib/medications";
@@ -640,7 +638,7 @@ function MedicationDrawer({ open, medication, groups, initialGroupId, onOpenChan
   );
 }
 
-function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }) {
+function MedicationGroupDrawer({ open, group, opener, onOpenChange, onSaved, onDeleted }) {
   const isMobile = useIsMobile();
   const formId = useId();
   const [title, setTitle] = useState("");
@@ -704,6 +702,7 @@ function MedicationGroupDrawer({ open, group, onOpenChange, onSaved, onDeleted }
       >
         <DrawerContent
           className="rollapp-body app-drawer--form"
+          finalFocus={() => opener?.isConnected ? opener : true}
         >
           <DrawerClose
             render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={busy} />}
@@ -778,27 +777,32 @@ function medicationCountLabel(count) {
   return "препаратов";
 }
 
-function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onValueChange }) {
-  const tiles = ungroupedCount > 0 ? [{ id: UNGROUPED_ID, title: "Без группы" }, ...groups] : groups;
-  if (!tiles.length) return null;
+function MedicationGroupTabs({ groups, medications, ungroupedCount, value, onValueChange, onEdit }) {
+  const { owner } = useSphereSharing();
+  if (!ungroupedCount && !groups.length) return null;
 
   return (
-    <nav className="list-tabs mb-0 w-full" aria-label="Группы препаратов">
-      <div className="list-tabs__track">
-        <ToggleGroup className="contents" value={[value]} onValueChange={(values) => values[0] && onValueChange(values[0])} aria-label="Группы препаратов">
-          {tiles.map((group) => {
-            const count = group.id === UNGROUPED_ID
-              ? ungroupedCount
-              : medications.filter((medication) => medication.groupId === group.id).length;
-            return (
-              <ToggleGroupItem data-list-tile="" key={group.id} value={group.id} aria-label={`${group.title}, ${count} ${medicationCountLabel(count)}`}>
-                <ListTileContent title={group.title} count={count} />
-              </ToggleGroupItem>
-            );
-          })}
-        </ToggleGroup>
-      </div>
-    </nav>
+    <WishListNavigation
+      label="Группы препаратов"
+      value={value}
+      orderScope={onEdit && owner?.id ? `${owner.id}:lists:medications` : undefined}
+      settingsLabel={title => `Настройки группы «${title}»`}
+      leadingItem={ungroupedCount > 0 ? {
+        id: UNGROUPED_ID, title: "Без группы", count: ungroupedCount,
+        accessibleName: `Без группы, ${ungroupedCount} ${medicationCountLabel(ungroupedCount)}`,
+      } : null}
+      items={groups.map(({ id, title }) => {
+        const count = medications.filter(medication => medication.groupId === id).length;
+        return { id, title, count, accessibleName: `${title}, ${count} ${medicationCountLabel(count)}` };
+      })}
+      onSelect={id => { if (id) onValueChange(id); }}
+      onSettings={onEdit ? (id, opener) => {
+        const group = groups.find(item => item.id === id);
+        if (!group) return;
+        opener.focus({ preventScroll: true });
+        onEdit(group, opener);
+      } : undefined}
+    />
   );
 }
 
@@ -827,7 +831,7 @@ function MedicationSection({ groups, hideTitle = false, id, medications, moveSta
 }
 
 export function Medications() {
-  const { readOnly } = useSphereSharing();
+  const { readOnly, loading: sharingLoading } = useSphereSharing();
   const [drawerState, setDrawerState] = useState(null);
   const [groupDrawerState, setGroupDrawerState] = useState(null);
   const [preferredGroupId, setSelectedGroupId] = useState(UNGROUPED_ID);
@@ -876,7 +880,7 @@ export function Medications() {
         : [...state.groups, group];
       return { ...state, groups };
     });
-    setSelectedGroupId(group.id);
+    if (!groupDrawerState?.group) setSelectedGroupId(group.id);
     if (groupDrawerState?.moveItem) void moveMedicationToGroup(groupDrawerState.moveItem, group.id, group.title);
   };
 
@@ -886,7 +890,7 @@ export function Medications() {
       groups: state.groups.filter((group) => group.id !== groupId),
       medications: state.medications.map((medication) => medication.groupId === groupId ? { ...medication, groupId: null } : medication),
     }));
-    setSelectedGroupId(UNGROUPED_ID);
+    if (groupId === selectedGroupId) setSelectedGroupId(UNGROUPED_ID);
   };
 
   const moveMedicationToGroup = async (medication, targetGroupId, targetTitleOverride = "") => {
@@ -921,7 +925,7 @@ export function Medications() {
   });
 
   return (
-    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" data-group-navigation aria-labelledby="medications-title">
+    <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-labelledby="medications-title">
       {!readOnly && <AddFab actions={[
         { label: "Добавить препарат", onSelect: addMedication },
         !requestState.loading && !requestState.error && { label: "Новая группа", icon: ListPlus, onSelect: () => setGroupDrawerState({ group: null, moveItem: null }) },
@@ -929,11 +933,6 @@ export function Medications() {
       {!readOnly && <header className="page-toolbar w-full justify-center">
         <h2 className="sr-only" id="medications-title">Препараты</h2>
         <div className="page-actions wishes-page__hero-actions horizontal-action-scroller" role="group" aria-label="Действия раздела «Препараты»">
-          {selectedGroup && (
-            <PageActionButton className="shrink-0" variant="outline" type="button" onClick={() => setGroupDrawerState({ group: selectedGroup, moveItem: null })}>
-              Настройки группы
-            </PageActionButton>
-          )}
           <SphereBusinessControls sphereId="health" />
         </div>
       </header>}
@@ -976,6 +975,9 @@ export function Medications() {
           ungroupedCount={ungroupedCount}
           value={selectedGroupId}
           onValueChange={setSelectedGroupId}
+          onEdit={!readOnly && !sharingLoading ? (group, opener) => {
+            setGroupDrawerState({ group, opener, moveItem: null });
+          } : undefined}
         />
       )}
 
@@ -1008,9 +1010,10 @@ export function Medications() {
         onSaved={saveMedication}
       />}
       {!readOnly && <MedicationGroupDrawer
-        open={Boolean(groupDrawerState)}
+        open={Boolean(groupDrawerState && !groupDrawerState.closed)}
         group={groupDrawerState?.group || null}
-        onOpenChange={(open) => { if (!open) setGroupDrawerState(null); }}
+        opener={groupDrawerState?.opener}
+        onOpenChange={open => { if (!open) setGroupDrawerState(current => current && { ...current, closed: true }); }}
         onSaved={saveGroup}
         onDeleted={deleteGroup}
       />}

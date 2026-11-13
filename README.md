@@ -235,34 +235,34 @@ putting the client secret in the compose file.
 
 ### Backups to Yandex Disk
 
-When a signed-in user links Yandex ID and grants Disk access, Rollapp saves a
-snapshot to `ROLLAPP` in the root of that Yandex Disk. The profile settings also
-offer **Сделать копию** to people who linked Yandex earlier and to anyone
-who wants a fresh copy. Each run creates a separate dated `.json.gz` file. Normal
-sign-in does not request Disk access or start a backup.
+In **Yandex ID → Синхронизация копии**, the account owner can enable scheduled
+backup to the private Rollapp application folder on Yandex Disk. The first
+backup is queued on enablement. After a successful update, the next one is due
+in an hour. **Обновить сейчас** queues an immediate update, and the settings
+show when Disk last confirmed the copy. Disabling future updates leaves the
+latest confirmed file on Disk. Signing in and connecting personal notes do
+not enable full-account backup.
 
 The versioned JSON contains the account's saved content, including documents,
 wishlists and their groups, planning and notes, contacts, education, health,
 profile, conversations the account participates in and account activity.
 Uploaded images, PDFs, account files and active stories include the original
-bytes in base64 next to their record IDs. External media remain URLs; shared
-catalogues, expired stories, the operational Git history bundle and
-authentication secrets are excluded. This is a snapshot at the time of linking
-or manual copying; there is no scheduled sync or automatic import.
+bytes in base64 next to their record IDs. The archive includes the current
+text of Disk-only personal notes. External media remain URLs. The archive
+excludes credentials, operational state, shared catalogues, expired stories
+and the Git history bundle. The worker writes `rollapp-latest.json.gz` and
+checks its size and SHA-256 before marking the update complete. Data edits
+flow from Rollapp into the archive. Editing the archive does not import changes.
 
-To enable it, add `cloud_api:disk.read` and `cloud_api:disk.write` to the Yandex
-OAuth app's allowed permissions, then set `YANDEX_DISK_BACKUP_ENABLED=true` in the
-runtime environment (for the production workflow, use the GitHub repository
-variable of the same name). Root-folder write access creates and uploads the
-snapshot; read access verifies that the destination is a private directory.
-Users can decline these optional permissions and still link Yandex ID. See
-[OAuth consent](https://yandex.ru/dev/id/doc/ru/codes/code-url) and the
-[Disk REST API](https://yandex.ru/dev/disk/rest/).
-
-The startup verifier validates the existing backup tables without migrations.
-For rollout, verify the production connection read-only and test a copy with a
-consenting account. A running backup and its status are local to the API process;
-if a release interrupts it, the user can start it again from profile settings.
+Synchronization uses the dedicated app-folder OAuth configuration from the
+[Disk notes integration](docs/yandex-disk-notes.md). Install
+[yandex-disk-sync.sql](scripts/sql/yandex-disk-sync.sql) separately on the
+verified target, then release the application. Startup verifies the schema
+read-only. Without the table the previous optional one-shot backup remains
+available through `YANDEX_DISK_BACKUP_ENABLED`. Existing dated backups are
+retained. OAuth and file transfer follow the
+[OAuth consent](https://yandex.ru/dev/id/doc/ru/codes/code-url) and
+[Disk REST API](https://yandex.ru/dev/disk/rest/) documentation.
 
 ### Password recovery
 

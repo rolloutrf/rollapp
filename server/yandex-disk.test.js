@@ -47,7 +47,32 @@ test("a note is written create-only and acknowledged after an exact read-back wi
   assert.equal(calls[1].options.body.toString(), markdown);
   assert.equal(calls[1].options.headers.Authorization, undefined);
   assert.equal(calls[4].options.headers, undefined);
-  assert(calls.every(({ options }) => options.redirect === "error"));
+  assert.deepEqual(calls.map(({ options }) => options.redirect), ["error", "error", "error", "error", "manual"]);
+});
+
+test("downloads follow the Yandex storage hop without forwarding the token", async () => {
+  for (const host of ["mds.storage.yandex.net", "example.com"]) {
+    const requests = [];
+    const responses = [
+      transfer("GET"),
+      new Response(null, { status: 302, headers: { location: `https://${host}/signed-path` } }),
+      new Response("Заметки"),
+    ];
+    const disk = createYandexDiskClient({}, { fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      return responses.shift();
+    } });
+    const read = disk.read("token", "app:/note.md");
+    if (host === "example.com") {
+      await assert.rejects(read, { code: "DISK_UNAVAILABLE" });
+      assert.equal(requests.length, 2);
+    } else {
+      assert.equal(await read, "Заметки");
+      assert.equal(requests[2].url.hostname, host);
+      assert.equal(requests[2].options.redirect, "error");
+      assert.equal(requests[2].options.headers, undefined);
+    }
+  }
 });
 
 test("unverified writes, missing files, hostile transfer destinations and oversize downloads fail closed", async () => {

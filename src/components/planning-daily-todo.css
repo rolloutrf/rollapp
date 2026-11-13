@@ -7,7 +7,8 @@
 .daily-todo__content { display: flex; flex-shrink: 0; width: min(100%, calc(var(--layout-form-width) + 2 * var(--layout-page-inset))); margin-inline: auto; padding-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right)); flex-direction: column; gap: var(--layout-page-gap); }
 .daily-todo__scroll > .daily-todo__content { gap: 0; }
 @media (min-width: 768px) {
-  .daily-todo__footer { position: sticky; inset-block-end: 0; z-index: 1; margin-block-start: auto; pointer-events: none; }
+  .daily-todo__scroll > .daily-todo__footer { position: sticky; inset-block-end: 0; z-index: 1; margin-block-start: auto; }
+  .daily-todo__footer { pointer-events: none; }
   .daily-todo__composer { pointer-events: auto; }
 }
 .daily-todo__header { display: flex; flex-shrink: 0; min-width: 0; flex-direction: column; gap: var(--layout-inline-gap); }

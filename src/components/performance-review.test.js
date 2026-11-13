@@ -12,7 +12,7 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
     readFile(new URL("src/components/ui/accordion.jsx", root), "utf8"),
   ]);
 
-  for (const component of ["accordion", "alert", "avatar", "badge", "tabs"]) {
+  for (const component of ["accordion", "alert", "avatar", "badge"]) {
     assert.match(source, new RegExp(`@/components/ui/${component}`), `PerformanceReview must use shadcn ${component}`);
   }
 
@@ -56,11 +56,8 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
     "Long-form review text must keep the shared Rollapp reading rhythm",
   );
   assert.doesNotMatch(source, /\bspace-[xy]-/, "shadcn compositions must use parent gap utilities instead of space-* selectors");
-  assert.match(source, /<Tabs className="min-w-0 gap-6"/, "Tabs must own the gap between their list and panel");
-  assert.match(source, /data-report-navigation/, "Review periods must use the shared tile navigation");
-  assert.match(source, /className="list-tabs h-auto! min-w-0 w-full flex-nowrap bg-transparent p-0"/, "Period tiles must keep one scrollable row without a filled rail");
-  assert.match(source, /data-list-tile[\s\S]*?data-report-tile/, "Review periods must reuse shared list tile geometry and active states");
-  assert.match(source, /data-slot="list-tile-count">\{cycle.projects.length\}/, "Each period tile must show its result count");
+  assert.match(source, /<WishListNavigation\b/, "Review periods must use the shared tile navigation");
+  assert.match(source, /count: cycle\.projects\.length/, "Each period tile must show its result count");
   assert.match(source, /REVIEW_SCORE_LABELS\.has\(label\)/, "Review prose must never be rendered inside a score badge");
   assert.match(source, /whitespace-nowrap text-xs font-normal text-muted-foreground/, "Feedback counts must remain readable when a project header is narrow");
   assert.match(
@@ -71,7 +68,7 @@ test("the performance page is composed from shadcn/ui without page-specific CSS"
   assert.doesNotMatch(source, /\b(?:importError|importNotice)\b/, "Performance actions must not leave independent stale notices on screen");
   assert.match(
     source,
-    /label: "Импортировать PDF", disabled: careerContent\.loading \|\| importing \|\| deleting/,
+    /const mutationBusy = careerContent\.loading \|\| importing \|\| deleting/,
     "Performance mutations must prevent overlapping imports and deletions",
   );
 });

@@ -64,7 +64,7 @@ export function usePlanningSpaceSelection() {
 export function PlanningSpaceSwitcher() {
   const state = usePlanningSpaceSelection();
   const [search] = useSearchParams();
-  if (search.get("tab") === "notes") return <Link to="?tab=notes" className={cn(buttonVariants({ variant: "outline" }), "space-select global-service-select rounded-full")} aria-label="К списку заметок"><FileText aria-hidden="true" /><span className="space-select__label">Заметки</span></Link>;
+  if (search.get("tab") === "notes") return <Link to="?tab=notes" className={cn(buttonVariants({ variant: "outline" }), "space-select global-service-select")} aria-label="К списку заметок"><FileText aria-hidden="true" /><span className="space-select__label">Заметки</span></Link>;
   return state && <PlanningSpaceMenu {...state} />;
 }
 
@@ -76,7 +76,7 @@ export function PlanningSpaceMenu({ kind, selected, onSelect, spaces, loading, e
   const label = selectedSpace?.title || (loading ? "Загрузка…" : calendar ? "Выберите календарь" : todo ? "Выберите To Do-лист" : "Выберите доску");
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select rounded-full" aria-label={calendar ? "Выбрать календарь" : todo ? "Выбрать To Do-лист" : "Выбрать доску задач"} />}>
+      <DropdownMenuTrigger render={<Button variant="outline" className="space-select global-service-select" aria-label={calendar ? "Выбрать календарь" : todo ? "Выбрать To Do-лист" : "Выбрать доску задач"} />}>
         <Icon aria-hidden="true" /><span className="space-select__label">{label}</span><ChevronDown aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="rollapp-body global-service-select__content app-navigation-popup w-max min-w-(--anchor-width) max-w-(--available-width)" align="center" side={mobile ? "top" : "bottom"}>

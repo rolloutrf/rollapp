@@ -1,6 +1,5 @@
 import { AddFab } from "@/components/add-fab";
-import { ListTileContent } from "@/components/list-tile-content";
-import { PageActionButton } from "@/components/page-action-button";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { useEffect, useId, useState } from "react";
 import { FolderInput, ListPlus, MoreHorizontal, Trash2, Ungroup, X } from "lucide-react";
 import { api } from "@/api";
@@ -23,7 +22,6 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { canAutofocusForm, useIsMobile } from "@/hooks/use-mobile";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 import {
@@ -152,7 +150,7 @@ export function EducationItemListMenu({
   );
 }
 
-export function EducationSectionHeader({ title, titleId, selectedList, addLabel, onAdd, onCreateList, onEditList, sphereId = "education" }) {
+export function EducationSectionHeader({ title, titleId, addLabel, onAdd, onCreateList, sphereId = "education" }) {
   const { readOnly } = useSphereSharing();
   if (readOnly) return <h2 className="sr-only" id={titleId}>{title}</h2>;
   return (
@@ -161,16 +159,6 @@ export function EducationSectionHeader({ title, titleId, selectedList, addLabel,
     <header className="page-toolbar w-full justify-center">
       <h2 className="sr-only" id={titleId}>{title}</h2>
       <div className="page-actions horizontal-action-scroller" role="group" aria-label={`Действия раздела «${title}»`}>
-        {selectedList && (
-          <PageActionButton
-            className="shrink-0"
-            variant="outline"
-            type="button"
-            onClick={() => onEditList(selectedList)}
-          >
-            Настройки списка
-          </PageActionButton>
-        )}
         <SphereBusinessControls sphereId={sphereId} />
       </div>
     </header>
@@ -184,46 +172,31 @@ export function EducationListNavigation({
   selectedListId,
   unlistedTitle = "Не отсортированные",
   ariaLabel,
+  section,
   onSelectList,
+  onEditList,
 }) {
+  const { readOnly, loading, owner } = useSphereSharing();
   const unlistedCount = educationListItemCount(items, UNLISTED_EDUCATION_LIST_ID);
   const showUnlisted = unlistedCount > 0 || lists.length === 0;
   return (
-    <div className="min-w-0" data-group-navigation>
-      <div className="list-tabs horizontal-tile-scroller mb-0">
-        <div className="list-tabs__track">
-          <ToggleGroup
-            className="contents"
-            value={[selectedListId]}
-            onValueChange={(values) => values[0] && onSelectList(values[0])}
-            aria-label={ariaLabel}
-          >
-            {showUnlisted && (
-              <ToggleGroupItem
-                data-list-tile=""
-                value={UNLISTED_EDUCATION_LIST_ID}
-                aria-label={`${unlistedTitle}, ${unlistedCount}`}
-              >
-                <ListTileContent title={unlistedTitle} count={unlistedCount} />
-              </ToggleGroupItem>
-            )}
-            {lists.map((list) => {
-              const count = educationListItemCount(items, list.id);
-              return (
-                <ToggleGroupItem
-                  data-list-tile=""
-                  value={list.id}
-                  key={list.id}
-                  aria-label={`${list.title}, ${count}`}
-                >
-                  <ListTileContent title={list.title} count={count} />
-                </ToggleGroupItem>
-              );
-            })}
-          </ToggleGroup>
-        </div>
-      </div>
-    </div>
+    <WishListNavigation
+      label={ariaLabel}
+      value={selectedListId}
+      orderScope={!readOnly && !loading && owner?.id && section ? `${owner.id}:lists:${section}` : undefined}
+      leadingItem={showUnlisted ? { id: UNLISTED_EDUCATION_LIST_ID, title: unlistedTitle, count: unlistedCount, accessibleName: `${unlistedTitle}, ${unlistedCount}` } : null}
+      items={lists.map(({ id, title }) => {
+        const count = educationListItemCount(items, id);
+        return { id, title, count, accessibleName: `${title}, ${count}` };
+      })}
+      onSelect={id => { if (id) onSelectList(id); }}
+      onSettings={!readOnly && !loading && onEditList ? (id, opener) => {
+        const list = lists.find(item => item.id === id);
+        if (!list) return;
+        opener.focus({ preventScroll: true });
+        onEditList(list, opener);
+      } : undefined}
+    />
   );
 }
 
@@ -235,6 +208,7 @@ export function EducationListDrawer({
   onDeleted,
   onOpenChange,
   onSaved,
+  opener,
 }) {
   const isMobile = useIsMobile();
   const titleId = useId();
@@ -297,7 +271,7 @@ export function EducationListDrawer({
       >
         <DrawerContent
           className="rollapp-body app-drawer--form"
-          finalFocus={educationGroupReturnFocus}
+          finalFocus={() => opener?.isConnected ? opener : educationGroupReturnFocus()}
         >
           <DrawerClose
             render={<Button className="absolute top-2 right-2 z-10 size-12" variant="ghost" size="icon" type="button" disabled={saving || deleting} />}

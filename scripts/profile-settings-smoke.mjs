@@ -145,6 +145,14 @@ try {
     assert.equal(await button("Финансы").isDisabled(), true);
     await button("Визитка и QR-код").click();
     await page.getByRole("img", { name: "QR-код профиля Имя профиля", exact: true }).waitFor();
+    const cardHeading = page.getByRole("heading", { name: "Визитка и QR-код", exact: true });
+    assert.deepEqual(await cardHeading.evaluate((node) => {
+      const title = getComputedStyle(node);
+      const header = getComputedStyle(node.parentElement);
+      return [title.fontSize, title.fontWeight, header.paddingInlineStart, header.borderBottomWidth, header.backgroundColor];
+    }), ["24px", "600", "16px", mobile ? "0px" : "1px", "rgba(0, 0, 0, 0)"]);
+    if (!mobile) assert((await back.boundingBox()).x < (await cardHeading.boundingBox()).x);
+    if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-profile-card-header-${width}x${height}.png` });
     await back.click();
     await menu.waitFor();
     const invites = button("Инвайты");
@@ -352,9 +360,10 @@ try {
     const card = page.getByRole("heading", { name: "Подарочная карта", exact: true });
     await card.waitFor();
     await page.getByRole("button", { name: "Магазин · 100 роллов", pressed: true }).waitFor();
-    await button(mobile ? "Назад" : "Закрыть подарочную карту").click();
+    await back.click();
     await card.waitFor({ state: "hidden" });
     await giftList.waitFor();
+    await page.waitForFunction(() => document.activeElement?.textContent.trim() === "Открыть карту");
     if (mobile && width === 320) await page.goBack();
     else await back.click();
     await menu.waitFor();
@@ -423,6 +432,46 @@ try {
     if (width === 390 && height === 844 || width === 1440 && height === 900) {
       await page.screenshot({ path: `/tmp/rollapp-disk-profile-${width}.png` });
     }
+    await page.goto(`${origin}/__profile-settings?state=disk-sync`);
+    await button("Yandex ID").click();
+    await page.getByRole("heading", { name: "Синхронизация копии", exact: true }).waitFor();
+    assert.equal(await copy.count(), 0);
+    assert.equal(await activateDisk.count(), 0);
+    await page.getByRole("link", { name: "Открыть личные заметки" }).waitFor();
+    const enableSync = button("Включить синхронизацию");
+    await enableSync.waitFor();
+    assert.equal(await page.evaluate(() => window.diskSyncActions), undefined);
+    await enableSync.click();
+    await page.getByText("Обновляем копию…", { exact: true }).waitFor();
+    const stopSync = button("Выключить синхронизацию");
+    assert.equal(await stopSync.isDisabled(), true);
+    await page.evaluate(() => window.completeDiskSync());
+    const refreshSync = button("Обновить сейчас");
+    await page.getByText(/^Последняя копия /).waitFor();
+    const notes = page.getByRole("link", { name: "Открыть личные заметки" });
+    if (height < 500) {
+      await notes.evaluate((element) => {
+        const viewport = element.closest('[data-slot="scroll-area-viewport"]') || document.scrollingElement;
+        viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
+      });
+      assert((await notes.boundingBox()).y + (await notes.boundingBox()).height <= (await refreshSync.boundingBox()).y,
+        `${width}x${height}: the notes link must scroll above the fixed footer`);
+    }
+    for (const control of [refreshSync, stopSync]) {
+      assert(await control.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return element.closest("[data-control-bar]") && rect.height === 48 && rect.x >= 0 && rect.right <= innerWidth &&
+          rect.top >= 0 && rect.bottom <= innerHeight && element.scrollWidth <= element.clientWidth;
+      }), `${width}x${height}: sync action geometry`);
+    }
+    if (height === 400 || width === 1440) await page.screenshot({ path: `/tmp/rollapp-disk-sync-${width}x${height}.png` });
+    await refreshSync.click();
+    await page.getByText("Обновляем копию…", { exact: true }).waitFor();
+    await page.evaluate(() => window.completeDiskSync());
+    await page.getByText("Автоматическое обновление включено.", { exact: true }).waitFor();
+    await stopSync.click();
+    await page.getByText("Автоматическое обновление выключено.", { exact: true }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.diskSyncActions), ["enable", "refresh", "disable"]);
     await page.goto(`${origin}/__profile-settings?state=save`);
     await personal.click();
     await name.fill("Сохранённое имя");
@@ -553,7 +602,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     if (height === 400) await page.screenshot({ path: `/tmp/rollapp-yandex-result-${width}x${height}.png` });
     assert.deepEqual(errors, []);
-    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance, MCP keys and Yandex backup result (${result})`);
+    console.log(`PASS profile sections ${width}x${height}: photo, Back, drafts, finance, MCP keys, backup result (${result}) and Disk sync`);
     await page.close();
   }
 } finally { await browser.close(); await server.close(); }

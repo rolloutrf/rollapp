@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp, Plus, Trash2 } from "lucide-react";
 import { ControlBar } from "@/components/control-bar";
 import { HealthDayNavigation } from "@/components/health-day-navigation";
@@ -38,6 +38,9 @@ function MealRow({ entry, canEdit, onSave, onEdit, onDelete }) {
 
 export function NutritionTodo({ entries, selected, today, onDateChange, canEdit, onCreate, onEdit, onSave, onDelete }) {
   const mobile = useIsMobile();
+  const showComposer = !mobile && canEdit;
+  const body = useRef(null);
+  const footer = useRef(null);
   const [draft, setDraft] = useState({ date: selected, title: "" });
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -46,6 +49,20 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
   const dayEntries = entries.filter(entry => entry.date === selected).sort((a, b) => a.time.localeCompare(b.time));
   const done = dayEntries.filter(completed);
   const planned = dayEntries.filter(entry => !completed(entry));
+  useLayoutEffect(() => {
+    if (!showComposer) return;
+    const content = body.current;
+    const composer = footer.current;
+    // Reserve the full footer height, including any retry message, in the document.
+    const measure = () => content.style.setProperty("--nutrition-composer-height", `${composer.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer, { box: "border-box" });
+    return () => {
+      observer.disconnect();
+      content.style.removeProperty("--nutrition-composer-height");
+    };
+  }, [showComposer]);
   async function add(event) {
     event.preventDefault();
     if (!title.trim() || lock.current || !canEdit) return;
@@ -61,17 +78,19 @@ export function NutritionTodo({ entries, selected, today, onDateChange, canEdit,
   const rows = items => <ul className="daily-todo__list">{items.map(entry => <MealRow key={entry.id} entry={entry} canEdit={canEdit} onSave={onSave} onEdit={onEdit} onDelete={onDelete} />)}</ul>;
   return <div className="nutrition-todo not-typeset page-stack">
     <HealthDayNavigation selected={selected} today={today} onDateChange={onDateChange} label="День питания" addLabel="Добавить приём пищи" onAdd={canEdit ? create : undefined} />
-    <div className="health-tracker__body page-stack">
+    <div className="health-tracker__body page-stack" ref={body}>
       {planned.length > 0 && <section aria-label="Запланировано" className="page-stack">{rows(planned)}</section>}
       {done.length > 0 && <section aria-label="Съедено" className="page-stack">{rows(done)}</section>}
       {dayEntries.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет записей о питании</p>}
-      {!mobile && canEdit && <form className="daily-todo__composer" onSubmit={add}>
-        {error?.date === selected && <p role="alert" className="text-destructive">{error.message}</p>}
-        <InputGroup className="daily-todo__composer-input">
-          <InputGroupTextarea value={title} onChange={event => { setDraft({ date: selected, title: event.target.value }); setError(null); }} rows={1} maxLength={200} disabled={busy} placeholder="Новый приём пищи на этот день" aria-label="Новый приём пищи на этот день" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} />
-          <InputGroupAddon align="block-end" className="daily-todo__composer-addon"><ControlBar className="daily-todo__composer-actions"><Button data-control-icon type="button" variant="outline" size="icon" aria-label="Добавить приём пищи" disabled={busy} onClick={create}><Plus /></Button><Button data-control-icon type="submit" size="icon" aria-label="Добавить в список питания" disabled={busy || !title.trim()}><ArrowUp /></Button></ControlBar></InputGroupAddon>
-        </InputGroup>
-      </form>}
+      {showComposer && <footer className="daily-todo__footer nutrition-todo__footer" ref={footer}>
+        <form className="daily-todo__composer" onSubmit={add}>
+          {error?.date === selected && <p role="alert" className="text-destructive">{error.message}</p>}
+          <InputGroup className="daily-todo__composer-input">
+            <InputGroupTextarea value={title} onChange={event => { setDraft({ date: selected, title: event.target.value }); setError(null); }} rows={1} maxLength={200} disabled={busy} placeholder="Новый приём пищи на этот день" aria-label="Новый приём пищи на этот день" onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} />
+            <InputGroupAddon align="block-end" className="daily-todo__composer-addon"><ControlBar className="daily-todo__composer-actions"><Button data-control-icon type="button" variant="outline" size="icon" aria-label="Добавить приём пищи" disabled={busy} onClick={create}><Plus /></Button><Button data-control-icon type="submit" size="icon" aria-label="Добавить в список питания" disabled={busy || !title.trim()}><ArrowUp /></Button></ControlBar></InputGroupAddon>
+          </InputGroup>
+        </form>
+      </footer>}
     </div>
   </div>;
 }

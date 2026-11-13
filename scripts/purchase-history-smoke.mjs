@@ -14,7 +14,7 @@ const server = await createServer({
     name: "purchase-history-fixture",
     enforce: "pre",
     transform(source, id) {
-      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext, WishesProfileControls };`;
+      if (id.endsWith("/src/App.jsx?purchase-history-smoke")) return `${source}\nexport { ProfileSettingsModal, SessionContext, ToastContext, WishlistSectionNavigation };`;
     },
     configureServer(vite) {
       vite.middlewares.use(async (req, res, next) => {
@@ -45,9 +45,8 @@ try {
       window.rejectDestinationLoad = true;
       window.rejectPurchaseSave = true;
     });
-    const wishlist = page.getByRole("group", { name: "Действия со списком желаний" });
-    await wishlist.getByRole("button", { name: "Добавить" }).waitFor({ timeout: 90_000 });
-    assert.equal(await wishlist.getByRole("button", { name: /импорт/i }).count(), 0);
+    await page.getByRole("navigation", { name: "Разделы Вишлиста" }).waitFor({ timeout: 90_000 });
+    assert.equal(await page.getByRole("button", { name: "Импорт покупок" }).count(), 0);
     await page.getByRole("button", { name: "Профиль", exact: true }).click();
     await page.getByRole("button", { name: "Финансы", exact: true }).click();
     const open = page.getByRole("button", { name: "Импорт покупок" });
@@ -65,6 +64,10 @@ try {
     const heading = page.getByRole("heading", { name: "Импорт покупок" });
     await heading.waitFor();
     const surface = heading.locator("xpath=ancestor::*[contains(@class, 'app-drawer--form')][1]");
+    const back = surface.getByRole("button", { name: "Назад", exact: true });
+    const backBox = await back.boundingBox();
+    assert.deepEqual([backBox.width, backBox.height], [48, 48]);
+    if (width >= 768) assert(backBox.x < (await heading.boundingBox()).x, "Back precedes the title in the drawer header");
     const destination = surface.getByRole("combobox", { name: "Список в Вишлисте" });
     if (shortMobile) {
       await surface.getByRole("alert").filter({ hasText: "Списки временно недоступны" }).waitFor();
@@ -156,7 +159,7 @@ try {
       assert.equal(await page.evaluate(() => window.wishlistRefreshes), 1);
     } else {
       if (width === 320) await page.goBack();
-      else await surface.getByRole("button", { name: width < 768 ? /^Назад/ : "Закрыть импорт" }).click();
+      else await back.click();
       assert.deepEqual(await page.evaluate(() => window.purchaseImportRequests), []);
       assert.equal(await page.evaluate(() => window.wishlistRefreshes), 0);
     }

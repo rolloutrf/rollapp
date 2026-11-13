@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { api } from "@/api";
 import { SphereBusinessControls } from "@/components/business-marketplace-page";
-import { PageActionButton } from "@/components/page-action-button";
+import { WishListNavigation } from "@/components/wish-list-navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useSphereSharing } from "@/lib/sphere-sharing";
 
@@ -36,6 +35,11 @@ const STATUS_LABELS = {
 };
 
 const MAX_PDF_BYTES = 12 * 1024 * 1024;
+
+function reportTileTitle(report) {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(report.date);
+  return date ? <>{date[3]}.{date[2]}<br />{date[1]}</> : report.dateLabel;
+}
 
 function sortReports(reports) {
   return [...reports].sort((left, right) => (
@@ -116,8 +120,34 @@ export function LabReportPanel({ report }) {
   );
 }
 
+function LabReportMenu({ trigger, disabled, onDelete }) {
+  const triggerRef = useRef(null);
+  const pendingDelete = useRef(false);
+  return (
+    <DropdownMenu modal={false} onOpenChangeComplete={open => {
+      if (open || !pendingDelete.current) return;
+      pendingDelete.current = false;
+      onDelete(triggerRef.current);
+    }}>
+      <DropdownMenuTrigger ref={triggerRef} render={trigger} disabled={disabled} />
+      <DropdownMenuContent align="end" sideOffset={8} className="w-max min-w-48">
+        <DropdownMenuItem
+          variant="destructive"
+          className="app-destructive-menu-item px-3"
+          aria-haspopup="dialog"
+          onClick={() => { pendingDelete.current = true; }}
+        >
+          <Trash2 aria-hidden="true" />
+          Удалить анализ
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function LabResults() {
-  const { readOnly } = useSphereSharing();
+  const { readOnly, loading: sharingLoading } = useSphereSharing();
+  const canManage = !readOnly && !sharingLoading;
   const fileInputRef = useRef(null);
   const settingsButtonRef = useRef(null);
   const [requestVersion, setRequestVersion] = useState(0);
@@ -140,7 +170,7 @@ export function LabResults() {
   }, [requestVersion]);
 
   async function uploadPdf(file) {
-    if (!file || readOnly || uploadState.loading || deleteState.busy) return;
+    if (!file || !canManage || uploadState.loading || deleteState.busy) return;
     if (!(file.type === "application/pdf" || file.name.toLocaleLowerCase("ru-RU").endsWith(".pdf"))) {
       setUploadState({ loading: false, error: "Выберите файл в формате PDF.", success: "" });
       return;
@@ -175,14 +205,16 @@ export function LabResults() {
     void uploadPdf(file);
   }
 
-  function requestDeleteReport(report) {
+  function requestDeleteReport(report, opener) {
+    if (!report || !canManage || uploadState.loading || deleteState.busy) return;
+    settingsButtonRef.current = opener;
     setUploadState({ loading: false, error: "", success: "" });
     setDeleteState({ busy: false, error: "" });
     setDeleteTarget(report);
   }
 
   async function deleteReport() {
-    if (!deleteTarget || deleteState.busy) return;
+    if (!canManage || !deleteTarget || deleteState.busy) return;
     const targetId = deleteTarget.id;
     const currentReports = requestState.data?.reports || [];
     const deletedIndex = Math.max(0, currentReports.findIndex((report) => report.id === targetId));
@@ -194,7 +226,7 @@ export function LabResults() {
         error: null,
         data: { ...state.data, ...response, reports },
       }));
-      setSelectedReportId(nextReport?.id || "");
+      setSelectedReportId(id => reports.some(report => report.id === id) ? id : nextReport?.id || "");
       setUploadState({ loading: false, error: "", success: "" });
       setDeleteTarget(null);
       setDeleteState({ busy: false, error: "" });
@@ -250,35 +282,13 @@ export function LabResults() {
 
   return (
     <article className="not-typeset rollapp-body page-stack mx-auto w-full max-w-(--layout-collection-width)" aria-label="Анализы крови">
-      {!readOnly && <AddFab actions={[{ label: "Добавить анализ", disabled: uploadState.loading || deleteState.busy, onSelect: () => fileInputRef.current?.click() }]} />}
-      {!readOnly && (
+      {canManage && <AddFab actions={[{ label: "Добавить анализ", disabled: uploadState.loading || deleteState.busy, onSelect: () => fileInputRef.current?.click() }]} />}
+      {canManage && (
         <div className="page-actions horizontal-action-scroller w-full justify-center" role="group" aria-label="Действия с анализами">
-          {selectedReport && (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                ref={settingsButtonRef}
-                render={<PageActionButton className="shrink-0 whitespace-nowrap" variant="outline" />}
-                disabled={deleteState.busy || uploadState.loading}
-              >
-                Настройки списка
-              </DropdownMenuTrigger>
-              <DropdownMenuContent sideOffset={8}>
-                <DropdownMenuItem
-                  variant="destructive"
-                  className="app-destructive-menu-item px-3"
-                  aria-haspopup="dialog"
-                  onClick={() => requestDeleteReport(selectedReport)}
-                >
-                  <Trash2 aria-hidden="true" />
-                  Удалить анализ
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
           <SphereBusinessControls sphereId="health" />
         </div>
       )}
-      {!readOnly && (
+      {canManage && (
         <>
           <Input
             ref={fileInputRef}
@@ -291,28 +301,27 @@ export function LabResults() {
           <span className="sr-only" id="lab-pdf-help">PDF до 12 МБ с выделяемым текстом.</span>
         </>
       )}
-      <section className="min-w-0 max-w-none" data-report-navigation>
-        {selectedReport ? (
-          <Tabs className="min-w-0" value={selectedReport.id} onValueChange={setSelectedReportId}>
-            <div className="list-tabs" data-tab-scroller>
-              <TabsList className="contents" aria-label="Дата исследования">
-                {reports.map((report, index) => (
-                  <TabsTrigger data-report-tile key={report.id} value={report.id}>
-                    <span data-slot="list-tile-label">{report.dateLabel}</span>
-                    <span data-slot="list-tile-meta" title={index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}>
-                      {index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · ")}
-                    </span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-            {reports.map((report) => (
-              <TabsContent className="min-w-0" key={report.id} value={report.id}>
-                <LabReportPanel report={report} />
-              </TabsContent>
-            ))}
-          </Tabs>
-        ) : (
+      {selectedReport ? (
+        <>
+          <WishListNavigation
+            label="Дата исследования"
+            settingsLabel={title => `Действия с анализом от ${title}`}
+            value={selectedReport.id}
+            items={reports.map((report, index) => ({
+              id: report.id,
+              title: report.dateLabel,
+              displayTitle: reportTileTitle(report),
+              detail: index === 0 ? "Последний" : (report.labs || [report.lab]).filter(Boolean).join(" · "),
+            }))}
+            onSelect={id => { if (id) setSelectedReportId(id); }}
+            renderSettings={canManage ? (id, trigger) => (
+              <LabReportMenu trigger={trigger} disabled={deleteState.busy || uploadState.loading}
+                onDelete={opener => requestDeleteReport(reports.find(report => report.id === id), opener)} />
+            ) : undefined}
+          />
+          <LabReportPanel key={selectedReport.id} report={selectedReport} />
+        </>
+      ) : (
           <Card>
             <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 text-center">
               <FileUp className="size-6 text-muted-foreground" aria-hidden="true" />
@@ -322,8 +331,7 @@ export function LabResults() {
               </div>
             </CardContent>
           </Card>
-        )}
-      </section>
+      )}
 
       {!readOnly && uploadState.error && (
         <Alert variant="destructive" aria-live="assertive">
@@ -340,7 +348,7 @@ export function LabResults() {
         </Alert>
       )}
 
-      {deleteTarget && !readOnly && (
+      {deleteTarget && canManage && (
         <AlertDialog
           open
           onOpenChange={(open) => {
@@ -350,7 +358,7 @@ export function LabResults() {
             }
           }}
         >
-          <AlertDialogContent finalFocus={settingsButtonRef}>
+          <AlertDialogContent finalFocus={() => settingsButtonRef.current?.isConnected ? settingsButtonRef.current : undefined}>
             <AlertDialogHeader>
               <AlertDialogTitle>Удалить анализ от {deleteTarget.dateLabel}?</AlertDialogTitle>
               <AlertDialogDescription>

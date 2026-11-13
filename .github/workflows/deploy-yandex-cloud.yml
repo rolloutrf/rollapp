@@ -266,7 +266,7 @@ jobs:
           fi
           if [ "$YANDEX_DISK_BACKUP_ENABLED" = "true" ]; then
             curl -fsS --max-time 10 "${PUBLIC_URL}/api/auth/yandex/config" |
-              jq -e '.enabled == true and .diskBackupEnabled == true' >/dev/null
+              jq -e '.enabled == true and (.diskBackupEnabled == true or .diskSyncEnabled == true)' >/dev/null
           fi
           health="$(read_health)"
           if [ -n "$YC_YANDEX_DISK_OAUTH_LOCKBOX_SECRET_ID" ]; then

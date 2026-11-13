@@ -4,7 +4,8 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 import { browserLaunchOptions } from './browser-runtime.mjs';
 const server=await createServer({cacheDir:'node_modules/.vite-action-rails-smoke',server:{host:'127.0.0.1',port: smokePort(),strictPort: true,hmr:false,watch:null},plugins:[{
-  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
+  name:'action-rails-fixture',transform(source,id){if(id.includes('App.jsx?action-rails-export'))return `${source}\nexport { ContactsProfileControls, WishesProfileControls, WishesPage, AppShell, ProfileEditorProvider, SessionContext, ToastContext };`;
+  if(id.endsWith('/src/lib/sphere-sharing.jsx'))return `${source}\nexport { SphereSharingContext };`;},configureServer(vite){vite.middlewares.use(async(req,res,next)=>{
     if(!req.url.startsWith('/__action-rails'))return next();
     res.setHeader('Content-Type','text/html');
     res.end(await vite.transformIndexHtml(req.url,'<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/scripts/fixtures/action-rails.jsx"></script></body></html>'));
@@ -33,12 +34,15 @@ try{
    let metrics=await measure();
    const textActions=await rail.locator('[data-page-action]').evaluateAll(elements=>elements.map(element=>{const s=getComputedStyle(element);return {left:s.paddingLeft,right:s.paddingRight,radii:[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius],height:element.getBoundingClientRect().height};}));
    for(const action of textActions){assert.equal(action.left,'24px',`${variant}: shared left padding`);assert.equal(action.right,'24px',`${variant}: shared right padding`);assert(action.height>=48);assert(action.radii.every(radius=>parseFloat(radius)>=24),`${variant}: text actions must be pills`);}
-   if(variant==='collection')assert.equal(textActions.length,2,'Both primary and settings actions must use the shared composition');
+   if(variant==='collection'){
+    assert.equal(textActions.length,0,'Collection settings live on the tiles');
+    assert.equal(await page.getByRole('button',{name:/^Настройки списка «/}).count(),2);
+   }
    if(variant==='wishlist-real'){
-    assert.equal(textActions.length,1,'Wishlist Add uses the shared text action');
+    assert.equal(textActions.length,1,'Seller page uses the shared text action');
     assert.equal(await rail.getByRole('button',{name:/импорт/i}).count(),0,'Purchase import belongs in profile finances');
    }
-   if(variant==='contacts-real')assert.equal(textActions.length,1);
+   if(variant==='contacts-real')assert.equal(textActions.length,0,'Contacts toolbar contains the store action');
    if(['collection','wishlist-real'].includes(variant)){
     const tiles=await page.locator('.list-tabs [data-list-tile]').evaluateAll(elements=>elements.map(element=>{const r=element.getBoundingClientRect(),s=getComputedStyle(element),label=element.querySelector('[data-slot="list-tile-label"]'),count=element.querySelector('[data-slot="list-tile-count"]'),c=count.getBoundingClientRect();return {width:r.width,height:r.height,radius:s.borderTopLeftRadius,inlineStyle:element.hasAttribute('style')||label.hasAttribute('style')||count.hasAttribute('style'),countFits:c.top>=r.top&&c.bottom<=r.bottom};}));
     assert.equal(tiles.length,2);for(const tile of tiles){assert.equal(tile.width,130);assert.equal(tile.height,100);assert.equal(tile.radius,'18px');assert(!tile.inlineStyle,'List tiles must consume shared CSS without inline copies');assert(tile.countFits,'Tile count left its bounds');}
@@ -78,9 +82,6 @@ try{
    assert(!metrics.overflow,`${width} ${variant}: page overflow`);
    assert(metrics.controls.every(c=>c.width>=48&&c.height>=48),`${width} ${variant}: small controls`);
    assert(metrics.controls.every(c=>Math.abs(c.top-metrics.controls[0].top)<1),`${width} ${variant}: wrapped controls`);
-   if(!['icons','nested'].includes(variant)){
-    assert.equal(metrics.controls[0].paddingLeft,'24px');assert.equal(metrics.controls[0].paddingRight,'24px');
-   }
    const assertCentered=(m)=>{if(m.scrollWidth<=m.clientWidth+1)assert(Math.abs((m.first+m.last)/2-(m.left+m.right)/2)<1,`${width} ${variant}: fitting action group is not centered ${JSON.stringify(m)}`);};
    assertCentered(metrics);
    if(variant==='wishlist-real'&&[390,1440].includes(width))await page.screenshot({path:`/tmp/rollapp-wishlist-actions-${width}.png`});
@@ -117,12 +118,68 @@ try{
    assertCentered(afterScroll);
    console.log(`PASS ${width} ${variant}: rail geometry, controls, scroll edges`);
   }
+  for (const variant of ['sport', 'courses', 'conferences', 'coaching', 'medications', 'performance']) {
+   const path = `${origin}/__action-rails?variant=${variant}`;
+   await page.goto(path);
+   const performance = variant === 'performance';
+   const medication = variant === 'medications';
+   const label = performance ? 'Редактировать цикл «Осень 2024»' : `Настройки ${medication ? 'группы' : 'списка'} «Второй»`;
+   const settings = page.getByRole('button', { name: label, exact: true });
+   await settings.waitFor();
+   const selected = page.locator('[data-list-tile][aria-pressed="true"]');
+   const initial = await selected.getAttribute('aria-label');
+   assert.equal(await page.getByRole('button', { name: /^(Настройки списка|Настройки группы|Редактировать)$/ }).count(), 0);
+   assert.equal(await page.getByRole('link', { name: 'Открыть магазин за роллы' }).count(), 1);
+   await settings.focus();
+   await page.keyboard.press('Enter');
+   if (performance) {
+    await page.getByText(/Редактируется выбранный цикл «Осень 2024»/).waitFor();
+   } else {
+    const title = page.getByRole('textbox', { name: medication ? 'Название группы' : 'Название', exact: true });
+    assert.equal(await title.inputValue(), 'Второй');
+    await title.fill('Переименованный');
+    await page.locator('form button[type="submit"]').click();
+    await page.getByRole('button', { name: label.replace('Второй', 'Переименованный'), exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.collectionWrites.length), 1);
+   }
+   if (performance) await page.getByRole('button', { name: width < 768 ? 'Назад' : 'Закрыть редактирование перфоманса', exact: true }).click();
+   const expectedFocus = performance ? label : label.replace('Второй', 'Переименованный');
+   await page.waitForFunction(name => document.activeElement?.getAttribute('aria-label') === name, expectedFocus);
+   assert.equal(await selected.getAttribute('aria-label'), initial);
+   if (performance) {
+    await settings.click();
+    await page.getByRole('button', { name: 'Удалить цикл', exact: true }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Удалить цикл ревью?' });
+    assert.match(await confirm.textContent(), /Осень 2024/);
+    await confirm.getByRole('button', { name: 'Удалить цикл', exact: true }).click();
+    await page.getByText('Цикл «Осень 2024» удалён.', { exact: true }).waitFor();
+    await settings.waitFor({ state: 'detached' });
+    await page.waitForFunction(() => !location.search.includes('formScreen'));
+    assert.equal(await selected.getAttribute('aria-label'), initial);
+   }
+   if (variant === 'sport') {
+    const first = page.locator('[data-wish-list-tile="first"]');
+    await first.focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await page.reload();
+    const sortables = page.locator('[data-wish-list-tile]');
+    await sortables.first().waitFor();
+    assert.equal(await sortables.first().getAttribute('data-wish-list-tile'), 'second');
+    await page.evaluate(() => localStorage.removeItem('rollapp:wishlist-list-order:fixture-owner:lists:workouts'));
+    if ([390,1440].includes(width)) await page.screenshot({ path: `/tmp/rollapp-sport-list-tiles-${width}.png` });
+   }
+   await page.goto(`${path}&readonly`);
+   await selected.waitFor();
+   assert.equal(await page.locator('.list-tabs__settings').count(), 0);
+   assert.equal(await page.locator('[data-wish-list-tile]').count(), 0);
+   console.log(`PASS ${width} ${variant}: per-tile actions, focus and read-only`);
+  }
   for(const variant of ['identity-document','identity-document-add']){
    await page.goto(`${origin}/__action-rails?variant=${variant}`);
    await page.locator('.ProseMirror').waitFor();
    assert.equal(await page.locator('a[href*="/identity/business/"]').count(),0,'Identity document has no marketplace entry');
    assert.equal(await page.locator('.page-toolbar').count(),variant==='identity-document-add'?1:0,'Empty identity toolbar reserved a gap');
-   assert.equal(await page.getByRole('button',{name:'Добавить',exact:true}).count(),variant==='identity-document-add'?1:0,'Independent block creation must stay available');
+   assert.equal(await page.getByRole('button',{name:'Добавить блок',exact:true}).count(),variant==='identity-document-add'?1:0,'Independent block creation must stay available');
    assert.equal(await page.locator('.ProseMirror').textContent(),'Текст раздела');
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Identity document overflow');
    console.log(`PASS ${width} ${variant}: no marketplace/empty rail, document and Add retained`);

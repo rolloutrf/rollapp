@@ -5,7 +5,7 @@ import { api } from "@/api";
 import { ControlBar } from "@/components/control-bar";
 import { PageActionButton } from "@/components/page-action-button";
 import { Card } from "@/components/ui/card";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/form-surface";
+import { Drawer, DrawerBack, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerSectionHeader, DrawerTitle } from "@/components/form-surface";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -22,7 +22,7 @@ function readPending(key) {
   } catch { return null; }
 }
 
-export function GiftCardManager({ business, user, initialCardId = "", onClose, onChanged }) {
+export function GiftCardManager({ business, user, initialCardId = "", returnFocusRef, onClose, onChanged }) {
   const storageKey = `rollapp:gift-intent:${user.id}:${business.id}`;
   const [pending, setPending] = useState(() => readPending(storageKey));
   const [cards, setCards] = useState([]);
@@ -108,10 +108,16 @@ export function GiftCardManager({ business, user, initialCardId = "", onClose, o
     : insufficient ? "На вашем балансе недостаточно роллов."
       : exceedsLimit ? "На карте можно хранить не больше 1 000 000 000 роллов."
         : "Роллы спишутся с вашего баланса.";
-  return <Drawer open onOpenChange={(open) => { if (!open && !busyRef.current) onClose(); }}>
-    <DrawerContent className="rollapp-body app-drawer--form">
-      <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 size-12" disabled={busy} />} aria-label="Закрыть подарочную карту"><X /></DrawerClose>
-      <DrawerHeader className="pr-16"><DrawerTitle>Подарочная карта</DrawerTitle><DrawerDescription className="text-xs break-words">{business.name} · Роллы с карты можно потратить только у этого бизнеса.</DrawerDescription></DrawerHeader>
+  const description = `${business.name} · Роллы с карты можно потратить только у этого бизнеса.`;
+  return <Drawer open onOpenChange={(open, event) => {
+    if (!open && busyRef.current) event?.cancel?.();
+    else if (!open) onClose();
+  }}>
+    <DrawerContent className="rollapp-body app-drawer--form" finalFocus={returnFocusRef}>
+      {returnFocusRef ? <DrawerSectionHeader title="Подарочная карта" description={description} startAction={<DrawerBack disabled={busy} />} /> : <>
+        <DrawerClose render={<Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 size-12" disabled={busy} />} aria-label="Закрыть подарочную карту"><X aria-hidden="true" /></DrawerClose>
+        <DrawerHeader className="pr-16"><DrawerTitle>Подарочная карта</DrawerTitle><DrawerDescription className="text-xs break-words">{description}</DrawerDescription></DrawerHeader>
+      </>}
       <div className="app-drawer-body flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-4 break-words">
         {loading && <p role="status" className="flex items-center gap-2"><Spinner />Загружаем карты…</p>}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -194,6 +200,7 @@ export function ProfileGiftCards({ user, onNavigate }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const revision = useRef(0);
+  const cardOpener = useRef(null);
   async function refresh() {
     const version = ++revision.current;
     try { const result = await api.get("/rolls/gift-cards"); if (version === revision.current) { setCards(result.cards); setError(""); } }
@@ -218,8 +225,9 @@ export function ProfileGiftCards({ user, onNavigate }) {
         onNavigate(publicProfilePath(card.business.username));
       }}>{card.business.name}</Link>
       <p>{formatRolls(card.balance)} · Только у этого бизнеса</p>
-      <Button variant="outline" onClick={() => setSelectedCard(card)}>Открыть карту</Button>
+      <Button variant="outline" onClick={(event) => { cardOpener.current = event.currentTarget; setSelectedCard(card); }}>Открыть карту</Button>
     </article>)}
-    {selectedCard && <GiftCardManager key={`${user.id}:${selectedCard.id}`} business={selectedCard.business} initialCardId={selectedCard.id} user={user} onClose={() => { setSelectedCard(null); refresh(); }} onChanged={refresh} />}
+    {selectedCard && <GiftCardManager key={`${user.id}:${selectedCard.id}`} business={selectedCard.business} initialCardId={selectedCard.id} user={user}
+      returnFocusRef={cardOpener} onClose={() => { setSelectedCard(null); refresh(); }} onChanged={refresh} />}
   </section>;
 }

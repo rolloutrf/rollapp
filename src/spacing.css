@@ -18,12 +18,16 @@
     --layout-navigation-bottom: calc(var(--app-visual-bottom, 0px) + var(--layout-item-gap) + max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px)));
     --layout-planning-navigation-bottom: calc(var(--layout-navigation-bottom) + var(--layout-inline-gap));
     --layout-planning-navigation-side: max(1.5rem, env(safe-area-inset-right));
-    /* Planning, messages, and assistant keep their existing positions below creation. */
-    --layout-add-fab-bottom: calc(var(--layout-planning-navigation-bottom) + (var(--layout-control-size) + var(--layout-inline-gap)) * 3);
-    --layout-add-fab-tail: calc(var(--layout-add-fab-bottom) - var(--app-visual-bottom, 0px) + var(--layout-control-size) + var(--layout-item-gap));
+    --layout-floating-control-step: calc(var(--layout-control-size) + var(--layout-inline-gap));
+    --layout-floating-add-offset: 0px;
+    --layout-add-fab-tail: calc(var(--layout-planning-navigation-bottom) - var(--app-visual-bottom, 0px) + var(--layout-control-size) + var(--layout-item-gap) + 3 * var(--layout-floating-control-step));
     --layout-chrome-top: 1.5rem;
     --layout-chrome-tail: 1.5rem;
     --app-chrome-overlay-height: calc(var(--layout-chrome-top) + 3rem + var(--layout-chrome-tail) + var(--layout-safe-top));
+  }
+
+  :root:has([data-add-fab]) {
+    --layout-floating-add-offset: var(--layout-floating-control-step);
   }
 
   @media (max-width: 1180px) {
@@ -56,7 +60,7 @@
     position: fixed;
     z-index: 39;
     inset-inline-end: var(--layout-planning-navigation-side);
-    inset-block-end: var(--layout-add-fab-bottom);
+    inset-block-end: var(--layout-planning-navigation-bottom);
   }
   .app-layout--dark:not(.app-layout--planning) .app-page:has([data-add-fab]),
   .app-page.planning-notes:has([data-add-fab]) {
@@ -64,6 +68,19 @@
   }
   .schedule-month-panel, .schedule-year, .schedule-list, .schedule-timegrid__body {
     padding-block-end: var(--layout-add-fab-tail);
+  }
+  @media (min-width: 768px) {
+    .nutrition-todo__footer {
+      position: fixed;
+      z-index: 30;
+      inset-inline: max(var(--layout-page-inset), env(safe-area-inset-left)) max(var(--layout-page-inset), env(safe-area-inset-right));
+      inset-block-end: var(--app-visual-bottom, 0px);
+      max-width: var(--layout-form-width);
+      margin-inline: auto;
+    }
+    .nutrition-todo .health-tracker__body:has(> .nutrition-todo__footer) {
+      padding-block-end: calc(var(--nutrition-composer-height, 0px) + var(--app-visual-bottom, 0px));
+    }
   }
   /* Product visibility must outrank the primitive's inline-flex utility. */
   .education-card > [data-card-drag-handle] { display: none; }
@@ -75,7 +92,7 @@
   :is(
     .global-app-chrome, .public-profile > .profile-header, .friends-topbar,
     .mobile-app-navigation, .wishlist-section-navigation, .mobile-content-page__nav, [data-content-page-actions],
-    .planning-fab-controls,
+    .planning-fab-controls, .add-fab,
     .daily-todo__header, .daily-todo__footer,
     .mobile-form-page__header, [data-native-form-actions],
     .wish-group-open > .app-group-dialog__header,
@@ -95,6 +112,14 @@
   :is(.global-app-chrome, .public-profile > .profile-header) {
     border: 0;
   }
+
+  [data-control-bar].app-drawer-section-header {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--layout-inline-gap);
+    padding: var(--layout-item-gap);
+  }
+  [data-slot="drawer-header"].app-drawer-section-header { border-block-end: 1px solid var(--border); }
 
   /* One navigation size everywhere. These dimensions intentionally outrank
      primitive sizes and caller utilities; changing a screen cannot silently
@@ -124,6 +149,25 @@
     min-height: var(--layout-control-size);
     padding: 0;
   }
+
+  [data-control-bar] .space-select {
+    justify-self: center;
+    min-width: 0;
+    gap: var(--layout-inline-gap);
+    padding-inline: calc(1.5 * var(--layout-inline-gap));
+    border: 1px solid var(--input);
+    border-radius: calc(var(--layout-control-size) / 2);
+    color: var(--foreground);
+    font-weight: 500;
+  }
+  [data-control-bar] .space-select:focus-visible { border-color: var(--ring); }
+  [data-control-bar] .space-select [data-slot="select-value"] {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: var(--layout-inline-gap);
+  }
+  [data-control-bar] .space-select > svg { color: inherit; }
+  .space-select__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   @media (max-width: 767px) {
     :root {
@@ -189,12 +233,9 @@
       min-width: 0;
       height: var(--layout-control-size);
       min-height: var(--layout-control-size);
-      padding-inline: var(--layout-item-gap);
     }
-    .mobile-app-navigation [data-slot="select-value"] { min-width: 0; }
-    .mobile-app-navigation .space-select__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mobile-app-navigation :is(.space-select, .sphere-switcher__trigger) { background-color: var(--card); }
-    .mobile-app-navigation :is(.space-select, .sphere-switcher__trigger):is(:hover, [data-popup-open], [aria-expanded="true"]) { background-color: var(--muted); }
+    .mobile-app-navigation .sphere-switcher__trigger { background-color: var(--card); }
+    .mobile-app-navigation .sphere-switcher__trigger:is(:hover, [data-popup-open], [aria-expanded="true"]) { background-color: var(--muted); }
     .planning-fab-controls:not([data-has-back]) {
       left: auto;
       right: max(var(--layout-page-inset), env(safe-area-inset-right));
@@ -250,26 +291,6 @@
 
     .app-layout--planning-notes > .app-main {
       padding-block-start: calc(var(--app-chrome-overlay-height) - var(--layout-shell-inset));
-    }
-  }
-
-  @media (max-width: 390px) {
-    .global-app-chrome .global-service-select {
-      width: 100%;
-      min-width: 0;
-      max-width: 100%;
-      padding-inline: 0.5rem;
-      gap: 0.25rem;
-    }
-
-    .global-service-select [data-slot="select-value"] {
-      min-width: 0;
-    }
-  }
-
-  @media (max-width: 360px) {
-    .global-service-select [data-slot="select-value"] svg {
-      display: none;
     }
   }
 
@@ -568,7 +589,7 @@
     pointer-events: auto;
   }
 
-  @media (width < 416px) {
+  @media (width < 472px) {
     [data-wishlist-chrome] {
       --wishlist-navigation-height: calc(2 * var(--layout-control-size) + var(--layout-inline-gap));
     }
@@ -658,18 +679,22 @@ html:has(.global-app-chrome):has(:is(.inline-editor__content[contenteditable="tr
   }
 }
 
-/* The assistant and messages shortcuts share the planning rail's safe area
-   and viewport position, with the usual 8px gap between controls. */
+/* Page creation takes the bottom slot when present. The planner keeps its
+   space in the navigation row, so the mobile Back/selector layout is stable. */
 @layer components {
+  .planning-fab-controls .planning-fab--launcher {
+    position: relative;
+    inset-block-end: var(--layout-floating-add-offset);
+  }
   .planning-fab-controls :is(.assistant-fab, .messenger-fab) {
     position: absolute;
     right: 0;
     pointer-events: auto;
   }
   .planning-fab-controls .messenger-fab {
-    bottom: calc(var(--layout-control-size) + var(--layout-inline-gap));
+    bottom: calc(var(--layout-floating-add-offset) + var(--layout-floating-control-step));
   }
   .planning-fab-controls .assistant-fab {
-    bottom: calc(2 * (var(--layout-control-size) + var(--layout-inline-gap)));
+    bottom: calc(var(--layout-floating-add-offset) + 2 * var(--layout-floating-control-step));
   }
 }

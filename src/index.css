@@ -429,12 +429,6 @@
   [data-native-form-actions] [class~="group/button"]:not([class~="bg-primary"]):hover {
     background-color: var(--muted);
   }
-  .global-app-chrome[data-control-bar] [data-service-section-trigger][aria-expanded="false"] {
-    background-color: transparent;
-    &:not(:focus-visible) {
-      border-color: transparent;
-    }
-  }
   [data-control-bar] [class~="group/button"][class~="bg-primary"]:hover:not(:disabled) {
     background-color: color-mix(in oklch, var(--primary) 80%, var(--background));
   }
@@ -486,7 +480,7 @@
     line-height: var(--text-rollapp-body--line-height);
   }
 
-  :is([data-slot="input"]:not(.sr-only), [data-slot="native-select"], [data-slot="select-trigger"]) {
+  :is([data-slot="input"]:not(.sr-only), [data-slot="native-select"], [data-slot="select-trigger"]:not(.space-select)) {
     padding-inline: 1rem;
   }
 
@@ -757,14 +751,14 @@
     transform: translateY(1px);
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-wish-list-tile] {
+  [data-wishlist-list-navigation] [data-wish-list-tile] {
     cursor: grab;
     -webkit-touch-callout: none;
     user-select: none;
     transition-property: background-color, color, border-color, box-shadow;
   }
 
-  :is(.wishes-page, [data-group-navigation]) .list-tabs [data-wish-list-tile]:active {
+  [data-wishlist-list-navigation] [data-wish-list-tile]:active {
     transform: none;
   }
 
@@ -868,92 +862,6 @@
     }
   }
 
-  [data-report-navigation] .list-tabs {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    align-items: stretch;
-    justify-content: safe center;
-    gap: var(--layout-inline-gap);
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  [data-report-navigation] .list-tabs::-webkit-scrollbar { display: none; }
-
-  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile] {
-    width: 8.125rem;
-    min-width: 8.125rem;
-    height: 6.25rem;
-    min-height: 6.25rem;
-    padding: 0.75rem;
-    flex: 0 0 8.125rem;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    align-content: stretch;
-    align-items: stretch;
-    justify-content: normal;
-    justify-items: start;
-    row-gap: 0.25rem;
-    overflow: hidden;
-    border-width: 0;
-    border-radius: 1.125rem;
-    color: var(--secondary-foreground);
-    background-color: var(--secondary);
-    background-image: none;
-    font-size: 1rem;
-    line-height: 1.1875rem;
-    text-align: left;
-    white-space: normal;
-  }
-
-  [data-report-navigation] .list-tabs [data-slot="list-tile-label"] {
-    width: 100%;
-    min-width: 0;
-    min-height: 0;
-    display: -webkit-box;
-    align-self: start;
-    overflow: hidden;
-    margin: 0;
-    font: inherit;
-    color: inherit;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-
-  [data-report-navigation] .list-tabs [data-slot="list-tile-meta"] {
-    width: 100%;
-    min-width: 0;
-    display: block;
-    align-self: end;
-    overflow: hidden;
-    margin: 0;
-    font-weight: 400;
-    color: var(--muted-foreground);
-    font-size: var(--text-xs);
-    line-height: var(--text-xs--line-height);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile]:is(:hover, :focus-visible) {
-    background-color: color-mix(in oklch, var(--secondary), var(--foreground) 5%);
-  }
-
-  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile][data-active] {
-    color: var(--primary-foreground);
-    border-color: var(--primary);
-    background-color: var(--primary);
-  }
-
-  [data-report-navigation] .list-tabs [data-slot="tabs-trigger"][data-report-tile][data-active] [data-slot="list-tile-meta"] {
-    color: color-mix(in oklch, var(--primary-foreground) 72%, transparent);
-  }
-
   .wish-details-dialog [data-slot="drawer-close"],
   .catalog-wish-details [data-slot="drawer-close"],
   .profile-settings-dialog [data-slot="drawer-close"] {
@@ -971,24 +879,14 @@
 }
 
 @layer utilities {
-  .planning-fab-controls .planning-fab-space .space-select {
-    height: var(--layout-control-size);
-    min-height: var(--layout-control-size);
-  }
-
   /* Floating controls need solid individual surfaces over scrolling content. */
   .global-app-chrome .global-app-chrome__share,
-  .global-app-chrome .planning-fab-space .space-select,
-  .planning-fab-controls .planning-fab--back,
-  .planning-fab-controls .planning-fab-space .space-select {
+  .planning-fab-controls .planning-fab--back {
     background-color: var(--card);
   }
 
   .global-app-chrome .global-app-chrome__share:hover,
-  .planning-fab-controls .planning-fab--back:hover,
-  .planning-fab-controls .planning-fab-space .space-select:hover,
-  .planning-fab-controls .planning-fab-space .space-select[aria-expanded="true"],
-  .planning-fab-controls .planning-fab-space .space-select[data-popup-open] {
+  .planning-fab-controls .planning-fab--back:hover {
     background-color: var(--muted);
   }
 }

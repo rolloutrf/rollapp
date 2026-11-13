@@ -101,7 +101,7 @@ function Announcements({ announcements, owner, busy, onEdit, onRemove }) {
   </div>;
 }
 
-export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo }) {
+export function ProfilePublications({ section, endpoint, username, user, data, loading, error, reload, returnTo, showIntro = true }) {
   const calendar = section === "calendar";
   const { title, icon: Icon } = sections[section];
   const profile = data?.profile;
@@ -168,16 +168,19 @@ export function ProfilePublications({ section, endpoint, username, user, data, l
 
   return <div className={returnTo ? "page-stack" : "app-page page-stack"}>
     {!returnTo && <div className="app-shell-chrome-spacer" aria-hidden="true" />}
-    <article className={`page-stack mx-auto w-full typeset typeset-rollapp typeset-document ${calendar ? "max-w-(--layout-collection-width)" : "max-w-(--layout-text-width)"}`}>
-      <div className="not-typeset flex flex-wrap gap-2">
-        <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={returnTo || profilePath} />}>
-          <ArrowLeft className="size-5" aria-hidden="true" />{returnTo ? "К Вишлисту" : "К профилю"}
-        </PageActionButton>
-      </div>
-      <header className="min-w-0 wrap-anywhere" data-typeset-group>
-        {profile && !calendar && !returnTo && <div data-typography="label" className="text-muted-foreground">{profile.name}</div>}
-        <Heading className="flex items-baseline gap-3"><Icon className="size-6 shrink-0 self-center text-primary" aria-hidden="true" />{title}</Heading>
-      </header>
+    <article aria-label={showIntro ? undefined : title}
+      className={`page-stack mx-auto w-full typeset typeset-rollapp typeset-document ${calendar ? "max-w-(--layout-collection-width)" : "max-w-(--layout-text-width)"}`}>
+      {showIntro && <>
+        <div className="not-typeset flex flex-wrap gap-2">
+          <PageActionButton nativeButton={false} role="link" variant="outline" render={<Link to={returnTo || profilePath} />}>
+            <ArrowLeft className="size-5" aria-hidden="true" />{returnTo ? "К Вишлисту" : "К профилю"}
+          </PageActionButton>
+        </div>
+        <header className="min-w-0 wrap-anywhere" data-typeset-group>
+          {profile && !calendar && !returnTo && <div data-typography="label" className="text-muted-foreground">{profile.name}</div>}
+          <Heading className="flex items-baseline gap-3"><Icon className="size-6 shrink-0 self-center text-primary" aria-hidden="true" />{title}</Heading>
+        </header>
+      </>}
       {loading && <p role="status">Загрузка…</p>}
       {error && <div className="grid gap-2" data-typeset-group>
         <p role="alert">{error.message}</p>

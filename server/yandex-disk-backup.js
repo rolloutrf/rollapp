@@ -1,12 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, open, rmdir, statfs, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
+import { setTimeout as delay } from "node:timers/promises";
 import { writeAccountBackup } from "./account-backup.js";
 
 const api = "https://cloud-api.yandex.net/v1/disk/";
-const folder = "disk:/ROLLAPP";
 const statusLifetime = 60 * 60 * 1000;
 // This is temporary storage; keep the runtime from filling the filesystem
 // even if a deployment has already reduced its free space.
@@ -46,8 +46,10 @@ async function* readArchive(file, size) {
 
 export async function uploadYandexBackup({
   accessToken, transaction, userId, fetchImpl = fetch, now = new Date(), minimumFreeBytes = serverDiskReserve,
+  folder = "disk:/ROLLAPP", latest = false, privateNotes, signal: callerSignal,
 }) {
-  const signal = AbortSignal.timeout(8 * 60 * 1000);
+  const deadline = AbortSignal.timeout(8 * 60 * 1000);
+  const signal = callerSignal ? AbortSignal.any([deadline, callerSignal]) : deadline;
   const diskRequest = (resource, parameters, method = "GET") => {
     const url = new URL(resource, api);
     url.search = new URLSearchParams(parameters);
@@ -66,7 +68,7 @@ export async function uploadYandexBackup({
     if (details.type !== "dir" || details.share || details.public_key || details.public_url) throw new DiskError("folder");
   };
   let metadata = await getFolder();
-  if (metadata.status === 404) {
+  if (metadata.status === 404 && !latest) {
     await metadata.body?.cancel();
     const created = await diskRequest("resources", { path: folder }, "PUT");
     if (!created.ok && created.status !== 409) throw diskFailure(created);
@@ -76,7 +78,9 @@ export async function uploadYandexBackup({
   await requirePrivateFolder(metadata);
 
   const createdAt = now.toISOString();
-  const filename = `rollapp-${createdAt.replaceAll(":", "-")}-${randomUUID()}.json.gz`;
+  const filename = latest ? "rollapp-latest.json.gz" : `rollapp-${createdAt.replaceAll(":", "-")}-${randomUUID()}.json.gz`;
+  const path = `${folder}/${filename}`;
+  const hash = latest ? createHash("sha256") : null;
   const directory = await mkdtemp(join(tmpdir(), "rollapp-backup-"));
   const localPath = join(directory, "archive");
   let file;
@@ -87,7 +91,7 @@ export async function uploadYandexBackup({
     // cannot leave a named file containing a user's private data behind.
     await unlink(localPath);
     await writeAccountBackup({
-      transaction, userId, createdAt, signal,
+      transaction, userId, createdAt, signal, privateNotes,
       output: new Writable({
         write(chunk, _encoding, callback) {
           const write = async () => {
@@ -98,6 +102,7 @@ export async function uploadYandexBackup({
               untilSpaceCheck = 1024 ** 2;
             }
             await file.writeFile(chunk);
+            hash?.update(chunk);
           };
           write().then(() => callback(), callback);
         },
@@ -106,7 +111,17 @@ export async function uploadYandexBackup({
     const { size } = await file.stat();
     // Preparing a large archive can take time; check sharing again before sending it.
     await requirePrivateFolder(await getFolder());
-    const link = await diskRequest("resources/upload", { path: `${folder}/${filename}`, overwrite: "false" });
+    const getArchive = () => diskRequest("resources", { path, fields: "type,share,public_key,public_url,sha256,size" });
+    if (latest) {
+      const existing = await getArchive();
+      if (existing.status === 404) await existing.body?.cancel();
+      else {
+        if (!existing.ok) throw diskFailure(existing);
+        const details = await existing.json();
+        if (details.type !== "file" || details.share || details.public_key || details.public_url) throw new DiskError("folder");
+      }
+    }
+    const link = await diskRequest("resources/upload", { path, overwrite: String(latest) });
     if (!link.ok) throw diskFailure(link);
     const { href, method } = await link.json();
     if (method !== "PUT") throw new DiskError("failed");
@@ -117,7 +132,23 @@ export async function uploadYandexBackup({
       body: readArchive(file, size), duplex: "half", redirect: "error", signal,
     });
     await uploaded.body?.cancel();
-    if (uploaded.status !== 201) throw diskFailure(uploaded);
+    if (uploaded.status !== 201 && !(latest && uploaded.status === 202)) throw diskFailure(uploaded);
+    if (latest) {
+      const checksum = hash.digest("hex");
+      for (const wait of [0, 300, 800, 2000, 4000]) {
+        if (wait) await delay(wait, undefined, { signal });
+        const response = await getArchive();
+        if (response.status === 404) {
+          await response.body?.cancel();
+          continue;
+        }
+        if (!response.ok) throw diskFailure(response);
+        const archive = await response.json();
+        if (archive.type !== "file" || archive.share || archive.public_key || archive.public_url) throw new DiskError("folder");
+        if (archive.size === size && archive.sha256 === checksum) return filename;
+      }
+      throw new DiskError("failed");
+    }
     return filename;
   } finally {
     try {

@@ -482,7 +482,6 @@ export function Workouts() {
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestState, setRequestState] = useState({ loading: true, workouts: [], lists: [], error: null });
   const resolvedListId = educationListSelection(selectedListId, requestState.lists, requestState.workouts);
-  const selectedList = requestState.lists.find((list) => list.id === resolvedListId) || null;
   const visibleWorkouts = educationItemsInList(requestState.workouts, resolvedListId);
   const cardOrder = useCardReorder({
     scopeKey: resolvedListId,
@@ -562,7 +561,7 @@ export function Workouts() {
         ? state.lists.map((current) => current.id === list.id ? list : current)
         : [...state.lists, list],
     }));
-    setSelectedListId(list.id);
+    if (!listDrawer.list) setSelectedListId(list.id);
     if (listDrawer.moveItem) void moveWorkoutToList(listDrawer.moveItem, list.id, list.title);
   };
 
@@ -573,7 +572,7 @@ export function Workouts() {
       lists: state.lists.filter((list) => list.id !== deletedListId),
       workouts: state.workouts.map((workout) => workout.listId === deletedListId ? { ...workout, listId: null } : workout),
     }));
-    setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
+    if (deletedListId === resolvedListId) setSelectedListId(UNLISTED_EDUCATION_LIST_ID);
   };
 
   const moveWorkoutToList = async (workout, targetListId, targetTitleOverride = "") => {
@@ -600,11 +599,9 @@ export function Workouts() {
         sphereId="health"
         title="Спорт"
         titleId="workouts-title"
-        selectedList={selectedList}
         addLabel="Добавить тренировку"
         onAdd={openNewWorkout}
         onCreateList={!requestState.loading && !requestState.error ? () => setListDrawer({ open: true, list: null, moveItem: null }) : undefined}
-        onEditList={(list) => setListDrawer({ open: true, list, moveItem: null })}
       />
 
       {requestState.error && (
@@ -643,6 +640,8 @@ export function Workouts() {
           lists={requestState.lists}
           selectedListId={resolvedListId}
           ariaLabel="Списки тренировок"
+          section="workouts"
+          onEditList={(list, opener) => setListDrawer({ open: true, list, opener, moveItem: null })}
           onSelectList={setSelectedListId}
         />
       )}
@@ -680,11 +679,12 @@ export function Workouts() {
       {!readOnly && <EducationListDrawer
         list={listDrawer.list}
         open={listDrawer.open}
+        opener={listDrawer.opener}
         section="workouts"
         itemPlural="тренировки"
         onOpenChange={(open) => setListDrawer((current) => open
           ? { ...current, open: true }
-          : { open: false, list: null, moveItem: null })}
+          : { ...current, open: false })}
         onSaved={saveList}
         onDeleted={deleteList}
       />}

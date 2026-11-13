@@ -47,6 +47,13 @@ api.get = async (path) => {
       certificates: [{ id: "certificate", title: "Подарочный сертификат", price: 2700, currency: "RUB", space: "products", brand }] };
   }
   if (path === "/dashboard" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [] };
+  if (path === "/dashboard" && params.has("classifieds")) return { profile: personal, lists: [], wishes: [], groups: [] };
+  if (path === "/gift-suggestions" && params.has("classifieds")) return { items: [] };
+  if (params.has("classifieds") && (path === "/profile/owner/announcements" || path === "/profile/studio/announcements")) {
+    return { profile: owner ? business : personal, isOwner: true, announcements: [
+      { id: "profile-announcement", createdAt: "2026-11-14T10:00:00Z", title: "Объявление профиля", body: "Текст объявления" },
+    ] };
+  }
   if (path === "/profile/owner" && params.has("sales")) return { profile: personal, lists: [], wishes, groups: [], isOwner: true };
   if (path.startsWith("/wishlist-business/products/sales")) {
     const wishId = new URL(path, location.origin).searchParams.get("wish");
@@ -58,23 +65,6 @@ api.get = async (path) => {
   }
   if (path === "/wishlist-business/products/store" && (params.has("sales") || params.has("sale-buyer"))) {
     return clone({ items: state.sales.filter(item => item.active), pages: [] });
-  }
-  if (path === "/wishlist-business/classifieds" && params.has("sales")) {
-    return clone({ items: state.sales.filter(item => item.active).map(item => ({ ...item, published: true })) });
-  }
-  if (path === "/wishlist-business/classifieds" && params.has("classifieds")) {
-    if (params.has("board-error") && !state.boardRetried) {
-      state.boardRetried = true;
-      throw new Error("Доска временно недоступна");
-    }
-    const listings = state.sellerItems.flatMap(item => [
-      { ...item, published: false },
-      ...Array.from({ length: 5 }, (_, index) => ({
-        ...item, id: `listing-${index}`, title: `Позиция ${index + 2}`, published: true,
-      })),
-      { ...item, id: "long-listing", title: "Длинноеназваниетовара".repeat(7), published: true },
-    ]);
-    return { items: listings };
   }
   if (path === "/profile/studio") return { profile: { ...business, accountType: params.has("personal") ? "personal" : "business", businessCategory: seller ? "seller" : null, sellerSpace: seller ? "products" : null }, lists: [], wishes: [], groups: [], isOwner:owner, followersCount:0, followingCount:0 };
   if (path === "/business-profiles/studio/offers" && params.has("empty")) return { items: [] };
@@ -118,7 +108,7 @@ api.patch = async (path, payload) => {
 api.post = async (path, payload) => {
   // Read-only suggestions do not belong to the authored mutation history.
   if (path === "/catalog/product-suggestions") return { items: [], source: "Wikidata" };
-  if (path === "/wishes/backfill-previews" && params.has("sales")) return { updated: 0 };
+  if (path === "/wishes/backfill-previews" && (params.has("sales") || params.has("classifieds"))) return { updated: 0 };
   state.calls.push({ path, payload: clone(payload) });
   if (path === "/messenger/conversations" && params.has("sale-buyer")) return { conversation: { id: "sale-chat", peer: friend } };
   if (path === "/wishlist-business/products/sales") {
@@ -167,7 +157,11 @@ if (params.has("store-only")) {
   if (params.has("business")) search.set("business", params.get("business"));
   history.replaceState({}, "", `/app/store?${search}`);
 }
-if (params.has("classifieds") && !params.has("public")) history.replaceState({}, "", "/app/classifieds");
+if (params.has("classifieds")) {
+  const start = params.get("classifieds") === "home" ? "/app/wishes" : "/app/classifieds";
+  const space = params.get("space");
+  history.replaceState({}, "", space ? `${start}?${new URLSearchParams({ tab: space })}` : start);
+}
 if (params.has("brand-certificates")) history.replaceState({}, "", "/app/wishes/catalog?source=brands&brand=bork.ru");
 const fullApp = ["public", "sales", "sale-buyer", "store-only", "classifieds", "brand-certificates"].some((mode) => params.has(mode));
 createRoot(document.getElementById("root")).render(<BrowserRouter>{fullApp ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);

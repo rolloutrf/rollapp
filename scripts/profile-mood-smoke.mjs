@@ -9,13 +9,32 @@ import { MOOD_LEVELS } from "../shared/profile-mood.js";
 
 const screenshotDir = process.env.ROLLAPP_MOOD_SCREENSHOTS;
 if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
+
+async function assertMoodGlow(avatar, { reduced = false } = {}) {
+  const paint = await avatar.evaluate((element) => {
+    const glow = getComputedStyle(element, "::before");
+    return {
+      border: getComputedStyle(element).borderTopColor,
+      overlay: getComputedStyle(element, "::after").display,
+      shadow: glow.boxShadow,
+      layer: glow.zIndex,
+      animation: glow.animationName,
+    };
+  });
+  assert.equal(paint.border, "rgba(0, 0, 0, 0)");
+  assert.equal(paint.overlay, "none");
+  assert.match(paint.shadow, /(?:oklch|color\(|rgba?\()/);
+  assert.equal(paint.layer, "-1");
+  assert.equal(paint.animation, reduced ? "none" : "profile-mood-breathe");
+}
+
 const server = await createServer({
   cacheDir: "node_modules/.vite-profile-mood",
   optimizeDeps: { include: smokeBaseUiDependencies },
   server: { host: "127.0.0.1", port: 0, hmr: false, watch: null },
   plugins: [{ name: "profile-mood-fixture", enforce: "pre", transform(source, id) {
     if (!id.endsWith("/src/App.jsx?profile-mood-smoke")) return;
-    return `${source}\nexport { ProfileSettingsModal, ToastContext, SessionContext };`;
+    return `${source}\nexport { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession };`;
   }, configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith("/__profile-mood")) return next();
@@ -34,10 +53,12 @@ try {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/api/**", (route) => { errors.push(`unexpected API request: ${new URL(route.request().url()).pathname}`); return route.abort(); });
-    await page.goto(`${smokeOrigin(server)}/__profile-mood${history ? "?history" : ""}`);
-    const open = page.getByRole("button", { name: "Открыть настроение" });
+    const photo = width === 390 && height === 844 || width === 1440;
+    await page.goto(`${smokeOrigin(server)}/__profile-mood?${history ? "history&" : ""}${photo ? "photo" : ""}`);
+    const owner = page.locator("[data-persistent-profile]");
+    const open = owner.getByRole("button", { name: "Редактировать профиль Александра" });
     const submit = page.getByRole("button", { name: "Сохранить настроение" });
-    const visible = page.getByRole("switch", { name: "Показывать в профиле" });
+    const visible = page.getByRole("switch", { name: "Показывать посетителям профиля" });
     const preview = page.locator(".mood-settings__portrait");
     const list = page.getByRole("list", { name: "Отметки настроения" });
     await open.click();
@@ -62,7 +83,7 @@ try {
       else await page.keyboard.press("ArrowRight");
       await page.waitForFunction((level) => document.querySelector(".mood-settings__portrait")?.dataset.profileMood === level, String(mood.level));
       assert.equal(await radios.nth(i).getAttribute("aria-checked"), "true");
-      assert.match(await preview.evaluate((el) => getComputedStyle(el).boxShadow), /rgb|okl/);
+      await assertMoodGlow(preview);
     }
     const geometry = await page.evaluate(() => {
       const boxes = [...document.querySelectorAll('[role="radio"]')].map((node) => node.getBoundingClientRect().toJSON());
@@ -101,7 +122,27 @@ try {
     const close = async () => { await back.click(); await closeMenu(); };
     await close();
     await open.waitFor();
-    assert.equal(await page.locator("[data-test-profile] [data-profile-mood]").count(), 0);
+    const avatar = owner.locator("[data-profile-mood='5']");
+    await avatar.waitFor();
+    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
+    if (photo) await avatar.locator('[data-slot="avatar-image"]').waitFor();
+    await assertMoodGlow(avatar);
+    const [dimmed, bright] = await avatar.evaluate((element) => {
+      const animation = element.getAnimations({ subtree: true }).find(({ animationName }) => animationName === "profile-mood-breathe");
+      animation.pause();
+      const frames = [0, animation.effect.getTiming().duration / 2].map((time) => {
+        animation.currentTime = time;
+        const { opacity, transform } = getComputedStyle(element, "::before");
+        return { opacity: Number(opacity), transform };
+      });
+      animation.play();
+      return frames;
+    });
+    assert(bright.opacity > dimmed.opacity);
+    assert.notEqual(bright.transform, dimmed.transform);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await assertMoodGlow(avatar, { reduced: true });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await open.click();
     await moodSection.click();
     await visible.click();
@@ -109,9 +150,7 @@ try {
     await page.getByText("Видимость обновлена", { exact: true }).waitFor();
     await close();
     await page.getByText("Настроение: отлично", { exact: true }).waitFor();
-    const avatar = page.locator("[data-test-profile] [data-profile-mood='5']");
-    const border = await avatar.evaluate((el) => getComputedStyle(el).borderTopColor);
-    assert.equal(border, "rgb(242, 184, 78)");
+    await assertMoodGlow(avatar);
     if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/published-${width}.png` });
     await open.click();
     await moodSection.click();
@@ -122,12 +161,16 @@ try {
     if (width < 768) await page.goBack(); else await page.keyboard.press("Escape");
     await closeMenu();
     await open.waitFor();
-    assert.equal(await page.locator("[data-test-profile] [data-profile-mood]").count(), 0);
+    await avatar.waitFor();
+    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
     const calls = await page.evaluate(() => window.__moodSaves);
     assert.deepEqual(calls, [calls[0], calls[0], { published: true }, { published: false }]);
     assert.equal(calls[0].entry.level, 5);
+    await page.reload();
+    await avatar.waitFor();
+    await owner.getByText("Настроение: отлично", { exact: true }).waitFor();
+    if (screenshotDir && photo) await page.screenshot({ path: `${screenshotDir}/private-owner-${width}.png` });
     // The photo and initials use different portrait CSS. Exercise both.
-    const photo = width === 390 && height === 844 || width === 1440;
     for (const published of [false, true]) {
       await page.goto(`${smokeOrigin(server)}/__profile-mood?guest${published ? "&published" : ""}${photo ? "&photo" : ""}`);
       const profile = page.locator("[data-friend-profile]");
@@ -142,7 +185,7 @@ try {
         assert(await image.evaluate((el) => el.complete && el.naturalWidth > 0));
       }
       if (published) {
-        assert.match(await portrait.evaluate((el) => getComputedStyle(el).boxShadow), /242, 184, 78/);
+        await assertMoodGlow(portrait);
         assert(await profile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         if (screenshotDir && [390, 1440].includes(width) && height > 400) await page.screenshot({ path: `${screenshotDir}/guest-${width}.png` });
       }

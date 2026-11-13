@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { verifyAccountBackupSchema, writeAccountBackup } from "./account-backup.js";
 
-test("Yandex Disk snapshots include only the account's own wish participation", {
+test("Yandex Disk snapshots scope wishes, appointments, announcements and invites by account", {
   skip: process.env.ROLLAPP_TEST_ACCOUNT_BACKUP !== "1",
 }, async () => {
   const { productionRollsDatabase } = await import("../scripts/rolls-database.mjs");
@@ -33,6 +33,21 @@ test("Yandex Disk snapshots include only the account's own wish participation", 
       const wishId = randomUUID();
       await client.query("INSERT INTO wishes (id,user_id,title,privacy) VALUES ($1,$2,'Private shared wish','private')", [wishId, owner]);
       await client.query("INSERT INTO wish_participants (wish_id,user_id) VALUES ($1,$2),($1,$3)", [wishId, participant, otherParticipant]);
+      const inviteId = randomUUID();
+      await client.query(`INSERT INTO account_invites (id,token_hash,recipient_email,created_by,expires_at)
+        VALUES ($1,$1,'invite@backup-test.invalid',$2,CURRENT_TIMESTAMP+INTERVAL '1 day')`, [inviteId, owner]);
+      const { rows: [{ publications }] } = await client.query("SELECT to_regclass('profile_session_slots') IS NOT NULL AS publications");
+      const slot = randomUUID();
+      const unbooked = randomUUID();
+      const booking = randomUUID();
+      const announcement = randomUUID();
+      if (publications) {
+        await client.query(`INSERT INTO profile_session_slots (id,owner_id,starts_at,ends_at,title)
+          VALUES ($1,$3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP+INTERVAL '1 hour','Booked'),
+                 ($2,$3,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP+INTERVAL '1 hour','Unbooked')`, [slot, unbooked, owner]);
+        await client.query("INSERT INTO profile_session_bookings (id,slot_id,guest_id) VALUES ($1,$2,$3)", [booking, slot, participant]);
+        await client.query("INSERT INTO profile_announcements (id,owner_id,title,body) VALUES ($1,$2,'Title','Body')", [announcement, owner]);
+      }
 
       const snapshot = async (userId) => {
         const chunks = [];
@@ -66,6 +81,19 @@ test("Yandex Disk snapshots include only the account's own wish participation", 
       assert.deepEqual(memberSnapshot.wishes, []);
       assert.deepEqual(outsiderSnapshot.wish_participants, []);
       assert.deepEqual(outsiderSnapshot.wishes, []);
+      assert.equal(ownerSnapshot.account_invites[0].id, inviteId);
+      assert.equal("token_hash" in ownerSnapshot.account_invites[0], false);
+      assert.deepEqual(outsiderSnapshot.account_invites, []);
+      if (publications) {
+        assert.deepEqual(ownerSnapshot.profile_session_slots.map(({ id }) => id).sort(), [slot, unbooked].sort());
+        assert.deepEqual(memberSnapshot.profile_session_slots.map(({ id }) => id), [slot]);
+        assert.deepEqual(memberSnapshot.profile_session_bookings, [{ id: booking, slot_id: slot, guest_id: participant }]);
+        assert.deepEqual(ownerSnapshot.profile_session_bookings, memberSnapshot.profile_session_bookings);
+        assert.deepEqual(outsiderSnapshot.profile_session_slots, []);
+        assert.deepEqual(outsiderSnapshot.profile_session_bookings, []);
+        assert.equal(ownerSnapshot.profile_announcements[0].id, announcement);
+        assert.deepEqual(memberSnapshot.profile_announcements, []);
+      }
     } finally {
       try { await client.query("ROLLBACK"); } finally { client.release(); }
     }

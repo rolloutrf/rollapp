@@ -6,8 +6,10 @@ import { listenSmokeServer, smokeOrigin } from "./smoke-server.mjs";
 import { APP_ORDERS_PATH } from "../src/lib/app-routing.js";
 
 const salesOnly = process.argv.includes("--sales-only");
+const announcementsOnly = process.argv.includes("--announcements-only");
 const cover = { name: "cover.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOo6D6IFTEMpAQAyI5UwfdZU4cAAAAASUVORK5CYII=", "base64") };
-const server = await createServer({ cacheDir: salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
+const cacheDir = announcementsOnly ? "node_modules/.vite-announcements-entry" : salesOnly ? "node_modules/.vite-wish-sales" : "node_modules/.vite-business-profile";
+const server = await createServer({ cacheDir, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null }, plugins: [{
   name: "business-profile-fixture", configureServer(vite) {
     vite.middlewares.use(async (req, res, next) => {
       if (!req.url.startsWith("/__business-profile")) return next();
@@ -151,23 +153,12 @@ async function checkWishSale(width, height) {
     assert.deepEqual(await page.evaluate(() => giftHarness.calls.map(call => call.payload.wishId)), ["fulfilled", "fulfilled"]);
     const saleSnippet = card.locator("..");
     assert.deepEqual(await snippetAppearance(saleSnippet), reference, "Sales must use the Wishlist appearance");
-    const openBoard = async () => {
-      await page.getByRole("button", { name: "Открыть переключатель сфер" }).click();
-      await page.getByRole("navigation", { name: "Сервисы и сферы Rollapp" })
-        .getByRole("link", { name: "Объявления о продаже", exact: true }).click();
-    };
-    await openBoard();
-    await page.getByText("Пока нет объявлений", { exact: true }).waitFor();
-    assert.equal(await card.count(), 0);
-    await page.getByRole("link", { name: "Мои продажи", exact: true }).click();
     await card.click();
     await editor.getByRole("switch", { name: "Опубликовать объявление" }).click();
     await submit.click();
     await editor.waitFor({ state: "hidden" });
-    await openBoard();
-    await card.click();
-    await page.getByRole("link", { name: "Управлять продажами", exact: true }).click();
     await card.waitFor();
+    assert.equal(await page.evaluate(() => giftHarness.sales[0].active), true);
     await salesPage.getByRole("button", { name: "Добавить товар", exact: true }).waitFor();
     await page.goto(`${smokeOrigin(server)}/__business-profile?sale-buyer=owner`);
     await page.getByRole("button", { name: "Открыть «Товар участника»" }).click();
@@ -201,14 +192,8 @@ async function checkDirectSale(width, height) {
     await add.waitFor();
     assert.deepEqual(await add.evaluate(node => {
       const css = getComputedStyle(node);
-      return [node.offsetHeight, css.paddingLeft, css.paddingRight, parseFloat(css.borderRadius) >= node.offsetHeight / 2];
-    }), [48, "24px", "24px", true]);
-    assert(await add.evaluate(node => {
-      const button = node.getBoundingClientRect();
-      const rail = node.parentElement.getBoundingClientRect();
-      return Math.abs(rail.left) < 1 && Math.abs(rail.right - innerWidth) < 1
-        && Math.abs(button.left + button.right - innerWidth) < 1;
-    }), "The centered action rail must reach both viewport edges");
+      return [node.offsetWidth, node.offsetHeight, parseFloat(css.borderRadius), Boolean(node.closest("[data-add-fab]"))];
+    }), [48, 48, 24, true]);
     const editor = page.locator("[data-wishlist-item-editor]");
     const title = editor.getByRole("combobox", { name: "Название", exact: true });
     const submit = editor.locator("button[type=submit]");
@@ -266,86 +251,66 @@ async function checkDirectSale(width, height) {
     console.log(`PASS direct sale ${width}x${height}`);
   } finally { await page.close(); }
 }
-async function checkClassifieds(width, height) {
+async function checkAnnouncementsEntry(width, height) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
-  const fixture = `${smokeOrigin(server)}/__business-profile?classifieds&seller`;
+  const fixture = `${smokeOrigin(server)}/__business-profile`;
+  const board = page.getByRole("heading", { name: "Доска объявлений", exact: true });
+  const announcement = page.getByRole("heading", { name: "Объявление профиля", exact: true });
   try {
-    await page.goto(`${fixture}&owner&public&board-error`);
-    await page.getByRole("heading", { level: 1 }).waitFor();
-    await page.getByRole("button", { name: "Открыть переключатель сфер" }).click();
-    await page.getByRole("navigation", { name: "Сервисы и сферы Rollapp" })
-      .getByRole("link", { name: "Объявления о продаже", exact: true }).click();
-    const heading = page.getByRole("heading", { name: "Доска объявлений", exact: true });
-    await heading.waitFor();
-    await page.getByText("Доска временно недоступна", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Повторить" }).click();
-    await page.getByText("Витрина не опубликована", { exact: true }).waitFor();
-    const cards = page.getByRole("region", { name: "Доска объявлений" }).getByRole("button", { name: /^Открыть «/ });
-    assert.equal(await cards.count(), 7);
-    await page.evaluate(() => document.fonts.ready);
-    const top = await heading.evaluate(node => ({
-      heading: node.getBoundingClientRect().top,
-      chrome: document.querySelector(".global-app-chrome").getBoundingClientRect().bottom,
-      scroll: window.scrollY,
-    }));
-    assert(top.heading >= top.chrome, `Classifieds overlaps the top bar at ${width}x${height}: ${JSON.stringify(top)}`);
-    assert(await cards.evaluateAll(nodes => nodes.every(node => node.scrollWidth <= node.clientWidth + 1)));
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await page.screenshot({ path: `/tmp/rollapp-classifieds-${width}-${height}.png` });
+    for (const account of ["personal", "seller"]) {
+      const owner = account === "seller" ? "&seller&owner" : "";
+      await page.goto(`${fixture}?classifieds=home${owner}`);
+      const entry = page.getByRole("link", { name: "Доска объявлений", exact: true });
+      await entry.waitFor();
+      const switcher = page.getByRole("button", { name: "Открыть переключатель сфер" });
+      await switcher.click();
+      const services = page.getByRole("navigation", { name: "Сервисы и сферы Rollapp" });
+      await services.getByRole("link", { name: "Вишлист", exact: true }).waitFor();
+      assert.equal(await services.locator('a[href="/app/classifieds"]').count(), 0);
+      await page.keyboard.press("Escape");
+      await entry.click();
+      await announcement.waitFor();
+      const destination = new URL(page.url());
+      assert.equal(await entry.getAttribute("aria-current"), "page");
+      assert.equal(await page.getByRole("button", { name: "Добавить объявление" }).count(), 1);
 
-    const last = cards.last();
-    await last.focus();
-    await last.press("Enter");
-    const details = page.getByRole("link", { name: "Управлять витриной", exact: true });
-    await details.waitFor();
-    assert.equal(await details.getAttribute("href"), "/app/wishes/business?tab=products");
-    assert.deepEqual(await details.evaluate(node => {
-      const footer = node.closest("[data-native-form-actions], .app-form-actions");
-      const { borderTopLeftRadius } = getComputedStyle(node);
-      return [Boolean(footer), node.offsetHeight, borderTopLeftRadius];
-    }), [true, 48, "24px"]);
-    if (width < 768) {
-      const back = page.locator("[data-native-form-actions]").getByRole("button", { name: "Назад" });
-      assert.equal(await back.evaluate(node => node.offsetHeight), 48);
-      await back.click();
-    } else {
-      await page.getByRole("button", { name: "Закрыть", exact: true }).click();
+      await page.goto(`${fixture}?classifieds=legacy${owner}`);
+      await board.waitFor();
+      await announcement.waitFor();
+      const legacyDestination = new URL(page.url());
+      assert.equal(legacyDestination.pathname, destination.pathname);
+      assert.equal(legacyDestination.searchParams.get("publication"), destination.searchParams.get("publication"));
+      assert.equal(legacyDestination.searchParams.get("tab") ?? "products", destination.searchParams.get("tab") ?? "products");
+      assert.equal(await page.evaluate(() => giftHarness.reads.includes("/wishlist-business/classifieds")), false);
+      assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     }
-    await details.waitFor({ state: "hidden" });
-    await last.waitFor();
-    await last.click();
-    await details.click();
-    await page.getByRole("textbox", { name: "Название страницы", exact: true }).waitFor();
-    await page.goBack();
-    await heading.waitFor();
-    assert.equal(new URL(page.url()).pathname, "/app/classifieds");
-    assert.equal(new URL(page.url()).search, "");
-    assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
-
-    await page.goto(`${fixture}&owner&empty`);
-    await page.getByText("Пока нет объявлений", { exact: true }).waitFor();
-    const manage = page.getByRole("link", { name: "Перейти к витрине" });
-    assert.deepEqual(await manage.evaluate(node => {
-      const { paddingLeft, paddingRight } = getComputedStyle(node);
-      return [node.offsetHeight, paddingLeft, paddingRight];
-    }), [48, "24px", "24px"]);
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.goto(`${fixture}?classifieds=legacy&guest`);
+    await page.waitForURL(url => url.pathname === "/login");
+    assert.equal(new URL(page.url()).searchParams.get("next"), "/app/wishes?publication=announcements");
+    await page.goto(`${fixture}?classifieds=legacy&space=media`);
+    await announcement.waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("tab"), "media");
     assert.deepEqual(errors, []);
-    console.log(`PASS classifieds ${width}x${height}`);
+    console.log(`PASS announcements entry ${width}x${height}: home links, legacy routes, login return`);
   } finally { await page.close(); }
 }
 
 
 try {
   for (const [width, height] of [[320,844],[390,844],[768,900],[820,450],[1024,900],[1440,900],[1920,900],[390,400]]) {
+    if (announcementsOnly) {
+      await checkAnnouncementsEntry(width, height);
+      continue;
+    }
     await checkRolloutStore(width, height);
     await checkWishSale(width, height);
     await checkDirectSale(width, height);
     if (salesOnly) continue;
-    await checkClassifieds(width, height);
+    await checkAnnouncementsEntry(width, height);
     for (const mode of ["owner", "dashboard", "guest", "buyer", "empty", "listing-error", "personal"]) {
       const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
       const errors = [];

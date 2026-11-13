@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { gunzipSync } from "node:zlib";
 import { createYandexBackupJobs, uploadYandexBackup } from "./yandex-disk-backup.js";
@@ -86,6 +87,50 @@ test("refused Disk access and shared or public folders do not read account data"
     await task;
     assert.deepEqual(backup.get(id, "owner"), { status: expected });
   }
+});
+
+test("scheduled backups replace the latest archive and confirm both bytes and private notes", async () => {
+  const folder = "app:/rollapp-notes-fixture";
+  let archive;
+  const filename = await uploadYandexBackup({
+    accessToken: token, userId: "owner", folder, latest: true, minimumFreeBytes: 0, privateNotes: "# Личное\n",
+    transaction: (read) => {
+      let record;
+      return read({
+        async query(sql) {
+          if (sql.includes("AS mood_ready")) return { rows: [{}] };
+          if (sql.startsWith("DECLARE")) record = sql.includes("FROM users t") ? '{"id":"owner"}' : null;
+          return { rows: sql.startsWith("FETCH") && record ? [{ record }] : [] };
+        },
+      });
+    },
+    fetchImpl: async (url, options) => {
+      if (url.hostname === "cloud-api.yandex.net") {
+        const path = url.searchParams.get("path");
+        if (path === folder) return Response.json({ type: "dir" });
+        assert.equal(path, `${folder}/rollapp-latest.json.gz`);
+        if (url.pathname.endsWith("/upload")) {
+          assert.equal(url.searchParams.get("overwrite"), "true");
+          return Response.json({ href: uploader, method: "PUT" });
+        }
+        return archive
+          ? Response.json({ type: "file", size: archive.length, sha256: createHash("sha256").update(archive).digest("hex") })
+          : Response.json({ type: "file", size: 1, sha256: "old" });
+      }
+      assert.equal(url.href, uploader);
+      assert.equal(options.headers.Authorization, undefined);
+      const chunks = [];
+      for await (const chunk of options.body) chunks.push(chunk);
+      archive = Buffer.concat(chunks);
+      return new Response(null, { status: 202 });
+    },
+  });
+  assert.equal(filename, "rollapp-latest.json.gz");
+  const data = JSON.parse(gunzipSync(archive));
+  assert.deepEqual(data.privateNotes, { markdown: "# Личное\n" });
+  assert.deepEqual(data.tables.users, [{ id: "owner" }]);
+  assert.equal("yandex_disk_notes" in data.tables, false);
+  assert.equal("yandex_disk_sync" in data.tables, false);
 });
 
 test("jobs stay owned, coalesce duplicates, and leave a database connection for app requests", async () => {

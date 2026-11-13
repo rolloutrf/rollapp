@@ -4046,20 +4046,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   display: flex;
   align-items: center;
 }
-.app-layout--dark .sphere-share-avatars__person,
-.app-layout--dark .sphere-share-avatars__add {
-  border: 2px solid var(--background);
-  box-shadow: 0 8px 24px color-mix(in oklch, var(--background) 55%, transparent);
-}
-.app-layout--dark .sphere-share-avatars__person + .sphere-share-avatars__person,
-.app-layout--dark .sphere-share-avatars__person + .sphere-share-avatars__add {
-  margin-left: -12px;
-}
-.app-layout--dark .sphere-share-avatars__add {
-  margin-left: 4px;
-  background: color-mix(in oklch, var(--card) 90%, transparent);
-}
-.app-layout--dark .sphere-share-avatars__add > svg { width: 20px; height: 20px; }
 .app-layout--dark .sphere-share-readonly-badge {
   min-height: 32px;
   gap: 7px;
@@ -4494,8 +4480,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     height: 112px;
   }
   .app-layout--dark .sphere-share-avatars__people { left: calc(100% + 8px); }
-  .app-layout--dark .sphere-share-avatars__person { display: none; }
-  .app-layout--dark .sphere-share-avatars__add { margin-left: 0; }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 36px; }
   .app-layout--dark .wishes-page__friend-links > a { font-size: 16px; line-height: 21px; }
   .app-layout--dark .friend-profile-page__stats > div { font-size: 16px; line-height: 21px; }
@@ -4510,7 +4494,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
     width: 96px;
     height: 96px;
   }
-  .app-layout--dark .sphere-share-avatars__add { width: 44px !important; height: 44px !important; }
   .app-layout--dark .wishes-page__hero-copy h1 { font-size: 30px; line-height: 1.05; }
   .app-layout--dark .wishes-page__profile-controls { padding-bottom: 26px; gap: 8px; }
   .app-layout--dark .wishes-page__friend-links > a { font-size: 14px; line-height: 19px; }
@@ -4540,7 +4523,7 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 }
 
 /* Tile internals; the shared single-row navigation is defined in spacing.css. */
-.app-layout--dark .wishes-page .list-tabs [data-slot="toggle-group-item"] {
+.app-layout--dark [data-wishlist-list-navigation] [data-slot="toggle-group-item"] {
   overflow: hidden;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -4550,10 +4533,10 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   isolation: isolate;
   flex: 0 0 auto;
 }
-.wishes-page .list-tabs__editable-tile [data-slot="list-tile-label"] {
+[data-wishlist-list-navigation] .list-tabs__editable-tile [data-slot="list-tile-label"] {
   max-inline-size: calc(100% + 0.75rem - var(--layout-control-size));
 }
-.app-layout--dark .wishes-page .list-tabs .list-tabs__settings {
+[data-wishlist-list-navigation] .list-tabs__settings {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: 0;
@@ -4583,36 +4566,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 
 @layer legacy {
 
-/* Space switcher: pill-shaped select for switching spaces (Товары / Места / События / Медиа).
-   The trigger sits in the center column of the wishes topbar, matching the 48px share button. */
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
-  justify-self: center;
-  width: auto;
-  height: var(--layout-control-size);
-  padding: 0 14px 0 18px;
-  gap: 10px;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--foreground);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select:hover,
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select[data-popup-open] {
-  background: transparent;
-}
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] {
-  flex: 0 1 auto;
-  gap: 8px;
-}
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] svg {
-  width: 17px;
-  height: 17px;
-}
-:is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select .space-select__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .space-select__content {
   min-width: 11rem;
   padding: 8px;
@@ -4628,18 +4581,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
   width: 16px;
   height: 16px;
 }
-@media (max-width: 640px) {
-  :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select {
-    padding: 0 10px 0 14px;
-    gap: 7px;
-    font-size: 13px;
-  }
-  :is(.app-layout--dark, .global-app-chrome, .planning-fab-controls) .space-select [data-slot="select-value"] svg {
-    width: 15px;
-    height: 15px;
-  }
-}
-
 /* Persistent application chrome: service launcher, contextual tab select and share. */
 .app-brand {
   min-width: 0;
@@ -4766,7 +4707,6 @@ button.settings-row:hover { background: color-mix(in oklch, var(--foreground) 4.
 .planning-fab-controls[data-has-back] { justify-content: space-between; }
 .planning-fab-space { flex: 1; min-width: 0; max-width: var(--layout-compact-width); pointer-events: auto; }
 .planning-fab-space .global-service-select { width: 100%; min-width: 0; max-width: 100%; }
-.planning-fab-space .space-select__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .planning-fab__panel {
   max-height: var(--available-height);

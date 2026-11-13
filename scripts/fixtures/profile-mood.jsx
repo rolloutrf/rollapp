@@ -1,12 +1,10 @@
-import React, { useState } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { MobileFormPages } from "@/components/mobile-form-pages";
 import { api } from "@/api";
-import { Avatar, ProfileMoodCaption } from "@/components/profile-avatar";
-import App, { ProfileSettingsModal, ToastContext, SessionContext } from "@/App.jsx?profile-mood-smoke";
+import App, { PersistentProfileHero, ProfileEditorProvider, SessionProvider, ToastContext, useSession } from "@/App.jsx?profile-mood-smoke";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
-import { Button } from "@/components/ui/button";
 import "../../src/styles.css";
 import "../../src/index.css";
 
@@ -19,6 +17,10 @@ const userBase = {
 if (guest) history.replaceState({}, "", "/mood-owner");
 let entries = params.has("history") ? Array.from({ length: 24 }, (_, i) => ({ id: String(24 - i), level: 1 + i % 5, recordedAt: "2026-11-13T10:15:00Z" })) : [];
 let published = false;
+if (!guest) {
+  const saved = JSON.parse(sessionStorage.getItem("profile-mood-fixture") || "null");
+  if (saved) ({ entries, published } = saved);
+}
 let errorOnRead = params.has("history");
 let errorOnSave = true;
 let previousId = entries.length;
@@ -30,7 +32,10 @@ function snapshot(before = null) {
 window.__moodSaves = [];
 api.get = async (path) => {
   if (path === "/auth/yandex/config") return { enabled: false };
-  if (guest && path === "/me") return { user: null };
+  if (path === "/me") {
+    const { level, publicMood } = snapshot();
+    return { user: guest ? null : { ...userBase, moodLevel: level, publicMood } };
+  }
   if (guest && path === "/profile/mood-owner") return {
     profile: { ...userBase, publicMood: params.has("published") ? 5 : null },
     lists: [], wishes: [], groups: [], isOwner: false, followersCount: 0, followingCount: 0,
@@ -46,26 +51,21 @@ api.patch = async (path, payload) => {
   if (errorOnSave) { errorOnSave = false; throw new Error("Не удалось сохранить отметку"); }
   if (payload.entry) entries = [{ id: String(++previousId), level: payload.entry.level, recordedAt: "2026-11-13T10:30:00Z" }, ...entries];
   published = payload.published;
+  sessionStorage.setItem("profile-mood-fixture", JSON.stringify({ entries, published }));
   return snapshot();
 };
 
 function Fixture() {
   useVisualViewport();
-  const [open, setOpen] = useState(false);
-  const [publicMood, setPublicMood] = useState(null);
-  const user = { ...userBase, publicMood };
+  const { user } = useSession();
+  if (!user) return null;
   return <div className="app-layout app-layout--dark">
     <main className="app-main app-main--with-profile">
-      <section className="app-page grid justify-items-center gap-6 py-12" data-test-profile>
-        <Avatar user={user} className="wishes-page__hero-avatar" size="xl" />
-        <ProfileMoodCaption level={publicMood} />
-        <Button type="button" onClick={() => setOpen(true)}>Открыть настроение</Button>
-      </section>
+      <PersistentProfileHero user={user} wishlistChrome />
     </main>
-    {open && <ToastContext.Provider value={() => {}}><SessionContext.Provider value={{ user, setSession: () => {} }}>
-      <ProfileSettingsModal user={user} onMoodSaved={setPublicMood} onClose={() => setOpen(false)} />
-    </SessionContext.Provider></ToastContext.Provider>}
   </div>;
 }
 
-createRoot(document.getElementById("root")).render(<BrowserRouter>{guest ? <App /> : <MobileFormPages><Fixture /></MobileFormPages>}</BrowserRouter>);
+createRoot(document.getElementById("root")).render(<BrowserRouter>{guest ? <App /> : (
+  <SessionProvider><ToastContext.Provider value={() => {}}><MobileFormPages><ProfileEditorProvider><Fixture /></ProfileEditorProvider></MobileFormPages></ToastContext.Provider></SessionProvider>
+)}</BrowserRouter>);

@@ -188,13 +188,30 @@ async function checkSleepCalendar(page, article, width, height) {
 }
 
 async function checkNutritionTodo(page, article, width, height) {
+ const footer = article.locator('.daily-todo__footer');
+ const composer = article.getByRole('textbox', { name: 'Новый приём пищи на этот день', exact: true });
+ const assertPinned = () => footer.evaluate(node => {
+  const rect = node.getBoundingClientRect();
+  const { backgroundColor, boxShadow, backdropFilter } = getComputedStyle(node);
+  const input = node.querySelector('.daily-todo__composer-input');
+  const end = (visualViewport?.offsetTop ?? 0) + (visualViewport?.height ?? innerHeight);
+  return { pinned: Math.abs(rect.bottom - end) <= 1 && rect.top >= 0, backgroundColor, boxShadow, backdropFilter, input: getComputedStyle(input).backgroundColor };
+ }).then(({ pinned, backgroundColor, boxShadow, backdropFilter, input }) => {
+  assert(pinned, `${width}×${height}: footer must reach the viewport bottom`);
+  assert.equal(backgroundColor, 'rgba(0, 0, 0, 0)');
+  assert.equal(boxShadow, 'none');
+  assert.equal(backdropFilter, 'none');
+  assert.notEqual(input, backgroundColor, 'Only the input group paints over the rows');
+ });
  await assertGeometry(page, `${width} nutrition checklist`);
  if (width < 768) {
   assert.equal(await article.locator('.daily-todo__ribbon').count(), 0);
   await article.getByRole('button', { name: 'Добавить приём пищи', exact: true }).waitFor();
+  assert.equal(await composer.count(), 0);
  } else {
   const day = await article.locator('[data-list-tile][aria-pressed="true"]').boundingBox();
   assert.equal(day.width, 130); assert.equal(day.height, 100);
+  await assertPinned();
  }
  await article.getByRole('checkbox', { name: 'Съедено: Омлет и овощи', exact: true }).waitFor();
  assert.equal(await article.locator('.daily-todo__overview').count(),0,'Removed nutrition overview must not reserve space');
@@ -211,7 +228,7 @@ async function checkNutritionTodo(page, article, width, height) {
  await checkbox.click();
  await article.locator('section[aria-label="Съедено"]').getByRole('checkbox', { name: 'Съедено: Омлет и овощи', exact: true }).waitFor();
  assert(await checkbox.isChecked());
- await page.screenshot({ path: `${output}/nutrition-todo-${width}x${height}.png`, fullPage: true });
+ await page.screenshot({ path: `${output}/nutrition-todo-${width}x${height}.png` });
  if (width < 768) {
   await article.getByRole('button', { name: 'Предыдущий день', exact: true }).click();
   await article.getByText('Нет записей о питании', { exact: true }).waitFor();
@@ -220,6 +237,7 @@ async function checkNutritionTodo(page, article, width, height) {
  } else {
   await article.locator('[data-list-tile][aria-pressed="true"]').press('ArrowLeft');
   await article.getByText('Нет записей о питании', { exact: true }).waitFor();
+  await assertPinned();
   assert(new URL(page.url()).searchParams.has('date'));
   await article.locator('[data-list-tile][aria-pressed="true"]').press('ArrowRight');
  }
@@ -259,11 +277,38 @@ async function checkNutritionTodo(page, article, width, height) {
  await waitForTrackerReturn(page);
  assert(!(await article.locator('section[aria-label="Запланировано"]').getByRole('checkbox', { name: 'Съедено: Новый приём пищи', exact: true }).isChecked()));
  if (width >= 768) {
-  const composer = article.getByRole('textbox', { name: 'Новый приём пищи на этот день', exact: true });
   await composer.fill('Быстрый перекус'); await composer.press('Enter');
   await article.getByRole('checkbox', { name: 'Съедено: Быстрый перекус', exact: true }).waitFor();
   assert.equal(await composer.inputValue(), '');
  }
  await assertGeometry(page, `${width} nutrition final`);
+ if (width >= 768) {
+  await page.goto(`${smokeOrigin(server)}/app/spheres/health?tab=nutrition&many=1`);
+  const last = article.locator('[data-meal-id="meal-25"]');
+  await last.waitFor();
+  await assertPinned();
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+  assert(await page.evaluate(() => scrollY > 0), 'Long meal list scrolls the document');
+  await assertPinned();
+  const lastBox = await last.boundingBox();
+  assert(lastBox.y + lastBox.height <= (await footer.boundingBox()).y, 'Last meal scrolls fully above the footer');
+  await composer.fill('Черновик перекуса'); await composer.press('Enter');
+  await article.getByText('Проверка ошибки: черновик сохранён', { exact: true }).waitFor();
+  assert.equal(await composer.inputValue(), 'Черновик перекуса');
+  await assertPinned();
+  await composer.press('Enter');
+  await article.getByRole('checkbox', { name: 'Съедено: Черновик перекуса', exact: true }).waitFor();
+  await assertPinned();
+  if (width === 820) {
+   await composer.focus();
+   await page.evaluate(() => {
+    Object.defineProperty(visualViewport, 'height', { configurable: true, value: 460 });
+    Object.defineProperty(visualViewport, 'offsetTop', { configurable: true, value: 24 });
+    visualViewport.dispatchEvent(new Event('resize'));
+   });
+   await page.waitForFunction(() => document.documentElement.hasAttribute('data-overlay-keyboard'));
+   await assertPinned();
+  }
+ }
  console.log(`PASS nutrition To Do ${width}x${height}: shared ribbon/mobile row, checkbox failure/retry and planned/eaten grouping, no daily summary, date URL, edit/draft/date Back, delete, read-only, planned creation and quick composer`);
 }

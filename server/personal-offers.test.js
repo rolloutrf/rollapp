@@ -30,10 +30,14 @@ test("creation rejects personal sellers, self offers, unavailable or another bus
   const foreign = scripted([[/account_type='business'/, [{ id: "seller" }]], [/idempotency_key/, []], [/business_user_id=\$2 AND active=TRUE FOR SHARE/, []]]);
   await reject(createPersonalOffer(foreign, "seller", input()), "PRODUCT_NOT_FOUND"); foreign.done();
 });
-test("creating an offer freezes price/title and computes expiry once using database time", async () => {
-  const client = scripted([[/account_type='business'/, [{ id: "seller" }]], [/idempotency_key/, []], [/FROM business_marketplace_items/, [{ title: "Original title" }]], [/account_type='personal'/, [{ id: "buyer" }]], [/INSERT INTO business_personal_offers/, []]]);
+test("creating an offer requires the recipient's subscription and freezes the terms", async () => {
+  const steps = [[/account_type='business'/, [{ id: "seller", account_type: "business" }]], [/idempotency_key/, []], [/FROM business_marketplace_items/, [{ title: "Original title", sphere: "education" }]], [/account_type='personal'/, [{ id: "buyer" }]]];
+  const unsubscribed = scripted([...steps, [/FROM follows.*FOR SHARE/, []]]);
+  await reject(createPersonalOffer(unsubscribed, "seller", input()), "OFFER_CONSENT_REQUIRED"); unsubscribed.done();
+  const client = scripted([...steps, [/FROM follows.*FOR SHARE/, [{ one: 1 }]], [/INSERT INTO business_personal_offers/, []]]);
   const data = input(); const result = await createPersonalOffer(client, "seller", data);
   assert.equal(result.replayed, false);
+  assert.deepEqual(client.calls.at(-2).params, ["buyer", "seller"]);
   assert.deepEqual(client.calls.at(-1).params.slice(1), ["seller", "buyer", "item", "Original title", 50, 24, data.idempotencyKey, null]);
   assert.match(client.calls.at(-1).sql, /clock_timestamp/); client.done();
 });

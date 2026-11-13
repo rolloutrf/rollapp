@@ -19,7 +19,8 @@ function Fixture() {
   const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   const entries = search.has("empty") ? [] : tracker === "sleep"
     ? [{ id: "sleep-1", date, bedtime: "23:30", wakeTime: "07:15", quality: 4, notes: "Спокойный сон" }, { id: "sleep-previous", date: localDateKey(yesterday), bedtime: "00:00", wakeTime: "07:00", quality: 3, notes: "Прошлая ночь" }, { id: "sleep-nap", date: localDateKey(yesterday), bedtime: "14:00", wakeTime: "14:45", quality: 4, notes: "Дневной сон" }]
-    : [{ id: "meal-1", date, time: "12:00", mealType: "lunch", title: "Омлет и овощи", calories: 350, protein: 21.5, fat: 20, carbs: 18, notes: "Домашний обед" }];
+    : [{ id: "meal-1", date, time: "12:00", mealType: "lunch", title: "Омлет и овощи", calories: 350, protein: 21.5, fat: 20, carbs: 18, notes: "Домашний обед" },
+      ...Array.from({ length: search.has("many") ? 24 : 0 }, (_, index) => ({ id: `meal-${index + 2}`, date, time: "13:00", mealType: "lunch", title: `Приём пищи ${index + 2}` }))];
   const fail = useRef(true);
   const nextId = useRef(0);
   const user = { canDiscoverSpheres: true, accountType: "personal" };
