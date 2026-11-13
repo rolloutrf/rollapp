@@ -1,8 +1,59 @@
 import assert from "node:assert/strict";
 const frames = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+const viewports = [[320, 844], [390, 844], [390, 400], [768, 844], [820, 844], [1024, 844], [1440, 844], [1920, 844]];
+
+export async function checkStatementAlignment(browser, origin) {
+  const prose = "Первая строка начинается у края. ".repeat(10).trim();
+  const source = `> ${prose}  \n> Явный перенос у края.\n\nОбычный абзац начинается там же.\n\n> Ещё одна цитата у края.`;
+
+  for (const [section, label] of [["theses", "Тезисы"], ["principles", "Принципы"]]) {
+    for (const readOnly of [false, true]) {
+      const page = await browser.newPage({ viewport: { width: 320, height: 844 } });
+      const errors = [];
+      page.on("pageerror", error => errors.push(error.message));
+      await page.route("**/api/**", route => { errors.push("Unexpected API request"); return route.abort(); });
+      const params = new URLSearchParams({ statement: section, source });
+      if (readOnly) params.set("statement-readonly", "");
+      await page.goto(`${origin}/__text-edit?${params}`, { waitUntil: "commit" });
+      const editor = page.getByRole("textbox", { name: label, exact: true });
+      await editor.locator("blockquote p br").waitFor({ state: "attached", timeout: 60_000 });
+      await page.evaluate(() => document.fonts.ready);
+      assert.equal(await editor.getAttribute("contenteditable"), String(!readOnly));
+
+      for (const [width, height] of viewports) {
+        await page.setViewportSize({ width, height });
+        const geometry = await editor.evaluate(el => {
+          const paragraphs = [...el.querySelectorAll(":scope > p, :scope > blockquote > p")];
+          const range = document.createRange();
+          const start = el.getBoundingClientRect().left;
+          return paragraphs.map(paragraph => {
+            range.selectNodeContents(paragraph);
+            const offsets = [...range.getClientRects()].filter(rect => rect.width > 0).map(rect => rect.left - start);
+            return { offsets, italic: getComputedStyle(paragraph).fontStyle === "italic" };
+          });
+        });
+        assert.equal(geometry.length, 3);
+        assert(geometry[0].offsets.length >= 3, "The first quote must contain wrapped and explicit lines");
+        assert.deepEqual(geometry.map(block => block.italic), [true, false, true]);
+        for (const { offsets } of geometry) {
+          assert(offsets.length && offsets.every(offset => Math.abs(offset) < 0.5),
+            `${label} (${readOnly ? "reading" : "editing"}), ${width}x${height}: all lines start at the content edge, got ${offsets.join(", ")}`);
+        }
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+        if ((width === 390 && height === 400) || width === 1440) {
+          await page.screenshot({ path: `/tmp/rollapp-${section}-${width}-${height}-${readOnly ? "read" : "edit"}.png` });
+        }
+      }
+      assert.deepEqual(await page.evaluate(() => window.inlineTest.saves), []);
+      assert.deepEqual(errors, []);
+      await page.close();
+      console.log(`PASS statement alignment ${label} (${readOnly ? "reading" : "editing"}): ${viewports.length} viewports, first, wrapped and explicit lines`);
+    }
+  }
+}
 
 export async function checkQuoteStyles(browser, origin) {
-  for (const [width, height] of [[320,844],[390,844],[390,400],[768,844],[820,844],[1024,844],[1440,844],[1920,844]]) {
+  for (const [width, height] of viewports) {
     const page = await browser.newPage({ viewport: { width, height } }), errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', route => { errors.push('Unexpected API request'); return route.abort(); });
@@ -12,7 +63,12 @@ export async function checkQuoteStyles(browser, origin) {
     await editor.locator('strong').waitFor();await page.evaluate(() => document.fonts.ready);
     const read = () => editor.evaluate(el => el.editor.getJSON());
     const before = await read();
-    assert.equal(await editor.locator('blockquote').evaluate(el => getComputedStyle(el).fontStyle), 'italic');
+    const quoteStyle = await editor.locator('blockquote').evaluate(el => {
+      const { fontStyle, fontSize, paddingInlineStart } = getComputedStyle(el);
+      return { fontStyle, fontSize, paddingInlineStart };
+    });
+    assert.equal(quoteStyle.fontStyle, 'italic');
+    assert.equal(quoteStyle.paddingInlineStart, quoteStyle.fontSize, "Ordinary quotes retain the shared 1em inset");
     await editor.locator('strong').evaluate(el => { el.closest('[role="textbox"]').focus();getSelection().setBaseAndExtent(el.firstChild,6,el.firstChild,0); });
     const toolbar = page.getByRole('toolbar', { name: 'Форматирование выделенного текста', exact: true });
     const italic = toolbar.getByRole('button', { name: 'Курсив', exact: true });
@@ -61,7 +117,8 @@ export async function checkQuoteStyles(browser, origin) {
       assert.equal(await link.getAttribute('target'), '_blank');assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');assert.notEqual(await link.getAttribute('class'), 'author-link');
       assert.equal(await link.locator('[data-inline-normal="true"]').evaluate(el => getComputedStyle(el).fontStyle), 'normal');
     }
-    assert.deepEqual(errors, []);assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    assert.deepEqual(errors, []);
     await page.close();console.log(`PASS quote italic ${width}x${height}: effective toolbar and real normal glyphs, inherited default, keyboard/Undo, rich Cyrillic link metadata with quoted/empty attrs, exact reload and safe public reading`);
   }
 }

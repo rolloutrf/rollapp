@@ -11,6 +11,7 @@ import { InlineDocument } from "@/components/inline-document";
 import { FourQuestionDocument } from "@/components/four-questions.jsx?text-edit";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { IDENTITY_QUESTION_TITLES } from "../../shared/identity-questions.js";
+import { Principles, Theses } from "@/components/theses";
 import { MarkdownDocument } from "@/components/life-strategy";
 import { Button } from "@/components/ui/button";
 import "../../src/styles.css";
@@ -41,6 +42,12 @@ function Fixture() {
     if (typeof value === "string") setContent(value); else setQuestions(value);
     window.inlineTest.saved = value;
   };
+  const statement = params.get("statement");
+  const StatementSection = { theses: Theses, principles: Principles }[statement];
+  if (StatementSection) {
+    window.inlineFixtureCareerContent[statement] = content;
+    return <main className="app-page typeset typeset-rollapp"><StatementSection /></main>;
+  }
   const ContentRoot = params.has("chrome") ? "div" : "main";
   const document = <ContentRoot className={params.has("chrome") ? "sphere-text-page page-stack" : "app-page sphere-text-page page-stack"} style={{ paddingBottom: "120px", paddingTop: params.has("selection") ? "320px" : undefined }}>
     {params.has("access") && <Button type="button" onClick={() => setAccessReadOnly(value => !value)}>{accessReadOnly ? "Разрешить редактирование" : "Только чтение"}</Button>}

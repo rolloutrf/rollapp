@@ -20,7 +20,12 @@ Semantic emphasis (`em`/`i`, italic quotations) uses the real italic face; the p
 body remains normal. Keep `font-synthesis: none` rather than synthesizing italics.
 
 Block quotations retain their italic face and `1em` start padding, with no vertical
-border beside the text. This applies to reading and inline editing, including theses.
+border beside the text. In «Тезисы» and «Принципы», the shared preset sets quote
+start padding to zero through the `theses-source` document class. Every line of
+prose, including the first line, wrapped lines and explicit line breaks, starts
+at its content container's leading edge in both reading and inline editing.
+Top-level quotes and ordinary paragraphs share the same edge at all widths.
+The `test:text-edit` quote matrix checks the actual line positions in both sections.
 
 The italic quotation treatment is a default, not an unchangeable text mark.
 Explicitly removing italic from selected quote text writes `normalText`, rendered

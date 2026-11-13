@@ -334,6 +334,10 @@
       border-inline-start: 0;
       padding-inline-start: 1em;
       font-style: italic;
+
+      &:where(.theses-source *) {
+        padding-inline-start: 0;
+      }
     }
 
     &:where(hr) {
