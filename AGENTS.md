@@ -104,6 +104,8 @@
 
 ## Responsive layout and visual consistency
 
+- «Мои желания» are the visual reference for all Wishlist and product snippets. Always render them through `WishlistSnippet` and `src/components/wishlist-snippet.css` in owner and public lists, every Products tab, seller pages, classifieds, sales, catalog, store and editor previews. Pass content and actions through the shared component. Never duplicate or locally override the frame, cover, crop, radius, title, price, spacing or interaction styles. Change their design only when the user explicitly requests it, in the shared source for all surfaces at once. Keep the parity assertions in `test:ui` and `test:business-accounts`.
+
 - Profile-name headings are plain text, never links or buttons and never inside an interactive profile wrapper. Keep profile editing on the avatar or an explicitly labelled control; do not underline the name or give its container a pointer cursor.
 
 - Never give footer containers a separate background, gradient, backdrop blur or painted pseudo-element, on desktop or mobile. This includes To Do/composer footers, navigation/action rows, drawer footers and native form footers. Keep the container transparent; only individual controls retain their semantic, opaque surfaces (including disabled/destructive states). The global header follows the same transparent-container rule. Do not reintroduce a footer background to hide scrolling content; preserve scroll clearance instead.

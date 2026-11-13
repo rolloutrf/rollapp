@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Image as ImageIcon, Plus } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, X, ExternalLink, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { OfferPaymentAction, durations } from "@/components/personal-offers";
 import { publicSpacePath } from "../../shared/profile-links.js";
@@ -12,7 +12,8 @@ import { WISHLIST_SPACES, canManageWishSales, canManageWishlistSpace } from "../
 import { PageActionButton } from "@/components/page-action-button";
 import { ControlBar } from "@/components/control-bar";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { WishlistSnippet } from "@/components/wishlist-snippet";
+import { isVideoUrl } from "../../shared/video-links.js";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,21 +48,26 @@ function Status({state,children}) {
 function Blank({title,text}) {return <Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>;}
 function ErrorMessage({message}) {return message ? <Alert variant="destructive"><AlertDescription>{message}</AlertDescription></Alert>:null;}
 function BusinessItem({ item, onOpen }) {
- const content = <>
-   <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-muted">{item.imageUrl ? <img className="size-full object-cover" src={item.imageUrl} alt="" loading="lazy" /> : <ImageIcon aria-hidden="true" />}</div>
-   <div className="flex min-w-0 flex-col gap-2 p-4">
-     <h3 className="break-words font-semibold">{item.title || "Название"}</h3>
-     {(item.personalOffer || item.price) && <p className="break-words">{item.personalOffer ? formatRolls(item.personalOffer.priceRolls) : item.price}</p>}
-     <p className="break-words text-muted-foreground">{item.brand || item.business.pageTitle || item.business.name}</p>
-     {item.published === false && <p className="text-xs text-muted-foreground">Витрина не опубликована</p>}
-     {!item.active && onOpen && <p className="text-muted-foreground">Скрыт</p>}
-   </div>
- </>;
- return <Card className="overflow-hidden p-0">{onOpen ? (
-   <Button type="button" variant="ghost" className="h-auto w-full min-w-0 flex-col items-stretch gap-4 rounded-none p-0 text-left font-normal whitespace-normal" onClick={() => onOpen(item)} aria-label={`Открыть «${item.title}»`}>
-     {content}
-   </Button>
- ) : content}</Card>;
+ const title = item.title || "Название";
+ return (
+   <WishlistSnippet
+     title={title}
+     imageUrl={item.imageUrl}
+     imageLoading="lazy"
+     video={isVideoUrl(item.actionUrl)}
+     price={item.personalOffer ? formatRolls(item.personalOffer.priceRolls) : item.price}
+     openButton={onOpen && {
+       "aria-label": `Открыть «${title}»`,
+       "aria-haspopup": "dialog",
+       onClick: () => onOpen(item),
+     }}
+     details={<>
+       <span>{item.brand || item.business.pageTitle || item.business.name}</span>
+       {item.published === false && <span>Витрина не опубликована</span>}
+       {!item.active && onOpen && <span>Скрыт</span>}
+     </>}
+   />
+ );
 }
 function ItemDetails({item,space,onClose,owner,onEdit,onDismiss,open=true,onAfterClose,viewerId,managePath}) {
  const mobile = useIsMobile();

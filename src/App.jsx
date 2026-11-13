@@ -63,6 +63,7 @@ import { BusinessClientAccessActions } from "@/components/business-client-access
 import { Badge } from "@/components/ui/badge";
 import { Button as ShadcnButton, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CharacterTraits } from "@/components/character-traits";
 import { CoachingSessions } from "@/components/coaching-sessions";
@@ -3649,28 +3650,28 @@ function StorePage({ user, selectedSpace, ordersOpen }) {
     <div className="app-page wish-catalog-page cat-store-page page-stack">
       {isProducts ? <div className="wish-grid catalog-wish-grid">
         {STORE_CATS.map((cat) => (
-          <article className="catalog-wish-card cat-store-card" key={cat.id}>
-            <div className="catalog-wish-card__image cat-store-card__image">
-              <img src={cat.image} alt={`${cat.name} кот${cat.mood ? ` — ${cat.mood.toLowerCase()}` : ""}`} loading="lazy" />
-              <div className="catalog-wish-card__actions">
-                <ShadcnButton
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="catalog-wish-card__action !size-12 !rounded-full !border-black !bg-black !p-0 !text-white hover:!bg-black/85"
-                  aria-label={`Купить «${cat.name} кот» за ${STORE_CAT_PRICE}`}
-                  title="Купить"
-                  onClick={() => beginPurchase(cat)}
-                >
-                  <Coins className="size-5 text-amber-300" aria-hidden="true" />
-                </ShadcnButton>
-              </div>
-            </div>
-            <div className="catalog-wish-card__body">
-              <div className="catalog-wish-card__heading"><h2>{cat.name} кот{cat.mood ? ` — ${cat.mood}` : ""}</h2></div>
-              <p className="catalog-wish-card__meta"><Coins aria-hidden="true" />{STORE_CAT_PRICE}</p>
-            </div>
-          </article>
+          <WishlistSnippet
+            key={cat.id}
+            className="cat-store-card"
+            title={`${cat.name} кот${cat.mood ? ` — ${cat.mood}` : ""}`}
+            imageUrl={cat.image}
+            imageAlt={`${cat.name} кот${cat.mood ? ` — ${cat.mood.toLowerCase()}` : ""}`}
+            imageLoading="lazy"
+            price={<><Coins aria-hidden="true" />{STORE_CAT_PRICE}</>}
+            mediaAction={(
+              <ShadcnButton
+                type="button"
+                variant="outline"
+                size="icon"
+                className="!size-12 !rounded-full !border-black !bg-black !p-0 !text-white hover:!bg-black/85"
+                aria-label={`Купить «${cat.name} кот» за ${STORE_CAT_PRICE}`}
+                title="Купить"
+                onClick={() => beginPurchase(cat)}
+              >
+                <Coins className="size-5 text-amber-300" aria-hidden="true" />
+              </ShadcnButton>
+            )}
+          />
         ))}
       </div> : <Empty><EmptyHeader><EmptyTitle>В этом разделе магазина пока пусто</EmptyTitle></EmptyHeader></Empty>}
     </div>
@@ -3965,7 +3966,7 @@ function WishSaleMenuItem({ wish, space, disabled }) {
   ><Tag aria-hidden="true" /> Выставить на продажу</DropdownMenuItem>;
 }
 
-function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", variant = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
+function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList, groupOptions = [], onCreateGroup, onAddToGroup, onRemoveFromGroup, groupBusy = false, profile, lists = [], shareToken = "", draggable = false, nativeDraggable = draggable, dragGroupId = "", onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onPointerDown, isDropTarget = false, isDragging = false }) {
   const [menu, setMenu] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [grouping, setGrouping] = useState(false);
@@ -3979,7 +3980,6 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
   const visibleLists = categoryLists.filter((list) => listSpace(list) === cardSpace);
   const placeAddress = cardSpace === "places" ? placeSnippetAddress(wish.description) : "";
   const secretListMembership = lists.some((list) => list.privacy === "private" && wish.listIds?.includes(list.id));
-  const secret = isWishSecret(wish, lists);
   const previewImageUrl = wishPreviewImageUrl(wish);
   const videoPreview = isVideoUrl(wish.url);
 
@@ -4033,13 +4033,48 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
 
   return (
     <>
-    <Card data-group-wish-id={wish.id} data-wish-group-id={dragGroupId || undefined} draggable={nativeDraggable} aria-busy={groupBusy || undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onPointerDown={onPointerDown} className={`wish-card gap-0 overflow-visible rounded-none border-0 bg-transparent py-0 shadow-none ring-0 ${variant ? `wish-card--${variant}` : ""} ${cardSpace === "places" ? "wish-card--place" : ""} ${videoPreview ? "wish-card--video" : ""} ${wish.status === "fulfilled" ? "is-fulfilled" : ""} ${draggable ? "is-draggable" : ""} ${isDropTarget ? "is-group-target" : ""} ${isDragging ? "is-dragging" : ""}`}>
-      {onOpen && <ShadcnButton type="button" draggable={nativeDraggable} variant="ghost" className="wish-card__open absolute inset-0 z-[2] h-full w-full rounded-[inherit] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent active:translate-y-0" data-wish-id={wish.id} aria-label={`Открыть желание «${wish.title}»`} aria-haspopup="dialog" onClick={(event) => { closeMenu(); onOpen(event.currentTarget); }} />}
-      {draggable && <span className="wish-card__drag-handle" data-wish-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
-      <div className="wish-card__image">{previewImageUrl ? <img src={previewImageUrl} alt="" draggable="false" referrerPolicy="strict-origin-when-cross-origin" onError={(event) => applyRetailerPreviewFallback(event, wish.url)} /> : <span className="wish-card__placeholder"><Gift size={36} /></span>}{wish.status === "fulfilled" && <Badge variant="secondary" className="absolute left-3 top-3"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>}</div>
-      <div className="wish-card__body">
-        <div className="wish-card__top">
-          {(wish.price != null || wish.eventDate) && <span>{wish.price != null ? formatMoney(wish.price, wish.currency) : ""}{wish.price != null && wish.eventDate ? " · " : ""}{wish.eventDate ? formatEventDate(wish.eventDate) : ""}</span>}
+    <WishlistSnippet
+      title={wish.title}
+      price={[
+        wish.price != null ? formatMoney(wish.price, wish.currency) : "",
+        wish.eventDate ? formatEventDate(wish.eventDate) : "",
+      ].filter(Boolean).join(" · ")}
+      imageUrl={previewImageUrl}
+      fallbackImageUrl={retailerPreviewImageUrl(wish.url)}
+      video={videoPreview}
+      mediaBadge={wish.status === "fulfilled" && (
+        <Badge variant="secondary"><Check data-icon="inline-start" aria-hidden="true" />Исполнено</Badge>
+      )}
+      openButton={onOpen && {
+        draggable: nativeDraggable,
+        "data-wish-id": wish.id,
+        "aria-label": `Открыть желание «${wish.title}»`,
+        "aria-haspopup": "dialog",
+        onClick: (event) => { closeMenu(); onOpen(event.currentTarget); },
+      }}
+      beforeMedia={draggable && <span className="wish-card__drag-handle" data-wish-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
+      data-group-wish-id={wish.id}
+      data-wish-group-id={dragGroupId || undefined}
+      draggable={nativeDraggable}
+      aria-busy={groupBusy || undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onPointerDown={onPointerDown}
+      className={cn(
+        cardSpace === "places" && "wish-card--place",
+        wish.status === "fulfilled" && "is-fulfilled",
+        draggable && "is-draggable",
+        isDropTarget && "is-group-target",
+        isDragging && "is-dragging",
+      )}
+      address={placeAddress}
+      details={(wish.sharedBy || wish.participants?.length > 0) && (
+        <span className="flex min-w-0 items-center gap-1"><Users className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">{wish.sharedBy?.name || "Совместное"}</span></span>
+      )}
+      menu={(
           <DropdownMenu open={menu} onOpenChange={setMenu}>
             <DropdownMenuTrigger
               render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger size-9 active:translate-y-0" disabled={interactionBusy} />}
@@ -4139,15 +4174,8 @@ function WishCard({ wish, owner = false, onChanged, onOpen, onEdit, onCreateList
               </>}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-        <h3>{wish.title}</h3>
-        {placeAddress
-          ? <p className="wish-card__place-address">{placeAddress}</p>
-          : <p>{wish.description || "Без дополнительного описания"}</p>}
-        {owner && <div className="wish-card__owner-meta">{secret ? <span><LockKeyhole /> {wish.participants?.length ? "Вам и участникам" : "Только вам"}</span> : <span><Eye /> Виден друзьям</span>}{wish.reservationCount > 0 && <span><Gift /> Кто-то готовит подарок</span>}</div>}
-        {(wish.sharedBy || wish.participants?.length > 0) && <span className="order-4 flex min-w-0 items-center gap-1 text-xs text-muted-foreground"><Users className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">{wish.sharedBy?.name || "Совместное"}</span></span>}
-      </div>
-    </Card>
+      )}
+    />
     {deleteOpen && <WishDeleteAlert open wish={wish} busy={busy} onOpenChange={setDeleteOpen} onConfirm={async () => { if (await remove()) setDeleteOpen(false); }} />}
     </>
   );
@@ -4241,7 +4269,7 @@ function WishGroupTile({
     </span>
     {draggable && <span className="wish-card__drag-handle wish-group-tile__drag-handle" data-wish-group-drag-handle draggable={nativeDraggable} aria-hidden="true"><GripVertical /></span>}
     <div className="wish-card__body wish-group-tile__meta">
-      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" title={group.title} onClick={onOpen}><span className="min-w-0 flex-1 truncate">{group.title}</span></ShadcnButton></h3>}
+      {editing ? <Input autoFocus value={title} disabled={busy} maxLength={60} aria-label="Название группы" onFocus={(event) => event.currentTarget.select()} onChange={(event) => setTitle(event.target.value)} onBlur={saveTitle} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } if (event.key === "Escape") { event.preventDefault(); setTitle(group.title); finishEditing(); } }} /> : <h3 className="wish-card__title"><ShadcnButton type="button" variant="ghost" className="wish-group-tile__title justify-start" title={group.title} onClick={onOpen}><span className="min-w-0 flex-1 truncate">{group.title}</span></ShadcnButton></h3>}
       <div className="wish-card__top">
         <span>{wishes.length} {wishCountNoun(wishes.length)}</span>
         {!editing && onRename && <DropdownMenu><DropdownMenuTrigger render={<ShadcnButton type="button" variant="ghost" size="icon" className="wish-card__menu-trigger wish-group-tile__menu size-9 active:translate-y-0" />} aria-label={`Опции группы «${group.title}»`}><MoreHorizontal /></DropdownMenuTrigger><DropdownMenuContent finalFocus={resolveMenuFinalFocus} align="end" sideOffset={8} className="wish-group-actions-menu w-(--layout-menu-width) max-w-(--available-width) rounded-2xl p-2"><DropdownMenuItem className="min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} onClick={beginEditing}><Pencil />Переименовать</DropdownMenuItem><WishGroupMoveSubmenu lists={moveTargets} busy={busy} onMove={move} /><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" className="app-destructive-menu-item min-h-12 gap-3 rounded-xl px-3 text-base whitespace-nowrap" disabled={busy} aria-haspopup="dialog" onClick={() => setDisbandOpen(true)}><Ungroup />Расформировать</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
@@ -4370,61 +4398,47 @@ function catalogMarketplaceItem(item) {
 
 function CatalogWishCard({ item, wishlistDisabled = false, wishlistPending = false, onToggleWishlist, onOpen }) {
   const space = SPACES.find((entry) => entry.id === item.space) || SPACES[0];
-  const SpaceIcon = space.icon;
-  const previewImageUrl = wishPreviewImageUrl(item);
   const eventDate = item.eventDate ? formatEventDate(String(item.eventDate).slice(0, 10)) : "";
   const wishlistLabel = item.addedByMe
     ? `Удалить «${item.title}» из вишлиста, раздел «${space.label}»`
     : `Добавить «${item.title}» в вишлист, раздел «${space.label}»`;
   return (
-    <article className="catalog-wish-card">
-      <ShadcnButton
-        type="button"
-        variant="ghost"
-        className="catalog-wish-card__open absolute inset-0 z-[1] h-full w-full min-w-0 rounded-[20px] border-0 bg-transparent p-0 hover:bg-transparent dark:hover:bg-transparent focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background active:translate-y-0"
-        data-catalog-item-id={item.id}
-        aria-label={`Открыть информацию о «${item.title}»`}
-        aria-haspopup="dialog"
-        onClick={(event) => onOpen(item.id, event.currentTarget)}
-      />
-      <div className="catalog-wish-card__image">
-        {previewImageUrl ? (
-          <img src={previewImageUrl} alt="" loading="lazy" onError={(event) => applyRetailerPreviewFallback(event, item.url)} />
-        ) : <span className="catalog-wish-card__placeholder"><SpaceIcon aria-hidden="true" /></span>}
-        {item.ownerCount > 1 && <Badge className="catalog-wish-card__people-badge" variant="secondary">{participantCountLabel(item.ownerCount)}</Badge>}
-        <div className="catalog-wish-card__actions">
-          <ShadcnButton
-            type="button"
-            variant="outline"
-            size="icon"
-            className={`catalog-wish-card__action !size-12 !rounded-full !text-destructive hover:!text-destructive ${item.addedByMe ? "is-added" : ""}`}
-            disabled={wishlistDisabled}
-            aria-label={wishlistLabel}
-            aria-pressed={Boolean(item.addedByMe)}
-            aria-busy={wishlistPending || undefined}
-            title={wishlistLabel}
-            onClick={() => onToggleWishlist(item)}
-          >
-            {wishlistPending ? <Spinner className="!size-5" /> : <Heart className={`!size-5 ${item.addedByMe ? "fill-current text-destructive" : ""}`} aria-hidden="true" />}
-          </ShadcnButton>
-        </div>
-      </div>
-      <div className="catalog-wish-card__body">
-        <div className="catalog-wish-card__heading">
-          <h2>{item.title}</h2>
-        </div>
-        {(item.price != null || eventDate) && (
-          <p className="catalog-wish-card__meta">
-            {item.price != null ? formatMoney(item.price, item.currency) : ""}
-            {item.price != null && eventDate ? " · " : ""}
-            {eventDate}
-          </p>
-        )}
-        {item.brand
-          ? <CatalogBrandAttribution brand={item.brand} />
-          : !item.source && <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
-      </div>
-    </article>
+    <WishlistSnippet
+      className="catalog-wish-card"
+      title={item.title}
+      imageUrl={wishPreviewImageUrl(item)}
+      fallbackImageUrl={retailerPreviewImageUrl(item.url)}
+      imageLoading="lazy"
+      icon={space.icon}
+      video={isVideoUrl(item.url)}
+      price={[item.price != null ? formatMoney(item.price, item.currency) : "", eventDate].filter(Boolean).join(" · ")}
+      openButton={{
+        "data-catalog-item-id": item.id,
+        "aria-label": `Открыть информацию о «${item.title}»`,
+        "aria-haspopup": "dialog",
+        onClick: (event) => onOpen(item.id, event.currentTarget),
+      }}
+      mediaBadge={item.ownerCount > 1 && <Badge variant="secondary">{participantCountLabel(item.ownerCount)}</Badge>}
+      mediaAction={(
+        <ShadcnButton
+          type="button"
+          variant="outline"
+          size="icon"
+          className={`catalog-wish-card__action !size-12 !rounded-full !text-destructive hover:!text-destructive ${item.addedByMe ? "is-added" : ""}`}
+          disabled={wishlistDisabled}
+          aria-label={wishlistLabel}
+          aria-pressed={Boolean(item.addedByMe)}
+          aria-busy={wishlistPending || undefined}
+          title={wishlistLabel}
+          onClick={() => onToggleWishlist(item)}
+        >
+          {wishlistPending ? <Spinner className="!size-5" /> : <Heart className={`!size-5 ${item.addedByMe ? "fill-current text-destructive" : ""}`} aria-hidden="true" />}
+        </ShadcnButton>
+      )}
+      details={item.brand
+        ? <CatalogBrandAttribution brand={item.brand} />
+        : !item.source && <CatalogOwnerStack owners={item.owners} ownerCount={item.ownerCount} />}
+    />
   );
 }
 

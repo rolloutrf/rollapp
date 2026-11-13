@@ -12,7 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { WishlistSnippet } from "@/components/wishlist-snippet";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PersonalOfferComposer } from "@/components/personal-offers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,12 +38,14 @@ export function SphereBusinessControls({ sphereId }) {
 
 function MarketplaceItem({ item, busy, onBuy, user }) {
   return (
-    <Card className="business-marketplace-card overflow-hidden p-0">
-      <div className="business-marketplace-card__media">
-        {item.imageUrl ? <img src={item.imageUrl} alt="" loading="lazy" /> : <ImageIcon aria-hidden="true" />}
-        <Badge variant="secondary">{item.itemType === "product" ? "Товар" : "Услуга"}</Badge>
-      </div>
-      <div className="business-marketplace-card__content">
+    <WishlistSnippet
+      title={item.title}
+      imageUrl={item.imageUrl}
+      imageLoading="lazy"
+      icon={ImageIcon}
+      price={<><Coins aria-hidden="true" />{formatRolls(item.priceRolls)}</>}
+      mediaBadge={<Badge variant="secondary">{item.itemType === "product" ? "Товар" : "Услуга"}</Badge>}
+      details={<>
         <Link to={publicProfilePath(item.business.username)} className="business-marketplace-card__business min-h-12" aria-label={`Открыть бизнес-профиль ${item.business.name}`}>
           <Avatar className="size-9">
             {item.business.avatarUrl && <AvatarImage src={item.business.avatarUrl} alt="" />}
@@ -51,18 +53,14 @@ function MarketplaceItem({ item, busy, onBuy, user }) {
           </Avatar>
           <span><strong>{item.business.name}</strong><small>@{item.business.username}</small></span>
         </Link>
-        <div className="business-marketplace-card__copy">
-          {item.category && <p className="business-marketplace-card__category">{item.category}</p>}
-          <h2>{item.title}</h2>
-          {item.description && <p>{item.description}</p>}
-        </div>
-        <div className="business-marketplace-card__footer">
-          <strong className="business-marketplace-card__price"><Coins aria-hidden="true" />{item.priceRolls.toLocaleString("ru-RU")} роллов</strong>
-          {user ? <Button disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : <Link className={buttonVariants({})} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business.username))}`}>Войти для покупки</Link>}
-        </div>
+        {item.category && <span data-typography="label" className="font-semibold uppercase">{item.category}</span>}
+        {item.description && <p className="m-0 text-pretty">{item.description}</p>}
+        {user ? <Button className="min-h-12 w-full" disabled={busy} onClick={() => onBuy(item)}>{busy ? <Spinner /> : null}Купить</Button> : (
+          <Link className={buttonVariants({ className: "min-h-12 w-full whitespace-normal" })} to={`/login?next=${encodeURIComponent(publicProfilePath(item.business.username))}`}>Войти для покупки</Link>
+        )}
         {user?.accountType === "business" && user.id === item.business.id && <PersonalOfferComposer item={item} />}
-      </div>
-    </Card>
+      </>}
+    />
   );
 }
 

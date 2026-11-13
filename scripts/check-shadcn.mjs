@@ -670,13 +670,23 @@ assert(/<AvatarImage src=\{brand\.logoUrl \|\| undefined\}/.test(catalogBrandAtt
 assert(/aria-label=\{`Бренд товара: \$\{label\}`\}/.test(catalogBrandAttributionSource), "Catalog brand attribution must expose an accessible label");
 assert(!/OhMyWishes|source\.(?:label|logoUrl|homeUrl)|Каталог \{/.test(catalogBrandAttributionSource), "Catalog brand attribution must not fall back to provider branding");
 const catalogWishCardSource = app.slice(app.indexOf("function CatalogWishCard"), app.indexOf("function CatalogWishDetailsContent"));
-assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 2, "Catalog cards must expose one detail trigger and one Wishlist action");
-assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
-assert(/className="[^"]*\bcatalog-wish-card__open\b[^"]*"/.test(catalogWishCardSource), "Catalog cards must use an official shadcn overlay button for details");
-for (const className of ["absolute", "inset-0", "h-full", "w-full", "bg-transparent", "hover:bg-transparent"]) {
-  assert(catalogWishCardSource.includes(className), `Catalog detail trigger must cover the card and keep ${className}`);
+const wishlistSnippetSource = await read("src/components/wishlist-snippet.jsx");
+const wishlistSnippetStyles = await read("src/components/wishlist-snippet.css");
+const businessItemSource = (await read("src/components/wishlist-business.jsx")).split("function BusinessItem(")[1].split("function ItemDetails(")[0];
+const storeSnippetSource = app.slice(app.indexOf("function StorePage("), app.indexOf("function ProtectedWishlistBusiness("));
+const ownerSnippetSource = app.slice(app.indexOf("function WishCard("), app.indexOf("function SharedWishes("));
+const marketplaceSnippetSource = (await read("src/components/business-marketplace-page.jsx")).split("function MarketplaceItem(")[1].split("function restoredPurchase(")[0];
+for (const source of [catalogWishCardSource, businessItemSource, storeSnippetSource, ownerSnippetSource, marketplaceSnippetSource]) {
+  assert.match(source, /<WishlistSnippet\b/, "All Wishlist and product cards must render the shared snippet");
+  assert.doesNotMatch(source, /(?:wish-card__image|catalog-wish-card__body|catalog-wish-card__image|aspect-square)/, "Snippet consumers must use the shared media and body");
 }
-assert(/aria-haspopup="dialog"/.test(catalogWishCardSource) && /onClick=\{\(event\) => onOpen\(item\.id, event\.currentTarget\)\}/.test(catalogWishCardSource), "Catalog detail trigger must expose dialog semantics and preserve its opener");
+assert.equal((catalogWishCardSource.match(/<ShadcnButton\b/g) || []).length, 1, "Catalog cards must supply one independent Wishlist action");
+assert.equal((catalogWishCardSource.match(/catalog-wish-card__action\b/g) || []).length, 1, "Catalog cards must expose exactly one Wishlist action");
+assert.match(wishlistSnippetSource, /<Button \{\.\.\.openButton\}[^>]+className="wish-card__open/, "The shared snippet must use an official shadcn overlay button for details");
+for (const className of ["absolute", "inset-0", "h-full", "w-full", "bg-transparent", "hover:bg-transparent"]) {
+  assert(wishlistSnippetSource.includes(className), `The shared detail trigger must cover the card and keep ${className}`);
+}
+assert(/"aria-haspopup": "dialog"/.test(catalogWishCardSource) && /onClick: \(event\) => onOpen\(item\.id, event\.currentTarget\)/.test(catalogWishCardSource), "Catalog detail trigger must expose dialog semantics and preserve its opener");
 assert(/<Heart\b/.test(catalogWishCardSource), "Catalog Wishlist action must use the Heart icon");
 assert(/disabled=\{wishlistDisabled\}/.test(catalogWishCardSource), "Catalog Wishlist action must remain enabled except while catalog activity is in flight");
 assert(/onClick=\{\(\) => onToggleWishlist\(item\)\}/.test(catalogWishCardSource), "Catalog Heart must toggle the item in Wishlist");
@@ -734,7 +744,7 @@ assert(/catalogLoadMoreOperationRef\.current \|\| pendingWishlistIdsRef\.current
 assert(/wishlistDisabled=\{pendingWishlistIds\.size > 0 \|\| catalog\.loadingMore\}/.test(wishCatalogPageSource), "Catalog Hearts must visibly disable while another catalog operation is active");
 assert(/disabled=\{loadingMore \|\| pendingWishlistIds\.size > 0\} onClick=\{loadMore\}/.test(wishCatalogPageSource), "Manual catalog pagination must visibly disable while a Wishlist mutation is active");
 assert(!/pendingLike|toggleCatalogLike|catalog\/items\/like|onLike/.test(wishCatalogPageSource), "Catalog UI must not keep an independent Like mutation");
-const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalog-wish-card__actions"), legacyStyles.indexOf(".catalog-wish-card__body"));
+const catalogCardActionStyles = legacyStyles.slice(legacyStyles.indexOf(".catalog-wish-card__action"), legacyStyles.indexOf(".catalog-owner-stack"));
 assert(!/\.is-liked\b/.test(catalogCardActionStyles), "Catalog Wishlist action must not keep a separate Like state");
 assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1;/.test(catalogCardActionStyles), "An added catalog item must keep a visible red-heart state without disabling the toggle");
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
@@ -749,8 +759,8 @@ const wishCardSource = app.slice(app.indexOf("function WishCard"), app.indexOf("
 assert(!/(?:Забронировать|Забронировано вами|Уже забронировано|Снять бронь)/.test(wishCardSource), "WishCard snippets must not expose reservation actions or status text");
 assert(!/\breserve\b/.test(wishCardSource), "WishCard must keep reservation mutations inside WishDetailsModal");
 assert(/cardSpace === "places" \? placeSnippetAddress\(wish\.description\)/.test(wishCardSource), "Place snippets must derive an address from saved metadata");
-assert(/className="wish-card__place-address"/.test(wishCardSource), "Place snippets must render the available address");
-assert(/\.app-layout--dark \.wish-card__body > \.wish-card__place-address[\s\S]*?display: -webkit-box;/u.test(legacyStyles), "Place addresses must remain visible in the dark Wishlist layout");
+assert(/address=\{placeAddress\}/.test(wishCardSource) && /className="wish-card__place-address"/.test(wishlistSnippetSource), "Place snippets must render the available address");
+assert(/\.wish-card__body > \.wish-card__place-address[^}]*display: -webkit-box;/u.test(wishlistSnippetStyles), "Place addresses must remain visible in the dark Wishlist layout");
 const primaryWishDetailsDialog = wishDetailsSource.slice(0, wishDetailsSource.indexOf("{deleteOpen &&"));
 assert((primaryWishDetailsDialog.match(/onClick=\{reserve\}/g) || []).length >= 2, "WishDetailsModal must retain its primary and overflow-menu reservation actions");
 assert(/Забронировать/.test(primaryWishDetailsDialog) && /Снять бронь/.test(primaryWishDetailsDialog), "WishDetailsModal must retain reserve and unreserve labels");

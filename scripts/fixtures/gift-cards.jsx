@@ -20,7 +20,7 @@ state.sellerItems = params.has("empty") ? [] : [{ id: "seller-item", space: "pro
 const personal = { ...user, username: "owner", accountType: "personal" };
 const wishes = [
   { id: "fulfilled", title: "Кофемолка", description: "Ручная кофемолка", status: "fulfilled", space: "products", listIds: [], userId: user.id },
-  { id: "active", title: "Кофеварка", status: "active", space: "products", listIds: [], userId: user.id },
+  { id: "active", title: "Кофеварка", price: 3500, currency: "RUB", status: "active", space: "products", listIds: [], userId: user.id },
 ];
 state.sales = params.has("sale-buyer")
   ? [{ id: "wish-sale:peer", space: "products", title: "Товар участника", active: true, personalSale: true,

@@ -64,6 +64,7 @@ Unicode payload и media guards на production PostgreSQL с обязатель
 
 | Область | Реализация | Документация |
 | --- | --- | --- |
+| Сниппеты желаний и товаров | `WishlistSnippet`, `src/components/wishlist-snippet.css` | `docs/wishlist-business.md` |
 | Текст и семантические роли | `src/typeset.css`, токены `src/index.css` | `docs/typography.md` |
 | Отступы, навигация, размер контролов | `src/spacing.css`, `ControlBar`, `PageActionButton` | `docs/spacing-system.md` |
 | Максимальные ширины | `src/containers.css` | `docs/container-system.md` |

@@ -18,6 +18,24 @@ const server = await createServer({ cacheDir: salesOnly ? "node_modules/.vite-wi
 }] });
 await listenSmokeServer(server);
 const browser = await chromium.launch(browserLaunchOptions());
+async function snippetAppearance(card) {
+  await card.waitFor();
+  await card.page().evaluate(() => document.fonts.ready);
+  return card.evaluate((node) => {
+    const styles = (selector, properties) => {
+      const style = getComputedStyle(selector ? node.querySelector(selector) : node);
+      return properties.map((property) => style.getPropertyValue(property));
+    };
+    return {
+      card: styles(null, ["background-color", "border-top-width", "border-radius", "box-shadow"]),
+      cover: styles(".wish-card__image", ["aspect-ratio", "border-radius", "background-color"]),
+      body: styles(".wish-card__body", ["padding", "min-height"]),
+      title: styles(".wish-card__title", ["font-family", "font-size", "line-height", "font-weight", "margin", "text-overflow"]),
+      price: styles(".wish-card__top > span", ["font-family", "font-size", "line-height", "color"]),
+    };
+  });
+}
+
 async function checkRolloutStore(width, height) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: width < 768 ? 3 : 1 });
   const errors = [];
@@ -34,7 +52,7 @@ async function checkRolloutStore(width, height) {
     assert.deepEqual(await page.evaluate(() => giftHarness.calls), []);
   };
   try {
-    await page.goto(fixture);
+    await page.goto(fixture, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.getByRole("heading", { name: "Магазин · Товары" }).waitFor();
     await cats.first().waitFor();
     assert.equal(await cats.count(), 6);
@@ -55,13 +73,13 @@ async function checkRolloutStore(width, height) {
     await checkLayoutAndSource();
     await page.screenshot({ path: `/tmp/rollapp-rollout-store-${width}-${height}.png` });
 
-    await page.goto(`${fixture}&business=studio`);
+    await page.goto(`${fixture}&business=studio`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await cats.first().waitFor();
     assert.equal(await cats.count(), 6);
     await orders.waitFor();
     await checkLayoutAndSource();
 
-    await page.goto(`${fixture}=food`);
+    await page.goto(`${fixture}=food`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.getByText("В этом разделе магазина пока пусто", { exact: true }).waitFor();
     assert.equal(await cats.count(), 0);
     assert.equal(await orders.count(), 0);
@@ -79,7 +97,10 @@ async function checkWishSale(width, height) {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
   try {
-    await page.goto(`${smokeOrigin(server)}/__business-profile?sales`);
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sales`, { waitUntil: "domcontentloaded", timeout: 90_000 });
+    const reference = await snippetAppearance(page.locator('[data-group-wish-id="active"]'));
+    assert.equal(reference.card[0], "rgba(0, 0, 0, 0)");
+    assert.equal(reference.cover[0], "236 / 286");
     const sale = page.getByRole("menuitem", { name: "Выставить на продажу" });
     await page.getByRole("button", { name: "Опции желания «Кофеварка»" }).click();
     await page.getByRole("menuitem", { name: "Исполнено", exact: true }).waitFor();
@@ -128,6 +149,8 @@ async function checkWishSale(width, height) {
     await card.waitFor();
     assert.equal(await card.count(), 1);
     assert.deepEqual(await page.evaluate(() => giftHarness.calls.map(call => call.payload.wishId)), ["fulfilled", "fulfilled"]);
+    const saleSnippet = card.locator("..");
+    assert.deepEqual(await snippetAppearance(saleSnippet), reference, "Sales must use the Wishlist appearance");
     const openBoard = async () => {
       await page.getByRole("button", { name: "Открыть переключатель сфер" }).click();
       await page.getByRole("navigation", { name: "Сервисы и сферы Rollapp" })
@@ -173,7 +196,7 @@ async function checkDirectSale(width, height) {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/**", route => { errors.push("Real API request forbidden"); return route.abort(); });
   try {
-    await page.goto(`${smokeOrigin(server)}/__business-profile?sales=direct`);
+    await page.goto(`${smokeOrigin(server)}/__business-profile?sales=direct`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     const add = page.getByRole("button", { name: "Добавить товар", exact: true });
     await add.waitFor();
     assert.deepEqual(await add.evaluate(node => {
@@ -218,7 +241,8 @@ async function checkDirectSale(width, height) {
     await submit.click();
     await editor.waitFor({ state: "hidden" });
     const card = page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true });
-    await card.getByText("Скрыт", { exact: true }).waitFor();
+    const snippet = card.locator("..");
+    await snippet.getByText("Скрыт", { exact: true }).waitFor();
     assert.equal(await card.count(), 1);
     const calls = await page.evaluate(() => giftHarness.calls);
     assert.deepEqual(calls.map(call => call.path), ["/uploads/images", "/uploads/images", "/wishlist-business/products/sales", "/wishlist-business/products/sales"]);
@@ -231,7 +255,7 @@ async function checkDirectSale(width, height) {
     await editor.waitFor({ state: "hidden" });
     await page.waitForURL(url => url.search === "?tab=products");
     // Reload temporarily removes the whole grid. Wait for the published card itself.
-    await card.filter({ hasNot: page.getByText("Скрыт", { exact: true }) }).waitFor();
+    await snippet.getByText("Скрыт", { exact: true }).waitFor({ state: "hidden" });
     assert.equal(await card.count(), 1);
     const publicationCalls = await page.evaluate(() => giftHarness.calls.slice(4));
     const saleId = `wish-sale:manual:${calls[2].payload.requestId}`;
@@ -457,6 +481,7 @@ try {
           const preview = editor.locator('[aria-label="Предпросмотр карточки"]');
           await preview.getByRole("heading", { name: "Кофемашина Dedica" }).waitFor();
           await preview.getByText("12 900 ₽", { exact: true }).waitFor();
+          const previewAppearance = await snippetAppearance(preview.locator("[data-wishlist-snippet]"));
           assert.deepEqual(await page.evaluate(() => giftHarness.calls), [], "Previews must remain local");
           await submit.click();
           await editor.getByText(/Фото временно недоступно/).waitFor();
@@ -473,7 +498,10 @@ try {
           await editor.waitFor({ state: "hidden" });
           await page.waitForFunction(() => !new URLSearchParams(location.search).has("formScreen"));
           assert.equal(await pageTitle.inputValue(), "Несохранённое название витрины");
-          await page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).waitFor();
+          const sellerCard = page.getByRole("button", { name: "Открыть «Кофемашина Dedica»", exact: true }).locator("..");
+          await sellerCard.getByText("Скрыт", { exact: true }).waitFor();
+          assert.deepEqual(await snippetAppearance(sellerCard), previewAppearance, "Preview and seller page must use the same appearance");
+          assert(await sellerCard.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
           const calls = await page.evaluate(() => giftHarness.calls);
           assert.deepEqual(calls.map((call) => call.path), ["/uploads/images", "/uploads/images", "/wishlist-business/products/items", "/wishlist-business/products/items"]);
           assert.deepEqual(calls[2].payload, calls[3].payload);
