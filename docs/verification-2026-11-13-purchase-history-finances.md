@@ -11,3 +11,5 @@
 Полный аудит приложения запущен отдельно. Публичная версия на момент проверки — `6b02ea31d7a5d66d4e87091f1f6555d0d112e59c`.
 
 После переноса на `b34fd4f573301573ab6bb70d3eecb60a9f96ec91` повторный `npm run test:purchase-history` прошёл на чистом коммите `ba7f5b3b763c3859501ade60c25f68e93ade2c79`, включая проверку прокрутки итогового текста выше футера на всех восьми размерах. Проверка diff прошла. [Полный аудит этого коммита в GitHub Actions](https://github.com/rolloutrf/rollapp/actions/runs/43384847818) запущен отдельно от выпуска.
+
+Локальный `check:comprehensive` завершился таймаутом Chromium при загрузке fixture `/__business-profile?store-only` в этапе `test:business-accounts`. Отчёт: `/tmp/rollapp-purchase-history-finances-comprehensive.json`. Независимый GitHub audit продолжил проверку чистого кандидата. Перед выпуском повторно выполнен `initializeRuntimeDatabase` в режиме `verify` на настроенной production PostgreSQL: проверенный TLS, `BEGIN READ ONLY`, ограниченные таймауты и `ROLLBACK`; callback миграции запрещён. Постоянный preview оставлен работающим.
