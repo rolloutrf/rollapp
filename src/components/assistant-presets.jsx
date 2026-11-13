@@ -1,10 +1,8 @@
 import { definePrimitive } from '@ui-sdk/core';
 import { usePart, usePrimitive } from '@ui-sdk/react/primitive';
 import { ListChecks } from 'lucide-react';
-import { useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useId, useRef } from 'react';
 import { ASSISTANT_MESSAGE_LIMIT, ASSISTANT_SECTIONS, ASSISTANT_WISH_EXAMPLE } from '../../shared/messenger-assistant.js';
-import { PageActionButton } from './page-action-button';
 import { Button } from './ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
 
@@ -45,7 +43,7 @@ const spherePresets = {
 };
 
 const sphereGroups = Object.entries(spherePresets).map(([id, items]) => ({
-  id, label: ASSISTANT_SECTIONS[id].title, items,
+  label: ASSISTANT_SECTIONS[id].title, items,
 }));
 
 const presetPicker = definePrimitive({
@@ -77,14 +75,9 @@ function appendPrompt(draft, prompt) {
 }
 
 export function AssistantPresets({ draft, disabled, setDraft, inputRef, canDiscoverSpheres, children }) {
-  const { pathname, search } = useLocation();
-  const visibleSpheres = canDiscoverSpheres ? sphereGroups : [];
-  const visibleGroups = [...groups, ...visibleSpheres];
+  const labelPrefix = useId();
+  const visibleGroups = canDiscoverSpheres ? [...groups, ...sphereGroups] : groups;
   const items = visibleGroups.flatMap(group => group.items);
-  const activeSphere = visibleSpheres.find(({ id }) => pathname === ASSISTANT_SECTIONS[id].path);
-  const quick = activeSphere ? activeSphere.items.map(item => item.id) : pathname === '/app/planning'
-    ? (new URLSearchParams(search).get('tab') === 'notes' ? ['note-actions', 'note', 'task'] : ['task', 'event', 'week'])
-    : ['wish', 'wish-link', 'wish-batch'];
   const canInsert = prompt => !disabled && appendPrompt(draft, prompt).length <= ASSISTANT_MESSAGE_LIMIT;
   const availableItems = items.filter(({ prompt }) => canInsert(prompt));
   const enabled = availableItems.length > 0;
@@ -122,11 +115,20 @@ export function AssistantPresets({ draft, disabled, setDraft, inputRef, canDisco
       </DropdownMenuGroup>)}
     </DropdownMenuContent>
   </DropdownMenu>;
-  const suggestions = <div data-not-typeset role="group" aria-label="Примеры запросов" className="flex flex-wrap gap-2">
-    {quick.map(id => items.find(item => item.id === id)).map(item => <PageActionButton key={item.id} type="button" variant="outline" disabled={!canInsert(item.prompt)} className="max-w-full" title={item.label} onClick={() => {
-      handle.api.insertPreset(item.id);
-      inputRef.current?.focus();
-    }}><span className="min-w-0 truncate">{item.label}</span></PageActionButton>)}
+  const suggestions = <div data-not-typeset role="group" aria-label="Примеры запросов" className="grid w-full min-w-0 gap-4 @min-[32rem]:grid-cols-2">
+    {visibleGroups.map(({ label, items }) => {
+      const labelId = `${labelPrefix}-${items[0].id}`;
+      return <div key={label} role="group" aria-labelledby={labelId} className="grid min-w-0 content-start gap-2">
+        <span id={labelId} className="text-xs font-medium text-muted-foreground">{label}</span>
+        <div className="flex flex-wrap gap-2">
+          {items.map(item => <Button key={item.id} type="button" variant="outline"
+            disabled={!canInsert(item.prompt)} className="h-auto min-h-(--layout-control-size) max-w-full rounded-full px-6 py-2 text-start whitespace-normal" onClick={() => {
+              handle.api.insertPreset(item.id);
+              inputRef.current?.focus();
+            }}>{item.label}</Button>)}
+        </div>
+      </div>;
+    })}
   </div>;
   return usePart(handle, 'root', {}, {
     className: 'messenger-conversation assistant-drawer',

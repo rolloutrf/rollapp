@@ -215,7 +215,24 @@ async function checkAssistant(page, drawer, contactBounds, width, height) {
   await checkDictation(page, chat, text, send, heading, close, openAssistant);
   assert.equal(await send.isDisabled(),true);
   await checkAssistantPresets(page, chat, text, width, height);
-  await chat.getByRole('button',{name:'Добавить желание',exact:true}).press('Enter');
+  const starters = chat.getByRole('group', { name: 'Примеры запросов' });
+  assert.equal(await starters.getByRole('group').count(), 7);
+  assert.equal(await starters.getByRole('button').count(), 16);
+  assert(await starters.evaluate(catalog => {
+    const history = catalog.closest('[role="log"]');
+    return history.scrollWidth === history.clientWidth && Array.from(catalog.querySelectorAll('button')).every(button =>
+      button.offsetHeight >= 48 && button.scrollWidth <= button.clientWidth + 1);
+  }), 'Preset labels must fit without horizontal scrolling');
+  const career = starters.getByRole('group', { name: 'Карьера' });
+  const lastStarter = career.getByRole('button', { name: 'Превратить пункт ИПР в задачи' });
+  const sendBefore = await send.boundingBox();
+  await lastStarter.scrollIntoViewIfNeeded();
+  assert.deepEqual(await send.boundingBox(), sendBefore, 'Scrolling the presets moved the composer');
+  await lastStarter.click();
+  assert.match(await text.inputValue(), /^По пункту моего ИПР/);
+  assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
+  await text.fill('');
+  await starters.getByRole('button',{name:'Добавить желание',exact:true}).press('Enter');
   assert.match(await text.inputValue(),/кофемолку за 4 500 ₽/);
   assert(await text.evaluate(node=>node===document.activeElement),'Starter did not focus the editable draft');
   assert.deepEqual(await page.evaluate(()=>window.messengerTest.assistant),[],'Selecting a starter must not send it');
@@ -610,6 +627,9 @@ async function checkAssistantAccountSwitch(page, chat) {
   await page.evaluate(()=>window.messengerTest.switchAccount('other'));
   await chat.getByRole('button',{name:'Чаты ассистента. Текущий чат: Чат 1',exact:true}).waitFor();
   assert.equal(await text.inputValue(),'');
+  const starters = chat.getByRole('group', { name: 'Примеры запросов' });
+  assert.equal(await starters.getByRole('button').count(), 8);
+  assert.equal(await starters.getByRole('group').count(), 3);
   assert.equal(await page.evaluate(()=>[...window.messengerTest.assistantHolds.values()].every(hold=>hold.signal.aborted)),true);
   for(const prompt of prompts) await finishAssistantReply(page,prompt,{reply:'Поздний ответ другого аккаунта'});
   await chat.getByRole('button',{name:/^Чаты ассистента/}).click();
