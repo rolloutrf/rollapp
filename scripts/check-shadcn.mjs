@@ -738,8 +738,8 @@ assert(/\.is-added\s*,[\s\S]*?color:\s*var\(--destructive\);[\s\S]*?opacity:\s*1
 assert(!/\.is-added:disabled/.test(catalogCardActionStyles), "An added Catalog Heart must remain interactive");
 assert(/\.catalog-brand-attribution\s*\{/.test(legacyStyles) && /\.catalog-brand-attribution__logo\s*\{/.test(legacyStyles), "Catalog cards must style brand attribution with its own logo treatment");
 assert(!/\.catalog-source-attribution/.test(legacyStyles), "Retired provider attribution styles must not return");
-const catalogProfileHeroSource = app.slice(app.indexOf("function CatalogProfileHero"), app.indexOf("function WishesProfileControls"));
-assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogProfileHeroSource), "External storefronts must use a neutral Brands identity");
+const catalogPageHeaderSource = app.slice(app.indexOf("function CatalogPageHeader"), app.indexOf("function WishesProfileControls"));
+assert(/source === "brands" \? "Бренды" : "Лента"/.test(catalogPageHeaderSource), "External storefronts must use a neutral Brands identity");
 const brandSelectSource = read("src/components/catalog-brands.jsx");
 assert(!/(?:aria-label|title)="[^"]*OhMyWishes/.test(`${app}\n${brandSelectSource}`), "User-facing catalog controls must not name the upstream provider");
 const wishDetailsSource = app.slice(app.indexOf("function WishDetailsModal"), app.indexOf("function ListModal"));
