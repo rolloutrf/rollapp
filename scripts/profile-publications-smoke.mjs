@@ -223,18 +223,25 @@ try {
       const boardLink = rail.getByRole("link", { name: "Доска объявлений", exact: true });
       const profileHeading = page.getByRole("heading", { name: "Участник", exact: true });
       const space = page.getByRole("combobox", { name: "Раздел сервиса Вишлист" });
+      const listNavigation = page.locator("[data-wishlist-list-navigation]");
       const list = page.getByRole("button", { name: /^Медиатека/ });
       const wish = page.getByRole("button", { name: "Открыть желание «Фильм для вечера»" });
+      if (routing === "wishlist") await list.click();
       await wish.waitFor();
+      assert.equal(await list.getAttribute("aria-pressed"), "true");
       const original = await rail.elementHandle();
       const assertShell = async () => {
         assert(await original.evaluate(node => node.isConnected), `${routing}: action row was replaced`);
         assert.equal(await profileHeading.count(), 1);
         assert.equal(await rail.getByRole("button", { name: "Добавить", exact: true }).count(), 1);
-        assert.equal(await list.getAttribute("aria-pressed"), "true");
         assert.match(await space.innerText(), /Медиа/);
         assert(await rail.evaluate(node => [...node.children].every(child => child.getBoundingClientRect().top === node.firstElementChild.getBoundingClientRect().top)));
         assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      };
+      const assertPublication = async () => {
+        await assertShell();
+        assert.equal(await listNavigation.count(), 0, `${routing}: publication must not render Wishlist tiles`);
+        assert.equal(await wish.count(), 0);
       };
       await calendarLink.click();
       await page.getByRole("heading", { name: "Календарь", exact: true }).waitFor();
@@ -246,21 +253,29 @@ try {
         const inactive = row.querySelector('[aria-label="Доска объявлений"]');
         return getComputedStyle(active).backgroundColor !== getComputedStyle(inactive).backgroundColor;
       });
-      assert.equal(await wish.count(), 0);
-      await assertShell();
+      await assertPublication();
       await boardLink.click();
       await page.getByRole("heading", { name: "Открыта запись на ноябрь", exact: true }).waitFor();
       assert.equal(await boardLink.getAttribute("aria-current"), "page");
-      await assertShell();
+      await assertPublication();
       if ((width === 390 && height === 844) || width === 1440) {
         await page.screenshot({ path: `/tmp/rollapp-publication-shell-${routing}-${width}.png`, animations: "disabled" });
       }
       await page.goBack();
       await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
+      await assertPublication();
+      await page.goBack();
+      await wish.waitFor();
       await assertShell();
+      assert.equal(await list.getAttribute("aria-pressed"), "true");
+      await page.goForward();
+      await page.getByRole("heading", { name: "Первая встреча", exact: true }).waitFor();
+      await assertPublication();
       await page.getByRole("link", { name: "К Вишлисту", exact: true }).click();
       await wish.waitFor();
       await assertShell();
+      assert.equal(await listNavigation.count(), 1);
+      assert.equal(await list.getAttribute("aria-pressed"), "true");
       assert.deepEqual(await page.evaluate(() => window.publicationTransport.calls), []);
     }
     assert.deepEqual(errors, []);
