@@ -1,5 +1,5 @@
 import { ProductTitleInput } from "@/components/product-title-input";
-import { AssistantDrawer, AssistantProvider } from "@/components/assistant-drawer";
+import { AssistantDrawer, useAssistantChats } from "@/components/assistant-drawer";
 import { MessengerDrawer } from "@/components/messenger";
 import { ClassifiedsPage, WishlistBusinessPage, WishlistBusinessListing, WishSalesPage, wishSalesPath, wishlistSpace } from "@/components/wishlist-business";
 import { canManageWishSales, canManageWishlistSpace } from "../shared/wishlist-business.js";
@@ -728,7 +728,7 @@ function AppBrand({ showSwitcher = true }) {
 
 function PlanningFab() {
   const { user } = useSession();
-  return user ? <AssistantProvider key={user.id}><PlanningControls user={user} /></AssistantProvider> : null;
+  return user ? <PlanningControls key={user.id} user={user} /> : null;
 }
 
 function PlanningControls({ user }) {
@@ -742,15 +742,19 @@ function PlanningControls({ user }) {
   }, [location.pathname, location.search, location.hash]);
   const [open, setOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const assistant = useAssistantChats(assistantOpen);
+  const { showList: showAssistantList } = assistant;
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [initialConversationId, setInitialConversationId] = useState(null);
   useLayoutEffect(() => {
     const showMessages = Boolean(location.state?.messengerOpen);
+    const showAssistant = !showMessages && Boolean(location.state?.assistantOpen);
     setOpen(false);
-    setAssistantOpen(!showMessages && Boolean(location.state?.assistantOpen));
+    if (showAssistant) showAssistantList();
+    setAssistantOpen(showAssistant);
     setMessagesOpen(showMessages);
     setInitialConversationId(location.state?.messengerConversationId || null);
-  }, [location]);
+  }, [location, showAssistantList]);
   const setMessengerDrawerOpen = (value) => {
     setMessagesOpen(value);
     if (value) {
@@ -762,6 +766,7 @@ function PlanningControls({ user }) {
   const setAssistantDrawerOpen = (value) => {
     setAssistantOpen(value);
     if (value) {
+      showAssistantList();
       setOpen(false);
       setMessengerDrawerOpen(false);
     }
@@ -775,7 +780,7 @@ function PlanningControls({ user }) {
   const backLabel = backToNotes ? "Назад к заметкам" : "Назад в приложение";
   return (
     <ControlBar className="planning-fab-controls" data-has-back={inPlanning || undefined} data-daily-todo={inPlanning && currentTab === "todo" || undefined}>
-      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} />
+      <AssistantDrawer open={assistantOpen} onOpenChange={setAssistantDrawerOpen} workspace={assistant} />
       <MessengerDrawer user={user} open={messagesOpen} onOpenChange={setMessengerDrawerOpen} initialConversationId={initialConversationId} />
       {inPlanning && <Link
         data-control-icon

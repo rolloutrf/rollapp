@@ -1,19 +1,17 @@
-import { createContext, useContext, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Bot, ChevronDown, CircleAlert, LoaderCircle, Mic, Plus, Square } from 'lucide-react';
+import { ArrowUpRight, Bot, Mic, Plus, Square } from 'lucide-react';
 import { ASSISTANT_CONTEXT_LIMIT, ASSISTANT_NAME, ASSISTANT_SECTIONS, parseAssistantAction } from '../../shared/messenger-assistant.js';
 import { localDateKey } from '../../shared/planning.js';
 import { api } from '../api.js';
 import { ControlBar } from './control-bar';
-import { MessageComposer, MessageDrawer, MessageDrawerClose } from './messenger';
+import { MessageComposer, MessageDrawer, MessageDrawerBack, MessageDrawerClose, MessageListRow, MessengerAvatar } from './messenger';
 import { Button, buttonVariants } from './ui/button';
 import { DrawerTitle } from './ui/drawer';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useAssistantDictation } from '@/hooks/use-assistant-dictation';
 import './assistant-drawer.css';
 
-const AssistantContext = createContext(null);
 const assistantStarters = [
   ['Открыть календарь', 'Открой календарь Rollapp.'],
   ['Подготовить задачу', 'Подготовь задачу: собрать вопросы к встрече.'],
@@ -38,9 +36,18 @@ function chatTitle(content) {
   return characters.length > 64 ? `${characters.slice(0, 63).join('')}…` : characters.join('');
 }
 
-function useAssistantChats() {
-  const [workspace, setWorkspace] = useState(() => ({ chats: [newChat(1)], selected: '1' }));
+function hasChatContent(chat) {
+  return Boolean(chat.messages.length || chat.draft.trim() || chat.sending || chat.error);
+}
+
+export function useAssistantChats(open) {
+  const [workspace, setWorkspace] = useState({ chats: [], selected: null });
   const pending = useRef(new Map());
+  const visible = useRef(open);
+
+  useLayoutEffect(() => {
+    visible.current = open;
+  }, [open]);
 
   useLayoutEffect(() => {
     const requests = pending.current;
@@ -52,21 +59,28 @@ function useAssistantChats() {
 
   const { chats, selected } = workspace;
   const chat = chats.find(item => item.id === selected);
-  const { id, messages, draft } = chat;
-
   function updateChat(change) {
     setWorkspace(previous => ({
       ...previous,
-      chats: previous.chats.map(item => item.id === id ? change(item, previous.selected) : item),
+      chats: previous.chats.map(item => item.id === chat.id ? change(item, previous.selected) : item),
     }));
   }
 
   function createChat() {
     setWorkspace(previous => {
+      const blank = previous.chats.find(item => !hasChatContent(item));
+      if (blank) return {
+        selected: blank.id,
+        chats: previous.chats.map(item => item === blank ? { ...item, draft: '' } : item),
+      };
       const created = newChat(previous.chats.length + 1);
-      return { ...previous, chats: [...previous.chats, created], selected: created.id };
+      return { ...previous, chats: [created, ...previous.chats], selected: created.id };
     });
   }
+
+  const showList = useCallback(() => {
+    setWorkspace(previous => previous.selected === null ? previous : { ...previous, selected: null });
+  }, []);
 
   function selectChat(selectedId) {
     setWorkspace(previous => ({
@@ -78,6 +92,7 @@ function useAssistantChats() {
 
   async function submit(event) {
     event.preventDefault();
+    const { id, messages, draft } = chat;
     const content = draft.trim();
     if (!content || chat.sending || pending.current.has(id)) return;
     const controller = new AbortController();
@@ -92,12 +107,13 @@ function useAssistantChats() {
       }, { signal: controller.signal });
       if (controller.signal.aborted) return;
       if (typeof reply !== 'string' || !reply.trim()) throw new Error('Ассистент не вернул ответ.');
+      const wasVisible = visible.current;
       updateChat((item, selectedId) => ({
         ...item,
         messages: [...item.messages, { role: 'user', content }, { role: 'assistant', content: reply, actions }],
         draft: '',
         sending: false,
-        hasNewReply: selectedId !== id,
+        hasNewReply: !wasVisible || selectedId !== id,
       }));
     } catch (err) {
       if (!controller.signal.aborted) updateChat(item => ({ ...item, sending: false, error: err.message }));
@@ -107,14 +123,9 @@ function useAssistantChats() {
   }
 
   return {
-    chats, chat, createChat, selectChat, submit,
+    chats, chat, createChat, selectChat, showList, submit,
     setDraft: draft => updateChat(item => ({ ...item, draft: typeof draft === 'function' ? draft(item.draft) : draft })),
   };
-}
-
-export function AssistantProvider({ children }) {
-  const workspace = useAssistantChats();
-  return <AssistantContext.Provider value={workspace}>{children}</AssistantContext.Provider>;
 }
 
 function AssistantActions({ actions }) {
@@ -151,56 +162,44 @@ function chatStatus(chat) {
   return '';
 }
 
-function AssistantChatPicker({ chats, chat, createChat, selectChat }) {
-  const background = chats.filter(item => item.id !== chat.id);
-  const ready = background.filter(item => item.hasNewReply).length;
-  const sending = background.filter(item => item.sending).length;
-  const failed = background.filter(item => item.error).length;
-  const status = [ready && `Новые ответы: ${ready}`, sending && `Готовятся ответы: ${sending}`, failed && `Ошибки отправки: ${failed}`].filter(Boolean).join('. ');
-
-  return <ControlBar as="nav" className="assistant-drawer__chats" aria-label="Чаты ассистента">
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="assistant-drawer__chat-trigger" />}
-        aria-label={`Чаты ассистента. Текущий чат: ${chat.title}${status ? `. ${status}` : ''}`} title={chat.title}>
-        <span className="min-w-0 flex-1 truncate text-start">{chat.title}</span>
-        {ready ? <span className="assistant-drawer__unread" aria-hidden="true" />
-          : failed ? <CircleAlert aria-hidden="true" className="text-destructive" />
-            : sending ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : null}
-        <ChevronDown aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent sideOffset={8}>
-        <DropdownMenuRadioGroup value={chat.id} onValueChange={selectChat}>
-          {chats.map(item => {
-            const caption = chatStatus(item);
-            return <DropdownMenuRadioItem key={item.id} value={item.id} title={item.title} closeOnClick>
-              <span className="min-w-0">
-                <span className="block truncate">{item.title}</span>
-                {caption && <span className="block text-xs text-muted-foreground">{caption}</span>}
-              </span>
-            </DropdownMenuRadioItem>;
-          })}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <Button data-control-icon size="icon" variant="outline" aria-label="Новый чат" title="Новый чат" onClick={createChat}>
-      <Plus aria-hidden="true" />
-    </Button>
-    <span className="sr-only" role="status">{status}</span>
-  </ControlBar>;
+function AssistantChatList({ chats, createChat, selectChat }) {
+  return <div className="messenger-directory-scroll" aria-label="Чаты ассистента" role="group">
+    <MessageListRow title="Новый чат" avatar={<MessengerAvatar icon={Plus} />} onClick={createChat} />
+    {chats.filter(hasChatContent).map(item => {
+      const status = chatStatus(item);
+      const preview = status || (item.draft.trim() ? `Черновик: ${item.draft}` : item.messages.at(-1)?.content);
+      return <MessageListRow key={item.id} title={item.title} avatar={<MessengerAvatar icon={Bot} />} onClick={() => selectChat(item.id)}
+        badge={item.hasNewReply && <span className="messenger-unread" aria-hidden="true">1</span>}>
+        {preview && <span>{preview}</span>}
+      </MessageListRow>;
+    })}
+  </div>;
 }
 
-export function AssistantDrawer({ open, onOpenChange }) {
-  const workspace = useContext(AssistantContext);
+export function AssistantDrawer({ open, onOpenChange, workspace }) {
+  const { chat, showList } = workspace;
   const heading = useRef(null);
+  const wasOpen = useRef(false);
+  const chatId = chat?.id;
+  useLayoutEffect(() => {
+    if (open && wasOpen.current) heading.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [chatId, open]);
+
   return <MessageDrawer open={open} onOpenChange={onOpenChange} title={ASSISTANT_NAME} icon={Bot}
     triggerClassName="assistant-fab" initialFocus={heading}>
-    <section className="messenger-conversation assistant-drawer">
-      <ControlBar as="header" className="messenger-heading assistant-drawer__header">
-        <DrawerTitle ref={heading} tabIndex={-1} className="text-2xl font-semibold outline-none">{ASSISTANT_NAME}</DrawerTitle>
+    <section className={chat ? 'messenger-conversation assistant-drawer' : 'messenger-directory'}>
+      <ControlBar as="header" className="messenger-heading">
+        <DrawerTitle ref={chat ? undefined : heading} tabIndex={chat ? undefined : -1}
+          className={chat ? 'sr-only' : 'text-2xl font-semibold outline-none'}>{ASSISTANT_NAME}</DrawerTitle>
+        {chat && <>
+          <MessageDrawerBack onClick={showList} />
+          <MessengerAvatar icon={Bot} />
+          <h2 ref={heading} tabIndex={-1} title={chat.title} className="min-w-0 truncate text-lg font-semibold outline-none">{chat.title}</h2>
+        </>}
         <MessageDrawerClose label="Закрыть ассистента" />
-        <AssistantChatPicker {...workspace} />
       </ControlBar>
-      <AssistantConversation key={workspace.chat.id} open={open} {...workspace} />
+      {chat ? <AssistantConversation key={chat.id} open={open} {...workspace} /> : <AssistantChatList {...workspace} />}
     </section>
   </MessageDrawer>;
 }
